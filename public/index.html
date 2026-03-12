@@ -1406,7 +1406,7 @@ const VOL_MAP={'1m':.004,'5m':.007,'15m':.011,'1h':.014,'1d':.018,'1w':.038,'1M'
 const API_KEY = ''; // Key fetched securely from /api/ws-token at runtime
 const FBASE='https://finnhub.io/api/v1'; // used for WebSocket only
 const TF_RES={'1m':'1','5m':'5','15m':'15','1h':'60','4h':'60','1d':'D','1w':'W','1M':'M'};
-const TF_FROM={'1m':3,'5m':14,'15m':30,'1h':90,'4h':180,'1d':365,'1w':1095,'1M':1825};
+const TF_FROM={'1m':2,'5m':5,'15m':10,'1h':90,'4h':180,'1d':365,'1w':1095,'1M':1825}; // days of history per TF
 // Binance TF map for crypto
 const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d','1w':'1w','1M':'1M'};
 // Finnhub futures symbol map (continuous contracts)
@@ -6286,7 +6286,7 @@ async function fetchMoreHistory(){
       const existingTimes = new Set(curData.map(d=>d.time));
       const newBars = bars.filter(b=>!existingTimes.has(b.time)).sort((a,b)=>a.time-b.time);
       if(newBars.length){
-        curData = [...newBars, ...curData];
+        curData = dedupeAndFill([...newBars, ...curData], tf);
         rightBarIndex += newBars.length; // keep view stable
         dataCache[sym+'_'+tf] = curData;
         draw();
@@ -6347,6 +6347,48 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
   }));
 }
 
+// ── Gap filler — removes duplicate timestamps and fills intra-session gaps ──────
+// For intraday data Yahoo only returns bars during market hours, leaving gaps
+// between sessions. We fill those gaps with flat bars (close=prev close) so
+// the chart renders without visual holes between sessions.
+const TF_SECONDS = {'1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1M':2592000};
+
+function dedupeAndFill(bars, tf){
+  if(!bars.length) return bars;
+  const step = TF_SECONDS[tf];
+  if(!step) return bars;
+
+  // 1) Deduplicate by timestamp (keep last seen)
+  const seen = new Map();
+  bars.forEach(b => seen.set(b.time, b));
+  bars = [...seen.values()].sort((a,b) => a.time - b.time);
+
+  // 2) For daily+ timeframes, no fill needed — gaps are weekends/holidays, expected
+  if(step >= 86400) return bars;
+
+  // 3) For intraday: fill gaps that are an exact multiple of the step size
+  //    (i.e. missing bars within a session or between close sessions)
+  //    Don't fill gaps > 12h — those are overnight gaps we want to skip over
+  const maxFillGap = 12 * 3600; // 12 hours
+  const filled = [bars[0]];
+  for(let i = 1; i < bars.length; i++){
+    const prev = bars[i-1];
+    const curr = bars[i];
+    const gap  = curr.time - prev.time;
+    // Fill only if gap is a small number of steps (< 12h) and > 1 step
+    if(gap > step && gap <= maxFillGap){
+      let t = prev.time + step;
+      while(t < curr.time){
+        // Flat bar at previous close — volume 0
+        filled.push({ time:t, open:prev.close, high:prev.close, low:prev.close, close:prev.close, volume:0 });
+        t += step;
+      }
+    }
+    filled.push(curr);
+  }
+  return filled;
+}
+
 // ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
@@ -6389,6 +6431,7 @@ async function loadSym(sym){
 
     if(bars.length >= 2 && sym===curSym.s){
       bars.sort((a,b)=>a.time-b.time);
+      bars = dedupeAndFill(bars, curTF);
       dataCache[sym+'_'+curTF] = bars;
       curData = bars;
       rightBarIndex = curData.length+5;
