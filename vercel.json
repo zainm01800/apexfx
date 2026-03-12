@@ -1,7 +1,6 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)",     "dest": "/public/$1" }
-  ]
+  "name": "apexfx",
+  "version": "1.0.0",
+  "description": "APEX FX Trading Platform",
+  "private": true
 }
