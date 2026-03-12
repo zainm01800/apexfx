@@ -6195,7 +6195,7 @@ function setupEvents(){
 let liveWS = null;
 let liveWSSym = null;
 
-function connectLiveTick(sym, type){
+async function connectLiveTick(sym, type){
   if(liveWS){ try{ liveWS.close(); }catch(e){} liveWS=null; }
   if(type==='Crypto'){
     // Binance WebSocket — strip /USD suffix properly: BTC/USD → btcusdt
