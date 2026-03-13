@@ -84,35 +84,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   background:var(--bg1);border-right:1px solid var(--line);
   display:none;flex-direction:column;z-index:150;
   animation:slideIn .18s ease;
-  transition:width .2s ease;
 }
 #overlay-panel.open{display:flex;}
-/* Locked = docked into the layout flow; nav+panel+main-col sit side by side */
-#overlay-panel.locked{
-  position:relative;left:auto;top:auto;bottom:auto;
-  display:flex;z-index:1;flex-shrink:0;
-  animation:none;
-}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 .ov-hdr{
-  display:flex;align-items:center;gap:6px;
+  display:flex;align-items:center;justify-content:space-between;
   padding:14px 14px 10px;border-bottom:1px solid var(--line);flex-shrink:0;
 }
 .ov-title{font-family:var(--font-mono);font-size:10px;font-weight:600;
-  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;flex:1;}
-/* Lock / pin button */
-.ov-lock{
-  background:none;border:1px solid var(--line);color:var(--tx3);font-size:11px;
-  cursor:pointer;padding:2px 6px;border-radius:4px;transition:all .15s;
-  font-family:var(--font-mono);line-height:1;flex-shrink:0;
-}
-.ov-lock:hover{border-color:var(--line2);color:var(--tx2);}
-.ov-lock.pinned{border-color:rgba(61,142,255,.4);color:var(--blue);background:rgba(61,142,255,.08);}
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;}
 .ov-close{background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;
-  padding:0;transition:color .15s;flex-shrink:0;}
+  padding:0;transition:color .15s;}
 .ov-close:hover{color:var(--red);}
-/* Hide close button when locked — panel is docked, use the nav icon to toggle */
-#overlay-panel.locked .ov-close{display:none;}
 .ov-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 
 /* ─── WATCHLIST in overlay ───────────────────────────────────────────────── */
@@ -328,8 +311,40 @@ canvas{display:block;flex-shrink:0;}
   font-family:var(--font-mono);font-size:9px;color:var(--tx3);flex-shrink:0;
 }
 
-/* ─── IND TOPBAR (hidden, for compatibility) ─────────────────────────────── */
-#ind-topbar{display:none;}
+/* ─── IND TOPBAR — indicator chips in the command bar ───────────────────── */
+#ind-topbar{
+  display:flex;align-items:center;gap:4px;flex-wrap:nowrap;
+  overflow-x:auto;scrollbar-width:none;max-width:340px;flex-shrink:1;
+}
+#ind-topbar::-webkit-scrollbar{display:none;}
+/* Each chip */
+.tbtn{
+  font-family:var(--font-mono);font-size:10px;font-weight:500;
+  padding:3px 10px;height:26px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+  color:var(--tx3);border-radius:20px;cursor:pointer;
+  transition:all .15s;white-space:nowrap;flex-shrink:0;
+  display:flex;align-items:center;gap:4px;
+}
+.tbtn:hover{background:rgba(255,255,255,.08);color:var(--tx2);border-color:var(--line2);}
+/* Active state — indicator is ON */
+.tbtn.on{
+  background:rgba(61,142,255,.1);border-color:rgba(61,142,255,.35);
+  color:var(--blue);
+}
+.tbtn.on:hover{background:rgba(61,142,255,.18);}
+/* Small dot indicator of active state */
+.tbtn::before{
+  content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0;
+  background:var(--tx3);transition:background .15s;
+}
+.tbtn.on::before{background:var(--blue);}
+/* Separator between OHLC and ind chips */
+#ind-topbar-sep{
+  width:1px;height:18px;background:var(--line);flex-shrink:0;margin:0 4px;
+  display:none;
+}
+#ind-topbar:not(:empty) ~ #ind-topbar-sep-after{display:block;}
 
 /* ─── RIGHT DRAWER ───────────────────────────────────────────────────────── */
 #rdrawer{
@@ -774,7 +789,6 @@ canvas{display:block;flex-shrink:0;}
   <div id="overlay-panel">
     <div class="ov-hdr">
       <span class="ov-title" id="ov-title">Panel</span>
-      <button class="ov-lock" id="ov-lock-btn" onclick="toggleOverlayLock()" title="Pin panel open">⊞</button>
       <button class="ov-close" onclick="closeOverlay()">✕</button>
     </div>
 
@@ -950,6 +964,10 @@ canvas{display:block;flex-shrink:0;}
       </div>
 
       <div class="cmd-spacer"></div>
+
+      <!-- Indicator chips — populated by renderTopbarInds() -->
+      <div id="ind-topbar-sep" class="cmd-div"></div>
+      <div id="ind-topbar"></div>
 
       <!-- Right actions -->
       <div id="ind-topbar"></div>
@@ -1531,82 +1549,37 @@ canvas{display:block;flex-shrink:0;}
 <script>
 // Overlay panel controller
 let _activeOverlay = null;
-let _overlayLocked = false;
-
 function toggleOverlay(name) {
   const panel = document.getElementById('overlay-panel');
   const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools'};
-
-  // If locked and same panel clicked — unlock and close
-  if (_overlayLocked && _activeOverlay === name) {
-    _overlayLocked = false;
+  if (_activeOverlay === name) {
     closeOverlay();
     return;
   }
-
-  // If same panel clicked (not locked) — close
-  if (!_overlayLocked && _activeOverlay === name) {
-    closeOverlay();
-    return;
-  }
-
   // Hide all sub-panels
   ['ov-watch','ov-alerts','ov-scanner','ov-draw'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
-
   // Show target
   const target = document.getElementById('ov-' + name);
   if (target) target.style.display = 'block';
   document.getElementById('ov-title').textContent = titles[name] || name;
-
   panel.classList.add('open');
-  // Re-apply locked class if panel was locked (switching panels keeps lock)
-  if (_overlayLocked) panel.classList.add('locked');
-
   _activeOverlay = name;
-
   // Update nav button active states
   ['watch','alerts','scanner','draw'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.toggle('active', n === name);
   });
-
-  _updateLockBtn();
 }
-
 function closeOverlay() {
-  const panel = document.getElementById('overlay-panel');
-  panel.classList.remove('open','locked');
+  document.getElementById('overlay-panel').classList.remove('open');
   ['watch','alerts','scanner','draw'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.remove('active');
   });
   _activeOverlay = null;
-  _overlayLocked = false;
-  _updateLockBtn();
-}
-
-function toggleOverlayLock() {
-  const panel = document.getElementById('overlay-panel');
-  _overlayLocked = !_overlayLocked;
-  panel.classList.toggle('locked', _overlayLocked);
-  _updateLockBtn();
-}
-
-function _updateLockBtn() {
-  const btn = document.getElementById('ov-lock-btn');
-  if (!btn) return;
-  if (_overlayLocked) {
-    btn.classList.add('pinned');
-    btn.title = 'Unpin panel';
-    btn.textContent = '⊟';
-  } else {
-    btn.classList.remove('pinned');
-    btn.title = 'Pin panel open';
-    btn.textContent = '⊞';
-  }
 }
 
 // Forward scanner results to the embedded panel
@@ -6795,7 +6768,8 @@ function renderTopbarInds(){
     btn.className = 'tbtn' + (on?' on':'');
     btn.id = 'btn-'+id;
     btn.textContent = label;
-    btn.onclick = ()=>toggleInd(id);
+    btn.title = (on ? 'Hide ' : 'Show ') + label;
+    btn.onclick = ()=>{ toggleInd(id); };
     container.appendChild(btn);
   });
   // Sync special indicator button states (sessions, replay use their own state vars)
@@ -6813,6 +6787,9 @@ function renderTopbarInds(){
     btn.onclick = ()=>indToggle(ind.id);
     container.appendChild(btn);
   });
+  // Show/hide the separator depending on whether there are any chips
+  const sep = document.getElementById('ind-topbar-sep');
+  if(sep) sep.style.display = container.children.length > 0 ? 'block' : 'none';
 }
 function sbTab(btn,tab){
   document.querySelectorAll('.sbtab').forEach(b=>b.classList.remove('on'));
