@@ -86,16 +86,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   animation:slideIn .18s ease;
 }
 #overlay-panel.open{display:flex;}
+/* Locked = docked into layout flow, pushes main-col right */
+#overlay-panel.locked{
+  position:relative;left:auto;top:auto;bottom:auto;
+  display:flex;z-index:1;flex-shrink:0;animation:none;
+}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 .ov-hdr{
-  display:flex;align-items:center;justify-content:space-between;
+  display:flex;align-items:center;gap:6px;
   padding:14px 14px 10px;border-bottom:1px solid var(--line);flex-shrink:0;
 }
 .ov-title{font-family:var(--font-mono);font-size:10px;font-weight:600;
-  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;}
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;flex:1;}
+.ov-lock{
+  background:none;border:1px solid var(--line);color:var(--tx3);font-size:11px;
+  cursor:pointer;padding:2px 6px;border-radius:4px;transition:all .15s;
+  font-family:var(--font-mono);line-height:1;flex-shrink:0;
+}
+.ov-lock:hover{border-color:var(--line2);color:var(--tx2);}
+.ov-lock.pinned{border-color:rgba(61,142,255,.4);color:var(--blue);background:rgba(61,142,255,.08);}
 .ov-close{background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;
-  padding:0;transition:color .15s;}
+  padding:0;transition:color .15s;flex-shrink:0;}
 .ov-close:hover{color:var(--red);}
+#overlay-panel.locked .ov-close{display:none;}
 .ov-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 
 /* ─── WATCHLIST in overlay ───────────────────────────────────────────────── */
@@ -746,7 +759,7 @@ canvas{display:block;flex-shrink:0;}
       <span>✏</span><span class="nav-tip">Drawing Tools</span>
     </button>
     <!-- Indicators -->
-    <button class="nav-btn" onclick="openIndList()" title="Indicators">
+    <button class="nav-btn" id="nav-inds" onclick="toggleOverlay('inds')" title="Indicators">
       <span>📈</span><span class="nav-tip">Indicators</span>
     </button>
     <!-- Replay -->
@@ -789,6 +802,7 @@ canvas{display:block;flex-shrink:0;}
   <div id="overlay-panel">
     <div class="ov-hdr">
       <span class="ov-title" id="ov-title">Panel</span>
+      <button class="ov-lock" id="ov-lock-btn" onclick="toggleOverlayLock()" title="Pin panel open">⊞</button>
       <button class="ov-close" onclick="closeOverlay()">✕</button>
     </div>
 
@@ -914,6 +928,30 @@ canvas{display:block;flex-shrink:0;}
       <div class="draw-tools-grid">
         <button class="dt-btn" id="dt-eraser" onclick="setTool('eraser')" title="Eraser (E)">⌫</button>
         <button class="dt-btn" onclick="clearDrawings()" title="Clear All" style="font-size:13px;">🗑</button>
+      </div>
+    </div>
+
+    <!-- INDICATORS sub-panel -->
+    <div id="ov-inds" class="ov-body" style="display:none;flex-direction:column;">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--line);flex-shrink:0;">
+        <input id="ov-ind-search" placeholder="Search indicators…" oninput="filterIndList(this.value)"
+          style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--tx);
+          font-size:11px;padding:6px 10px;border-radius:var(--r);outline:none;
+          font-family:var(--font-mono);">
+      </div>
+      <div style="display:flex;border-bottom:1px solid var(--line);flex-shrink:0;">
+        <button class="iltab on" id="iltab-builtin" onclick="ilTab(this,'builtin')">Built-in</button>
+        <button class="iltab" id="iltab-custom" onclick="ilTab(this,'custom')">⚗ Custom</button>
+      </div>
+      <div id="indlist-body" style="flex:1;overflow-y:auto;padding:4px 0;"></div>
+      <div style="padding:10px 12px;border-top:1px solid var(--line);flex-shrink:0;">
+        <button onclick="openIndBuilder()"
+          style="width:100%;padding:7px;background:rgba(245,166,35,.07);
+          border:1px dashed rgba(245,166,35,.3);color:var(--amber);font-size:10px;
+          border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);font-weight:600;
+          transition:background .15s;"
+          onmouseover="this.style.background='rgba(245,166,35,.14)'"
+          onmouseout="this.style.background='rgba(245,166,35,.07)'">⚗ Build Custom Indicator</button>
       </div>
     </div>
 
@@ -1066,8 +1104,8 @@ canvas{display:block;flex-shrink:0;}
       <span id="sb-sym" style="color:var(--tx2);">AAPL</span>
       <span id="sb-tf" style="color:var(--tx3);">1D</span>
       <span id="sb-bars" style="color:var(--tx3);"></span>
-      <span id="st-pattern" style="display:none;color:var(--amber);font-size:9px;"></span>
-      <span id="st-tilt" style="display:none;color:var(--rd);font-size:9px;">⚠ Tilt Risk</span>
+      <span id="st-pattern" style="display:none;color:var(--amber);font-size:9px;margin-left:6px;"></span>
+      <span id="st-tilt" style="display:none;color:var(--rd);font-size:9px;margin-left:6px;">⚠ Tilt Risk</span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:9px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:9px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
@@ -1307,7 +1345,10 @@ canvas{display:block;flex-shrink:0;}
     </div>
 
     <!-- News tab -->
-    <div class="rp-body" id="rp-info"></div>
+    <div class="rp-body" id="rp-info">
+      <div id="rp-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);border-bottom:1px solid var(--line);flex-shrink:0;"></div>
+      <div id="rp-news" style="overflow-y:auto;flex:1;"></div>
+    </div>
 
     <!-- Builder tab (Indicator Builder + custom inds) -->
     <div class="rp-body" id="rp-inds">
@@ -1389,14 +1430,14 @@ canvas{display:block;flex-shrink:0;}
 <div id="jmodal-bg">
   <div id="jmodal">
     <div class="jm-hdr">
-      <div class="jm-title" id="jm-title">New Trade Entry</div>
+      <div class="jm-title" id="jm-title-lbl">New Trade Entry</div>
       <button class="jm-close" onclick="closeJModal()">✕</button>
     </div>
     <div class="jm-section">
       <div class="jm-label">DIRECTION</div>
       <div class="dir-btns">
-        <button class="dir-btn long" onclick="jmSetDir('long')">▲ LONG</button>
-        <button class="dir-btn short" onclick="jmSetDir('short')">▼ SHORT</button>
+        <button class="dir-btn long" id="jm-dir-long" onclick="jmSetDir('long')">▲ LONG</button>
+        <button class="dir-btn short" id="jm-dir-short" onclick="jmSetDir('short')">▼ SHORT</button>
       </div>
       <div class="jm-label">TRADE DETAILS</div>
       <div class="jm-row">
@@ -1426,7 +1467,7 @@ canvas{display:block;flex-shrink:0;}
       <div class="jm-row3">
         <div>
           <div class="jm-label">EXIT</div>
-          <input class="jm-input" id="jm-exit" type="number" step="any" placeholder="0.00" oninput="jmCalcPL()">
+          <input class="jm-input" id="jm-exit" type="number" step="any" placeholder="0.00" oninput="jmCalcPL();jmCalcRR();">
         </div>
         <div>
           <div class="jm-label">SIZE</div>
@@ -1434,8 +1475,13 @@ canvas{display:block;flex-shrink:0;}
         </div>
         <div>
           <div class="jm-label">P&L</div>
-          <input class="jm-input" id="jm-pl" type="number" step="any" placeholder="auto" oninput="">
+          <input class="jm-input" id="jm-pl" type="number" step="any" placeholder="auto">
         </div>
+      </div>
+      <!-- P&L bar — shown when calculable -->
+      <div id="jm-pl-bar" style="display:none;align-items:center;gap:10px;padding:6px 0 2px;margin-bottom:4px;">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--tx3);">P&L</div>
+        <div id="jm-pl-val" style="font-family:var(--font-mono);font-size:13px;font-weight:700;">—</div>
       </div>
       <div class="jm-row">
         <div>
@@ -1450,8 +1496,24 @@ canvas{display:block;flex-shrink:0;}
           </select>
         </div>
       </div>
+      <div class="jm-label">OUTCOME</div>
+      <div class="jm-row" style="margin-bottom:10px;">
+        <div>
+          <select class="jm-select" id="jm-outcome">
+            <option value="">— Select —</option>
+            <option value="win">✅ Win</option>
+            <option value="loss">❌ Loss</option>
+            <option value="breakeven">⚖ Breakeven</option>
+            <option value="open">🔵 Still Open</option>
+          </select>
+        </div>
+        <div>
+          <div class="jm-label">R:R</div>
+          <div id="jm-rr-val" style="font-family:var(--font-mono);font-size:12px;color:var(--tx2);padding:5px 0;">—</div>
+        </div>
+      </div>
       <div class="jm-label">EMOTION</div>
-      <div class="emotion-row">
+      <div class="emotion-row" id="jm-emotions">
         <button class="emo-btn" onclick="jmToggleEmo(this)">😤 Angry</button>
         <button class="emo-btn" onclick="jmToggleEmo(this)">😰 Fear</button>
         <button class="emo-btn" onclick="jmToggleEmo(this)">🤩 FOMO</button>
@@ -1461,7 +1523,7 @@ canvas{display:block;flex-shrink:0;}
         <button class="emo-btn" onclick="jmToggleEmo(this)">🤔 Unsure</button>
       </div>
       <div class="jm-label">TAGS</div>
-      <div class="tag-row">
+      <div class="tag-row" id="jm-tags">
         <button class="tag-btn" onclick="jmToggleTag(this)">reversal</button>
         <button class="tag-btn" onclick="jmToggleTag(this)">breakout</button>
         <button class="tag-btn" onclick="jmToggleTag(this)">trend</button>
@@ -1475,16 +1537,23 @@ canvas{display:block;flex-shrink:0;}
       </div>
       <div class="jm-label">NOTES</div>
       <textarea class="jm-textarea" id="jm-notes" placeholder="Why did you take this trade? What did you learn?"></textarea>
+      <div class="jm-label">LESSONS LEARNT</div>
+      <textarea class="jm-textarea" id="jm-lessons" placeholder="What would you do differently?" style="min-height:60px;"></textarea>
       <div class="jm-label">CHART SNAPSHOT</div>
-      <div id="jm-snap-wrap" onclick="jmSnapClick()">
-        <img id="jm-snap-img" src="" style="display:none;">
-        <div id="jm-snap-placeholder">
-          <span style="font-size:22px;">📷</span>
-          <span>Click to attach screenshot</span>
+      <div id="jm-snap-wrap" style="position:relative;">
+        <img id="jm-snap-img" src="" style="display:none;width:100%;border-radius:var(--r);">
+        <div id="jm-snap-placeholder" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;">
+          <button onclick="jmSnapClick()" style="flex:1;padding:7px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);transition:all .15s;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--line)'">📷 Capture Chart</button>
+          <button onclick="document.getElementById('jm-snap-file').click()" style="flex:1;padding:7px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);transition:all .15s;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--line)'">📁 Upload Image</button>
         </div>
-        <button class="snap-del-btn" id="jm-snap-del" style="display:none;" onclick="event.stopPropagation();jmSnapDel()">✕</button>
+        <button class="snap-del-btn" id="jm-snap-del" style="display:none;position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;color:#fff;font-size:13px;width:22px;height:22px;border-radius:50%;cursor:pointer;line-height:1;" onclick="jmSnapDel()">✕</button>
       </div>
       <input type="file" id="jm-snap-file" accept="image/*" style="display:none;" onchange="jmSnapLoad(this)">
+
+      <!-- Pre-trade check -->
+      <div id="pretrade-check-wrap" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(255,77,106,.06);border:1px solid rgba(255,77,106,.25);border-radius:var(--r);">
+        <div id="pretrade-check-txt" style="font-size:9px;color:var(--red);font-family:var(--font-mono);line-height:1.5;"></div>
+      </div>
 
       <!-- Pre-trade AI analysis section -->
       <div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--line);">
@@ -1495,8 +1564,23 @@ canvas{display:block;flex-shrink:0;}
         <div id="pretrade-ai-out" style="display:none;margin-top:6px;padding:6px 8px;background:var(--bg);border-radius:var(--r);font-size:9px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;border-top:1px solid var(--line);"></div>
       </div>
 
+      <!-- Pre-trade checklist -->
+      <div style="margin-top:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer;" onclick="toggleChecklist()">
+          <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--tx2);letter-spacing:1px;">✅ PRE-TRADE CHECKLIST</div>
+          <div id="jm-checklist-score" style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);">0 / 0</div>
+        </div>
+        <div id="jm-checklist" style="background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:8px;display:none;">
+          <div id="jm-checks" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:6px;">
+            <input id="jm-check-new" placeholder="Add check item…" style="flex:1;background:var(--bg);border:1px solid var(--line);color:var(--tx);font-size:10px;padding:4px 8px;border-radius:var(--r);outline:none;font-family:var(--font-mono);" onkeydown="if(event.key==='Enter')addCheck()">
+            <button onclick="addCheck()" style="padding:4px 10px;background:var(--bg4);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;">+</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Archive toggle -->
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-top:4px;border-top:1px solid var(--line);">
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-top:8px;border-top:1px solid var(--line);">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
           <div id="jm-archive-toggle" onclick="jmToggleArchive()" style="width:30px;height:16px;border-radius:8px;background:var(--bg4);border:1px solid var(--line);position:relative;cursor:pointer;transition:all .2s;">
             <div id="jm-archive-thumb" style="position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:var(--tx3);transition:all .2s;"></div>
@@ -1558,37 +1642,94 @@ canvas{display:block;flex-shrink:0;}
 <script>
 // Overlay panel controller
 let _activeOverlay = null;
+let _overlayLocked = false;
+
 function toggleOverlay(name) {
   const panel = document.getElementById('overlay-panel');
-  const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools'};
-  if (_activeOverlay === name) {
+  const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools',inds:'Indicators'};
+
+  // Locked + same panel clicked → unlock and close
+  if (_overlayLocked && _activeOverlay === name) {
+    _overlayLocked = false;
     closeOverlay();
     return;
   }
+
+  // Unlocked + same panel clicked → close
+  if (!_overlayLocked && _activeOverlay === name) {
+    closeOverlay();
+    return;
+  }
+
   // Hide all sub-panels
-  ['ov-watch','ov-alerts','ov-scanner','ov-draw'].forEach(id => {
+  ['ov-watch','ov-alerts','ov-scanner','ov-draw','ov-inds'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
+
   // Show target
   const target = document.getElementById('ov-' + name);
-  if (target) target.style.display = 'block';
+  if (target) target.style.display = name === 'inds' ? 'flex' : 'block';
   document.getElementById('ov-title').textContent = titles[name] || name;
+
+  // If opening indicators panel, populate it
+  if (name === 'inds') {
+    const s = document.getElementById('ov-ind-search');
+    if (s) s.value = '';
+    ilCurrentTab = 'builtin';
+    const tb = document.getElementById('iltab-builtin');
+    const tc = document.getElementById('iltab-custom');
+    if (tb) tb.classList.add('on');
+    if (tc) tc.classList.remove('on');
+    renderIndList('');
+    setTimeout(() => { const s2 = document.getElementById('ov-ind-search'); if(s2) s2.focus(); }, 80);
+  }
+
   panel.classList.add('open');
+  if (_overlayLocked) panel.classList.add('locked');
+
   _activeOverlay = name;
+
   // Update nav button active states
-  ['watch','alerts','scanner','draw'].forEach(n => {
+  ['watch','alerts','scanner','draw','inds'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.toggle('active', n === name);
   });
+
+  _updateLockBtn();
 }
+
 function closeOverlay() {
-  document.getElementById('overlay-panel').classList.remove('open');
-  ['watch','alerts','scanner','draw'].forEach(n => {
+  const panel = document.getElementById('overlay-panel');
+  panel.classList.remove('open', 'locked');
+  ['watch','alerts','scanner','draw','inds'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.remove('active');
   });
   _activeOverlay = null;
+  _overlayLocked = false;
+  _updateLockBtn();
+}
+
+function toggleOverlayLock() {
+  const panel = document.getElementById('overlay-panel');
+  _overlayLocked = !_overlayLocked;
+  panel.classList.toggle('locked', _overlayLocked);
+  _updateLockBtn();
+}
+
+function _updateLockBtn() {
+  const btn = document.getElementById('ov-lock-btn');
+  if (!btn) return;
+  if (_overlayLocked) {
+    btn.classList.add('pinned');
+    btn.title = 'Unpin panel';
+    btn.textContent = '⊟';
+  } else {
+    btn.classList.remove('pinned');
+    btn.title = 'Pin panel open';
+    btn.textContent = '⊞';
+  }
 }
 
 // Forward scanner results to the embedded panel
@@ -1684,10 +1825,9 @@ let smaCols=['#3d7fff','#f0a500'];
 let newsCacheDuration=1800000;
 
 const VOL_MAP={'1m':.004,'5m':.007,'15m':.011,'1h':.014,'1d':.018,'1w':.038,'1M':.08};
-// API key is fetched securely from server-side proxy
+// API key fetched securely from server — never exposed in browser source
 let API_KEY = '';
 const FBASE = 'https://finnhub.io/api/v1';
-// Fetch WS token from secure backend on load
 (async () => {
   try {
     const r = await fetch('/api/ws-token');
@@ -2257,18 +2397,36 @@ function jmRenderSnap(){
   const img  = document.getElementById('jm-snap-img');
   const ph   = document.getElementById('jm-snap-placeholder');
   const del  = document.getElementById('jm-snap-del');
+  if(!img) return;
   if(jSnapData){
-    img.src=jSnapData; img.style.display='block';
-    ph.style.display='none'; del.style.display='block';
-  }else{
-    img.style.display='none'; img.src='';
-    ph.style.display='flex'; del.style.display='none';
+    img.src = jSnapData; img.style.display = 'block';
+    if(ph) ph.style.display = 'none';
+    if(del) del.style.display = 'block';
+  } else {
+    img.style.display = 'none'; img.src = '';
+    if(ph) ph.style.display = 'flex';
+    if(del) del.style.display = 'none';
   }
 }
 
+function jmSnapDel(){
+  jSnapData = null;
+  jmRenderSnap();
+}
+
+function jmSnapLoad(input){
+  const file = input?.files?.[0];
+  if(!file || !file.type.startsWith('image/')) return;
+  const r = new FileReader();
+  r.onload = ev => { jSnapData = ev.target.result; jmRenderSnap(); toast('📷 Image attached'); };
+  r.readAsDataURL(file);
+  // Reset so same file can be re-selected
+  input.value = '';
+}
+
 function jmSnapClick(){
-  if(jSnapData) return; // already has one — must clear first
-  // Modal is open, so we need to temporarily hide it, capture, then re-show
+  if(jSnapData) return; // delete button clears it — clicking img area does nothing
+  // Briefly hide modal so chart is visible for capture
   const modal = document.getElementById('jmodal-bg');
   modal.style.visibility = 'hidden';
   requestAnimationFrame(()=>{
@@ -2276,7 +2434,7 @@ function jmSnapClick(){
       const snap = captureChart();
       modal.style.visibility = '';
       if(snap){ jSnapData=snap; jmRenderSnap(); toast('📷 Chart captured'); }
-      else toast('❌ Screenshot failed');
+      else { toast('❌ Screenshot failed — try Upload instead'); }
     });
   });
 }
@@ -4616,55 +4774,93 @@ async function fetchRSSHeadlines(sym){
   const type = symType(sym);
   const isForex = type === 'Forex';
   const isCrypto = type === 'Crypto';
+  const clean = s => (s||'').replace(/\s*-\s*[^-]+$/, '').replace(/<[^>]+>/g,'').trim();
+
+  // Build all feed URLs to try simultaneously
+  const feedJobs = []; // {url, sourceName, keywords}
 
   if(isForex){
     const pairNoSlash = sym.replace('/','');
     const currencyWords = {'EUR':'euro','USD':'dollar','GBP':'pound','JPY':'yen','AUD':'australian','CAD':'canadian','CHF':'franc','NZD':'zealand'};
     const keywords = sym.split('/').flatMap(c=>[c.toLowerCase(), currencyWords[c]||''].filter(Boolean));
-
     const FOREX_FEEDS = [
-      'https://www.fxstreet.com/rss/news',
-      'https://www.forexlive.com/feed',
-      'https://www.myfxbook.com/rss/latest-forex-news',
-      'https://www.dailyforex.com/rss/forexnews.xml',
+      {url:'https://www.fxstreet.com/rss/news', name:'FX Street'},
+      {url:'https://www.forexlive.com/feed', name:'ForexLive'},
+      {url:'https://www.dailyforex.com/rss/forexnews.xml', name:'DailyForex'},
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' forex')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
     ];
-
-    const allItems = [];
-    await Promise.allSettled(FOREX_FEEDS.map(async (feedUrl, fi) => {
-      const feedNames = ['FX Street','ForexLive','Myfxbook','DailyForex'];
-      const items = await fetchViaProxy(feedUrl);
-      items.forEach(i => {
-        const text = (i.title+' '+i.desc).toLowerCase();
-        const pairMatch = i.pair && (i.pair===pairNoSlash||i.pair===sym);
-        const score = pairMatch ? 3 : keywords.filter(k=>text.includes(k)).length;
-        allItems.push({title:i.title.replace(/\s*-\s*[^-]+$/,'').trim(), link:i.link, date:i.date, source:feedNames[fi], _score:score});
-      });
-    }));
-
-    if(allItems.length){
-      allItems.sort((a,b)=>b._score-a._score);
-      return allItems.slice(0,10).map(({_score,...r})=>r);
-    }
+    FOREX_FEEDS.forEach(f => feedJobs.push({...f, keywords, pairNoSlash}));
+  } else if(isCrypto){
+    const feedJobs2 = [
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' crypto')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' cryptocurrency')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+      {url:'https://cointelegraph.com/rss', name:'CoinTelegraph'},
+      {url:'https://cryptonews.com/news/feed/', name:'CryptoNews'},
+    ];
+    feedJobs.push(...feedJobs2);
+  } else if(type==='Futures'){
+    feedJobs.push(
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' futures')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+    );
+  } else {
+    // Stocks / ETFs / Indices — fire all in parallel
+    feedJobs.push(
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' stock')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
+      {url:`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(sym)}&region=US&lang=en-US`, name:'Yahoo Finance'},
+      {url:`https://finance.yahoo.com/rss/headline?s=${encodeURIComponent(sym)}`, name:'Yahoo Finance'},
+      {url:`https://www.marketwatch.com/search?q=${encodeURIComponent(q)}&ts=0&rpp=15&mp=806&bd=false&rs=true`, name:'MarketWatch'},
+      {url:`https://seekingalpha.com/api/sa/combined/${sym.toUpperCase()}.xml`, name:'Seeking Alpha'},
+    );
   }
 
-  // Google News fallback for all types
-  const gQueries = isForex
-    ? [sym.replace('/','_')+' forex', q+' forex', q]
-    : isCrypto ? [q+' crypto', q]
-    : type==='Futures' ? [q+' futures', q]
-    : [q+' stock', q];
+  // Fetch all feeds in parallel with timeout, deduplicate by title similarity
+  const seenTitles = new Set();
+  const allItems = [];
 
-  for(const gq of gQueries){
+  await Promise.allSettled(feedJobs.map(async job => {
     try {
-      const gFeed = 'https://news.google.com/rss/search?q='+encodeURIComponent(gq)+'&hl=en-US&gl=US&ceid=US:en';
-      const items = await fetchViaProxy(gFeed);
-      if(items.length) return items.slice(0,10).map(i=>({
-        title:i.title.replace(/\s*-\s*[^-]+$/,'').trim(), link:i.link, date:i.date, source:'Google News'
-      }));
+      const items = await fetchViaProxy(job.url);
+      items.forEach(i => {
+        const t = clean(i.title);
+        if(!t || t.length < 10) return;
+        // Simple dedup by first 40 chars of title
+        const key = t.toLowerCase().slice(0,40);
+        if(seenTitles.has(key)) return;
+        seenTitles.add(key);
+
+        let score = 0;
+        if(job.keywords){
+          const text = (i.title+' '+(i.desc||'')).toLowerCase();
+          const pairMatch = i.pair && (i.pair===job.pairNoSlash||i.pair===sym);
+          score = pairMatch ? 10 : job.keywords.filter(k=>text.includes(k)).length;
+        }
+
+        allItems.push({
+          title: t,
+          link: i.link,
+          date: i.date,
+          source: job.name,
+          _score: score,
+          _ts: i.date ? new Date(i.date).getTime() : 0
+        });
+      });
     } catch(e){}
+  }));
+
+  // Sort: for forex/crypto use relevance score, for others use recency
+  if(isForex){
+    allItems.sort((a,b) => b._score - a._score || b._ts - a._ts);
+  } else {
+    allItems.sort((a,b) => b._ts - a._ts);
   }
 
-  // Finnhub for stocks/ETFs
+  if(allItems.length){
+    return allItems.slice(0,12).map(({_score,_ts,...r})=>r);
+  }
+
+  // Final fallback: Finnhub for stocks/ETFs
   if(type==='Stock'||type==='ETF'){
     try {
       const cs = sym.replace(/[^A-Z0-9]/gi,'').toUpperCase();
@@ -4672,7 +4868,7 @@ async function fetchRSSHeadlines(sym){
       const u = `/api/news?symbol=${cs}&from=${new Date(from*1000).toISOString().slice(0,10)}&to=${new Date(to*1000).toISOString().slice(0,10)}`;
       const r = await fetch(u,{signal:AbortSignal.timeout(6000)});
       const j = await r.json();
-      if(Array.isArray(j)&&j.length) return j.slice(0,10).map(i=>({title:i.headline,link:i.url,date:new Date(i.datetime*1000).toISOString(),source:i.source||'Finnhub'}));
+      if(Array.isArray(j)&&j.length) return j.slice(0,12).map(i=>({title:i.headline,link:i.url,date:new Date(i.datetime*1000).toISOString(),source:i.source||'Finnhub'}));
     } catch(e){}
   }
 
@@ -4699,14 +4895,14 @@ sentiment must be exactly "BULLISH", "BEARISH", or "NEUTRAL".`;
 
 async function fetchNews(sym, name){
   const el = document.getElementById('rp-news');
-  if(newsCache[sym] && Date.now()-newsCache[sym].ts < 1800000){
+  // Cache for 5 minutes (was 30min — news goes stale fast)
+  if(newsCache[sym] && Date.now()-newsCache[sym].ts < 300000){
     renderNews(newsCache[sym].items, sym); return;
   }
-  el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching news...</div>';
+  el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching latest news...</div>';
 
-  // Step 1: try to get real RSS headlines
   let headlines = null;
-  try { headlines = await fetchRSSHeadlines(sym); } catch(e){}
+  try { headlines = await fetchRSSHeadlines(sym, name||sym); } catch(e){}
 
   if(!headlines || !headlines.length){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
@@ -4718,75 +4914,68 @@ async function fetchNews(sym, name){
     return;
   }
 
-  // Step 3: score real headlines with Groq
-  el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Analysing sentiment...</div>';
-  let items;
+  // Show headlines immediately with neutral sentiment while Groq scores them
+  const provisional = headlines.map(h=>({...h, sentiment:'NEUTRAL'}));
+  newsCache[sym] = {ts: Date.now(), items: provisional};
+  renderNews(provisional, sym);
+
+  // Then score with Groq in background and refresh
   try {
-    items = await scoreWithGroq(headlines, sym, name);
+    const scored = await scoreWithGroq(headlines, sym, name||sym);
+    newsCache[sym] = {ts: Date.now(), items: scored};
+    // Only re-render if still on same symbol
+    if(curSym.s === sym) renderNews(scored, sym);
   } catch(e){
-    items = headlines.map(h=>({...h, sentiment:'NEUTRAL'}));
+    // Keep provisional neutral render — that's fine
   }
-  newsCache[sym] = {ts: Date.now(), items};
-  renderNews(items, sym);
 }
 
 function renderNews(items, sym){
   const el = document.getElementById('rp-news');
-  if(!items?.length){ el.innerHTML=`<div style="padding:12px 8px;font-size:10px;color:var(--tx3);">No news found.</div>`; return; }
+  if(!items?.length){ el.innerHTML='<div style="padding:12px 8px;font-size:10px;color:var(--tx3);">No news found.</div>'; return; }
 
-  const colMap = {BULLISH:'#00c9a0', BEARISH:'#f03060', NEUTRAL:'#f0a500'};
-  const iconMap = {BULLISH:'▲', BEARISH:'▼', NEUTRAL:'●'};
+  const colMap = {BULLISH:'#00c9a0', BEARISH:'#f03060', NEUTRAL:'#778899'};
+  const iconMap = {BULLISH:'▲', BEARISH:'▼', NEUTRAL:'—'};
   const bullCount = items.filter(i=>i.sentiment==='BULLISH').length;
   const bearCount = items.filter(i=>i.sentiment==='BEARISH').length;
-  const overallCol = bullCount>bearCount?'#00c9a0':bearCount>bullCount?'#f03060':'#f0a500';
-  const overallLabel = bullCount>bearCount?'BULLISH':bearCount>bullCount?'BEARISH':'MIXED';
+  const allNeutral = bullCount===0 && bearCount===0;
+  const overallCol = allNeutral ? '#778899' : bullCount>bearCount ? '#00c9a0' : bearCount>bullCount ? '#f03060' : '#f0a500';
+  const overallLabel = allNeutral ? 'FETCHING SENTIMENT…' : bullCount>bearCount ? 'BULLISH' : bearCount>bullCount ? 'BEARISH' : 'MIXED';
   const cached = newsCache[sym];
   const fetchedAt = cached ? new Date(cached.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
-  el.innerHTML = `
-    <div style="margin:4px 6px 8px;padding:8px 10px;background:var(--bg3);border-radius:4px;border-left:3px solid ${overallCol};font-size:10px;">
-      <div style="font-weight:700;color:${overallCol};margin-bottom:2px;">${overallLabel} SENTIMENT</div>
-      <div style="color:var(--tx3);">${bullCount}▲ bullish · ${bearCount}▼ bearish · ${items.length} articles</div>
-      ${fetchedAt?`<div style="color:var(--tx3);font-size:8px;margin-top:2px;">Updated ${fetchedAt}</div>`:''}
-    </div>
-    ${items.map(item=>{
-      const col = colMap[item.sentiment]||'#f0a500';
-      const icon = iconMap[item.sentiment]||'●';
-      const ago = timeAgo(item.date);
-      const title = (item.title||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const wrap = item.link ? `<a href="${item.link}" target="_blank" rel="noopener" style="text-decoration:none;">` : '<div>';
-      const wrapEnd = item.link ? '</a>' : '</div>';
-      return `${wrap}
-        <div class="ni" style="border-left:2px solid ${col}55;padding-left:6px;transition:background .15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-          <div style="display:flex;align-items:flex-start;gap:5px;">
-            <span style="color:${col};font-size:10px;font-weight:700;margin-top:1px;flex-shrink:0;">${icon}</span>
-            <div class="nh" style="color:var(--tx);line-height:1.4;">${title}</div>
-          </div>
-          <div class="nm" style="margin-top:3px;display:flex;gap:8px;">
-            <span style="color:${col};font-weight:700;font-size:8px;letter-spacing:.3px;">${item.sentiment}</span>
-            <span style="color:var(--tx3);">${item.source||''}</span>
-            ${ago?`<span style="color:var(--tx3);">${ago}</span>`:''}
-          </div>
-        </div>
-      ${wrapEnd}`;
-    }).join('')}`;
+
+  let html = '<div style="margin:4px 6px 6px;padding:7px 10px;background:var(--bg3);border-radius:4px;border-left:3px solid '+overallCol+';font-size:10px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">'
+    + '<div style="font-weight:700;color:'+overallCol+';">'+overallLabel+'</div>'
+    + '<button onclick="delete newsCache[\''+sym+'\'];buildInfo();" title="Refresh" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↻</button>'
+    + '</div>'
+    + '<div style="color:var(--tx3);">'+items.length+' articles'+(allNeutral ? '' : ' · '+bullCount+'▲ '+bearCount+'▼')+'</div>'
+    + (fetchedAt ? '<div style="color:var(--tx3);font-size:8px;margin-top:2px;">Updated '+fetchedAt+'</div>' : '')
+    + '</div>';
+
+  items.forEach(item => {
+    const col = colMap[item.sentiment] || colMap.NEUTRAL;
+    const icon = iconMap[item.sentiment] || '—';
+    const ago = timeAgo(item.date);
+    const title = (item.title||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const isLink = !!item.link;
+    html += isLink ? '<a href="'+item.link+'" target="_blank" rel="noopener" style="text-decoration:none;">' : '<div>';
+    html += '<div class="ni" style="border-left:2px solid '+col+'55;padding-left:6px;margin:0 4px;padding-top:5px;padding-bottom:5px;transition:background .15s;" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
+      + '<div style="display:flex;align-items:flex-start;gap:5px;">'
+      + '<span style="color:'+col+';font-size:10px;font-weight:700;margin-top:1px;flex-shrink:0;">'+icon+'</span>'
+      + '<div class="nh" style="color:var(--tx);line-height:1.4;">'+title+'</div>'
+      + '</div>'
+      + '<div class="nm" style="margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;">'
+      + (item.sentiment!=='NEUTRAL' ? '<span style="color:'+col+';font-weight:700;font-size:8px;letter-spacing:.3px;">'+item.sentiment+'</span>' : '')
+      + '<span style="color:var(--tx3);font-size:9px;">'+(item.source||'')+'</span>'
+      + (ago ? '<span style="color:var(--tx3);font-size:9px;">'+ago+'</span>' : '')
+      + '</div></div>';
+    html += isLink ? '</a>' : '</div>';
+  });
+
+  el.innerHTML = html;
 }
 
-function buildInfo(){
-  if(!curData.length) return;
-  const last=curData[curData.length-1], prev=curData[curData.length-2]||last;
-  const pct=((last.close-prev.close)/prev.close*100).toFixed(2);
-  const hi=fP(Math.max(...curData.map(d=>d.high)));
-  const lo=fP(Math.min(...curData.map(d=>d.low)));
-  const avgVol=fV(Math.round(curData.slice(-20).reduce((s,d)=>s+d.volume,0)/20));
-  document.getElementById('rp-stats').innerHTML=`
-    <div class="cell"><div class="clbl">LAST</div><div class="cval">${fP(last.close)}</div></div>
-    <div class="cell"><div class="clbl">CHG%</div><div class="cval ${pct>=0?'up':'dn'}">${pct>=0?'+':''}${pct}%</div></div>
-    <div class="cell"><div class="clbl">HIGH</div><div class="cval up">${hi}</div></div>
-    <div class="cell"><div class="clbl">LOW</div><div class="cval dn">${lo}</div></div>
-    <div class="cell"><div class="clbl">AVG VOL</div><div class="cval">${avgVol}</div></div>
-    <div class="cell"><div class="clbl">TYPE</div><div class="cval">${curSym.t}</div></div>`;
-  fetchNews(curSym.s);
-}
 
 
 // ══ CANVAS CHART ══════════════════════════════════════════════════════════════
@@ -6522,7 +6711,7 @@ async function connectLiveTick(sym, type){
     };
     liveWS.onerror = ()=>{};
   } else {
-    if(!API_KEY){ try{ const r=await fetch('/api/ws-token'); const d=await r.json(); if(d.token) API_KEY=d.token; }catch(e){} }
+    if(!API_KEY){ try{ const wr=await fetch('/api/ws-token'); const wd=await wr.json(); if(wd.token) API_KEY=wd.token; }catch(e){} }
     liveWS = new WebSocket('wss://ws.finnhub.io?token='+API_KEY);
     liveWSSym = sym;
     liveWS.onopen = ()=>{
@@ -6582,8 +6771,8 @@ async function fetchMoreHistory(){
       const to   = oldest - 1;
       const days = TF_FROM[tf];
       const from = to - days*86400;
-      const proxyUrl = `/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${tf}&from=${from}&to=${to}`;
-      bars = await fetch(proxyUrl).then(r=>r.json()).catch(()=>[]);
+      bars = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${tf}&from=${from}&to=${to}`)
+        .then(r=>r.json()).catch(()=>[]);
       if(!Array.isArray(bars)) bars = [];
     }
     if(bars.length && sym===curSym.s && tf===curTF){
@@ -6665,8 +6854,8 @@ async function loadSym(sym){
       const now  = Math.floor(Date.now()/1000);
       const from = now - TF_FROM[curTF]*86400;
       const res  = TF_RES[curTF]||'D';
-      const proxyUrl = `/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${curTF}&from=${from}&to=${now}`;
-      bars = await fetch(proxyUrl).then(r=>r.json()).catch(()=>[]);
+      bars = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${curTF}&from=${from}&to=${now}`)
+        .then(r=>r.json()).catch(()=>[]);
       if(!Array.isArray(bars)) bars = [];
     }
 
@@ -6848,24 +7037,15 @@ function openIndBuilder(){
 function closeIndBuilder(){
   document.getElementById('indbuild-bg').style.display='none';
 }
-function openIndList(){
-  document.getElementById('indlist-bg').style.display='flex';
-  document.getElementById('indlist-search').value='';
-  ilCurrentTab='builtin';
-  document.getElementById('iltab-builtin').classList.add('on');
-  document.getElementById('iltab-custom').classList.remove('on');
-  renderIndList('');
-  setTimeout(()=>document.getElementById('indlist-search').focus(),80);
-}
-function closeIndList(){
-  document.getElementById('indlist-bg').style.display='none';
-}
+function openIndList(){ toggleOverlay('inds'); }
+function closeIndList(){ if(_activeOverlay==='inds') closeOverlay(); }
 let ilCurrentTab='builtin';
 function ilTab(btn,tab){
   ilCurrentTab=tab;
   document.querySelectorAll('.iltab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  renderIndList(document.getElementById('indlist-search').value||'');
+  const q = (document.getElementById('ov-ind-search')||{}).value||'';
+  renderIndList(q);
 }
 function filterIndList(q){ renderIndList(q); }
 
@@ -6897,8 +7077,8 @@ function renderIndList(q){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
           ${pinned
-            ? `<button onclick="removeIndFromTopbar('${ind.id}');renderIndList(document.getElementById('indlist-search').value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
-            : `<button onclick="addIndToTopbar('${ind.id}');renderIndList(document.getElementById('indlist-search').value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
+            ? `<button onclick="removeIndFromTopbar('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
+            : `<button onclick="addIndToTopbar('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
         </div>
       </div>`;
@@ -6925,11 +7105,11 @@ function renderIndList(q){
         </div>
         <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
           ${onBar
-            ? `<button onclick="indToggle('${ind.id}');renderIndList(document.getElementById('indlist-search').value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
-            : `<button onclick="indToggle('${ind.id}');renderIndList(document.getElementById('indlist-search').value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
+            ? `<button onclick="indToggle('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
+            : `<button onclick="indToggle('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
           <button onclick="indEdit('${ind.id}');closeIndList()" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:9px;padding:3px 7px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">✎</button>
-          <button onclick="indDelete('${ind.id}');renderIndList(document.getElementById('indlist-search').value||'')" style="background:none;border:none;color:var(--tx3);font-size:12px;padding:2px 5px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
+          <button onclick="indDelete('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="background:none;border:none;color:var(--tx3);font-size:12px;padding:2px 5px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
         </div>
       </div>`;
     }).join('');
@@ -8374,28 +8554,7 @@ window.addEventListener('load', () => {
 </div>
 
 <!-- ══ INDICATOR LIST MODAL ══════════════════════════════════════════════════ -->
-<div id="indlist-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:800;align-items:flex-start;justify-content:center;padding-top:60px;" onclick="if(event.target===this)closeIndList()">
-  <div style="background:var(--bg2);border:1px solid var(--b2);border-radius:6px;width:560px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6);">
-    <!-- Header -->
-    <div style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--b1);flex-shrink:0;">
-      <div style="font-size:12px;font-weight:700;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;letter-spacing:1px;flex:1;">☰ INDICATORS</div>
-      <input id="indlist-search" placeholder="Search indicators..." oninput="filterIndList(this.value)" style="background:var(--bg3);border:1px solid var(--b2);color:var(--tx);font-size:10px;padding:5px 9px;border-radius:3px;outline:none;font-family:ui-monospace,'SF Mono',monospace;width:180px;" onfocus="this.style.borderColor='var(--am)'" onblur="this.style.borderColor='var(--b2)'">
-      <button onclick="closeIndList()" style="margin-left:10px;background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;line-height:1;padding:0 4px;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
-    </div>
-    <!-- Tabs -->
-    <div style="display:flex;border-bottom:1px solid var(--b1);flex-shrink:0;">
-      <button class="iltab on" id="iltab-builtin" onclick="ilTab(this,'builtin')">Built-in</button>
-      <button class="iltab" id="iltab-custom" onclick="ilTab(this,'custom')">⚗ Custom</button>
-    </div>
-    <!-- Body -->
-    <div style="flex:1;overflow-y:auto;padding:6px 0;" id="indlist-body"></div>
-    <!-- Footer -->
-    <div style="padding:10px 14px;border-top:1px solid var(--b1);flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">+ Add to bar / remove to clear it from the topbar</span>
-      <button onclick="openIndBuilder();closeIndList();" style="padding:5px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:10px;border-radius:3px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">⚗ Build Custom</button>
-    </div>
-  </div>
-</div>
+<div id="indlist-bg" style="display:none;"><!-- indicator list moved to sidebar --></div>
 
 <!-- ══ INDICATOR BUILDER MODAL ════════════════════════════════════════════════ -->
 <div id="indbuild-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:810;align-items:flex-start;justify-content:center;padding-top:55px;" onclick="if(event.target===this)closeIndBuilder()">
