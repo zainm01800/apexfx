@@ -84,18 +84,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   background:var(--bg1);border-right:1px solid var(--line);
   display:none;flex-direction:column;z-index:150;
   animation:slideIn .18s ease;
+  transition:width .2s ease;
 }
 #overlay-panel.open{display:flex;}
+/* Locked = docked into the layout flow; nav+panel+main-col sit side by side */
+#overlay-panel.locked{
+  position:relative;left:auto;top:auto;bottom:auto;
+  display:flex;z-index:1;flex-shrink:0;
+  animation:none;
+}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 .ov-hdr{
-  display:flex;align-items:center;justify-content:space-between;
+  display:flex;align-items:center;gap:6px;
   padding:14px 14px 10px;border-bottom:1px solid var(--line);flex-shrink:0;
 }
 .ov-title{font-family:var(--font-mono);font-size:10px;font-weight:600;
-  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;}
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;flex:1;}
+/* Lock / pin button */
+.ov-lock{
+  background:none;border:1px solid var(--line);color:var(--tx3);font-size:11px;
+  cursor:pointer;padding:2px 6px;border-radius:4px;transition:all .15s;
+  font-family:var(--font-mono);line-height:1;flex-shrink:0;
+}
+.ov-lock:hover{border-color:var(--line2);color:var(--tx2);}
+.ov-lock.pinned{border-color:rgba(61,142,255,.4);color:var(--blue);background:rgba(61,142,255,.08);}
 .ov-close{background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;
-  padding:0;transition:color .15s;}
+  padding:0;transition:color .15s;flex-shrink:0;}
 .ov-close:hover{color:var(--red);}
+/* Hide close button when locked — panel is docked, use the nav icon to toggle */
+#overlay-panel.locked .ov-close{display:none;}
 .ov-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 
 /* ─── WATCHLIST in overlay ───────────────────────────────────────────────── */
@@ -757,6 +774,7 @@ canvas{display:block;flex-shrink:0;}
   <div id="overlay-panel">
     <div class="ov-hdr">
       <span class="ov-title" id="ov-title">Panel</span>
+      <button class="ov-lock" id="ov-lock-btn" onclick="toggleOverlayLock()" title="Pin panel open">⊞</button>
       <button class="ov-close" onclick="closeOverlay()">✕</button>
     </div>
 
@@ -1513,37 +1531,82 @@ canvas{display:block;flex-shrink:0;}
 <script>
 // Overlay panel controller
 let _activeOverlay = null;
+let _overlayLocked = false;
+
 function toggleOverlay(name) {
   const panel = document.getElementById('overlay-panel');
   const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools'};
-  if (_activeOverlay === name) {
+
+  // If locked and same panel clicked — unlock and close
+  if (_overlayLocked && _activeOverlay === name) {
+    _overlayLocked = false;
     closeOverlay();
     return;
   }
+
+  // If same panel clicked (not locked) — close
+  if (!_overlayLocked && _activeOverlay === name) {
+    closeOverlay();
+    return;
+  }
+
   // Hide all sub-panels
   ['ov-watch','ov-alerts','ov-scanner','ov-draw'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
+
   // Show target
   const target = document.getElementById('ov-' + name);
   if (target) target.style.display = 'block';
   document.getElementById('ov-title').textContent = titles[name] || name;
+
   panel.classList.add('open');
+  // Re-apply locked class if panel was locked (switching panels keeps lock)
+  if (_overlayLocked) panel.classList.add('locked');
+
   _activeOverlay = name;
+
   // Update nav button active states
   ['watch','alerts','scanner','draw'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.toggle('active', n === name);
   });
+
+  _updateLockBtn();
 }
+
 function closeOverlay() {
-  document.getElementById('overlay-panel').classList.remove('open');
+  const panel = document.getElementById('overlay-panel');
+  panel.classList.remove('open','locked');
   ['watch','alerts','scanner','draw'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.remove('active');
   });
   _activeOverlay = null;
+  _overlayLocked = false;
+  _updateLockBtn();
+}
+
+function toggleOverlayLock() {
+  const panel = document.getElementById('overlay-panel');
+  _overlayLocked = !_overlayLocked;
+  panel.classList.toggle('locked', _overlayLocked);
+  _updateLockBtn();
+}
+
+function _updateLockBtn() {
+  const btn = document.getElementById('ov-lock-btn');
+  if (!btn) return;
+  if (_overlayLocked) {
+    btn.classList.add('pinned');
+    btn.title = 'Unpin panel';
+    btn.textContent = '⊟';
+  } else {
+    btn.classList.remove('pinned');
+    btn.title = 'Pin panel open';
+    btn.textContent = '⊞';
+  }
 }
 
 // Forward scanner results to the embedded panel
