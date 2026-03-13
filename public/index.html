@@ -812,10 +812,12 @@ canvas{display:block;flex-shrink:0;}
     </div>
 
     <!-- SCANNER sub-panel -->
+    <div id="scanner-wrap">
     <div id="ov-scanner" class="ov-body" style="display:none;">
       <div class="scan-search">
         <input id="scanner-search" placeholder="Filter prompts..." oninput="filterPrompts(this.value)">
       </div>
+      <div id="scanner-prompts" style="overflow-y:auto;max-height:calc(100vh - 160px);">
 
       <div class="scan-group-label" style="color:var(--blue);">RSI</div>
       <div class="scan-chips">
@@ -876,10 +878,12 @@ canvas{display:block;flex-shrink:0;}
         <span class="sp" onclick="runPrompt(this,'market overview scan everything')" data-label="Full Scan">Full Scan</span>
       </div>
 
+      </div><!-- /scanner-prompts -->
       <div id="scanner-results" class="scan-results">
         <div id="scanner-result-label" class="scan-result-label"></div>
       </div>
-    </div>
+    </div><!-- /ov-scanner -->
+    </div><!-- /scanner-wrap -->
 
     <!-- DRAWING TOOLS sub-panel -->
     <div id="ov-draw" class="ov-body" style="display:none;">
@@ -1062,7 +1066,12 @@ canvas{display:block;flex-shrink:0;}
       <span id="sb-sym" style="color:var(--tx2);">AAPL</span>
       <span id="sb-tf" style="color:var(--tx3);">1D</span>
       <span id="sb-bars" style="color:var(--tx3);"></span>
+      <span id="st-pattern" style="display:none;color:var(--amber);font-size:9px;"></span>
+      <span id="st-tilt" style="display:none;color:var(--rd);font-size:9px;">⚠ Tilt Risk</span>
       <span style="flex:1;"></span>
+      <span id="st-session" style="font-size:9px;margin-right:6px;"></span>
+      <span id="st-live" style="font-size:9px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
+      <span id="st-clk" style="font-size:9px;color:var(--tx3);margin-right:6px;"></span>
       <span id="sb-time" style="color:var(--tx3);"></span>
     </div>
 
@@ -1675,8 +1684,16 @@ let smaCols=['#3d7fff','#f0a500'];
 let newsCacheDuration=1800000;
 
 const VOL_MAP={'1m':.004,'5m':.007,'15m':.011,'1h':.014,'1d':.018,'1w':.038,'1M':.08};
-const API_KEY='d6ob059r01qu09ciq0k0d6ob059r01qu09ciq0kg';
-const FBASE='https://finnhub.io/api/v1';
+// API key is fetched securely from server-side proxy
+let API_KEY = '';
+const FBASE = 'https://finnhub.io/api/v1';
+// Fetch WS token from secure backend on load
+(async () => {
+  try {
+    const r = await fetch('/api/ws-token');
+    if (r.ok) { const d = await r.json(); if (d.token) API_KEY = d.token; }
+  } catch(e) {}
+})();
 const TF_RES={'1m':'1','5m':'5','15m':'15','1h':'60','1d':'D','1w':'W','1M':'M'};
 const TF_FROM={'1m':3,'5m':14,'15m':30,'1h':90,'1d':365,'1w':1095,'1M':1825};
 // Binance TF map for crypto
@@ -1910,7 +1927,7 @@ function renderAIPanel(r){
     <div>${pats.length} pattern${pats.length!==1?'s':''} detected · ${bulls} bullish / ${bears} bearish</div>
     ${top?`<div style="color:var(--tx3);margin-top:3px;">Top signal: <span style="color:var(--tx2);">${top.name}</span> (${(top.conf*100).toFixed(0)}%)</div>`:''}`;
 
-  if(top){ const sp=document.getElementById('st-pattern'); sp.style.display=''; sp.textContent=`🤖 ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; }
+  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`🤖 ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
 
   // ── TREND STRENGTH ──────────────────────────────────────────────────────────
   const data = curData;
@@ -4652,7 +4669,7 @@ async function fetchRSSHeadlines(sym){
     try {
       const cs = sym.replace(/[^A-Z0-9]/gi,'').toUpperCase();
       const to = Math.floor(Date.now()/1000), from = to-604800;
-      const u = `https://finnhub.io/api/v1/company-news?symbol=${cs}&from=${new Date(from*1000).toISOString().slice(0,10)}&to=${new Date(to*1000).toISOString().slice(0,10)}&token=${API_KEY}`;
+      const u = `/api/news?symbol=${cs}&from=${new Date(from*1000).toISOString().slice(0,10)}&to=${new Date(to*1000).toISOString().slice(0,10)}`;
       const r = await fetch(u,{signal:AbortSignal.timeout(6000)});
       const j = await r.json();
       if(Array.isArray(j)&&j.length) return j.slice(0,10).map(i=>({title:i.headline,link:i.url,date:new Date(i.datetime*1000).toISOString(),source:i.source||'Finnhub'}));
@@ -6505,7 +6522,8 @@ function connectLiveTick(sym, type){
     };
     liveWS.onerror = ()=>{};
   } else {
-    liveWS = new WebSocket('wss://ws.finnhub.io?token='+API_KEY);
+    const wsToken = API_KEY || (await fetch('/api/ws-token').then(r=>r.json()).then(d=>d.token).catch(()=>''));
+    liveWS = new WebSocket('wss://ws.finnhub.io?token='+wsToken);
     liveWSSym = sym;
     liveWS.onopen = ()=>{
       liveWS.send(JSON.stringify({type:'subscribe', symbol: type==='Forex'?'OANDA:'+sym.replace('/','_'):sym}));
@@ -6564,11 +6582,9 @@ async function fetchMoreHistory(){
       const to   = oldest - 1;
       const days = TF_FROM[tf];
       const from = to - days*86400;
-      let url;
-      if(curSym.t==='Forex') url=`${FBASE}/forex/candle?symbol=OANDA:${sym.replace('/','_')}&resolution=${res}&from=${from}&to=${to}&token=${API_KEY}`;
-      else url=`${FBASE}/stock/candle?symbol=${sym}&resolution=${res}&from=${from}&to=${to}&token=${API_KEY}`;
-      const j = await fetch(url).then(r=>r.json()).catch(()=>({s:'no_data'}));
-      if(j.s==='ok'&&j.t&&j.t.length) bars=j.t.map((t,i)=>({time:t,open:j.o[i],high:j.h[i],low:j.l[i],close:j.c[i],volume:j.v?.[i]||0}));
+      const proxyUrl = `/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${tf}&from=${from}&to=${to}`;
+      bars = await fetch(proxyUrl).then(r=>r.json()).catch(()=>[]);
+      if(!Array.isArray(bars)) bars = [];
     }
     if(bars.length && sym===curSym.s && tf===curTF){
       // Deduplicate and prepend
@@ -6649,14 +6665,9 @@ async function loadSym(sym){
       const now  = Math.floor(Date.now()/1000);
       const from = now - TF_FROM[curTF]*86400;
       const res  = TF_RES[curTF]||'D';
-      let url;
-      if(curSym.t==='Forex')
-        url=`${FBASE}/forex/candle?symbol=OANDA:${sym.replace('/','_')}&resolution=${res}&from=${from}&to=${now}&token=${API_KEY}`;
-      else
-        url=`${FBASE}/stock/candle?symbol=${sym}&resolution=${res}&from=${from}&to=${now}&token=${API_KEY}`;
-      const j = await fetch(url).then(r=>r.json()).catch(()=>({s:'no_data'}));
-      if(j.s==='ok' && j.t && j.t.length>=2)
-        bars = j.t.map((t,i)=>({time:t,open:j.o[i],high:j.h[i],low:j.l[i],close:j.c[i],volume:j.v?.[i]||0}));
+      const proxyUrl = `/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${curTF}&from=${from}&to=${now}`;
+      bars = await fetch(proxyUrl).then(r=>r.json()).catch(()=>[]);
+      if(!Array.isArray(bars)) bars = [];
     }
 
     if(bars.length >= 2 && sym===curSym.s){
@@ -7453,17 +7464,16 @@ function toast(msg){
 }
 setInterval(()=>{
   const n=new Date();
-  document.getElementById('st-clk').textContent=n.toLocaleTimeString('en-GB',{hour12:false});
+  const clkEl=document.getElementById('st-clk'); if(clkEl) clkEl.textContent=n.toLocaleTimeString('en-GB',{hour12:false});
   const h=n.getHours(); const open=h>=9&&h<16;
-  document.getElementById('st-live').textContent=open?'LIVE':'CLOSED';
-  document.getElementById('st-live').style.color=open?'var(--tl)':'var(--rd)';
+  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'LIVE':'CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--rd)'; }
   updateSessionCountdown();
   updateTiltDetector();
 },1000);
 
 // ══ SCANNER HELPERS ═══════════════════════════════════════════════════════════
 function scrollPrompts(dx){
-  document.getElementById('scanner-prompts').scrollBy({left:dx, behavior:'smooth'});
+  const el=document.getElementById('scanner-prompts'); if(el) el.scrollBy({top:dx, behavior:'smooth'});
 }
 
 function filterPrompts(val){
@@ -7476,6 +7486,7 @@ function filterPrompts(val){
 
 function initScannerDrag(){
   const el = document.getElementById('scanner-prompts');
+  if(!el) return;
   let down=false, startX=0, scrollStart=0;
   el.addEventListener('mousedown', e=>{
     if(e.target.classList.contains('sp')) return;
