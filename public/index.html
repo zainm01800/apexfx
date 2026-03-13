@@ -6505,7 +6505,7 @@ function setupEvents(){
 let liveWS = null;
 let liveWSSym = null;
 
-function connectLiveTick(sym, type){
+async function connectLiveTick(sym, type){
   if(liveWS){ try{ liveWS.close(); }catch(e){} liveWS=null; }
   // Only Finnhub WS supports stocks + forex; crypto uses Binance WS
   if(type==='Crypto'){
@@ -6522,8 +6522,8 @@ function connectLiveTick(sym, type){
     };
     liveWS.onerror = ()=>{};
   } else {
-    const wsToken = API_KEY || (await fetch('/api/ws-token').then(r=>r.json()).then(d=>d.token).catch(()=>''));
-    liveWS = new WebSocket('wss://ws.finnhub.io?token='+wsToken);
+    if(!API_KEY){ try{ const r=await fetch('/api/ws-token'); const d=await r.json(); if(d.token) API_KEY=d.token; }catch(e){} }
+    liveWS = new WebSocket('wss://ws.finnhub.io?token='+API_KEY);
     liveWSSym = sym;
     liveWS.onopen = ()=>{
       liveWS.send(JSON.stringify({type:'subscribe', symbol: type==='Forex'?'OANDA:'+sym.replace('/','_'):sym}));
