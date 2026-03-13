@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>APEX FX</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzA3MDkwZSIvPgogIDxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYTUwMCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1vcGFjaXR5PSIwLjYiLz4KICA8dGV4dCB4PSIxNiIgeT0iMjIiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjZjBhNTAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BWDwvdGV4dD4KPC9zdmc+">
+<link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzA3MDkwZSIvPgogIDxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYTUwMCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1vcGFjaXR5PSIwLjYiLz4KICA8dGV4dCB4PSIxNiIgeT0iMjIiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjZjBhNTAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BWDwvdGV4dD4KPC9zdmc+">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -4746,137 +4748,23 @@ function parseRSSXML(xmlText){
   } catch(e){ return []; }
 }
 
-// Fetch an RSS feed through multiple CORS proxies, return parsed items
-async function fetchViaProxy(feedUrl){
-  // Each proxy strategy: returns raw XML or JSON we can parse
-  const strategies = [
-    // allorigins — returns JSON with .contents holding the raw XML
-    async () => {
-      const u = 'https://api.allorigins.win/get?url=' + encodeURIComponent(feedUrl);
-      const r = await fetch(u, {signal:AbortSignal.timeout(8000)});
-      const j = await r.json();
-      if(!j.contents) throw new Error('no contents');
-      return parseRSSXML(j.contents);
-    },
-    // rss2json — returns parsed JSON directly
-    async () => {
-      const u = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl) + '&api_key=free&count=20';
-      const r = await fetch(u, {signal:AbortSignal.timeout(8000)});
-      const j = await r.json();
-      if(j.status !== 'ok' || !j.items?.length) throw new Error('rss2json failed');
-      return j.items.map(i=>({title:i.title,link:i.link,date:i.pubDate,pair:'',desc:i.description||''}));
-    },
-  ];
-  for(const fn of strategies){
-    try { const items = await fn(); if(items.length) return items; } catch(e){}
-  }
-  return [];
-}
-
-async function fetchRSSHeadlines(sym){
-  const q = symToRSSQuery(sym);
-  const type = symType(sym);
-  const isForex = type === 'Forex';
-  const isCrypto = type === 'Crypto';
-  const clean = s => (s||'').replace(/\s*-\s*[^-]+$/, '').replace(/<[^>]+>/g,'').trim();
-
-  // Build all feed URLs to try simultaneously
-  const feedJobs = []; // {url, sourceName, keywords}
-
-  if(isForex){
-    const pairNoSlash = sym.replace('/','');
-    const currencyWords = {'EUR':'euro','USD':'dollar','GBP':'pound','JPY':'yen','AUD':'australian','CAD':'canadian','CHF':'franc','NZD':'zealand'};
-    const keywords = sym.split('/').flatMap(c=>[c.toLowerCase(), currencyWords[c]||''].filter(Boolean));
-    const FOREX_FEEDS = [
-      {url:'https://www.fxstreet.com/rss/news', name:'FX Street'},
-      {url:'https://www.forexlive.com/feed', name:'ForexLive'},
-      {url:'https://www.dailyforex.com/rss/forexnews.xml', name:'DailyForex'},
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' forex')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-    ];
-    FOREX_FEEDS.forEach(f => feedJobs.push({...f, keywords, pairNoSlash}));
-  } else if(isCrypto){
-    const feedJobs2 = [
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' crypto')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' cryptocurrency')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-      {url:'https://cointelegraph.com/rss', name:'CoinTelegraph'},
-      {url:'https://cryptonews.com/news/feed/', name:'CryptoNews'},
-    ];
-    feedJobs.push(...feedJobs2);
-  } else if(type==='Futures'){
-    feedJobs.push(
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' futures')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-    );
-  } else {
-    // Stocks / ETFs / Indices — fire all in parallel
-    feedJobs.push(
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q+' stock')}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-      {url:`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, name:'Google News'},
-      {url:`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(sym)}&region=US&lang=en-US`, name:'Yahoo Finance'},
-      {url:`https://finance.yahoo.com/rss/headline?s=${encodeURIComponent(sym)}`, name:'Yahoo Finance'},
-      {url:`https://www.marketwatch.com/search?q=${encodeURIComponent(q)}&ts=0&rpp=15&mp=806&bd=false&rs=true`, name:'MarketWatch'},
-      {url:`https://seekingalpha.com/api/sa/combined/${sym.toUpperCase()}.xml`, name:'Seeking Alpha'},
-    );
-  }
-
-  // Fetch all feeds in parallel with timeout, deduplicate by title similarity
-  const seenTitles = new Set();
-  const allItems = [];
-
-  await Promise.allSettled(feedJobs.map(async job => {
-    try {
-      const items = await fetchViaProxy(job.url);
-      items.forEach(i => {
-        const t = clean(i.title);
-        if(!t || t.length < 10) return;
-        // Simple dedup by first 40 chars of title
-        const key = t.toLowerCase().slice(0,40);
-        if(seenTitles.has(key)) return;
-        seenTitles.add(key);
-
-        let score = 0;
-        if(job.keywords){
-          const text = (i.title+' '+(i.desc||'')).toLowerCase();
-          const pairMatch = i.pair && (i.pair===job.pairNoSlash||i.pair===sym);
-          score = pairMatch ? 10 : job.keywords.filter(k=>text.includes(k)).length;
-        }
-
-        allItems.push({
-          title: t,
-          link: i.link,
-          date: i.date,
-          source: job.name,
-          _score: score,
-          _ts: i.date ? new Date(i.date).getTime() : 0
-        });
-      });
-    } catch(e){}
-  }));
-
-  // Sort: for forex/crypto use relevance score, for others use recency
-  if(isForex){
-    allItems.sort((a,b) => b._score - a._score || b._ts - a._ts);
-  } else {
-    allItems.sort((a,b) => b._ts - a._ts);
-  }
-
-  if(allItems.length){
-    return allItems.slice(0,12).map(({_score,_ts,...r})=>r);
-  }
-
-  // Final fallback: Finnhub for stocks/ETFs
-  if(type==='Stock'||type==='ETF'){
-    try {
-      const cs = sym.replace(/[^A-Z0-9]/gi,'').toUpperCase();
-      const to = Math.floor(Date.now()/1000), from = to-604800;
-      const u = `/api/news?symbol=${cs}&from=${new Date(from*1000).toISOString().slice(0,10)}&to=${new Date(to*1000).toISOString().slice(0,10)}`;
-      const r = await fetch(u,{signal:AbortSignal.timeout(6000)});
-      const j = await r.json();
-      if(Array.isArray(j)&&j.length) return j.slice(0,12).map(i=>({title:i.headline,link:i.url,date:new Date(i.datetime*1000).toISOString(),source:i.source||'Finnhub'}));
-    } catch(e){}
-  }
-
-  return null;
+// Fetch news via our secure /api/news Vercel serverless function
+async function fetchNewsFromAPI(sym, type) {
+  const url = `/api/news?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!Array.isArray(data) || !data.length) return null;
+    // Normalise to the shape renderNews expects
+    return data.map(i => ({
+      title:   i.title   || i.headline || '',
+      link:    i.link    || i.url      || '',
+      date:    i.date    || '',
+      source:  i.source  || 'Finnhub',
+      summary: i.summary || '',
+    })).filter(i => i.title);
+  } catch(e) { return null; }
 }
 
 async function scoreWithGroq(headlines, sym, name){
@@ -4899,38 +4787,38 @@ sentiment must be exactly "BULLISH", "BEARISH", or "NEUTRAL".`;
 
 async function fetchNews(sym, name){
   const el = document.getElementById('rp-news');
-  // Cache for 5 minutes (was 30min — news goes stale fast)
+  if(!el) return;
+  // 5-minute cache
   if(newsCache[sym] && Date.now()-newsCache[sym].ts < 300000){
     renderNews(newsCache[sym].items, sym); return;
   }
   el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching latest news...</div>';
 
-  let headlines = null;
-  try { headlines = await fetchRSSHeadlines(sym, name||sym); } catch(e){}
+  const type = symType(sym);
+  const headlines = await fetchNewsFromAPI(sym, type);
 
   if(!headlines || !headlines.length){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
       <div style="font-size:18px;margin-bottom:6px;">📡</div>
       <div style="color:var(--tx2);">No news found for ${sym}</div>
-      <div style="font-size:9px;margin-top:4px;color:var(--tx3);">All news sources unavailable — check your connection</div>
+      <div style="font-size:9px;margin-top:4px;color:var(--tx3);">Check your FINNHUB_API_KEY is set in Vercel environment variables</div>
       <div style="margin-top:8px;"><button onclick="delete newsCache[curSym.s]; buildInfo();" style="background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;padding:3px 10px;border-radius:3px;cursor:pointer;">↻ Retry</button></div>
     </div>`;
     return;
   }
 
-  // Show headlines immediately with neutral sentiment while Groq scores them
-  const provisional = headlines.map(h=>({...h, sentiment:'NEUTRAL'}));
+  // Show headlines immediately with neutral sentiment while Groq scores in background
+  const provisional = headlines.map(h => ({...h, sentiment:'NEUTRAL'}));
   newsCache[sym] = {ts: Date.now(), items: provisional};
   renderNews(provisional, sym);
 
-  // Then score with Groq in background and refresh
+  // Score sentiment with Groq in background then re-render
   try {
-    const scored = await scoreWithGroq(headlines, sym, name||sym);
+    const scored = await scoreWithGroq(headlines, sym, name || sym);
     newsCache[sym] = {ts: Date.now(), items: scored};
-    // Only re-render if still on same symbol
     if(curSym.s === sym) renderNews(scored, sym);
   } catch(e){
-    // Keep provisional neutral render — that's fine
+    // Keep provisional neutral — fine
   }
 }
 
@@ -10019,7 +9907,7 @@ async function fetchPMBNews(symStrs) {
     const el = document.getElementById('pmb-news-' + sym);
     if (!el) continue;
     try {
-      const items = await fetchRSSHeadlines(sym);
+      const symObj = SYMS.find(x=>x.s===sym); const items = await fetchNewsFromAPI(sym, symObj?.t||'Stock');
       if (!items || !items.length) {
         el.innerHTML = '<div style="font-size:9px;color:var(--tx3);">No news available.</div>';
         continue;
