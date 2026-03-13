@@ -45,11 +45,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
    [left nav strip 48px] | [main column: header + chart] | [right drawer 280px]
    The left nav has icon-buttons that reveal overlay panels.
 */
-#app{display:flex;height:100vh;overflow:hidden;background:var(--bg);}
+#app{height:100vh;overflow:hidden;background:var(--bg);position:relative;}
 
 /* ─── LEFT NAV STRIP ─────────────────────────────────────────────────────── */
 #nav{
-  width:48px;background:var(--bg1);border-right:1px solid var(--line);
+  position:absolute;left:0;top:0;bottom:0;width:48px;
+  background:rgba(9,12,18,0.58);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-right:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.04);
   display:flex;flex-direction:column;align-items:center;
   padding:12px 0;gap:2px;flex-shrink:0;z-index:200;
 }
@@ -82,21 +87,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 
 /* ─── OVERLAY PANEL (slides out from left nav) ───────────────────────────── */
 #overlay-panel{
-  position:absolute;left:48px;top:0;bottom:0;width:260px;
-  background:var(--bg1);border-right:1px solid var(--line);
+  position:absolute;left:48px;top:52px;bottom:22px;width:260px;
+  background:rgba(9,12,18,0.58);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-right:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.04), 4px 0 28px rgba(0,0,0,0.45);
   display:none;flex-direction:column;z-index:150;
   animation:slideIn .18s ease;
 }
 #overlay-panel.open{display:flex;}
-/* Locked = docked into layout flow, pushes main-col right */
+/* Locked = stays position:absolute so backdrop-filter blurs chart behind it */
 #overlay-panel.locked{
-  position:relative;left:auto;top:auto;bottom:auto;
-  display:flex;z-index:1;flex-shrink:0;animation:none;
+  position:absolute;left:48px;top:52px;bottom:22px;
+  display:flex;z-index:150;flex-shrink:0;animation:none;
+  background:rgba(9,12,18,0.58);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-right:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.04), 4px 0 28px rgba(0,0,0,0.45);
+}
+/* When locked, push main-col right so chart content isn't hidden under the panel */
+/* panel-locked: overlay-panel stays absolute, no layout shift needed */
+#main-col{
+  transition:none;
 }
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 .ov-hdr{
   display:flex;align-items:center;gap:6px;
-  padding:14px 14px 10px;border-bottom:1px solid var(--line);flex-shrink:0;
+  padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;
+  background:rgba(255,255,255,0.02);
 }
 .ov-title{font-family:var(--font-mono);font-size:10px;font-weight:600;
   letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;flex:1;}
@@ -209,12 +229,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #draw-toolbar{display:none;}
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
-#main-col{display:flex;flex-direction:column;flex:1;overflow:hidden;min-width:0;}
+#main-col{position:absolute;inset:0;padding-top:52px;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
 
 /* ─── COMMAND BAR ────────────────────────────────────────────────────────── */
 #cmd-bar{
-  height:52px;background:var(--bg1);border-bottom:1px solid var(--line);
-  display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;z-index:100;
+  position:absolute;top:0;left:48px;right:0;height:52px;
+  background:rgba(9,12,18,0.62);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,0.04);
+  display:flex;align-items:center;padding:0 16px;gap:10px;
+  z-index:200;
 }
 /* Symbol button */
 #sym-pill{
@@ -295,7 +321,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
 
 /* ─── CHART BODY ─────────────────────────────────────────────────────────── */
-#chart-body{display:flex;flex:1;overflow:hidden;position:relative;}
+#chart-body{display:flex;flex:1;overflow:hidden;position:relative;height:100%;}
 #chart-area{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--bg);}
 #chart-wrap{display:flex;flex:1;overflow:hidden;}
 canvas{display:block;flex-shrink:0;}
@@ -321,9 +347,15 @@ canvas{display:block;flex-shrink:0;}
 
 /* ─── STATUS BAR ─────────────────────────────────────────────────────────── */
 #statusbar{
-  height:22px;background:var(--bg1);border-top:1px solid var(--line);
+  position:absolute;bottom:0;left:48px;right:0;height:22px;
+  background:rgba(9,12,18,0.62);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-top:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
   display:flex;align-items:center;padding:0 16px;gap:16px;
-  font-family:var(--font-mono);font-size:9px;color:var(--tx3);flex-shrink:0;
+  font-family:var(--font-mono);font-size:9px;color:var(--tx3);
+  z-index:200;
 }
 
 /* ─── IND TOPBAR — indicator chips in the command bar ───────────────────── */
@@ -363,12 +395,18 @@ canvas{display:block;flex-shrink:0;}
 
 /* ─── RIGHT DRAWER ───────────────────────────────────────────────────────── */
 #rdrawer{
-  width:280px;background:var(--bg1);border-left:1px solid var(--line);
-  display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;
+  position:absolute;right:0;top:52px;bottom:22px;width:280px;
+  background:rgba(9,12,18,0.58);
+  backdrop-filter:blur(24px) saturate(1.6);
+  -webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-left:1px solid rgba(255,255,255,0.07);
+  box-shadow:inset 1px 0 0 rgba(255,255,255,0.04), -4px 0 28px rgba(0,0,0,0.45);
+  display:flex;flex-direction:column;overflow:hidden;
+  z-index:150;
 }
 .rd-tabs{
-  display:flex;border-bottom:1px solid var(--line);flex-shrink:0;overflow-x:auto;
-  scrollbar-width:none;
+  display:flex;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;overflow-x:auto;
+  scrollbar-width:none;background:rgba(255,255,255,0.02);
 }
 .rd-tabs::-webkit-scrollbar{display:none;}
 .rp-tab{
@@ -385,15 +423,15 @@ canvas{display:block;flex-shrink:0;}
 .rp-body::-webkit-scrollbar-thumb{background:var(--bg5);}
 
 /* ─── STAT CELLS (used in right panel) ──────────────────────────────────── */
-.cell2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);margin:8px;border-radius:var(--r);overflow:hidden;}
-.cell{background:var(--bg2);padding:8px 10px;}
+.cell2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(255,255,255,0.05);margin:8px;border-radius:var(--r);overflow:hidden;}
+.cell{background:rgba(17,24,32,0.7);padding:8px 10px;}
 .clbl{font-family:var(--font-mono);font-size:8px;color:var(--tx3);letter-spacing:.5px;margin-bottom:2px;}
 .cval{font-family:var(--font-mono);font-size:11px;}
 .sec-title{font-family:var(--font-mono);font-size:8px;letter-spacing:1.5px;color:var(--tx3);
   padding:10px 10px 4px;text-transform:uppercase;}
 
 /* AI panel */
-.pat-card{margin:5px 8px;border-radius:var(--r);padding:10px 12px;background:var(--bg3);}
+.pat-card{margin:5px 8px;border-radius:var(--r);padding:10px 12px;background:rgba(22,29,40,0.75);}
 .pat-name{font-weight:600;font-size:11px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;}
 .pat-conf-bar{height:3px;border-radius:2px;background:var(--bg5);overflow:hidden;margin-bottom:5px;}
 .pat-fill{height:100%;border-radius:2px;}
@@ -420,7 +458,7 @@ canvas{display:block;flex-shrink:0;}
 .jentry-thumb{width:100%;height:90px;object-fit:cover;border-radius:var(--r);margin-top:6px;cursor:pointer;border:1px solid var(--line);}
 .jentry-thumb:hover{border-color:var(--line2);}
 #j-stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line);}
-.j-stat{background:var(--bg2);padding:8px;text-align:center;}
+.j-stat{background:rgba(17,24,32,0.65);padding:8px;text-align:center;}
 .j-stat-lbl{font-family:var(--font-mono);font-size:7px;color:var(--tx3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:2px;}
 .j-stat-val{font-family:var(--font-mono);font-size:12px;font-weight:700;}
 #j-filter-bar{display:flex;flex-wrap:wrap;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);}
@@ -1688,7 +1726,10 @@ function toggleOverlay(name) {
   }
 
   panel.classList.add('open');
-  if (_overlayLocked) panel.classList.add('locked');
+  if (_overlayLocked) {
+    panel.classList.add('locked');
+    document.getElementById('app').classList.add('panel-locked');
+  }
 
   _activeOverlay = name;
 
@@ -1704,6 +1745,7 @@ function toggleOverlay(name) {
 function closeOverlay() {
   const panel = document.getElementById('overlay-panel');
   panel.classList.remove('open', 'locked');
+  document.getElementById('app').classList.remove('panel-locked');
   ['watch','alerts','scanner','draw','inds'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.remove('active');
@@ -1713,15 +1755,19 @@ function closeOverlay() {
   _updateLockBtn();
   // Re-measure canvas now that panel has closed/undocked
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
+  setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
 }
 
 function toggleOverlayLock() {
   const panel = document.getElementById('overlay-panel');
   _overlayLocked = !_overlayLocked;
   panel.classList.toggle('locked', _overlayLocked);
+  // Toggle class on #app so margin-left CSS rule kicks in for #main-col
+  document.getElementById('app').classList.toggle('panel-locked', _overlayLocked);
   _updateLockBtn();
-  // Re-measure canvas after panel docks/undocks (changes chart-area width)
+  // Re-measure canvas after margin transition completes
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
+  setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
 }
 
 function _updateLockBtn() {
@@ -4993,7 +5039,7 @@ function draw(){
   for(let i=0;i<=6;i++){
     const y=Math.floor(H/6*i)+.5;
     if(document.getElementById('sc-grid')?.checked!==false){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    if(document.getElementById('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='9px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-3,y-2); }
+    if(document.getElementById('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='9px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
   }
 
   // Date labels + vertical grid lines
@@ -5151,8 +5197,8 @@ function draw(){
     const hiTxt = '▲ ' + fP(hiPrice);
     const loTxt = '▼ ' + fP(loPrice);
     // Position label to left or right of the bar so it stays on screen
-    const hiLabelX = hiBarX + 6 > W - 70 ? hiBarX - ctx.measureText(hiTxt).width - 8 : hiBarX + 6;
-    const loLabelX = loBarX + 6 > W - 70 ? loBarX - ctx.measureText(loTxt).width - 8 : loBarX + 6;
+    const hiLabelX = hiBarX + 6 > W - R_PANEL_OFFSET - 70 ? hiBarX - ctx.measureText(hiTxt).width - 8 : hiBarX + 6;
+    const loLabelX = loBarX + 6 > W - R_PANEL_OFFSET - 70 ? loBarX - ctx.measureText(loTxt).width - 8 : loBarX + 6;
     ctx.fillStyle = C.tl;
     ctx.fillText(hiTxt, hiLabelX, hiY - 5);
     ctx.fillStyle = C.rd;
@@ -5229,13 +5275,13 @@ function draw(){
   if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&document.getElementById('sc-crosshair')?.checked!==false){
     ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.moveTo(mouseX,0); ctx.lineTo(mouseX,H); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,mouseY); ctx.lineTo(W,mouseY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,mouseY); ctx.lineTo(W-R_PANEL_OFFSET,mouseY); ctx.stroke();
     ctx.setLineDash([]);
     // Price label on right Y-axis
     const price = yToPrice(mouseY);
-    ctx.fillStyle=C.am; ctx.fillRect(W-56,mouseY-9,56,18);
+    ctx.fillStyle=C.am; ctx.fillRect(W-R_PANEL_OFFSET-56,mouseY-9,56,18);
     ctx.fillStyle=C.bg; ctx.font='bold 9px monospace'; ctx.textAlign='right';
-    ctx.fillText(fP(price),W-3,mouseY+4);
+    ctx.fillText(fP(price),W-R_PANEL_OFFSET-3,mouseY+4);
     // OHLC tooltip
     const hoverBar = Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth);
     const hb = Math.max(0,Math.min(data.length-1,hoverBar));
@@ -5402,7 +5448,7 @@ function draw(){
         const lv=vals[lastBarOnScreen];
         if(lv!=null&&isFinite(lv)){
           ctx.fillStyle=ind.color; ctx.font='bold 9px monospace'; ctx.textAlign='right';
-          ctx.fillText(ind.name+' '+fP(lv), W-4, py(lv)-4);
+          ctx.fillText(ind.name+' '+fP(lv), W-R_PANEL_OFFSET-4, py(lv)-4);
         }
       } else {
         // Sub-panel
@@ -6012,10 +6058,10 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       case 'hray':{
         const y=pyfn(d.price);
         ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1; ctx.setLineDash([]);
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-8,y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-R_PANEL_OFFSET-8,y); ctx.stroke();
         // arrowhead
         ctx.fillStyle=col;
-        ctx.beginPath(); ctx.moveTo(W-8,y-5); ctx.lineTo(W,y); ctx.lineTo(W-8,y+5); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(W-R_PANEL_OFFSET-8,y-5); ctx.lineTo(W-R_PANEL_OFFSET,y); ctx.lineTo(W-R_PANEL_OFFSET-8,y+5); ctx.closePath(); ctx.fill();
         const label=fP(d.price);
         ctx.font='9px monospace'; const lw=ctx.measureText(label).width+10;
         ctx.fillStyle=ca(C.am,.18); ctx.fillRect(4,y-10,lw,13);
@@ -6344,9 +6390,11 @@ function lightenColor(hex, amt){
 }
 const Y_AXIS_W = 52;
 const X_AXIS_H = 18;
+// Pixels the right glass panel overlaps the canvas — y-axis drawn inside this
+const R_PANEL_OFFSET = 280;
 
 function getZone(x,y,W,H){
-  if(x > W - Y_AXIS_W) return 'yscale';
+  if(x > W - R_PANEL_OFFSET - Y_AXIS_W) return 'yscale';
   if(y > H - X_AXIS_H) return 'xscale';
   return 'pan';
 }
@@ -6414,7 +6462,8 @@ function setupEvents(){
       isXScaling      = true;
       xScaleStartX    = e.clientX;
       xScaleStartBW   = barWidth;
-      // anchor: bar under mouse stays fixed
+      // anchor: bar under mouse stays fixed — store both bar and pixel position
+      xScaleAnchorX   = lx;
       xScaleAnchorBar = rightBarIndex - (mc.width - lx) / barWidth;
       mc.style.cursor = 'ew-resize';
     }
@@ -6448,7 +6497,9 @@ function setupEvents(){
 
       // Horizontal: shift rightBarIndex by how many bars we moved
       rightBarIndex = panStartRight - dx / barWidth;
-      rightBarIndex = Math.max(10, Math.min(curData.length + 50, rightBarIndex));
+      // Symmetric half-screen limits: oldest bar ≥ x=W/2, newest bar ≤ x=W/2
+      const _halfBars = (mc.width / 2) / barWidth;
+      rightBarIndex = Math.max(_halfBars, Math.min(curData.length - 1 + _halfBars, rightBarIndex));
 
       // Vertical: shift price range by equivalent price delta
       const range    = panStartHi - panStartLo;
@@ -6467,9 +6518,12 @@ function setupEvents(){
       const dx   = e.clientX - xScaleStartX;
       // Exponential so small moves near centre feel natural
       const newBW = Math.max(1, Math.min(80, xScaleStartBW * Math.pow(1.005, dx)));
-      // Keep anchor bar at same screen position
-      rightBarIndex = xScaleAnchorBar + (mc.width - (mc.width - (xScaleStartX - r.left))) / newBW;
+      // Keep anchor bar at same screen pixel — anchor bar stays at xScaleAnchorX from left
+      rightBarIndex = xScaleAnchorBar + (mc.width - xScaleAnchorX) / newBW;
       barWidth = newBW;
+      // Re-apply half-screen bounds after scale change
+      const _halfBarsX = (mc.width / 2) / barWidth;
+      rightBarIndex = Math.max(_halfBarsX, Math.min(curData.length - 1 + _halfBarsX, rightBarIndex));
       draw(); return;
     }
 
