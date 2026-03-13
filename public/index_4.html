@@ -1709,6 +1709,8 @@ function closeOverlay() {
   _activeOverlay = null;
   _overlayLocked = false;
   _updateLockBtn();
+  // Re-measure canvas now that panel has closed/undocked
+  requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
 }
 
 function toggleOverlayLock() {
@@ -1716,6 +1718,8 @@ function toggleOverlayLock() {
   _overlayLocked = !_overlayLocked;
   panel.classList.toggle('locked', _overlayLocked);
   _updateLockBtn();
+  // Re-measure canvas after panel docks/undocks (changes chart-area width)
+  requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
 }
 
 function _updateLockBtn() {
@@ -7683,6 +7687,21 @@ function initScannerDrag(){
 
 // ══ SIDEBAR RESIZE ════════════════════════════════════════════════════════════
 
+// ResizeObserver: redraws chart whenever chart-area changes size
+// (catches overlay-panel dock/undock, window resize, zoom changes)
+(function(){
+  const area = document.getElementById('chart-area');
+  if(!area || !window.ResizeObserver) return;
+  let _roRaf = null;
+  const ro = new ResizeObserver(() => {
+    if(_roRaf) cancelAnimationFrame(_roRaf);
+    _roRaf = requestAnimationFrame(() => {
+      try { sizeCanvases(); draw(); } catch(e){}
+    });
+  });
+  ro.observe(area);
+})();
+
 function initSidebarResize(){
   const SIDEBAR_MIN = 0, SIDEBAR_MAX = 380, SIDEBAR_DEFAULT = 196;
   const RPANEL_MIN  = 0, RPANEL_MAX  = 420, RPANEL_DEFAULT  = 240;
@@ -7696,6 +7715,7 @@ function initSidebarResize(){
   // Track pre-collapse widths for restore on double-click
   let sidebarPrev = SIDEBAR_DEFAULT;
   let rpanelPrev  = RPANEL_DEFAULT;
+  let _rafPending = false; // rAF dedupe during drag
 
   function setWidth(el, w, isLeft){
     const clamped = Math.max(0, Math.min(isLeft ? SIDEBAR_MAX : RPANEL_MAX, w));
@@ -7707,7 +7727,16 @@ function initSidebarResize(){
     } else {
       el.style.overflow = '';
     }
-    sizeCanvases(); draw();
+    // During drag: only resize+redraw once per animation frame to avoid jitter.
+    // sizeCanvases() resets mc.width which clears the canvas — batching via rAF
+    // means we only get one clear+repaint per frame instead of one per pixel.
+    if(!_rafPending){
+      _rafPending = true;
+      requestAnimationFrame(() => {
+        _rafPending = false;
+        try { sizeCanvases(); draw(); } catch(e){}
+      });
+    }
   }
 
   function collapse(el, isLeft){
