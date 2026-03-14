@@ -4,19 +4,17 @@
 
 export const config = { runtime: 'edge' };
 
-const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-
 // Yahoo Finance hard limits per interval
 const YF_LIMITS = {
-  '1m':  { interval: '1m',  max_days: 7,   max_range_days: 1   },
-  '5m':  { interval: '5m',  max_days: 60,  max_range_days: 5   },
-  '15m': { interval: '15m', max_days: 60,  max_range_days: 10  },
-  '30m': { interval: '30m', max_days: 60,  max_range_days: 20  },
-  '1h':  { interval: '60m', max_days: 730, max_range_days: 90  },
-  '4h':  { interval: '60m', max_days: 730, max_range_days: 90  },
-  '1d':  { interval: '1d',  max_days: 3650,max_range_days: 3650},
-  '1w':  { interval: '1wk', max_days: 3650,max_range_days: 3650},
-  '1M':  { interval: '1mo', max_days: 3650,max_range_days: 3650},
+  '1m':  { interval: '1m',  max_days: 7,    max_range_days: 1   },
+  '5m':  { interval: '5m',  max_days: 60,   max_range_days: 7   },
+  '15m': { interval: '15m', max_days: 60,   max_range_days: 14  },
+  '30m': { interval: '30m', max_days: 60,   max_range_days: 20  },
+  '1h':  { interval: '60m', max_days: 729,  max_range_days: 90  },
+  '4h':  { interval: '60m', max_days: 729,  max_range_days: 90  },
+  '1d':  { interval: '1d',  max_days: 3649, max_range_days: 3649},
+  '1w':  { interval: '1wk', max_days: 3649, max_range_days: 3649},
+  '1M':  { interval: '1mo', max_days: 3649, max_range_days: 3649},
 };
 
 function toYahooTicker(sym, type) {
@@ -62,7 +60,7 @@ async function fetchYahooChunk(ticker, interval, from, to, dp) {
       'Accept': 'application/json',
       'Accept-Language': 'en-US,en;q=0.9',
     },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(12000),
   });
 
   if (!res.ok) return [];
@@ -90,8 +88,16 @@ export default async function handler(req) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': tf === '1m' ? 's-maxage=30' : tf === '5m' ? 's-maxage=60' : 's-maxage=300, stale-while-revalidate=600',
+    // Short-TF data is fresher — cache aggressively for daily+, briefly for intraday
+    'Cache-Control': tf === '1m' ? 's-maxage=30, stale-while-revalidate=60'
+                   : tf === '5m' ? 's-maxage=60, stale-while-revalidate=120'
+                   : ['15m','30m','1h'].includes(tf) ? 's-maxage=120, stale-while-revalidate=300'
+                   : 's-maxage=300, stale-while-revalidate=600',
   };
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
 
   const limits   = YF_LIMITS[tf] || YF_LIMITS['1d'];
   const interval = limits.interval;
@@ -101,11 +107,10 @@ export default async function handler(req) {
   const now      = Math.floor(Date.now() / 1000);
   const earliest = now - limits.max_days * 86400;
 
-  // Clamp requested range to what Yahoo actually supports
   let reqFrom = parseInt(searchParams.get('from') || '0') || earliest;
   let reqTo   = parseInt(searchParams.get('to')   || '0') || now;
   reqFrom = Math.max(reqFrom, earliest);
-  reqTo   = Math.min(reqTo, now);
+  reqTo   = Math.min(reqTo,   now);
 
   const maxChunk = limits.max_range_days * 86400;
 
@@ -115,17 +120,23 @@ export default async function handler(req) {
     if (reqTo - reqFrom <= maxChunk) {
       allBars = await fetchYahooChunk(ticker, interval, reqFrom, reqTo, dp);
     } else {
-      // Break into chunks, fetch most recent first
+      // Break into chunks — no cap on count, fetch all available history
       const chunks = [];
       let chunkTo = reqTo;
-      while (chunkTo > reqFrom && chunks.length < 8) {
+      while (chunkTo > reqFrom && chunks.length < 30) {
         const chunkFrom = Math.max(reqFrom, chunkTo - maxChunk);
         chunks.push({ from: chunkFrom, to: chunkTo });
         chunkTo = chunkFrom - 1;
       }
-      const results = await Promise.all(
-        chunks.map(c => fetchYahooChunk(ticker, interval, c.from, c.to, dp).catch(() => []))
-      );
+      // Fetch in parallel batches of 5 to avoid overwhelming Yahoo
+      const results = [];
+      for (let i = 0; i < chunks.length; i += 5) {
+        const batch = chunks.slice(i, i + 5);
+        const batchResults = await Promise.all(
+          batch.map(ch => fetchYahooChunk(ticker, interval, ch.from, ch.to, dp).catch(() => []))
+        );
+        results.push(...batchResults);
+      }
       allBars = results.flat();
     }
 
