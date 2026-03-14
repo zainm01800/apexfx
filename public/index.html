@@ -8313,6 +8313,24 @@ async function authSubmitChangePass(){
 }
 
 // ── Override updateUserBadge to also toggle change-pass button ─────────────────
+// Auto-save all state every 30 seconds
+let _autoSaveInterval = null;
+function _startAutoSave(){
+  if(_autoSaveInterval) clearInterval(_autoSaveInterval);
+  _autoSaveInterval = setInterval(async () => {
+    if(!_currentUserId) return;
+    saveJournal();
+    saveWatchlist();
+    saveSettingsToStorage();
+    _tbSaveLayout();
+    _tbSaveState();
+    await _flushWriteQueue();
+  }, 30000);
+}
+function _stopAutoSave(){
+  if(_autoSaveInterval){ clearInterval(_autoSaveInterval); _autoSaveInterval = null; }
+}
+
 function updateUserBadge(displayName){
   const badge = document.getElementById('user-badge');
   const cpBtn = document.getElementById('btn-change-pass');
@@ -8341,15 +8359,33 @@ function _lsGet(key){
   try{ return localStorage.getItem(_lsKey(key)); }catch(e){ return null; }
 }
 
+// Write queue — batches Supabase writes to avoid hammering the API
+const _writeQueue = {}; // key → value (latest wins)
+let _writeFlushTimer = null;
+
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
-  // Async cloud sync — fire and forget
   if(_currentUserId){
-    _supa.from('user_data').upsert(
-      { user_id: _currentUserId, key, value: val, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,key' }
-    ).then(({error}) => { if(error) console.warn('Supabase write:', error.message); });
+    _writeQueue[key] = val; // queue it, deduplicate by key
+    if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
+    _writeFlushTimer = setTimeout(_flushWriteQueue, 2000); // batch writes every 2s
   }
+}
+
+async function _flushWriteQueue(force){
+  if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
+  const uid = _currentUserId;
+  const entries = Object.entries(_writeQueue).map(([key, value]) => ({
+    user_id: uid, key, value, updated_at: new Date().toISOString()
+  }));
+  // Clear queue before await so new changes queue up cleanly
+  Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
+  clearTimeout(_writeFlushTimer);
+  _writeFlushTimer = null;
+  try{
+    const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
+    if(error) console.warn('Supabase batch write:', error.message);
+  }catch(e){ console.warn('Supabase write error:', e.message); }
 }
 
 function _lsRem(key){
@@ -8485,15 +8521,34 @@ function doLogin(username, displayName){
 
   // Update topbar user badge
   updateUserBadge(displayName || username);
+  // Start periodic auto-save
+  _startAutoSave();
 }
 
-function doLogout(){
-  // Save everything before logging out
+async function doLogout(){
+  // Save everything to localStorage first (instant)
   saveJournal();
   saveWatchlist();
   saveSettingsToStorage();
   _tbSaveLayout();
   _tbSaveState();
+  saveTopbarInds();
+  saveCustomInds();
+
+  // Force-flush all pending writes to Supabase and wait for them
+  if(_currentUserId){
+    // Queue all critical data explicitly so nothing is missed
+    _lsSet('watchlist', JSON.stringify([...watchlist]));
+    _lsSet('journal', _lsGet('journal') || '[]');
+    _lsSet('topbar-inds', JSON.stringify(topbarInds));
+    _lsSet('tblayout4', _lsGet('tblayout4') || JSON.stringify([...TB_DEFAULT_LAYOUT]));
+    _lsSet('tbdocked', _lsGet('tbdocked') || '[]');
+    _lsSet('settings', _lsGet('settings') || '{}');
+    _lsSet('alerts', JSON.stringify(alerts));
+    await _flushWriteQueue(true);
+  }
+
+  _stopAutoSave();
   _clearSession();
   _currentUser   = null;
   _currentUserId = null;
@@ -11558,30 +11613,43 @@ function _tapAnchorFill(d){
 // ── Determine if the trade (from its bar forward) hit SL, hit TP, or is open ──
 function tapTradeStatus(d){
   if(!curData.length) return { status:'', statusCol:'' };
-  const isLong = d.type === 'long';
-  const n      = curData.length;
+  const isLong   = d.type === 'long';
+  const n        = curData.length;
+  const halfBars = d.halfBars || 8;
+  const entryBar = Math.round(d.bar - halfBars); // left edge = entry bar
 
-  // d.bar is the CENTER of the drawing box. The entry line is at the LEFT edge.
-  // Left edge = d.bar - halfBars. Scan must start there, not at the center.
-  const halfBars  = d.halfBars || 8;
-  const entryBar  = Math.round(d.bar - halfBars);
-  const fromBar   = Math.max(0, Math.min(entryBar, n - 1));
-
-  // Check if entry price is even near where price has ever traded (wick range)
-  const globalHigh = Math.max(...curData.map(b => b.high));
-  const globalLow  = Math.min(...curData.map(b => b.low));
-  const priceRange = globalHigh - globalLow;
-  const distFromRange = Math.max(0,
-    d.price > globalHigh ? d.price - globalHigh :
-    d.price < globalLow  ? globalLow - d.price  : 0);
-  if(distFromRange > priceRange * 0.15){
-    return { status:'⚠ Unrealistic placement', statusCol:'var(--am)' };
+  // ── CASE 1: Trade placed entirely in the future (beyond last bar) ─────────
+  if(entryBar >= n){
+    return { status:'🔮 Future Setup', statusCol:'var(--bl)' };
   }
 
-  // Scan every bar from the entry bar forward.
-  // On each bar check SL first — if the wick hits both SL and TP on the same bar,
-  // SL takes priority (worst-case assumption, realistic for intrabar moves).
-  for(let i = fromBar; i < n; i++){
+  // ── CASE 2: Trade entry bar is in the past — check if price ever reached entry ─
+  // If the entry price was never touched from the entry bar onward, the trade
+  // never triggered — flag it as an untriggered setup
+  const entryBarClamped = Math.max(0, entryBar);
+  let entryTriggered = false;
+  for(let i = entryBarClamped; i < n; i++){
+    const bar = curData[i];
+    if(isLong  && bar.low  <= d.price){ entryTriggered = true; break; }
+    if(!isLong && bar.high >= d.price){ entryTriggered = true; break; }
+  }
+  if(!entryTriggered){
+    // Price never reached the entry level — trade never started
+    const lastB    = curData[n-1];
+    const curPrice = (lastB.high + lastB.low + lastB.close) / 3;
+    const dist     = Math.abs(curPrice - d.price) / d.price * 100;
+    return { status:`⏳ Not Triggered (${dist.toFixed(1)}% away)`, statusCol:'var(--am)' };
+  }
+
+  // ── CASE 3: Entry was triggered — scan forward from trigger bar for TP/SL ──
+  let triggerBar = entryBarClamped;
+  for(let i = entryBarClamped; i < n; i++){
+    const bar = curData[i];
+    if(isLong  && bar.low  <= d.price){ triggerBar = i; break; }
+    if(!isLong && bar.high >= d.price){ triggerBar = i; break; }
+  }
+
+  for(let i = triggerBar; i < n; i++){
     const bar = curData[i];
     if(isLong){
       if(bar.low  <= d.sl) return { status:'✗ SL Hit', statusCol:'var(--rd)' };
@@ -11592,8 +11660,8 @@ function tapTradeStatus(d){
     }
   }
 
-  // Still open — report floating P&L vs last bar typical price
-  const lastB    = curData[n - 1];
+  // Still open — report floating P&L vs last bar
+  const lastB    = curData[n-1];
   const curPrice = (lastB.high + lastB.low + lastB.close) / 3;
   const openPnl  = isLong ? (curPrice - d.price) / d.price * 100
                            : (d.price - curPrice) / d.price * 100;
@@ -11833,7 +11901,9 @@ async function openFullTradeAnalysis(){
       font-size:10px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;color:${statusCol};">
       ${status === '✗ SL Hit'            ? '🔴 STOP LOSS HIT — this trade has already been stopped out'
       : status === '✓ TP Hit'            ? '🟢 TAKE PROFIT HIT — this trade reached its target'
-      : status.includes('Unrealistic')   ? '⚠ PLACEMENT WARNING — entry price is far from where price has traded; this setup may not be realistic'
+      : status.includes('Unrealistic')   ? '⚠ PLACEMENT WARNING — entry price is far from where price has traded'
+      : status.includes('Future')        ? '🔮 FUTURE SETUP — price has not reached entry yet; AI will predict likelihood'
+      : status.includes('Not Triggered') ? '⏳ NOT TRIGGERED — price never reached this entry level'
       : '📊 ' + status}
     </div>`;
   }
@@ -12366,6 +12436,8 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const isUnrealistic = tradeStatus && tradeStatus.includes('Unrealistic');
 
   // Build outcome context — the AI must acknowledge what already happened
+  const isFuture      = tradeStatus && tradeStatus.includes('Future');
+  const isNotTriggered= tradeStatus && tradeStatus.includes('Not Triggered');
   let outcomeCtx = '';
   if(tradeStatus){
     if(tradeStatus.includes('SL Hit'))
@@ -12376,13 +12448,19 @@ OUTCOME: STOP LOSS HIT. This trade has already been stopped out at ${fP(d.sl)}. 
 OUTCOME: TAKE PROFIT HIT. This trade already reached its target ${fP(d.tp)}. The trade SUCCEEDED.`;
     else if(isUnrealistic)
       outcomeCtx = `
-WARNING: Entry price ${fP(d.price)} is ${distPct.toFixed(1)}% away from current price ${fP(curPrice)}. Price range on chart: ${fP(rangeLow)}–${fP(rangeHigh)}. This placement appears UNREALISTIC and disconnected from actual price action.`;
+WARNING: Entry price ${fP(d.price)} is ${distPct.toFixed(1)}% away from current price ${fP(curPrice)}. Price range on chart: ${fP(rangeLow)}–${fP(rangeHigh)}. This placement appears UNREALISTIC.`;
+    else if(isFuture)
+      outcomeCtx = `
+STATUS: FUTURE SETUP. Entry ${fP(d.price)} is ABOVE current price ${fP(curPrice)} — this trade has NOT happened yet. Current price must reach ${fP(d.price)} before this trade triggers. Analyse this as a FORWARD-LOOKING setup: assess whether price is likely to reach the entry and play out as planned based on current market structure.`;
+    else if(isNotTriggered)
+      outcomeCtx = `
+STATUS: NOT TRIGGERED. Entry at ${fP(d.price)} was never reached by price. Current price is ${fP(curPrice)} (${distPct.toFixed(1)}% away). This setup did not activate. Analyse whether price could still reach the entry or whether the opportunity has passed.`;
     else if(tradeStatus.includes('Open'))
       outcomeCtx = `
 OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   }
 
-  const prompt = `You are a senior trading analyst giving a post/pre-trade review. Be direct, specific, no disclaimers.${outcomeCtx}
+  const prompt = `You are a senior trading analyst giving a ${isFuture || isNotTriggered ? 'PRE-TRADE predictive' : 'post/pre-trade'} review. Be direct, specific, no disclaimers.${outcomeCtx}
 
 TRADE: ${curSym.s} ${isLong?'LONG':'SHORT'} @ ${fP(d.price)} | SL ${fP(d.sl)} | TP ${fP(d.tp)} | R:R ${rr.toFixed(1)} | TF ${curTF}
 CURRENT BAR: Typical price ${fP(curPrice)} | High ${fP(lastHigh)} | Low ${fP(lastLow)} | Entry distance: ${distPct.toFixed(2)}%
@@ -12390,10 +12468,12 @@ INDICATORS: RSI ${rsi} | ATR ${(atr/d.price*100).toFixed(2)}% | Trend ${trend} |
 PATTERNS: ${topPats.join(', ')||'none'} | Support: ${sr.support.slice(-1).map(fP)[0]||'none'} | Resistance: ${sr.resistance.slice(0,1).map(fP)[0]||'none'}
 PERSONAL STATS: ${curSym.s} journal win rate ${symWR}
 NOTE: All price analysis uses full bar range including wicks (high/low), not just closing prices.
-${isUnrealistic ? `
-IMPORTANT: The entry price is far outside the chart price range. Your analysis MUST lead with a clear warning that this placement is unrealistic.` : ''}
+${isFuture ? `
+IMPORTANT: This is a FUTURE setup — price has NOT reached the entry yet. Your analysis MUST focus on: (1) whether current market structure supports price reaching this level, (2) probability of the setup playing out, (3) what to watch for before entering. Do NOT treat this as a completed or active trade.` : ''}
+${isNotTriggered ? `
+IMPORTANT: This trade was NEVER triggered — price did not reach the entry. Analyse whether the setup idea was sound and if price could still get there, or if the opportunity has passed.` : ''}
 ${tradeStatus?.includes('SL Hit') ? `
-IMPORTANT: The stop loss was hit. Your analysis MUST clearly state this trade FAILED and explain why the setup did not work. Do NOT say it might still work.` : ''}
+IMPORTANT: The stop loss was hit. Your analysis MUST clearly state this trade FAILED and explain why the setup did not work.` : ''}
 ${tradeStatus?.includes('TP Hit') ? `
 IMPORTANT: The take profit was hit. Your analysis MUST clearly state this trade SUCCEEDED.` : ''}
 
@@ -13213,6 +13293,37 @@ function _fpwMakeDraggable(el, handle){
 
 // Topbar init is handled inside doLogin (after user context is set).
 // For first-time / no-account sessions, the auth-screen shows so no init needed yet.
+
+// Save everything when the user closes the tab or navigates away
+window.addEventListener('beforeunload', () => {
+  if(!_currentUserId) return;
+  saveJournal();
+  saveWatchlist();
+  saveSettingsToStorage();
+  _tbSaveLayout();
+  _tbSaveState();
+  // Flush any pending writes synchronously using sendBeacon as fallback
+  const entries = Object.entries(_writeQueue).map(([key, value]) => ({
+    user_id: _currentUserId, key, value, updated_at: new Date().toISOString()
+  }));
+  if(entries.length > 0){
+    // Best-effort beacon — browser allows this during unload
+    const body = JSON.stringify(entries);
+    navigator.sendBeacon && navigator.sendBeacon(
+      `${SUPA_URL}/rest/v1/user_data`,
+      new Blob([body], {type:'application/json'})
+    );
+  }
+});
+
+// Also flush on visibility change (user switches tab/minimises)
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden' && _currentUserId){
+    saveJournal();
+    saveWatchlist();
+    _flushWriteQueue();
+  }
+});
 
 </script>
 
