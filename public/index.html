@@ -1940,30 +1940,60 @@ updateStatusTime();
 <script>
 // ══ SYMBOLS ══════════════════════════════════════════════════════════════════
 const SYMS=[
-  {s:'AAPL', n:'Apple Inc.',        e:'NASDAQ', t:'Stock',   p:220.00, c:1.24},
-  {s:'TSLA', n:'Tesla Inc.',        e:'NASDAQ', t:'Stock',   p:280.00, c:-2.31},
-  {s:'NVDA', n:'NVIDIA Corp.',      e:'NASDAQ', t:'Stock',   p:115.00, c:3.15},
-  {s:'MSFT', n:'Microsoft Corp.',   e:'NASDAQ', t:'Stock',   p:415.00, c:0.87},
-  {s:'AMZN', n:'Amazon.com',        e:'NASDAQ', t:'Stock',   p:220.00, c:-0.54},
-  {s:'GOOGL',n:'Alphabet Inc.',     e:'NASDAQ', t:'Stock',   p:175.00, c:0.33},
-  {s:'META', n:'Meta Platforms',    e:'NASDAQ', t:'Stock',   p:600.00, c:1.65},
-  {s:'JPM',  n:'JPMorgan Chase',    e:'NYSE',   t:'Stock',   p:245.00, c:0.91},
-  {s:'SPY',  n:'S&P 500 ETF',       e:'NYSE',   t:'ETF',     p:570.00, c:0.42},
-  {s:'QQQ',  n:'Nasdaq-100 ETF',    e:'NYSE',   t:'ETF',     p:490.00, c:0.91},
-  {s:'GLD',  n:'Gold ETF',          e:'NYSE',   t:'ETF',     p:280.00, c:-0.33},
-  {s:'ES1!', n:'S&P 500 Futures',   e:'CME',    t:'Futures', p:5700,   c:0.31},
-  {s:'CL1!', n:'Crude Oil Futures', e:'NYMEX',  t:'Futures', p:68.00,  c:-1.20},
-  {s:'GC1!', n:'Gold Futures',      e:'COMEX',  t:'Futures', p:2950,   c:0.55},
-  {s:'BTC/USD',n:'Bitcoin',         e:'CRYPTO', t:'Crypto',  p:84000,  c:2.88},
-  {s:'ETH/USD',n:'Ethereum',        e:'CRYPTO', t:'Crypto',  p:2000,   c:1.44},
-  {s:'SOL/USD',n:'Solana',          e:'CRYPTO', t:'Crypto',  p:130.00, c:4.22},
-  {s:'EUR/USD',n:'Euro/Dollar',     e:'FOREX',  t:'Forex',   p:1.0850, c:0.12},
-  {s:'GBP/USD',n:'Pound/Dollar',    e:'FOREX',  t:'Forex',   p:1.2940, c:-0.08},
-  {s:'USD/JPY',n:'Dollar/Yen',      e:'FOREX',  t:'Forex',   p:149.50, c:0.21},
+  // ── Crypto (via Binance — free, commercial use permitted) ────────────────
+  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:84000,  c:2.88},
+  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:2000,   c:1.44},
+  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:130.00, c:4.22},
+  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:580.00, c:0.95},
+  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:0.52,   c:1.10},
+  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.16,   c:3.20},
+  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.45,   c:1.80},
+  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:35.00,  c:2.10},
+  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:14.00,  c:1.50},
+  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:7.00,   c:0.80},
+  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.90,   c:2.30},
+  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:8.50,   c:1.60},
+  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:85.00,  c:0.70},
+  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:8.00,   c:1.20},
+  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:5.50,   c:2.40},
+  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:1.20,   c:3.50},
+  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:9.00,   c:2.10},
+  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:25.00,  c:1.80},
+  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:1.10,   c:2.40},
+  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:2.20,   c:1.90},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
 let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
+
+// ── Indicator cache — invalidated when curData changes ────────────────────────
+let _indCache = null;
+let _indCacheKey = '';   // "dataLength_dataLastTime_flags"
+function _getIndCacheKey(){
+  if(!curData.length) return '';
+  const last = curData[curData.length-1];
+  return `${curData.length}_${last.time}_${showSMA?1:0}${showBB?1:0}${showRSI?1:0}${showEMA?1:0}${showVWAP?1:0}${showMACD?1:0}${showStoch?1:0}`;
+}
+function invalidateIndCache(){ _indCacheKey = ''; _indCache = null; }
+function getInds(){
+  const key = _getIndCacheKey();
+  if(key && key === _indCacheKey && _indCache) return _indCache;
+  const data = curCT==='heikin' ? calcHeikin(curData) : curData;
+  _indCache = {
+    data,
+    sma20:    showSMA   ? calcSMA(data,20)    : null,
+    sma50:    showSMA   ? calcSMA(data,50)    : null,
+    bbs:      showBB    ? calcBB(data)        : null,
+    rsiVals:  showRSI   ? calcRSI(data)       : null,
+    ema9:     showEMA   ? calcEMA(data,9)      : null,
+    ema21:    showEMA   ? calcEMA(data,21)     : null,
+    vwapVals: showVWAP  ? calcVWAP(data)      : null,
+    macdVals: showMACD  ? calcMACD(data)      : null,
+    stochVals:showStoch ? calcStoch(data)     : null,
+  };
+  _indCacheKey = key;
+  return _indCache;
+}
 let alerts=[], journal=[];
 
 // ── View state (TradingView model) ───────────────────────────────────────────
@@ -2013,7 +2043,7 @@ const FBASE = 'https://finnhub.io/api/v1';
     if (r.ok) { const d = await r.json(); if (d.token) API_KEY = d.token; }
   } catch(e) {}
 })();
-const TF_RES={'1m':'1','5m':'5','15m':'15','1h':'60','1d':'D','1w':'W','1M':'M'};
+// TF_RES removed — Yahoo Finance no longer used
 const TF_FROM={'1m':7,'5m':60,'15m':60,'1h':729,'1d':3649,'1w':3649,'1M':3649};
 // Binance TF map for crypto
 const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','1d':'1d','1w':'1w','1M':'1M'};
@@ -2067,15 +2097,31 @@ function genData(base, bars=300, vol=0.018){
   // Don't cache fake data — only real fetched data goes in dataCache
   return d;
 }
-const calcSMA=(d,n)=>d.map((x,i)=>i<n-1?null:d.slice(i-n+1,i+1).reduce((s,v)=>s+v.close,0)/n);
+const calcSMA=(d,n)=>{
+  const r=new Array(d.length).fill(null);
+  let sum=0;
+  for(let i=0;i<d.length;i++){
+    sum+=d[i].close;
+    if(i>=n) sum-=d[i-n].close;
+    if(i>=n-1) r[i]=sum/n;
+  }
+  return r;
+};
 const calcEMA=(d,n)=>{const k=2/(n+1);let e=d[0].close;return d.map((x,i)=>{if(i)e=x.close*k+e*(1-k);return e;});};
-const calcBB=(d,n=20,m=2)=>d.map((x,i)=>{
-  if(i<n-1)return null;
-  const sl=d.slice(i-n+1,i+1).map(v=>v.close);
-  const avg=sl.reduce((s,v)=>s+v,0)/n;
-  const std=Math.sqrt(sl.reduce((s,v)=>s+(v-avg)**2,0)/n);
-  return{mid:avg,upper:avg+m*std,lower:avg-m*std};
-});
+const calcBB=(d,n=20,m=2)=>{
+  const r=new Array(d.length).fill(null);
+  let sum=0, sum2=0;
+  for(let i=0;i<d.length;i++){
+    const v=d[i].close; sum+=v; sum2+=v*v;
+    if(i>=n){ const ov=d[i-n].close; sum-=ov; sum2-=ov*ov; }
+    if(i>=n-1){
+      const avg=sum/n;
+      const std=Math.sqrt(Math.max(0,sum2/n-avg*avg));
+      r[i]={mid:avg,upper:avg+m*std,lower:avg-m*std};
+    }
+  }
+  return r;
+};
 const calcRSI=(d,n=14)=>d.map((x,i)=>{
   if(i<n)return null;
   let g=0,l=0;
@@ -2410,13 +2456,13 @@ let jArchiveToggled = false; // tracks archive toggle state in modal
 // ── Capture chart to base64 ──────────────────────────────────────────────────
 function captureChart(){
   try{
-    const mainC = document.getElementById('main-canvas');
+    const mainC = _el('main-canvas');
     if(!mainC || mainC.width===0 || mainC.height===0) return null;
 
-    const volPanel = document.getElementById('vol-panel');
-    const rsiPanel = document.getElementById('rsi-panel');
-    const volC     = document.getElementById('vol-canvas');
-    const rsiC     = document.getElementById('rsi-canvas');
+    const volPanel = _el('vol-panel');
+    const rsiPanel = _el('rsi-panel');
+    const volC     = _el('vol-canvas');
+    const rsiC     = _el('rsi-canvas');
 
     const canvases = [mainC];
     if(volPanel && volPanel.style.display !== 'none' && volC && volC.height > 0) canvases.push(volC);
@@ -2434,7 +2480,7 @@ function captureChart(){
     canvases.forEach(c=>{ ctx2.drawImage(c,0,y,W,c.height); y+=c.height; });
 
     // watermark
-    if(document.getElementById('sc-watermark')?.checked!==false){
+    if(_el('sc-watermark')?.checked!==false){
     ctx2.fillStyle = 'rgba(240,165,0,.6)'; ctx2.font = 'bold 11px monospace'; ctx2.textAlign = 'right';
     ctx2.fillText(`APEX FX · ${curSym.s} · ${curTF} · ${new Date().toLocaleString()}`, W-8, H-6); }
 
@@ -4692,7 +4738,7 @@ function updateReplayStatus(){
 // Returns the bar index the mouse is currently hovering over (used by draw)
 function replayHoverBar(){
   if(!replayMode || !replayPicking) return -1;
-  const mc = document.getElementById('main-canvas');
+  const mc = _el('main-canvas');
   if(!mc || mouseX < 0) return -1;
   const W = mc.width;
   // Replicate the same firstBarOnScreen calculation used in draw()
@@ -5090,13 +5136,13 @@ function renderNews(items, sym){
 
 // ══ CANVAS CHART ══════════════════════════════════════════════════════════════
 function sizeCanvases(){
-  const area=document.getElementById('chart-area');
+  const area=_el('chart-area');
   const W=area.clientWidth, totalH=area.clientHeight;
   const volH=showVol?68:0, rsiH=showRSI?74:0;
   const macdH=showMACD?74:0, stochH=showStoch?74:0;
   const mainH=Math.max(100,totalH-volH-rsiH-macdH-stochH);
 
-  const mc=document.getElementById('main-canvas');
+  const mc=_el('main-canvas');
   mc.width=W; mc.height=mainH; mc.style.height=mainH+'px';
 
   const panels=[
@@ -5126,7 +5172,7 @@ function sizeCanvases(){
       btn.onclick=()=>indToggle(ind.id);
       const cv=document.createElement('canvas'); cv.id='ci-canvas-'+ind.id;
       p.append(lbl,btn,cv);
-      document.getElementById('chart-area').appendChild(p);
+      _el('chart-area').appendChild(p);
     }
     p.style.display=''; p.style.height=CUSTOM_PANEL_H+'px';
     const cv=document.getElementById('ci-canvas-'+ind.id);
@@ -5149,6 +5195,11 @@ function getCSSVar(v){
   return _cssVarCache[v];
 }
 function invalidateCSSVarCache(){ _cssVarCache = {}; _cssVarCacheDirty = true; }
+// Cached DOM element references (only looked up once)
+let _elCache = {};
+function _el(id){ return _elCache[id] || (_elCache[id] = document.getElementById(id)); }
+function invalidateElCache(){ _elCache = {}; }
+
 // Pre-warm all vars used in draw() once per frame
 function _warmCSSVars(){
   const style = getComputedStyle(document.documentElement);
@@ -5168,7 +5219,7 @@ function draw(){
 }
 function _drawImmediate(){
   if(!curData.length)return;
-  const mc=document.getElementById('main-canvas');
+  const mc=_el('main-canvas');
   const W=mc.width, H=mc.height;
   if(!W||!H)return;
 
@@ -5193,16 +5244,8 @@ function _drawImmediate(){
   const hex2rgb = h => { h=h.replace('#',''); const n=parseInt(h.length===3?h.split('').map(x=>x+x).join(''):h,16); return [(n>>16)&255,(n>>8)&255,n&255]; };
   const ca = (col,a) => { try{ const [r,g,b]=hex2rgb(col); return `rgba(${r},${g},${b},${a})`; } catch(e){ return col; } };
 
-  const data=curCT==='heikin'?calcHeikin(curData):curData;
-  const sma20=showSMA?calcSMA(data,20):null;
-  const sma50=showSMA?calcSMA(data,50):null;
-  const bbs=showBB?calcBB(data):null;
-  const rsiVals=showRSI?calcRSI(data):null;
-  const ema9=showEMA?calcEMA(data,9):null;
-  const ema21=showEMA?calcEMA(data,21):null;
-  const vwapVals=showVWAP?calcVWAP(data):null;
-  const macdVals=showMACD?calcMACD(data):null;
-  const stochVals=showStoch?calcStoch(data):null;
+  // Use cached indicators — only recalculated when data or indicator flags change
+  const {data,sma20,sma50,bbs,rsiVals,ema9,ema21,vwapVals,macdVals,stochVals} = getInds();
 
   // ── Coordinate helpers ────────────────────────────────────────────────────
   // barX(i): pixel x of bar i's centre
@@ -5238,8 +5281,8 @@ function _drawImmediate(){
   // Grid (horizontal)
   for(let i=0;i<=6;i++){
     const y=Math.floor(H/6*i)+.5;
-    if(document.getElementById('sc-grid')?.checked!==false){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    if(document.getElementById('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
+    if(_el('sc-grid')?.checked!==false){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    if(_el('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
   }
 
   // ── TradingView-style x-axis ───────────────────────────────────────────────
@@ -5284,7 +5327,7 @@ function _drawImmediate(){
   }
 
   // ── Pass 2: draw grid lines (never suppressed by crosshair) ─────────────
-  if(document.getElementById('sc-grid')?.checked !== false){
+  if(_el('sc-grid')?.checked !== false){
     for(const {x, tick} of xTicks){
       const lineAlpha = tick.tier <= 1 ? 0.18 : tick.tier === 2 ? 0.12 : 0.07;
       ctx.strokeStyle = tick.tier <= 1 ? ca(C.am, lineAlpha) : C.b1;
@@ -5367,13 +5410,13 @@ function _drawImmediate(){
       const col=up?candleBullColor:candleBearColor;
       const yO=py(Math.max(d.open,d.close)), yC=py(Math.min(d.open,d.close));
       const bh=Math.max(1,yC-yO);
-      if(document.getElementById('sc-wicks')?.checked!==false){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
-      if(bw2>=1){ if(document.getElementById('sc-hollow')?.checked){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
+      if(_el('sc-wicks')?.checked!==false){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
+      if(bw2>=1){ if(_el('sc-hollow')?.checked){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
     }
   }
 
   // Visible high / low labels (live — based on what's currently on screen)
-  if(document.getElementById('sc-highlow')?.checked!==false){
+  if(_el('sc-highlow')?.checked!==false){
     // Find the actual highest high and lowest low bar in the visible range
     let hiPrice = -Infinity, loPrice = Infinity;
     let hiBarX = 0, loBarX = 0;
@@ -5465,7 +5508,7 @@ function _drawImmediate(){
     }
   }
 
-  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&document.getElementById('sc-crosshair')?.checked!==false){
+  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&_el('sc-crosshair')?.checked!==false){
     ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.moveTo(mouseX,0); ctx.lineTo(mouseX,H); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,mouseY); ctx.lineTo(W-R_PANEL_OFFSET,mouseY); ctx.stroke();
@@ -5479,7 +5522,7 @@ function _drawImmediate(){
     const hoverBar = Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth);
     const hb = Math.max(0,Math.min(data.length-1,hoverBar));
     // Timestamp label on X-axis at crosshair position
-    if(data[hb]&&document.getElementById('sc-xaxislabel')?.checked!==false){
+    if(data[hb]&&_el('sc-xaxislabel')?.checked!==false){
       const d  = new Date(data[hb].time * 1000);
       const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
       const timeStr = isSubDay
@@ -5499,17 +5542,17 @@ function _drawImmediate(){
       ctx.fillText(timeStr, lx, H - lh/2 + 3);
     }
     const d=data[hb];
-    document.getElementById('tt-o').textContent=fP(d.open);
-    document.getElementById('tt-h').textContent=fP(d.high);
-    document.getElementById('tt-l').textContent=fP(d.low);
-    document.getElementById('tt-c').textContent=fP(d.close);
-    document.getElementById('tooltip').style.display=document.getElementById('sc-ohlc')?.checked!==false?'flex':'none';
+    _el('tt-o').textContent=fP(d.open);
+    _el('tt-h').textContent=fP(d.high);
+    _el('tt-l').textContent=fP(d.low);
+    _el('tt-c').textContent=fP(d.close);
+    _el('tooltip').style.display=_el('sc-ohlc')?.checked!==false?'flex':'none';
   } else {
-    document.getElementById('tooltip').style.display='none';
+    _el('tooltip').style.display='none';
   }
 
   // VOLUME panel
-  const vc=document.getElementById('vol-canvas');
+  const vc=_el('vol-canvas');
   if(showVol&&vc.width&&vc.height){
     const vctx=vc.getContext('2d'); const VW=vc.width,VH=vc.height;
     vctx.fillStyle=C.bg3; vctx.fillRect(0,0,VW,VH);
@@ -5525,7 +5568,7 @@ function _drawImmediate(){
   }
 
   // RSI panel
-  const rc=document.getElementById('rsi-canvas');
+  const rc=_el('rsi-canvas');
   if(showRSI&&rsiVals&&rc.width&&rc.height){
     const rctx=rc.getContext('2d'); const RW=rc.width,RH=rc.height;
     rctx.fillStyle=C.bg3; rctx.fillRect(0,0,RW,RH);
@@ -5554,7 +5597,7 @@ function _drawImmediate(){
   }
 
   // MACD panel
-  const mc2=document.getElementById('macd-canvas');
+  const mc2=_el('macd-canvas');
   if(showMACD&&macdVals&&mc2&&mc2.width&&mc2.height){
     const mctx=mc2.getContext('2d'); const MW=mc2.width,MH=mc2.height;
     mctx.fillStyle=C.bg3; mctx.fillRect(0,0,MW,MH);
@@ -5592,7 +5635,7 @@ function _drawImmediate(){
   }
 
   // Stochastic panel
-  const sc2=document.getElementById('stoch-canvas');
+  const sc2=_el('stoch-canvas');
   if(showStoch&&stochVals&&sc2&&sc2.width&&sc2.height){
     const sctx=sc2.getContext('2d'); const SW=sc2.width,SH=sc2.height;
     sctx.fillStyle=C.bg3; sctx.fillRect(0,0,SW,SH);
@@ -5764,7 +5807,7 @@ function setTool(t){
     const b = document.getElementById('dt-'+id);
     if(b) b.classList.toggle('on', id===t);
   });
-  const mc = document.getElementById('main-canvas');
+  const mc = _el('main-canvas');
   mc.style.cursor = t==='cursor'?'crosshair': t==='eraser'?'cell':'crosshair';
   // Reflect drawing tool active state on docked button
   const drawBtn = document.getElementById('tbdock-draw');
@@ -6022,7 +6065,7 @@ function handleDrawMousedown(sx, sy, e){
     return false;
   }
 
-  const mc = document.getElementById('main-canvas');
+  const mc = _el('main-canvas');
   e.preventDefault(); e.stopPropagation();
 
   if(activeTool==='eraser'){
@@ -6647,7 +6690,7 @@ function getZone(x,y,W,H){
 }
 
 function getAutoRange(){
-  const mc = document.getElementById('main-canvas');
+  const mc = _el('main-canvas');
   const W = mc.width;
   const data = curCT==='heikin'?calcHeikin(curData):curData;
   const first = Math.max(0, Math.ceil(rightBarIndex - W/barWidth));
@@ -6659,7 +6702,7 @@ function getAutoRange(){
 }
 
 function setupEvents(){
-  const mc = document.getElementById('main-canvas');
+  const mc = _el('main-canvas');
 
   // ── mousedown ─────────────────────────────────────────────────────────────
   mc.addEventListener('mousedown', e => {
@@ -6728,8 +6771,13 @@ function setupEvents(){
   });
 
   // ── mousemove on document so drag survives leaving canvas ─────────────────
+  // Cache canvas bounding rect — only re-read on resize/scroll
+  let _mcRect = mc.getBoundingClientRect();
+  window.addEventListener('resize', ()=>{ _mcRect = mc.getBoundingClientRect(); });
+  window.addEventListener('scroll', ()=>{ _mcRect = mc.getBoundingClientRect(); }, true);
+
   document.addEventListener('mousemove', e => {
-    const r  = mc.getBoundingClientRect();
+    const r  = _mcRect;
     mouseX = e.clientX - r.left;
     mouseY = e.clientY - r.top;
 
@@ -6903,23 +6951,6 @@ async function connectLiveTick(sym, type){
       }catch(err){}
     };
     liveWS.onerror = ()=>{};
-  } else {
-    if(!API_KEY){ try{ const wr=await fetch('/api/ws-token'); const wd=await wr.json(); if(wd.token) API_KEY=wd.token; }catch(e){} }
-    liveWS = new WebSocket('wss://ws.finnhub.io?token='+API_KEY);
-    liveWSSym = sym;
-    liveWS.onopen = ()=>{
-      liveWS.send(JSON.stringify({type:'subscribe', symbol: type==='Forex'?'OANDA:'+sym.replace('/','_'):sym}));
-    };
-    liveWS.onmessage = e => {
-      try{
-        const d = JSON.parse(e.data);
-        if(d.type==='trade' && d.data && d.data.length){
-          const price = d.data[d.data.length-1].p;
-          updateLiveTick(sym, price);
-        }
-      }catch(err){}
-    };
-    liveWS.onerror = ()=>{};
   }
 }
 
@@ -6959,14 +6990,6 @@ async function fetchMoreHistory(){
     let bars = [];
     if(curSym.t === 'Crypto'){
       bars = await fetchBinanceCandles(sym, tf, null, oldest*1000);
-    } else {
-      const res  = TF_RES[tf]||'D';
-      const to   = oldest - 1;
-      const days = TF_FROM[tf];
-      const from = to - days*86400;
-      bars = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${tf}&from=${from}&to=${to}`)
-        .then(r=>r.json()).catch(()=>[]);
-      if(!Array.isArray(bars)) bars = [];
     }
     if(bars.length && sym===curSym.s && tf===curTF){
       // Deduplicate and prepend
@@ -6974,6 +6997,7 @@ async function fetchMoreHistory(){
       const newBars = bars.filter(b=>!existingTimes.has(b.time)).sort((a,b)=>a.time-b.time);
       if(newBars.length){
         curData = [...newBars, ...curData];
+        invalidateIndCache();
         rightBarIndex += newBars.length; // keep view stable
         dataCache[sym+'_'+tf] = curData;
         draw();
@@ -7049,19 +7073,13 @@ async function loadSym(sym){
     let bars = [];
     if(curSym.t === 'Crypto'){
       bars = await fetchBinanceCandles(sym, curTF);
-    } else {
-      const now  = Math.floor(Date.now()/1000);
-      const from = now - TF_FROM[curTF]*86400;
-      const res  = TF_RES[curTF]||'D';
-      bars = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(curSym.t)}&tf=${curTF}&from=${from}&to=${now}`)
-        .then(r=>r.json()).catch(()=>[]);
-      if(!Array.isArray(bars)) bars = [];
     }
 
     if(bars.length >= 2 && sym===curSym.s){
       bars.sort((a,b)=>a.time-b.time);
       dataCache[sym+'_'+curTF] = bars;
       curData = bars;
+      invalidateIndCache();
       rightBarIndex = curData.length+5;
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, curTF);
@@ -7172,6 +7190,7 @@ function toggleInd(name){
   // Update button active state
   const btn = document.getElementById('btn-'+name);
   if(btn) btn.classList.toggle('on', getIndState(name));
+  invalidateIndCache();
   if(needsResize) sizeCanvases();
   draw();
   // Keep the indicator list panel in sync
@@ -7917,16 +7936,9 @@ function runPrompt(btn, q){
       filter:s=>s.nearBBUpper||s.nearBBLower||s.bbSqueeze,
       sort:(a,b)=>(b.nearBBUpper?2:b.nearBBLower?1:0)-(a.nearBBUpper?2:a.nearBBLower?1:0),
       label:'BB Signals', fmt:s=>`${s.s} ${s.bbSqueeze?'Squeeze':s.nearBBUpper?'Upper':'Lower'}` },
-    { test: q=>q.match(/crypto|bitcoin|btc|eth|sol|coin/),
+    { test: q=>q.match(/crypto|bitcoin|btc|eth|sol|coin|bnb|xrp|doge|ada|avax|link|dot|matic|uni|ltc|atom|ton/),
       filter:s=>s.t==='Crypto', sort:(a,b)=>b.momentum-a.momentum, label:'Crypto', fmt:s=>`${s.s} ${s.c>=0?'+':''}${s.c}%` },
-    { test: q=>q.match(/forex|fx|currency|pair|eur|gbp|jpy/),
-      filter:s=>s.t==='Forex', sort:(a,b)=>b.momentum-a.momentum, label:'Forex', fmt:s=>`${s.s} ${s.c>=0?'+':''}${s.c}%` },
-    { test: q=>q.match(/futures?|commodit|oil|gold|contract/),
-      filter:s=>s.t==='Futures', sort:(a,b)=>b.momentum-a.momentum, label:'Futures', fmt:s=>`${s.s} ${s.c>=0?'+':''}${s.c}%` },
-    { test: q=>q.match(/etf|fund|spy|qqq|sector/),
-      filter:s=>s.t==='ETF', sort:(a,b)=>b.momentum-a.momentum, label:'ETFs', fmt:s=>`${s.s} ${s.c>=0?'+':''}${s.c}%` },
-    { test: q=>q.match(/stock|equit|share/),
-      filter:s=>s.t==='Stock', sort:(a,b)=>b.momentum-a.momentum, label:'Stocks', fmt:s=>`${s.s} ${s.c>=0?'+':''}${s.c}%` },
+
     ...SYMS.map(s=>({
       test: q=>q.includes(s.s.toLowerCase())||q.includes(s.n.toLowerCase().split(' ')[0]),
       filter:x=>x.s===s.s, sort:()=>0, label:s.s, fmt:x=>`${x.s} ${x.c>=0?'+':''}${x.c}% RSI:${x.rsi.toFixed(0)}`
@@ -8012,7 +8024,7 @@ function initScannerDrag(){
 // ResizeObserver: redraws chart whenever chart-area changes size
 // (catches overlay-panel dock/undock, window resize, zoom changes)
 (function(){
-  const area = document.getElementById('chart-area');
+  const area = _el('chart-area');
   if(!area || !window.ResizeObserver) return;
   let _roRaf = null;
   const ro = new ResizeObserver(() => {
@@ -8704,21 +8716,21 @@ function saveSettingsToStorage(){
     candleBull: candleBullColor, candleBear: candleBearColor,
     smaCols: smaCols, barWidth: barWidth,
     showSMA,showBB,showEMA,showVWAP,showVol,showRSI,showMACD,showStoch,
-    scGrid:      document.getElementById('sc-grid')?.checked,
-    scCross:     document.getElementById('sc-crosshair')?.checked,
-    scHiLo:      document.getElementById('sc-highlow')?.checked,
-    scDayBnd:    document.getElementById('sc-dayboundary')?.checked,
-    scHollow:    document.getElementById('sc-hollow')?.checked,
-    scOhlc:      document.getElementById('sc-ohlc')?.checked,
-    scWater:     document.getElementById('sc-watermark')?.checked,
+    scGrid:      _el('sc-grid')?.checked,
+    scCross:     _el('sc-crosshair')?.checked,
+    scHiLo:      _el('sc-highlow')?.checked,
+    scDayBnd:    _el('sc-dayboundary')?.checked,
+    scHollow:    _el('sc-hollow')?.checked,
+    scOhlc:      _el('sc-ohlc')?.checked,
+    scWater:     _el('sc-watermark')?.checked,
     scSidebar:   document.getElementById('sc-sidebar')?.checked,
     scRpanel:    document.getElementById('sc-rpanel')?.checked,
     scScanner:   document.getElementById('sc-scanner')?.checked,
     scDrawtb:    document.getElementById('sc-drawtb')?.checked,
     scStatusbar: document.getElementById('sc-statusbar')?.checked,
-    scWicks:     document.getElementById('sc-wicks')?.checked,
-    scPriceScale:document.getElementById('sc-pricescale')?.checked,
-    scXAxisLbl:  document.getElementById('sc-xaxislabel')?.checked,
+    scWicks:     _el('sc-wicks')?.checked,
+    scPriceScale:_el('sc-pricescale')?.checked,
+    scXAxisLbl:  _el('sc-xaxislabel')?.checked,
     scSma20c:    document.getElementById('sc-sma20c')?.value||'#3d7fff',
     scSma50c:    document.getElementById('sc-sma50c')?.value||'#f0a500',
     uiScale:     document.getElementById('sc-fontsize')?.value||'100',
