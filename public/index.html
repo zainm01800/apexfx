@@ -5099,15 +5099,43 @@ function sizeCanvases(){
   });
 }
 
-function getCSSVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+// CSS var cache — avoids getComputedStyle on every draw call
+let _cssVarCache = {};
+let _cssVarCacheDirty = true;
+function getCSSVar(v){
+  if(_cssVarCacheDirty || !_cssVarCache[v]){
+    _cssVarCache[v] = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  }
+  return _cssVarCache[v];
+}
+function invalidateCSSVarCache(){ _cssVarCache = {}; _cssVarCacheDirty = true; }
+// Pre-warm all vars used in draw() once per frame
+function _warmCSSVars(){
+  const style = getComputedStyle(document.documentElement);
+  ['--bg','--bg2','--bg3','--bg4','--b1','--b2','--tx2','--tx3','--am','--tl','--rd','--bl'].forEach(v=>{
+    _cssVarCache[v] = style.getPropertyValue(v).trim();
+  });
+  _cssVarCacheDirty = false;
+}
 
+let _drawRaf = null;
 function draw(){
+  if(_drawRaf) return; // already scheduled this frame
+  _drawRaf = requestAnimationFrame(() => {
+    _drawRaf = null;
+    _drawImmediate();
+  });
+}
+function _drawImmediate(){
   if(!curData.length)return;
   const mc=document.getElementById('main-canvas');
   const W=mc.width, H=mc.height;
   if(!W||!H)return;
 
-  // ── Live CSS-variable colours (update with every theme/colour change) ──────
+  // Pre-warm CSS var cache once per draw
+  _warmCSSVars();
+
+  // ── Live CSS-variable colours ────────────────────────────────────────────
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
     bg2:  getCSSVar('--bg2') || '#0c0e16',
@@ -8113,6 +8141,7 @@ function applyCandleColors(){
 
 function applyVar(varName, value){
   document.documentElement.style.setProperty(varName, value);
+  invalidateCSSVarCache();
   draw();
 }
 
@@ -8129,7 +8158,7 @@ const THEMES = {
   blue:   {bg:'#030810',bg2:'#060d18',bg3:'#091220',bg4:'#0c1830',bg5:'#101e3a',b1:'#0e1e38',b2:'#162a50',b3:'#1e3868',tx:'#cce4ff',tx2:'#7aaacf',tx3:'#3a607f',am:'#4da8ff',tl:'#00cfff',rd:'#ff4488',bl:'#55aaff'},
 };
 
-function applyTheme(name){
+function applyTheme(name){ invalidateCSSVarCache();
   const t = THEMES[name]; if(!t) return;
   const r = document.documentElement.style;
   Object.entries(t).forEach(([k,v])=>r.setProperty('--'+k, v));
