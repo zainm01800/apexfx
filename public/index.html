@@ -12509,67 +12509,29 @@ STATUS: NOT TRIGGERED. Entry at ${fP(d.price)} was never reached by price. Curre
 OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   }
 
-  // ── Build richer market context for the prompt ───────────────────────────────
-  const recentBars   = curData.slice(-20);
-  const recentHighs  = recentBars.map(b=>b.high);
-  const recentLows   = recentBars.map(b=>b.low);
-  const swingHigh    = Math.max(...recentHighs);
-  const swingLow     = Math.min(...recentLows);
-  const avgVol20     = recentBars.reduce((s,b)=>s+b.volume,0)/recentBars.length;
-  const lastVol      = lastBar.volume;
-  const volDesc      = lastVol > avgVol20*1.5 ? `Above average (${(lastVol/avgVol20).toFixed(1)}x)` :
-                       lastVol < avgVol20*0.6 ? `Below average (${(lastVol/avgVol20).toFixed(1)}x)` :
-                       `Average (${(lastVol/avgVol20).toFixed(1)}x)`;
-  const allSR        = [...sr.support.map(v=>({v,t:'S'})), ...sr.resistance.map(v=>({v,t:'R'}))]
-                         .sort((a,b)=>a.v-b.v);
-  const srStr        = allSR.map(x=>`${x.t} ${fP(x.v)}`).join(' | ') || 'none detected';
-  const nearestS     = sr.support.filter(s=>s<=d.price).sort((a,b)=>b-a)[0];
-  const nearestR     = sr.resistance.filter(r=>r>=d.price).sort((a,b)=>a-b)[0];
-  const sma20val     = sma20[n-1], sma50val = sma50[n-1];
-  const priceVsSma20 = sma20val ? (curPrice > sma20val ? `above SMA20 (${fP(sma20val)})` : `below SMA20 (${fP(sma20val)})`) : '';
-  const priceVsSma50 = sma50val ? (curPrice > sma50val ? `above SMA50 (${fP(sma50val)})` : `below SMA50 (${fP(sma50val)})`) : '';
-  const entryVsSma   = sma20val ? (d.price > sma20val ? `above SMA20` : `below SMA20`) : '';
-  const allPatsStr   = pats.length ? pats.map(p=>`${p.name} (${(p.conf*100).toFixed(0)}% conf, ${p.dir})`).join(', ') : 'none';
-  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED — STOPPED OUT' :
-                       tradeStatus?.includes('TP Hit') ? 'COMPLETED — TARGET HIT' :
-                       tradeStatus?.includes('Open')   ? 'ACTIVE / OPEN' :
-                       isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
-                       isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
+  const prompt = `You are a senior trading analyst giving a ${isFuture || isNotTriggered ? 'PRE-TRADE predictive' : 'post/pre-trade'} review. Be direct, specific, no disclaimers.${outcomeCtx}
 
-  const prompt = `You are a professional institutional-level technical analyst. Analyse this specific trade setup objectively using market structure, probability, and risk management. Do NOT give generic advice. Do NOT explain basic concepts. Only analyse this exact setup with the data provided.${outcomeCtx}
+TRADE: ${curSym.s} ${isLong?'LONG':'SHORT'} @ ${fP(d.price)} | SL ${fP(d.sl)} | TP ${fP(d.tp)} | R:R ${rr.toFixed(1)} | TF ${curTF}
+CURRENT BAR: Typical price ${fP(curPrice)} | High ${fP(lastHigh)} | Low ${fP(lastLow)} | Entry distance: ${distPct.toFixed(2)}%
+INDICATORS: RSI ${rsi} | ATR ${(atr/d.price*100).toFixed(2)}% | Trend ${trend} | 5-bar typical move ${recentMove}%
+PATTERNS: ${topPats.join(', ')||'none'} | Support: ${sr.support.slice(-1).map(fP)[0]||'none'} | Resistance: ${sr.resistance.slice(0,1).map(fP)[0]||'none'}
+PERSONAL STATS: ${curSym.s} journal win rate ${symWR}
+NOTE: All price analysis uses full bar range including wicks (high/low), not just closing prices.
+${isFuture ? `
+IMPORTANT: This is a FUTURE setup — price has NOT reached the entry yet. Your analysis MUST focus on: (1) whether current market structure supports price reaching this level, (2) probability of the setup playing out, (3) what to watch for before entering. Do NOT treat this as a completed or active trade.` : ''}
+${isNotTriggered ? `
+IMPORTANT: This trade was NEVER triggered — price did not reach the entry. Analyse whether the setup idea was sound and if price could still get there, or if the opportunity has passed.` : ''}
+${tradeStatus?.includes('SL Hit') ? `
+IMPORTANT: The stop loss was hit. Your analysis MUST clearly state this trade FAILED and explain why the setup did not work.` : ''}
+${tradeStatus?.includes('TP Hit') ? `
+IMPORTANT: The take profit was hit. Your analysis MUST clearly state this trade SUCCEEDED.` : ''}
 
-SYMBOL: ${curSym.s} | DIRECTION: ${isLong?'LONG':'SHORT'} | TIMEFRAME: ${curTF}
-TRADE STATE: ${tradeState}
-ENTRY: ${fP(d.price)} | STOP: ${fP(d.sl)} | TARGET: ${fP(d.tp)} | R:R ${rr.toFixed(2)}
-CURRENT PRICE: ${fP(curPrice)} (${distPct.toFixed(2)}% from entry) | Recent High: ${fP(lastHigh)} | Recent Low: ${fP(lastLow)}
-
-MARKET STRUCTURE:
-- Trend: ${trend} | Price is ${priceVsSma20}${priceVsSma50 ? ', '+priceVsSma50 : ''}
-- 20-bar swing high: ${fP(swingHigh)} | 20-bar swing low: ${fP(swingLow)}
-- 5-bar price move: ${recentMove}%
-
-SUPPORT & RESISTANCE:
-- ${srStr}
-- Nearest support below entry: ${nearestS ? fP(nearestS) : 'none'}
-- Nearest resistance above entry: ${nearestR ? fP(nearestR) : 'none'}
-
-INDICATORS:
-- RSI(14): ${rsi} | ATR: ${fP(atr)} (${(atr/d.price*100).toFixed(2)}% of price)
-- Volume: ${volDesc}
-
-DETECTED PATTERNS: ${allPatsStr}
-PERSONAL STATS: ${curSym.s} historical win rate: ${symWR}
-
-Respond with EXACTLY these 8 numbered sections. Be specific to the numbers above. No generic statements.
-
-1. MARKET STRUCTURE
-2. ENTRY QUALITY
-3. RISK MANAGEMENT
-4. TARGET REALISM
-5. PROBABILITY ESTIMATE (give a % for TP hit vs SL hit)
-6. KEY RISKS (exactly 2–3 bullet points)
-7. FINAL VERDICT — classify as one of: A+ Setup | A Setup | B Setup | C Setup | Invalid Setup. One sentence explanation.
-8. IMPROVEMENT SUGGESTION — only if B or C. Suggest specific price levels for better entry, stop, or target. If A/A+, write "None — execute as planned."`;
+Write exactly 5 short sections (1-2 sentences each):
+📍 SETUP QUALITY
+⚡ CONFLUENCE
+🎯 KEY LEVELS
+⚠ MAIN RISK
+🧠 TRADER NOTE`;
 
   const key = GROQ_KEYS[groqKeyIndex % GROQ_KEYS.length];
   let res, data;
@@ -12580,7 +12542,7 @@ Respond with EXACTLY these 8 numbered sections. Be specific to the numbers above
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 900,
+        max_tokens: 600,
         temperature: 0.3,
         messages: [{ role: 'user', content: prompt }]
       })
