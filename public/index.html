@@ -1940,26 +1940,26 @@ updateStatusTime();
 <script>
 // ══ SYMBOLS ══════════════════════════════════════════════════════════════════
 const SYMS=[
-  {s:'AAPL', n:'Apple Inc.',        e:'NASDAQ', t:'Stock',   p:189.42, c:1.24},
-  {s:'TSLA', n:'Tesla Inc.',        e:'NASDAQ', t:'Stock',   p:248.50, c:-2.31},
-  {s:'NVDA', n:'NVIDIA Corp.',      e:'NASDAQ', t:'Stock',   p:875.40, c:3.15},
-  {s:'MSFT', n:'Microsoft Corp.',   e:'NASDAQ', t:'Stock',   p:415.22, c:0.87},
-  {s:'AMZN', n:'Amazon.com',        e:'NASDAQ', t:'Stock',   p:187.63, c:-0.54},
-  {s:'GOOGL',n:'Alphabet Inc.',     e:'NASDAQ', t:'Stock',   p:175.12, c:0.33},
-  {s:'META', n:'Meta Platforms',    e:'NASDAQ', t:'Stock',   p:512.77, c:1.65},
-  {s:'JPM',  n:'JPMorgan Chase',    e:'NYSE',   t:'Stock',   p:198.44, c:0.91},
-  {s:'SPY',  n:'S&P 500 ETF',       e:'NYSE',   t:'ETF',     p:512.30, c:0.42},
-  {s:'QQQ',  n:'Nasdaq-100 ETF',    e:'NYSE',   t:'ETF',     p:442.18, c:0.91},
-  {s:'GLD',  n:'Gold ETF',          e:'NYSE',   t:'ETF',     p:220.44, c:-0.33},
-  {s:'ES1!', n:'S&P 500 Futures',   e:'CME',    t:'Futures', p:5180,   c:0.31},
-  {s:'CL1!', n:'Crude Oil Futures', e:'NYMEX',  t:'Futures', p:78.40,  c:-1.20},
-  {s:'GC1!', n:'Gold Futures',      e:'COMEX',  t:'Futures', p:2345,   c:0.55},
-  {s:'BTC/USD',n:'Bitcoin',         e:'CRYPTO', t:'Crypto',  p:68420,  c:2.88},
-  {s:'ETH/USD',n:'Ethereum',        e:'CRYPTO', t:'Crypto',  p:3840,   c:1.44},
-  {s:'SOL/USD',n:'Solana',          e:'CRYPTO', t:'Crypto',  p:178.50, c:4.22},
-  {s:'EUR/USD',n:'Euro/Dollar',     e:'FOREX',  t:'Forex',   p:1.0842, c:0.12},
-  {s:'GBP/USD',n:'Pound/Dollar',    e:'FOREX',  t:'Forex',   p:1.2654, c:-0.08},
-  {s:'USD/JPY',n:'Dollar/Yen',      e:'FOREX',  t:'Forex',   p:149.82, c:0.21},
+  {s:'AAPL', n:'Apple Inc.',        e:'NASDAQ', t:'Stock',   p:220.00, c:1.24},
+  {s:'TSLA', n:'Tesla Inc.',        e:'NASDAQ', t:'Stock',   p:280.00, c:-2.31},
+  {s:'NVDA', n:'NVIDIA Corp.',      e:'NASDAQ', t:'Stock',   p:115.00, c:3.15},
+  {s:'MSFT', n:'Microsoft Corp.',   e:'NASDAQ', t:'Stock',   p:415.00, c:0.87},
+  {s:'AMZN', n:'Amazon.com',        e:'NASDAQ', t:'Stock',   p:220.00, c:-0.54},
+  {s:'GOOGL',n:'Alphabet Inc.',     e:'NASDAQ', t:'Stock',   p:175.00, c:0.33},
+  {s:'META', n:'Meta Platforms',    e:'NASDAQ', t:'Stock',   p:600.00, c:1.65},
+  {s:'JPM',  n:'JPMorgan Chase',    e:'NYSE',   t:'Stock',   p:245.00, c:0.91},
+  {s:'SPY',  n:'S&P 500 ETF',       e:'NYSE',   t:'ETF',     p:570.00, c:0.42},
+  {s:'QQQ',  n:'Nasdaq-100 ETF',    e:'NYSE',   t:'ETF',     p:490.00, c:0.91},
+  {s:'GLD',  n:'Gold ETF',          e:'NYSE',   t:'ETF',     p:280.00, c:-0.33},
+  {s:'ES1!', n:'S&P 500 Futures',   e:'CME',    t:'Futures', p:5700,   c:0.31},
+  {s:'CL1!', n:'Crude Oil Futures', e:'NYMEX',  t:'Futures', p:68.00,  c:-1.20},
+  {s:'GC1!', n:'Gold Futures',      e:'COMEX',  t:'Futures', p:2950,   c:0.55},
+  {s:'BTC/USD',n:'Bitcoin',         e:'CRYPTO', t:'Crypto',  p:84000,  c:2.88},
+  {s:'ETH/USD',n:'Ethereum',        e:'CRYPTO', t:'Crypto',  p:2000,   c:1.44},
+  {s:'SOL/USD',n:'Solana',          e:'CRYPTO', t:'Crypto',  p:130.00, c:4.22},
+  {s:'EUR/USD',n:'Euro/Dollar',     e:'FOREX',  t:'Forex',   p:1.0850, c:0.12},
+  {s:'GBP/USD',n:'Pound/Dollar',    e:'FOREX',  t:'Forex',   p:1.2940, c:-0.08},
+  {s:'USD/JPY',n:'Dollar/Yen',      e:'FOREX',  t:'Forex',   p:149.50, c:0.21},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
@@ -2014,7 +2014,7 @@ const FBASE = 'https://finnhub.io/api/v1';
   } catch(e) {}
 })();
 const TF_RES={'1m':'1','5m':'5','15m':'15','1h':'60','1d':'D','1w':'W','1M':'M'};
-const TF_FROM={'1m':3,'5m':14,'15m':30,'1h':90,'1d':365,'1w':1095,'1M':1825};
+const TF_FROM={'1m':7,'5m':60,'15m':60,'1h':729,'1d':3649,'1w':3649,'1M':3649};
 // Binance TF map for crypto
 const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','1d':'1d','1w':'1w','1M':'1M'};
 
@@ -2037,26 +2037,34 @@ function seededRng(seed){
 const dataCache = {};
 
 function genData(base, bars=300, vol=0.018){
-  const cacheKey = curSym.s + '_' + curTF;
-  if(dataCache[cacheKey]) return dataCache[cacheKey];
+  // No cache — always generate fresh placeholder so real fetch can replace it
 
   // Seed from symbol string so each symbol gets unique but consistent data
-  const seedVal = curSym.s.split('').reduce((a,c)=>a+c.charCodeAt(0),0) * 9301 + curTF.length * 49297;
+  const tfHash = curTF.split('').reduce((a,c)=>a+c.charCodeAt(0)*c.charCodeAt(0),0);
+  const seedVal = curSym.s.split('').reduce((a,c)=>a+c.charCodeAt(0),0) * 9301 + tfHash * 49297;
   const rng = seededRng(seedVal);
 
-  const d = []; let p = base;
-  const now = Math.floor(Date.now()/1000);
+  // Walk backwards from base so the most-recent bar always sits at `base`
   const step = {'1m':60,'5m':300,'15m':900,'1h':3600,'1d':86400,'1w':604800,'1M':2592000}[curTF]||86400;
-  for(let i=bars; i>=0; i--){
-    const t = now - i*step;
+  const now = Math.floor(Date.now()/1000);
+  // Generate prices then reverse so bar[bars] = base (most recent = known price)
+  const prices = [base]; let p = base;
+  for(let i=1; i<=bars; i++){
     const chg = (rng()-.479)*vol*p;
-    const o = p, c = +(p+chg).toFixed(4);
-    const h = +(Math.max(o,c)+rng()*vol*p*.6).toFixed(4);
-    const l = +(Math.min(o,c)-rng()*vol*p*.6).toFixed(4);
-    d.push({time:t, open:+o.toFixed(4), high:h, low:l, close:c, volume:Math.floor(rng()*60e6+2e6)});
-    p = c;
+    prices.unshift(+(p+chg).toFixed(4));
+    p = prices[0];
   }
-  dataCache[cacheKey] = d;
+  const d = [];
+  for(let i=0; i<=bars; i++){
+    const t = now - (bars-i)*step;
+    const o = prices[i];
+    const chg2 = (rng()-.48)*vol*o;
+    const cl = +(o+chg2).toFixed(4);
+    const h = +(Math.max(o,cl)+rng()*vol*o*.5).toFixed(4);
+    const l = +(Math.min(o,cl)-rng()*vol*o*.5).toFixed(4);
+    d.push({time:t, open:o, high:h, low:l, close:cl, volume:Math.floor(rng()*60e6+2e6)});
+  }
+  // Don't cache fake data — only real fetched data goes in dataCache
   return d;
 }
 const calcSMA=(d,n)=>d.map((x,i)=>i<n-1?null:d.slice(i-n+1,i+1).reduce((s,v)=>s+v.close,0)/n);
@@ -5656,12 +5664,55 @@ let activeTool = 'cursor';
 let drawings   = [];         // completed drawings
 
 // ── Per-symbol drawing persistence ───────────────────────────────────────────
-function _drawKey(sym,tf){ return `drawings-${sym}-${tf}`; }
+// ── Drawing coordinate helpers ──────────────────────────────────────────────
+// Drawings are stored with Unix timestamps so they transfer across timeframes.
+// bar → time: look up curData[Math.round(bar)].time (clamp to valid range)
+function barToTime(bar) {
+  if(!curData.length) return 0;
+  const i = Math.max(0, Math.min(curData.length-1, Math.round(bar)));
+  return curData[i].time;
+}
+// time → bar: binary search in curData for closest bar
+function timeToBar(time) {
+  if(!curData.length) return 0;
+  let lo=0, hi=curData.length-1;
+  while(lo<hi){ const mid=(lo+hi)>>1; if(curData[mid].time<time) lo=mid+1; else hi=mid; }
+  // pick closest neighbour
+  if(lo>0 && Math.abs(curData[lo-1].time-time) < Math.abs(curData[lo].time-time)) lo--;
+  return lo;
+}
+// Convert all bar fields in a drawing to time fields (for storage)
+function drawingToTime(d) {
+  const s = JSON.parse(JSON.stringify(d));
+  if(s.bar    !== undefined) { s.time  = barToTime(s.bar);  }
+  if(s.bar1   !== undefined) { s.time1 = barToTime(s.bar1); }
+  if(s.bar2   !== undefined) { s.time2 = barToTime(s.bar2); }
+  if(s.pts) s.pts = s.pts.map(p => ({...p, time: barToTime(p.bar)}));
+  return s;
+}
+// Convert all time fields in a drawing back to bar indices for current TF
+function drawingFromTime(d) {
+  const s = JSON.parse(JSON.stringify(d));
+  if(s.time  !== undefined) s.bar  = timeToBar(s.time);
+  if(s.time1 !== undefined) s.bar1 = timeToBar(s.time1);
+  if(s.time2 !== undefined) s.bar2 = timeToBar(s.time2);
+  if(s.pts) s.pts = s.pts.map(p => ({...p, bar: p.time !== undefined ? timeToBar(p.time) : p.bar}));
+  return s;
+}
+// Drawings are shared per symbol (not per TF) since timestamps are universal
+function _drawKey(sym,tf){ return `drawings-${sym}`; }
 function saveDrawings(sym,tf){
-  try{ _lsSet(_drawKey(sym,tf), JSON.stringify(drawings)); }catch(e){}
+  try{
+    const portable = drawings.map(drawingToTime);
+    _lsSet(_drawKey(sym,tf), JSON.stringify(portable));
+  }catch(e){}
 }
 function loadDrawings(sym,tf){
-  try{ const raw=_lsGet(_drawKey(sym,tf)); drawings=raw?JSON.parse(raw):[]; }catch(e){ drawings=[]; }
+  try{
+    const raw=_lsGet(_drawKey(sym,tf));
+    const stored = raw ? JSON.parse(raw) : [];
+    drawings = stored.map(drawingFromTime);
+  }catch(e){ drawings=[]; }
 }
 let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
@@ -6934,9 +6985,13 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
 // ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
   if(curSym && curSym.s) saveDrawings(curSym.s, curTF);
+  const prevSym = curSym?.s;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
-  // Show simulated data immediately so chart isn't blank
-  curData = genData(curSym.p, 300, VOL_MAP[curTF]||.018);
+  // Use last real close as placeholder base so all TFs start from the same price
+  const placeholderBase = (prevSym === sym && curData.length)
+    ? curData[curData.length-1].close
+    : curSym.p;
+  curData = genData(placeholderBase, 300, VOL_MAP[curTF]||.018);
   barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
   loadDrawings(curSym.s, curTF); drawingWIP=null; selectedDrawing=null;
   delete aiCache[curSym.s+'_'+curTF];
@@ -6983,6 +7038,8 @@ async function loadSym(sym){
       dataCache[sym+'_'+curTF] = bars;
       curData = bars;
       rightBarIndex = curData.length+5;
+      // Re-resolve drawing timestamps → bar indices now that real data is loaded
+      loadDrawings(sym, curTF);
       updateTopbar(); draw(); buildAIPanel(); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
@@ -7015,6 +7072,8 @@ function updateTopbar(){
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
+  // Clear cache for this TF so we always fetch fresh real data on TF switch
+  delete dataCache[curSym.s+'_'+tf];
   document.querySelectorAll('.tf').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   loadSym(curSym.s).then(() => {
