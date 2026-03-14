@@ -2123,11 +2123,43 @@ const calcATR=(d,n=14)=>d.map((x,i)=>{
 
 const fP=v=>typeof v==='number'?v.toFixed(v<10?4:2):v;
 const fV=v=>v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':String(v);
+// fDate kept for crosshair tooltip use
 function fDate(ts){
   const d=new Date(ts*1000);
-  if(['1m','5m','15m','1h'].includes(curTF)) return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  if(['1m','5m','15m','1h'].includes(curTF)) return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
   if(['1d','1w','1M'].includes(curTF)) return String(d.getDate()).padStart(2,'0');
-  return d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  return d.toLocaleDateString([],{month:'short',day:'numeric'});
+}
+
+// ── TradingView-style x-axis tick system ─────────────────────────────────────
+// Each bar gets the "most significant" label tier it represents.
+// Tiers (highest → lowest): year, month, day, hour, minute
+// A lower tier is only shown if no higher tier fired at that bar.
+// Labels are only placed when enough pixels separate them from the last placed label.
+function getXAxisTick(d, prev, tf){
+  const yr  = d.getFullYear(),   pyr  = prev ? prev.getFullYear()  : -1;
+  const mo  = d.getMonth(),      pmo  = prev ? prev.getMonth()     : -1;
+  const day = d.getDate(),       pday = prev ? prev.getDate()      : -1;
+  const hr  = d.getHours(),      phr  = prev ? prev.getHours()     : -1;
+  const mn  = d.getMinutes(),    pmn  = prev ? prev.getMinutes()   : -1;
+
+  if(yr !== pyr)  return { label: String(yr),                              tier: 0, bold: true  };
+  if(mo !== pmo)  return { label: d.toLocaleString([],{month:'short'}),    tier: 1, bold: true  };
+
+  if(['1d','1w','1M'].includes(tf)){
+    if(day !== pday) return { label: String(day).padStart(2,'0'),          tier: 2, bold: false };
+    return null;
+  }
+
+  // Intraday TFs
+  if(day !== pday) return { label: d.toLocaleString([],{month:'short',day:'numeric'}), tier: 2, bold: true };
+  if(hr  !== phr)  return { label: d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false}), tier: 3, bold: false };
+
+  // Only show minute ticks for 1m/5m where bars are spaced far enough
+  if(['1m','5m'].includes(tf)){
+    if(mn !== pmn) return { label: d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false}), tier: 4, bold: false };
+  }
+  return null;
 }
 
 // ══ AI PATTERN RECOGNITION ════════════════════════════════════════════════════
@@ -5210,77 +5242,70 @@ function _drawImmediate(){
     if(document.getElementById('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
   }
 
-  // Date labels + vertical grid lines
+  // ── TradingView-style x-axis ───────────────────────────────────────────────
   const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
-  const labelEvery = Math.max(1, Math.round(80 / barWidth));
 
-  // Pre-compute crosshair label bounds so we suppress any static label it overlaps
+  // Min pixel gap before placing the next label (based on a typical label width)
+  ctx.font = 'bold 11px monospace';
+  const _minGap = ctx.measureText('00:00').width + 14;  // ~50px
+
+  // Pre-compute crosshair label bounds to suppress any static label underneath it
   let xhLabelL = -1, xhLabelR = -1;
   if(mouseX >= 0 && mouseX < W){
     const hb2 = Math.max(0, Math.min(data.length-1, Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth)));
     if(data[hb2]){
       const dh = new Date(data[hb2].time * 1000);
       const ts = isSubDay
-        ? dh.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) + '  ' + dh.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
-        : dh.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-      ctx.font = 'bold 12px monospace';
+        ? dh.toLocaleDateString([],{month:'short',day:'numeric'}) + ' ' + dh.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
+        : dh.toLocaleDateString([],{day:'numeric',month:'short',year:'numeric'});
+      ctx.font = 'bold 11px monospace';
       const lw = ctx.measureText(ts).width + 14;
-      const lx = Math.max(lw/2 + 2, Math.min(W - lw/2 - 2, mouseX));
+      const lx = Math.max(lw/2 + 2, Math.min(W - R_PANEL_OFFSET - lw/2 - 2, mouseX));
       xhLabelL = lx - lw/2 - 4;
       xhLabelR = lx + lw/2 + 4;
     }
   }
 
-  ctx.textAlign='center';
-  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
 
-  // Pass 1 — collect day boundary positions and their half-widths so we can blank-out nearby regular labels
-  const dayBounds = []; // [{x, half}]
-  if(isSubDay){
-    for(let i=firstBarOnScreen; i<=lastBarOnScreen; i++){
-      const prevBar = i > 0 ? data[i-1] : null;
-      if(!prevBar) continue;
-      if(new Date(prevBar.time*1000).getDate() === new Date(data[i].time*1000).getDate()) continue;
-      const x = barX(i);
-      const lbl = new Date(data[i].time*1000).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
-      ctx.font = 'bold 12px monospace';
-      const half = ctx.measureText(lbl).width / 2 + 6;
-      ctx.font = '12px monospace';
-      dayBounds.push({x, half});
+  // ── Pass 1: collect ticks (spacing enforced here, crosshair-independent) ───
+  const xTicks = [];
+  let lastTickX = -9999;
+  for(let i = firstBarOnScreen; i <= lastBarOnScreen; i++){
+    const d    = new Date(data[i].time * 1000);
+    const x    = barX(i);
+    const prev = i > 0 ? new Date(data[i-1].time * 1000) : null;
+    const tick = getXAxisTick(d, prev, curTF);
+    if(!tick) continue;
+    if(x - lastTickX < _minGap) continue;
+    if(x > W - R_PANEL_OFFSET - _minGap/2) continue;
+    xTicks.push({x, tick});
+    lastTickX = x;
+  }
+
+  // ── Pass 2: draw grid lines (never suppressed by crosshair) ─────────────
+  if(document.getElementById('sc-grid')?.checked !== false){
+    for(const {x, tick} of xTicks){
+      const lineAlpha = tick.tier <= 1 ? 0.18 : tick.tier === 2 ? 0.12 : 0.07;
+      ctx.strokeStyle = tick.tier <= 1 ? ca(C.am, lineAlpha) : C.b1;
+      ctx.lineWidth   = tick.tier <= 1 ? 1.5 : 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x)+.5, 0);
+      ctx.lineTo(Math.floor(x)+.5, H);
+      ctx.stroke();
     }
   }
 
-  const tooCloseToBoundary = (x) => dayBounds.some(b => Math.abs(x - b.x) < b.half + 20);
-
-  // Pass 2 — draw everything
-  for(let i=firstBarOnScreen; i<=lastBarOnScreen; i++){
-    const d  = new Date(data[i].time * 1000);
-    const x  = barX(i);
-    const prevBar = i > 0 ? data[i-1] : null;
-    const isDayBoundary = isSubDay && prevBar && new Date(prevBar.time * 1000).getDate() !== d.getDate();
-    const underCrosshair = x >= xhLabelL && x <= xhLabelR;
-
-    if(isDayBoundary&&document.getElementById('sc-dayboundary')?.checked!==false){
-      ctx.strokeStyle=ca(C.am,.18); ctx.lineWidth=1; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(Math.floor(x)+.5,0); ctx.lineTo(Math.floor(x)+.5,H); ctx.stroke();
-      if(!underCrosshair){
-        const dayLabel = d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
-        ctx.font = 'bold 12px monospace'; ctx.fillStyle = '#c8a84b';
-        ctx.fillText(dayLabel, x, H-3);
-        ctx.font = '12px monospace';
-      }
-      continue;
-    }
-
-    if((i % labelEvery) !== 0) continue;
-    if(document.getElementById('sc-grid')?.checked!==false){
-      ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(Math.floor(x)+.5,0); ctx.lineTo(Math.floor(x)+.5,H); ctx.stroke();
-    }
-    if(!underCrosshair && !tooCloseToBoundary(x)){
-      ctx.fillStyle=C.tx2; ctx.font='12px monospace';
-      ctx.fillText(fDate(data[i].time), x, H-3);
-    }
+  // ── Pass 3: draw labels (suppressed under crosshair only) ───────────────
+  for(const {x, tick} of xTicks){
+    if(x >= xhLabelL && x <= xhLabelR) continue;
+    ctx.font      = tick.bold ? 'bold 11px monospace' : '11px monospace';
+    ctx.fillStyle = tick.tier === 0 ? C.tx
+                  : tick.tier === 1 ? C.am
+                  : tick.tier === 2 ? C.tx2
+                  : 'rgba(107,128,153,0.85)';
+    ctx.fillText(tick.label, x, H - 3);
   }
 
   // Session highlight bands (behind everything)
