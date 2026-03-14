@@ -242,7 +242,77 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   border-bottom:1px solid rgba(255,255,255,0.12);
   box-shadow:0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5);
   display:flex;align-items:center;padding:0 16px;gap:10px;
-  z-index:200;
+  z-index:200; overflow:visible; flex-wrap:nowrap;
+}
+
+/* ── Topbar slot system ──────────────────────────────────────────────────── */
+#cmd-bar {
+  /* override gap so slots space evenly */
+  gap: 0 !important;
+  padding: 0 8px 0 8px !important;
+  justify-content: flex-start;
+}
+
+/* Each slot is a flex cell that sizes to its content */
+.tb-slot {
+  display: flex; align-items: center;
+  height: 100%; padding: 0 4px;
+  position: relative; flex-shrink: 0;
+  border-radius: 6px;
+  transition: background .12s;
+  min-width: 12px;
+}
+/* Indicators slot — auto-sizes to its content, no clipping */
+.tb-slot[data-slot="3"] {
+  flex-shrink: 0;
+  width: auto;
+}
+.tb-slot[data-slot="3"] .tb-block {
+  width: auto;
+}
+.tb-slot[data-slot="3"] #ind-topbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  width: auto;
+  overflow: visible;
+}
+
+/* Empty slot — shows a subtle dotted drop target when dragging */
+.tb-slot:empty {
+  min-width: 28px; flex: 1;
+}
+.tb-dragging-active .tb-slot:empty {
+  background: rgba(255,255,255,.02);
+  outline: 1px dashed rgba(255,255,255,.08);
+  outline-offset: -2px;
+}
+.tb-slot.tb-slot-over {
+  background: rgba(0,212,160,.08) !important;
+  outline: 1px solid rgba(0,212,160,.4) !important;
+  outline-offset: -2px;
+}
+
+/* Block inside a slot */
+.tb-block {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; border-radius: 5px; padding: 2px 4px;
+  cursor: grab; position: relative; user-select: none;
+  transition: opacity .15s;
+}
+.tb-block:active { cursor: grabbing; }
+.tb-block.tb-dragging { opacity: 0.25; pointer-events: none; }
+.tb-block:hover {
+  background: rgba(255,255,255,.04);
+  outline: 1px dashed rgba(255,255,255,.12);
+  outline-offset: 2px;
+}
+
+/* Locked logout bar — always far right */
+#tb-logout-fixed {
+  margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px;
 }
 /* Symbol button */
 #sym-pill{
@@ -367,7 +437,7 @@ canvas{display:block;flex-shrink:0;}
 /* ─── IND TOPBAR — indicator chips in the command bar ───────────────────── */
 #ind-topbar{
   display:flex;align-items:center;gap:4px;flex-wrap:nowrap;
-  overflow-x:auto;scrollbar-width:none;max-width:340px;flex-shrink:1;
+  overflow:visible;max-width:none;flex-shrink:0;width:auto;
 }
 #ind-topbar::-webkit-scrollbar{display:none;}
 /* Each chip */
@@ -755,30 +825,36 @@ body.is-dragging { user-select: none; }
 <div id="app">
 
   <!-- ── LEFT NAV STRIP ────────────────────────────────────────────────── -->
-  <div id="nav">
+  <!-- Invisible wide drop zone — shown only while dragging from topbar -->
+  <div id="nav-drop-overlay"
+       ondragover="navDropZoneOver(event)"
+       ondragleave="navDropZoneLeave(event)"
+       ondrop="navDropZoneDrop(event)"></div>
+
+  <div id="nav" ondragover="navDropZoneOver(event)" ondragleave="navDropZoneLeave(event)" ondrop="navDropZoneDrop(event)">
     <div class="nav-logo">AP<em>EX</em></div>
 
     <!-- Watchlist -->
-    <button class="nav-btn" id="nav-watch" onclick="toggleOverlay('watch')" title="Watchlist">
+    <button class="nav-btn" id="nav-watch" onclick="toggleOverlay('watch')" title="Watchlist" draggable="true" ondragstart="navDragStart(event,'watch','Watchlist')" ondragend="navDragEnd(event)">
       <span>◈</span><span class="nav-tip">Watchlist</span>
     </button>
     <!-- Alerts -->
-    <button class="nav-btn" id="nav-alerts" onclick="toggleOverlay('alerts')" title="Alerts">
+    <button class="nav-btn" id="nav-alerts" onclick="toggleOverlay('alerts')" title="Alerts" draggable="true" ondragstart="navDragStart(event,'alerts','Price Alerts')" ondragend="navDragEnd(event)">
       <span>⏰</span><span class="nav-tip">Price Alerts</span>
     </button>
     <!-- Scanner -->
-    <button class="nav-btn" id="nav-scanner" onclick="toggleOverlay('scanner')" title="Scanner">
+    <button class="nav-btn" id="nav-scanner" onclick="toggleOverlay('scanner')" title="Scanner" draggable="true" ondragstart="navDragStart(event,'scanner','AI Scanner')" ondragend="navDragEnd(event)">
       <span>⌕</span><span class="nav-tip">AI Scanner</span>
     </button>
 
     <div class="nav-sep"></div>
 
     <!-- Drawing tools -->
-    <button class="nav-btn" id="nav-draw" onclick="toggleOverlay('draw')" title="Drawing Tools">
+    <button class="nav-btn" id="nav-draw" onclick="toggleOverlay('draw')" title="Drawing Tools" draggable="true" ondragstart="navDragStart(event,'draw','Drawing Tools')" ondragend="navDragEnd(event)">
       <span>✏</span><span class="nav-tip">Drawing Tools</span>
     </button>
     <!-- Indicators -->
-    <button class="nav-btn" id="nav-inds" onclick="toggleOverlay('inds')" title="Indicators">
+    <button class="nav-btn" id="nav-inds" onclick="toggleOverlay('inds')" title="Indicators" draggable="true" ondragstart="navDragStart(event,'inds','Indicators')" ondragend="navDragEnd(event)">
       <span>📈</span><span class="nav-tip">Indicators</span>
     </button>
     <!-- Replay -->
@@ -789,15 +865,15 @@ body.is-dragging { user-select: none; }
     <div class="nav-sep"></div>
 
     <!-- AI Setups -->
-    <button class="nav-btn green" id="btn-aisetups" onclick="openAISetups()" title="AI Setups">
+    <button class="nav-btn green" id="btn-aisetups" onclick="openAISetups()" title="AI Setups" draggable="true" ondragstart="navDragStart(event,'aisetups','AI Setups')" ondragend="navDragEnd(event)">
       <span>⚡</span><span class="nav-tip">AI Setups</span>
     </button>
     <!-- Pre-market brief -->
-    <button class="nav-btn" id="btn-premarket" onclick="openPremarket()" title="Pre-Market Brief">
+    <button class="nav-btn" id="btn-premarket" onclick="openPremarket()" title="Pre-Market Brief" draggable="true" ondragstart="navDragStart(event,'premarket','Pre-Market Brief')" ondragend="navDragEnd(event)">
       <span>☀</span><span class="nav-tip">Pre-Market Brief</span>
     </button>
     <!-- Position sizer -->
-    <button class="nav-btn" onclick="openPSC()" title="Position Size">
+    <button class="nav-btn" onclick="openPSC()" title="Position Size" draggable="true" ondragstart="navDragStart(event,'psc','Position Sizer')" ondragend="navDragEnd(event)">
       <span>⚖</span><span class="nav-tip">Position Sizer</span>
     </button>
     <!-- Screenshot -->
@@ -808,11 +884,11 @@ body.is-dragging { user-select: none; }
     <div class="nav-spacer"></div>
 
     <!-- Settings -->
-    <button class="nav-btn" onclick="openSettings()" title="Settings">
+    <button class="nav-btn" onclick="openSettings()" title="Settings" draggable="true" ondragstart="navDragStart(event,'settings','Settings')" ondragend="navDragEnd(event)">
       <span>⚙</span><span class="nav-tip">Settings</span>
     </button>
     <!-- Help -->
-    <button class="nav-btn" onclick="openTutorial()" title="Help">
+    <button class="nav-btn" onclick="openTutorial()" title="Help" draggable="true" ondragstart="navDragStart(event,'help','Help')" ondragend="navDragEnd(event)">
       <span>?</span><span class="nav-tip">Help & Tutorial</span>
     </button>
   </div>
@@ -980,66 +1056,73 @@ body.is-dragging { user-select: none; }
 
     <!-- COMMAND BAR -->
     <div id="cmd-bar">
-      <!-- Symbol pill -->
-      <div id="sym-pill" onclick="openModal()">
-        <span id="sym-t">AAPL</span>
-        <span id="sym-e" style="font-size:9px;color:var(--tx3);">NASDAQ</span>
-      </div>
-      <!-- Price + change -->
-      <span id="px-main">—</span>
-      <span id="px-chg" class="up">—</span>
 
-      <div class="cmd-div"></div>
+      <!-- 10 slots spread across the bar. Each slot holds one block (or is empty). -->
+      <div class="tb-slot" data-slot="0"></div>
+      <div class="tb-slot" data-slot="1"></div>
+      <div class="tb-slot" data-slot="2"></div>
+      <div class="tb-slot" data-slot="3"></div>
+      <div class="tb-slot" data-slot="4"></div>
+      <div class="tb-slot" data-slot="5"></div>
+      <div class="tb-slot" data-slot="6"></div>
+      <div class="tb-slot" data-slot="7"></div>
+      <div class="tb-slot" data-slot="8"></div>
 
-      <!-- Timeframes -->
-      <div class="tf-group">
-        <button class="tf" onclick="setTF(this,'1m')">1m</button>
-        <button class="tf" onclick="setTF(this,'5m')">5m</button>
-        <button class="tf" onclick="setTF(this,'15m')">15m</button>
-        <button class="tf" onclick="setTF(this,'1h')">1H</button>
-        <button class="tf on" onclick="setTF(this,'1d')">1D</button>
-        <button class="tf" onclick="setTF(this,'1w')">1W</button>
-        <button class="tf" onclick="setTF(this,'1M')">1M</button>
+      <!-- Logout locked to far right — not in slot system -->
+      <div id="tb-logout-fixed">
+        <span id="user-badge" title=""></span>
+        <button id="btn-change-pass" onclick="openChangePass()" style="display:none;">🔑</button>
+        <button id="btn-logout" onclick="doLogout()">⏏ Logout</button>
+        <div class="live-dot"></div>
       </div>
 
-      <div class="cmd-div"></div>
-
-      <!-- Chart types -->
-      <div class="ct-group">
-        <button class="ct on" onclick="setCT(this,'candle')" title="Candles">▪</button>
-        <button class="ct" onclick="setCT(this,'line')" title="Line">∿</button>
-        <button class="ct" onclick="setCT(this,'area')" title="Area">◿</button>
-        <button class="ct" onclick="setCT(this,'heikin')" title="Heikin Ashi">⬡</button>
-      </div>
-
-      <div class="cmd-div"></div>
-
-      <div class="cmd-spacer"></div>
-
-      <div class="cmd-div"></div>
-
-      <!-- Indicator chips — populated by renderTopbarInds() -->
-      <div id="ind-topbar-sep" class="cmd-div"></div>
-      <div id="ind-topbar"></div>
-
-      <!-- Right actions -->
-      <div id="ind-topbar"></div>
-      <span id="user-badge" title=""></span>
-      <button id="btn-change-pass" onclick="openChangePass()" style="display:none;">🔑</button>
-      <button id="btn-logout" onclick="doLogout()">⏏ Logout</button>
-      <div class="live-dot"></div>
-
-      <div class="cmd-div"></div>
-
-      <!-- OHLC strip — far right of topbar -->
-      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-        <div class="oi"><div class="ol">O</div><div class="ov" id="ov-o">—</div></div>
-        <div class="oi"><div class="ol">H</div><div class="ov up" id="ov-h">—</div></div>
-        <div class="oi"><div class="ol">L</div><div class="ov dn" id="ov-l">—</div></div>
-        <div class="oi"><div class="ol">C</div><div class="ov" id="ov-c">—</div></div>
-        <div class="oi"><div class="ol">VOL</div><div class="ov" style="color:var(--tx2)" id="ov-v">—</div></div>
-      </div>
     </div><!-- /cmd-bar -->
+
+    <!-- Block templates — moved into slots on init -->
+    <div id="tb-block-templates" style="display:none;">
+      <div class="tb-block" data-tb-id="symbol">
+        <div id="sym-pill" onclick="openModal()">
+          <span id="sym-t">AAPL</span>
+          <span id="sym-e" style="font-size:9px;color:var(--tx3);">NASDAQ</span>
+        </div>
+        <span id="px-main">—</span>
+        <span id="px-chg" class="up">—</span>
+      </div>
+      <div class="tb-block" data-tb-id="timeframes">
+        <div class="tf-group">
+          <button class="tf" onclick="setTF(this,'1m')">1m</button>
+          <button class="tf" onclick="setTF(this,'5m')">5m</button>
+          <button class="tf" onclick="setTF(this,'15m')">15m</button>
+          <button class="tf" onclick="setTF(this,'1h')">1H</button>
+          <button class="tf on" onclick="setTF(this,'1d')">1D</button>
+          <button class="tf" onclick="setTF(this,'1w')">1W</button>
+          <button class="tf" onclick="setTF(this,'1M')">1M</button>
+        </div>
+      </div>
+      <div class="tb-block" data-tb-id="charttype">
+        <div class="ct-group">
+          <button class="ct on" onclick="setCT(this,'candle')" title="Candles">▪</button>
+          <button class="ct" onclick="setCT(this,'line')" title="Line">∿</button>
+          <button class="ct" onclick="setCT(this,'area')" title="Area">◿</button>
+          <button class="ct" onclick="setCT(this,'heikin')" title="Heikin Ashi">⬡</button>
+        </div>
+      </div>
+      <div class="tb-block" data-tb-id="indicators">
+        <div id="ind-topbar-sep" class="cmd-div"></div>
+        <div id="ind-topbar"></div>
+      </div>
+      <!-- docked nav items now each get their own slot — no shared block needed -->
+      <div id="tb-docked-bar" style="display:none;"></div>
+      <div class="tb-block" data-tb-id="ohlc">
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <div class="oi"><div class="ol">O</div><div class="ov" id="ov-o">—</div></div>
+          <div class="oi"><div class="ol">H</div><div class="ov up" id="ov-h">—</div></div>
+          <div class="oi"><div class="ol">L</div><div class="ov dn" id="ov-l">—</div></div>
+          <div class="oi"><div class="ol">C</div><div class="ov" id="ov-c">—</div></div>
+          <div class="oi"><div class="ol">VOL</div><div class="ov" style="color:var(--tx2)" id="ov-v">—</div></div>
+        </div>
+      </div>
+    </div>
 
     <!-- CHART BODY: chart area fills all remaining space -->
     <div id="chart-body">
@@ -1698,7 +1781,18 @@ function toggleOverlay(name) {
   document.getElementById('ov-title').textContent = titles[name] || name;
 
   // If opening indicators panel, populate it
+  if (name === 'draw') {
+    // If draw panel is currently in the FPW, don't open the sidebar overlay
+    if(_fpwMap['draw']){ _fpwFocus('draw'); return; }
+    // Sync button states
+    TOOL_BTNS.forEach(id => {
+      const b = document.getElementById('dt-' + id);
+      if(b) b.classList.toggle('on', id === activeTool);
+    });
+  }
   if (name === 'inds') {
+    // If inds panel is in the FPW, focus that instead
+    if(_fpwMap['inds']){ _fpwFocus('inds'); return; }
     const s = document.getElementById('ov-ind-search');
     if (s) s.value = '';
     ilCurrentTab = 'builtin';
@@ -1725,6 +1819,7 @@ function toggleOverlay(name) {
   });
 
   _updateLockBtn();
+  _syncAllDockedBtns();
 }
 
 function closeOverlay() {
@@ -1738,6 +1833,7 @@ function closeOverlay() {
   _activeOverlay = null;
   _overlayLocked = false;
   _updateLockBtn();
+  _syncAllDockedBtns();
   // Re-measure canvas now that panel has closed/undocked
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
   setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
@@ -4261,13 +4357,14 @@ Then give an overall verdict: STRONG SETUP / ACCEPTABLE / MARGINAL / DO NOT TRAD
 function openPSC(){
   const el=document.getElementById('psc-bg');
   el.style.display='flex';
+  setTimeout(_syncAllDockedBtns, 10);
   // Pre-fill entry with current price
   const price = curData.length ? curData[curData.length-1].close : curSym.p;
   document.getElementById('psc-entry').value = fP(price);
   calcPSC();
   setTimeout(()=>document.getElementById('psc-sl').focus(),60);
 }
-function closePSC(){ document.getElementById('psc-bg').style.display='none'; }
+function closePSC(){ document.getElementById('psc-bg').style.display='none'; _syncAllDockedBtns(); }
 
 function pscUseCurrent(){
   const price = curData.length ? curData[curData.length-1].close : curSym.p;
@@ -4440,6 +4537,7 @@ function startReplay(){
   replayPicking = true;    // wait for user to click to set cutoff
   replayCutoff  = -1;
   const _rbtn=document.getElementById('btn-replay'); if(_rbtn) _rbtn.classList.add('on');
+  _syncAllDockedBtns();
   updateReplayStatus();
   draw();
   toast('⏮ Replay — hover to pick start bar, then click');
@@ -4451,6 +4549,7 @@ function stopReplay(){
   replayPicking = false;
   replayCutoff  = -1;
   const _rbtn2=document.getElementById('btn-replay'); if(_rbtn2) _rbtn2.classList.remove('on');
+  _syncAllDockedBtns();
   draw();
   toast('⏹ Replay ended');
 }
@@ -5491,6 +5590,15 @@ function draw(){
 // ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
 let activeTool = 'cursor';
 let drawings   = [];         // completed drawings
+
+// ── Per-symbol drawing persistence ───────────────────────────────────────────
+function _drawKey(sym,tf){ return `drawings-${sym}-${tf}`; }
+function saveDrawings(sym,tf){
+  try{ _lsSet(_drawKey(sym,tf), JSON.stringify(drawings)); }catch(e){}
+}
+function loadDrawings(sym,tf){
+  try{ const raw=_lsGet(_drawKey(sym,tf)); drawings=raw?JSON.parse(raw):[]; }catch(e){ drawings=[]; }
+}
 let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
@@ -5518,6 +5626,9 @@ function setTool(t){
   });
   const mc = document.getElementById('main-canvas');
   mc.style.cursor = t==='cursor'?'crosshair': t==='eraser'?'cell':'crosshair';
+  // Reflect drawing tool active state on docked button
+  const drawBtn = document.getElementById('tbdock-draw');
+  if(drawBtn) drawBtn.classList.toggle('active', t !== 'cursor');
   draw();
 }
 
@@ -5530,6 +5641,7 @@ document.addEventListener('keydown', e=>{
   if((e.key==='Delete'||e.key==='Backspace') && (selectedDrawing||selectedDrawings.length)){
     const toDelete = selectedDrawings.length ? new Set(selectedDrawings) : new Set([selectedDrawing]);
     drawings = drawings.filter(d=>!toDelete.has(d));
+    saveDrawings(curSym.s,curTF);
     selectedDrawing=null; selectedDrawings=[]; draw();
   }
 });
@@ -5537,7 +5649,7 @@ document.addEventListener('keydown', e=>{
 function clearDrawings(){
   if(!drawings.length) return;
   showConfirm('Clear all drawings?','All lines, shapes and annotations will be removed.',()=>{
-    drawings=[]; drawingWIP=null; selectedDrawing=null; draw();
+    drawings=[]; drawingWIP=null; selectedDrawing=null; saveDrawings(curSym.s,curTF); draw();
   });
 }
 
@@ -5775,25 +5887,25 @@ function handleDrawMousedown(sx, sy, e){
 
   if(activeTool==='eraser'){
     const hit = drawings.find(d=>hitTest(d,sx,sy));
-    if(hit){ drawings=drawings.filter(d=>d!==hit); draw(); }
+    if(hit){ drawings=drawings.filter(d=>d!==hit); saveDrawings(curSym.s,curTF); draw(); }
     return true;
   }
 
   if(activeTool==='text'){
     const { bar, price } = screenToDraw(sx, sy);
     const txt = prompt('Enter label text:','');
-    if(txt){ drawings.push({type:'text',bar,price,text:txt}); draw(); }
+    if(txt){ drawings.push({type:'text',bar,price,text:txt}); saveDrawings(curSym.s,curTF); draw(); }
     setTool('cursor');
     return true;
   }
 
   if(activeTool==='hline'){
     const { price } = screenToDraw(sx, sy);
-    drawings.push({type:'hline',price}); draw(); return true;
+    drawings.push({type:'hline',price}); saveDrawings(curSym.s,curTF); draw(); return true;
   }
   if(activeTool==='vline'){
     const { bar } = screenToDraw(sx, sy);
-    drawings.push({type:'vline',bar}); draw(); return true;
+    drawings.push({type:'vline',bar}); saveDrawings(curSym.s,curTF); draw(); return true;
   }
 
   if(activeTool==='pitchfork'){
@@ -5806,7 +5918,7 @@ function handleDrawMousedown(sx, sy, e){
       pitchforkStage=2;
     } else if(pitchforkStage===2){
       drawingWIP.pts.push({bar,price});
-      drawings.push(JSON.parse(JSON.stringify(drawingWIP)));
+      drawings.push(JSON.parse(JSON.stringify(drawingWIP))); saveDrawings(curSym.s,curTF);
       drawingWIP=null; pitchforkStage=0; setTool('cursor');
     }
     draw(); return true;
@@ -6757,10 +6869,12 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
 
 // ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
+  if(curSym && curSym.s) saveDrawings(curSym.s, curTF);
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
   // Show simulated data immediately so chart isn't blank
   curData = genData(curSym.p, 300, VOL_MAP[curTF]||.018);
   barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
+  loadDrawings(curSym.s, curTF); drawingWIP=null; selectedDrawing=null;
   delete aiCache[curSym.s+'_'+curTF];
 
   // Sync indicators
@@ -6835,6 +6949,7 @@ function updateTopbar(){
 
 // ══ CONTROLS ══════════════════════════════════════════════════════════════════
 function setTF(btn,tf){
+  saveDrawings(curSym.s, curTF);
   curTF=tf;
   document.querySelectorAll('.tf').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
@@ -6874,26 +6989,30 @@ function toggleInd(name){
   if(btn) btn.classList.toggle('on', getIndState(name));
   if(needsResize) sizeCanvases();
   draw();
+  // Keep the indicator list panel in sync
+  renderIndList(_indSearchQ());
 }
 
 // Add indicator button to the topbar
 function addIndToTopbar(id){
-  if(topbarInds.includes(id)) return;
-  topbarInds.push(id);
-  saveTopbarInds();
+  // Add to pinned list if not already there
+  if(!topbarInds.includes(id)){
+    topbarInds.push(id);
+    saveTopbarInds();
+  }
   renderTopbarInds();
-  // Also turn it on immediately
+  // Turn on if not already active
   if(!getIndState(id)) toggleInd(id);
-  else { sizeCanvases(); draw(); }
+  else { renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
 }
 
 // Remove indicator button from topbar (and turn off its drawing)
 function removeIndFromTopbar(id){
   topbarInds = topbarInds.filter(x=>x!==id);
   saveTopbarInds();
-  // Turn off if currently on
+  // Turn off if currently on (toggleInd will call renderIndList)
   if(getIndState(id)) toggleInd(id);
-  else { renderTopbarInds(); sizeCanvases(); draw(); }
+  else { renderTopbarInds(); renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
 }
 
 // Rebuild the #ind-topbar div from topbarInds array
@@ -7002,14 +7121,20 @@ const BUILTIN_INDS = [
   {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
 ];
 
+// Helper — gets current search query regardless of where the search input lives
+function _indSearchQ(){ return (document.getElementById('ov-ind-search')||{}).value||''; }
+
 function renderIndList(q){
   const el = document.getElementById('indlist-body');
+  if(!el) return;
   const lq = (q||'').toLowerCase();
   if(ilCurrentTab==='builtin'){
     const rows = BUILTIN_INDS.filter(i=>!lq||i.name.toLowerCase().includes(lq)||i.desc.toLowerCase().includes(lq));
     if(!rows.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:10px;">No results</div>'; return; }
+    // Snapshot topbarInds at render time so the closure is consistent
     el.innerHTML = rows.map(ind=>{
-      const pinned = topbarInds.includes(ind.id);
+      // "on bar" = actively showing on chart (unified state)
+      const active = getIndState(ind.id);
       return `<div class="il-row" style="cursor:default;">
         <div style="font-size:18px;width:28px;text-align:center;flex-shrink:0;">${ind.icon}</div>
         <div style="flex:1;min-width:0;">
@@ -7017,9 +7142,9 @@ function renderIndList(q){
           <div class="il-desc">${ind.desc}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          ${pinned
-            ? `<button onclick="removeIndFromTopbar('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
-            : `<button onclick="addIndToTopbar('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
+          ${active
+            ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
+            : `<button onclick="addIndToTopbar('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
         </div>
       </div>`;
@@ -7883,6 +8008,7 @@ function applyUIScale(val){
 
 function openSettings(){
   document.getElementById('settings-bg').classList.add('open');
+  setTimeout(_syncAllDockedBtns, 10);
   document.getElementById('sc-bull').value   = candleBullColor;
   document.getElementById('sc-bear').value   = candleBearColor;
   document.getElementById('sc-bull-hex').textContent = candleBullColor;
@@ -7893,6 +8019,7 @@ function openSettings(){
 
 function closeSettings(){
   document.getElementById('settings-bg').classList.remove('open');
+  _syncAllDockedBtns();
   resetDrag(document.getElementById('settings-modal'));
 }
 
@@ -8167,6 +8294,17 @@ function doLogin(username, displayName){
   renderTopbarInds();
   buildWL();
 
+  // Restore topbar slot layout and docked nav items for this user
+  setTimeout(() => {
+    // Reset docked keys so we start clean for this user
+    _dockedKeys.clear();
+    document.querySelectorAll('.tb-docked-btn').forEach(b => b.remove());
+    // Re-init slots with this user's saved layout
+    _tbInitBlocks();
+    _tbLoadState();
+    _syncAllDockedBtns();
+  }, 100);
+
   // Update topbar user badge
   updateUserBadge(displayName || username);
 }
@@ -8176,6 +8314,8 @@ function doLogout(){
   saveJournal();
   saveWatchlist();
   saveSettingsToStorage();
+  _tbSaveLayout();
+  _tbSaveState();
   _clearSession();
   _currentUser = null;
 
@@ -8206,7 +8346,12 @@ function updateUserBadge(displayName){
 
 // ── Patch saveWatchlist / saveJournal / saveTopbarInds / saveCustomInds to use namespace ──
 function saveWatchlist(){ _lsSet('watchlist', JSON.stringify([...watchlist])); }
-function saveTopbarInds(){ _lsSet('topbar-inds', JSON.stringify(topbarInds)); }
+function saveTopbarInds(){
+  _lsSet('topbar-inds', JSON.stringify(topbarInds));
+  // If the indicators panel is currently open, keep the list in sync
+  const ovInds = document.getElementById('ov-inds');
+  if(ovInds && ovInds.style.display !== 'none') renderIndList(_indSearchQ());
+}
 function saveCustomInds(){ _lsSet('custom-inds', JSON.stringify(customIndicators)); }
 function saveAnalyticsHidden(){ _lsSet('analytics-hidden', JSON.stringify([...analyticsHidden])); }
 
@@ -10823,6 +10968,132 @@ Be specific, concise, no fluff. No disclaimers.`;
 .tap-skel{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:tap-shimmer 1.3s infinite;border-radius:5px;}
 @keyframes tap-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 #tap-footer{padding:10px 22px;border-top:1px solid var(--b1);display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.4);flex-shrink:0;}
+
+
+/* ─── NAV DRAG & TOPBAR DOCK SYSTEM ─────────────────────────────────────────── */
+
+/* Nav button hidden when docked to topbar */
+.nav-btn.nav-docked { display:none !important; }
+
+/* Topbar drop zone highlight */
+#cmd-bar.tb-drop-active {
+  box-shadow: inset 0 -2px 0 var(--green);
+  background: rgba(0,212,160,.04);
+  transition: background .15s;
+}
+
+/* Nav drop zone highlight (when dragging back) */
+#nav.nav-drop-active {
+  box-shadow: inset 2px 0 0 var(--amber);
+  background: rgba(245,166,35,.06);
+}
+
+/* Wide drop overlay — visible + interactive when dragging from topbar */
+#nav-drop-overlay {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 200px;
+  z-index: 199;
+  pointer-events: none;
+  border-right: 2px dashed transparent;
+  transition: background .15s, border-color .15s;
+}
+#nav-drop-overlay.active {
+  pointer-events: all;
+  background: linear-gradient(to right, rgba(245,166,35,.08) 0%, rgba(245,166,35,.04) 60%, transparent 100%);
+  border-right: 2px dashed rgba(245,166,35,.35);
+  animation: nav-drop-pulse 1.4s ease-in-out infinite;
+}
+@keyframes nav-drop-pulse {
+  0%,100% { border-right-color: rgba(245,166,35,.2); }
+  50%      { border-right-color: rgba(245,166,35,.6); }
+}
+/* Label hint at the edge of the drop zone */
+#nav-drop-overlay.active::after {
+  content: '← drop here';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: rgba(245,166,35,.55);
+  pointer-events: none;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* Docked topbar icon button */
+.tb-docked-btn {
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  height:26px; padding:0 10px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  color:var(--tx2); border-radius:5px; cursor:pointer;
+  font-family:var(--font-mono); font-size:11px;
+  transition:all .15s; white-space:nowrap; flex-shrink:0;
+  position:relative; user-select:none;
+}
+.tb-docked-btn:hover { background:rgba(255,255,255,.1); color:var(--tx); border-color:rgba(255,255,255,.18); }
+.tb-docked-btn.active { background:rgba(0,212,160,.1); border-color:rgba(0,212,160,.35); color:var(--green); }
+
+/* Drag handle hint on docked buttons */
+.tb-docked-btn::before {
+  content:'⠿'; font-size:9px; opacity:.3; margin-right:2px;
+}
+
+/* Container for docked buttons in topbar */
+#tb-docked-bar {
+  display:flex; align-items:center; gap:4px; flex-shrink:0;
+}
+
+/* Insertion indicator when reordering */
+.tb-docked-btn.tb-insert-before {
+  border-left: 2px solid var(--green) !important;
+}
+.tb-docked-btn.tb-insert-after {
+  border-right: 2px solid var(--green) !important;
+}
+
+/* ─── FLOATING PANEL WINDOW ─────────────────────────────────────────────────── */
+.fpw {
+  position:fixed;
+  background:rgba(13,18,26,0.97);
+  backdrop-filter:blur(40px) saturate(2) brightness(1.1);
+  -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.1);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:8px;
+  box-shadow:0 16px 48px rgba(0,0,0,.75), 0 2px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07);
+  display:flex; flex-direction:column;
+  z-index:3000; overflow:hidden; resize:both;
+  min-width:240px; min-height:160px;
+  animation:fpw-in .15s ease;
+}
+@keyframes fpw-in { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+
+.fpw-titlebar {
+  display:flex; align-items:center; gap:7px;
+  height:34px; padding:0 10px; flex-shrink:0;
+  background:rgba(255,255,255,.025);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  cursor:move; user-select:none;
+}
+.fpw-icon { font-size:13px; flex-shrink:0; }
+.fpw-title {
+  flex:1; font-family:var(--font-mono); font-size:10px; font-weight:600;
+  letter-spacing:1.2px; color:var(--tx); text-transform:uppercase;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.fpw-close {
+  width:20px; height:20px; border:none; border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:10px; color:var(--tx3);
+  background:rgba(255,255,255,.03); transition:all .15s; flex-shrink:0;
+}
+.fpw-close:hover { background:rgba(255,77,106,.15); color:var(--red); }
+.fpw-body { flex:1; overflow:auto; }
+.fpw-body::-webkit-scrollbar{width:4px;}
+.fpw-body::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:4px;}
 </style>
 
 <!-- Full analysis modal -->
@@ -11981,6 +12252,706 @@ Write exactly 5 short sections (1-2 sentences each):
   }
   return text;
 }
+
+
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TOPBAR DOCK SYSTEM — drag nav items to topbar, click to open floating window
+// ══════════════════════════════════════════════════════════════════════════════
+
+const TB_ITEMS = {
+  watch:     { icon:'◈',  label:'Watchlist',        navId:'nav-watch',    action:()=>toggleOverlay('watch'),    w:280, h:500 },
+  alerts:    { icon:'⏰', label:'Price Alerts',      navId:'nav-alerts',   action:()=>toggleOverlay('alerts'),   w:300, h:400 },
+  scanner:   { icon:'⌕',  label:'AI Scanner',        navId:'nav-scanner',  action:()=>toggleOverlay('scanner'),  w:320, h:540 },
+  draw:      { icon:'✏',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
+  inds:      { icon:'📈', label:'Indicators',         navId:'nav-inds',     action:()=>toggleOverlay('inds'),     w:300, h:500 },
+  aisetups:  { icon:'⚡', label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
+  premarket: { icon:'☀',  label:'Pre-Market Brief',  navId:'btn-premarket',action:()=>openPremarket(),           w:480, h:580 },
+  psc:       { icon:'⚖',  label:'Position Sizer',    navId:null,           action:()=>openPSC(),                 w:380, h:480 },
+  settings:  { icon:'⚙',  label:'Settings',          navId:null,           action:()=>openSettings(),            w:500, h:560 },
+  help:      { icon:'?',  label:'Help',               navId:null,           action:()=>openTutorial(),            w:480, h:560 },
+};
+
+// State — which keys are docked to topbar
+let _dockedKeys = new Set();
+// Active floating panel windows
+let _fpwMap = {}; // key → dom element
+let _fpwZ   = 3000;
+// Key being dragged
+let _dragKey  = null;
+let _dragFrom = null; // 'nav' | 'topbar'
+
+// ── Load persisted dock state ────────────────────────────────────────────────
+function _tbLoadState(){
+  try {
+    const saved = JSON.parse(_lsGet('tbdocked') || '[]');
+    saved.forEach(k => { if(TB_ITEMS[k]) _dockToTopbar(k, false); });
+  } catch(e){}
+}
+function _tbSaveState(){
+  const bar = document.getElementById('tb-docked-bar');
+  const keys = bar ? [...bar.querySelectorAll('.tb-docked-btn')].map(b=>b.id.replace('tbdock-','')) : [..._dockedKeys];
+  try { _lsSet('tbdocked', JSON.stringify(keys)); } catch(e){}
+}
+
+// ── Drag START from nav button ───────────────────────────────────────────────
+function navDragStart(e, key, label){
+  _dragKey  = key;
+  _dragFrom = 'nav';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', key);
+  e.currentTarget.style.opacity = '0.4';
+  // highlight topbar
+  document.getElementById('cmd-bar').classList.add('tb-drop-active');
+}
+function navDragEnd(e){
+  e.currentTarget.style.opacity = '';
+  document.getElementById('cmd-bar').classList.remove('tb-drop-active');
+  _dragKey = null; _dragFrom = null;
+}
+
+// ── Drag START from docked topbar button ─────────────────────────────────────
+function tbDockedDragStart(e, key){
+  _dragKey  = key;
+  _dragFrom = 'topbar';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', key);
+  e.currentTarget.style.opacity = '0.4';
+  // highlight nav strip
+  document.getElementById('nav').classList.add('nav-drop-active');
+  document.getElementById('nav-drop-overlay').classList.add('active');
+}
+function tbDockedDragEnd(e){
+  e.currentTarget.style.opacity = '';
+  document.getElementById('nav').classList.remove('nav-drop-active');
+  document.getElementById('nav-drop-overlay').classList.remove('active');
+  document.querySelectorAll('.tb-docked-btn').forEach(b=>b.classList.remove('tb-insert-before','tb-insert-after'));
+  _dragKey = null; _dragFrom = null;
+}
+
+// ── Reorder within docked bar ─────────────────────────────────────────────────
+function tbDockItemDragOver(e, overKey){
+  if(_dragFrom !== 'topbar' || !_dragKey || _dragKey === overKey) return;
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  const btn = document.getElementById('tbdock-' + overKey);
+  if(!btn) return;
+  const rect = btn.getBoundingClientRect();
+  document.querySelectorAll('.tb-docked-btn').forEach(b=>b.classList.remove('tb-insert-before','tb-insert-after'));
+  if(e.clientX < rect.left + rect.width/2) btn.classList.add('tb-insert-before');
+  else btn.classList.add('tb-insert-after');
+}
+function tbDockItemDragLeave(e, overKey){
+  const btn = document.getElementById('tbdock-' + overKey);
+  if(btn) btn.classList.remove('tb-insert-before','tb-insert-after');
+}
+function tbDockItemDrop(e, overKey){
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll('.tb-docked-btn').forEach(b=>b.classList.remove('tb-insert-before','tb-insert-after'));
+  const fromKey = e.dataTransfer.getData('text/plain') || _dragKey;
+  if(!fromKey || fromKey === overKey || _dragFrom !== 'topbar') return;
+  const bar = document.getElementById('tb-docked-bar');
+  const fromBtn = document.getElementById('tbdock-' + fromKey);
+  const overBtn = document.getElementById('tbdock-' + overKey);
+  if(!fromBtn || !overBtn) return;
+  const insertBefore = e.clientX < overBtn.getBoundingClientRect().left + overBtn.getBoundingClientRect().width/2;
+  bar.removeChild(fromBtn);
+  if(insertBefore) bar.insertBefore(fromBtn, overBtn);
+  else bar.insertBefore(fromBtn, overBtn.nextSibling);
+  _tbSaveState();
+}
+
+// ══ TOPBAR SLOT SYSTEM ═══════════════════════════════════════════════════════
+// Each .tb-slot holds at most one .tb-block. Blocks are MOVED (not cloned) so
+// their IDs remain unique. Dragging a block shows all slots as drop targets.
+
+const TB_SLOT_COUNT = 9;
+
+// Default layout: slot index → block data-tb-id (null = empty)
+const TB_DEFAULT_LAYOUT = ['symbol','timeframes','charttype','indicators',null,null,null,'ohlc',null];
+
+let _tbDraggingId   = null;
+let _tbDraggingFromSlot = null;
+
+// ── Save / load layout ────────────────────────────────────────────────────────
+function _tbSaveLayout(){
+  const order = [];
+  for(let i=0;i<TB_SLOT_COUNT;i++){
+    const slot = document.querySelector(`.tb-slot[data-slot="${i}"]`);
+    const block = slot ? slot.querySelector('.tb-block') : null;
+    order.push(block ? block.dataset.tbId : null);
+  }
+  try{ _lsSet('tblayout', JSON.stringify(order)); }catch(e){}
+}
+
+function _tbLoadLayout(){
+  try{
+    const s = JSON.parse(_lsGet('tblayout')||'null');
+    if(Array.isArray(s) && s.length === TB_SLOT_COUNT){
+      // Make sure every non-null default built-in block exists in the saved layout.
+      // If any are missing (e.g. from an older saved layout), add them to the first empty slot.
+      const builtIns = TB_DEFAULT_LAYOUT.filter(x => x && !x.startsWith('nav-'));
+      builtIns.forEach(id => {
+        if(!s.includes(id)){
+          const empty = s.indexOf(null);
+          if(empty !== -1) s[empty] = id;
+          else s.push(id); // fallback: append (shouldn't happen with 9 slots)
+        }
+      });
+      return s;
+    }
+  }catch(e){}
+  return [...TB_DEFAULT_LAYOUT];
+}
+
+// ── Initial placement — move blocks from template store into slots ────────────
+function _tbInitBlocks(){
+  const layout = _tbLoadLayout();
+  const store  = document.getElementById('tb-block-templates');
+
+  layout.forEach((blockId, slotIdx) => {
+    if(!blockId) return;
+    const slot = document.querySelector(`.tb-slot[data-slot="${slotIdx}"]`);
+    if(!slot) return;
+
+    if(blockId.startsWith('nav-')){
+      // Restore a previously docked nav item
+      const key = blockId.slice(4);
+      if(TB_ITEMS[key] && !_dockedKeys.has(key)){
+        _dockToTopbarSlot(key, slotIdx);
+      }
+    } else {
+      // Regular built-in block
+      const block = store ? store.querySelector(`[data-tb-id="${blockId}"]`) : null;
+      if(block){
+        slot.innerHTML = '';
+        slot.appendChild(block);
+        _tbBindBlock(block, slotIdx);
+      }
+    }
+  });
+
+  // Attach drop handlers to every slot
+  document.querySelectorAll('.tb-slot').forEach(slot => {
+    const idx = parseInt(slot.dataset.slot);
+    slot.addEventListener('dragover',  e => _tbSlotOver(e, idx));
+    slot.addEventListener('dragleave', e => _tbSlotLeave(e, idx));
+    slot.addEventListener('drop',      e => _tbSlotDrop(e, idx));
+  });
+}
+
+// Attach drag events to a block in a given slot
+function _tbBindBlock(block, slotIdx){
+  block.draggable = true;
+  block.ondragstart = e => {
+    if(_dragFrom === 'nav') return;
+    _tbDraggingId       = block.dataset.tbId;
+    _tbDraggingFromSlot = slotIdx;
+    // Also set _dragKey/_dragFrom so nav drop zone recognises the drag
+    // (allows dragging built-in blocks back to nav in future; also highlights nav)
+    _dragFrom = 'topbar-block';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('tb-block-id', block.dataset.tbId);
+    e.stopPropagation();
+    requestAnimationFrame(() => block.classList.add('tb-dragging'));
+    document.getElementById('cmd-bar').classList.add('tb-dragging-active');
+    // No nav highlight for built-in blocks — they can't go back to the sidebar
+  };
+  block.ondragend = () => {
+    block.classList.remove('tb-dragging');
+    document.getElementById('cmd-bar').classList.remove('tb-dragging-active');
+    document.getElementById('nav').classList.remove('nav-drop-active');
+    document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
+    _tbDraggingId = null; _tbDraggingFromSlot = null;
+    _dragFrom = null;
+  };
+}
+
+// ── Slot drag handlers ────────────────────────────────────────────────────────
+function _tbSlotOver(e, idx){
+  if(!_tbDraggingId && !(_dragKey && _dragFrom==='nav')) return;
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
+  document.querySelector(`.tb-slot[data-slot="${idx}"]`)?.classList.add('tb-slot-over');
+}
+function _tbSlotLeave(e, idx){
+  if(!e.currentTarget.contains(e.relatedTarget))
+    document.querySelector(`.tb-slot[data-slot="${idx}"]`)?.classList.remove('tb-slot-over');
+}
+function _tbSlotDrop(e, idx){
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
+  document.getElementById('cmd-bar').classList.remove('tb-dragging-active');
+
+  // ── Nav item docked into this slot ──────────────────────────────────────────
+  if(_dragFrom === 'nav'){
+    const key = e.dataTransfer.getData('text/plain') || _dragKey;
+    if(!key || !TB_ITEMS[key]) return;
+    _dockToTopbarSlot(key, idx);
+    return;
+  }
+
+  // ── Block reorder ────────────────────────────────────────────────────────────
+  if(!_tbDraggingId) return;
+  const fromIdx  = _tbDraggingFromSlot;
+  const toIdx    = idx;
+  if(fromIdx === toIdx){ _tbDraggingId=null; _tbDraggingFromSlot=null; return; }
+
+  const fromSlot  = document.querySelector(`.tb-slot[data-slot="${fromIdx}"]`);
+  const toSlot    = document.querySelector(`.tb-slot[data-slot="${toIdx}"]`);
+  const fromBlock = fromSlot?.querySelector('.tb-block');
+  const toBlock   = toSlot?.querySelector('.tb-block');
+
+  // Swap: put fromBlock in toSlot, toBlock (if any) in fromSlot
+  if(fromBlock){
+    toSlot.innerHTML = '';
+    toSlot.appendChild(fromBlock);
+    if(fromBlock.dataset.tbId?.startsWith('nav-')){
+      // nav block — restore proper drag handler with updated slot index
+      const navKey = fromBlock.dataset.tbId.slice(4);
+      fromBlock.ondragstart = _tbNavBlockDragStart(fromBlock, navKey, toIdx);
+    } else {
+      _tbBindBlock(fromBlock, toIdx);
+    }
+  }
+  if(toBlock){
+    fromSlot.innerHTML = '';
+    fromSlot.appendChild(toBlock);
+    if(toBlock.dataset.tbId?.startsWith('nav-')){
+      const navKey = toBlock.dataset.tbId.slice(4);
+      toBlock.ondragstart = _tbNavBlockDragStart(toBlock, navKey, fromIdx);
+    } else {
+      _tbBindBlock(toBlock, fromIdx);
+    }
+  } else if(fromBlock){
+    fromSlot.innerHTML = '';
+  }
+
+  _tbDraggingId=null; _tbDraggingFromSlot=null;
+  _tbSaveLayout();
+}
+
+// ── Dock a nav item into a specific slot ─────────────────────────────────────
+function _dockToTopbarSlot(key, slotIdx){
+  if(_dockedKeys.has(key)) return;
+  const cfg = TB_ITEMS[key];
+  _dockedKeys.add(key);
+
+  // Hide nav button
+  if(cfg.navId){ document.getElementById(cfg.navId)?.classList.add('nav-docked'); }
+
+  // Find a free slot (use slotIdx if free, otherwise next available)
+  let targetSlot = slotIdx;
+  const taken = document.querySelector(`.tb-slot[data-slot="${slotIdx}"] .tb-block`);
+  if(taken){
+    for(let i = 0; i < TB_SLOT_COUNT; i++){
+      if(!document.querySelector(`.tb-slot[data-slot="${i}"] .tb-block`)){ targetSlot = i; break; }
+    }
+  }
+
+  const slot = document.querySelector(`.tb-slot[data-slot="${targetSlot}"]`);
+  if(!slot) return;
+
+  // Create a standalone .tb-block for this nav item (its own slot, not merged)
+  const block = document.createElement('div');
+  block.className = 'tb-block';
+  block.dataset.tbId = 'nav-' + key; // unique id so save/load works
+
+  const btn = document.createElement('button');
+  btn.className = 'tb-docked-btn';
+  btn.id = 'tbdock-' + key;
+  btn.title = cfg.label + ' (drag back to nav to restore)';
+  btn.innerHTML = `${cfg.icon} <span style="font-size:10px;">${cfg.label}</span>`;
+  btn.onclick = () => _tbBtnClick(key);
+  block.appendChild(btn);
+
+  // Dragging this block back to nav undocks it
+  block.draggable = true;
+  block.ondragstart = e => {
+    // Allow drag-to-nav (undock) via the nav drop zone
+    _dragKey  = key;
+    _dragFrom = 'topbar';
+    _tbDraggingId       = block.dataset.tbId;
+    _tbDraggingFromSlot = targetSlot;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', key);
+    e.dataTransfer.setData('tb-block-id', block.dataset.tbId);
+    e.stopPropagation();
+    requestAnimationFrame(() => block.classList.add('tb-dragging'));
+    document.getElementById('cmd-bar').classList.add('tb-dragging-active');
+    document.getElementById('nav').classList.add('nav-drop-active');
+    document.getElementById('nav-drop-overlay').classList.add('active');
+  };
+  block.ondragend = () => {
+    block.classList.remove('tb-dragging');
+    document.getElementById('cmd-bar').classList.remove('tb-dragging-active');
+    document.getElementById('nav').classList.remove('nav-drop-active');
+    document.getElementById('nav-drop-overlay').classList.remove('active');
+    document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
+    _dragKey = null; _dragFrom = null;
+    _tbDraggingId = null; _tbDraggingFromSlot = null;
+  };
+
+  slot.innerHTML = '';
+  slot.appendChild(block);
+  // NOTE: do NOT call _tbBindBlock here — it would overwrite the ondragstart
+  // which sets _dragFrom='topbar' needed for navDropZoneDrop to undock correctly.
+
+  _tbSaveState();
+  _tbSaveLayout();
+}
+
+// Helper to rebuild nav-block dragstart with updated slot index
+function _tbNavBlockDragStart(block, key, slotIdx){
+  return e => {
+    _dragKey  = key; _dragFrom = 'topbar';
+    _tbDraggingId = block.dataset.tbId; _tbDraggingFromSlot = slotIdx;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', key);
+    e.dataTransfer.setData('tb-block-id', block.dataset.tbId);
+    e.stopPropagation();
+    requestAnimationFrame(() => block.classList.add('tb-dragging'));
+    document.getElementById('cmd-bar').classList.add('tb-dragging-active');
+    document.getElementById('nav').classList.add('nav-drop-active');
+    document.getElementById('nav-drop-overlay').classList.add('active');
+  };
+}
+
+// cmdBar fallback (drop on empty bar space not over a slot)
+function cmdBarDragOver(e){
+  if(_dragKey && _dragFrom==='nav'){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+  if(_tbDraggingId) e.preventDefault();
+}
+function cmdBarDragLeave(e){
+  if(!e.currentTarget.contains(e.relatedTarget))
+    document.querySelectorAll('.tb-slot').forEach(s=>s.classList.remove('tb-slot-over'));
+}
+function cmdBarDrop(e){
+  if(_dragFrom==='nav'){
+    e.preventDefault();
+    const key=e.dataTransfer.getData('text/plain')||_dragKey;
+    if(key&&TB_ITEMS[key]){
+      // Find first empty slot
+      let target=0;
+      for(let i=0;i<TB_SLOT_COUNT;i++){
+        const sl=document.querySelector(`.tb-slot[data-slot="${i}"]`);
+        if(sl&&!sl.querySelector('.tb-block')){ target=i; break; }
+      }
+      _dockToTopbarSlot(key, target);
+    }
+  }
+}
+
+// ── Nav drop zone (drag back from topbar) ─────────────────────────────────────
+function navDropZoneOver(e){
+  if(_dragFrom === 'topbar' || _dragFrom === 'topbar-block'){
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+}
+function navDropZoneLeave(e){
+  // Only remove highlight if leaving BOTH the nav and the overlay
+  const nav     = document.getElementById('nav');
+  const overlay = document.getElementById('nav-drop-overlay');
+  const to      = e.relatedTarget;
+  if(to && (nav.contains(to) || overlay.contains(to) || to === nav || to === overlay)) return;
+  nav.classList.remove('nav-drop-active');
+  // Don't deactivate overlay here — dragend handles that
+}
+function navDropZoneDrop(e){
+  e.preventDefault();
+  document.getElementById('nav').classList.remove('nav-drop-active');
+  document.getElementById('cmd-bar').classList.remove('tb-dragging-active');
+  document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
+
+  const wasFrom = _dragFrom;
+  const key     = e.dataTransfer.getData('text/plain') || _dragKey;
+  _dragKey = null; _dragFrom = null;
+  _tbDraggingId = null; _tbDraggingFromSlot = null;
+
+  // Only undock if it was a nav-type item being dragged back
+  if((wasFrom === 'topbar' || wasFrom === 'topbar-block') && key && TB_ITEMS[key]){
+    _undockFromTopbar(key);
+  }
+}
+
+// ── Dock a button to the topbar ───────────────────────────────────────────────
+function _dockToTopbar(key, save){
+  // Find the first empty slot and dock into it
+  let target = 0;
+  for(let i=0;i<TB_SLOT_COUNT;i++){
+    const sl = document.querySelector(`.tb-slot[data-slot="${i}"]`);
+    if(sl && !sl.querySelector('.tb-block')){ target=i; break; }
+  }
+  _dockToTopbarSlot(key, target);
+}
+
+// ── Undock — move button back to nav ─────────────────────────────────────────
+function _undockFromTopbar(key){
+  if(!_dockedKeys.has(key)) return;
+  const cfg = TB_ITEMS[key];
+  _dockedKeys.delete(key);
+
+  // Find and clear the slot this block occupies
+  const block = document.querySelector(`.tb-block[data-tb-id="nav-${key}"]`);
+  if(block){
+    const slot = block.closest('.tb-slot');
+    if(slot) slot.innerHTML = ''; // fully clear — no ghost elements
+  }
+
+  // Close any open panel
+  _closeFpw(key);
+
+  // Restore nav button
+  if(cfg.navId){
+    const nb = document.getElementById(cfg.navId);
+    if(nb) nb.classList.remove('nav-docked');
+  }
+
+  _tbSaveState();
+  _tbSaveLayout();
+}
+
+// ── Click a docked topbar button → open/toggle floating panel ────────────────
+function _tbBtnClick(key){
+  const cfg = TB_ITEMS[key];
+  const useModal = ['aisetups','premarket','psc','settings','help'];
+  if(useModal.includes(key)){
+    cfg.action();
+    return;
+  }
+
+  // If this window is already open and visible → close it (toggle off)
+  if(_fpwMap[key] && _fpwMap[key].style.display !== 'none'){
+    _closeFpw(key);
+    return;
+  }
+
+  // Close every other open FPW first
+  [...Object.keys(_fpwMap)].forEach(k => { if(k !== key) _closeFpw(k); });
+
+  // Now open (or re-show) this one
+  if(_fpwMap[key]){
+    _fpwMap[key].style.display = 'flex';
+    _fpwFocus(key);
+    _updateDockedBtnState(key);
+  } else {
+    _openFpw(key);
+  }
+}
+
+// ── Open a floating panel window ──────────────────────────────────────────────
+function _openFpw(key){
+  const cfg = TB_ITEMS[key];
+  const existing = document.getElementById('fpw-' + key);
+  if(existing){ existing.style.display='flex'; _fpwFocus(key); return; }
+
+  // Compute position — cascade from topbar button
+  const btnEl = document.getElementById('tbdock-' + key);
+  const bar   = document.getElementById('cmd-bar');
+  const barH  = bar ? bar.getBoundingClientRect().bottom : 52;
+  const btnX  = btnEl ? btnEl.getBoundingClientRect().left : 60 + Object.keys(_fpwMap).length * 24;
+
+  const fpw = document.createElement('div');
+  fpw.className = 'fpw';
+  fpw.id = 'fpw-' + key;
+  fpw.style.cssText = `width:${cfg.w}px;height:${cfg.h}px;left:${Math.min(btnX, window.innerWidth-cfg.w-10)}px;top:${barH+4}px;z-index:${++_fpwZ};`;
+
+  fpw.innerHTML = `
+    <div class="fpw-titlebar" id="fpwtb-${key}">
+      <span class="fpw-icon">${cfg.icon}</span>
+      <span class="fpw-title">${cfg.label}</span>
+      <button class="fpw-close" onclick="_closeFpw('${key}')" title="Close">✕</button>
+    </div>
+    <div class="fpw-body" id="fpwbody-${key}"></div>`;
+
+  document.body.appendChild(fpw);
+  _fpwMap[key] = fpw;
+
+  // Drag to move
+  _fpwMakeDraggable(fpw, document.getElementById('fpwtb-'+key));
+  fpw.addEventListener('mousedown', () => _fpwFocus(key));
+
+  // Populate content
+  _fpwPopulate(key);
+
+  // Mark btn active
+  _updateDockedBtnState(key);
+}
+
+function _closeFpw(key){
+  // Move real panels back to overlay-panel on close
+  const panelIds = { draw: 'ov-draw', scanner: 'ov-scanner', inds: 'ov-inds' };
+  if(panelIds[key]){
+    const src  = document.getElementById(panelIds[key]);
+    const orig = document.getElementById('overlay-panel');
+    if(src && orig){
+      src.style.display = 'none';
+      orig.appendChild(src);
+    }
+  }
+  const fpw = _fpwMap[key];
+  if(fpw){ fpw.remove(); delete _fpwMap[key]; }
+  _updateDockedBtnState(key);
+}
+
+function _fpwFocus(key){
+  const fpw = _fpwMap[key];
+  if(fpw) fpw.style.zIndex = ++_fpwZ;
+}
+
+function _updateDockedBtnState(key){
+  const btn = document.getElementById('tbdock-' + key);
+  if(!btn) return;
+  btn.classList.toggle('active', !!_getDockedBtnActive(key));
+}
+
+// Determine the true active state for any docked key
+function _getDockedBtnActive(key){
+  switch(key){
+    // Overlay panels — active when that overlay is open
+    case 'watch':    case 'alerts': case 'scanner':
+    case 'draw':     case 'inds':
+      return _activeOverlay === key;
+    // Replay — active when replay is running
+    case 'replay':
+      return typeof replayMode !== 'undefined' && replayMode;
+    // AI Setups — active when the ai-panel overlay is visible
+    case 'aisetups':
+      return !!_fpwMap[key] && _fpwMap[key].style.display !== 'none';
+    // Pre-market / PSC / Settings / Help — active when their modal is open
+    case 'premarket':{
+      const el = document.getElementById('premarket-modal') || document.getElementById('pm-bg') || document.getElementById('premarket-bg');
+      return el ? (el.style.display === 'flex' || el.classList.contains('open')) : false;
+    }
+    case 'psc':{
+      const el = document.getElementById('psc-bg');
+      return el ? el.style.display === 'flex' : false;
+    }
+    case 'settings':{
+      const el = document.getElementById('settings-bg');
+      return el ? el.classList.contains('open') : false;
+    }
+    case 'help':{
+      const el = document.getElementById('tutorial-bg') || document.getElementById('help-modal');
+      return el ? (el.style.display === 'flex' || el.classList.contains('open')) : false;
+    }
+    default:
+      return !!_fpwMap[key] && _fpwMap[key].style.display !== 'none';
+  }
+}
+
+// Sync ALL docked buttons at once
+function _syncAllDockedBtns(){
+  _dockedKeys.forEach(key => _updateDockedBtnState(key));
+}
+
+// ── Populate panel body with the right content ────────────────────────────────
+function _fpwPopulate(key){
+  const body = document.getElementById('fpwbody-' + key);
+  if(!body) return;
+
+  if(key === 'watch'){
+    body.innerHTML = `
+      <div style="padding:8px 10px;border-bottom:1px solid var(--line);">
+        <input placeholder="Filter watchlist…" oninput="buildWL(this.value)"
+          style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--tx);
+          font-size:11px;padding:6px 10px;border-radius:var(--r);outline:none;font-family:var(--font-mono);">
+      </div>
+      <div id="fpw-wl-list"></div>
+      <div style="padding:6px 8px;border-top:1px solid var(--line);">
+        <button class="wl-add-btn" onclick="openModal()">+ Add Symbol</button>
+      </div>`;
+    // Mirror existing watchlist
+    setTimeout(()=>{
+      const src = document.getElementById('wl-list');
+      const dst = document.getElementById('fpw-wl-list');
+      if(src && dst) dst.innerHTML = src.innerHTML;
+    }, 60);
+
+  } else if(key === 'alerts'){
+    body.innerHTML = `
+      <div id="fpw-al-list" style="padding:4px;"></div>
+      <div style="padding:6px 8px;border-top:1px solid var(--line);">
+        <button class="wl-add-btn" onclick="addAlert()">+ Add Price Alert</button>
+      </div>`;
+    setTimeout(()=>{
+      const src = document.getElementById('al-list');
+      const dst = document.getElementById('fpw-al-list');
+      if(src && dst) dst.innerHTML = src.innerHTML;
+    }, 60);
+
+  } else if(key === 'draw'){
+    // Move the REAL ov-draw element in so dt-* button IDs remain unique
+    // and setTool() can find + update them directly
+    const src = document.getElementById('ov-draw');
+    if(src){
+      src.style.display = 'block';
+      body.appendChild(src);
+      // Sync button states to current activeTool immediately
+      TOOL_BTNS.forEach(id => {
+        const b = document.getElementById('dt-' + id);
+        if(b) b.classList.toggle('on', id === activeTool);
+      });
+    }
+
+  } else if(key === 'scanner'){
+    // Move the real ov-scanner so onclick handlers, runPrompt etc. still work
+    const src = document.getElementById('ov-scanner');
+    if(src){
+      src.style.display = 'block';
+      body.appendChild(src);
+    }
+
+  } else if(key === 'inds'){
+    // Move the real ov-inds element so indlist-body, ov-ind-search IDs stay unique
+    const src = document.getElementById('ov-inds');
+    if(src){
+      src.style.display = 'flex';
+      src.style.flexDirection = 'column';
+      src.style.height = '100%';
+      body.appendChild(src);
+      // Reset search and render list
+      const search = document.getElementById('ov-ind-search');
+      if(search) search.value = '';
+      ilCurrentTab = 'builtin';
+      const tb = document.getElementById('iltab-builtin');
+      const tc = document.getElementById('iltab-custom');
+      if(tb) tb.classList.add('on');
+      if(tc) tc.classList.remove('on');
+      setTimeout(() => renderIndList(''), 60);
+    }
+
+  } else if(key === 'aisetups'){
+    // Open the normal panel then mirror it
+    openAISetups();
+
+  }
+}
+
+// ── Drag to reposition floating window ───────────────────────────────────────
+function _fpwMakeDraggable(el, handle){
+  let ox=0, oy=0, sx=0, sy=0, dragging=false;
+  handle.addEventListener('mousedown', e => {
+    if(e.target.classList.contains('fpw-close')) return;
+    e.preventDefault(); dragging=true;
+    sx=e.clientX; sy=e.clientY; ox=el.offsetLeft; oy=el.offsetTop;
+    const mm = ev => {
+      if(!dragging) return;
+      el.style.left = (ox+ev.clientX-sx)+'px';
+      el.style.top  = (oy+ev.clientY-sy)+'px';
+    };
+    const mu = () => { dragging=false; document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); };
+    document.addEventListener('mousemove',mm);
+    document.addEventListener('mouseup',mu);
+  });
+}
+
+// Topbar init is handled inside doLogin (after user context is set).
+// For first-time / no-account sessions, the auth-screen shows so no init needed yet.
+
 </script>
 
 </body>
