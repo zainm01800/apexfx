@@ -4867,6 +4867,11 @@ function replayPickBar(barIndex){
   updateReplayStatus();
   draw();
   toast('▶ Replay set — Space to play/pause · → to step · Esc to exit');
+  
+  // Update AI Mentor when replay starts
+  if (mentorState.enabled) {
+    updateMentor();
+  }
 }
 
 function replayStep(n){
@@ -4878,6 +4883,11 @@ function replayStep(n){
   replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff + n));
   updateReplayStatus();
   draw();
+  
+  // Update AI Mentor after stepping
+  if (mentorState.enabled) {
+    updateMentor();
+  }
 }
 
 function replayTogglePlay(){
@@ -5835,11 +5845,21 @@ function calculateStructureConfluence(setup, structure) {
 
 // Market Analysis Engine (NO future data)
 function analyzeMarketData(barIndex) {
-  if (!curData || barIndex < 0 || barIndex >= curData.length) return null;
+  console.log('🔍 analyzeMarketData called with barIndex:', barIndex);
+  console.log('🔍 curData available:', !!curData, 'length:', curData ? curData.length : 'null');
+  
+  if (!curData || barIndex < 0 || barIndex >= curData.length) {
+    console.log('❌ analyzeMarketData failed: invalid data or barIndex');
+    return null;
+  }
   
   const data = curData.slice(0, barIndex + 1); // Only current and past data
+  console.log('🔍 Data slice length:', data.length, 'from 0 to', barIndex);
+  
   const current = data[data.length - 1];
   const previous = data.length > 1 ? data[data.length - 2] : current;
+  
+  console.log('🔍 Current bar:', current);
   
   // Trend Analysis
   const sma20 = calculateSMA(data, 20);
@@ -5860,7 +5880,7 @@ function analyzeMarketData(barIndex) {
   // Market Structure
   const structure = analyzeMarketStructure(data);
   
-  return {
+  const result = {
     trend,
     structure,
     current: {
@@ -5881,6 +5901,9 @@ function analyzeMarketData(barIndex) {
       sma50: sma50[sma50.length - 1]
     }
   };
+  
+  console.log('🔍 Analysis result:', result);
+  return result;
 }
 
 // Helper Functions for Analysis
@@ -6786,34 +6809,63 @@ function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
   const currentBar = replayCutoff;
-  console.log('🤖 updateMentor called:', { currentBar, enabled: mentorState.enabled, replayMode, replayPicking });
+  console.log('🤖 updateMentor called:', { 
+    currentBar, 
+    enabled: mentorState.enabled, 
+    replayMode, 
+    replayPicking,
+    curDataLength: curData ? curData.length : 'null',
+    curDataAvailable: !!curData
+  });
+  
+  // Check if we have data to analyze
+  if (!curData || curData.length === 0) {
+    console.log('🚫 No curData available, skipping analysis');
+    if (mentorState.currentInsights) {
+      mentorState.currentInsights = ['🔄 Loading market data...'];
+      mentorState.currentQuestion = 'Waiting for data to become available...';
+      updateMentorUI();
+    }
+    return;
+  }
   
   if (currentBar !== mentorState.currentBar) {
     mentorState.currentBar = currentBar;
     
-    // First, check for new manual trade placements during replay
-    detectReplayTradePlacement();
-    
-    // Check cooldown period first
-    const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
-    console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles });
-    
-    if (candlesSinceLastSuggestion < mentorState.cooldownCandles) {
-      // Still in cooldown, just update analysis but don't suggest trades
-      mentorState.analysis = analyzeMarketData(currentBar);
-      if (mentorState.analysis) {
-        updateMentorUIWithCooldown(candlesSinceLastSuggestion);
+    // Check if we have enough data for analysis
+    if (currentBar >= 50) {
+      console.log('📊 Sufficient data for analysis, proceeding...');
+      
+      // First, check for new manual trade placements during replay
+      detectReplayTradePlacement();
+      
+      // Check cooldown period first
+      const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
+      console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles });
+      
+      if (candlesSinceLastSuggestion < mentorState.cooldownCandles) {
+        // Still in cooldown, just update analysis but don't suggest trades
+        mentorState.analysis = analyzeMarketData(currentBar);
+        if (mentorState.analysis) {
+          updateMentorUIWithCooldown(candlesSinceLastSuggestion);
+        }
+        return;
       }
-      return;
-    }
-    
-    mentorState.analysis = analyzeMarketData(currentBar);
-    console.log('🤖 Analysis result:', mentorState.analysis);
-    
-    // Track trade outcomes before generating new analysis
-    trackTradeOutcomes();
-    
-    if (mentorState.analysis) {
+      
+      mentorState.analysis = analyzeMarketData(currentBar);
+      console.log('🤖 Analysis result:', mentorState.analysis);
+      
+      if (!mentorState.analysis) {
+        console.log('❌ Analysis failed, using fallback');
+        mentorState.currentInsights = ['⚠️ Analysis temporarily unavailable'];
+        mentorState.currentQuestion = 'Please try advancing a few more candles...';
+        updateMentorUI();
+        return;
+      }
+      
+      // Track trade outcomes before generating new analysis
+      trackTradeOutcomes();
+      
       // Use structured setup detection instead of generic analysis
       const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
       console.log('🤖 Setup detection result:', setupDetection);
@@ -6832,6 +6884,13 @@ function updateMentor() {
         generateNoSetupMessage();
       }
       
+      updateMentorUI();
+    } else {
+      // Not enough data yet
+      const neededBars = 50 - currentBar;
+      console.log(`📈 Need ${neededBars} more bars for analysis`);
+      mentorState.currentInsights = [`📊 Building analysis data... ${neededBars} more bars needed`];
+      mentorState.currentQuestion = 'Waiting for sufficient data for accurate analysis...';
       updateMentorUI();
     }
   }
