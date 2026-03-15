@@ -4666,6 +4666,7 @@ let replayCutoff  = -1;      // index of last shown bar (-1 = no cutoff = show a
 let replayPicking = false;   // true = user is hovering to pick start bar
 let replayTimer   = null;
 let replaySpeed   = 500;
+let replayJustStarted = false; // flag to prevent immediate stopping
 
 // Log initial state for debugging
 console.log('Replay variables initialized:', {
@@ -4703,15 +4704,31 @@ function startReplay(){
   replayMode    = true;
   replayPicking = true;    // wait for user to click to set cutoff
   replayCutoff  = -1;
+  replayJustStarted = true; // set flag to prevent immediate stopping
+  
   const _rbtn=document.getElementById('btn-replay'); if(_rbtn) _rbtn.classList.add('on');
   _syncAllDockedBtns();
   updateReplayStatus();
   draw();
   toast('⏮ Replay — hover to pick start bar, then click');
+  
+  // Clear the flag after a short delay
+  setTimeout(() => {
+    replayJustStarted = false;
+    console.log('replayJustStarted flag cleared');
+  }, 500);
 }
 
 function stopReplay(){
-  console.log('stopReplay called - clearing timer and resetting state');
+  console.log('stopReplay called - replayJustStarted:', replayJustStarted);
+  
+  // Don't stop if we just started (prevents immediate stopping)
+  if(replayJustStarted) {
+    console.log('Ignoring stopReplay call - just started');
+    return;
+  }
+  
+  console.log('Proceeding with stopReplay - clearing timer and resetting state');
   
   if(replayTimer){ 
     console.log('Clearing replay timer');
@@ -4733,6 +4750,7 @@ function forceResetReplay(){
   replayMode    = false;
   replayPicking = false;
   replayCutoff  = -1;
+  replayJustStarted = false;
   if(replayTimer){ 
     clearInterval(replayTimer); 
     replayTimer = null; 
@@ -4746,7 +4764,7 @@ function forceResetReplay(){
 
 // Make it globally accessible for debugging
 window.forceResetReplay = forceResetReplay;
-window.getReplayState = () => ({ replayMode, replayPicking, replayCutoff, replayTimer: !!replayTimer });
+window.getReplayState = () => ({ replayMode, replayPicking, replayCutoff, replayTimer: !!replayTimer, replayJustStarted });
 
 // Called from the canvas click handler when in replay picking mode
 function replayPickBar(barIndex){
