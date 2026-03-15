@@ -716,15 +716,10 @@ canvas{display:block;flex-shrink:0;}
 .il-desc{font-family:var(--font-mono);font-size:11px;color:var(--tx2);margin-top:1px;}
 
 /* ─── AUTH SCREEN ────────────────────────────────────────────────────────── */
-#auth-screen{display:flex;position:fixed;inset:0;z-index:99999;background:var(--bg);
+#auth-screen{display:flex;position:fixed;inset:0;z-index:9999;background:var(--bg);
   align-items:center;justify-content:center;flex-direction:column;}
 #auth-box{width:360px;background:var(--bg2);border:1px solid var(--line2);
   border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,.8);overflow:hidden;}
-#auth-box * { pointer-events: auto !important; }
-
-/* Hide all modals/overlays when auth screen is shown */
-#auth-screen ~ * { display: none !important; }
-#auth-screen + #app { display: none !important; }
 #auth-logo{padding:28px 28px 18px;border-bottom:1px solid var(--line);}
 #auth-logo-text{font-family:var(--font-mono);font-size:18px;font-weight:700;
   letter-spacing:2px;color:var(--tx);text-transform:uppercase;}
@@ -899,10 +894,6 @@ body.is-dragging { user-select: none; }
     <button class="nav-btn green" id="btn-aisetups" onclick="openAISetups()" title="AI Setups" draggable="true" ondragstart="navDragStart(event,'aisetups','AI Setups')" ondragend="navDragEnd(event)">
       <span>⚡</span><span class="nav-tip">AI Setups</span>
     </button>
-    <!-- AI Trading Mentor -->
-    <button class="nav-btn" id="btn-ai-mentor" onclick="toggleAIMentor()" title="AI Trading Mentor" draggable="true" ondragstart="navDragStart(event,'ai-mentor','AI Trading Mentor')" ondragend="navDragEnd(event)">
-      <span>🤖</span><span class="nav-tip">AI Trading Mentor</span>
-    </button>
     <!-- Pre-market brief -->
     <button class="nav-btn" id="btn-premarket" onclick="openPremarket()" title="Pre-Market Brief" draggable="true" ondragstart="navDragStart(event,'premarket','Pre-Market Brief')" ondragend="navDragEnd(event)">
       <span>☀</span><span class="nav-tip">Pre-Market Brief</span>
@@ -927,9 +918,6 @@ body.is-dragging { user-select: none; }
       <span>?</span><span class="nav-tip">Help & Tutorial</span>
     </button>
   </div>
-
-  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
-  <div id="sidebar" style="position:absolute;left:0;top:52px;bottom:22px;width:196px;background:var(--bg2);border-right:1px solid var(--line);display:none;z-index:10;"></div>
 
   <!-- ── OVERLAY PANEL ────────────────────────────────────────────────── -->
   <div id="overlay-panel">
@@ -1256,17 +1244,10 @@ body.is-dragging { user-select: none; }
 
   </div><!-- /main-col -->
 
-  <!-- ── RESIZE HANDLES ───────────────────────────────────────────────────── -->
-  <div id="left-resize-handle" style="position:absolute;left:0;top:0;bottom:22px;width:4px;background:transparent;cursor:col-resize;z-index:100;"></div>
-  <div id="right-resize-handle" style="position:absolute;right:280px;top:0;bottom:22px;width:4px;background:transparent;cursor:col-resize;z-index:100;"></div>
-
-  <!-- ── RIGHT PANEL ───────────────────────────────────────────────────── -->
-  <div id="rpanel" style="position:absolute;right:0;top:52px;bottom:22px;width:280px;background:var(--bg2);border-left:1px solid var(--line);z-index:10;">
-    <!-- ── RIGHT DRAWER ───────────────────────────────────────────────────── -->
+  <!-- ── RIGHT DRAWER ───────────────────────────────────────────────────── -->
   <div id="rdrawer">
     <div class="rd-tabs">
       <button class="rp-tab on" onclick="rpTab(this,'ai')">AI</button>
-      <button class="rp-tab" onclick="rpTab(this,'ai-mentor')" id="tab-ai-mentor">AI Mentor</button>
       <button class="rp-tab" onclick="rpTab(this,'analytics')" id="tab-analytics">Analytics</button>
       <button class="rp-tab" onclick="rpTab(this,'info')">News</button>
     </div>
@@ -1285,62 +1266,6 @@ body.is-dragging { user-select: none; }
       <div id="ai-stats" style="margin:4px 6px 8px;"></div>
       <div class="sec-title" style="margin-top:4px;">NEAREST LEVELS</div>
       <div id="ai-levels" style="margin:4px 6px 8px;"></div>
-    </div>
-
-    <!-- AI Mentor tab -->
-    <div class="rp-body" id="rp-ai-mentor" style="display:none;">
-      <div style="padding:8px 6px;border-bottom:1px solid var(--line);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--green);letter-spacing:.8px;">🤖 AI TRADING MENTOR</div>
-          <div id="ai-mentor-status" style="display:flex;align-items:center;gap:4px;">
-            <span id="ai-mentor-indicator" style="width:6px;height:6px;border-radius:50%;background:var(--tx3);"></span>
-            <span id="ai-mentor-status-text" style="font-size:9px;color:var(--tx3);font-family:var(--font-mono);">OFF</span>
-          </div>
-        </div>
-        <div id="ai-mentor-controls" style="display:flex;gap:4px;margin-bottom:6px;">
-          <button id="ai-mentor-toggle" onclick="toggleAIMentorMode()" style="flex:1;padding:6px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.25);color:var(--green);font-size:10px;border-radius:3px;cursor:pointer;font-weight:600;font-family:var(--font-mono);">Start Tutorial</button>
-          <button id="ai-mentor-step" onclick="aiMentorNextStep()" style="flex:1;padding:6px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:3px;cursor:pointer;font-weight:600;font-family:var(--font-mono);">Next Step</button>
-        </div>
-      </div>
-      
-      <div id="ai-mentor-content" style="padding:8px 6px;max-height:400px;overflow-y:auto;">
-        <div style="text-align:center;padding:20px;color:var(--tx3);">
-          <div style="font-size:24px;margin-bottom:8px;">🤖</div>
-          <div style="font-size:11px;margin-bottom:4px;">AI Trading Mentor</div>
-          <div style="font-size:10px;color:var(--tx3);line-height:1.4;">
-            Start a replay session and enable the AI Mentor to get step-by-step trading guidance with humanlike explanations.
-          </div>
-          <div style="margin-top:12px;padding:8px;background:var(--bg3);border-radius:var(--r);font-size:9px;color:var(--tx2);text-align:left;">
-            <div style="font-weight:600;margin-bottom:4px;">📚 Features:</div>
-            <div>• Real-time market analysis during replay</div>
-            <div>• Pattern recognition explanations</div>
-            <div>• Risk management guidance</div>
-            <div>• Interactive trading questions</div>
-            <div>• Setup strength evaluation</div>
-          </div>
-        </div>
-      </div>
-
-      <div style="padding:6px;border-top:1px solid var(--line);">
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--tx2);margin-bottom:4px;">Tutorial Settings</div>
-        <div style="display:flex;flex-direction:column;gap:4px;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;">
-            <input type="checkbox" id="ai-mentor-auto-step" style="flex-shrink:0;">
-            <span>Auto-step during replay</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;">
-            <input type="checkbox" id="ai-mentor-show-questions" checked style="flex-shrink:0;">
-            <span>Show interactive questions</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;">
-            <select id="ai-mentor-detail-level" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:9px;padding:2px 4px;border-radius:2px;font-family:var(--font-mono);">
-              <option value="basic">Basic explanations</option>
-              <option value="detailed" selected>Detailed analysis</option>
-              <option value="advanced">Advanced insights</option>
-            </select>
-          </label>
-        </div>
-      </div>
     </div>
 
     <!-- Journal tab -->
@@ -1612,8 +1537,6 @@ body.is-dragging { user-select: none; }
     </div>
 
   </div><!-- /rdrawer -->
-
-  </div><!-- /rpanel -->
 
   <!-- Trade Analysis floating box — top-centre of screen -->
   <div id="tap-anchor">
@@ -4741,19 +4664,16 @@ let replayPicking = false;   // true = user is hovering to pick start bar
 let replayTimer   = null;
 let replaySpeed   = 500;
 
-// AI Trading Mentor variables
-let aiMentorMode    = false;   // AI mentor is active
-let aiMentorStep    = 0;       // current tutorial step
-let aiMentorAutoStep = false;  // auto-step during replay
-let aiMentorData    = null;    // cached analysis data
-
 function toggleReplay(){
   if(replayMode) stopReplay();
   else           startReplay();
 }
 
 function startReplay(){
-  if(!curData.length) return;
+  if(!curData || curData.length <= 1) {
+    toast('⚠ No data available for replay');
+    return;
+  }
   replayMode    = true;
   replayPicking = true;    // wait for user to click to set cutoff
   replayCutoff  = -1;
@@ -4787,38 +4707,35 @@ function replayPickBar(barIndex){
 
 function replayStep(n){
   if(!replayMode || replayPicking) return;
+  if(!curData || curData.length <= 1) return;
   replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff + n));
   updateReplayStatus();
   draw();
-  
-  // Auto-update AI Mentor if active
-  if(aiMentorMode && aiMentorAutoStep) {
-    setTimeout(() => {
-      updateAIMentorAnalysis();
-    }, 100);
-  }
 }
 
 function replayTogglePlay(){
   if(!replayMode || replayPicking) return;
+  if(!curData || curData.length <= 1) {
+    toast('⚠ No data available for replay');
+    return;
+  }
   if(replayTimer){
     clearInterval(replayTimer);
     replayTimer = null;
     updateReplayStatus(); draw(); toast('⏸ Paused');
   } else {
     replayTimer = setInterval(()=>{
-      if(replayCutoff >= curData.length - 1){
+      try {
+        if(!curData || curData.length <= 1 || replayCutoff >= curData.length - 1){
+          clearInterval(replayTimer); replayTimer = null;
+          toast('⏹ Replay complete — Esc to exit');
+          return;
+        }
+        replayStep(1);
+      } catch(e) {
+        console.error('Replay timer error:', e);
         clearInterval(replayTimer); replayTimer = null;
-        toast('⏹ Replay complete — Esc to exit');
-        return;
-      }
-      replayStep(1);
-      
-      // Auto-update AI Mentor during playback
-      if(aiMentorMode && aiMentorAutoStep) {
-        setTimeout(() => {
-          updateAIMentorAnalysis();
-        }, 50);
+        toast('⚠ Replay error - stopped');
       }
     }, replaySpeed);
     updateReplayStatus(); draw(); toast('▶ Playing');
@@ -4836,6 +4753,11 @@ function updateReplayStatus(){
     txt.textContent = '⏮ PICK START BAR';
     if(play){ play.style.display='none'; }
   } else {
+    if(!curData || curData.length <= 1) {
+      txt.textContent = 'REPLAY — No data';
+      if(play){ play.style.display='none'; }
+      return;
+    }
     const pct = Math.round(replayCutoff / Math.max(1, curData.length - 1) * 100);
     txt.textContent = `REPLAY  ${replayCutoff}/${curData.length - 1}  (${pct}%)`;
     if(play){
@@ -4846,388 +4768,6 @@ function updateReplayStatus(){
       play.style.background  = replayTimer ? 'rgba(240,48,96,.15)' : 'rgba(0,201,160,.15)';
     }
   }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// AI TRADING MENTOR FUNCTIONS
-// ══════════════════════════════════════════════════════════════════════════════
-
-function toggleAIMentor() {
-  const mentorTab = document.getElementById('tab-ai-mentor');
-  if (mentorTab) {
-    rpTab(mentorTab, 'ai-mentor');
-  }
-}
-
-function toggleAIMentorMode() {
-  const toggleBtn = document.getElementById('ai-mentor-toggle');
-  const stepBtn = document.getElementById('ai-mentor-step');
-  const indicator = document.getElementById('ai-mentor-indicator');
-  const statusText = document.getElementById('ai-mentor-status-text');
-  const autoStepCheckbox = document.getElementById('ai-mentor-auto-step');
-  
-  aiMentorMode = !aiMentorMode;
-  
-  if (aiMentorMode) {
-    // Start AI Mentor
-    if (!replayMode) {
-      toast('🎬 Start replay first, then enable AI Mentor');
-      aiMentorMode = false;
-      return;
-    }
-    
-    if (replayPicking) {
-      toast('⏮ Pick a start bar first');
-      aiMentorMode = false;
-      return;
-    }
-    
-    aiMentorStep = 0;
-    aiMentorAutoStep = autoStepCheckbox.checked;
-    
-    if (toggleBtn) {
-      toggleBtn.textContent = 'Stop Tutorial';
-      toggleBtn.style.background = 'rgba(255,77,106,.08)';
-      toggleBtn.style.borderColor = 'rgba(255,77,106,.25)';
-      toggleBtn.style.color = 'var(--red)';
-    }
-    
-    if (stepBtn) {
-      stepBtn.style.background = 'rgba(0,212,160,.08)';
-      stepBtn.style.borderColor = 'rgba(0,212,160,.25)';
-      stepBtn.style.color = 'var(--green)';
-    }
-    
-    if (indicator) {
-      indicator.style.background = 'var(--green)';
-    }
-    
-    if (statusText) {
-      statusText.textContent = 'ACTIVE';
-      statusText.style.color = 'var(--green)';
-    }
-    
-    // Initialize with current bar analysis
-    updateAIMentorAnalysis();
-    toast('🤖 AI Mentor activated - Step through bars for guidance');
-    
-  } else {
-    // Stop AI Mentor
-    if (toggleBtn) {
-      toggleBtn.textContent = 'Start Tutorial';
-      toggleBtn.style.background = 'rgba(0,212,160,.08)';
-      toggleBtn.style.borderColor = 'rgba(0,212,160,.25)';
-      toggleBtn.style.color = 'var(--green)';
-    }
-    
-    if (stepBtn) {
-      stepBtn.style.background = 'var(--bg3)';
-      stepBtn.style.borderColor = 'var(--line)';
-      stepBtn.style.color = 'var(--tx2)';
-    }
-    
-    if (indicator) {
-      indicator.style.background = 'var(--tx3)';
-    }
-    
-    if (statusText) {
-      statusText.textContent = 'OFF';
-      statusText.style.color = 'var(--tx3)';
-    }
-    
-    // Clear mentor content
-    const content = document.getElementById('ai-mentor-content');
-    if (content) {
-      content.innerHTML = `
-        <div style="text-align:center;padding:20px;color:var(--tx3);">
-          <div style="font-size:24px;margin-bottom:8px;">🤖</div>
-          <div style="font-size:11px;margin-bottom:4px;">AI Trading Mentor</div>
-          <div style="font-size:10px;color:var(--tx3);line-height:1.4;">
-            Start a replay session and enable the AI Mentor to get step-by-step trading guidance.
-          </div>
-        </div>
-      `;
-    }
-    
-    toast('🤖 AI Mentor deactivated');
-  }
-}
-
-function aiMentorNextStep() {
-  if (!aiMentorMode) {
-    toast('🤖 Enable AI Mentor first');
-    return;
-  }
-  
-  if (!replayMode || replayPicking) {
-    toast('⏮ Start replay first');
-    return;
-  }
-  
-  // Step forward one bar
-  replayStep(1);
-  
-  // Update analysis after step
-  setTimeout(() => {
-    updateAIMentorAnalysis();
-  }, 100);
-}
-
-function updateAIMentorAnalysis() {
-  if (!aiMentorMode || !replayMode || replayPicking) return;
-  
-  const content = document.getElementById('ai-mentor-content');
-  if (!content) return;
-  
-  // Get current data context
-  const dataForAnalysis = curData.slice(0, replayCutoff + 1);
-  if (dataForAnalysis.length < 5) {
-    content.innerHTML = `
-      <div style="text-align:center;padding:20px;color:var(--tx3);">
-        <div style="font-size:24px;margin-bottom:8px;">📊</div>
-        <div style="font-size:11px;">Not enough data</div>
-        <div style="font-size:10px;color:var(--tx3);">Step forward to see analysis</div>
-      </div>
-    `;
-    return;
-  }
-  
-  const analysis = analyzeCurrentMarketForMentor(dataForAnalysis);
-  const tutorialContent = generateTutorialContent(analysis, dataForAnalysis);
-  
-  content.innerHTML = tutorialContent;
-}
-
-function analyzeCurrentMarketForMentor(data) {
-  if (data.length < 5) return { trend: 'insufficient_data' };
-  
-  const recent = data.slice(-10);
-  const current = data[data.length - 1];
-  const previous = data[data.length - 2];
-  
-  // Trend analysis
-  const highs = recent.map(b => b.h);
-  const lows = recent.map(b => b.l);
-  const closes = recent.map(b => b.c);
-  
-  const higherHighs = highs.filter((h, i) => i > 0 && h > highs[i-1]).length;
-  const higherLows = lows.filter((l, i) => i > 0 && l > lows[i-1]).length;
-  const higherCloses = closes.filter((c, i) => i > 0 && c > closes[i-1]).length;
-  
-  let trend = 'range';
-  if (higherHighs > 6 && higherLows > 6 && higherCloses > 6) {
-    trend = 'uptrend';
-  } else if (higherHighs < 3 && higherLows < 3 && higherCloses < 3) {
-    trend = 'downtrend';
-  }
-  
-  // Support/Resistance
-  const resistance = Math.max(...highs);
-  const support = Math.min(...lows);
-  
-  // Recent price action
-  const priceChange = ((current.c - previous.c) / previous.c) * 100;
-  const volume = current.v || 0;
-  const avgVolume = recent.reduce((sum, b) => sum + (b.v || 0), 0) / recent.length;
-  
-  return {
-    trend,
-    current: current.c,
-    previous: previous.c,
-    change: priceChange,
-    support,
-    resistance,
-    volume,
-    avgVolume,
-    isBullish: current.c > current.o,
-    isBearish: current.c < current.o,
-    range: resistance - support,
-    inUpperRange: current.c > (support + (resistance - support) * 0.7),
-    inLowerRange: current.c < (support + (resistance - support) * 0.3),
-    dataLength: data.length,
-    currentBarIndex: data.length - 1
-  };
-}
-
-function generateTutorialContent(analysis, data) {
-  const detailLevel = document.getElementById('ai-mentor-detail-level')?.value || 'detailed';
-  const showQuestions = document.getElementById('ai-mentor-show-questions')?.checked !== false;
-  
-  let content = '<div style="line-height:1.6;">';
-  
-  // Header with current position
-  content += `
-    <div style="margin-bottom:12px;padding:8px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--green);">
-      <div style="font-weight:600;color:var(--green);margin-bottom:4px;font-size:11px;">📍 Bar ${analysis.currentBarIndex + 1}</div>
-      <div style="color:var(--tx2);font-size:10px;">
-        Price: ${analysis.current.toFixed(2)} | Change: ${analysis.change.toFixed(2)}%
-      </div>
-      <div style="color:var(--tx2);font-size:10px;">
-        ${analysis.isBullish ? '🟢 Bullish' : '🔴 Bearish'} candle
-      </div>
-    </div>
-  `;
-  
-  // Market structure analysis
-  content += `
-    <div style="margin-bottom:12px;">
-      <div style="font-weight:600;color:var(--am);margin-bottom:4px;font-size:11px;">📊 Market Structure</div>
-      <div style="color:var(--tx2);font-size:10px;">
-        <div style="margin-bottom:3px;">Trend: <span style="color:${analysis.trend === 'uptrend' ? 'var(--green)' : analysis.trend === 'downtrend' ? 'var(--red)' : 'var(--tx2)'};font-weight:600;">${analysis.trend.toUpperCase()}</span></div>
-        <div style="margin-bottom:3px;">Support: <span style="color:var(--blue);">${analysis.support.toFixed(2)}</span></div>
-        <div style="margin-bottom:3px;">Resistance: <span style="color:var(--blue);">${analysis.resistance.toFixed(2)}</span></div>
-        <div>Range: ${analysis.range.toFixed(2)} points</div>
-      </div>
-    </div>
-  `;
-  
-  // Detailed analysis based on detail level
-  if (detailLevel === 'detailed' || detailLevel === 'advanced') {
-    content += `
-      <div style="margin-bottom:12px;">
-        <div style="font-weight:600;color:var(--am);margin-bottom:4px;font-size:11px;">🔍 Technical Analysis</div>
-        <div style="color:var(--tx2);font-size:10px;">
-          <div style="margin-bottom:3px;">Volume: ${analysis.volume > analysis.avgVolume * 1.2 ? '🔥 High' : analysis.volume < analysis.avgVolume * 0.8 ? '📉 Low' : '📊 Normal'} (${(analysis.volume/analysis.avgVolume).toFixed(1)}x avg)</div>
-          <div style="margin-bottom:3px;">Position: ${analysis.inUpperRange ? '🔺 Upper range' : analysis.inLowerRange ? '🔻 Lower range' : '⬜ Mid-range'}</div>
-          <div>Price action: ${generatePriceActionDescription(analysis)}</div>
-        </div>
-      </div>
-    `;
-  }
-  
-  // Trading guidance
-  content += `
-    <div style="margin-bottom:12px;">
-      <div style="font-weight:600;color:var(--am);margin-bottom:4px;font-size:11px;">💡 Trading Insight</div>
-      <div style="color:var(--tx2);font-size:10px;">
-        ${generateTradingGuidance(analysis, data)}
-      </div>
-    </div>
-  `;
-  
-  // Interactive questions
-  if (showQuestions) {
-    content += `
-      <div style="margin-bottom:12px;">
-        <div style="font-weight:600;color:var(--am);margin-bottom:4px;font-size:11px;">🤔 Think About This</div>
-        <div style="color:var(--tx2);font-size:10px;">
-          ${generateInteractiveQuestion(analysis)}
-        </div>
-      </div>
-    `;
-  }
-  
-  // Risk management reminder
-  if (detailLevel === 'advanced') {
-    content += `
-      <div style="margin-bottom:12px;">
-        <div style="font-weight:600;color:var(--amber);margin-bottom:4px;font-size:11px;">⚠️ Risk Management</div>
-        <div style="color:var(--tx2);font-size:10px;">
-          ${generateRiskManagementTip(analysis)}
-        </div>
-      </div>
-    `;
-  }
-  
-  content += '</div>';
-  
-  return content;
-}
-
-function generatePriceActionDescription(analysis) {
-  if (analysis.isBullish && analysis.change > 0.5) {
-    return "Strong bullish momentum - buyers in control";
-  } else if (analysis.isBearish && analysis.change < -0.5) {
-    return "Strong bearish pressure - sellers dominating";
-  } else if (analysis.isBullish && Math.abs(analysis.change) < 0.2) {
-    return "Mild bullish sentiment - cautious buying";
-  } else if (analysis.isBearish && Math.abs(analysis.change) < 0.2) {
-    return "Mild bearish sentiment - cautious selling";
-  } else {
-    return "Mixed signals - market indecisive";
-  }
-}
-
-function generateTradingGuidance(analysis, data) {
-  const guidance = [];
-  
-  if (analysis.trend === 'uptrend') {
-    guidance.push("• Look for buying opportunities on pullbacks to support");
-    if (analysis.inLowerRange) {
-      guidance.push("• Current price near support - potential entry zone");
-    }
-  } else if (analysis.trend === 'downtrend') {
-    guidance.push("• Consider shorting on rallies to resistance");
-    if (analysis.inUpperRange) {
-      guidance.push("• Current price near resistance - potential short entry");
-    }
-  } else {
-    guidance.push("• Range-bound market - trade the levels");
-    guidance.push("• Buy near support, sell near resistance");
-  }
-  
-  if (analysis.volume > analysis.avgVolume * 1.5) {
-    guidance.push("• High volume confirms the current move");
-  } else if (analysis.volume < analysis.avgVolume * 0.7) {
-    guidance.push("• Low volume suggests lack of conviction");
-  }
-  
-  return guidance.join('<br>');
-}
-
-function generateInteractiveQuestion(analysis) {
-  const questions = [
-    {
-      condition: analysis.trend === 'uptrend',
-      question: "Based on the current uptrend, where would you look for entry opportunities?",
-      answer: "The best approach would be to wait for pullbacks to support levels or consolidation zones before entering long positions."
-    },
-    {
-      condition: analysis.trend === 'downtrend',
-      question: "In this downtrend, what risk management strategy would you use?",
-      answer: "Consider tighter stop losses and smaller position sizes, as downtrends can be more volatile and have faster reversals."
-    },
-    {
-      condition: analysis.inUpperRange,
-      question: "Price is in the upper range - what does this suggest about risk/reward?",
-      answer: "Risk/reward may be less favorable for long positions here. Better to wait for a pullback or consider short positions with proper risk management."
-    },
-    {
-      condition: analysis.inLowerRange,
-      question: "With price in the lower range, what opportunities might exist?",
-      answer: "This could present a good risk/reward opportunity for long positions if the overall context supports it, especially if there's evidence of buying pressure."
-    },
-    {
-      condition: true,
-      question: "What's the most important factor you're watching on this bar?",
-      answer: "Pay attention to volume and price reaction at key levels. The combination of price action and volume often reveals the true market sentiment."
-    }
-  ];
-  
-  const relevant = questions.find(q => q.condition) || questions[questions.length - 1];
-  
-  return `
-    <div style="margin-bottom:6px;font-weight:500;">${relevant.question}</div>
-    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('Show')?'Hide Answer':'Show Answer';" 
-            style="padding:3px 8px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:9px;border-radius:3px;cursor:pointer;">
-      Show Answer
-    </button>
-    <div style="display:none;margin-top:6px;padding:6px;background:rgba(0,212,160,.08);border-radius:3px;border-left:2px solid var(--green);">
-      ${relevant.answer}
-    </div>
-  `;
-}
-
-function generateRiskManagementTip(analysis) {
-  const tips = [
-    "Always use stop losses - even the best setups can fail",
-    "Consider position sizing based on the distance to your stop loss",
-    "Watch for volume confirmation before entering large positions",
-    "Have a clear profit target before entering any trade",
-    "Remember that no single setup has a 100% success rate"
-  ];
-  
-  return tips[Math.floor(Math.random() * tips.length)];
 }
 
 // Returns the bar index the mouse is currently hovering over (used by draw)
@@ -8875,7 +8415,7 @@ async function authSubmitLogin(){
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(result.username, result.displayName);
-  loadSym('BTC/USD');
+  loadSym('AAPL');
   document.getElementById('auth-login-pass').value = '';
 }
 
@@ -8898,7 +8438,7 @@ async function authSubmitRegister(){
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
-  loadSym('BTC/USD');
+  loadSym('AAPL');
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -8989,28 +8529,66 @@ function _lsDel(key){
   try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
 }
 
+// Write queue — batches Supabase writes to avoid hammering the API
+const _writeQueue = {}; // key → value (latest wins)
+let _writeFlushTimer = null;
+
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
+  if(_currentUserId){
+    _writeQueue[key] = val; // queue it, deduplicate by key
+    if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
+    _writeFlushTimer = setTimeout(_flushWriteQueue, 2000); // batch writes every 2s
+  }
 }
 
-async function _flushWriteQueue(){
-  console.log('Supabase write queue disabled');
+async function _flushWriteQueue(force){
+  if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
+  const uid = _currentUserId;
+  const entries = Object.entries(_writeQueue).map(([key, value]) => ({
+    user_id: uid, key, value, updated_at: new Date().toISOString()
+  }));
+  // Clear queue before await so new changes queue up cleanly
+  Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
+  clearTimeout(_writeFlushTimer);
+  _writeFlushTimer = null;
+  try{
+    const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
+    if(error) console.warn('Supabase batch write:', error.message);
+  }catch(e){ console.warn('Supabase write error:', e.message); }
 }
 
+function _lsRem(key){
+  try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
+  if(_currentUserId){
+    _supa.from('user_data').delete()
+      .eq('user_id', _currentUserId).eq('key', key)
+      .then(({error}) => { if(error) console.warn('Supabase delete:', error.message); });
+  }
+}
+
+// Pull all cloud data for the current user into localStorage
 async function _syncFromCloud(){
-  console.log('Supabase sync disabled');
+  if(!_currentUserId) return;
+  try{
+    const { data, error } = await _supa.from('user_data')
+      .select('key,value')
+      .eq('user_id', _currentUserId);
+    if(error) throw error;
+    data.forEach(({key, value}) => {
+      try{ localStorage.setItem(_lsKey(key), value); }catch(e){}
+    });
+  }catch(e){ console.warn('Supabase sync:', e.message); }
 }
 
-// Local user storage for fallback auth
-function _getUsers(){ try{ return JSON.parse(localStorage.getItem('apex-users') || '{}'); }catch(e){ return {}; } }
-function _saveUsers(users){ try{ localStorage.setItem('apex-users', JSON.stringify(users)); }catch(e){} }
-function _getAccounts(){ try{ return JSON.parse(localStorage.getItem('apex-accounts') || '{}'); }catch(e){ return {}; } }
-function _saveAccounts(a){ try{ localStorage.setItem('apex-accounts', JSON.stringify(a)); }catch(e){} }
-
-// Session persistence
+// ── Session persistence ────────────────────────────────────────────────────────
 function _saveSession(username){ try{ localStorage.setItem('apex-session', JSON.stringify({ username, loginAt: Date.now() })); }catch(e){} }
 function _clearSession(){ try{ localStorage.removeItem('apex-session'); }catch(e){} }
 function _restoreSession(){ try{ const s = JSON.parse(localStorage.getItem('apex-session')||'null'); return s?.username || null; }catch(e){ return null; } }
+
+// Legacy local accounts (kept for offline fallback)
+function _getAccounts(){ try{ return JSON.parse(localStorage.getItem('apex-accounts') || '{}'); }catch(e){ return {}; } }
+function _saveAccounts(a){ try{ localStorage.setItem('apex-accounts', JSON.stringify(a)); }catch(e){} }
 
 // ── Auth — Supabase email/password (username@apexfx.app synthetic email) ───────
 // We store users as username@apexfx.app so the UI stays username-based
@@ -9020,88 +8598,28 @@ async function authRegisterAsync(username, password, displayName){
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || username.length < 2) return { ok:false, err:'Username must be at least 2 characters (letters/numbers/_ only).' };
   if(!password || password.length < 6) return { ok:false, err:'Password must be at least 6 characters.' };
-  
-  // Try Supabase first, fall back to local auth
-  try {
-    const email = _userEmail(username);
-    const { data, error } = await _supa.auth.signUp({
-      email,
-      password,
-      options: { data: { username, displayName: (displayName||username).trim() } }
-    });
-    if(error) throw error;
-    
-    // Also save locally as fallback
-    const accounts = _getAccounts();
-    accounts[username] = { displayName: (displayName||username).trim(), createdAt: Date.now() };
-    _saveAccounts(accounts);
-    return { ok:true, username, displayName: (displayName||username).trim(), session: data.session };
-  } catch(e) {
-    // Fallback to local registration
-    console.warn('Supabase registration failed, using local fallback:', e.message);
-    return authRegisterLocal(username, password, displayName);
-  }
-}
-
-// Local registration fallback
-function authRegisterLocal(username, password, displayName){
-  const users = _getUsers();
-  
-  // Check if username already exists
-  if(users[username]){
-    return { ok:false, err:'Username already exists.' };
-  }
-  
-  // Create new user
-  users[username] = {
-    password: password, // In production, hash this properly
-    displayName: (displayName||username).trim(),
-    createdAt: Date.now()
-  };
-  
-  _saveUsers(users);
-  
-  // Also save to accounts for compatibility
+  const email = _userEmail(username);
+  const { data, error } = await _supa.auth.signUp({
+    email,
+    password,
+    options: { data: { username, displayName: (displayName||username).trim() } }
+  });
+  if(error) return { ok:false, err: error.message };
+  // Also save locally as fallback
   const accounts = _getAccounts();
   accounts[username] = { displayName: (displayName||username).trim(), createdAt: Date.now() };
   _saveAccounts(accounts);
-  
-  return { ok:true, username, displayName: (displayName||username).trim() };
+  return { ok:true, username, displayName: (displayName||username).trim(), session: data.session };
 }
 
 async function authLoginAsync(username, password){
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || !password) return { ok:false, err:'Please enter username and password.' };
-  
-  // Try Supabase first, fall back to local auth
-  try {
-    const email = _userEmail(username);
-    const { data, error } = await _supa.auth.signInWithPassword({ email, password });
-    if(error) throw error;
-    const displayName = data.user?.user_metadata?.displayName || username;
-    return { ok:true, username, displayName, userId: data.user.id };
-  } catch(e) {
-    // Fallback to local authentication
-    console.warn('Supabase auth failed, using local fallback:', e.message);
-    return authLoginLocal(username, password);
-  }
-}
-
-// Local authentication fallback
-function authLoginLocal(username, password){
-  const users = _getUsers();
-  const user = users[username];
-  
-  if(!user){
-    return { ok:false, err:'Incorrect username or password.' };
-  }
-  
-  // Simple password check (in production, use proper hashing)
-  if(user.password !== password){
-    return { ok:false, err:'Incorrect username or password.' };
-  }
-  
-  return { ok:true, username, displayName: user.displayName || username, userId: 'local-' + username };
+  const email = _userEmail(username);
+  const { data, error } = await _supa.auth.signInWithPassword({ email, password });
+  if(error) return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
+  const displayName = data.user?.user_metadata?.displayName || username;
+  return { ok:true, username, displayName, userId: data.user.id };
 }
 
 async function authChangePassword(username, oldPass, newPass){
@@ -9124,10 +8642,6 @@ function doLogin(username, displayName){
       if(data?.session?.user?.id) _currentUserId = data.session.user.id;
     });
   }
-
-  // Hide auth screen and show app
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
 
   // Now re-patch all storage reads to use the namespaced key
   // Re-load everything from this user's namespace
@@ -9172,9 +8686,6 @@ function doLogin(username, displayName){
   updateUserBadge(displayName || username);
   // Start periodic auto-save
   _startAutoSave();
-  
-  // Load initial chart
-  loadSym('BTC/USD');
 }
 
 async function doLogout(){
@@ -9336,69 +8847,20 @@ window.addEventListener('load', () => {
 
   // Check for existing Supabase session first, then fall back to local
   (async () => {
-    try {
-      const { data: { session } } = await _supa.auth.getSession();
-      if(session && session.user){
-        const username = session.user.user_metadata?.username ||
+    const { data: { session } } = await _supa.auth.getSession();
+    if(session && session.user){
+      const username = session.user.user_metadata?.username ||
                        session.user.email?.replace('@apexfx.app','') || 'user';
-        const displayName = session.user.user_metadata?.displayName || username;
-        _currentUser   = username;
-        _currentUserId = session.user.id;
-        await _syncFromCloud();
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        doLogin(username, displayName);
-        loadSym('BTC/USD');
-      } else {
-        // Check for local session
-        const localUser = _restoreSession();
-        if(localUser){
-          const users = _getUsers();
-          const user = users[localUser];
-          if(user){
-            _currentUser = localUser;
-            _currentUserId = 'local-' + localUser;
-            document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            doLogin(localUser, user.displayName);
-            loadSym('BTC/USD');
-            return;
-          }
-        }
-        // No active session — show auth screen
-        document.getElementById('app').style.display = 'none';
-        document.getElementById('auth-screen').style.display = 'flex';
-      }
-    } catch(e) {
-      console.warn('Supabase session check failed, using local fallback:', e.message);
-      
-      // Create default user for easy testing
-      const users = _getUsers();
-      if(!users['demo']){
-        users['demo'] = {
-          password: 'demo123',
-          displayName: 'Demo User',
-          createdAt: Date.now()
-        };
-        _saveUsers(users);
-      }
-      
-      // Check for local session
-      const localUser = _restoreSession();
-      if(localUser){
-        const user = users[localUser];
-        if(user){
-          _currentUser = localUser;
-          _currentUserId = 'local-' + localUser;
-          document.getElementById('auth-screen').style.display = 'none';
-          document.getElementById('app').style.display = 'flex';
-          doLogin(localUser, user.displayName);
-          loadSym('BTC/USD');
-          return;
-        }
-      }
-      
-      // Show auth screen
+      const displayName = session.user.user_metadata?.displayName || username;
+      _currentUser   = username;
+      _currentUserId = session.user.id;
+      await _syncFromCloud();
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      doLogin(username, displayName);
+      loadSym('AAPL');
+    } else {
+      // No active session — show auth screen
       document.getElementById('app').style.display = 'none';
       document.getElementById('auth-screen').style.display = 'flex';
     }
@@ -13813,9 +13275,7 @@ const TB_ITEMS = {
   scanner:   { icon:'⌕',  label:'AI Scanner',        navId:'nav-scanner',  action:()=>toggleOverlay('scanner'),  w:320, h:540 },
   draw:      { icon:'✏',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
   inds:      { icon:'📈', label:'Indicators',         navId:'nav-inds',     action:()=>toggleOverlay('inds'),     w:300, h:500 },
-  replay:    { icon:'⏮',  label:'Replay',            navId:'btn-replay',   action:()=>toggleReplay(),             w:320, h:200 },
-  aimentor:  { icon:'🤖',  label:'AI Mentor',         navId:'btn-ai-mentor',action:()=>toggleAIMentor(),           w:380, h:520 },
-  aisetups:  { icon:'⚡',  label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
+  aisetups:  { icon:'⚡', label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
   premarket: { icon:'☀',  label:'Pre-Market Brief',  navId:'btn-premarket',action:()=>openPremarket(),           w:480, h:580 },
   psc:       { icon:'⚖',  label:'Position Sizer',    navId:null,           action:()=>openPSC(),                 w:380, h:480 },
   settings:  { icon:'⚙',  label:'Settings',          navId:null,           action:()=>openSettings(),            w:500, h:560 },
