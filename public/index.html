@@ -4983,8 +4983,333 @@ let mentorState = {
   cooldownCandles: 15, // Wait 15 candles between suggestions
   lastMarketStructure: 'unknown',
   confluenceScore: 0,
-  setupQuality: 'none' // 'high', 'medium', 'low', 'none'
+  setupQuality: 'none', // 'high', 'medium', 'low', 'none'
+  // Replay training properties
+  lastDetectedDrawing: null, // Track last drawing we detected
+  reviewedTrades: [] // Track trades reviewed in replay
 };
+
+// ══ REPLAY MODE TRADE DETECTION & AI REVIEW ═══════════════════════════════════════════════════════════
+
+function detectReplayTradePlacement() {
+  // Only detect trades in replay mode with mentor enabled
+  if (!replayMode || !mentorState.enabled) return;
+  
+  const currentDrawing = getDrawingTradeData();
+  
+  // Check if this is a new drawing we haven't processed yet
+  if (currentDrawing && currentDrawing !== mentorState.lastDetectedDrawing) {
+    mentorState.lastDetectedDrawing = currentDrawing;
+    
+    console.log('🎯 Replay trade detected:', currentDrawing);
+    
+    // Disable normal AI trade analysis for replay trades
+    disableNormalTradeAnalysis();
+    
+    // Trigger AI mentor review
+    reviewReplayTrade(currentDrawing);
+  }
+}
+
+function disableNormalTradeAnalysis() {
+  // Flag that we're in replay training mode
+  mentorState.replayTrainingMode = true;
+  console.log('🚫 Normal trade analysis disabled for replay training');
+}
+
+function reviewReplayTrade(tradeData) {
+  if (!tradeData || !replayMode) return;
+  
+  console.log('🤖 AI Mentor reviewing replay trade:', tradeData);
+  
+  // Get market data up to current replay candle
+  const dataForAnalysis = curData.slice(0, replayCutoff + 1);
+  const analysis = analyzeMarketData(replayCutoff);
+  
+  // Generate AI review feedback
+  const review = generateTradeReview(tradeData, analysis, dataForAnalysis);
+  
+  // Store trade for training history
+  mentorState.reviewedTrades.push({
+    ...tradeData,
+    review: review,
+    replayBar: replayCutoff,
+    timestamp: Date.now()
+  });
+  
+  // Display review to user
+  displayTradeReview(review, tradeData);
+}
+
+function generateTradeReview(tradeData, marketAnalysis, data) {
+  const review = {
+    overall: 'NEUTRAL',
+    strengths: [],
+    weaknesses: [],
+    suggestions: [],
+    riskReward: null,
+    structureAlignment: null
+  };
+  
+  // Analyze entry placement
+  const entryAnalysis = analyzeEntryPlacement(tradeData, marketAnalysis);
+  if (entryAnalysis.good) {
+    review.strengths.push(entryAnalysis.reason);
+  } else {
+    review.weaknesses.push(entryAnalysis.reason);
+  }
+  
+  // Analyze stop loss placement
+  const slAnalysis = analyzeStopLossPlacement(tradeData, marketAnalysis);
+  if (slAnalysis.good) {
+    review.strengths.push(slAnalysis.reason);
+  } else {
+    review.weaknesses.push(slAnalysis.reason);
+  }
+  
+  // Analyze take profit placement
+  const tpAnalysis = analyzeTakeProfitPlacement(tradeData, marketAnalysis);
+  if (tpAnalysis.good) {
+    review.strengths.push(tpAnalysis.reason);
+  } else {
+    review.weaknesses.push(tpAnalysis.reason);
+  }
+  
+  // Calculate risk/reward ratio
+  if (tradeData.entry && tradeData.sl && tradeData.tp) {
+    const risk = Math.abs(tradeData.entry - tradeData.sl);
+    const reward = Math.abs(tradeData.tp - tradeData.entry);
+    review.riskReward = (reward / risk).toFixed(2);
+    
+    if (review.riskReward >= 2) {
+      review.strengths.push(`Excellent risk/reward ratio of ${review.riskReward}:1`);
+    } else if (review.riskReward >= 1.5) {
+      review.strengths.push(`Good risk/reward ratio of ${review.riskReward}:1`);
+    } else {
+      review.weaknesses.push(`Low risk/reward ratio of ${review.riskReward}:1 (aim for 2:1 or better)`);
+    }
+  }
+  
+  // Check structure alignment
+  if (tradeData.dir === 'long' && marketAnalysis.trend.includes('up')) {
+    review.structureAlignment = 'Trade aligns with uptrend';
+    review.strengths.push(review.structureAlignment);
+  } else if (tradeData.dir === 'short' && marketAnalysis.trend.includes('down')) {
+    review.structureAlignment = 'Trade aligns with downtrend';
+    review.strengths.push(review.structureAlignment);
+  } else if (marketAnalysis.trend === 'neutral') {
+    review.structureAlignment = 'Trade in neutral market structure';
+    review.weaknesses.push('Consider waiting for clearer trend direction');
+  } else {
+    review.structureAlignment = `Trade against ${marketAnalysis.trend} trend`;
+    review.weaknesses.push(review.structureAlignment);
+  }
+  
+  // Generate overall assessment
+  const strengthScore = review.strengths.length;
+  const weaknessScore = review.weaknesses.length;
+  
+  if (strengthScore > weaknessScore && review.riskReward >= 1.5) {
+    review.overall = 'GOOD';
+  } else if (strengthScore === weaknessScore && review.riskReward >= 1.5) {
+    review.overall = 'ACCEPTABLE';
+  } else {
+    review.overall = 'NEEDS_IMPROVEMENT';
+  }
+  
+  // Generate training suggestions
+  review.suggestions = generateTrainingSuggestions(review, tradeData, marketAnalysis);
+  
+  return review;
+}
+
+function analyzeEntryPlacement(tradeData, analysis) {
+  const currentPrice = analysis.current.price;
+  const entry = tradeData.entry;
+  const resistance = analysis.levels.resistance;
+  const support = analysis.levels.support;
+  
+  if (tradeData.dir === 'long') {
+    if (support && entry <= support * 1.02) {
+      return { good: true, reason: 'Good entry near support level' };
+    } else if (resistance && entry >= resistance * 0.98) {
+      return { good: false, reason: 'Entry too close to resistance for long trade' };
+    } else if (entry > currentPrice * 1.01) {
+      return { good: false, reason: 'Entry above current price (chasing)' };
+    }
+  } else { // short
+    if (resistance && entry >= resistance * 0.98) {
+      return { good: true, reason: 'Good entry near resistance level' };
+    } else if (support && entry <= support * 1.02) {
+      return { good: false, reason: 'Entry too close to support for short trade' };
+    } else if (entry < currentPrice * 0.99) {
+      return { good: false, reason: 'Entry below current price (chasing)' };
+    }
+  }
+  
+  return { good: true, reason: 'Entry at reasonable price level' };
+}
+
+function analyzeStopLossPlacement(tradeData, analysis) {
+  const entry = tradeData.entry;
+  const sl = tradeData.sl;
+  const resistance = analysis.levels.resistance;
+  const support = analysis.levels.support;
+  
+  if (tradeData.dir === 'long') {
+    const riskPercent = Math.abs((entry - sl) / entry) * 100;
+    
+    if (support && sl <= support * 1.01) {
+      return { good: true, reason: 'Stop loss placed below key support' };
+    } else if (riskPercent > 5) {
+      return { good: false, reason: 'Stop loss too wide (over 5% risk)' };
+    } else if (riskPercent < 1) {
+      return { good: false, reason: 'Stop loss too tight (under 1% risk)' };
+    }
+  } else { // short
+    const riskPercent = Math.abs((sl - entry) / entry) * 100;
+    
+    if (resistance && sl >= resistance * 0.99) {
+      return { good: true, reason: 'Stop loss placed above key resistance' };
+    } else if (riskPercent > 5) {
+      return { good: false, reason: 'Stop loss too wide (over 5% risk)' };
+    } else if (riskPercent < 1) {
+      return { good: false, reason: 'Stop loss too tight (under 1% risk)' };
+    }
+  }
+  
+  return { good: true, reason: 'Stop loss at reasonable distance' };
+}
+
+function analyzeTakeProfitPlacement(tradeData, analysis) {
+  const entry = tradeData.entry;
+  const tp = tradeData.tp;
+  const resistance = analysis.levels.resistance;
+  const support = analysis.levels.support;
+  
+  if (tradeData.dir === 'long') {
+    const rewardPercent = Math.abs((tp - entry) / entry) * 100;
+    
+    if (resistance && tp >= resistance * 0.98) {
+      return { good: true, reason: 'Take profit at key resistance level' };
+    } else if (rewardPercent < 2) {
+      return { good: false, reason: 'Take profit too close (under 2% reward)' };
+    } else if (rewardPercent > 10) {
+      return { good: false, reason: 'Take profit too optimistic (over 10% reward)' };
+    }
+  } else { // short
+    const rewardPercent = Math.abs((entry - tp) / entry) * 100;
+    
+    if (support && tp <= support * 1.02) {
+      return { good: true, reason: 'Take profit at key support level' };
+    } else if (rewardPercent < 2) {
+      return { good: false, reason: 'Take profit too close (under 2% reward)' };
+    } else if (rewardPercent > 10) {
+      return { good: false, reason: 'Take profit too optimistic (over 10% reward)' };
+    }
+  }
+  
+  return { good: true, reason: 'Take profit at reasonable distance' };
+}
+
+function generateTrainingSuggestions(review, tradeData, analysis) {
+  const suggestions = [];
+  
+  // Risk management suggestions
+  if (!review.riskReward || review.riskReward < 1.5) {
+    suggestions.push('Consider improving your risk/reward ratio to at least 1.5:1');
+  }
+  
+  // Entry suggestions
+  if (tradeData.dir === 'long' && analysis.levels.support) {
+    suggestions.push('Look for entries closer to key support levels for better risk management');
+  } else if (tradeData.dir === 'short' && analysis.levels.resistance) {
+    suggestions.push('Consider entries near resistance levels for better risk management');
+  }
+  
+  // Structure suggestions
+  if (analysis.trend === 'neutral') {
+    suggestions.push('Wait for clearer trend direction before taking trades');
+  }
+  
+  // Confirmation suggestions
+  suggestions.push('Always wait for confirmation (candle close, volume spike) before entering');
+  suggestions.push('Consider market context and upcoming news/events');
+  
+  return suggestions;
+}
+
+function displayTradeReview(review, tradeData) {
+  let reviewHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:8px;padding:16px;margin:12px 0;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-weight:600;color:var(--purple);">🤖 AI Mentor Review</span>
+        <span style="padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${
+          review.overall === 'GOOD' ? 'var(--green)' : 
+          review.overall === 'ACCEPTABLE' ? 'var(--amber)' : 'var(--red)'
+        };color:white;">
+          ${review.overall.replace('_', ' ')}
+        </span>
+      </div>
+      
+      <div style="margin-bottom:12px;">
+        <strong>Trade Details:</strong> ${tradeData.dir.toUpperCase()} @ $${tradeData.entry.toFixed(2)}
+        ${tradeData.sl ? ` | SL: $${tradeData.sl.toFixed(2)}` : ''}
+        ${tradeData.tp ? ` | TP: $${tradeData.tp.toFixed(2)}` : ''}
+        ${review.riskReward ? ` | R:R ${review.riskReward}:1` : ''}
+      </div>
+  `;
+  
+  if (review.strengths.length > 0) {
+    reviewHTML += `
+      <div style="margin-bottom:12px;">
+        <strong style="color:var(--green);">✅ Strengths:</strong>
+        <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
+          ${review.strengths.map(s => `<li>${s}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  if (review.weaknesses.length > 0) {
+    reviewHTML += `
+      <div style="margin-bottom:12px;">
+        <strong style="color:var(--red);">⚠️ Areas for Improvement:</strong>
+        <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
+          ${review.weaknesses.map(w => `<li>${w}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  if (review.suggestions.length > 0) {
+    reviewHTML += `
+      <div style="margin-bottom:12px;">
+        <strong style="color:var(--purple);">📚 Training Suggestions:</strong>
+        <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
+          ${review.suggestions.map(s => `<li>${s}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+  
+  reviewHTML += `
+      <div style="text-align:right;margin-top:16px;">
+        <button onclick="closeTradeReview()" style="padding:6px 12px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:4px;cursor:pointer;">
+          Close Review
+        </button>
+      </div>
+    </div>
+  `;
+  
+  // Show in mentor panel
+  showMentorMessage(reviewHTML);
+}
+
+function closeTradeReview() {
+  // Clear the review message and return to normal mentor analysis
+  showMentorMessage('Continue your replay training. AI will alert you to new setups.');
+}
 
 // ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
 
@@ -6466,6 +6791,9 @@ function updateMentor() {
   if (currentBar !== mentorState.currentBar) {
     mentorState.currentBar = currentBar;
     
+    // First, check for new manual trade placements during replay
+    detectReplayTradePlacement();
+    
     // Check cooldown period first
     const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
     console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles });
@@ -6546,62 +6874,62 @@ function generateHighQualityTradeInsights(setupDetection) {
     insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
   }
   
-  // Setup-specific insights
+  // Setup-specific alerts (NOT trade prompts)
   switch (setupDetection.setup) {
     case 'breakout':
       insights.push(`🚀 High-quality ${setupDetection.direction} breakout detected`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Strong breakout with ${setupDetection.confluence} confirming factors. Would you enter this ${setupDetection.direction} trade?`;
-      shouldPromptDecision = true;
+      question = `Potential ${setupDetection.direction} breakout setup forming. If price continues above current levels, a ${setupDetection.direction} trade could be considered. Use the drawing tools to manually place your trade if you agree with this setup.`;
+      shouldPromptDecision = false; // No automatic prompts
       break;
       
     case 'flag_continuation':
       insights.push(`🏁 Bull/bear flag continuation pattern`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Flag pattern in ${analysis.trend} trend. Continue ${setupDetection.direction} or wait?`;
-      shouldPromptDecision = true;
+      question = `Flag pattern in ${analysis.trend} trend detected. This could be a continuation setup for ${setupDetection.direction} trades. Use the Long/Short drawing tools to place your trade if you see confirmation.`;
+      shouldPromptDecision = false;
       break;
       
     case 'support_bounce':
       insights.push(`💪 Support bounce confirmed`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Strong support bounce with ${setupDetection.confluence} confirmations. Enter long?`;
-      shouldPromptDecision = true;
+      question = `Strong support bounce with ${setupDetection.confluence} confirming factors. If price holds above this support level, long trades could be considered. Use the drawing tools to place your trade manually.`;
+      shouldPromptDecision = false;
       break;
       
     case 'resistance_rejection':
       insights.push(`🛑 Resistance rejection confirmed`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Clear resistance rejection with ${setupDetection.confluence} factors. Enter short?`;
-      shouldPromptDecision = true;
+      question = `Clear resistance rejection with ${setupDetection.confluence} factors. If price continues below this resistance, short trades could be considered. Use the drawing tools to place your trade manually.`;
+      shouldPromptDecision = false;
       break;
       
     case 'trend_pullback':
       insights.push(`📈 Trend pullback to moving average`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Pullback to MA in ${analysis.trend}. Enter ${setupDetection.direction} at current level?`;
-      shouldPromptDecision = true;
+      question = `Pullback to moving average in ${analysis.trend}. This could be a good entry zone for ${setupDetection.direction} trades. Use the drawing tools to place your trade if you see confirmation at this level.`;
+      shouldPromptDecision = false;
       break;
       
     case 'range_breakout':
       insights.push(`📊 Range breakout with volume confirmation`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Range breakout with ${setupDetection.confluence} confirmations. Take the ${setupDetection.direction}?`;
-      shouldPromptDecision = true;
+      question = `Range breakout with ${setupDetection.confluence} confirmations. If the breakout holds, ${setupDetection.direction} trades could be considered. Use the drawing tools to place your trade manually.`;
+      shouldPromptDecision = false;
       break;
       
     case 'liquidity_sweep':
       insights.push(`🔄 Liquidity sweep followed by reversal`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Liquidity sweep reversal detected. Enter ${setupDetection.direction}?`;
-      shouldPromptDecision = true;
+      question = `Liquidity sweep reversal detected. This could be a reversal setup for ${setupDetection.direction} trades. Use the drawing tools to place your trade if the reversal pattern confirms.`;
+      shouldPromptDecision = false;
       break;
       
     case 'structure_continuation':
       insights.push(`🏗️ Structure continuation (${setupDetection.direction === 'long' ? 'higher low' : 'lower high'})`);
       insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Structure continuation pattern. Continue ${setupDetection.direction}?`;
-      shouldPromptDecision = true;
+      question = `Structure continuation pattern with ${setupDetection.confluence} confirmations. This suggests the ${analysis.trend} may continue. Use drawing tools to place ${setupDetection.direction} trades if you agree.`;
+      shouldPromptDecision = false;
       break;
   }
   
@@ -6609,18 +6937,15 @@ function generateHighQualityTradeInsights(setupDetection) {
   insights.push(`⭐ Setup quality: ${setupDetection.quality.toUpperCase()}`);
   
   mentorState.lastInsight = insights.join('. ');
-  mentorState.pendingDecision = shouldPromptDecision;
-  
-  // Check if we should prompt for trade placement
-  if (shouldPromptDecision && !mentorState.waitingForTrade && !mentorState.activeTrade) {
-    mentorState.waitingForTrade = true;
-    mentorState.currentSetup = {
-      type: setupDetection.setup,
-      direction: setupDetection.direction,
-      confidence: setupDetection.quality,
-      confluence: setupDetection.confluence
-    };
-  }
+  mentorState.pendingDecision = false; // Never auto-prompt
+  mentorState.waitingForTrade = false; // Never wait for auto-trade
+  mentorState.currentSetup = {
+    type: setupDetection.setup,
+    direction: setupDetection.direction,
+    confidence: setupDetection.quality,
+    confluence: setupDetection.confluence,
+    alertOnly: true // This is just an alert, not a trade prompt
+  };
   
   // Store for UI updates
   mentorState.currentInsights = insights;
@@ -6777,24 +7102,22 @@ function updateMentorUI() {
     }
   }
   
-  // Show/hide trade placement prompt
+  // Show/hide trade placement prompt (updated for manual placement only)
   if (tradePromptEl) {
-    if (mentorState.waitingForTrade && mentorState.currentSetup) {
+    if (mentorState.waitingForTrade && mentorState.currentSetup && !mentorState.currentSetup.alertOnly) {
       tradePromptEl.style.display = 'block';
-      // Reset to original prompt content if it was modified
-      if (!tradePromptEl.innerHTML.includes('Trade Setup Detected')) {
+      // Show manual placement guidance (no automatic buttons)
+      if (!tradePromptEl.innerHTML.includes('Manual Trade Placement')) {
         tradePromptEl.innerHTML = `
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="color:var(--purple);font-weight:600;">📊 Trade Setup Detected!</span>
+            <span style="color:var(--purple);font-weight:600;">📊 Setup Alert!</span>
           </div>
           <p style="color:var(--tx2);margin:0 0 12px 0;line-height:1.4;">
-            Place your trade on the chart using Long/Short position tool. Include entry, stop loss, and take profit levels.
+            Use the chart drawing tools to manually place a ${mentorState.currentSetup.direction} trade if you agree with this setup.
           </p>
           <div style="display:flex;gap:8px;align-items:center;">
             <span style="color:var(--tx3);font-size:11px;">Tools:</span>
-            <button onclick="activateLongTool()" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;">Long Tool</button>
-            <button onclick="activateShortTool()" style="padding:4px 8px;background:var(--red);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;">Short Tool</button>
-            <button onclick="skipTradeSetup()" style="padding:4px 8px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">Skip</button>
+            <span style="color:var(--tx2);font-size:11px;">Drawing Tools → Long/Short Position</span>
           </div>
         `;
       }
@@ -14421,6 +14744,14 @@ function tapTradeStatus(d){
 // ── Show the floating popup (anchored top-right of chart-area) ────────────────
 function showTradeAnalysisPopup(d, freshPlacement=false){
   _tapDrawing = d;
+  
+  // Check if we're in replay mode with mentor enabled
+  if (replayMode && mentorState.enabled) {
+    console.log('🚫 Trade analysis blocked - Replay training mode active');
+    // In replay mode, let the mentor handle trade analysis, not the normal system
+    return; // Don't show normal trade analysis popup
+  }
+  
   // Close any popup that belongs to a different symbol
   const anchor = document.getElementById('tap-anchor');
   if(anchor && anchor.style.display !== 'none'){
@@ -14682,6 +15013,14 @@ function closeTapModal(){
 
 async function openFullTradeAnalysis(){
   if(!_tapDrawing) return;
+  
+  // Check if we're in replay mode with mentor enabled
+  if (replayMode && mentorState.enabled) {
+    console.log('🚫 Full trade analysis blocked - Replay training mode active');
+    showMentorMessage('📚 In replay training mode, the AI Mentor reviews your trades instead of the normal analysis system.');
+    return;
+  }
+  
   closeTradeAnalysisPopup();           // hides popup, shows badge
   const d      = _tapDrawing;
   const cached = tapAnalysisCache[curSym.s];
