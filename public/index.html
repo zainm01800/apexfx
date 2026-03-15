@@ -1235,6 +1235,10 @@ body.is-dragging { user-select: none; }
       <span id="sb-bars" style="color:var(--tx3);"></span>
       <span id="st-pattern" style="display:none;color:var(--amber);font-size:11px;margin-left:6px;"></span>
       <span id="st-tilt" style="display:none;color:var(--rd);font-size:11px;margin-left:6px;">⚠ Tilt Risk</span>
+      <span id="st-replay" style="display:none;align-items:center;gap:4px;margin-left:6px;">
+        <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
+        <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
+      </span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
@@ -4669,10 +4673,17 @@ function toggleReplay(){
 }
 
 function startReplay(){
+  // Debug: Check current data state
+  console.log('startReplay called - curData length:', curData ? curData.length : 'null');
+  
   if(!curData || curData.length <= 1) {
-    toast('⚠ No data available for replay');
+    toast('⚠ No data available for replay - load a symbol first');
     return;
   }
+  
+  // Debug: Log current symbol and timeframe
+  console.log('Starting replay for symbol:', curSym?.s, 'timeframe:', curTF);
+  
   replayMode    = true;
   replayPicking = true;    // wait for user to click to set cutoff
   replayCutoff  = -1;
@@ -4757,9 +4768,14 @@ function replayTogglePlay(){
 }
 
 function updateReplayStatus(){
+  console.log('updateReplayStatus called - replayMode:', replayMode, 'replayPicking:', replayPicking);
+  
   const wrap = document.getElementById('st-replay');
   const txt  = document.getElementById('st-replay-txt');
   const play = document.getElementById('st-replay-play');
+  
+  console.log('Elements found - wrap:', !!wrap, 'txt:', !!txt, 'play:', !!play);
+  
   if(!wrap) return;
   wrap.style.display = replayMode ? 'flex' : 'none';
   if(!txt) return;
