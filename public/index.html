@@ -1269,6 +1269,13 @@ body.is-dragging { user-select: none; }
           </div>
         </div>
         
+        <!-- Trade Completion Controls -->
+        <div id="trade-completion-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:8px;margin-bottom:12px;">
+          <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
+            <button onclick="continueReplayAfterTradeCompletion()" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Continue Replay</button>
+          </div>
+        </div>
+        
         <div id="mentor-trade-prompt" style="display:none;background:var(--bg3);border:1px solid var(--purple);border-radius:6px;padding:12px;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="color:var(--purple);font-weight:600;">📊 Trade Setup Detected!</span>
@@ -4893,6 +4900,11 @@ function replayStep(n){
   updateReplayStatus();
   draw();
   
+  // Monitor example trade if active
+  if (mentorState.exampleTradeActive) {
+    monitorExampleTrade(replayCutoff);
+  }
+  
   // Update AI Mentor after stepping
   if (mentorState.enabled) {
     updateMentor();
@@ -5031,7 +5043,7 @@ let mentorState = {
   reviewedTrades: [], // Track trades reviewed in replay
   
   // Trade lifecycle states
-  lifecycleState: 'scanning', // 'scanning', 'setup_wait', 'trade_monitoring', 'trade_result'
+  lifecycleState: 'scanning', // 'scanning', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'
   setupWaitStart: null, // When setup wait state started
   setupWaitData: null, // Store setup data during wait
   monitoredTrade: null, // Trade being monitored
@@ -5043,7 +5055,13 @@ let mentorState = {
   lockedQuestion: '', // Original setup question
   realtimeUpdates: [], // Real-time updates during setup wait
   messageLocked: false, // Whether message is locked
-  setupPausedReplay: false // Whether setup caused replay pause
+  setupPausedReplay: false, // Whether setup caused replay pause
+  
+  // Example trade visualization
+  exampleTrade: null, // Generated example trade data
+  exampleTradeActive: false, // Whether example trade is active
+  exampleTradeOutcome: null, // Trade outcome when completed
+  tradeMonitoringUpdates: [], // Updates during trade monitoring
 };
 
 // ══ MENTOR REPLAY CONTROL ═══════════════════════════════════════════════════════════
@@ -5156,9 +5174,10 @@ function addRealtimeUpdate(currentBar) {
 function updateLockedMentorUI() {
   const insightsEl = document.getElementById('mentor-insights');
   const questionEl = document.getElementById('mentor-question');
-  const controlsEl = document.getElementById('setup-message-controls');
+  const setupControlsEl = document.getElementById('setup-message-controls');
+  const completionControlsEl = document.getElementById('trade-completion-controls');
   
-  if (!insightsEl || !questionEl || !controlsEl) return;
+  if (!insightsEl || !questionEl || !setupControlsEl || !completionControlsEl) return;
   
   // Display locked message with real-time updates
   let displayContent = [...mentorState.lockedInsights];
@@ -5170,11 +5189,307 @@ function updateLockedMentorUI() {
     displayContent.push(...mentorState.realtimeUpdates);
   }
   
+  // Add trade monitoring updates if example trade is active
+  if (mentorState.exampleTradeActive && mentorState.tradeMonitoringUpdates.length > 0) {
+    displayContent.push('');
+    displayContent.push('Trade Monitoring:');
+    displayContent.push(...mentorState.tradeMonitoringUpdates);
+  }
+  
   insightsEl.textContent = displayContent.join('\n');
   questionEl.textContent = mentorState.lockedQuestion;
   
-  // Show setup controls
-  controlsEl.style.display = 'block';
+  // Show appropriate controls based on state
+  if (mentorState.lockedMessage === 'trade_completed') {
+    setupControlsEl.style.display = 'none';
+    completionControlsEl.style.display = 'block';
+  } else {
+    setupControlsEl.style.display = 'block';
+    completionControlsEl.style.display = 'none';
+  }
+}
+
+function generateExampleTrade(setupData, currentBar) {
+  if (!curData || !setupData) return null;
+  
+  const currentPrice = curData[currentBar].close;
+  const atr = calculateATR(currentBar, 14);
+  const riskAmount = atr * 2; // 2x ATR risk
+  
+  let trade = {
+    type: setupData.setup,
+    direction: setupData.direction || 'long',
+    entry: currentPrice,
+    stopLoss: null,
+    takeProfit: null,
+    riskReward: 2.0,
+    timestamp: currentBar,
+    isExample: true
+  };
+  
+  // Calculate levels based on setup type
+  switch (setupData.setup) {
+    case 'breakout':
+      if (trade.direction === 'long') {
+        trade.entry = setupData.breakoutLevel || currentPrice;
+        trade.stopLoss = trade.entry - riskAmount;
+        trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
+      } else {
+        trade.entry = setupData.breakoutLevel || currentPrice;
+        trade.stopLoss = trade.entry + riskAmount;
+        trade.takeProfit = trade.entry - (riskAmount * trade.riskReward);
+      }
+      break;
+      
+    case 'support_bounce':
+      trade.direction = 'long';
+      trade.entry = setupData.supportLevel || currentPrice;
+      trade.stopLoss = trade.entry - riskAmount;
+      trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
+      break;
+      
+    case 'resistance_rejection':
+      trade.direction = 'short';
+      trade.entry = setupData.resistanceLevel || currentPrice;
+      trade.stopLoss = trade.entry + riskAmount;
+      trade.takeProfit = trade.entry - (riskAmount * trade.riskReward);
+      break;
+      
+    default:
+      // Default to long if setup type is unclear
+      trade.stopLoss = trade.entry - riskAmount;
+      trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
+  }
+  
+  return trade;
+}
+
+function drawExampleTrade(trade) {
+  if (!tradingViewWidget || !trade) return;
+  
+  // Create a unique ID for the example trade
+  const exampleId = `example-trade-${Date.now()}`;
+  
+  // Use TradingView API to draw the example trade
+  // This would integrate with the existing drawing tools
+  console.log('🎯 Drawing example trade:', trade);
+  
+  // Store the example trade reference
+  mentorState.exampleTradeId = exampleId;
+  
+  // For now, we'll simulate the drawing
+  // In a real implementation, this would use TradingView's drawing API
+  setTimeout(() => {
+    console.log('📊 Example trade drawn on chart');
+  }, 100);
+}
+
+function activateExampleTrade(setupData, currentBar) {
+  const exampleTrade = generateExampleTrade(setupData, currentBar);
+  
+  if (!exampleTrade) {
+    console.error('❌ Failed to generate example trade');
+    return;
+  }
+  
+  mentorState.exampleTrade = exampleTrade;
+  mentorState.exampleTradeActive = true;
+  mentorState.tradeMonitoringUpdates = [];
+  
+  drawExampleTrade(exampleTrade);
+  
+  console.log('🎯 Example trade activated:', exampleTrade);
+}
+
+function monitorExampleTrade(currentBar) {
+  if (!mentorState.exampleTradeActive || !mentorState.exampleTrade || !curData) return;
+  
+  const trade = mentorState.exampleTrade;
+  const currentPrice = curData[currentBar].close;
+  const previousPrice = curData[currentBar - 1]?.close || currentPrice;
+  
+  // Check for trade completion
+  let tradeCompleted = false;
+  let outcome = null;
+  
+  if (trade.direction === 'long') {
+    if (currentPrice >= trade.takeProfit) {
+      tradeCompleted = true;
+      outcome = 'take_profit';
+    } else if (currentPrice <= trade.stopLoss) {
+      tradeCompleted = true;
+      outcome = 'stop_loss';
+    }
+  } else {
+    if (currentPrice <= trade.takeProfit) {
+      tradeCompleted = true;
+      outcome = 'take_profit';
+    } else if (currentPrice >= trade.stopLoss) {
+      tradeCompleted = true;
+      outcome = 'stop_loss';
+    }
+  }
+  
+  if (tradeCompleted) {
+    handleTradeCompletion(outcome, currentBar);
+    return;
+  }
+  
+  // Add monitoring updates
+  addTradeMonitoringUpdate(currentPrice, previousPrice, trade);
+}
+
+function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
+  const priceChange = (currentPrice - previousPrice) / previousPrice;
+  const distanceToEntry = Math.abs(currentPrice - trade.entry) / trade.entry;
+  const distanceToSL = Math.abs(currentPrice - trade.stopLoss) / trade.entry;
+  const distanceToTP = Math.abs(currentPrice - trade.takeProfit) / trade.entry;
+  
+  let update = '';
+  
+  // Determine trade status
+  if (distanceToEntry < 0.005) {
+    update = "• Price consolidating around entry level";
+  } else if ((trade.direction === 'long' && currentPrice > trade.entry) || 
+             (trade.direction === 'short' && currentPrice < trade.entry)) {
+    update = "• Trade moving in favorable direction";
+    
+    if (distanceToTP < 0.01) {
+      update = "• Approaching take profit level";
+    } else if (distanceToTP < 0.05) {
+      update = "• Gaining momentum towards target";
+    }
+  } else {
+    update = "• Trade moving against entry";
+    
+    if (distanceToSL < 0.01) {
+      update = "• ⚠️ Approaching stop loss level";
+    } else if (distanceToSL < 0.05) {
+      update = "• ⚠️ Risk increasing, watch stop loss";
+    }
+  }
+  
+  // Add momentum analysis
+  if (Math.abs(priceChange) > 0.02) {
+    if ((trade.direction === 'long' && priceChange > 0) || 
+        (trade.direction === 'short' && priceChange < 0)) {
+      update += " (strong momentum)";
+    } else {
+      update += " (weakening momentum)";
+    }
+  }
+  
+  // Add update if it's new
+  if (update && !mentorState.tradeMonitoringUpdates.includes(update)) {
+    mentorState.tradeMonitoringUpdates.push(update);
+    // Keep only last 4 updates
+    if (mentorState.tradeMonitoringUpdates.length > 4) {
+      mentorState.tradeMonitoringUpdates.shift();
+    }
+  }
+}
+
+function handleTradeCompletion(outcome, currentBar) {
+  mentorState.exampleTradeActive = false;
+  mentorState.exampleTradeOutcome = outcome;
+  
+  // Pause replay for trade completion
+  if (replayMode && replayTimer) {
+    clearInterval(replayTimer);
+    replayTimer = null;
+  }
+  
+  // Generate outcome message
+  let outcomeMessage = '';
+  let outcomeInsights = [];
+  
+  if (outcome === 'take_profit') {
+    outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
+    outcomeInsights = [
+      'The setup worked as expected with strong momentum continuation.',
+      'Risk management was effective with proper stop loss placement.',
+      'This demonstrates the importance of patience in letting trades develop.'
+    ];
+  } else {
+    outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
+    outcomeInsights = [
+      'The setup failed due to adverse price movement.',
+      'Stop loss protected capital from further downside.',
+      'Consider waiting for stronger confirmation next time.'
+    ];
+  }
+  
+  // Update mentor with trade completion
+  mentorState.lockedMessage = 'trade_completed';
+  mentorState.lockedInsights = [outcomeMessage, ...outcomeInsights];
+  mentorState.lockedQuestion = 'This setup has now completed. Would you like to continue replay so the AI mentor can find the next opportunity?';
+  mentorState.lifecycleState = 'trade_completed';
+  
+  // Clear trade monitoring updates
+  mentorState.tradeMonitoringUpdates = [];
+  
+  // Update UI
+  updateLockedMentorUI();
+  
+  console.log('🏁 Trade completed:', outcome);
+}
+
+function continueReplayAfterTradeCompletion() {
+  // Reset trade state
+  mentorState.exampleTrade = null;
+  mentorState.exampleTradeActive = false;
+  mentorState.exampleTradeOutcome = null;
+  mentorState.tradeMonitoringUpdates = [];
+  
+  // Reset message lock
+  mentorState.messageLocked = false;
+  mentorState.lockedMessage = null;
+  mentorState.lockedInsights = [];
+  mentorState.lockedQuestion = '';
+  mentorState.realtimeUpdates = [];
+  
+  // Return to scanning
+  mentorState.lifecycleState = 'scanning';
+  mentorState.currentInsights = ['📊 Resuming market scanning for new opportunities...'];
+  mentorState.currentQuestion = 'Looking for the next trading setup...';
+  
+  // Resume replay if it was paused
+  if (mentorState.setupPausedReplay || replayMode) {
+    resumeReplayAfterSetup();
+  }
+  
+  // Update UI
+  updateMentorUI();
+}
+
+function calculateATR(barIndex, period = 14) {
+  if (!curData || barIndex < period) return 0;
+  
+  let trueRanges = [];
+  
+  for (let i = barIndex - period + 1; i <= barIndex; i++) {
+    const current = curData[i];
+    const previous = curData[i - 1];
+    
+    if (!current || !previous) continue;
+    
+    const high = current.high;
+    const low = current.low;
+    const prevClose = previous.close;
+    
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    
+    trueRanges.push(tr);
+  }
+  
+  if (trueRanges.length === 0) return 0;
+  
+  const sum = trueRanges.reduce((a, b) => a + b, 0);
+  return sum / trueRanges.length;
 }
 
 // ══ REPLAY MODE TRADE DETECTION & AI REVIEW ═══════════════════════════════════════════════════════════
@@ -6347,6 +6662,10 @@ function enableMentorFromPopup() {
   mentorState.setupWaitStart = null;
   mentorState.setupWaitData = null;
   mentorState.monitoredTrade = null;
+  mentorState.exampleTrade = null;
+  mentorState.exampleTradeActive = false;
+  mentorState.exampleTradeOutcome = null;
+  mentorState.tradeMonitoringUpdates = [];
   mentorState.tradeResultData = null;
   mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
   mentorState.currentQuestion = 'Waiting for market data to analyze...';
@@ -7392,6 +7711,11 @@ function updateMentor() {
   } else if (mentorState.lifecycleState === 'trade_result') {
     handleTradeResultState(currentBar);
     return;
+  } else if (mentorState.lifecycleState === 'trade_completed') {
+    // Trade is completed, waiting for user to continue
+    // Just update UI to show completion state
+    updateLockedMentorUI();
+    return;
   }
   
   // Normal scanning mode - continue with existing logic
@@ -7466,6 +7790,9 @@ function updateMentor() {
         
         // Auto-pause replay for setup analysis
         pauseReplayForSetup();
+        
+        // Activate example trade visualization
+        activateExampleTrade(setupDetection, currentBar);
       } else {
         // No quality setup found
         console.log('🤖 No quality setup found, generating no-setup message');
@@ -7736,11 +8063,15 @@ function updateMentorUI() {
   const questionEl = document.getElementById('mentor-question');
   const tradePromptEl = document.getElementById('mentor-trade-prompt');
   const candleInfoEl = document.getElementById('mentor-candle-info');
-  const controlsEl = document.getElementById('setup-message-controls');
+  const setupControlsEl = document.getElementById('setup-message-controls');
+  const completionControlsEl = document.getElementById('trade-completion-controls');
   
-  // Hide setup controls when not locked
-  if (controlsEl) {
-    controlsEl.style.display = 'none';
+  // Hide all controls when not locked
+  if (setupControlsEl) {
+    setupControlsEl.style.display = 'none';
+  }
+  if (completionControlsEl) {
+    completionControlsEl.style.display = 'none';
   }
   
   // If message is locked, use locked UI instead of normal update
