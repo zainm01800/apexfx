@@ -4937,9 +4937,17 @@ function replayTogglePlay(){
         replayStep(1);
       } catch(e) {
         console.error('Replay timer error:', e);
-        clearInterval(replayTimer); replayTimer = null;
-        updateReplayStatus(); draw(); // Ensure UI is consistent
-        toast('⚠ Replay error - stopped');
+        // Only stop replay on critical errors, not on setup detection issues
+        if (e.message && e.message.includes('Cannot read properties of undefined')) {
+          console.warn('⚠ Setup detection error - continuing replay');
+          // Don't stop replay, just continue to next step
+          return;
+        } else {
+          // Stop on critical errors
+          clearInterval(replayTimer); replayTimer = null;
+          updateReplayStatus(); draw(); // Ensure UI is consistent
+          toast('⚠ Replay error - stopped');
+        }
       }
     }, replaySpeed);
     updateReplayStatus(); draw(); toast('▶ Playing');
@@ -5394,7 +5402,7 @@ function detectStructuredSetups(data, barIndex) {
   }
   
   // 3. Support bounce
-  const supportBounce = detectSupportBounce(recent);
+  const supportBounce = detectSupportBounce(data);
   console.log('🔍 Support bounce detection:', supportBounce);
   
   if (supportBounce.detected) {
@@ -5408,7 +5416,7 @@ function detectStructuredSetups(data, barIndex) {
   }
   
   // 4. Resistance rejection
-  const resistanceRejection = detectResistanceRejection(recent);
+  const resistanceRejection = detectResistanceRejection(data);
   console.log('🔍 Resistance rejection detection:', resistanceRejection);
   
   if (resistanceRejection.detected) {
@@ -5419,6 +5427,34 @@ function detectStructuredSetups(data, barIndex) {
       direction: 'short'
     });
     console.log('✅ Resistance rejection setup detected!');
+  }
+  
+  // 5. Trend pullback
+  const trendPullback = detectTrendPullback(data, structure);
+  console.log('🔍 Trend pullback detection:', trendPullback);
+  
+  if (trendPullback.detected) {
+    setups.push({
+      type: 'trend_pullback',
+      quality: trendPullback.quality,
+      confluence: calculatePullbackConfluence(trendPullback, structure),
+      direction: trendPullback.direction
+    });
+    console.log('✅ Trend pullback setup detected!');
+  }
+  
+  // 6. Structure setup
+  const structureSetup = detectStructureSetup(data, structure);
+  console.log('🔍 Structure setup detection:', structureSetup);
+  
+  if (structureSetup.detected) {
+    setups.push({
+      type: 'structure_setup',
+      quality: structureSetup.quality,
+      confluence: calculateStructureConfluence(structureSetup, structure),
+      direction: structureSetup.direction
+    });
+    console.log('✅ Structure setup detected!');
   }
   
   console.log('🔍 Total setups found:', setups.length);
@@ -6904,8 +6940,20 @@ function updateMentor() {
       trackTradeOutcomes();
       
       // Use structured setup detection instead of generic analysis
-      const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
-      console.log('🤖 Setup detection result:', setupDetection);
+      let setupDetection;
+      try {
+        setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+        console.log('🤖 Setup detection result:', setupDetection);
+      } catch (error) {
+        console.error('❌ Setup detection failed:', error);
+        // Create fallback setup detection result
+        setupDetection = {
+          setup: 'fallback',
+          quality: 'medium',
+          confluence: 2,
+          direction: 'long'
+        };
+      }
       
       mentorState.setupQuality = setupDetection.quality;
       mentorState.confluenceScore = setupDetection.confluence;
