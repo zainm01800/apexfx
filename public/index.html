@@ -928,6 +928,9 @@ body.is-dragging { user-select: none; }
     </button>
   </div>
 
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <div id="sidebar" style="position:absolute;left:0;top:52px;bottom:22px;width:196px;background:var(--bg2);border-right:1px solid var(--line);display:none;z-index:10;"></div>
+
   <!-- ── OVERLAY PANEL ────────────────────────────────────────────────── -->
   <div id="overlay-panel">
     <div class="ov-hdr">
@@ -1253,7 +1256,13 @@ body.is-dragging { user-select: none; }
 
   </div><!-- /main-col -->
 
-  <!-- ── RIGHT DRAWER ───────────────────────────────────────────────────── -->
+  <!-- ── RESIZE HANDLES ───────────────────────────────────────────────────── -->
+  <div id="left-resize-handle" style="position:absolute;left:0;top:0;bottom:22px;width:4px;background:transparent;cursor:col-resize;z-index:100;"></div>
+  <div id="right-resize-handle" style="position:absolute;right:280px;top:0;bottom:22px;width:4px;background:transparent;cursor:col-resize;z-index:100;"></div>
+
+  <!-- ── RIGHT PANEL ───────────────────────────────────────────────────── -->
+  <div id="rpanel" style="position:absolute;right:0;top:52px;bottom:22px;width:280px;background:var(--bg2);border-left:1px solid var(--line);z-index:10;">
+    <!-- ── RIGHT DRAWER ───────────────────────────────────────────────────── -->
   <div id="rdrawer">
     <div class="rd-tabs">
       <button class="rp-tab on" onclick="rpTab(this,'ai')">AI</button>
@@ -1603,6 +1612,8 @@ body.is-dragging { user-select: none; }
     </div>
 
   </div><!-- /rdrawer -->
+
+  </div><!-- /rpanel -->
 
   <!-- Trade Analysis floating box — top-centre of screen -->
   <div id="tap-anchor">
@@ -8864,7 +8875,7 @@ async function authSubmitLogin(){
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(result.username, result.displayName);
-  loadSym('AAPL');
+  loadSym('BTCUSDT');
   document.getElementById('auth-login-pass').value = '';
 }
 
@@ -8887,7 +8898,7 @@ async function authSubmitRegister(){
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
-  loadSym('AAPL');
+  loadSym('BTCUSDT');
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -8978,62 +8989,17 @@ function _lsDel(key){
   try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
 }
 
-// Write queue — batches Supabase writes to avoid hammering the API
-const _writeQueue = {}; // key → value (latest wins)
-let _writeFlushTimer = null;
-
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
-  if(_currentUserId){
-    _writeQueue[key] = val; // queue it, deduplicate by key
-    if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
-    _writeFlushTimer = setTimeout(_flushWriteQueue, 2000); // batch writes every 2s
-  }
 }
 
-async function _flushWriteQueue(force){
-  if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
-  const uid = _currentUserId;
-  const entries = Object.entries(_writeQueue).map(([key, value]) => ({
-    user_id: uid, key, value, updated_at: new Date().toISOString()
-  }));
-  // Clear queue before await so new changes queue up cleanly
-  Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
-  clearTimeout(_writeFlushTimer);
-  _writeFlushTimer = null;
-  try{
-    const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
-    if(error) console.warn('Supabase batch write:', error.message);
-  }catch(e){ console.warn('Supabase write error:', e.message); }
+async function _flushWriteQueue(){
+  console.log('Supabase write queue disabled');
 }
 
-function _lsRem(key){
-  try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
-  if(_currentUserId){
-    _supa.from('user_data').delete()
-      .eq('user_id', _currentUserId).eq('key', key)
-      .then(({error}) => { if(error) console.warn('Supabase delete:', error.message); });
-  }
-}
-
-// Pull all cloud data for the current user into localStorage
 async function _syncFromCloud(){
-  if(!_currentUserId) return;
-  try{
-    const { data, error } = await _supa.from('user_data')
-      .select('key,value')
-      .eq('user_id', _currentUserId);
-    if(error) throw error;
-    data.forEach(({key, value}) => {
-      try{ localStorage.setItem(_lsKey(key), value); }catch(e){}
-    });
-  }catch(e){ console.warn('Supabase sync:', e.message); }
+  console.log('Supabase sync disabled');
 }
-
-// ── Session persistence ────────────────────────────────────────────────────────
-function _saveSession(username){ try{ localStorage.setItem('apex-session', JSON.stringify({ username, loginAt: Date.now() })); }catch(e){} }
-function _clearSession(){ try{ localStorage.removeItem('apex-session'); }catch(e){} }
-function _restoreSession(){ try{ const s = JSON.parse(localStorage.getItem('apex-session')||'null'); return s?.username || null; }catch(e){ return null; } }
 
 // Local user storage for fallback auth
 function _getUsers(){ try{ return JSON.parse(localStorage.getItem('apex-users') || '{}'); }catch(e){ return {}; } }
@@ -9203,7 +9169,7 @@ function doLogin(username, displayName){
   _startAutoSave();
   
   // Load initial chart
-  loadSym('AAPL');
+  loadSym('BTCUSDT');
 }
 
 async function doLogout(){
@@ -9377,7 +9343,7 @@ window.addEventListener('load', () => {
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         doLogin(username, displayName);
-        loadSym('AAPL');
+        loadSym('BTCUSDT');
       } else {
         // Check for local session
         const localUser = _restoreSession();
@@ -9390,7 +9356,7 @@ window.addEventListener('load', () => {
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('app').style.display = 'flex';
             doLogin(localUser, user.displayName);
-            loadSym('AAPL');
+            loadSym('BTCUSDT');
             return;
           }
         }
@@ -9422,7 +9388,7 @@ window.addEventListener('load', () => {
           document.getElementById('auth-screen').style.display = 'none';
           document.getElementById('app').style.display = 'flex';
           doLogin(localUser, user.displayName);
-          loadSym('AAPL');
+          loadSym('BTCUSDT');
           return;
         }
       }
