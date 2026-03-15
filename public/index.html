@@ -883,10 +883,6 @@ body.is-dragging { user-select: none; }
     <button class="nav-btn" id="nav-inds" onclick="toggleOverlay('inds')" title="Indicators" draggable="true" ondragstart="navDragStart(event,'inds','Indicators')" ondragend="navDragEnd(event)">
       <span>📈</span><span class="nav-tip">Indicators</span>
     </button>
-    <!-- Replay -->
-    <button class="nav-btn" id="btn-replay" onclick="toggleReplay()" title="Bar Replay">
-      <span>⏮</span><span class="nav-tip">Bar Replay</span>
-    </button>
 
     <div class="nav-sep"></div>
 
@@ -1236,41 +1232,12 @@ body.is-dragging { user-select: none; }
       <span id="st-pattern" style="display:none;color:var(--amber);font-size:11px;margin-left:6px;"></span>
       <span id="st-tilt" style="display:none;color:var(--rd);font-size:11px;margin-left:6px;">⚠ Tilt Risk</span>
       <span style="flex:1;"></span>
-      <!-- Replay controls (shown only in replay mode) -->
-      <span id="st-replay" style="display:none;align-items:center;gap:6px;">
-        <span id="st-replay-txt" style="font-size:11px;font-weight:600;color:var(--amber);font-family:var(--font-mono);"></span>
-        <button id="st-replay-back"  onclick="replayStep(-1)" title="Step back 1 bar"  style="padding:1px 6px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:12px;border-radius:var(--r);cursor:pointer;">◀</button>
-        <button id="st-replay-play"  onclick="replayTogglePlay()" title="Play / Pause" style="padding:1px 8px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:12px;border-radius:var(--r);cursor:pointer;">▶</button>
-        <button id="st-replay-fwd"   onclick="replayStep(1)"  title="Step forward 1 bar" style="padding:1px 6px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:12px;border-radius:var(--r);cursor:pointer;">▶|</button>
-        <button onclick="openReplayMentor()" title="Ask AI Mentor" style="padding:1px 8px;background:rgba(155,109,255,.12);border:1px solid rgba(155,109,255,.35);color:#c4a8ff;font-size:11px;border-radius:var(--r);cursor:pointer;font-weight:600;font-family:var(--font-mono);">🤖 AI Mentor</button>
-        <button onclick="stopReplay()" title="Exit replay" style="padding:1px 6px;background:rgba(240,48,96,.1);border:1px solid rgba(240,48,96,.3);color:var(--rd);font-size:11px;border-radius:var(--r);cursor:pointer;">✕</button>
-      </span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
       <span id="st-clk" style="font-size:11px;color:var(--tx2);margin-right:6px;"></span>
       <span id="sb-time" style="color:var(--tx3);"></span>
     </div>
 
-    <!-- REPLAY AI MENTOR PANEL (floating, shown on demand during replay) -->
-    <div id="replay-mentor-panel" style="display:none;position:absolute;bottom:36px;right:8px;width:380px;max-height:70vh;background:var(--bg2);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:900;flex-direction:column;overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--line);flex-shrink:0;">
-        <span style="font-size:12px;font-weight:700;color:#c4a8ff;font-family:var(--font-mono);">🤖 Replay AI Mentor</span>
-        <span id="replay-mentor-bar-label" style="font-size:10px;color:var(--tx3);font-family:var(--font-mono);"></span>
-        <button onclick="closeReplayMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;line-height:1;">✕</button>
-      </div>
-      <div id="replay-mentor-body" style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
-        <div id="replay-mentor-status" style="font-size:11px;color:var(--tx3);font-style:italic;">Analysing chart up to the current bar…</div>
-      </div>
-      <!-- Follow-up chat -->
-      <div id="replay-mentor-chat" style="display:none;border-top:1px solid var(--line);padding:8px 10px;flex-shrink:0;">
-        <div id="replay-mentor-msgs" style="max-height:160px;overflow-y:auto;margin-bottom:6px;display:flex;flex-direction:column;gap:5px;"></div>
-        <div style="display:flex;gap:6px;">
-          <input id="replay-mentor-input" placeholder="Ask about this setup…" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--tx);font-size:11px;padding:5px 8px;border-radius:var(--r);outline:none;font-family:var(--font-mono);"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReplayMentorMessage();}">
-          <button onclick="sendReplayMentorMessage()" style="padding:5px 10px;background:rgba(155,109,255,.1);border:1px solid rgba(155,109,255,.3);color:#c4a8ff;font-size:11px;border-radius:var(--r);cursor:pointer;font-weight:600;">Send</button>
-        </div>
-      </div>
-    </div>
 
   </div><!-- /main-col -->
 
@@ -2979,7 +2946,6 @@ function buildJournal(){
         ${e.screenshot?`<img class="jentry-thumb" src="${e.screenshot}" onclick="viewSnap('${e.id}')" title="Click to fullscreen">`:''}
         ${!e.archived?`<div style="margin-top:7px;border-top:1px solid var(--b1);padding-top:7px;display:flex;gap:5px;">
           <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">🔬 AI Autopsy</button>
-          <button onclick="event.stopPropagation();replayFromJournal('${e.id}')" title="Replay this trade — loads symbol at entry date in Bar Replay mode" style="padding:5px 9px;background:rgba(0,201,160,.06);border:1px solid rgba(0,201,160,.25);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:700;white-space:nowrap;" onmouseover="this.style.background='rgba(0,201,160,.14)'" onmouseout="this.style.background='rgba(0,201,160,.06)'">⏮ Replay Trade</button>
         </div>
         <div id="autopsy-${e.id}" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:3px;border-left:3px solid var(--am);font-size:11px;line-height:1.7;color:var(--tx2);white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
         `:''}
@@ -4749,203 +4715,11 @@ function _drawTutorZones(entry, sl, tp, srZones, data){
   } catch(e) {}
 }
 
-// ══ REPLAY AI MENTOR ══════════════════════════════════════════════════════════
-let _replayMentorHistory = [];
+// ══ REPLAY AI MENTOR (removed) ════════════════════════════════════════════════
+function closeReplayMentor(){ drawings = drawings.filter(d=>!d._replayMarker); if(typeof draw==='function') draw(); }
 
-function openReplayMentor(){
-  if(!replayMode || replayPicking){
-    alert('Please pick a start bar first before asking the AI Mentor.');
-    return;
-  }
-  const panel = document.getElementById('replay-mentor-panel');
-  if(!panel) return;
-  panel.style.display = 'flex';
-  // Run the analysis immediately
-  _runReplayMentorAI();
-}
-
-function closeReplayMentor(){
-  const panel = document.getElementById('replay-mentor-panel');
-  if(panel) panel.style.display = 'none';
-  // Clear tutor markers from a replay analysis
-  drawings = drawings.filter(d=>!d._replayMarker);
-  if(typeof draw==='function') draw();
-}
-
-async function _runReplayMentorAI(){
-  const statusEl = document.getElementById('replay-mentor-status');
-  const bodyEl   = document.getElementById('replay-mentor-body');
-  const chatEl   = document.getElementById('replay-mentor-chat');
-  const barLabel = document.getElementById('replay-mentor-bar-label');
-  if(!bodyEl) return;
-
-  // Slice data to only what's visible at current replay cutoff — no future bars
-  const replayData = curData.slice(0, replayCutoff + 1);
-  if(replayData.length < 5){ if(statusEl) statusEl.textContent = '⚠ Not enough bars to analyse.'; return; }
-
-  const last = replayData[replayData.length - 1];
-  const sym  = curSym.s || 'Unknown';
-  const tf   = curTF   || '1D';
-
-  if(barLabel) barLabel.textContent = `Bar ${replayCutoff}  •  ${new Date(last.time*1000).toLocaleDateString()}`;
-  if(statusEl){ statusEl.style.display='block'; statusEl.textContent = '🤖 Analysing chart up to this bar…'; }
-  if(chatEl)  chatEl.style.display = 'none';
-
-  try {
-    // Compute indicators on the sliced replay data only
-    const rsiV   = calcRSI(replayData);   const lastRSI   = rsiV[rsiV.length-1];
-    const sma20  = calcSMA(replayData,20); const lastSMA20 = sma20[sma20.length-1];
-    const sma50  = calcSMA(replayData,50); const lastSMA50 = sma50[sma50.length-1];
-    const atrV   = calcATR(replayData);   const lastATR   = atrV[atrV.length-1];
-    const macdV  = calcMACD(replayData);  const lastMACD  = macdV[macdV.length-1];
-    const ema9V  = calcEMA(replayData,9); const lastEMA9  = ema9V[ema9V.length-1];
-    const ema21V = calcEMA(replayData,21);const lastEMA21 = ema21V[ema21V.length-1];
-    const srZones = detectSR(replayData);
-    const pats    = detectPatterns(replayData);
-    const last3   = replayData.slice(-3);
-    const recentAction = last3.map(b=>`${b.close>b.open?'Bullish':'Bearish'} candle (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' → ');
-    const shortTrend = lastSMA20&&last?.close?(last.close>lastSMA20?'Bullish (above SMA20)':'Bearish (below SMA20)'):'N/A';
-    const htfTrend   = lastSMA50&&last?.close?(last.close>lastSMA50?'Bullish (above SMA50)':'Bearish (below SMA50)'):'N/A';
-    const avgVol20   = replayData.slice(-20).reduce((s,b)=>s+b.volume,0)/20;
-    const volStatus  = last?.volume?(last.volume>avgVol20?'Above average (strong conviction)':'Below average (weak conviction)'):'N/A';
-    const maStatus   = `EMA9: ${lastEMA9?fP(lastEMA9):'N/A'} | EMA21: ${lastEMA21?fP(lastEMA21):'N/A'} | SMA50: ${lastSMA50?fP(lastSMA50):'N/A'}`;
-    const macdStatus = lastMACD?`MACD ${lastMACD.macd?.toFixed(4)||'N/A'} | Signal ${lastMACD.signal?.toFixed(4)||'N/A'} | Hist ${lastMACD.hist?.toFixed(4)||'N/A'} (${lastMACD.hist>0?'Bullish':'Bearish'})`:'N/A';
-
-    // Suggested levels based on ATR
-    const atr = lastATR || Math.abs(last.high - last.low);
-    const suggestEntry = last.close;
-    const suggestSL    = last.close - atr * 1.5;
-    const suggestTP    = last.close + atr * 3;
-    const suggestRR    = '2.0';
-
-    const prompt = `You are an experienced trading mentor coaching a student who is replaying a historical chart bar-by-bar. They are paused at a specific bar and want your read on what they should do next. You can only see data UP TO this bar — not what happened after. Be educational, structured, and interactive.
-
-CHART CONTEXT (data up to current replay bar):
-Asset: ${sym}
-Timeframe: ${tf}
-Bars shown: ${replayData.length} bars ending at ${new Date(last.time*1000).toLocaleDateString()}
-Current Price at this bar: ${fP(last.close)}
-Bar details: Open ${fP(last.open)} | High ${fP(last.high)} | Low ${fP(last.low)} | Close ${fP(last.close)}
-
-Recent price action (last 3 bars): ${recentAction}
-
-Trend & Structure:
-- Short-term trend: ${shortTrend}
-- Higher timeframe trend: ${htfTrend}
-- Key Support levels: ${srZones.support.slice(0,4).map(fP).join(', ')||'None detected'}
-- Key Resistance levels: ${srZones.resistance.slice(0,4).map(fP).join(', ')||'None detected'}
-- Detected patterns: ${pats.length?pats.map(p=>p.name||p).join(', '):'None'}
-
-Indicators:
-- RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' — Overbought':lastRSI<30?' — Oversold':' — Neutral'):''}
-- ${macdStatus}
-- Moving averages: ${maStatus}
-- Volume: ${volStatus}
-- ATR(14): ${atr?fP(atr):'N/A'} (volatility measure)
-
-Suggested levels (ATR-based starting points for discussion):
-- Possible Entry: ${fP(suggestEntry)}
-- Possible Stop Loss: ${fP(suggestSL)} (1.5× ATR below close)
-- Possible Take Profit: ${fP(suggestTP)} (3× ATR above close, ~${suggestRR}R)
-
-IMPORTANT — You are teaching the student to think, not just giving signals. Structure your response EXACTLY as:
-
-1. MARKET STRUCTURE
-[2-3 sentences on what the chart is showing — trend, momentum, context]
-
-2. KEY LEVELS
-[Identify the most important support/resistance to watch and why]
-
-3. PATTERN
-[Name and describe any chart pattern or candle setup visible]
-
-4. WHAT TO WATCH NEXT
-[What price action would confirm a long/short entry? What is the trigger bar?]
-
-5. ENTRY REASONING
-[Explain how a trader should think about entry — pullback, breakout, or rejection?]
-
-6. STOP LOSS & TAKE PROFIT
-[Walk through how to place SL logically and how to set a target with good R:R]
-
-7. TRADE EVALUATION
-[Rate the quality of this setup: Strong / Moderate / Weak, and explain why]
-
-8. INTERACTIVE CHECK-IN
-[Ask the student one focused question to test their understanding of this setup]`;
-
-    const reply = await groqFetch(prompt);
-
-    // Store history for follow-up chat
-    _replayMentorHistory = [
-      { role:'system',    content: `You are a trading mentor. The student is replaying ${sym} (${tf}) paused at ${new Date(last.time*1000).toLocaleDateString()} at price ${fP(last.close)}. Your initial analysis: ${reply.slice(0,600)}…` },
-      { role:'assistant', content: reply },
-    ];
-
-    // Render the analysis
-    if(statusEl) statusEl.style.display = 'none';
-    bodyEl.innerHTML = `<div style="font-size:11px;line-height:1.7;">${_formatAIMentorResponse(reply)}</div>`;
-
-    // Draw suggested zones on chart
-    drawings = drawings.filter(d=>!d._replayMarker);
-    drawings.push({ id:'rm_entry', type:'hray', x1: Math.max(0,replayCutoff-3), y1: suggestEntry,
-      color:'#f0a500', lineWidth:1.5, lineDash:'dashed', label:`Entry? $${fP(suggestEntry)}`, _replayMarker:true });
-    drawings.push({ id:'rm_sl', type:'hray', x1: Math.max(0,replayCutoff-3), y1: suggestSL,
-      color:'#ff4d6a', lineWidth:1, lineDash:'dashed', label:`SL? $${fP(suggestSL)}`, _replayMarker:true });
-    drawings.push({ id:'rm_tp', type:'hray', x1: Math.max(0,replayCutoff-3), y1: suggestTP,
-      color:'#00d4a0', lineWidth:1, lineDash:'dashed', label:`TP? $${fP(suggestTP)}`, _replayMarker:true });
-    (srZones.support||[]).slice(0,2).forEach((p,i)=>{
-      drawings.push({ id:'rm_sup'+i, type:'hray', x1:0, y1:p,
-        color:'rgba(0,212,160,0.35)', lineWidth:1, lineDash:'dotted', label:`Sup $${fP(p)}`, _replayMarker:true });
-    });
-    (srZones.resistance||[]).slice(0,2).forEach((p,i)=>{
-      drawings.push({ id:'rm_res'+i, type:'hray', x1:0, y1:p,
-        color:'rgba(255,77,106,0.35)', lineWidth:1, lineDash:'dotted', label:`Res $${fP(p)}`, _replayMarker:true });
-    });
-    if(typeof draw==='function') draw();
-
-    // Show follow-up chat
-    if(chatEl){
-      chatEl.style.display = 'block';
-      document.getElementById('replay-mentor-msgs').innerHTML = '';
-    }
-
-  } catch(err){
-    if(statusEl) statusEl.textContent = '⚠ AI unavailable — check your Groq API key in settings.';
-  }
-}
-
-async function sendReplayMentorMessage(){
-  const inp  = document.getElementById('replay-mentor-input');
-  const msgs = document.getElementById('replay-mentor-msgs');
-  if(!inp||!msgs) return;
-  const userMsg = inp.value.trim();
-  if(!userMsg) return;
-  inp.value = '';
-
-  msgs.innerHTML += `<div style="align-self:flex-end;background:rgba(61,142,255,.1);border:1px solid rgba(61,142,255,.2);border-radius:8px 8px 2px 8px;padding:5px 9px;font-size:11px;color:var(--tx);max-width:88%;line-height:1.5;">${_escHtml(userMsg)}</div>`;
-  _replayMentorHistory.push({ role:'user', content: userMsg });
-
-  const typingId = 'rmt-' + Date.now();
-  msgs.innerHTML += `<div id="${typingId}" style="align-self:flex-start;background:var(--bg3);border:1px solid var(--line);border-radius:2px 8px 8px 8px;padding:5px 9px;font-size:11px;color:var(--tx3);font-style:italic;">Mentor is thinking…</div>`;
-  msgs.scrollTop = msgs.scrollHeight;
-
-  try {
-    const sysCtx = _replayMentorHistory[0]?.content || 'You are a trading mentor.';
-    const recentTurns = _replayMentorHistory.slice(1).slice(-4).map(m=>
-      m.role==='user'?`Student: ${m.content}`:`Mentor: ${m.content}`
-    ).join('\n\n');
-    const followUp = `${sysCtx}\n\n--- CONVERSATION ---\n${recentTurns}\n\nStudent: ${userMsg}\n\nMentor (concise, educational, 3-5 key points):`;
-    const reply = await groqFetch(followUp);
-    _replayMentorHistory.push({ role:'assistant', content: reply });
-    const typingEl = document.getElementById(typingId);
-    if(typingEl){ typingEl.style.fontStyle='normal'; typingEl.style.color='var(--tx2)'; typingEl.innerHTML = _formatAIMentorResponse(reply); }
-  } catch(e){
-    const typingEl = document.getElementById(typingId);
-    if(typingEl) typingEl.textContent = '⚠ Could not reach AI mentor.';
-  }
-  msgs.scrollTop = msgs.scrollHeight;
-}
+async function _runReplayMentorAI(){ /* removed */ }
+async function sendReplayMentorMessage(){ /* removed */ }
 
 function openPSC(){
   const el=document.getElementById('psc-bg');
@@ -5106,119 +4880,20 @@ function drawSessions(ctx, data, firstBar, lastBar, barX, H){
   });
 }
 
-// ══ BAR REPLAY MODE ══════════════════════════════════════════════════════════
-// Design: chart is NEVER locked. curData always holds the full dataset.
-// replayCutoff = data index of the last visible bar (bars after it are dimmed).
-// Phase 1 (picking): move mouse to hover over the bar you want to start from,
-//                    click to commit that point and begin stepping.
-// Phase 2 (stepping): Space / arrows step forward; chart remains fully pannable.
-
-let replayMode    = false;   // replay is active
-let replayCutoff  = -1;      // index of last shown bar (-1 = no cutoff = show all)
-let replayPicking = false;   // true = user is hovering to pick start bar
+// ══ BAR REPLAY MODE (removed — caused screen freeze) ═════════════════════════
+let replayMode    = false;
+let replayCutoff  = -1;
+let replayPicking = false;
 let replayTimer   = null;
 let replaySpeed   = 500;
-
-function toggleReplay(){
-  if(replayMode) stopReplay();
-  else           startReplay();
-}
-
-function startReplay(){
-  if(!curData.length) return;
-  replayMode    = true;
-  replayPicking = true;    // wait for user to click to set cutoff
-  replayCutoff  = -1;
-  const _rbtn=document.getElementById('btn-replay'); if(_rbtn) _rbtn.classList.add('on');
-  _syncAllDockedBtns();
-  updateReplayStatus();
-  draw();
-  toast('⏮ Replay — hover to pick start bar, then click');
-}
-
-function stopReplay(){
-  if(replayTimer){ clearInterval(replayTimer); replayTimer = null; }
-  replayMode    = false;
-  replayPicking = false;
-  replayCutoff  = -1;
-  const _rbtn2=document.getElementById('btn-replay'); if(_rbtn2) _rbtn2.classList.remove('on');
-  closeReplayMentor();
-  _syncAllDockedBtns();
-  draw();
-  toast('⏹ Replay ended');
-}
-
-// Called from the canvas click handler when in replay picking mode
-function replayPickBar(barIndex){
-  if(!replayMode || !replayPicking) return;
-  replayCutoff  = Math.max(1, barIndex);
-  replayPicking = false;
-  updateReplayStatus();
-  draw();
-  toast('▶ Replay set — Space to play/pause · → to step · Esc to exit');
-}
-
-function replayStep(n){
-  if(!replayMode || replayPicking) return;
-  replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff + n));
-  updateReplayStatus();
-  draw();
-}
-
-function replayTogglePlay(){
-  if(!replayMode || replayPicking) return;
-  if(replayTimer){
-    clearInterval(replayTimer);
-    replayTimer = null;
-    updateReplayStatus(); draw(); toast('⏸ Paused');
-  } else {
-    replayTimer = setInterval(()=>{
-      if(replayCutoff >= curData.length - 1){
-        clearInterval(replayTimer); replayTimer = null;
-        toast('⏹ Replay complete — Esc to exit');
-        return;
-      }
-      replayStep(1);
-    }, replaySpeed);
-    updateReplayStatus(); draw(); toast('▶ Playing');
-  }
-}
-
-function updateReplayStatus(){
-  const wrap = document.getElementById('st-replay');
-  const txt  = document.getElementById('st-replay-txt');
-  const play = document.getElementById('st-replay-play');
-  if(!wrap) return;
-  wrap.style.display = replayMode ? 'flex' : 'none';
-  if(!txt) return;
-  if(replayPicking){
-    txt.textContent = '⏮ PICK START BAR';
-    if(play){ play.style.display='none'; }
-  } else {
-    const pct = Math.round(replayCutoff / Math.max(1, curData.length - 1) * 100);
-    txt.textContent = `REPLAY  ${replayCutoff}/${curData.length - 1}  (${pct}%)`;
-    if(play){
-      play.style.display='';
-      play.textContent = replayTimer ? '⏸' : '▶';
-      play.style.color = replayTimer ? 'var(--rd)' : 'var(--tl)';
-      play.style.borderColor = replayTimer ? 'rgba(240,48,96,.4)' : 'rgba(0,201,160,.4)';
-      play.style.background  = replayTimer ? 'rgba(240,48,96,.15)' : 'rgba(0,201,160,.15)';
-    }
-  }
-}
-
-// Returns the bar index the mouse is currently hovering over (used by draw)
-function replayHoverBar(){
-  if(!replayMode || !replayPicking) return -1;
-  const mc = _el('main-canvas');
-  if(!mc || mouseX < 0) return -1;
-  const W = mc.width;
-  // Replicate the same firstBarOnScreen calculation used in draw()
-  const firstBar = Math.max(0, Math.ceil(rightBarIndex - W / barWidth));
-  return Math.max(0, Math.min(curData.length - 1,
-    Math.round(firstBar + (mouseX - (W - (rightBarIndex - firstBar) * barWidth)) / barWidth)
-  ));
-}
+function toggleReplay(){ /* removed */ }
+function startReplay(){ /* removed */ }
+function stopReplay(){ /* removed */ }
+function replayPickBar(barIndex){ /* removed */ }
+function replayStep(n){ /* removed */ }
+function replayTogglePlay(){ /* removed */ }
+function updateReplayStatus(){ /* removed */ }
+function replayHoverBar(){ return -1; }
 
 // ══ PRE-TRADE CHECKLIST ═══════════════════════════════════════════════════════
 const DEFAULT_CHECKS = [
@@ -8320,20 +7995,6 @@ document.addEventListener('keydown',e=>{
     toggleFullscreenChart();
     return;
   }
-  // R = toggle replay mode
-  if(e.key.toLowerCase()==='r' && !e.ctrlKey && !e.metaKey){
-    toggleReplay();
-    return;
-  }
-  // Replay controls when active (arrows just step, chart still pannable)
-  if(replayMode && !replayPicking){
-    if(e.key==='ArrowRight'){ e.preventDefault(); replayStep(1);   return; }
-    if(e.key==='ArrowLeft'){  e.preventDefault(); replayStep(-1);  return; }
-    if(e.key==='ArrowUp'){    e.preventDefault(); replayStep(10);  return; }
-    if(e.key==='ArrowDown'){  e.preventDefault(); replayStep(-10); return; }
-    if(e.key===' '){          e.preventDefault(); replayTogglePlay(); return; }
-  }
-  if(replayMode && e.key==='Escape'){ stopReplay(); return; }
 });
 
 let _chartFullscreen=false;
@@ -10149,94 +9810,6 @@ window.addEventListener('load', () => {
 </div>
 
 <script>
-// ── REPLAY FROM JOURNAL ──────────────────────────────────────────────────────
-// Loads the symbol from a journal entry, seeks to the entry date, starts replay
-async function replayFromJournal(id) {
-  const entry = journal.find(e => e.id === id);
-  if (!entry) { toast('Entry not found'); return; }
-
-  const sym = entry.sym;
-  const tf  = entry.tf || '1d';
-  const entryDate = entry.time ? new Date(entry.time) : null;
-
-  // Close journal floating panel if open, then switch right panel to AI tab
-  if(typeof tbJournalClose === 'function') tbJournalClose();
-  const firstRpTab = document.querySelector('.rp-tab');
-  if(firstRpTab) rpTab(firstRpTab, 'ai');
-
-  // Show a loading toast
-  toast(`⏮ Loading ${sym} ${tf} for replay…`);
-
-  // Set timeframe first
-  curTF = tf;
-  document.querySelectorAll('.tf').forEach(b => b.classList.remove('on'));
-  const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-  if (tfBtn) tfBtn.classList.add('on');
-
-  // Load the symbol — this fetches real data
-  await loadSym(sym);
-
-  // Now seek to the entry date in the data
-  if (entryDate && curData.length) {
-    const entryTs = Math.floor(entryDate.getTime() / 1000);
-
-    // Find the bar index closest to the entry date
-    let closestIdx = 0;
-    let closestDiff = Infinity;
-    curData.forEach((bar, i) => {
-      const diff = Math.abs(bar.time - entryTs);
-      if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
-    });
-
-    // Give a small buffer — show a few bars before entry so there's context
-    const contextBars = Math.max(10, Math.round(40 / barWidth));
-    const cutoffIdx = Math.max(1, closestIdx - 2); // replay starts just before entry bar
-
-    // Position chart so the cutoff bar is visible, with some runway to the right
-    rightBarIndex = cutoffIdx + contextBars + 5;
-    priceHi = null; priceLo = null;
-
-    // Start replay at the cutoff
-    replayMode    = true;
-    replayPicking = false;
-    replayCutoff  = cutoffIdx;
-
-    const replayBtn = document.getElementById('btn-replay');
-    if (replayBtn) replayBtn.classList.add('on');
-
-    updateReplayStatus();
-    draw();
-
-    // Draw an amber "ENTRY" marker annotation on the chart at entry price
-    if (entry.entry) {
-      // Add a horizontal ray drawing at the entry price so it's visible
-      const entryPrice = entry.entry;
-      const slPrice    = entry.sl   || null;
-      const tpPrice    = entry.tp   || null;
-      const isLong     = entry.dir === 'long';
-
-      // Clear any existing replay markers
-      drawings = drawings.filter(d => !d._replayMarker);
-
-      // Entry level (amber)
-      drawings.push({ id: 'rm_entry', type: 'hray', x1: cutoffIdx, y1: entryPrice, color: '#f0a500', lineWidth: 1.5, lineDash: 'dashed', label: `Entry $${fP(entryPrice)}`, _replayMarker: true });
-      if (slPrice)
-        drawings.push({ id: 'rm_sl', type: 'hray', x1: cutoffIdx, y1: slPrice, color: '#f03060', lineWidth: 1, lineDash: 'dashed', label: `SL $${fP(slPrice)}`, _replayMarker: true });
-      if (tpPrice)
-        drawings.push({ id: 'rm_tp', type: 'hray', x1: cutoffIdx, y1: tpPrice, color: '#00c9a0', lineWidth: 1, lineDash: 'dashed', label: `TP $${fP(tpPrice)}`, _replayMarker: true });
-
-      draw();
-    }
-
-    const dateStr = entryDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    toast(`⏮ Replay — ${sym} from ${dateStr} · Press Space/→ to step forward`);
-  } else {
-    // No date — just start normal replay
-    startReplay();
-    toast(`⏮ Replay mode — click chart to set start bar`);
-  }
-}
-
 function openTutorial(){
   document.getElementById('tut-bg').classList.add('open');
 }
