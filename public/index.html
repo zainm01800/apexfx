@@ -1238,7 +1238,7 @@ body.is-dragging { user-select: none; }
       <span id="st-replay" style="display:none;align-items:center;gap:4px;margin-left:6px;">
         <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
         <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
-        <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 6px;background:rgba(138,43,226,.15);border:1px solid rgba(138,43,226,.4);color:var(--purple);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;">🧠 Mentor</button>
+        <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 8px;background:linear-gradient(135deg, rgba(138,43,226,.3), rgba(138,43,226,.15));border:1px solid rgba(138,43,226,.6);color:var(--purple);font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;box-shadow:0 2px 4px rgba(138,43,226,.2);transition:all 0.3s ease;">🧠 Mentor</button>
       </span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
@@ -1249,7 +1249,7 @@ body.is-dragging { user-select: none; }
 
     <!-- AI TRADING MENTOR PANEL -->
     <div id="ai-mentor-panel" style="display:none;position:fixed;top:60px;right:20px;width:320px;max-height:400px;background:var(--bg2);border:1px solid var(--b1);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;overflow:hidden;">
-      <div style="padding:12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;">
+      <div id="mentor-header" style="padding:12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;cursor:move;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:16px;">🧠</span>
           <span style="color:var(--tx1);font-weight:600;">AI Trading Mentor</span>
@@ -1272,6 +1272,22 @@ body.is-dragging { user-select: none; }
       <div style="padding:8px;background:var(--bg3);border-top:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
         <span id="mentor-candle-info" style="color:var(--tx3);font-size:11px;"></span>
         <button onclick="mentorHint()" style="padding:4px 8px;background:var(--bg1);border:1px solid var(--b1);color:var(--tx2);border-radius:3px;cursor:pointer;font-size:11px;">💡 Hint</button>
+      </div>
+    </div>
+
+    <!-- MENTOR POPUP NOTIFICATION -->
+    <div id="mentor-popup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:var(--bg2);border:2px solid var(--purple);border-radius:12px;padding:20px;box-shadow:0 8px 24px rgba(138,43,226,0.3);z-index:2000;min-width:300px;max-width:400px;">
+      <div style="text-align:center;margin-bottom:16px;">
+        <span style="font-size:32px;">🧠</span>
+        <h3 style="color:var(--tx1);margin:8px 0;">AI Trading Mentor Available!</h3>
+        <p style="color:var(--tx2);margin:0;line-height:1.5;">
+          Get real-time trading guidance as you analyze historical data. 
+          The AI will coach you through market setups and help improve your trading skills.
+        </p>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button onclick="enableMentorFromPopup()" style="padding:10px 20px;background:var(--purple);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Enable Mentor</button>
+        <button onclick="closeMentorPopup()" style="padding:10px 20px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:6px;cursor:pointer;">Maybe Later</button>
       </div>
     </div>
 
@@ -5092,12 +5108,137 @@ function toggleMentor() {
   
   if (mentorState.enabled && replayMode) {
     panel.style.display = 'block';
-    if (btn) btn.style.background = 'rgba(138,43,226,.4)';
+    if (btn) {
+      btn.style.background = 'linear-gradient(135deg, rgba(138,43,226,.6), rgba(138,43,226,.4))';
+      btn.style.boxShadow = '0 4px 8px rgba(138,43,226,.4)';
+    }
     updateMentor();
   } else {
     panel.style.display = 'none';
-    if (btn) btn.style.background = 'rgba(138,43,226,.15)';
+    if (btn) {
+      btn.style.background = 'linear-gradient(135deg, rgba(138,43,226,.3), rgba(138,43,226,.15))';
+      btn.style.boxShadow = '0 2px 4px rgba(138,43,226,.2)';
+    }
   }
+}
+
+// Popup functions
+function showMentorPopup() {
+  const popup = document.getElementById('mentor-popup');
+  if (popup) {
+    popup.style.display = 'block';
+    popup.style.opacity = '0';
+    popup.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    
+    // Fade in animation
+    setTimeout(() => {
+      popup.style.transition = 'all 0.3s ease';
+      popup.style.opacity = '1';
+      popup.style.transform = 'translate(-50%, -50%) scale(1)';
+    }, 50);
+    
+    // Auto-hide after 8 seconds if no action
+    setTimeout(() => {
+      if (popup.style.display === 'block') {
+        closeMentorPopup();
+      }
+    }, 8000);
+  }
+}
+
+function closeMentorPopup() {
+  const popup = document.getElementById('mentor-popup');
+  if (popup) {
+    popup.style.transition = 'all 0.2s ease';
+    popup.style.opacity = '0';
+    popup.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    
+    setTimeout(() => {
+      popup.style.display = 'none';
+      popup.style.opacity = '1';
+      popup.style.transform = 'translate(-50%, -50%) scale(1)';
+    }, 200);
+  }
+}
+
+function enableMentorFromPopup() {
+  closeMentorPopup();
+  if (!mentorState.enabled) {
+    toggleMentor();
+  }
+}
+
+// Draggable functionality
+function makeMentorDraggable() {
+  const panel = document.getElementById('ai-mentor-panel');
+  const header = document.getElementById('mentor-header');
+  
+  if (!panel || !header) return;
+  
+  let isDragging = false;
+  let currentX;
+  let currentY;
+  let initialX;
+  let initialY;
+  let xOffset = 0;
+  let yOffset = 0;
+
+  function dragStart(e) {
+    if (e.type === "touchstart") {
+      initialX = e.touches[0].clientX - xOffset;
+      initialY = e.touches[0].clientY - yOffset;
+    } else {
+      initialX = e.clientX - xOffset;
+      initialY = e.clientY - yOffset;
+    }
+
+    if (e.target === header || header.contains(e.target)) {
+      isDragging = true;
+    }
+  }
+
+  function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+  }
+
+  function drag(e) {
+    if (isDragging) {
+      e.preventDefault();
+      
+      if (e.type === "touchmove") {
+        currentX = e.touches[0].clientX - initialX;
+        currentY = e.touches[0].clientY - initialY;
+      } else {
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+      }
+
+      xOffset = currentX;
+      yOffset = currentY;
+
+      // Keep panel within viewport bounds
+      const rect = panel.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      
+      const newX = Math.max(0, Math.min(currentX, maxX));
+      const newY = Math.max(0, Math.min(currentY, maxY));
+
+      panel.style.transform = `translate(${newX}px, ${newY}px)`;
+    }
+  }
+
+  // Add event listeners
+  header.addEventListener('mousedown', dragStart);
+  document.addEventListener('mouseup', dragEnd);
+  document.addEventListener('mousemove', drag);
+  
+  // Touch events for mobile
+  header.addEventListener('touchstart', dragStart);
+  document.addEventListener('touchend', dragEnd);
+  document.addEventListener('touchmove', drag);
 }
 
 function updateMentor() {
@@ -5282,6 +5423,12 @@ function integrateMentorWithReplay() {
   const originalStartReplay = startReplay;
   startReplay = function() {
     originalStartReplay();
+    
+    // Show popup notification when replay starts
+    setTimeout(() => {
+      showMentorPopup();
+    }, 1000); // Show after 1 second to let replay initialize
+    
     if (mentorState.enabled) {
       document.getElementById('ai-mentor-panel').style.display = 'block';
     }
@@ -5291,6 +5438,7 @@ function integrateMentorWithReplay() {
   const originalStopReplay = stopReplay;
   stopReplay = function() {
     originalStopReplay();
+    closeMentorPopup(); // Close popup if it's still open
     document.getElementById('ai-mentor-panel').style.display = 'none';
   };
   
@@ -5302,14 +5450,23 @@ function integrateMentorWithReplay() {
   };
 }
 
-// Initialize mentor integration
-integrateMentorWithReplay();
+// Initialize mentor integration and draggable functionality
+function initializeMentor() {
+  integrateMentorWithReplay();
+  makeMentorDraggable();
+}
+
+// Initialize when page loads
+setTimeout(initializeMentor, 1000);
 
 // Make mentor functions globally accessible
 window.toggleMentor = toggleMentor;
 window.mentorDecision = mentorDecision;
 window.mentorHint = mentorHint;
 window.updateMentor = updateMentor;
+window.showMentorPopup = showMentorPopup;
+window.closeMentorPopup = closeMentorPopup;
+window.enableMentorFromPopup = enableMentorFromPopup;
 
 // ══ PRE-TRADE CHECKLIST ═══════════════════════════════════════════════════════
 const DEFAULT_CHECKS = [
