@@ -1260,6 +1260,15 @@ body.is-dragging { user-select: none; }
       <div id="mentor-content" style="padding:12px;max-height:320px;overflow-y:auto;font-size:12px;line-height:1.5;">
         <div id="mentor-insights" style="color:var(--tx2);margin-bottom:12px;"></div>
         <div id="mentor-question" style="color:var(--amber);font-weight:500;margin-bottom:12px;"></div>
+        
+        <!-- Setup Message Controls -->
+        <div id="setup-message-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:8px;margin-bottom:12px;">
+          <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
+            <button onclick="dismissSetupMessage()" style="padding:4px 8px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">Dismiss Setup</button>
+            <button onclick="resumeReplayAfterSetup()" style="padding:4px 8px;background:var(--blue);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Resume Replay</button>
+          </div>
+        </div>
+        
         <div id="mentor-trade-prompt" style="display:none;background:var(--bg3);border:1px solid var(--purple);border-radius:6px;padding:12px;margin-bottom:12px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="color:var(--purple);font-weight:600;">📊 Trade Setup Detected!</span>
@@ -5026,8 +5035,147 @@ let mentorState = {
   setupWaitStart: null, // When setup wait state started
   setupWaitData: null, // Store setup data during wait
   monitoredTrade: null, // Trade being monitored
-  tradeResultData: null // Trade result data for final evaluation
+  tradeResultData: null, // Trade result data for final evaluation
+  
+  // Message persistence and locking
+  lockedMessage: null, // Current locked setup message
+  lockedInsights: [], // Original setup insights
+  lockedQuestion: '', // Original setup question
+  realtimeUpdates: [], // Real-time updates during setup wait
+  messageLocked: false, // Whether message is locked
+  setupPausedReplay: false // Whether setup caused replay pause
 };
+
+// ══ MENTOR REPLAY CONTROL ═══════════════════════════════════════════════════════════
+
+function pauseReplayForSetup() {
+  if (!replayMode || !replayTimer) return;
+  
+  clearInterval(replayTimer);
+  replayTimer = null;
+  mentorState.setupPausedReplay = true;
+  updateReplayStatus();
+  draw();
+  toast('⏸ Auto-paused for setup analysis');
+}
+
+function resumeReplayAfterSetup() {
+  if (!mentorState.setupPausedReplay) return;
+  
+  mentorState.setupPausedReplay = false;
+  // Don't auto-resume - let user manually resume
+  toast('▶ Replay ready - press Space to continue');
+}
+
+function dismissSetupMessage() {
+  mentorState.messageLocked = false;
+  mentorState.lockedMessage = null;
+  mentorState.lockedInsights = [];
+  mentorState.lockedQuestion = '';
+  mentorState.realtimeUpdates = [];
+  mentorState.lifecycleState = 'scanning';
+  mentorState.setupWaitStart = null;
+  mentorState.setupWaitData = null;
+  
+  resumeReplayAfterSetup();
+  
+  mentorState.currentInsights = ['📊 Resuming market scanning...'];
+  mentorState.currentQuestion = 'Looking for new trading opportunities...';
+  updateMentorUI();
+}
+
+function lockSetupMessage(setupDetection) {
+  // Lock the current setup message
+  mentorState.messageLocked = true;
+  mentorState.lockedMessage = setupDetection.setup;
+  mentorState.lockedInsights = [...mentorState.currentInsights];
+  mentorState.lockedQuestion = mentorState.currentQuestion;
+  mentorState.realtimeUpdates = [];
+  
+  console.log('🔒 Setup message locked:', setupDetection.setup);
+}
+
+function addRealtimeUpdate(currentBar) {
+  if (!mentorState.setupWaitData || !curData) return;
+  
+  const setupData = mentorState.setupWaitData;
+  const currentPrice = curData[currentBar].close;
+  const previousPrice = curData[currentBar - 1]?.close || currentPrice;
+  const priceChange = (currentPrice - previousPrice) / previousPrice;
+  
+  let update = '';
+  
+  // Generate update based on price behavior
+  if (Math.abs(priceChange) > 0.01) {
+    if (priceChange > 0) {
+      update = "• Price approaching breakout level";
+    } else {
+      update = "• Price moving away from setup level";
+    }
+  } else {
+    update = "• Price consolidating around setup zone";
+  }
+  
+  // Setup-specific updates
+  switch (setupData.setup) {
+    case 'breakout':
+      if (currentPrice > (setupData.breakoutLevel || currentPrice) * 1.01) {
+        update = "• Momentum increasing";
+      } else {
+        update = "• Waiting for confirmation candle";
+      }
+      break;
+      
+    case 'support_bounce':
+      if (currentPrice > previousPrice) {
+        update = "• Bounce momentum building";
+      } else {
+        update = "• Testing support levels";
+      }
+      break;
+      
+    case 'resistance_rejection':
+      if (currentPrice < previousPrice) {
+        update = "• Rejection confirming";
+      } else {
+        update = "• Price challenging resistance";
+      }
+      break;
+  }
+  
+  // Add update if it's new
+  if (update && !mentorState.realtimeUpdates.includes(update)) {
+    mentorState.realtimeUpdates.push(update);
+    // Keep only last 3 updates
+    if (mentorState.realtimeUpdates.length > 3) {
+      mentorState.realtimeUpdates.shift();
+    }
+  }
+}
+
+function updateLockedMentorUI() {
+  const insightsEl = document.getElementById('mentor-insights');
+  const questionEl = document.getElementById('mentor-question');
+  const controlsEl = document.getElementById('setup-message-controls');
+  
+  if (!insightsEl || !questionEl || !controlsEl) return;
+  
+  // Display locked message with real-time updates
+  let displayContent = [...mentorState.lockedInsights];
+  
+  // Add real-time updates if any
+  if (mentorState.realtimeUpdates.length > 0) {
+    displayContent.push('');
+    displayContent.push('Updates:');
+    displayContent.push(...mentorState.realtimeUpdates);
+  }
+  
+  insightsEl.textContent = displayContent.join('\n');
+  questionEl.textContent = mentorState.lockedQuestion;
+  
+  // Show setup controls
+  controlsEl.style.display = 'block';
+}
 
 // ══ REPLAY MODE TRADE DETECTION & AI REVIEW ═══════════════════════════════════════════════════════════
 
@@ -6909,7 +7057,8 @@ function handleSetupWaitState(currentBar) {
   console.log('⏳ Handle setup wait state:', { 
     currentBar, 
     setupStart: mentorState.setupWaitStart,
-    setupData: mentorState.setupWaitData 
+    setupData: mentorState.setupWaitData,
+    messageLocked: mentorState.messageLocked
   });
   
   // Check for user trade placement
@@ -6924,6 +7073,7 @@ function handleSetupWaitState(currentBar) {
     // User placed a trade - switch to trade monitoring
     console.log('🎯 User placed trade, switching to trade monitoring');
     mentorState.lifecycleState = 'trade_monitoring';
+    mentorState.messageLocked = false; // Unlock message
     return;
   } else if (!setupStillValid || priceMovedSignificantly) {
     // Setup became invalid - return to scanning
@@ -6931,15 +7081,16 @@ function handleSetupWaitState(currentBar) {
     mentorState.lifecycleState = 'scanning';
     mentorState.setupWaitStart = null;
     mentorState.setupWaitData = null;
+    mentorState.messageLocked = false; // Unlock message
     mentorState.currentInsights = ['❌ Setup no longer valid'];
     mentorState.currentQuestion = 'Resuming market scanning for new opportunities...';
     updateMentorUI();
     return;
   }
   
-  // Still in setup wait - provide brief commentary on price behavior
-  generateSetupWaitCommentary(currentBar);
-  updateMentorUI();
+  // Still in setup wait - add real-time updates to locked message
+  addRealtimeUpdate(currentBar);
+  updateLockedMentorUI();
 }
 
 function handleTradeMonitoringState(currentBar) {
@@ -7308,7 +7459,13 @@ function updateMentor() {
         mentorState.setupWaitStart = currentBar;
         mentorState.setupWaitData = setupDetection;
         mentorState.lastTradeSuggestionBar = currentBar;
+        
+        // Generate and lock the setup message
         generateHighQualityTradeInsights(setupDetection);
+        lockSetupMessage(setupDetection);
+        
+        // Auto-pause replay for setup analysis
+        pauseReplayForSetup();
       } else {
         // No quality setup found
         console.log('🤖 No quality setup found, generating no-setup message');
@@ -7579,6 +7736,18 @@ function updateMentorUI() {
   const questionEl = document.getElementById('mentor-question');
   const tradePromptEl = document.getElementById('mentor-trade-prompt');
   const candleInfoEl = document.getElementById('mentor-candle-info');
+  const controlsEl = document.getElementById('setup-message-controls');
+  
+  // Hide setup controls when not locked
+  if (controlsEl) {
+    controlsEl.style.display = 'none';
+  }
+  
+  // If message is locked, use locked UI instead of normal update
+  if (mentorState.messageLocked) {
+    updateLockedMentorUI();
+    return;
+  }
   
   // Debug logging
   console.log('🤖 updateMentorUI called:', {
