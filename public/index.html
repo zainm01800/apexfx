@@ -8786,6 +8786,24 @@ function generateHighQualityTradeInsights(setupDetection) {
   mentorState.currentQuestion = question;
 }
 
+function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
+  const analysis = mentorState.analysis;
+  console.log('🤖 generateSetupMessageWithExampleTrade called:', setupDetection);
+  
+  // High quality trade insights provide the basis of the setup message
+  generateHighQualityTradeInsights(setupDetection);
+  
+  // Transform the question into an actionable mentor pause message
+  mentorState.currentQuestion = mentorState.currentQuestion + 
+    " The replay has been paused to allow you to analyze this setup. Would you like to observe how this trade might play out?";
+  
+  // Generate and draw the theoretical example trade for the user to watch
+  activateExampleTrade(setupDetection, currentBar);
+  
+  // Lock the message so it stays visible while the setup develops
+  lockSetupMessage(setupDetection);
+}
+
 function generateNoSetupMessage() {
   const analysis = mentorState.analysis;
   console.log('🤖 generateNoSetupMessage called with analysis:', analysis);
