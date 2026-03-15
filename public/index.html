@@ -803,6 +803,9 @@ body.is-dragging { user-select: none; }
         <button class="auth-btn" onclick="authSubmitLogin()">SIGN IN →</button>
         <div class="auth-err" id="auth-login-err"></div>
         <div class="auth-hint">No account? <a onclick="authShowTab('register')">Create one for free</a></div>
+        <div class="auth-hint" style="margin-top:8px;font-size:10px;color:var(--tx3);">
+          Demo credentials: <strong>demo / demo123</strong>
+        </div>
       </div>
       <div class="auth-panel" id="auth-panel-register">
         <div class="auth-field">
@@ -9030,7 +9033,9 @@ function _saveSession(username){ try{ localStorage.setItem('apex-session', JSON.
 function _clearSession(){ try{ localStorage.removeItem('apex-session'); }catch(e){} }
 function _restoreSession(){ try{ const s = JSON.parse(localStorage.getItem('apex-session')||'null'); return s?.username || null; }catch(e){ return null; } }
 
-// Legacy local accounts (kept for offline fallback)
+// Local user storage for fallback auth
+function _getUsers(){ try{ return JSON.parse(localStorage.getItem('apex-users') || '{}'); }catch(e){ return {}; } }
+function _saveUsers(users){ try{ localStorage.setItem('apex-users', JSON.stringify(users)); }catch(e){} }
 function _getAccounts(){ try{ return JSON.parse(localStorage.getItem('apex-accounts') || '{}'); }catch(e){ return {}; } }
 function _saveAccounts(a){ try{ localStorage.setItem('apex-accounts', JSON.stringify(a)); }catch(e){} }
 
@@ -9042,28 +9047,88 @@ async function authRegisterAsync(username, password, displayName){
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || username.length < 2) return { ok:false, err:'Username must be at least 2 characters (letters/numbers/_ only).' };
   if(!password || password.length < 6) return { ok:false, err:'Password must be at least 6 characters.' };
-  const email = _userEmail(username);
-  const { data, error } = await _supa.auth.signUp({
-    email,
-    password,
-    options: { data: { username, displayName: (displayName||username).trim() } }
-  });
-  if(error) return { ok:false, err: error.message };
-  // Also save locally as fallback
+  
+  // Try Supabase first, fall back to local auth
+  try {
+    const email = _userEmail(username);
+    const { data, error } = await _supa.auth.signUp({
+      email,
+      password,
+      options: { data: { username, displayName: (displayName||username).trim() } }
+    });
+    if(error) throw error;
+    
+    // Also save locally as fallback
+    const accounts = _getAccounts();
+    accounts[username] = { displayName: (displayName||username).trim(), createdAt: Date.now() };
+    _saveAccounts(accounts);
+    return { ok:true, username, displayName: (displayName||username).trim(), session: data.session };
+  } catch(e) {
+    // Fallback to local registration
+    console.warn('Supabase registration failed, using local fallback:', e.message);
+    return authRegisterLocal(username, password, displayName);
+  }
+}
+
+// Local registration fallback
+function authRegisterLocal(username, password, displayName){
+  const users = _getUsers();
+  
+  // Check if username already exists
+  if(users[username]){
+    return { ok:false, err:'Username already exists.' };
+  }
+  
+  // Create new user
+  users[username] = {
+    password: password, // In production, hash this properly
+    displayName: (displayName||username).trim(),
+    createdAt: Date.now()
+  };
+  
+  _saveUsers(users);
+  
+  // Also save to accounts for compatibility
   const accounts = _getAccounts();
   accounts[username] = { displayName: (displayName||username).trim(), createdAt: Date.now() };
   _saveAccounts(accounts);
-  return { ok:true, username, displayName: (displayName||username).trim(), session: data.session };
+  
+  return { ok:true, username, displayName: (displayName||username).trim() };
 }
 
 async function authLoginAsync(username, password){
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || !password) return { ok:false, err:'Please enter username and password.' };
-  const email = _userEmail(username);
-  const { data, error } = await _supa.auth.signInWithPassword({ email, password });
-  if(error) return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
-  const displayName = data.user?.user_metadata?.displayName || username;
-  return { ok:true, username, displayName, userId: data.user.id };
+  
+  // Try Supabase first, fall back to local auth
+  try {
+    const email = _userEmail(username);
+    const { data, error } = await _supa.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    const displayName = data.user?.user_metadata?.displayName || username;
+    return { ok:true, username, displayName, userId: data.user.id };
+  } catch(e) {
+    // Fallback to local authentication
+    console.warn('Supabase auth failed, using local fallback:', e.message);
+    return authLoginLocal(username, password);
+  }
+}
+
+// Local authentication fallback
+function authLoginLocal(username, password){
+  const users = _getUsers();
+  const user = users[username];
+  
+  if(!user){
+    return { ok:false, err:'Incorrect username or password.' };
+  }
+  
+  // Simple password check (in production, use proper hashing)
+  if(user.password !== password){
+    return { ok:false, err:'Incorrect username or password.' };
+  }
+  
+  return { ok:true, username, displayName: user.displayName || username, userId: 'local-' + username };
 }
 
 async function authChangePassword(username, oldPass, newPass){
@@ -9291,20 +9356,69 @@ window.addEventListener('load', () => {
 
   // Check for existing Supabase session first, then fall back to local
   (async () => {
-    const { data: { session } } = await _supa.auth.getSession();
-    if(session && session.user){
-      const username = session.user.user_metadata?.username ||
+    try {
+      const { data: { session } } = await _supa.auth.getSession();
+      if(session && session.user){
+        const username = session.user.user_metadata?.username ||
                        session.user.email?.replace('@apexfx.app','') || 'user';
-      const displayName = session.user.user_metadata?.displayName || username;
-      _currentUser   = username;
-      _currentUserId = session.user.id;
-      await _syncFromCloud();
-      document.getElementById('auth-screen').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      doLogin(username, displayName);
-      loadSym('AAPL');
-    } else {
-      // No active session — show auth screen
+        const displayName = session.user.user_metadata?.displayName || username;
+        _currentUser   = username;
+        _currentUserId = session.user.id;
+        await _syncFromCloud();
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        doLogin(username, displayName);
+        loadSym('AAPL');
+      } else {
+        // Check for local session
+        const localUser = _restoreSession();
+        if(localUser){
+          const users = _getUsers();
+          const user = users[localUser];
+          if(user){
+            _currentUser = localUser;
+            _currentUserId = 'local-' + localUser;
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            doLogin(localUser, user.displayName);
+            loadSym('AAPL');
+            return;
+          }
+        }
+        // No active session — show auth screen
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('auth-screen').style.display = 'flex';
+      }
+    } catch(e) {
+      console.warn('Supabase session check failed, using local fallback:', e.message);
+      
+      // Create default user for easy testing
+      const users = _getUsers();
+      if(!users['demo']){
+        users['demo'] = {
+          password: 'demo123',
+          displayName: 'Demo User',
+          createdAt: Date.now()
+        };
+        _saveUsers(users);
+      }
+      
+      // Check for local session
+      const localUser = _restoreSession();
+      if(localUser){
+        const user = users[localUser];
+        if(user){
+          _currentUser = localUser;
+          _currentUserId = 'local-' + localUser;
+          document.getElementById('auth-screen').style.display = 'none';
+          document.getElementById('app').style.display = 'flex';
+          doLogin(localUser, user.displayName);
+          loadSym('AAPL');
+          return;
+        }
+      }
+      
+      // Show auth screen
       document.getElementById('app').style.display = 'none';
       document.getElementById('auth-screen').style.display = 'flex';
     }
