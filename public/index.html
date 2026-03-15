@@ -5338,39 +5338,49 @@ function closeTradeReview() {
 
 // ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
 
-function detectStructuredSetups(data, currentBar) {
-  console.log('🔍 detectStructuredSetups called:', { dataLength: data ? data.length : 'null', currentBar });
+function detectStructuredSetups(data, barIndex) {
+  console.log('🔍 detectStructuredSetups called:', { 
+    dataLength: data.length, 
+    barIndex, 
+    hasData: !!data,
+    lastBar: data ? data[data.length - 1] : null
+  });
   
-  if (!data || data.length < 20) {
-    console.log('❌ Not enough data for setup detection');
+  if (!data || data.length < 30) {
+    console.log('❌ Insufficient data for setup detection');
     return { setup: 'none', quality: 'none', confluence: 0 };
   }
   
   const current = data[data.length - 1];
-  const recent = data.slice(-20); // Last 20 candles for analysis
-  const structure = analyzeMarketStructure(data);
-  
   console.log('🔍 Current bar:', current);
+  
+  // Analyze market structure
+  const structure = analyzeMarketStructure(data);
   console.log('🔍 Market structure:', structure);
   
-  let setups = [];
+  // Initialize setups array
+  const setups = [];
   
-  // 1. Breakout from consolidation
-  const consolidation = detectConsolidation(recent);
+  // 1. Breakout Setup
+  const consolidation = detectConsolidation(data);
   console.log('🔍 Consolidation detection:', consolidation);
   
   if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
+    const direction = current.close > consolidation.upper ? 'long' : 'short';
+    const quality = consolidation.quality;
+    const confluence = calculateBreakoutConfluence(current, consolidation, structure);
+    
     setups.push({
       type: 'breakout',
-      quality: consolidation.quality,
-      confluence: calculateBreakoutConfluence(current, consolidation, structure),
-      direction: current.close > consolidation.upper ? 'long' : 'short'
+      quality,
+      confluence,
+      direction
     });
     console.log('✅ Breakout setup detected!');
   }
   
   // 2. Bull flag or bear flag continuation
-  const flagPattern = detectFlagPattern(recent, structure);
+  const flagPattern = detectFlagPattern(data, structure);
   console.log('🔍 Flag pattern detection:', flagPattern);
   
   if (flagPattern.detected) {
@@ -5498,7 +5508,7 @@ function isBreakingOut(current, consolidation) {
 }
 
 function detectFlagPattern(data, structure) {
-  if (data.length < 10 || structure.trend === 'neutral') return { detected: false };
+  if (data.length < 10 || !structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
   
   const recent = data.slice(-8);
   const isUptrend = structure.trend.includes('up');
@@ -5587,7 +5597,7 @@ function detectResistanceRejection(data) {
 }
 
 function detectTrendPullback(data, structure) {
-  if (data.length < 15 || structure.trend === 'neutral') return { detected: false };
+  if (data.length < 15 || !structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
   
   const recent = data.slice(-10);
   const current = data[data.length - 1];
@@ -5700,7 +5710,7 @@ function detectLiquiditySweep(data) {
 }
 
 function detectStructureSetup(data, structure) {
-  if (structure.trend === 'neutral') return { detected: false };
+  if (!structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
   
   const recent = data.slice(-10);
   const isUptrend = structure.trend.includes('up');
@@ -5748,7 +5758,7 @@ function calculateBreakoutConfluence(current, consolidation, structure) {
   let confluence = 1; // Base confluence for breakout
   
   // Trend alignment
-  if (structure.trend !== 'neutral') confluence++;
+  if (structure && structure.trend && structure.trend !== 'neutral') confluence++;
   
   // Volume confirmation
   const avgVolume = consolidation.avgVolume || 1;
@@ -5764,7 +5774,7 @@ function calculateFlagConfluence(flag, structure) {
   let confluence = 1; // Base confluence for flag
   
   // Strong trend
-  if (structure.trend.includes('strong')) confluence++;
+  if (structure && structure.trend && structure.trend !== 'neutral') confluence++;
   
   // Clear pattern
   if (flag.quality === 'high') confluence++;
@@ -5779,7 +5789,7 @@ function calculateSupportConfluence(support, structure) {
   let confluence = 1; // Base confluence for support
   
   // Trend alignment
-  if (structure.trend.includes('up')) confluence++;
+  if (structure && structure.trend && structure.trend.includes('up')) confluence++;
   
   // Strong level
   if (support.quality === 'high') confluence++;
@@ -5794,7 +5804,7 @@ function calculateResistanceConfluence(resistance, structure) {
   let confluence = 1; // Base confluence for resistance
   
   // Trend alignment
-  if (structure.trend.includes('down')) confluence++;
+  if (structure && structure.trend && structure.trend.includes('down')) confluence++;
   
   // Strong level
   if (resistance.quality === 'high') confluence++;
@@ -5809,7 +5819,7 @@ function calculatePullbackConfluence(pullback, structure) {
   let confluence = 1; // Base confluence for pullback
   
   // Strong trend
-  if (structure.trend.includes('strong')) confluence++;
+  if (structure && structure.trend && structure.trend.includes('strong')) confluence++;
   
   // Clear MA touch
   confluence++;
@@ -5854,7 +5864,7 @@ function calculateStructureConfluence(setup, structure) {
   let confluence = 1; // Base confluence for structure setup
   
   // Clear structure
-  if (structure.trend.includes('strong')) confluence++;
+  if (structure && structure.trend && structure.trend.includes('strong')) confluence++;
   
   // Clear pattern
   if (setup.quality === 'high') confluence++;
@@ -6032,7 +6042,7 @@ function detectPatterns(data) {
 }
 
 function analyzeMarketStructure(data) {
-  if (data.length < 10) return 'unknown';
+  if (data.length < 10) return { trend: 'neutral' };
   
   const recentHighs = data.slice(-10).map(bar => bar.high);
   const recentLows = data.slice(-10).map(bar => bar.low);
@@ -6040,9 +6050,14 @@ function analyzeMarketStructure(data) {
   const higherHighs = recentHighs.filter((high, i) => i > 0 && high > recentHighs[i - 1]).length;
   const higherLows = recentLows.filter((low, i) => i > 0 && low > recentLows[i - 1]).length;
   
-  if (higherHighs >= 3 && higherLows >= 2) return 'uptrend_structure';
-  if (higherHighs <= 1 && higherLows <= 1) return 'downtrend_structure';
-  return 'range_structure';
+  let trend = 'neutral';
+  if (higherHighs >= 3 && higherLows >= 2) trend = 'uptrend_structure';
+  else if (higherHighs <= 1 && higherLows <= 1) trend = 'downtrend_structure';
+  else trend = 'range_structure';
+  
+  console.log('🔍 Market structure analysis:', { trend, higherHighs, higherLows });
+  
+  return { trend };
 }
 
 // Mentor UI Functions
