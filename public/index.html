@@ -9201,6 +9201,9 @@ function doLogin(username, displayName){
   updateUserBadge(displayName || username);
   // Start periodic auto-save
   _startAutoSave();
+  
+  // Load initial chart
+  loadSym('AAPL');
 }
 
 async function doLogout(){
