@@ -4351,72 +4351,83 @@ async function runDynamicPretradeAI(){
   const avgVol20   = data.slice(-20).reduce((s,b)=>s+b.volume,0)/20;
   const volStatus  = last?.volume?(last.volume>avgVol20?'Above average (strong conviction)':'Below average (weak conviction)'):'N/A';
 
-  const prompt = `You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.
+  const prompt = `You are an experienced trading mentor teaching a student how to think through a trade on a live chart. You must be educational, structured, and interactive – not just giving a verdict.
 
-INPUT DATA:
+CHART & TRADE CONTEXT:
 Asset: ${sym}
 Timeframe: ${tf}
 Current Price: ${fP(last?.close||0)}
 Entry Price: ${entry?fP(entry):'Not set'}
 Stop Loss: ${sl?fP(sl):'Not set'}
 Take Profit: ${tp?fP(tp):'Not set'}
+Approx. R:R: ${rr || 'Not set'}
 
-Trend Information:
-  Short-term trend: ${shortTrend}
-  Higher timeframe trend: ${htfTrend}
-  Support Levels: ${srZones.support.slice(0,4).map(fP).join(', ')||'None detected'}
-  Resistance Levels: ${srZones.resistance.slice(0,4).map(fP).join(', ')||'None detected'}
+Trend & Structure:
+- Short-term trend: ${shortTrend}
+- Higher timeframe trend: ${htfTrend}
+- Support levels: ${srZones.support.slice(0,4).map(fP).join(', ')||'None detected'}
+- Resistance levels: ${srZones.resistance.slice(0,4).map(fP).join(', ')||'None detected'}
 
 Indicators:
-  RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' — Overbought':lastRSI<30?' — Oversold':' — Neutral'):''}
-  ${macdStatus}
-  Moving Averages: ${maStatus}
-  Volume: ${volStatus}
+- RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' — Overbought':lastRSI<30?' — Oversold':' — Neutral'):''}
+- MACD: ${macdStatus}
+- Moving averages: ${maStatus}
+- Volume: ${volStatus}
 
-Recent Price Action (last 3 candles):
-  ${recentAction}
+Recent price action (last 3 candles):
+- ${recentAction}
 
-Active Patterns: ${pats.map(p=>p.name).join(', ')||'None detected'}
+Active patterns: ${pats.map(p=>p.name).join(', ')||'None detected'}
 Direction: ${dir.toUpperCase()} | Setup Tag: ${setup||'Untagged'}
-Trade Risk/Reward: ${rr?'1:'+rr:'Cannot calculate — entry/SL/TP not fully set'}
 ATR(14): ${lastATR?fP(lastATR):'N/A'}
 
 Trader Historical Edge:
-  ${simWR!=null?'Win rate on '+sym+' '+dir+': '+simWR+'% ('+similar.length+' trades)':'No prior history on this symbol/direction'}
-  ${setupWR!=null?'Win rate with "'+setup+'" setup: '+setupWR+'% ('+bySetup.length+' trades)':''}
-  Avg winning R:R historically: 1:${minRR}
-  Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — ELEVATED TILT RISK':''}
------------------------------
-ANALYSIS PROCESS
+- ${simWR!=null?'Win rate on '+sym+' '+dir+': '+simWR+'% ('+similar.length+' trades)':'No prior history on this symbol/direction'}
+- ${setupWR!=null?'Win rate with "'+setup+'" setup: '+setupWR+'% ('+bySetup.length+' trades)':'No specific data for this setup'}
+- Avg winning R:R historically: 1:${minRR}
+- Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — possible tilt risk':''}
 
-1. MARKET CONTEXT
-Identify the overall market structure (bullish, bearish, ranging). Explain whether the current trend supports the proposed trade.
+YOUR ROLE:
+Act as an interactive trade tutorial assistant. Explain this specific setup step-by-step, directly tied to the chart context above. Use short sections with bullet points (no giant paragraphs). Follow this exact structure and headings:
 
-2. SUPPORT / RESISTANCE ANALYSIS
-Evaluate whether the entry is near key support or resistance levels. Identify potential rejection or breakout zones.
+1. MARKET STRUCTURE
+- Explain if price is in a trend, range, or possible reversal.
+- Refer to higher highs/lows or lower highs/lows, and how moving averages confirm or disagree.
 
-3. MOMENTUM ANALYSIS
-Analyse RSI, MACD, volume, and moving averages to determine whether momentum supports the trade direction.
+2. KEY LEVELS
+- List the most important nearby support and resistance zones (with approximate prices).
+- Explain WHY each level matters (prior highs/lows, consolidation, breakouts).
 
-4. TRADE SETUP EVALUATION
-Determine if the entry aligns with:
-- trend direction
-- technical confluence
-- price structure
-- indicator confirmation
-Explain clearly whether the trade is well-positioned or premature.
+3. PATTERN / SETUP
+- Describe any pattern or idea you see (breakout, pullback, consolidation, fakeout, etc.).
+- Teach what this pattern usually implies and what confirmation traders normally wait for.
 
-5. RISK-REWARD EVALUATION
-Evaluate the stop loss and take profit placement. Determine whether the risk-to-reward ratio is logical and attractive for a professional trader.
+4. ENTRY REASONING
+- If this entry makes sense, explain WHY based on structure, levels, and recent price action.
+- If it is early/late or missing confirmation, explain that clearly.
 
-6. TRADE QUALITY SCORING
-Score the trade out of 100 using the following criteria:
-  Trend Alignment (0-20):
-  Technical Confluence (0-20):
-  Momentum Strength (0-20):
-  Risk/Reward Quality (0-20):
-  Market Structure Quality (0-20):
-Provide a final combined score and a one-line interpretation.
+5. STOP LOSS LOGIC
+- Suggest a logical stop area (below/above which structure level, wick, or swing).
+- Explain how that area lines up with the point where the trade thesis is invalidated.
+
+6. TAKE PROFIT & RISK/REWARD
+- Suggest one or two realistic target zones based on resistance/support and recent range.
+- Explain the risk/reward in simple terms and whether it is attractive or not.
+
+7. TRADE EVALUATION
+- Briefly rate the setup strength (e.g. weak / okay / strong) and name the main risks.
+- Mention whether you would wait for extra confirmation (and what exactly that would be).
+
+8. INTERACTIVE CHECK-IN
+- Ask the user 1–2 questions to make them think, for example:
+  • "Looking at these levels, where do YOU see the next resistance?"
+  • "Would you be more comfortable entering now or waiting for a close above/below a key level? Why?"
+- Do NOT answer these questions yourself; leave them open for the user.
+
+FORMATTING RULES:
+- Use the headings exactly as above (1. MARKET STRUCTURE, 2. KEY LEVELS, etc.).
+- Under each heading, use 2–4 short bullet points.
+- Keep the whole answer concise and readable – no long walls of text.`
 
 7. POTENTIAL WEAKNESSES
 Identify any flaws such as: entering into resistance, weak momentum, poor risk/reward, conflicting indicators, trading against trend.
