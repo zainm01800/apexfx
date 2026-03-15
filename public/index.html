@@ -8137,6 +8137,12 @@ function initSidebarResize(){
   const lHandle = document.getElementById('left-resize-handle');
   const rHandle = document.getElementById('right-resize-handle');
 
+  // Return early if essential elements don't exist
+  if(!sidebar || !rpanel || !lHandle || !rHandle) {
+    console.warn('Sidebar resize elements not found (sidebar, rpanel, or resize handles). This is normal for overlay-based layouts.');
+    return;
+  }
+
   // Track pre-collapse widths for restore on double-click
   let sidebarPrev = SIDEBAR_DEFAULT;
   let rpanelPrev  = RPANEL_DEFAULT;
@@ -8237,8 +8243,8 @@ function initSidebarResize(){
     if(lBtn) lBtn.textContent = isCollapsed(sidebar) ? '›' : '‹';
     if(rBtn) rBtn.textContent = isCollapsed(rpanel)  ? '‹' : '›';
     // Toggle wide hit-area class on handles
-    lHandle.classList.toggle('panel-collapsed', isCollapsed(sidebar));
-    rHandle.classList.toggle('panel-collapsed', isCollapsed(rpanel));
+    if(lHandle) lHandle.classList.toggle('panel-collapsed', isCollapsed(sidebar));
+    if(rHandle) rHandle.classList.toggle('panel-collapsed', isCollapsed(rpanel));
   }
 
   // Patch collapse/expand to also update arrows and prevent drag from triggering on btn click
@@ -8262,22 +8268,22 @@ function initSidebarResize(){
   }
 
   // Also update arrows on dblclick (already handled inline but need sync)
-  lHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
-  rHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
+  if(lHandle) lHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
+  if(rHandle) rHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
 
   // Keep settings toggle in sync — patch to also update widths
   const origScSidebar = document.getElementById('sc-sidebar');
   if(origScSidebar){
     origScSidebar.addEventListener('change', function(){
-      if(this.checked) expand(sidebar, true);
-      else collapse(sidebar, true);
+      if(this.checked && sidebar) expand(sidebar, true);
+      else if(sidebar) collapse(sidebar, true);
     });
   }
   const origScRpanel = document.getElementById('sc-rpanel');
   if(origScRpanel){
     origScRpanel.addEventListener('change', function(){
-      if(this.checked) expand(rpanel, false);
-      else collapse(rpanel, false);
+      if(this.checked && rpanel) expand(rpanel, false);
+      else if(rpanel) collapse(rpanel, false);
     });
   }
 }
