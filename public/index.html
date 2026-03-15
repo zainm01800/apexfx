@@ -4827,6 +4827,26 @@ function toggleReplay(){
   }
 }
 
+function triggerReplayRescan() {
+  console.log('🔄 Triggering replay re-scan due to position or method change');
+  
+  // Reset mentor state to scanning
+  mentorState.lifecycleState = 'scanning';
+  mentorState.waitingStateStart = null;
+  mentorState.waitingStateMessage = null;
+  
+  // Clear current insights to show we're re-scanning
+  mentorState.currentInsights = ['🔍 Re-scanning for setups in new time window...'];
+  mentorState.currentQuestion = 'Analyzing market data for valid setups...';
+  
+  updateMentorUI();
+  
+  // Trigger immediate mentor update to re-scan
+  setTimeout(() => {
+    updateMentor();
+  }, 100);
+}
+
 function startReplay(){
   // Debug: Check current data state
   console.log('startReplay called - curData length:', curData ? curData.length : 'null');
@@ -4911,6 +4931,12 @@ function replayPickBar(barIndex){
   replayPicking = false;
   updateReplayStatus();
   draw();
+  
+  // Trigger re-scan when user picks a new position
+  if (mentorState.lifecycleState === 'no_setup_found' || mentorState.lifecycleState === 'waiting') {
+    triggerReplayRescan();
+  }
+  
   toast('▶ Replay set — Space to play/pause · → to step · Esc to exit');
   
   // Update AI Mentor when replay starts
@@ -5085,9 +5111,10 @@ let mentorState = {
   reviewedTrades: [], // Track trades reviewed in replay
   
   // Trade lifecycle states
-  lifecycleState: 'scanning', // 'scanning', 'method_selection', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed', 'waiting'
-  setupWaitStart: null, // When setup wait state started
-  setupWaitData: null, // Store setup data during wait
+  lifecycleState: 'method_selection', // 'method_selection', 'scanning', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed', 'waiting', 'no_setup_found'
+  setupWaitStart: -1, // When setup wait started
+  setupWaitData: null, // Setup data during wait
+  lastTradeSuggestionBar: -1, // Track last bar where trade was suggested
   monitoredTrade: null, // Trade being monitored
   tradeResultData: null, // Trade result data for final evaluation
   
@@ -7075,6 +7102,11 @@ function selectTradingMethod(method) {
     methodSelection.style.display = 'none';
   }
   
+  // Trigger re-scan when user changes trading method
+  if (replayMode && (mentorState.lifecycleState === 'no_setup_found' || mentorState.lifecycleState === 'waiting')) {
+    triggerReplayRescan();
+  }
+  
   // Update welcome message based on selected method
   const methodNames = {
     'breakout': 'Breakout Trading',
@@ -7856,81 +7888,114 @@ function handleTradeMonitoringState(currentBar) {
 }
 
 function handleWaitingState(currentBar) {
-  // Check if it's time to re-check for setups
-  const barsInWaitingState = currentBar - mentorState.waitingStateStart;
+  console.log('🔄 Handle waiting state at bar', currentBar);
   
-  if (barsInWaitingState % mentorState.waitingStateRecheckInterval === 0) {
-    console.log('🔄 Re-checking for setups after waiting period');
+  // Only re-check after the interval has passed
+  const barsSinceWaiting = currentBar - mentorState.waitingStateStart;
+  
+  if (barsSinceWaiting >= mentorState.waitingStateRecheckInterval) {
+    console.log('🔍 Re-check interval reached, scanning for setups again');
     
-    // Temporarily switch to scanning to re-check
-    mentorState.lifecycleState = 'scanning';
+    // Scan the ±10 day window for any valid setups
+    const windowScan = scanForSetupsInWindow(currentBar);
     
-    // Run setup detection
-    let setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
-    
-    // Apply trading method filtering if a method is selected
-    if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
-      setupDetection = filterSetupByTradingMethod(setupDetection, mentorState.selectedTradingMethod);
-    }
-    
-    // Apply replay knowledge advantage validation
-    if (setupDetection.setup !== 'none') {
-      const validation = validateSetupWithFutureData(setupDetection, currentBar, curData);
-      if (!validation.valid) {
-        setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
-      } else {
-        setupDetection.validation = validation;
-      }
-    }
-    
-    if (setupDetection.setup !== 'none') {
-      // Found a setup - exit waiting state and proceed with setup
-      console.log('✅ Setup found during re-check, exiting waiting state');
+    if (windowScan.setup.setup !== 'none') {
+      console.log('✅ Found setups in window, transitioning to setup wait');
+      // Found setups - transition to setup wait state
       mentorState.lifecycleState = 'setup_wait';
       mentorState.setupWaitStart = currentBar;
-      mentorState.setupWaitData = setupDetection;
-      mentorState.lastTradeSuggestionBar = currentBar;
-      mentorState.messageLocked = true;
-      mentorState.lockedMessage = 'setup';
-      mentorState.lockedInsights = [...mentorState.currentInsights];
-      mentorState.lockedQuestion = mentorState.currentQuestion;
-      mentorState.setupPausedReplay = true;
+      mentorState.setupWaitData = windowScan.setup;
       
-      // Clear waiting state
-      mentorState.waitingStateStart = null;
-      mentorState.waitingStateMessage = null;
+      // Generate setup message
+      generateSetupMessageWithExampleTrade(windowScan.setup, currentBar);
       
-      // Generate setup message and pause replay
-      generateSetupMessageWithExampleTrade(setupDetection, currentBar);
+      // Pause replay
       if (replayMode) {
         pauseReplayForSetup();
       }
       
       updateMentorUI();
     } else {
-      // Still no setup - continue waiting
-      console.log('⏳ Still no setup found, continuing waiting state');
-      mentorState.lifecycleState = 'waiting';
-      // Don't update UI - keep the same message displayed
+      console.log('⏳ Still no setup found, remain in waiting state');
+      // Keep the same waiting state message - don't update UI
     }
-  } else {
-    // Not time to re-check yet - just update UI without changing message
-    updateMentorUI();
   }
+  // Don't update UI on every candle - only when state changes
 }
 
-function enterWaitingState(message, currentBar) {
-  console.log('⏳ Entering waiting state:', message);
+function enterNoSetupState(currentBar) {
+  console.log('🚫 Entering no-setup state: No valid setups found in ±10 day window');
   
-  mentorState.lifecycleState = 'waiting';
-  mentorState.waitingStateStart = currentBar || replayCutoff;
-  mentorState.waitingStateMessage = message;
+  mentorState.lifecycleState = 'no_setup_found';
+  mentorState.waitingStateStart = currentBar;
   
-  // Set the message once and don't change it
-  mentorState.currentInsights = [message];
-  mentorState.currentQuestion = 'The mentor will re-check for setups periodically...';
+  // Clear any existing insights and set clear guidance message
+  mentorState.currentInsights = [
+    `No valid setups were found within ±10 days of the current replay position for the selected trading method (${mentorState.selectedTradingMethod || 'none'}).`,
+    'To continue training with this strategy, please move the replay start to an earlier date so the AI Mentor can scan a new ±10 day range.'
+  ];
+  
+  mentorState.currentQuestion = 'You can move the replay start to an earlier point in time or choose a different trading strategy to continue the training session.';
+  
+  // Ensure replay is paused
+  if (replayMode && replayTimer) {
+    pauseReplayForSetup();
+  }
   
   updateMentorUI();
+}
+
+function scanForSetupsInWindow(currentBar) {
+  console.log('🔍 Scanning ±10 day window for valid setups...');
+  
+  // Calculate ±10 day window in bars (assuming 15m timeframe = ~96 bars per day)
+  const windowSizeBars = 10 * 96; // 10 days * 96 bars per day for 15m timeframe
+  const windowStart = Math.max(0, currentBar - windowSizeBars);
+  const windowEnd = Math.min(curData.length - 1, currentBar + windowSizeBars);
+  
+  console.log(`📊 Scanning window: bars ${windowStart} to ${windowEnd} (±10 days)`);
+  
+  let bestSetup = { setup: 'none', quality: 'none', confluence: 0 };
+  let bestSetupBar = -1;
+  
+  // Scan the entire window for setups
+  for (let bar = windowStart; bar <= windowEnd; bar++) {
+    try {
+      const setupDetection = detectStructuredSetups(curData.slice(0, bar + 1), bar);
+      
+      // Apply trading method filtering
+      let filteredSetup = setupDetection;
+      if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
+        filteredSetup = filterSetupByTradingMethod(setupDetection, mentorState.selectedTradingMethod);
+      }
+      
+      // Apply replay validation if in replay mode
+      if (replayMode && filteredSetup.setup !== 'none') {
+        const validation = validateSetupWithFutureData(filteredSetup, bar, curData);
+        if (!validation.valid) {
+          filteredSetup = { setup: 'none', quality: 'none', confluence: 0 };
+        }
+      }
+      
+      // Track the best setup found
+      if (filteredSetup.setup !== 'none' && filteredSetup.confluence > bestSetup.confluence) {
+        bestSetup = filteredSetup;
+        bestSetupBar = bar;
+      }
+    } catch (error) {
+      console.warn(`⚠ Error scanning bar ${bar}:`, error);
+      continue;
+    }
+  }
+  
+  console.log(`🎯 Best setup found in window:`, bestSetup, `at bar ${bestSetupBar}`);
+  
+  return {
+    setup: bestSetup,
+    bar: bestSetupBar,
+    windowStart,
+    windowEnd
+  };
 }
 
 function handleTradeResultState(currentBar) {
@@ -8348,6 +8413,10 @@ function updateMentor() {
     // In waiting state - only re-check every 10 candles
     handleWaitingState(currentBar);
     return;
+  } else if (mentorState.lifecycleState === 'no_setup_found') {
+    // In no-setup state - just update UI, no automatic re-scanning
+    updateMentorUI();
+    return;
   } else if (mentorState.lifecycleState === 'setup_wait') {
     handleSetupWaitState(currentBar);
     return;
@@ -8468,8 +8537,36 @@ function updateMentor() {
         updateMentorUI();
         return;
       } else {
-        console.log('🤖 No quality setup found, entering waiting state');
-        enterWaitingState('Market is currently unclear. Waiting for a stronger setup with proper confluence.', currentBar);
+        console.log('🤖 No quality setup found at current position, scanning ±10 day window');
+        
+        // Scan the ±10 day window for any valid setups
+        const windowScan = scanForSetupsInWindow(currentBar);
+        
+        if (windowScan.setup.setup === 'none') {
+          // No setups found in the entire window
+          enterNoSetupState(currentBar);
+        } else {
+          // Found setups in window but not at current position - guide user to move replay
+          mentorState.lifecycleState = 'no_setup_found';
+          mentorState.waitingStateStart = currentBar;
+          
+          const setupDistance = Math.abs(windowScan.bar - currentBar);
+          const setupDirection = windowScan.bar > currentBar ? 'future' : 'past';
+          
+          mentorState.currentInsights = [
+            `No valid setups found at the current replay position, but a ${windowScan.setup.setup} setup was found ${setupDistance} bars in the ${setupDirection}.`,
+            `Move the replay position to bar ${windowScan.bar} to analyze this setup, or move the replay start to scan a different time window.`
+          ];
+          
+          mentorState.currentQuestion = 'Would you like to jump to this setup or continue searching?';
+          
+          // Ensure replay is paused
+          if (replayMode && replayTimer) {
+            pauseReplayForSetup();
+          }
+          
+          updateMentorUI();
+        }
       }
       
       updateMentorUI();
