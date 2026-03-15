@@ -1869,6 +1869,13 @@ let _currentUserId  = null; // Supabase auth UUID
 let _supaReady      = false;
 let _supa           = null;
 
+// ══ AUTO-SAVE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+let _autoSaveInterval = null;
+
+// ══ WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+const _writeQueue = {}; // key → value (latest wins)
+let _writeFlushTimer = null;
+
 // ══ BUILTIN INDICATORS (declared early to prevent hoisting issues) ══════════════════════════════════════════
 const BUILTIN_INDS = [
   {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
@@ -9938,7 +9945,6 @@ async function authSubmitChangePass(){
 
 // ── Override updateUserBadge to also toggle change-pass button ─────────────────
 // Auto-save all state every 30 seconds
-let _autoSaveInterval = null;
 function _startAutoSave(){
   if(_autoSaveInterval) clearInterval(_autoSaveInterval);
   _autoSaveInterval = setInterval(async () => {
@@ -10056,9 +10062,6 @@ function _lsDel(key){
 }
 
 // Write queue — batches Supabase writes to avoid hammering the API
-const _writeQueue = {}; // key → value (latest wins)
-let _writeFlushTimer = null;
-
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
   if(_currentUserId){
