@@ -5351,8 +5351,9 @@ function _drawImmediate(){
   if(!W||!H) return;
   
   // Additional safety checks for replay mode
-  if(replayMode && (replayCutoff < 0 || replayCutoff >= curData.length)) {
-    // Reset replay state if it becomes invalid
+  if(replayMode && !replayPicking && (replayCutoff < 0 || replayCutoff >= curData.length)) {
+    // Reset replay state if it becomes invalid (but not during picking phase)
+    console.log('Replay state invalid - stopping replay. replayCutoff:', replayCutoff, 'replayPicking:', replayPicking);
     stopReplay();
     return;
   }
