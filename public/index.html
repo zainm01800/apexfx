@@ -9800,23 +9800,38 @@ function authShowTab(tab){
 }
 
 async function authSubmitLogin(){
+  console.log('🚀 authSubmitLogin called');
+  
   const user  = document.getElementById('auth-login-user').value.trim();
   const pass  = document.getElementById('auth-login-pass').value;
   const errEl = document.getElementById('auth-login-err');
   const btn   = document.querySelector('#auth-panel-login .auth-btn');
+  
+  console.log('📝 Form values:', { user: user ? 'provided' : 'missing', pass: pass ? 'provided' : 'missing' });
+  
   errEl.textContent = '';
   if(!user || !pass){ errEl.textContent='Please enter username and password.'; return; }
   if(btn){ btn.textContent='Signing in…'; btn.disabled=true; }
+  
+  console.log('⏳ Calling authLoginAsync...');
   const result = await authLoginAsync(user, pass);
+  console.log('📋 authLoginAsync result:', result);
+  
   if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
   if(!result.ok){ errEl.textContent = result.err; return; }
+  
+  console.log('🔄 Syncing cloud data...');
   // Sync cloud data into localStorage before entering the app
   _currentUser   = result.username;
   _currentUserId = result.userId;
   await _syncFromCloud();
+  
+  console.log('✅ Showing app interface...');
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(result.username, result.displayName);
+  
+  console.log('🎉 Login process completed');
   loadSym('AAPL');
   document.getElementById('auth-login-pass').value = '';
 }
@@ -9971,16 +9986,38 @@ function _lsRem(key){
 
 // Pull all cloud data for the current user into localStorage
 async function _syncFromCloud(){
-  if(!_currentUserId) return;
+  console.log('🔄 _syncFromCloud starting for user:', _currentUserId);
+  
+  if(!_currentUserId) {
+    console.log('❌ No currentUserId, skipping sync');
+    return;
+  }
+  
   try{
+    console.log('📡 Fetching data from Supabase...');
     const { data, error } = await _supa.from('user_data')
       .select('key,value')
       .eq('user_id', _currentUserId);
+    
+    console.log('📊 Supabase response:', { data: data ? `${data.length} items` : 'null', error: error ? error.message : 'none' });
+    
     if(error) throw error;
+    
+    console.log('💾 Storing data to localStorage...');
     data.forEach(({key, value}) => {
-      try{ localStorage.setItem(_lsKey(key), value); }catch(e){}
+      try{ 
+        localStorage.setItem(_lsKey(key), value); 
+        console.log(`✅ Stored: ${key}`);
+      }catch(e){
+        console.warn(`❌ Failed to store ${key}:`, e);
+      }
     });
-  }catch(e){ console.warn('Supabase sync:', e.message); }
+    
+    console.log('✅ _syncFromCloud completed successfully');
+  }catch(e){ 
+    console.error('❌ Supabase sync error:', e);
+    console.warn('Supabase sync:', e.message); 
+  }
 }
 
 // ── Session persistence ────────────────────────────────────────────────────────
@@ -10015,13 +10052,37 @@ async function authRegisterAsync(username, password, displayName){
 }
 
 async function authLoginAsync(username, password){
+  console.log('🔐 Starting login process for:', username);
+  
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || !password) return { ok:false, err:'Please enter username and password.' };
+  
+  console.log('📧 Converting to email format');
   const email = _userEmail(username);
-  const { data, error } = await _supa.auth.signInWithPassword({ email, password });
-  if(error) return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
-  const displayName = data.user?.user_metadata?.displayName || username;
-  return { ok:true, username, displayName, userId: data.user.id };
+  
+  // Check if Supabase is available
+  if (!_supa) {
+    console.error('❌ Supabase client not initialized');
+    return { ok:false, err:'Authentication service not available. Please refresh the page.' };
+  }
+  
+  console.log('🔑 Attempting sign in with password');
+  try {
+    const { data, error } = await _supa.auth.signInWithPassword({ email, password });
+    console.log('📊 Sign in response:', { data: data ? 'success' : 'null', error: error ? error.message : 'none' });
+    
+    if(error) {
+      console.error('❌ Sign in error:', error);
+      return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
+    }
+    
+    const displayName = data.user?.user_metadata?.displayName || username;
+    console.log('✅ Login successful for:', username);
+    return { ok:true, username, displayName, userId: data.user.id };
+  } catch (err) {
+    console.error('❌ Unexpected error during login:', err);
+    return { ok:false, err:'Network error. Please check your connection and try again.' };
+  }
 }
 
 async function authChangePassword(username, oldPass, newPass){
