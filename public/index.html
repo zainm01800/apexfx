@@ -4977,8 +4977,536 @@ let mentorState = {
   activeTrade: null,
   tradeHistory: [],
   waitingForTrade: false,
-  currentSetup: null
+  currentSetup: null,
+  // New quality filtering properties
+  lastTradeSuggestionBar: -1000, // Track cooldown
+  cooldownCandles: 15, // Wait 15 candles between suggestions
+  lastMarketStructure: 'unknown',
+  confluenceScore: 0,
+  setupQuality: 'none' // 'high', 'medium', 'low', 'none'
 };
+
+// ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
+
+function detectStructuredSetups(data, currentBar) {
+  if (!data || data.length < 20) return { setup: 'none', quality: 'none', confluence: 0 };
+  
+  const current = data[data.length - 1];
+  const recent = data.slice(-20); // Last 20 candles for analysis
+  const structure = analyzeMarketStructure(data);
+  
+  let setups = [];
+  
+  // 1. Breakout from consolidation
+  const consolidation = detectConsolidation(recent);
+  if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
+    setups.push({
+      type: 'breakout',
+      quality: consolidation.quality,
+      confluence: calculateBreakoutConfluence(current, consolidation, structure),
+      direction: current.close > consolidation.upper ? 'long' : 'short'
+    });
+  }
+  
+  // 2. Bull flag or bear flag continuation
+  const flagPattern = detectFlagPattern(recent, structure);
+  if (flagPattern.detected) {
+    setups.push({
+      type: 'flag_continuation',
+      quality: flagPattern.quality,
+      confluence: calculateFlagConfluence(flagPattern, structure),
+      direction: flagPattern.direction
+    });
+  }
+  
+  // 3. Support bounce
+  const supportBounce = detectSupportBounce(recent);
+  if (supportBounce.detected) {
+    setups.push({
+      type: 'support_bounce',
+      quality: supportBounce.quality,
+      confluence: calculateSupportConfluence(supportBounce, structure),
+      direction: 'long'
+    });
+  }
+  
+  // 4. Resistance rejection
+  const resistanceRejection = detectResistanceRejection(recent);
+  if (resistanceRejection.detected) {
+    setups.push({
+      type: 'resistance_rejection',
+      quality: resistanceRejection.quality,
+      confluence: calculateResistanceConfluence(resistanceRejection, structure),
+      direction: 'short'
+    });
+  }
+  
+  // 5. Trend pullback to moving average
+  const pullback = detectTrendPullback(recent, structure);
+  if (pullback.detected) {
+    setups.push({
+      type: 'trend_pullback',
+      quality: pullback.quality,
+      confluence: calculatePullbackConfluence(pullback, structure),
+      direction: structure.trend.includes('up') ? 'long' : 'short'
+    });
+  }
+  
+  // 6. Range breakout
+  const rangeBreakout = detectRangeBreakout(recent, consolidation);
+  if (rangeBreakout.detected) {
+    setups.push({
+      type: 'range_breakout',
+      quality: rangeBreakout.quality,
+      confluence: calculateRangeBreakoutConfluence(rangeBreakout, structure),
+      direction: rangeBreakout.direction
+    });
+  }
+  
+  // 7. Liquidity sweep followed by reversal
+  const liquiditySweep = detectLiquiditySweep(recent);
+  if (liquiditySweep.detected) {
+    setups.push({
+      type: 'liquidity_sweep',
+      quality: liquiditySweep.quality,
+      confluence: calculateLiquiditySweepConfluence(liquiditySweep, structure),
+      direction: liquiditySweep.direction
+    });
+  }
+  
+  // 8. Higher low in uptrend or lower high in downtrend
+  const structureSetup = detectStructureSetup(recent, structure);
+  if (structureSetup.detected) {
+    setups.push({
+      type: 'structure_continuation',
+      quality: structureSetup.quality,
+      confluence: calculateStructureConfluence(structureSetup, structure),
+      direction: structureSetup.direction
+    });
+  }
+  
+  // Select best setup based on quality and confluence
+  if (setups.length === 0) {
+    return { setup: 'none', quality: 'none', confluence: 0 };
+  }
+  
+  // Sort by quality and confluence
+  setups.sort((a, b) => {
+    const scoreA = (a.quality === 'high' ? 3 : a.quality === 'medium' ? 2 : 1) + a.confluence;
+    const scoreB = (b.quality === 'high' ? 3 : b.quality === 'medium' ? 2 : 1) + b.confluence;
+    return scoreB - scoreA;
+  });
+  
+  const bestSetup = setups[0];
+  
+  // Only return high or medium quality setups with minimum confluence
+  if (bestSetup.confluence >= 2 && (bestSetup.quality === 'high' || bestSetup.quality === 'medium')) {
+    return {
+      setup: bestSetup.type,
+      quality: bestSetup.quality,
+      confluence: bestSetup.confluence,
+      direction: bestSetup.direction
+    };
+  }
+  
+  return { setup: 'none', quality: 'none', confluence: 0 };
+}
+
+function detectConsolidation(data) {
+  if (data.length < 10) return { isConsolidating: false };
+  
+  const highs = data.map(d => d.high);
+  const lows = data.map(d => d.low);
+  const avgHigh = highs.reduce((a, b) => a + b) / highs.length;
+  const avgLow = lows.reduce((a, b) => a + b) / lows.length;
+  const range = avgHigh - avgLow;
+  const avgPrice = (avgHigh + avgLow) / 2;
+  const rangePercent = (range / avgPrice) * 100;
+  
+  // Consolidation if range is less than 3% of average price
+  const isConsolidating = rangePercent < 3;
+  const quality = rangePercent < 1.5 ? 'high' : rangePercent < 2.5 ? 'medium' : 'low';
+  
+  return {
+    isConsolidating,
+    quality,
+    upper: avgHigh,
+    lower: avgLow,
+    range: rangePercent
+  };
+}
+
+function isBreakingOut(current, consolidation) {
+  const threshold = consolidation.range * 0.1; // 10% of range as threshold
+  return current.close > consolidation.upper + threshold || 
+         current.close < consolidation.lower - threshold;
+}
+
+function detectFlagPattern(data, structure) {
+  if (data.length < 10 || structure.trend === 'neutral') return { detected: false };
+  
+  const recent = data.slice(-8);
+  const isUptrend = structure.trend.includes('up');
+  
+  // Look for flag pattern: strong move followed by consolidation
+  const firstHalf = recent.slice(0, 4);
+  const secondHalf = recent.slice(4);
+  
+  const firstMove = Math.abs(firstHalf[firstHalf.length - 1].close - firstHalf[0].close);
+  const secondMove = Math.abs(secondHalf[secondHalf.length - 1].close - secondHalf[0].close);
+  
+  // Flag: second move is much smaller than first move (consolidation after impulse)
+  if (firstMove > secondMove * 2) {
+    const direction = isUptrend ? 'long' : 'short';
+    const quality = firstMove > secondMove * 3 ? 'high' : 'medium';
+    
+    return {
+      detected: true,
+      direction,
+      quality,
+      pattern: 'flag'
+    };
+  }
+  
+  return { detected: false };
+}
+
+function detectSupportBounce(data) {
+  if (data.length < 10) return { detected: false };
+  
+  const recent = data.slice(-5);
+  const current = data[data.length - 1];
+  
+  // Find recent low
+  const recentLows = recent.map(d => d.low);
+  const lowestLow = Math.min(...recentLows);
+  const lowestIdx = recentLows.indexOf(lowestLow);
+  
+  // Check if we bounced from the low
+  if (lowestIdx < recent.length - 1) {
+    const afterLow = recent.slice(lowestIdx + 1);
+    const bounced = afterLow.every(d => d.low > lowestLow * 0.995); // Small tolerance
+    
+    if (bounced && current.close > lowestLow * 1.01) {
+      const quality = current.close > lowestLow * 1.02 ? 'high' : 'medium';
+      return {
+        detected: true,
+        quality,
+        supportLevel: lowestLow
+      };
+    }
+  }
+  
+  return { detected: false };
+}
+
+function detectResistanceRejection(data) {
+  if (data.length < 10) return { detected: false };
+  
+  const recent = data.slice(-5);
+  const current = data[data.length - 1];
+  
+  // Find recent high
+  const recentHighs = recent.map(d => d.high);
+  const highestHigh = Math.max(...recentHighs);
+  const highestIdx = recentHighs.indexOf(highestHigh);
+  
+  // Check if we rejected from the high
+  if (highestIdx < recent.length - 1) {
+    const afterHigh = recent.slice(highestIdx + 1);
+    const rejected = afterHigh.every(d => d.high < highestHigh * 1.005); // Small tolerance
+    
+    if (rejected && current.close < highestHigh * 0.99) {
+      const quality = current.close < highestHigh * 0.98 ? 'high' : 'medium';
+      return {
+        detected: true,
+        quality,
+        resistanceLevel: highestHigh
+      };
+    }
+  }
+  
+  return { detected: false };
+}
+
+function detectTrendPullback(data, structure) {
+  if (data.length < 15 || structure.trend === 'neutral') return { detected: false };
+  
+  const recent = data.slice(-10);
+  const current = data[data.length - 1];
+  const isUptrend = structure.trend.includes('up');
+  
+  // Calculate SMA for recent data
+  const sma20 = recent.reduce((sum, d) => sum + d.close, 0) / recent.length;
+  
+  if (isUptrend) {
+    // Look for pullback to SMA in uptrend
+    const wasAboveMA = recent.slice(0, 5).every(d => d.close > sma20 * 0.99);
+    const touchedMA = current.close <= sma20 * 1.01 && current.close >= sma20 * 0.99;
+    
+    if (wasAboveMA && touchedMA) {
+      return {
+        detected: true,
+        quality: 'medium',
+        direction: 'long',
+        pullbackLevel: sma20
+      };
+    }
+  } else {
+    // Look for pullback to SMA in downtrend
+    const wasBelowMA = recent.slice(0, 5).every(d => d.close < sma20 * 1.01);
+    const touchedMA = current.close <= sma20 * 1.01 && current.close >= sma20 * 0.99;
+    
+    if (wasBelowMA && touchedMA) {
+      return {
+        detected: true,
+        quality: 'medium',
+        direction: 'short',
+        pullbackLevel: sma20
+      };
+    }
+  }
+  
+  return { detected: false };
+}
+
+function detectRangeBreakout(data, consolidation) {
+  if (!consolidation.isConsolidating) return { detected: false };
+  
+  const current = data[data.length - 1];
+  const previous = data[data.length - 2];
+  
+  // Check for breakout with volume confirmation
+  const volumeIncrease = current.volume > (data.slice(-5).reduce((sum, d) => sum + d.volume, 0) / 5) * 1.5;
+  
+  if (current.close > consolidation.upper && volumeIncrease) {
+    return {
+      detected: true,
+      quality: 'high',
+      direction: 'long',
+      breakoutLevel: consolidation.upper
+    };
+  }
+  
+  if (current.close < consolidation.lower && volumeIncrease) {
+    return {
+      detected: true,
+      quality: 'high',
+      direction: 'short',
+      breakoutLevel: consolidation.lower
+    };
+  }
+  
+  return { detected: false };
+}
+
+function detectLiquiditySweep(data) {
+  if (data.length < 15) return { detected: false };
+  
+  const recent = data.slice(-8);
+  const current = data[data.length - 1];
+  
+  // Look for sweep below recent low followed by reversal
+  const recentLows = recent.slice(0, 6).map(d => d.low);
+  const lowestLow = Math.min(...recentLows);
+  
+  const lastTwo = recent.slice(-2);
+  const swept = lastTwo[0].low < lowestLow * 0.995; // Swept below low
+  const reversing = current.close > lastTwo[0].high; // Reversed above sweep candle
+  
+  if (swept && reversing) {
+    return {
+      detected: true,
+      quality: 'high',
+      direction: 'long',
+      sweepLevel: lowestLow
+    };
+  }
+  
+  // Look for sweep above recent high followed by reversal
+  const recentHighs = recent.slice(0, 6).map(d => d.high);
+  const highestHigh = Math.max(...recentHighs);
+  
+  const sweptHigh = lastTwo[0].high > highestHigh * 1.005; // Swept above high
+  const reversingDown = current.close < lastTwo[0].low; // Reversed below sweep candle
+  
+  if (sweptHigh && reversingDown) {
+    return {
+      detected: true,
+      quality: 'high',
+      direction: 'short',
+      sweepLevel: highestHigh
+    };
+  }
+  
+  return { detected: false };
+}
+
+function detectStructureSetup(data, structure) {
+  if (structure.trend === 'neutral') return { detected: false };
+  
+  const recent = data.slice(-10);
+  const isUptrend = structure.trend.includes('up');
+  
+  if (isUptrend) {
+    // Look for higher low
+    const recentLows = recent.map(d => d.low);
+    if (recentLows.length >= 6) {
+      const lastLow = recentLows[recentLows.length - 1];
+      const previousLow = recentLows[recentLows.length - 3];
+      
+      if (lastLow > previousLow) {
+        return {
+          detected: true,
+          quality: 'medium',
+          direction: 'long',
+          setupType: 'higher_low'
+        };
+      }
+    }
+  } else {
+    // Look for lower high
+    const recentHighs = recent.map(d => d.high);
+    if (recentHighs.length >= 6) {
+      const lastHigh = recentHighs[recentHighs.length - 1];
+      const previousHigh = recentHighs[recentHighs.length - 3];
+      
+      if (lastHigh < previousHigh) {
+        return {
+          detected: true,
+          quality: 'medium',
+          direction: 'short',
+          setupType: 'lower_high'
+        };
+      }
+    }
+  }
+  
+  return { detected: false };
+}
+
+// ══ CONFLUENCE CALCULATION FUNCTIONS ═══════════════════════════════════════════════════════════
+
+function calculateBreakoutConfluence(current, consolidation, structure) {
+  let confluence = 1; // Base confluence for breakout
+  
+  // Trend alignment
+  if (structure.trend !== 'neutral') confluence++;
+  
+  // Volume confirmation
+  const avgVolume = consolidation.avgVolume || 1;
+  if (current.volume > avgVolume * 1.5) confluence++;
+  
+  // Strong level
+  if (consolidation.quality === 'high') confluence++;
+  
+  return confluence;
+}
+
+function calculateFlagConfluence(flag, structure) {
+  let confluence = 1; // Base confluence for flag
+  
+  // Strong trend
+  if (structure.trend.includes('strong')) confluence++;
+  
+  // Clear pattern
+  if (flag.quality === 'high') confluence++;
+  
+  // Volume pattern
+  confluence++; // Assume volume confirmation for now
+  
+  return confluence;
+}
+
+function calculateSupportConfluence(support, structure) {
+  let confluence = 1; // Base confluence for support
+  
+  // Trend alignment
+  if (structure.trend.includes('up')) confluence++;
+  
+  // Strong level
+  if (support.quality === 'high') confluence++;
+  
+  // Multiple touches
+  confluence++; // Assume multiple touches for now
+  
+  return confluence;
+}
+
+function calculateResistanceConfluence(resistance, structure) {
+  let confluence = 1; // Base confluence for resistance
+  
+  // Trend alignment
+  if (structure.trend.includes('down')) confluence++;
+  
+  // Strong level
+  if (resistance.quality === 'high') confluence++;
+  
+  // Multiple touches
+  confluence++; // Assume multiple touches for now
+  
+  return confluence;
+}
+
+function calculatePullbackConfluence(pullback, structure) {
+  let confluence = 1; // Base confluence for pullback
+  
+  // Strong trend
+  if (structure.trend.includes('strong')) confluence++;
+  
+  // Clear MA touch
+  confluence++;
+  
+  // Volume confirmation
+  confluence++; // Assume volume confirmation for now
+  
+  return confluence;
+}
+
+function calculateRangeBreakoutConfluence(breakout, structure) {
+  let confluence = 1; // Base confluence for range breakout
+  
+  // Volume confirmation
+  confluence++;
+  
+  // Clear level
+  if (breakout.quality === 'high') confluence++;
+  
+  // Structure alignment
+  confluence++;
+  
+  return confluence;
+}
+
+function calculateLiquiditySweepConfluence(sweep, structure) {
+  let confluence = 1; // Base confluence for liquidity sweep
+  
+  // Clear sweep
+  if (sweep.quality === 'high') confluence++;
+  
+  // Strong reversal
+  confluence++;
+  
+  // Structure context
+  confluence++;
+  
+  return confluence;
+}
+
+function calculateStructureConfluence(setup, structure) {
+  let confluence = 1; // Base confluence for structure setup
+  
+  // Clear structure
+  if (structure.trend.includes('strong')) confluence++;
+  
+  // Clear pattern
+  if (setup.quality === 'high') confluence++;
+  
+  // Multiple confirmations
+  confluence++;
+  
+  return confluence;
+}
 
 // Market Analysis Engine (NO future data)
 function analyzeMarketData(barIndex) {
@@ -5928,16 +6456,189 @@ function updateMentor() {
   const currentBar = replayCutoff;
   if (currentBar !== mentorState.currentBar) {
     mentorState.currentBar = currentBar;
+    
+    // Check cooldown period first
+    const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
+    if (candlesSinceLastSuggestion < mentorState.cooldownCandles) {
+      // Still in cooldown, just update analysis but don't suggest trades
+      mentorState.analysis = analyzeMarketData(currentBar);
+      if (mentorState.analysis) {
+        updateMentorUIWithCooldown(candlesSinceLastSuggestion);
+      }
+      return;
+    }
+    
     mentorState.analysis = analyzeMarketData(currentBar);
     
     // Track trade outcomes before generating new analysis
     trackTradeOutcomes();
     
     if (mentorState.analysis) {
-      generateMentorInsights();
+      // Use structured setup detection instead of generic analysis
+      const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+      mentorState.setupQuality = setupDetection.quality;
+      mentorState.confluenceScore = setupDetection.confluence;
+      
+      if (setupDetection.setup !== 'none') {
+        // High-quality setup detected
+        generateHighQualityTradeInsights(setupDetection);
+        mentorState.lastTradeSuggestionBar = currentBar;
+      } else {
+        // No quality setup found
+        generateNoSetupMessage();
+      }
+      
       updateMentorUI();
     }
   }
+}
+
+function updateMentorUIWithCooldown(candlesRemaining) {
+  const insightsEl = document.getElementById('mentor-insights');
+  const questionEl = document.getElementById('mentor-question');
+  
+  if (!insightsEl || !questionEl) return;
+  
+  const analysis = mentorState.analysis;
+  let insights = [];
+  
+  // Basic market context
+  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  
+  if (analysis.trend !== 'neutral') {
+    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
+  }
+  
+  // Cooldown message
+  insights.push(`⏱️ Cooling down... ${mentorState.cooldownCandles - candlesRemaining} candles remaining`);
+  
+  insightsEl.textContent = insights.join('. ');
+  questionEl.textContent = '';
+}
+
+function generateHighQualityTradeInsights(setupDetection) {
+  const analysis = mentorState.analysis;
+  let insights = [];
+  let question = '';
+  let shouldPromptDecision = false;
+  
+  // Market Structure Insights
+  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  
+  // Trend Analysis
+  if (analysis.trend !== 'neutral') {
+    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
+  }
+  
+  // Setup-specific insights
+  switch (setupDetection.setup) {
+    case 'breakout':
+      insights.push(`🚀 High-quality ${setupDetection.direction} breakout detected`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Strong breakout with ${setupDetection.confluence} confirming factors. Would you enter this ${setupDetection.direction} trade?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'flag_continuation':
+      insights.push(`🏁 Bull/bear flag continuation pattern`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Flag pattern in ${analysis.trend} trend. Continue ${setupDetection.direction} or wait?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'support_bounce':
+      insights.push(`💪 Support bounce confirmed`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Strong support bounce with ${setupDetection.confluence} confirmations. Enter long?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'resistance_rejection':
+      insights.push(`🛑 Resistance rejection confirmed`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Clear resistance rejection with ${setupDetection.confluence} factors. Enter short?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'trend_pullback':
+      insights.push(`📈 Trend pullback to moving average`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Pullback to MA in ${analysis.trend}. Enter ${setupDetection.direction} at current level?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'range_breakout':
+      insights.push(`📊 Range breakout with volume confirmation`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Range breakout with ${setupDetection.confluence} confirmations. Take the ${setupDetection.direction}?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'liquidity_sweep':
+      insights.push(`🔄 Liquidity sweep followed by reversal`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Liquidity sweep reversal detected. Enter ${setupDetection.direction}?`;
+      shouldPromptDecision = true;
+      break;
+      
+    case 'structure_continuation':
+      insights.push(`🏗️ Structure continuation (${setupDetection.direction === 'long' ? 'higher low' : 'lower high'})`);
+      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
+      question = `Structure continuation pattern. Continue ${setupDetection.direction}?`;
+      shouldPromptDecision = true;
+      break;
+  }
+  
+  // Quality indicator
+  insights.push(`⭐ Setup quality: ${setupDetection.quality.toUpperCase()}`);
+  
+  mentorState.lastInsight = insights.join('. ');
+  mentorState.pendingDecision = shouldPromptDecision;
+  
+  // Check if we should prompt for trade placement
+  if (shouldPromptDecision && !mentorState.waitingForTrade && !mentorState.activeTrade) {
+    mentorState.waitingForTrade = true;
+    mentorState.currentSetup = {
+      type: setupDetection.setup,
+      direction: setupDetection.direction,
+      confidence: setupDetection.quality,
+      confluence: setupDetection.confluence
+    };
+  }
+  
+  // Store for UI updates
+  mentorState.currentInsights = insights;
+  mentorState.currentQuestion = question;
+}
+
+function generateNoSetupMessage() {
+  const analysis = mentorState.analysis;
+  let insights = [];
+  let question = '';
+  
+  // Market Structure Insights
+  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  
+  // Trend Analysis
+  if (analysis.trend !== 'neutral') {
+    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
+  }
+  
+  // Market context filter
+  if (analysis.structure === 'choppy' || analysis.structure === 'unclear') {
+    question = "Market is currently choppy and unclear. Waiting for a stronger setup before considering trades.";
+  } else {
+    question = "Market is currently unclear. Waiting for a stronger setup with proper confluence.";
+  }
+  
+  mentorState.lastInsight = insights.join('. ');
+  mentorState.pendingDecision = false;
+  mentorState.waitingForTrade = false;
+  mentorState.currentSetup = null;
+  
+  // Store for UI updates
+  mentorState.currentInsights = insights;
+  mentorState.currentQuestion = question;
 }
 
 function generateMentorInsights() {
