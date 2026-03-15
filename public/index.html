@@ -9813,27 +9813,57 @@ async function authSubmitLogin(){
   if(!user || !pass){ errEl.textContent='Please enter username and password.'; return; }
   if(btn){ btn.textContent='Signing in…'; btn.disabled=true; }
   
-  console.log('⏳ Calling authLoginAsync...');
-  const result = await authLoginAsync(user, pass);
-  console.log('📋 authLoginAsync result:', result);
-  
-  if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
-  if(!result.ok){ errEl.textContent = result.err; return; }
-  
-  console.log('🔄 Syncing cloud data...');
-  // Sync cloud data into localStorage before entering the app
-  _currentUser   = result.username;
-  _currentUserId = result.userId;
-  await _syncFromCloud();
-  
-  console.log('✅ Showing app interface...');
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  doLogin(result.username, result.displayName);
-  
-  console.log('🎉 Login process completed');
-  loadSym('AAPL');
-  document.getElementById('auth-login-pass').value = '';
+  try {
+    console.log('⏳ Calling authLoginAsync...');
+    
+    // Add timeout to prevent infinite loading
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Sign in timed out after 30 seconds')), 30000);
+    });
+    
+    const result = await Promise.race([authLoginAsync(user, pass), timeoutPromise]);
+    console.log('📋 authLoginAsync result:', result);
+    
+    if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
+    if(!result.ok){ errEl.textContent = result.err; return; }
+    
+    console.log('🔄 Syncing cloud data...');
+    
+    // Add timeout for cloud sync
+    const syncTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Data sync timed out after 15 seconds')), 15000);
+    });
+    
+    // Sync cloud data into localStorage before entering the app
+    _currentUser   = result.username;
+    _currentUserId = result.userId;
+    
+    try {
+      await Promise.race([_syncFromCloud(), syncTimeoutPromise]);
+    } catch (syncError) {
+      console.warn('⚠️ Cloud sync failed, continuing with local data:', syncError);
+      // Continue without cloud sync - don't block login
+    }
+    
+    console.log('✅ Showing app interface...');
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    doLogin(result.username, result.displayName);
+    
+    console.log('🎉 Login process completed');
+    loadSym('AAPL');
+    document.getElementById('auth-login-pass').value = '';
+    
+  } catch (error) {
+    console.error('❌ Login process error:', error);
+    if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
+    
+    if (error.message.includes('timed out')) {
+      errEl.textContent = 'Sign in took too long. Please check your internet connection and try again.';
+    } else {
+      errEl.textContent = 'An error occurred during sign in. Please try again.';
+    }
+  }
 }
 
 async function authSubmitRegister(){
@@ -9930,7 +9960,53 @@ function updateUserBadge(displayName){
 // ══ ACCOUNT SYSTEM (Supabase-backed) ══════════════════════════════════════════
 const SUPA_URL  = 'https://ksxznauzvlsgfghvpeew.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzeHpuYXV6dmxzZ2ZnaHZwZWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0ODg4MjIsImV4cCI6MjA4OTA2NDgyMn0.B5a2zl8Vr_Q51fB9_Pv1Q8SXnh41xELgJkrRu0BEkEk';
-const _supa     = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// Test Supabase connectivity
+async function testSupabaseConnection() {
+  console.log('🔍 Testing Supabase connectivity...');
+  
+  try {
+    // Simple health check - try to access the auth service
+    const response = await fetch(`${SUPA_URL}/auth/v1/settings`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPA_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      console.log('✅ Supabase service is reachable');
+      return true;
+    } else {
+      console.error('❌ Supabase service responded with:', response.status, response.statusText);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Cannot reach Supabase service:', error.message);
+    return false;
+  }
+}
+
+// Initialize Supabase with error handling
+let _supa = null;
+try {
+  if (typeof supabase !== 'undefined') {
+    _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+    console.log('✅ Supabase client initialized successfully');
+    
+    // Test connection
+    testSupabaseConnection().then(isConnected => {
+      if (!isConnected) {
+        console.warn('⚠️ Supabase client initialized but service may be unreachable');
+      }
+    });
+  } else {
+    console.error('❌ Supabase library not loaded');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Supabase client:', error);
+}
 
 let _currentUser    = null; // username string
 let _currentUserId  = null; // Supabase auth UUID
@@ -10063,7 +10139,15 @@ async function authLoginAsync(username, password){
   // Check if Supabase is available
   if (!_supa) {
     console.error('❌ Supabase client not initialized');
-    return { ok:false, err:'Authentication service not available. Please refresh the page.' };
+    console.log('🔍 Checking if supabase library loaded...');
+    
+    if (typeof supabase === 'undefined') {
+      console.error('❌ Supabase library not loaded - CDN issue');
+      return { ok:false, err:'Authentication service not available. Please refresh the page and check your internet connection.' };
+    } else {
+      console.error('❌ Supabase library loaded but client not initialized');
+      return { ok:false, err:'Authentication service error. Please refresh the page.' };
+    }
   }
   
   console.log('🔑 Attempting sign in with password');
@@ -10081,7 +10165,13 @@ async function authLoginAsync(username, password){
     return { ok:true, username, displayName, userId: data.user.id };
   } catch (err) {
     console.error('❌ Unexpected error during login:', err);
-    return { ok:false, err:'Network error. Please check your connection and try again.' };
+    
+    // Check for network/CORS errors
+    if (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('CORS')) {
+      return { ok:false, err:'Network error. Please check your internet connection and try again.' };
+    }
+    
+    return { ok:false, err:'Authentication service error. Please try again later.' };
   }
 }
 
