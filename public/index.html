@@ -804,19 +804,6 @@ body.is-dragging { user-select: none; }
         <button class="auth-btn" onclick="authSubmitLogin()">SIGN IN →</button>
         <div class="auth-err" id="auth-login-err"></div>
         <div class="auth-hint">No account? <a onclick="authShowTab('register')">Create one for free</a></div>
-        <div class="auth-hint" style="margin-top:8px;font-size:10px;color:var(--tx3);">
-          Demo credentials: <strong>demo / demo123</strong>
-        </div>
-        <div style="margin-top:12px;text-align:center;">
-          <button onclick="document.getElementById('auth-login-user').value='demo'; document.getElementById('auth-login-pass').value='demo123';" style="padding:6px 12px;background:rgba(0,212,160,.1);border:1px solid rgba(0,212,160,.3);color:var(--green);border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--font-mono);">
-            Auto-Fill Demo
-          </button>
-        </div>
-        <div style="margin-top:16px;text-align:center;">
-          <button onclick="console.log('Test click works!'); alert('JavaScript is working!');" style="padding:8px 16px;background:var(--bg3);border:1px solid var(--line);color:var(--tx);border-radius:4px;cursor:pointer;font-size:10px;">
-            Test JavaScript
-          </button>
-        </div>
       </div>
       <div class="auth-panel" id="auth-panel-register">
         <div class="auth-field">
@@ -9162,6 +9149,10 @@ function doLogin(username, displayName){
       if(data?.session?.user?.id) _currentUserId = data.session.user.id;
     });
   }
+
+  // Hide auth screen and show app
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
 
   // Now re-patch all storage reads to use the namespaced key
   // Re-load everything from this user's namespace
