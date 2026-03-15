@@ -5019,7 +5019,14 @@ let mentorState = {
   setupQuality: 'none', // 'high', 'medium', 'low', 'none'
   // Replay training properties
   lastDetectedDrawing: null, // Track last drawing we detected
-  reviewedTrades: [] // Track trades reviewed in replay
+  reviewedTrades: [], // Track trades reviewed in replay
+  
+  // Trade lifecycle states
+  lifecycleState: 'scanning', // 'scanning', 'setup_wait', 'trade_monitoring', 'trade_result'
+  setupWaitStart: null, // When setup wait state started
+  setupWaitData: null, // Store setup data during wait
+  monitoredTrade: null, // Trade being monitored
+  tradeResultData: null // Trade result data for final evaluation
 };
 
 // ══ REPLAY MODE TRADE DETECTION & AI REVIEW ═══════════════════════════════════════════════════════════
@@ -5036,10 +5043,23 @@ function detectReplayTradePlacement() {
     
     console.log('🎯 Replay trade detected:', currentDrawing);
     
+    // Handle trade placement based on current lifecycle state
+    if (mentorState.lifecycleState === 'setup_wait') {
+      // User placed trade during setup wait - switch to trade monitoring
+      console.log('🎯 Trade placed during setup wait, switching to trade monitoring');
+      mentorState.monitoredTrade = currentDrawing;
+      mentorState.lifecycleState = 'trade_monitoring';
+      
+      // Generate initial trade monitoring commentary
+      generateTradeMonitoringCommentary(replayCutoff);
+      updateMentorUI();
+      return;
+    }
+    
     // Disable normal AI trade analysis for replay trades
     disableNormalTradeAnalysis();
     
-    // Trigger AI mentor review
+    // Trigger AI mentor review (for normal replay mode)
     reviewReplayTrade(currentDrawing);
   }
 }
@@ -6175,6 +6195,11 @@ function enableMentorFromPopup() {
   mentorState.enabled = true;
   mentorState.currentBar = -1; // Reset to force re-analysis
   mentorState.lastTradeSuggestionBar = -1000; // Reset cooldown
+  mentorState.lifecycleState = 'scanning'; // Reset lifecycle state
+  mentorState.setupWaitStart = null;
+  mentorState.setupWaitData = null;
+  mentorState.monitoredTrade = null;
+  mentorState.tradeResultData = null;
   mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
   mentorState.currentQuestion = 'Waiting for market data to analyze...';
   
@@ -6878,6 +6903,310 @@ function makeMentorDraggable() {
   document.addEventListener('touchmove', drag);
 }
 
+// ══ TRADE LIFECYCLE STATE HANDLERS ═══════════════════════════════════════════════════════════
+
+function handleSetupWaitState(currentBar) {
+  console.log('⏳ Handle setup wait state:', { 
+    currentBar, 
+    setupStart: mentorState.setupWaitStart,
+    setupData: mentorState.setupWaitData 
+  });
+  
+  // Check for user trade placement
+  detectReplayTradePlacement();
+  
+  // Check if setup is still valid
+  const setupStillValid = isSetupStillValid(currentBar);
+  const priceMovedSignificantly = hasPriceMovedSignificantly(currentBar);
+  const userPlacedTrade = mentorState.monitoredTrade !== null;
+  
+  if (userPlacedTrade) {
+    // User placed a trade - switch to trade monitoring
+    console.log('🎯 User placed trade, switching to trade monitoring');
+    mentorState.lifecycleState = 'trade_monitoring';
+    return;
+  } else if (!setupStillValid || priceMovedSignificantly) {
+    // Setup became invalid - return to scanning
+    console.log('❌ Setup no longer valid, returning to scanning');
+    mentorState.lifecycleState = 'scanning';
+    mentorState.setupWaitStart = null;
+    mentorState.setupWaitData = null;
+    mentorState.currentInsights = ['❌ Setup no longer valid'];
+    mentorState.currentQuestion = 'Resuming market scanning for new opportunities...';
+    updateMentorUI();
+    return;
+  }
+  
+  // Still in setup wait - provide brief commentary on price behavior
+  generateSetupWaitCommentary(currentBar);
+  updateMentorUI();
+}
+
+function handleTradeMonitoringState(currentBar) {
+  console.log('📊 Handle trade monitoring state:', { 
+    currentBar, 
+    monitoredTrade: mentorState.monitoredTrade 
+  });
+  
+  if (!mentorState.monitoredTrade) {
+    console.log('❌ No monitored trade, returning to scanning');
+    mentorState.lifecycleState = 'scanning';
+    return;
+  }
+  
+  // Check if trade reached stop loss or take profit
+  const tradeResult = checkTradeResult(mentorState.monitoredTrade, currentBar);
+  
+  if (tradeResult) {
+    // Trade completed - switch to result state
+    console.log('🏁 Trade completed:', tradeResult);
+    mentorState.lifecycleState = 'trade_result';
+    mentorState.tradeResultData = tradeResult;
+    generateTradeResultEvaluation(tradeResult);
+    updateMentorUI();
+    return;
+  }
+  
+  // Still monitoring - provide trade commentary
+  generateTradeMonitoringCommentary(currentBar);
+  updateMentorUI();
+}
+
+function handleTradeResultState(currentBar) {
+  console.log('📋 Handle trade result state');
+  
+  // Show result for a few bars, then return to scanning
+  const barsInResultState = currentBar - mentorState.setupWaitStart;
+  
+  if (barsInResultState > 5) {
+    console.log('🔄 Result display complete, returning to scanning');
+    mentorState.lifecycleState = 'scanning';
+    mentorState.setupWaitStart = null;
+    mentorState.setupWaitData = null;
+    mentorState.monitoredTrade = null;
+    mentorState.tradeResultData = null;
+    mentorState.currentInsights = ['📊 Resuming market scanning...'];
+    mentorState.currentQuestion = 'Looking for new trading opportunities...';
+    updateMentorUI();
+  }
+}
+
+// ══ LIFECYCLE HELPER FUNCTIONS ═══════════════════════════════════════════════════════════
+
+function isSetupStillValid(currentBar) {
+  if (!mentorState.setupWaitData || !curData) return false;
+  
+  const setupData = mentorState.setupWaitData;
+  const currentPrice = curData[currentBar].close;
+  const barsSinceSetup = currentBar - mentorState.setupWaitStart;
+  
+  // Setup becomes invalid after too many bars
+  if (barsSinceSetup > 20) return false;
+  
+  // Check setup-specific validity
+  switch (setupData.setup) {
+    case 'breakout':
+      // Breakout setup is valid if price is still near the breakout level
+      const breakoutLevel = setupData.breakoutLevel || currentPrice;
+      return Math.abs(currentPrice - breakoutLevel) / breakoutLevel < 0.02; // Within 2%
+      
+    case 'support_bounce':
+      // Support bounce is valid if price is still above support
+      const supportLevel = setupData.supportLevel || currentPrice;
+      return currentPrice >= supportLevel * 0.98; // Within 2% of support
+      
+    case 'resistance_rejection':
+      // Resistance rejection is valid if price is still below resistance
+      const resistanceLevel = setupData.resistanceLevel || currentPrice;
+      return currentPrice <= resistanceLevel * 1.02; // Within 2% of resistance
+      
+    default:
+      return true; // Other setups remain valid for 20 bars
+  }
+}
+
+function hasPriceMovedSignificantly(currentBar) {
+  if (!mentorState.setupWaitData || !curData) return false;
+  
+  const setupPrice = curData[mentorState.setupWaitStart].close;
+  const currentPrice = curData[currentBar].close;
+  const priceChange = Math.abs(currentPrice - setupPrice) / setupPrice;
+  
+  return priceChange > 0.05; // More than 5% movement
+}
+
+function checkTradeResult(trade, currentBar) {
+  if (!curData || currentBar <= trade.barIndex) return null;
+  
+  const currentBarData = curData[currentBar];
+  const high = currentBarData.high;
+  const low = currentBarData.low;
+  
+  // Check if stop loss or take profit was hit
+  if (trade.direction === 'long') {
+    if (low <= trade.stopLoss) {
+      return { outcome: 'stop_loss', price: trade.stopLoss, bar: currentBar };
+    } else if (high >= trade.takeProfit) {
+      return { outcome: 'take_profit', price: trade.takeProfit, bar: currentBar };
+    }
+  } else { // short
+    if (high >= trade.stopLoss) {
+      return { outcome: 'stop_loss', price: trade.stopLoss, bar: currentBar };
+    } else if (low <= trade.takeProfit) {
+      return { outcome: 'take_profit', price: trade.takeProfit, bar: currentBar };
+    }
+  }
+  
+  return null;
+}
+
+function generateSetupWaitCommentary(currentBar) {
+  if (!mentorState.setupWaitData || !curData) return;
+  
+  const setupData = mentorState.setupWaitData;
+  const currentPrice = curData[currentBar].close;
+  const previousPrice = curData[currentBar - 1]?.close || currentPrice;
+  const priceChange = (currentPrice - previousPrice) / previousPrice;
+  
+  let commentary = [];
+  
+  // Comment on price behavior
+  if (Math.abs(priceChange) > 0.01) {
+    if (priceChange > 0) {
+      commentary.push("Price is moving toward the setup level.");
+    } else {
+      commentary.push("Price is moving away from the setup level.");
+    }
+  } else {
+    commentary.push("Price is consolidating around the setup zone.");
+  }
+  
+  // Setup-specific commentary
+  switch (setupData.setup) {
+    case 'breakout':
+      if (currentPrice > (setupData.breakoutLevel || currentPrice) * 1.01) {
+        commentary.push("Breakout is developing with momentum.");
+      } else {
+        commentary.push("Waiting for breakout confirmation.");
+      }
+      break;
+      
+    case 'support_bounce':
+      if (currentPrice > previousPrice) {
+        commentary.push("Bounce momentum is building.");
+      } else {
+        commentary.push("Testing support levels.");
+      }
+      break;
+      
+    case 'resistance_rejection':
+      if (currentPrice < previousPrice) {
+        commentary.push("Rejection is confirming.");
+      } else {
+        commentary.push("Price challenging resistance again.");
+      }
+      break;
+  }
+  
+  mentorState.currentInsights = commentary;
+  mentorState.currentQuestion = "Use drawing tools to place your trade if you see confirmation.";
+}
+
+function generateTradeMonitoringCommentary(currentBar) {
+  if (!mentorState.monitoredTrade || !curData) return;
+  
+  const trade = mentorState.monitoredTrade;
+  const currentBarData = curData[currentBar];
+  const currentPrice = currentBarData.close;
+  const entryPrice = trade.entryPrice;
+  const pnl = trade.direction === 'long' ? 
+    (currentPrice - entryPrice) / entryPrice : 
+    (entryPrice - currentPrice) / entryPrice;
+  
+  let commentary = [];
+  
+  // P&L commentary
+  if (pnl > 0.02) {
+    commentary.push(`Trade is profitable (+${(pnl * 100).toFixed(2)}%).`);
+  } else if (pnl < -0.01) {
+    commentary.push(`Trade is under pressure (${(pnl * 100).toFixed(2)}%).`);
+  } else {
+    commentary.push("Trade is around breakeven.");
+  }
+  
+  // Price action commentary
+  const recentHigh = Math.max(...curData.slice(Math.max(0, currentBar - 3), currentBar + 1).map(b => b.high));
+  const recentLow = Math.min(...curData.slice(Math.max(0, currentBar - 3), currentBar + 1).map(b => b.low));
+  
+  if (trade.direction === 'long') {
+    if (currentPrice > recentHigh * 0.98) {
+      commentary.push("Momentum is strong and holding above recent highs.");
+    } else if (currentPrice < recentLow * 1.02) {
+      commentary.push("Price is testing recent support levels.");
+    } else {
+      commentary.push("Price is consolidating around current levels.");
+    }
+  } else { // short
+    if (currentPrice < recentLow * 1.02) {
+      commentary.push("Downward momentum is continuing.");
+    } else if (currentPrice > recentHigh * 0.98) {
+      commentary.push("Price is challenging recent resistance.");
+    } else {
+      commentary.push("Price is consolidating around current levels.");
+    }
+  }
+  
+  // Distance to targets
+  const distanceToSL = trade.direction === 'long' ? 
+    Math.abs(currentPrice - trade.stopLoss) / entryPrice :
+    Math.abs(currentPrice - trade.stopLoss) / entryPrice;
+  const distanceToTP = trade.direction === 'long' ? 
+    Math.abs(trade.takeProfit - currentPrice) / entryPrice :
+    Math.abs(trade.takeProfit - currentPrice) / entryPrice;
+  
+  if (distanceToSL < 0.01) {
+    commentary.push("⚠️ Price is approaching stop loss level.");
+  } else if (distanceToTP < 0.01) {
+    commentary.push("🎯 Price is approaching take profit level.");
+  }
+  
+  mentorState.currentInsights = commentary;
+  mentorState.currentQuestion = "Monitoring trade progression...";
+}
+
+function generateTradeResultEvaluation(tradeResult) {
+  if (!mentorState.monitoredTrade) return;
+  
+  const trade = mentorState.monitoredTrade;
+  const outcome = tradeResult.outcome;
+  
+  let evaluation = [];
+  
+  if (outcome === 'take_profit') {
+    evaluation.push("🎯 Trade Outcome: Take Profit Reached.");
+    evaluation.push("The setup performed as expected and reached the target.");
+    
+    // Evaluate entry timing
+    const entryQuality = trade.evaluation?.entryQuality?.score || 70;
+    if (entryQuality >= 80) {
+      evaluation.push("✅ Entry timing was excellent with good risk management.");
+    } else {
+      evaluation.push("⚠️ Entry could have been optimized for better timing.");
+    }
+    
+  } else {
+    evaluation.push("⛔ Trade Outcome: Stop Loss Hit.");
+    evaluation.push("The setup failed and price moved against the position.");
+    
+    // Analyze what went wrong
+    evaluation.push("📋 Review: Market conditions may have changed after entry.");
+    evaluation.push("💡 Learning: Consider waiting for stronger confirmation in similar setups.");
+  }
+  
+  mentorState.currentInsights = evaluation;
+  mentorState.currentQuestion = "Trade completed. Returning to market scanning...";
+}
+
 function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
@@ -6902,6 +7231,20 @@ function updateMentor() {
     return;
   }
   
+  // Handle different lifecycle states
+  if (mentorState.lifecycleState === 'setup_wait') {
+    handleSetupWaitState(currentBar);
+    return;
+  } else if (mentorState.lifecycleState === 'trade_monitoring') {
+    handleTradeMonitoringState(currentBar);
+    return;
+  } else if (mentorState.lifecycleState === 'trade_result') {
+    handleTradeResultState(currentBar);
+    return;
+  }
+  
+  // Normal scanning mode - continue with existing logic
+  
   if (currentBar !== mentorState.currentBar) {
     mentorState.currentBar = currentBar;
     
@@ -6912,11 +7255,11 @@ function updateMentor() {
       // First, check for new manual trade placements during replay
       detectReplayTradePlacement();
       
-      // Check cooldown period first
+      // Check cooldown period first (but not if we're in setup wait state)
       const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
-      console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles });
+      console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles, lifecycleState: mentorState.lifecycleState });
       
-      if (candlesSinceLastSuggestion < mentorState.cooldownCandles) {
+      if (candlesSinceLastSuggestion < mentorState.cooldownCandles && mentorState.lifecycleState !== 'setup_wait') {
         // Still in cooldown, just update analysis but don't suggest trades
         mentorState.analysis = analyzeMarketData(currentBar);
         if (mentorState.analysis) {
@@ -6959,14 +7302,18 @@ function updateMentor() {
       mentorState.confluenceScore = setupDetection.confluence;
       
       if (setupDetection.setup !== 'none') {
-        // High-quality setup detected
-        console.log('🤖 High-quality setup detected, generating insights');
-        generateHighQualityTradeInsights(setupDetection);
+        // High-quality setup detected - enter setup wait state
+        console.log('🤖 High-quality setup detected, entering setup wait state');
+        mentorState.lifecycleState = 'setup_wait';
+        mentorState.setupWaitStart = currentBar;
+        mentorState.setupWaitData = setupDetection;
         mentorState.lastTradeSuggestionBar = currentBar;
+        generateHighQualityTradeInsights(setupDetection);
       } else {
         // No quality setup found
         console.log('🤖 No quality setup found, generating no-setup message');
         generateNoSetupMessage();
+        mentorState.lifecycleState = 'scanning'; // Ensure we're back to scanning
       }
       
       updateMentorUI();
