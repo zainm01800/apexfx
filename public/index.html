@@ -5752,10 +5752,17 @@ function closeMentorPopup() {
 function enableMentorFromPopup() {
   closeMentorPopup();
   mentorState.enabled = true;
+  mentorState.currentBar = -1; // Reset to force re-analysis
+  mentorState.lastTradeSuggestionBar = -1000; // Reset cooldown
+  mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
+  mentorState.currentQuestion = 'Waiting for market data to analyze...';
+  
   const panel = document.getElementById('ai-mentor-panel');
   if (panel) {
     panel.style.display = 'block';
   }
+  
+  updateMentorUI();
   showMentorMessage('Mentor enabled! Start a replay to get AI guidance.');
 }
 
@@ -6454,11 +6461,15 @@ function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
   const currentBar = replayCutoff;
+  console.log('🤖 updateMentor called:', { currentBar, enabled: mentorState.enabled, replayMode, replayPicking });
+  
   if (currentBar !== mentorState.currentBar) {
     mentorState.currentBar = currentBar;
     
     // Check cooldown period first
     const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
+    console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles });
+    
     if (candlesSinceLastSuggestion < mentorState.cooldownCandles) {
       // Still in cooldown, just update analysis but don't suggest trades
       mentorState.analysis = analyzeMarketData(currentBar);
@@ -6469,6 +6480,7 @@ function updateMentor() {
     }
     
     mentorState.analysis = analyzeMarketData(currentBar);
+    console.log('🤖 Analysis result:', mentorState.analysis);
     
     // Track trade outcomes before generating new analysis
     trackTradeOutcomes();
@@ -6476,15 +6488,19 @@ function updateMentor() {
     if (mentorState.analysis) {
       // Use structured setup detection instead of generic analysis
       const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+      console.log('🤖 Setup detection result:', setupDetection);
+      
       mentorState.setupQuality = setupDetection.quality;
       mentorState.confluenceScore = setupDetection.confluence;
       
       if (setupDetection.setup !== 'none') {
         // High-quality setup detected
+        console.log('🤖 High-quality setup detected, generating insights');
         generateHighQualityTradeInsights(setupDetection);
         mentorState.lastTradeSuggestionBar = currentBar;
       } else {
         // No quality setup found
+        console.log('🤖 No quality setup found, generating no-setup message');
         generateNoSetupMessage();
       }
       
@@ -6613,6 +6629,8 @@ function generateHighQualityTradeInsights(setupDetection) {
 
 function generateNoSetupMessage() {
   const analysis = mentorState.analysis;
+  console.log('🤖 generateNoSetupMessage called with analysis:', analysis);
+  
   let insights = [];
   let question = '';
   
@@ -6639,6 +6657,8 @@ function generateNoSetupMessage() {
   // Store for UI updates
   mentorState.currentInsights = insights;
   mentorState.currentQuestion = question;
+  
+  console.log('🤖 generateNoSetupMessage result:', { insights, question });
 }
 
 function generateMentorInsights() {
@@ -6728,15 +6748,33 @@ function updateMentorUI() {
   const tradePromptEl = document.getElementById('mentor-trade-prompt');
   const candleInfoEl = document.getElementById('mentor-candle-info');
   
-  // Update insights
+  // Debug logging
+  console.log('🤖 updateMentorUI called:', {
+    hasInsights: !!mentorState.currentInsights,
+    hasQuestion: !!mentorState.currentQuestion,
+    insightsType: typeof mentorState.currentInsights,
+    insightsValue: mentorState.currentInsights
+  });
+  
+  // Update insights - handle both array and string
   if (insightsEl && mentorState.currentInsights) {
-    insightsEl.innerHTML = mentorState.currentInsights.join('. ');
+    if (Array.isArray(mentorState.currentInsights)) {
+      insightsEl.innerHTML = mentorState.currentInsights.join('. ');
+    } else {
+      insightsEl.innerHTML = mentorState.currentInsights;
+    }
+  } else if (insightsEl) {
+    insightsEl.innerHTML = '🤖 AI Mentor is analyzing market data...';
   }
   
   // Update question
-  if (questionEl && mentorState.currentQuestion) {
-    questionEl.textContent = mentorState.currentQuestion;
-    questionEl.style.display = mentorState.currentQuestion ? 'block' : 'none';
+  if (questionEl) {
+    if (mentorState.currentQuestion) {
+      questionEl.textContent = mentorState.currentQuestion;
+      questionEl.style.display = 'block';
+    } else {
+      questionEl.style.display = 'none';
+    }
   }
   
   // Show/hide trade placement prompt
@@ -6750,7 +6788,7 @@ function updateMentorUI() {
             <span style="color:var(--purple);font-weight:600;">📊 Trade Setup Detected!</span>
           </div>
           <p style="color:var(--tx2);margin:0 0 12px 0;line-height:1.4;">
-            Place your trade on the chart using the Long/Short position tool. Include entry, stop loss, and take profit levels.
+            Place your trade on the chart using Long/Short position tool. Include entry, stop loss, and take profit levels.
           </p>
           <div style="display:flex;gap:8px;align-items:center;">
             <span style="color:var(--tx3);font-size:11px;">Tools:</span>
