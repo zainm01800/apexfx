@@ -233,7 +233,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #draw-toolbar{display:none;}
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
-#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
+#main-col{position:absolute;inset:0;padding-top:52px;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
 
 /* ─── COMMAND BAR ────────────────────────────────────────────────────────── */
 #cmd-bar{
@@ -423,7 +423,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
 
 /* ─── CHART BODY ─────────────────────────────────────────────────────────── */
-#chart-body{display:flex;flex:1;overflow:hidden;position:relative;height:100%;}
+#chart-body{display:flex;flex:1;overflow:hidden;position:relative;height:100%;margin:0;}
 #chart-area{flex:1;display:flex;flex-direction:column;overflow:clip;position:relative;background:transparent;}
 #chart-wrap{display:flex;flex:1;overflow:hidden;position:relative;}
 canvas{display:block;flex-shrink:0;}
@@ -445,7 +445,7 @@ canvas{display:block;flex-shrink:0;}
 #tooltip.show{display:flex;}
 
 /* Indicator sub-panels */
-#vol-panel,#rsi-panel,#macd-panel,#stoch-panel{}
+#vol-panel,#rsi-panel,#macd-panel,#stoch-panel{position:relative;}
 
 /* ─── STATUS BAR ─────────────────────────────────────────────────────────── */
 #statusbar{
@@ -575,7 +575,7 @@ canvas{display:block;flex-shrink:0;}
 
 /* ─── TRADE ANALYSIS POPUP ───────────────────────────────────────────────── */
 /* (unchanged positioning - floats over chart) */
-#tap-badge,#tap-anchor{/* see full styles below */}
+#tap-badge,#tap-anchor{position:relative;}
 
 /* ─── MODALS ─────────────────────────────────────────────────────────────── */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
@@ -764,7 +764,7 @@ body.is-dragging { user-select: none; }
 .psych-bar-fill{height:100%;border-radius:3px;}
 
 /* indicator builder (rp-inds) */
-#rp-inds .rp-body{/* uses rp-body styling */}
+#rp-inds .rp-body{position:relative;}
 
 /* equity curve canvas */
 #j-equity{display:none;width:100%;border-bottom:1px solid var(--line);background:var(--bg);cursor:default;}
