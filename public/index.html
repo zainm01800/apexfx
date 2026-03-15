@@ -1953,30 +1953,55 @@ updateStatusTime();
 // ══ SYMBOLS ══════════════════════════════════════════════════════════════════
 const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
-  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:84000,  c:2.88},
-  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:2000,   c:1.44},
-  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:130.00, c:4.22},
-  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:580.00, c:0.95},
-  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:0.52,   c:1.10},
-  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.16,   c:3.20},
-  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.45,   c:1.80},
-  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:35.00,  c:2.10},
-  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:14.00,  c:1.50},
-  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:7.00,   c:0.80},
-  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.90,   c:2.30},
-  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:8.50,   c:1.60},
-  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:85.00,  c:0.70},
-  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:8.00,   c:1.20},
-  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:5.50,   c:2.40},
-  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:1.20,   c:3.50},
-  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:9.00,   c:2.10},
-  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:25.00,  c:1.80},
-  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:1.10,   c:2.40},
-  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:2.20,   c:1.90},
+  // p values = approximate prices as of March 2026 — used only as placeholder
+  // while real Binance data loads. Updated from live market.
+  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:70963,  c:2.88},
+  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:1910,   c:1.44},
+  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:87,    c:4.22},
+  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:654,    c:0.95},
+  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:1.39,   c:1.10},
+  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.096,   c:3.20},
+  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.26,   c:1.80},
+  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:9.57,     c:2.10},
+  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:9.04,     c:1.50},
+  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:2.81,   c:0.80},
+  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.23,   c:2.30},
+  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:7.91,   c:1.60},
+  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:96,     c:0.70},
+  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:4.5,   c:1.20},
+  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:3.8,   c:2.40},
+  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:1.73,   c:3.50},
+  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:0.92,   c:2.10},
+  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:3.08,     c:1.80},
+  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.1,   c:2.40},
+  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.123,   c:1.90},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
 let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
+
+// Fetch live prices from Binance on startup to update placeholder values
+async function refreshSymPrices(){
+  try{
+    const pairs = SYMS.map(s => s.s.replace('/','').replace('USD','USDT'));
+    const res = await fetch('https://api.binance.com/api/v3/ticker/price');
+    if(!res.ok) return;
+    const data = await res.json();
+    const map = {};
+    data.forEach(d => { map[d.symbol] = parseFloat(d.price); });
+    SYMS.forEach(s => {
+      const key = s.s.replace('/','').replace('USD','USDT');
+      if(map[key]) s.p = map[key];
+    });
+    // Update current symbol's placeholder if we haven't loaded real data yet
+    if(curData.length <= 300 && curSym){
+      const key = curSym.s.replace('/','').replace('USD','USDT');
+      if(map[key]){
+        curSym.p = map[key];
+      }
+    }
+  }catch(e){}
+}
 
 // ── Indicator cache — invalidated when curData changes ────────────────────────
 let _indCache = null;
@@ -6213,6 +6238,11 @@ function handleDrawMousedown(sx, sy, e){
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
         dragSnapshot      = JSON.parse(JSON.stringify(selectedDrawing));
+        // If user clicks a long/short drawing, make it the active analysis target
+        if((drawings[i].type==='long'||drawings[i].type==='short') && drawings[i]!==_tapDrawing){
+          _tapDrawing = drawings[i];
+          showTradeAnalysisPopup(drawings[i], false); // re-open with this drawing's lock
+        }
         e.preventDefault(); e.stopPropagation();
         draw(); return true;
       }
@@ -6270,12 +6300,14 @@ function handleDrawMousedown(sx, sy, e){
     const sl  = activeTool==='long'  ? price*0.98  : price*1.02;
     const tp  = activeTool==='long'  ? price*1.04  : price*0.96;
     const halfBars = 8;
-    const halfDuration = halfBarsToSecs(halfBars, curTF); // store as seconds — TF-independent
-    const drawing = {type:activeTool,bar,price,sl,tp,halfBars,halfDuration};
+    const halfDuration = halfBarsToSecs(halfBars, curTF);
+    // Give each drawing a unique ID so locks are per-drawing not per-symbol
+    const drawingId = 'draw_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const drawing = {type:activeTool,bar,price,sl,tp,halfBars,halfDuration,tf:curTF,id:drawingId};
     drawings.push(drawing);
+    saveDrawings(curSym.s, curTF);
     draw(); setTool('cursor');
-    // Always show/update the popup with the new drawing, even if one existed before
-    showTradeAnalysisPopup(drawing);
+    showTradeAnalysisPopup(drawing, true); // freshPlacement=true — don't restore old lock
     return true;
   }
 
@@ -7218,6 +7250,9 @@ async function loadSym(sym){
   // Check session cache first
   if(dataCache[sym+'_'+curTF]){
     curData = dataCache[sym+'_'+curTF];
+    // Keep p in sync with cached real price
+    const cachedClose = curData[curData.length-1]?.close;
+    if(cachedClose && curSym.p !== cachedClose) curSym.p = cachedClose;
     rightBarIndex = curData.length+5;
     // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, curTF);
@@ -7237,6 +7272,9 @@ async function loadSym(sym){
       bars.sort((a,b)=>a.time-b.time);
       dataCache[sym+'_'+curTF] = bars;
       curData = bars;
+      // Keep curSym.p in sync with real price so placeholder is accurate next load
+      const realClose = bars[bars.length-1].close;
+      if(curSym.p !== realClose) curSym.p = realClose;
       invalidateIndCache();
       rightBarIndex = curData.length+5;
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
@@ -7861,13 +7899,12 @@ function makeDraggable(el, handle) {
   handle = handle || el;
   let ox = 0, oy = 0, mx = 0, my = 0, dragging = false;
   handle.style.cursor = 'grab';
+
   handle.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target.closest('button,input,select,textarea,a')) return;
     dragging = true;
-    // Capture current screen position before any style change
     const rect = el.getBoundingClientRect();
-    // Promote to fixed so it escapes the flex backdrop
     el.style.position  = 'fixed';
     el.style.margin    = '0';
     el.style.left      = rect.left + 'px';
@@ -7880,8 +7917,10 @@ function makeDraggable(el, handle) {
     handle.style.cursor = 'grabbing';
     document.body.classList.add('is-dragging');
     e.preventDefault();
+    e.stopPropagation(); // prevent canvas from stealing the event
   });
-  document.addEventListener('mousemove', e => {
+
+  const onMove = e => {
     if (!dragging) return;
     const dx = e.clientX - mx, dy = e.clientY - my;
     const nx = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  ox + dx));
@@ -7889,16 +7928,25 @@ function makeDraggable(el, handle) {
     el.style.left = nx + 'px';
     el.style.top  = ny + 'px';
     el.dataset.dragged = '1';
-  });
-  document.addEventListener('mouseup', () => {
+  };
+  const onUp = () => {
     if (!dragging) return;
     dragging = false;
     handle.style.cursor = 'grab';
     document.body.classList.remove('is-dragging');
-  });
+  };
+
+  // Attach to both document AND window to catch mouseup even if it fires on canvas
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  window.addEventListener('mouseup', onUp);   // safety net for canvas-eaten events
+  // Also reset if mouse leaves the window entirely
+  document.addEventListener('mouseleave', onUp);
 }
 function resetDrag(el) {
   if (!el) return;
+  // Force any active drag state to end by dispatching a synthetic mouseup
+  document.dispatchEvent(new MouseEvent('mouseup'));
   el.style.position  = '';
   el.style.left      = '';
   el.style.top       = '';
@@ -8618,6 +8666,9 @@ function _lsKey(key){ return _currentUser ? `apex-${_currentUser}-${key}` : `ape
 
 function _lsGet(key){
   try{ return localStorage.getItem(_lsKey(key)); }catch(e){ return null; }
+}
+function _lsDel(key){
+  try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
 }
 
 // Write queue — batches Supabase writes to avoid hammering the API
@@ -11147,65 +11198,77 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
   if(!symObj) return;
 
   const doPlace = () => {
-    // Always anchor drawing to the LATEST real bar in curData
-    const barIdx = curData.length - 1;
-    if(barIdx < 0) return;
+    // Use real Binance data if available in cache, otherwise use curData
+    const realBars = dataCache[sym+'_'+(tf||curTF)];
+    const bars = (realBars && realBars.length > 0) ? realBars : curData;
+    if(!bars.length) return;
 
-    // Use the actual last close as entry (scan price may be stale by seconds)
-    // but keep SL/TP offsets relative to the scan's entry
-    const lastClose = curData[barIdx].close;
-    const entryOffset = entry - lastClose;          // usually ~0 if data is fresh
-    const realEntry = lastClose;                    // place at current price
-    const realSL    = sl    - entryOffset;
-    const realTP    = target - entryOffset;
+    const barIdx   = bars.length - 1;
+    const lastClose = bars[barIdx].close;
 
-    // Remove any previous AI-placed drawings
+    // Keep SL/TP distances proportional, anchored to current real price
+    const slDist = Math.abs(entry - sl);
+    const tpDist = Math.abs(entry - target);
+    const isLong = dir === 'bull';
+    const realEntry = lastClose;
+    const realSL    = isLong ? realEntry - slDist : realEntry + slDist;
+    const realTP    = isLong ? realEntry + tpDist : realEntry - tpDist;
+    const dp        = lastClose < 1 ? 5 : lastClose < 10 ? 4 : lastClose < 100 ? 3 : 2;
+
+    // Remove any previous AI-placed drawings for this symbol
     drawings = drawings.filter(d => !d._aisPlaced);
 
+    // Clear any existing lock for this symbol so fresh AI runs
+    delete tapAnalysisCache[sym];
+    try{ _lsDel('tap-lock-'+sym); }catch(e){}
+
     const drawing = {
-      type: dir === 'bull' ? 'long' : 'short',
+      type: isLong ? 'long' : 'short',
       bar:  barIdx,
-      price: +realEntry.toFixed(lastClose < 10 ? 4 : 2),
-      sl:    +realSL.toFixed(lastClose < 10 ? 4 : 2),
-      tp:    +realTP.toFixed(lastClose < 10 ? 4 : 2),
+      price: +realEntry.toFixed(dp),
+      sl:    +realSL.toFixed(dp),
+      tp:    +realTP.toFixed(dp),
       halfBars: 16,
-      halfDuration: halfBarsToSecs(16, curTF),
+      halfDuration: halfBarsToSecs(16, tf || curTF),
       _aisPlaced: true,
     };
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
 
-    // Scroll to show the drawing with some breathing room
-    rightBarIndex = curData.length - 1 + 15;
+    rightBarIndex = bars.length - 1 + 15;
     priceHi = null; priceLo = null;
 
-    showTradeAnalysisPopup(drawing);
+    showTradeAnalysisPopup(drawing, true); // freshPlacement — clear old lock
     draw();
   };
 
-  // If we need to switch symbol or TF, do it first
-  const needSymSwitch = curSym.s !== sym;
-  const needTFSwitch  = tf && curTF !== tf;
-
-  if(!needSymSwitch && !needTFSwitch){
-    doPlace();
-  } else if(needSymSwitch){
-    // loadSym sets curTF-aware data — switch TF first if needed
-    if(needTFSwitch){
-      const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-      if(tfBtn) setTF(tfBtn, tf);
-    }
-    loadSym(sym).then(doPlace);
-  } else {
-    // Same symbol, different TF
+  // Switch TF first if needed (sets curTF before loadSym)
+  if(tf && curTF !== tf){
     const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-    if(tfBtn){
-      setTF(tfBtn, tf);
-      // setTF calls loadSym internally — wait for data
-      setTimeout(doPlace, 800);
-    } else {
-      doPlace();
-    }
+    if(tfBtn) setTF(tfBtn, tf);
+  }
+
+  if(curSym.s === sym){
+    // Already on this symbol — data is ready, place immediately
+    doPlace();
+  } else {
+    // Need to switch symbol — wait for loadSym then place
+    // Use a one-time event on the src status to know when real data is ready
+    loadSym(sym).then(() => {
+      // loadSym resolves after placeholder — wait for real Binance data
+      const waitForReal = (attempts) => {
+        const cached = dataCache[sym+'_'+curTF];
+        if(cached && cached.length > 0){
+          doPlace();
+        } else if(attempts > 0){
+          setTimeout(() => waitForReal(attempts - 1), 200);
+        } else {
+          // Fallback — use whatever data is in curData now
+          doPlace();
+        }
+      };
+      waitForReal(15); // poll up to 3 seconds
+    });
   }
 }
 
@@ -12023,12 +12086,17 @@ const tapAnalysisCache = {};
 // Key: 'tap-lock-{sym}', Value: JSON {aiResult, ts, entry, sl, tp}
 function tapSaveLock(sym, result, d){
   try{
-    _lsSet('tap-lock-'+sym, JSON.stringify({
+    const payload = JSON.stringify({
       aiResult: result,
       ts: Date.now(),
       entry: d?.price, sl: d?.sl, tp: d?.tp,
-      tf: curTF
-    }));
+      tf: d?.tf || curTF
+    });
+    // Save per-drawing lock (primary) and symbol-level lock (fallback)
+    if(d?.id) _lsSet('tap-lock-draw-'+d.id, payload);
+    _lsSet('tap-lock-'+sym, payload);
+    // Also cache in memory per drawing
+    if(d?.id) tapAnalysisCache['tap-lock-draw-'+d.id] = { aiResult: result };
   }catch(e){}
 }
 function tapLoadLock(sym){
@@ -12038,11 +12106,21 @@ function tapLoadLock(sym){
   }catch(e){ return null; }
 }
 function tapHasLock(sym){
-  // Check memory cache first, then localStorage
+  // Check per-drawing lock first (drawing ID based)
+  const drawingId = _tapDrawing?.id;
+  if(drawingId){
+    const drawKey = 'tap-lock-draw-' + drawingId;
+    if(tapAnalysisCache[drawKey]?.aiResult) return true;
+    const drawLock = tapLoadLock(drawKey);
+    if(drawLock?.aiResult){
+      tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult };
+      return true;
+    }
+  }
+  // Fallback: symbol-level lock (legacy)
   if(tapAnalysisCache[sym]?.aiResult) return true;
   const lock = tapLoadLock(sym);
   if(lock?.aiResult){
-    // Restore to memory cache
     tapAnalysisCache[sym] = tapAnalysisCache[sym] || { sym, aiResult: null };
     tapAnalysisCache[sym].aiResult = lock.aiResult;
     return true;
@@ -12082,15 +12160,11 @@ function tapShowBlockedToast(){
 
 // ── Real-time sync: update popup when drawing is dragged/resized ─────────────
 function tapSyncDrawingToPopup(d){
-  // Update cache to point to this drawing (handles re-placement case)
-  if(!tapAnalysisCache[curSym.s]){
-    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: curTF, aiResult: null };
-  } else {
+  // Only sync if this is the currently active drawing
+  if(d !== _tapDrawing) return;
+  if(tapAnalysisCache[curSym.s]){
     tapAnalysisCache[curSym.s].drawing = d;
-    tapAnalysisCache[curSym.s].tf = curTF;
-    // Keep aiResult — lock is permanent once set, even after drag/resize
   }
-  // Always refresh popup fields if it's visible
   if(document.getElementById('tap-anchor').style.display !== 'none'){
     _tapAnchorFill(d);
   }
@@ -12106,6 +12180,7 @@ function _tapAnchorFill(d){
   const { status, statusCol } = tapTradeStatus(d);
 
   document.getElementById('tap-anchor-dir').textContent  = isLong ? '▲ LONG' : '▼ SHORT';
+  document.getElementById('tap-anchor-dir').dataset.sym = curSym.s;
   document.getElementById('tap-anchor-dir').style.color  = isLong ? 'var(--tl)' : 'var(--rd)';
   document.getElementById('tap-anchor-price').textContent =
     curSym.s + ' @ ' + fP(d.price) + (status ? '  · ' + status : '');
@@ -12222,25 +12297,51 @@ function tapTradeStatus(d){
 }
 
 // ── Show the floating popup (anchored top-right of chart-area) ────────────────
-function showTradeAnalysisPopup(d){
+function showTradeAnalysisPopup(d, freshPlacement=false){
   _tapDrawing = d;
-  // If a lock already exists for this symbol, preserve it — never reset aiResult
+  // Close any popup that belongs to a different symbol
+  const anchor = document.getElementById('tap-anchor');
+  if(anchor && anchor.style.display !== 'none'){
+    const anchorSym = document.getElementById('tap-anchor-dir')?.dataset?.sym;
+    if(anchorSym && anchorSym !== curSym.s){
+      anchor.style.display = 'none';
+      document.getElementById('tap-badge').style.display = 'none';
+    }
+  }
+  // Always create/update symbol-level cache entry
   if(!tapAnalysisCache[curSym.s]){
-    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: curTF, aiResult: null };
+    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: d.tf||curTF, aiResult: null };
   } else {
     tapAnalysisCache[curSym.s].drawing = d;
-    // Keep aiResult intact — once locked, always locked
+    tapAnalysisCache[curSym.s].tf = d.tf || curTF;
   }
-  // Check localStorage for persisted lock (page reload case)
-  if(!tapAnalysisCache[curSym.s].aiResult){
-    const lock = tapLoadLock(curSym.s);
-    if(lock?.aiResult) tapAnalysisCache[curSym.s].aiResult = lock.aiResult;
+
+  if(freshPlacement){
+    // Fresh placement — clear symbol-level AI result so analysis runs fresh
+    tapAnalysisCache[curSym.s].aiResult = null;
+    // Each drawing has its own lock key — no need to clear others
+  } else {
+    // Re-opening: check for a per-drawing lock first, then symbol-level
+    const drawKey = d.id ? 'tap-lock-draw-' + d.id : null;
+    if(drawKey && !tapAnalysisCache[drawKey]?.aiResult){
+      const drawLock = tapLoadLock(drawKey);
+      if(drawLock?.aiResult){
+        tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult };
+        tapAnalysisCache[curSym.s].aiResult = drawLock.aiResult;
+      }
+    } else if(drawKey && tapAnalysisCache[drawKey]?.aiResult){
+      tapAnalysisCache[curSym.s].aiResult = tapAnalysisCache[drawKey].aiResult;
+    } else if(!tapAnalysisCache[curSym.s].aiResult){
+      const lock = tapLoadLock(curSym.s);
+      if(lock?.aiResult) tapAnalysisCache[curSym.s].aiResult = lock.aiResult;
+    }
   }
   const oldNotice = document.getElementById('tap-cached-notice');
   if(oldNotice) oldNotice.remove();
-  _tapAnchorFill(d);
+  // Make badge invisible and show popup
   document.getElementById('tap-badge').style.display  = 'none';
   document.getElementById('tap-anchor').style.display = 'block';
+  _tapAnchorFill(d);
   // Sync toolbar button
   const rb = document.getElementById('dt-reopen-analysis');
   if(rb){ rb.style.display = 'inline-flex'; rb.style.alignItems = 'center'; }
@@ -12425,8 +12526,30 @@ function tapReopenFromBadge(){
 // Called by loadSym on symbol switch
 function tapSyncToSymbol(){
   tapHideBadge();
+  document.getElementById('tap-anchor').style.display = 'none';
+
   const cached = tapAnalysisCache[curSym.s];
-  if(cached && !cached.dismissed) tapShowBadge();
+
+  // If we have a cached drawing for this symbol, restore it as active
+  if(cached?.drawing && (cached.drawing.type==='long'||cached.drawing.type==='short')){
+    // Verify it still exists in drawings array
+    const stillExists = drawings.includes(cached.drawing);
+    if(stillExists){
+      _tapDrawing = cached.drawing;
+      if(!cached.dismissed) tapShowBadge();
+      return;
+    }
+  }
+
+  // Otherwise find the most recently placed long/short drawing
+  const liveDrawings = drawings.filter(d => d.type==='long'||d.type==='short');
+  if(liveDrawings.length > 0){
+    _tapDrawing = liveDrawings[liveDrawings.length - 1]; // most recent
+    if(cached) cached.drawing = _tapDrawing;
+    tapShowBadge();
+  } else {
+    _tapDrawing = null;
+  }
 }
 
 function closeTapModal(){
@@ -13076,38 +13199,44 @@ function tapRenderVerdictBanner(text){
 
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
-  const n      = curData.length;
-  const pats   = detectPatterns(curData);
-  const sr     = detectSR(curData);
-  const rsiV   = calcRSI(curData);
+  // Use the TF the drawing was placed on — fall back to curTF if not stored
+  const drawingTF = d.tf || tapAnalysisCache[curSym.s]?.tf || curTF;
+  // Use the data for that specific TF from cache — fall back to curData
+  const analysisData = (drawingTF === curTF)
+    ? curData
+    : (dataCache[curSym.s+'_'+drawingTF] || curData);
+  const n      = analysisData.length;
+  const pats   = detectPatterns(analysisData);
+  const sr     = detectSR(analysisData);
+  const rsiV   = calcRSI(analysisData);
   const rsi    = rsiV[n-1]?.toFixed(1) || '—';
-  const atrV   = calcATR(curData);
+  const atrV   = calcATR(analysisData);
   const atr    = atrV[n-1] || 0;
-  const sma20  = calcSMA(curData, 20);
-  const sma50  = calcSMA(curData, 50);
-  const macdV  = calcMACD(curData);
+  const sma20  = calcSMA(analysisData, 20);
+  const sma50  = calcSMA(analysisData, 50);
+  const macdV  = calcMACD(analysisData);
   const lastMACD = macdV[n-1];
   const macdLine = lastMACD?.macd?.toFixed(5) || '—';
   const macdSig  = lastMACD?.signal?.toFixed(5) || '—';
   const macdHist = lastMACD?.hist?.toFixed(5) || '—';
   const macdDir  = lastMACD?.hist > 0 ? 'Bullish momentum' : lastMACD?.hist < 0 ? 'Bearish momentum' : 'Neutral';
-  const ema9V  = calcEMA(curData,9);  const ema9last  = ema9V[n-1];
-  const ema21V = calcEMA(curData,21); const ema21last = ema21V[n-1];
-  const last3bars = curData.slice(-3).map(b => `${b.close>b.open?'Bullish':'Bearish'} (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' → ');
+  const ema9V  = calcEMA(analysisData,9);  const ema9last  = ema9V[n-1];
+  const ema21V = calcEMA(analysisData,21); const ema21last = ema21V[n-1];
+  const last3bars = analysisData.slice(-3).map(b => `${b.close>b.open?'Bullish':'Bearish'} (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' → ');
   const topPats    = [...pats].sort((a,b)=>b.conf-a.conf).slice(0,2).map(p=>p.name);
   const tp     = (b) => (b.high + b.low + b.close) / 3;  // typical price helper
-  const recentMove = n >= 6 ? ((tp(curData[n-1]) - tp(curData[n-6])) / tp(curData[n-6]) * 100).toFixed(2) : '0';
+  const recentMove = n >= 6 ? ((tp(analysisData[n-1]) - tp(analysisData[n-6])) / tp(analysisData[n-6]) * 100).toFixed(2) : '0';
   const symTrades  = journal.filter(j=>j.sym===curSym.s&&j.outcome);
   const symWR      = symTrades.length ? Math.round(symTrades.filter(j=>j.outcome==='win').length/symTrades.length*100)+'%' : 'n/a';
   const trend      = sma20[n-1] && sma50[n-1] ? (sma20[n-1] > sma50[n-1] ? 'Bullish' : 'Bearish') : 'N/A';
   // curPrice = typical price of last bar; also note the wick extremes
-  const lastBar    = curData[n-1];
+  const lastBar    = analysisData[n-1];
   const curPrice   = n ? tp(lastBar) : d.price;
   const lastHigh   = n ? lastBar.high  : d.price;
   const lastLow    = n ? lastBar.low   : d.price;
 
   // Check placement realism: how far is entry from the current trading range?
-  const allHighs = curData.map(b=>b.high), allLows = curData.map(b=>b.low);
+  const allHighs = analysisData.map(b=>b.high), allLows = analysisData.map(b=>b.low);
   const rangeHigh = Math.max(...allHighs), rangeLow = Math.min(...allLows);
   const rangeMid  = (rangeHigh + rangeLow) / 2;
   const distPct   = Math.abs(d.price - curPrice) / curPrice * 100;
@@ -13139,7 +13268,7 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   }
 
   // ── Build richer market context for the prompt ───────────────────────────────
-  const recentBars   = curData.slice(-20);
+  const recentBars   = analysisData.slice(-20);
   const recentHighs  = recentBars.map(b=>b.high);
   const recentLows   = recentBars.map(b=>b.low);
   const swingHigh    = Math.max(...recentHighs);
@@ -13172,7 +13301,7 @@ You are an institutional-level trading analyst. Your job is to objectively evalu
 
 INPUT DATA:
 Asset: ${curSym.s} (${curSym.n})
-Timeframe: ${curTF}
+Timeframe: ${drawingTF} (trade placed on this timeframe)
 Current Price: ${fP(curPrice)}
 Entry Price: ${fP(d.price)} (${((d.price - curPrice)/curPrice*100).toFixed(2)}% from current)
 Stop Loss: ${fP(d.sl)}
