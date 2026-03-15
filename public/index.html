@@ -4667,9 +4667,25 @@ let replayPicking = false;   // true = user is hovering to pick start bar
 let replayTimer   = null;
 let replaySpeed   = 500;
 
+// Log initial state for debugging
+console.log('Replay variables initialized:', {
+  replayMode,
+  replayCutoff, 
+  replayPicking,
+  replayTimer,
+  replaySpeed
+});
+
 function toggleReplay(){
-  if(replayMode) stopReplay();
-  else           startReplay();
+  console.log('toggleReplay called - current replayMode:', replayMode);
+  
+  if(replayMode) {
+    console.log('Stopping replay...');
+    stopReplay();
+  } else {
+    console.log('Starting replay...');
+    startReplay();
+  }
 }
 
 function startReplay(){
@@ -4695,7 +4711,13 @@ function startReplay(){
 }
 
 function stopReplay(){
-  if(replayTimer){ clearInterval(replayTimer); replayTimer = null; }
+  console.log('stopReplay called - clearing timer and resetting state');
+  
+  if(replayTimer){ 
+    console.log('Clearing replay timer');
+    clearInterval(replayTimer); 
+    replayTimer = null; 
+  }
   replayMode    = false;
   replayPicking = false;
   replayCutoff  = -1;
@@ -4704,6 +4726,27 @@ function stopReplay(){
   draw();
   toast('⏹ Replay ended');
 }
+
+// Force reset replay state (for debugging)
+function forceResetReplay(){
+  console.log('Force resetting replay state');
+  replayMode    = false;
+  replayPicking = false;
+  replayCutoff  = -1;
+  if(replayTimer){ 
+    clearInterval(replayTimer); 
+    replayTimer = null; 
+  }
+  const _rbtn=document.getElementById('btn-replay'); if(_rbtn) _rbtn.classList.remove('on');
+  _syncAllDockedBtns();
+  updateReplayStatus();
+  draw();
+  toast('🔄 Replay state reset');
+}
+
+// Make it globally accessible for debugging
+window.forceResetReplay = forceResetReplay;
+window.getReplayState = () => ({ replayMode, replayPicking, replayCutoff, replayTimer: !!replayTimer });
 
 // Called from the canvas click handler when in replay picking mode
 function replayPickBar(barIndex){
