@@ -1,0 +1,337 @@
+/* Extracted from inline <style> blocks in index.html */
+/* Main global styles */
+/* ─── RESET & TOKENS ─────────────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;}
+::root{
+  --bg:   #080a0c;
+  --bg1:  #0d1117;
+  --bg2:  #111820;
+  --bg3:  #161d28;
+  --bg4:  #1c2535;
+  --bg5:  #222e42;
+  --line: rgba(255,255,255,.06);
+  --line2:rgba(255,255,255,.10);
+  --tx:   #edf2fa;
+  --tx2:  #a8bbd0;
+  --tx3:  #6b8099;
+  --green:#00d4a0;
+  --red:  #ff4d6a;
+  --amber:#f5a623;
+  --blue: #3d8eff;
+  --pu:   #9b6dff;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+  --font-ui:   'DM Sans', -apple-system, sans-serif;
+  --r:    6px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
+  font-family:var(--font-ui);font-size:14px;-webkit-font-smoothing:antialiased;}
+
+/* ─── SCROLLBARS ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:4px;}
+
+/* ─── APP SHELL ──────────────────────────────────────────────────────────── */
+/* New layout:
+   [left nav strip 48px] | [main column: header + chart] | [right drawer 280px]
+   The left nav has icon-buttons that reveal overlay panels.
+*/
+#app{height:100vh;overflow:hidden;background:var(--bg);position:relative;}
+
+/* ─── LEFT NAV STRIP ─────────────────────────────────────────────────────── */
+#nav{
+  position:absolute;left:0;top:0;bottom:0;width:48px;
+  background:rgba(22,30,44,0.75);
+  backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  border-right:1px solid rgba(255,255,255,0.12);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.06), 4px 0 20px rgba(0,0,0,0.3);
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px 0;gap:2px;flex-shrink:0;z-index:200;
+}
+.nav-logo{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:1.5px;color:var(--tx);text-align:center;
+  padding:0 0 12px;border-bottom:1px solid var(--line);margin-bottom:8px;
+  width:36px;line-height:1.3;
+}
+.nav-logo em{color:var(--green);font-style:normal;}
+.nav-btn{
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--tx2);cursor:pointer;
+  border-radius:var(--r);font-size:15px;transition:all .15s;position:relative;
+  flex-shrink:0;
+}
+.nav-btn:hover{background:var(--bg3);color:var(--tx2);}
+.nav-btn.active{background:rgba(0,212,160,.1);color:var(--green);}
+.nav-btn.green{color:var(--green) !important;}
+.nav-sep{width:24px;height:1px;background:var(--line);margin:6px 0;flex-shrink:0;}
+.nav-spacer{flex:1;}
+.nav-tip{
+  position:absolute;left:44px;top:50%;transform:translateY(-50%);
+  background:var(--bg3);border:1px solid var(--line2);border-radius:5px;
+  padding:4px 9px;font-family:var(--font-mono);font-size:10px;
+  color:var(--tx);white-space:nowrap;pointer-events:none;opacity:0;
+  transition:opacity .15s;z-index:300;
+}
+.nav-btn:hover .nav-tip{opacity:1;}
+
+/* ─── OVERLAY PANEL (slides out from left nav) ───────────────────────────── */
+#overlay-panel{
+  position:absolute;left:48px;top:0;bottom:22px;width:260px;
+  background:rgba(22,30,44,0.75);
+  backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  border-right:1px solid rgba(255,255,255,0.12);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.06), 4px 0 28px rgba(0,0,0,0.45);
+  display:none;flex-direction:column;z-index:150;
+  animation:slideIn .18s ease;
+  padding-top:52px;
+}
+#overlay-panel.open{display:flex;}
+/* Locked = stays position:absolute so backdrop-filter blurs chart behind it */
+#overlay-panel.locked{
+  position:absolute;left:48px;top:0;bottom:22px;
+  display:flex;z-index:150;flex-shrink:0;animation:none;
+  background:rgba(22,30,44,0.75);
+  backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  border-right:1px solid rgba(255,255,255,0.12);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,0.06), 4px 0 28px rgba(0,0,0,0.45);
+  padding-top:52px;
+}
+/* When locked, push main-col right so chart content isn't hidden under the panel */
+/* panel-locked: overlay-panel stays absolute, no layout shift needed */
+#main-col{
+  transition:none;
+}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.ov-hdr{
+  display:flex;align-items:center;gap:6px;
+  padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;
+  background:rgba(255,255,255,0.02);
+}
+.ov-title{font-family:var(--font-mono);font-size:10px;font-weight:600;
+  letter-spacing:1.5px;color:var(--tx);text-transform:uppercase;flex:1;}
+.ov-lock{
+  background:none;border:1px solid var(--line2);color:var(--tx2);font-size:11px;
+  cursor:pointer;padding:2px 6px;border-radius:4px;transition:all .15s;
+  font-family:var(--font-mono);line-height:1;flex-shrink:0;
+}
+.ov-lock:hover{border-color:var(--line2);color:var(--tx2);}
+.ov-lock.pinned{border-color:rgba(0,212,160,.4);color:var(--green);background:rgba(0,212,160,.08);}
+.ov-close{background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;
+  padding:0;transition:color .15s;flex-shrink:0;}
+.ov-close:hover{color:var(--red);}
+#overlay-panel.locked .ov-close{display:none;}
+.ov-body{flex:1;overflow-y:auto;overflow-x:hidden;}
+
+/* ─── WATCHLIST in overlay ───────────────────────────────────────────────── */
+.wl-search{
+  padding:8px 10px;border-bottom:1px solid var(--line);
+}
+.wl-search input{
+  width:100%;background:var(--bg3);border:1px solid var(--line);
+  color:var(--tx);font-size:11px;padding:6px 10px;border-radius:var(--r);
+  outline:none;font-family:var(--font-mono);
+}
+.wl-search input::placeholder{color:var(--tx3);}
+.wl-cat-label{
+  padding:10px 12px 4px;font-family:var(--font-mono);font-size:11px;
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;
+}
+.wl-row{
+  display:flex;align-items:center;padding:8px 12px;cursor:pointer;
+  border-left:2px solid transparent;transition:all .1s;gap:8px;
+}
+.wl-row:hover{background:rgba(255,255,255,.02);}
+.wl-row.on{background:rgba(0,212,160,.04);border-left-color:var(--green);}
+.wl-sym{font-family:var(--font-mono);font-size:12px;font-weight:700;flex:1;color:var(--tx);}
+.wl-name{font-size:10px;color:var(--tx2);margin-top:1px;}
+.wl-px{font-family:var(--font-mono);font-size:11px;}
+.wl-ch{font-family:var(--font-mono);font-size:11px;}
+.wl-add-btn{
+  margin:8px 10px;width:calc(100% - 20px);padding:8px;
+  background:rgba(245,166,35,.06);border:1px dashed rgba(245,166,35,.3);
+  color:var(--amber);font-size:11px;border-radius:var(--r);cursor:pointer;
+  transition:background .15s;font-family:var(--font-mono);
+}
+.wl-add-btn:hover{background:rgba(245,166,35,.12);}
+
+/* ─── ALERTS in overlay ──────────────────────────────────────────────────── */
+.al-row{
+  display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);
+  gap:8px;
+}
+.al-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* ─── SCANNER in overlay ─────────────────────────────────────────────────── */
+.scan-search{padding:8px 10px;border-bottom:1px solid var(--line);}
+.scan-search input{
+  width:100%;background:var(--bg3);border:1px solid var(--line);
+  color:var(--tx);font-size:11px;padding:6px 10px;border-radius:var(--r);
+  outline:none;font-family:var(--font-mono);
+}
+.scan-search input::placeholder{color:var(--tx3);}
+.scan-group-label{
+  padding:10px 12px 4px;font-family:var(--font-mono);font-size:11px;
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;
+}
+.scan-chips{display:flex;flex-wrap:wrap;gap:4px;padding:4px 10px 8px;}
+.sp{
+  padding:3px 10px;border:none;border-radius:20px;cursor:pointer;
+  font-family:var(--font-mono);font-size:10px;white-space:nowrap;transition:all .13s;
+  background:rgba(255,255,255,.04);color:var(--tx3);
+}
+.sp:hover{background:rgba(255,255,255,.08);color:var(--tx2);}
+.sp.sp-active{background:rgba(245,166,35,.12);color:var(--amber);}
+.sp-cat-rsi{color:var(--tx2) !important;}
+.sp-cat-rsi:hover,.sp-cat-rsi.sp-active{background:rgba(255,255,255,.06) !important;}
+.sp-cat-vol{color:var(--tx2) !important;}
+.sp-cat-vol:hover,.sp-cat-vol.sp-active{background:rgba(255,255,255,.06) !important;}
+.sp-cat-bull{color:var(--green) !important;}
+.sp-cat-bull:hover,.sp-cat-bull.sp-active{background:rgba(0,212,160,.08) !important;}
+.sp-cat-bear{color:var(--red) !important;}
+.sp-cat-bear:hover,.sp-cat-bear.sp-active{background:rgba(255,77,106,.08) !important;}
+.sp-cat-pat{color:var(--tx2) !important;}
+.sp-cat-pat:hover,.sp-cat-pat.sp-active{background:rgba(255,255,255,.06) !important;}
+.scan-results{padding:8px 10px;border-top:1px solid var(--line);display:none;flex-wrap:wrap;gap:4px;}
+.scan-results.show{display:flex;}
+.scan-result-label{font-family:var(--font-mono);font-size:11px;color:var(--tx2);width:100%;margin-bottom:2px;}
+.nl-chip{
+  padding:2px 10px;background:rgba(255,255,255,.04);border:none;border-radius:20px;
+  color:var(--tx2);cursor:pointer;font-family:var(--font-mono);font-size:10px;transition:all .12s;
+}
+.nl-chip:hover{background:rgba(255,255,255,.08);color:var(--tx);}
+.nl-chip-active{background:rgba(245,166,35,.12)!important;color:var(--amber)!important;}
+
+/* ─── DRAWING TOOLS overlay ──────────────────────────────────────────────── */
+.draw-group-label{
+  padding:10px 12px 4px;font-family:var(--font-mono);font-size:11px;
+  letter-spacing:1.5px;color:var(--tx2);text-transform:uppercase;
+}
+.draw-tools-grid{display:flex;flex-wrap:wrap;gap:4px;padding:4px 10px 8px;}
+.dt-btn{
+  width:40px;height:36px;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--r);cursor:pointer;background:var(--bg3);border:1px solid var(--line);
+  font-size:14px;transition:all .15s;color:var(--tx2);
+}
+.dt-btn:hover{background:var(--bg4);color:var(--tx2);}
+.dt-btn.on{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);}
+/* hidden dt-btn elements for compatibility with existing JS */
+#draw-toolbar{display:none;}
+
+/* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
+#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ─── COMMAND BAR ────────────────────────────────────────────────────────── */
+#cmd-bar{
+  position:absolute;top:0;left:48px;right:0;height:52px;
+  background:rgba(22,30,44,0.75);
+  backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
+  border-bottom:1px solid rgba(255,255,255,0.12);
+  box-shadow:0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.5);
+  display:flex;align-items:center;padding:0 16px;gap:10px;
+  z-index:200; overflow:visible; flex-wrap:nowrap;
+}
+
+/* ── Topbar slot system ──────────────────────────────────────────────────── */
+#cmd-bar {
+  /* override gap so slots space evenly */
+  gap: 0 !important;
+  padding: 0 8px 0 8px !important;
+  justify-content: flex-start;
+}
+
+/* Each slot is a flex cell that sizes to its content */
+.tb-slot {
+  display: flex; align-items: center;
+  height: 100%; padding: 0 4px;
+  position: relative; flex-shrink: 0;
+  border-radius: 6px;
+  transition: background .12s;
+  min-width: 12px;
+}
+/* Indicators slot — auto-sizes to its content, no clipping */
+.tb-slot[data-slot="3"] {
+  flex-shrink: 0;
+  width: auto;
+}
+.tb-slot[data-slot="3"] .tb-block {
+  width: auto;
+}
+.tb-slot[data-slot="3"] #ind-topbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  width: auto;
+  overflow: visible;
+}
+
+/* Empty slot — shows a subtle dotted drop target when dragging */
+.tb-slot:empty {
+  min-width: 28px; flex: 1;
+}
+.tb-dragging-active .tb-slot:empty {
+  background: rgba(255,255,255,.02);
+  outline: 1px dashed rgba(255,255,255,.08);
+  outline-offset: -2px;
+}
+.tb-slot.tb-slot-over {
+  background: rgba(0,212,160,.08) !important;
+  outline: 1px solid rgba(0,212,160,.4) !important;
+  outline-offset: -2px;
+}
+
+/* Block inside a slot */
+.tb-block {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; border-radius: 5px; padding: 2px 4px;
+  cursor: grab; position: relative; user-select: none;
+  transition: opacity .15s;
+}
+.tb-block:active { cursor: grabbing; }
+.tb-block.tb-dragging { opacity: 0.25; pointer-events: none; }
+.tb-block:hover {
+  background: rgba(255,255,255,.04);
+  outline: 1px dashed rgba(255,255,255,.12);
+  outline-offset: 2px;
+}
+
+/* Locked logout bar — always far right */
+#tb-logout-fixed {
+  margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px;
+}
+/* Symbol button */
+#sym-pill{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:var(--r);
+  padding:0 12px;height:34px;cursor:pointer;transition:all .15s;flex-shrink:0;
+  min-width:130px;
+}
+#sym-pill:hover{background:rgba(255,255,255,0.08);border-color:rgba(0,212,160,0.4);}
+#sym-t{font-family:var(--font-mono);font-weight:600;font-size:14px;}
+#sym-e{font-family:var(--font-mono);font-size:11px;color:var(--tx2);}
+#px-main{font-family:var(--font-mono);font-size:16px;font-weight:500;flex-shrink:0;min-width:80px;}
+#px-chg{
+  font-family:var(--font-mono);font-size:11px;padding:3px 10px;
+  border-radius:20px;font-weight:500;flex-shrink:0;
+}
+#px-chg.up{background:rgba(0,212,160,.12);color:var(--green);}
+#px-chg.dn{background:rgba(255,77,106,.12);color:var(--red);}
+.cmd-div{width:1px;height:20px;background:rgba(255,255,255,0.07);flex-shrink:0;margin:0 2px;}
+
+/* Timeframe pills */
+.tf-group{display:flex;gap:1px;background:rgba(255,255,255,0.03);border-radius:var(--r);
+  padding:3px;border:1px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.tf{
+  font-family:var(--font-mono);font-size:10px;font-weight:500;
+  padding:3px 8px;border:none;background:transparent;color:var(--tx3);
+  cursor:pointer;border-radius:4px;transition:all .15s;
+}
+.tf:hover{color:var(--tx2);}
+.tf.on{background:rgba(255,255,255,0.08);color:var(--tx);}
+
