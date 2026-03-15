@@ -1229,8 +1229,8 @@ body.is-dragging { user-select: none; }
 
     <!-- STATUS BAR -->
     <div id="statusbar">
-      <span id="sb-sym" style="color:var(--tx2);">AAPL</span>
-      <span id="sb-tf" style="color:var(--tx2);">1D</span>
+      <span id="sb-sym" style="color:var(--tx2);"></span>
+      <span id="sb-tf" style="color:var(--tx2);"></span>
       <span id="sb-bars" style="color:var(--tx3);"></span>
       <span id="st-pattern" style="display:none;color:var(--amber);font-size:11px;margin-left:6px;"></span>
       <span id="st-tilt" style="display:none;color:var(--rd);font-size:11px;margin-left:6px;">⚠ Tilt Risk</span>
@@ -1247,10 +1247,8 @@ body.is-dragging { user-select: none; }
   <div id="rdrawer">
     <div class="rd-tabs">
       <button class="rp-tab on" onclick="rpTab(this,'ai')">AI</button>
-      <button class="rp-tab" onclick="rpTab(this,'journal')">Journal</button>
       <button class="rp-tab" onclick="rpTab(this,'analytics')" id="tab-analytics">Analytics</button>
       <button class="rp-tab" onclick="rpTab(this,'info')">News</button>
-      <button class="rp-tab" onclick="rpTab(this,'inds')">Builder</button>
     </div>
 
     <!-- AI tab -->
@@ -1270,7 +1268,7 @@ body.is-dragging { user-select: none; }
     </div>
 
     <!-- Journal tab -->
-    <div class="rp-body" id="rp-journal">
+    <div class="rp-body" id="rp-journal" style="display:none!important">
       <div id="j-stats-bar" style="grid-template-columns:repeat(5,1fr);">
         <div class="j-stat"><div class="j-stat-lbl">Trades</div><div class="j-stat-val" id="jst-total">0</div></div>
         <div class="j-stat"><div class="j-stat-lbl">Win %</div><div class="j-stat-val" id="jst-wr" style="color:var(--green)">—</div></div>
@@ -1479,7 +1477,7 @@ body.is-dragging { user-select: none; }
     </div>
 
     <!-- Builder tab (Indicator Builder + custom inds) -->
-    <div class="rp-body" id="rp-inds">
+    <div class="rp-body" id="rp-inds" style="display:none!important">
       <div style="padding:10px 8px 4px;border-bottom:1px solid var(--line);">
         <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--tx2);letter-spacing:.8px;margin-bottom:6px;">⚗ INDICATOR BUILDER</div>
         <div style="display:flex;gap:5px;margin-bottom:6px;">
@@ -1705,7 +1703,21 @@ body.is-dragging { user-select: none; }
           <div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.8px;">⚡ PRE-TRADE AI ANALYSIS</div>
           <button id="pretrade-ai-btn" onclick="runPretradeAI()" style="padding:3px 10px;background:rgba(0,212,160,.07);border:1px solid rgba(0,212,160,.25);color:var(--green);font-size:11px;border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);font-weight:600;">Analyse</button>
         </div>
-        <div id="pretrade-ai-out" style="display:none;margin-top:6px;padding:6px 8px;background:var(--bg);border-radius:var(--r);font-size:11px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;border-top:1px solid var(--line);"></div>
+        <div id="pretrade-ai-out" style="display:none;margin-top:6px;">
+          <!-- Verdict banner — filled by JS after AI responds -->
+          <div id="pretrade-verdict-banner" style="display:none;border-radius:var(--r);padding:10px 14px;margin-bottom:8px;border:1px solid transparent;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div id="pretrade-verdict-label" style="font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:.5px;"></div>
+              <div id="pretrade-verdict-score" style="font-family:var(--font-mono);font-size:22px;font-weight:700;line-height:1;"></div>
+            </div>
+            <div id="pretrade-verdict-sub" style="font-family:var(--font-mono);font-size:10px;opacity:0.8;margin-bottom:6px;"></div>
+            <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden;">
+              <div id="pretrade-verdict-bar" style="height:100%;border-radius:2px;transition:width .6s ease;width:0%;"></div>
+            </div>
+          </div>
+          <!-- Full AI analysis text -->
+          <div id="pretrade-ai-text" style="padding:6px 8px;background:var(--bg);border-radius:var(--r);font-size:11px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;border:1px solid var(--line);"></div>
+        </div>
       </div>
 
       <!-- Pre-trade checklist -->
@@ -2023,6 +2035,28 @@ let showEMA=false, showVWAP=false, showMACD=false, showStoch=false;
 const DEFAULT_TOPBAR_INDS = ['sma','vol','rsi','sessions'];
 // Start with defaults — overwritten by doLogin() once the user's namespace is known
 let topbarInds = DEFAULT_TOPBAR_INDS.slice();
+
+// ── Indicator on/off state — persisted separately from topbar pin list ────────
+// This is the source of truth for whether each indicator is visible on the chart.
+const DEFAULT_IND_ACTIVE = {sma:true,bb:false,ema:false,vwap:false,vol:true,rsi:true,macd:false,stoch:false,sessions:true};
+let indActive = {...DEFAULT_IND_ACTIVE};
+function saveIndActive(){ try{ _lsSet('ind-active', JSON.stringify(indActive)); }catch(e){} }
+function loadIndActive(){
+  try{
+    const raw = _lsGet('ind-active');
+    if(raw) indActive = {...DEFAULT_IND_ACTIVE, ...JSON.parse(raw)};
+  }catch(e){ indActive = {...DEFAULT_IND_ACTIVE}; }
+}
+function applyIndActive(){
+  showSMA   = !!indActive.sma;
+  showBB    = !!indActive.bb;
+  showEMA   = !!indActive.ema;
+  showVWAP  = !!indActive.vwap;
+  showVol   = !!indActive.vol;
+  showRSI   = !!indActive.rsi;
+  showMACD  = !!indActive.macd;
+  showStoch = !!indActive.stoch;
+}
 // saveTopbarInds / saveCustomInds defined in account system below
 
 // ── Custom Indicator Engine ───────────────────────────────────────────────────
@@ -4430,47 +4464,165 @@ async function runDynamicPretradeAI(){
   const minRR = avgWinRR.length ? (avgWinRR.reduce((a,b)=>a+b,0)/avgWinRR.length).toFixed(2) : 1.5;
 
   const rr = (entry&&sl&&tp) ? (Math.abs(tp-entry)/Math.abs(entry-sl)).toFixed(2) : null;
+  // Extra indicators for richer institutional analysis
+  const macdV = calcMACD(data);
+  const lastMACD = macdV[macdV.length-1];
+  const ema9V  = calcEMA(data,9);  const lastEMA9  = ema9V[ema9V.length-1];
+  const ema21V = calcEMA(data,21); const lastEMA21 = ema21V[ema21V.length-1];
+  const last3  = data.slice(-3);
+  const recentAction = last3.map(b=>`${b.close>b.open?'Bullish':'Bearish'} candle (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' -> ');
+  const shortTrend = lastSMA20&&last?.close?(last.close>lastSMA20?'Bullish (price above SMA20)':'Bearish (price below SMA20)'):'N/A';
+  const htfTrend   = lastSMA50&&last?.close?(last.close>lastSMA50?'Bullish (price above SMA50)':'Bearish (price below SMA50)'):'N/A';
+  const macdStatus = lastMACD?`MACD: ${lastMACD.macd?.toFixed(5)||'N/A'} | Signal: ${lastMACD.signal?.toFixed(5)||'N/A'} | Histogram: ${lastMACD.hist?.toFixed(5)||'N/A'} (${lastMACD.hist>0?'Bullish':'Bearish'} momentum)`:'N/A';
+  const maStatus   = `EMA9: ${lastEMA9?fP(lastEMA9):'N/A'} | EMA21: ${lastEMA21?fP(lastEMA21):'N/A'} | SMA50: ${lastSMA50?fP(lastSMA50):'N/A'}`;
+  const avgVol20   = data.slice(-20).reduce((s,b)=>s+b.volume,0)/20;
+  const volStatus  = last?.volume?(last.volume>avgVol20?'Above average (strong conviction)':'Below average (weak conviction)'):'N/A';
 
-  const prompt = `You are a strict but fair pre-trade risk officer evaluating a trade setup before entry. Assess this trade objectively using all data. Be blunt.
+  const prompt = `You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.
 
-PROPOSED TRADE:
-Symbol: ${sym} | Timeframe: ${tf} | Direction: ${dir.toUpperCase()} | Setup: ${setup||'untagged'}
-Entry: ${entry?'$'+fP(entry):'not set'} | Stop Loss: ${sl?'$'+fP(sl):'not set'} | Take Profit: ${tp?'$'+fP(tp):'not set'}
-Calculated R:R: ${rr?'1:'+rr:'cannot calculate — missing levels'}
+INPUT DATA:
+Asset: ${sym}
+Timeframe: ${tf}
+Current Price: ${fP(last?.close||0)}
+Entry Price: ${entry?fP(entry):'Not set'}
+Stop Loss: ${sl?fP(sl):'Not set'}
+Take Profit: ${tp?fP(tp):'Not set'}
 
-CURRENT CHART STATE (${sym}, ${tf}):
-Price: $${fP(last?.close||0)} | RSI(14): ${lastRSI?.toFixed(1)||'N/A'}
-SMA20: ${lastSMA20?fP(lastSMA20):'N/A'} | SMA50: ${lastSMA50?fP(lastSMA50):'N/A'} | ATR: ${lastATR?fP(lastATR):'N/A'}
-Trend (SMA): ${lastSMA20&&lastSMA50?(lastSMA20>lastSMA50?'BULLISH — SMA20 above SMA50':'BEARISH — SMA20 below SMA50'):'insufficient data'}
-Support levels: ${srZones.support.map(fP).join(', ')||'none detected'}
-Resistance levels: ${srZones.resistance.map(fP).join(', ')||'none detected'}
-Active patterns: ${pats.map(p=>p.name).join(', ')||'none'}
+Trend Information:
+  Short-term trend: ${shortTrend}
+  Higher timeframe trend: ${htfTrend}
+  Support Levels: ${srZones.support.slice(0,4).map(fP).join(', ')||'None detected'}
+  Resistance Levels: ${srZones.resistance.slice(0,4).map(fP).join(', ')||'None detected'}
 
-TRADER'S HISTORICAL EDGE:
-${simWR!=null?`Win rate on ${sym} ${dir}: ${simWR}% (${similar.length} trades)`:'No history on this symbol/direction'}
-${setupWR!=null?`Win rate with "${setup}": ${setupWR}% (${bySetup.length} trades)`:''}
-Their avg winning R:R historically: 1:${minRR}
-Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — TILT RISK HIGH':''}
+Indicators:
+  RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' — Overbought':lastRSI<30?' — Oversold':' — Neutral'):''}
+  ${macdStatus}
+  Moving Averages: ${maStatus}
+  Volume: ${volStatus}
 
-Evaluate the trade with a checklist. For each item, give ✅ PASS, ⚠️ CAUTION, or ❌ FAIL with a one-line reason using actual numbers:
+Recent Price Action (last 3 candles):
+  ${recentAction}
 
-1. TREND ALIGNMENT — does the direction match the SMA structure?
-2. ENTRY QUALITY — is the entry near a logical support/resistance?
-3. STOP PLACEMENT — is the stop beyond a structural level? Is it logical given ATR?
-4. RISK:REWARD — does the R:R meet or beat their historical avg of 1:${minRR}?
-5. INDICATOR CONFLUENCE — does RSI support this direction?
-6. PATTERN ALIGNMENT — do detected patterns support the trade?
-7. HISTORICAL EDGE — does this match conditions where they've proven profitable?
-8. TILT CHECK — are they mentally fit to take this trade right now?
+Active Patterns: ${pats.map(p=>p.name).join(', ')||'None detected'}
+Direction: ${dir.toUpperCase()} | Setup Tag: ${setup||'Untagged'}
+Trade Risk/Reward: ${rr?'1:'+rr:'Cannot calculate — entry/SL/TP not fully set'}
+ATR(14): ${lastATR?fP(lastATR):'N/A'}
 
-Then give an overall verdict: STRONG SETUP / ACCEPTABLE / MARGINAL / DO NOT TRADE — with one sentence of reasoning.`;
+Trader Historical Edge:
+  ${simWR!=null?'Win rate on '+sym+' '+dir+': '+simWR+'% ('+similar.length+' trades)':'No prior history on this symbol/direction'}
+  ${setupWR!=null?'Win rate with "'+setup+'" setup: '+setupWR+'% ('+bySetup.length+' trades)':''}
+  Avg winning R:R historically: 1:${minRR}
+  Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — ELEVATED TILT RISK':''}
+-----------------------------
+ANALYSIS PROCESS
+
+1. MARKET CONTEXT
+Identify the overall market structure (bullish, bearish, ranging). Explain whether the current trend supports the proposed trade.
+
+2. SUPPORT / RESISTANCE ANALYSIS
+Evaluate whether the entry is near key support or resistance levels. Identify potential rejection or breakout zones.
+
+3. MOMENTUM ANALYSIS
+Analyse RSI, MACD, volume, and moving averages to determine whether momentum supports the trade direction.
+
+4. TRADE SETUP EVALUATION
+Determine if the entry aligns with:
+- trend direction
+- technical confluence
+- price structure
+- indicator confirmation
+Explain clearly whether the trade is well-positioned or premature.
+
+5. RISK-REWARD EVALUATION
+Evaluate the stop loss and take profit placement. Determine whether the risk-to-reward ratio is logical and attractive for a professional trader.
+
+6. TRADE QUALITY SCORING
+Score the trade out of 100 using the following criteria:
+  Trend Alignment (0-20):
+  Technical Confluence (0-20):
+  Momentum Strength (0-20):
+  Risk/Reward Quality (0-20):
+  Market Structure Quality (0-20):
+Provide a final combined score and a one-line interpretation.
+
+7. POTENTIAL WEAKNESSES
+Identify any flaws such as: entering into resistance, weak momentum, poor risk/reward, conflicting indicators, trading against trend.
+
+8. MARKET SCENARIOS
+Bullish Scenario: Describe what price action would confirm the trade and lead to the take-profit.
+Bearish Scenario: Describe what price action could invalidate the trade or trigger the stop loss.
+
+9. SUGGESTED IMPROVEMENTS
+If possible, suggest: a better entry level, improved stop placement, additional confirmation signals.
+
+10. FINAL VERDICT
+Classify the trade as one of the following:
+  Strong Setup
+  Acceptable Setup
+  Risky Setup
+  Avoid Trade
+Explain the reasoning clearly and concisely.
+
+Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   try {
     const text = await groqFetch(prompt);
-    out.textContent = text;
+
+    // ── Parse verdict and score from AI response ──────────────────────────────
+    const textUpper = text.toUpperCase();
+
+    // Detect verdict
+    let verdict = 'UNKNOWN', verdictColor = '#8899b0', verdictBg = 'rgba(136,153,176,0.1)', verdictBorder = 'rgba(136,153,176,0.25)';
+    if(textUpper.includes('STRONG SETUP'))       { verdict='STRONG SETUP';     verdictColor='#00d4a0'; verdictBg='rgba(0,212,160,0.1)';  verdictBorder='rgba(0,212,160,0.35)'; }
+    else if(textUpper.includes('ACCEPTABLE'))    { verdict='ACCEPTABLE SETUP'; verdictColor='#3d8eff'; verdictBg='rgba(61,142,255,0.1)'; verdictBorder='rgba(61,142,255,0.35)'; }
+    else if(textUpper.includes('RISKY SETUP'))   { verdict='RISKY SETUP';      verdictColor='#f5a623'; verdictBg='rgba(245,166,35,0.1)'; verdictBorder='rgba(245,166,35,0.35)'; }
+    else if(textUpper.includes('AVOID TRADE') || textUpper.includes('AVOID'))
+                                                 { verdict='AVOID TRADE';      verdictColor='#ff4d6a'; verdictBg='rgba(255,77,106,0.1)'; verdictBorder='rgba(255,77,106,0.35)'; }
+
+    // Extract combined score (look for pattern like "85/100" or "Score: 85" or "Combined Score: 85")
+    let score = null;
+    const scoreMatch = text.match(/(?:combined\s+score|final\s+score|total\s+score|score)[:\s]+(\d{1,3})\s*(?:\/\s*100)?/i)
+                    || text.match(/(\d{1,3})\s*\/\s*100/);
+    if(scoreMatch){ const v = parseInt(scoreMatch[1]); if(v >= 0 && v <= 100) score = v; }
+
+    // Likelihood label
+    const likelihood = score === null ? null
+      : score >= 80 ? 'High likelihood of success'
+      : score >= 60 ? 'Moderate likelihood of success'
+      : score >= 40 ? 'Lower likelihood — proceed with caution'
+      : 'Poor setup — high risk of failure';
+
+    // Render verdict banner
+    const banner  = document.getElementById('pretrade-verdict-banner');
+    const lbl     = document.getElementById('pretrade-verdict-label');
+    const scoreEl = document.getElementById('pretrade-verdict-score');
+    const subEl   = document.getElementById('pretrade-verdict-sub');
+    const barEl   = document.getElementById('pretrade-verdict-bar');
+
+    if(banner && verdict !== 'UNKNOWN'){
+      banner.style.display     = 'block';
+      banner.style.background  = verdictBg;
+      banner.style.borderColor = verdictBorder;
+      lbl.textContent          = verdict;
+      lbl.style.color          = verdictColor;
+      scoreEl.textContent      = score !== null ? score + '/100' : '—';
+      scoreEl.style.color      = verdictColor;
+      subEl.textContent        = likelihood || 'See full analysis below';
+      subEl.style.color        = verdictColor;
+      barEl.style.background   = verdictColor;
+      setTimeout(() => { barEl.style.width = (score ?? 50) + '%'; }, 50);
+    }
+
+    // Render full text
+    const textEl = document.getElementById('pretrade-ai-text');
+    if(textEl) textEl.textContent = text;
+
+    out.style.display = 'block';
     btn.textContent = '🔄 Re-check';
   } catch(err) {
-    out.textContent = '⚠ AI unavailable — check Groq API key in settings.';
+    const textEl = document.getElementById('pretrade-ai-text');
+    if(textEl) textEl.textContent = '⚠ AI unavailable — check Groq API key in settings.';
+    out.style.display = 'block';
     btn.textContent = '⚡ Deep Check';
   }
   btn.disabled = false;
@@ -5786,6 +5938,12 @@ let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
 
+// Effective half-width in bars — uses stored duration if available for TF-independence
+function effectiveHalfBars(d){ 
+  if(d.halfDuration) return secsToHalfBars(d.halfDuration, curTF);
+  return d.halfBars || 8;
+}
+
 // ── Drag / resize state ──────────────────────────────────────────────────────
 let isDraggingDrawing  = false;  // moving whole drawing
 let isResizingDrawing  = false;  // dragging a handle
@@ -5890,7 +6048,7 @@ function hitTest(d, sx, sy){
     }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
-      const hb=(d.halfBars||8); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+      const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
       const sly=_py(d.sl), tpy=_py(d.tp);
       const minY=Math.min(ey,sly,tpy)-TOL, maxY=Math.max(ey,sly,tpy)+TOL;
       return sx>bx-TOL&&sx<bx+w+TOL&&sy>minY&&sy<maxY;
@@ -5960,7 +6118,7 @@ function getHandles(d){
       return [{id:'p1', x:_barX(d.bar), y:_py(d.price), cur:'move'}];
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
-      const hb=(d.halfBars||8); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+      const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
       const sly=_py(d.sl), tpy=_py(d.tp);
       const boxTop=Math.min(ey,sly,tpy), boxBot=Math.max(ey,sly,tpy);
       const midY=(boxTop+boxBot)/2;
@@ -6112,7 +6270,8 @@ function handleDrawMousedown(sx, sy, e){
     const sl  = activeTool==='long'  ? price*0.98  : price*1.02;
     const tp  = activeTool==='long'  ? price*1.04  : price*0.96;
     const halfBars = 8;
-    const drawing = {type:activeTool,bar,price,sl,tp,halfBars};
+    const halfDuration = halfBarsToSecs(halfBars, curTF); // store as seconds — TF-independent
+    const drawing = {type:activeTool,bar,price,sl,tp,halfBars,halfDuration};
     drawings.push(drawing);
     draw(); setTool('cursor');
     // Always show/update the popup with the new drawing, even if one existed before
@@ -6172,17 +6331,19 @@ function handleDrawMousemove(sx, sy){
         else if(resizeHandle==='left'){
           // dragging left edge: right edge stays fixed, left moves
           // dBar is negative when dragging left (making wider), positive when dragging right (making narrower)
-          const newHB = Math.max(2, (s.halfBars||8) - dBar);
+          const newHB = Math.max(2, effectiveHalfBars(s) - dBar);
           d.halfBars = newHB;
+          d.halfDuration = halfBarsToSecs(newHB, curTF);
           // keep right edge fixed: rightEdge = s.bar + s.halfBars, center = rightEdge - newHB
-          d.bar = s.bar + (s.halfBars||8) - newHB;
+          d.bar = s.bar + effectiveHalfBars(s) - newHB;
         }
         else if(resizeHandle==='right'){
           // dragging right edge: left edge stays fixed, right moves
-          const newHB = Math.max(2, (s.halfBars||8) + dBar);
+          const newHB = Math.max(2, effectiveHalfBars(s) + dBar);
           d.halfBars = newHB;
+          d.halfDuration = halfBarsToSecs(newHB, curTF);
           // keep left edge fixed: leftEdge = s.bar - s.halfBars, center = leftEdge + newHB
-          d.bar = s.bar - (s.halfBars||8) + newHB;
+          d.bar = s.bar - effectiveHalfBars(s) + newHB;
         }
         break;
       case 'pitchfork':{
@@ -6526,7 +6687,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const isLong=d.type==='long';
         const ex=barXfn(d.bar), ey=pyfn(d.price);
         const sly=pyfn(d.sl), tpy=pyfn(d.tp);
-        const hb=(d.halfBars||8); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+        const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
         const entryCol=isLong?'#00c9a0':'#f03060';
         const tpCol='#00c9a0', slCol='#f03060';
 
@@ -6620,7 +6781,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         }
         case 'long': case 'short':{
           const ex=barXfn(d.bar),ey=pyfn(d.price);
-          const hb=(d.halfBars||8); const bx=ex-hb*barWidth,w=hb*2*barWidth;
+          const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth,w=hb*2*barWidth;
           const sly=pyfn(d.sl),tpy=pyfn(d.tp);
           ctx.strokeRect(bx-4,Math.min(ey,sly,tpy)-4,w+8,Math.abs(Math.max(ey,sly,tpy)-Math.min(ey,sly,tpy))+8); break;
         }
@@ -7042,18 +7203,13 @@ async function loadSym(sym){
     : curSym.p;
   curData = genData(placeholderBase, 300, VOL_MAP[curTF]||.018);
   barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
-  loadDrawings(curSym.s, curTF); drawingWIP=null; selectedDrawing=null;
+  // Don't load drawings yet — curData is fake placeholder.
+  // Drawings will be correctly resolved once real data arrives.
+  drawings=[]; drawingWIP=null; selectedDrawing=null;
   delete aiCache[curSym.s+'_'+curTF];
 
-  // Sync indicators
-  showSMA  = topbarInds.includes('sma');
-  showEMA  = topbarInds.includes('ema');
-  showBB   = topbarInds.includes('bb');
-  showVWAP = topbarInds.includes('vwap');
-  showVol  = topbarInds.includes('vol');
-  showRSI  = topbarInds.includes('rsi');
-  showMACD = topbarInds.includes('macd');
-  showStoch= topbarInds.includes('stoch');
+  // Restore indicator on/off state from persisted indActive (not from topbarInds)
+  applyIndActive();
   renderTopbarInds(); sizeCanvases(); updateTopbar(); draw();
   buildWL(); buildAIPanel(); buildInfo(); buildJournal(); buildAlertsPanel();
   tapSyncToSymbol();
@@ -7063,6 +7219,8 @@ async function loadSym(sym){
   if(dataCache[sym+'_'+curTF]){
     curData = dataCache[sym+'_'+curTF];
     rightBarIndex = curData.length+5;
+    // Real data — now safe to resolve drawing timestamps → bar indices
+    loadDrawings(sym, curTF);
     updateTopbar(); draw(); buildAIPanel();
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
@@ -7100,6 +7258,10 @@ function updateTopbar(){
   const pct=((last.close-prev.close)/prev.close*100);
   document.getElementById('sym-t').textContent=curSym.s;
   document.getElementById('sym-e').textContent=curSym.e;
+  // Statusbar — symbol, timeframe, bar count
+  const sbSym = document.getElementById('sb-sym'); if(sbSym) sbSym.textContent = curSym.s;
+  const sbTf  = document.getElementById('sb-tf');  if(sbTf)  sbTf.textContent  = curTF.toUpperCase();
+  const sbBars= document.getElementById('sb-bars'); if(sbBars) sbBars.textContent = curData.length + ' bars';
   document.getElementById('px-main').textContent=fP(last.close);
   const cel=document.getElementById('px-chg');
   cel.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
@@ -7125,7 +7287,7 @@ function setTF(btn,tf){
     if(!n) return;
     drawings.forEach(d => {
       if(!d._aisPlaced) return;
-      const halfBars = d.halfBars || 10;
+      const halfBars = effectiveHalfBars(d);
       d.bar = n - 1 + halfBars;
     });
     rightBarIndex = Math.max(rightBarIndex, n - 1 + 20);
@@ -7177,19 +7339,18 @@ document.addEventListener('click', e => {
 });
 // Turn indicator draw on/off and update its topbar button style
 function toggleInd(name){
-  let needsResize = false;
-  if(name==='sma') showSMA=!showSMA;
-  if(name==='bb')  showBB=!showBB;
-  if(name==='ema') showEMA=!showEMA;
-  if(name==='vwap')showVWAP=!showVWAP;
-  if(name==='vol'){showVol=!showVol; needsResize=true;}
-  if(name==='rsi'){showRSI=!showRSI; needsResize=true;}
-  if(name==='macd'){showMACD=!showMACD; needsResize=true;}
-  if(name==='stoch'){showStoch=!showStoch; needsResize=true;}
   if(name==='sessions'){ toggleSessions(); return; }
+  let needsResize = ['vol','rsi','macd','stoch'].includes(name);
+
+  // Flip both the runtime bool and the persisted indActive state
+  if(name in indActive) indActive[name] = !indActive[name];
+  applyIndActive();
+  saveIndActive();
+
+  const nowOn = getIndState(name);
   // Update button active state
   const btn = document.getElementById('btn-'+name);
-  if(btn) btn.classList.toggle('on', getIndState(name));
+  if(btn) btn.classList.toggle('on', nowOn);
   invalidateIndCache();
   if(needsResize) sizeCanvases();
   draw();
@@ -7861,7 +8022,8 @@ function runPrompt(btn, q){
   label.textContent = 'Scanning...';
 
   const scored = SYMS.map(s => {
-    const d = genData(s.p, 80, VOL_MAP[curTF] || 0.018);
+    // Use real cached data if available, otherwise placeholder
+    const d = dataCache[s.s+'_'+curTF] || (s.s===curSym.s ? curData : null) || genData(s.p, 80, VOL_MAP[curTF] || 0.018);
     const rsiArr = calcRSI(d);
     const rsi = rsiArr[rsiArr.length-1] || 50;
     const sma20arr = calcSMA(d,20); const sma20 = sma20arr[sma20arr.length-1];
@@ -7983,8 +8145,11 @@ function toast(msg){
 setInterval(()=>{
   const n=new Date();
   const clkEl=document.getElementById('st-clk'); if(clkEl) clkEl.textContent=n.toLocaleTimeString('en-GB',{hour12:false});
-  const h=n.getHours(); const open=h>=9&&h<16;
-  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'LIVE':'CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--rd)'; }
+  // Crypto trades 24/7 — always LIVE. Only show CLOSED on weekends for context.
+  const dayOfWeek = n.getDay(); // 0=Sun, 6=Sat
+  const isCryptoWeekend = false; // crypto never closes
+  const open = curSym && curSym.t === 'Crypto' ? true : !(dayOfWeek === 0 || dayOfWeek === 6);
+  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'● LIVE':'● CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--tx3)'; }
   updateSessionCountdown();
   updateTiltDetector();
 },1000);
@@ -8578,15 +8743,8 @@ function doLogin(username, displayName){
     if(Array.isArray(wl)) wl.forEach(s => watchlist.add(s));
   }catch(e){}
   try{ topbarInds = JSON.parse(_lsGet('topbar-inds')||'null') || DEFAULT_TOPBAR_INDS.slice(); }catch(e){ topbarInds = DEFAULT_TOPBAR_INDS.slice(); }
-  // Sync show* vars to match topbarInds so indicators are active on load
-  showSMA   = topbarInds.includes('sma');
-  showEMA   = topbarInds.includes('ema');
-  showBB    = topbarInds.includes('bb');
-  showVWAP  = topbarInds.includes('vwap');
-  showVol   = topbarInds.includes('vol');
-  showRSI   = topbarInds.includes('rsi');
-  showMACD  = topbarInds.includes('macd');
-  showStoch = topbarInds.includes('stoch');
+  loadIndActive();
+  applyIndActive();
   try{ customIndicators = JSON.parse(_lsGet('custom-inds')||'[]'); }catch(e){ customIndicators=[]; }
   try{ showSessions = JSON.parse(_lsGet('sessions')||'false'); }catch(e){}
   try{ const ah = JSON.parse(_lsGet('analytics-hidden')||'[]'); analyticsHidden = new Set(ah); }catch(e){}
@@ -9973,6 +10131,13 @@ function tutNavStep(dir){
 // Multi-timeframe per-symbol deep analysis
 
 // TFs to analyse — 1H through Monthly (6 TFs for full confluence)
+const TF_BAR_SECS = {'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1M':2592000};
+function tfBarSecs(tf){ return TF_BAR_SECS[tf] || 3600; }
+// Convert halfBars to a time duration in seconds for the current TF
+function halfBarsToSecs(hb, tf){ return hb * tfBarSecs(tf); }
+// Convert a time duration back to bars for the current TF
+function secsToHalfBars(secs, tf){ return Math.max(2, Math.round(secs / tfBarSecs(tf))); }
+
 const PMB_TFS = ['1h','4h','1d','1w','1M'];
 const PMB_TF_LABELS = { '1h':'1H', '4h':'4H', '1d':'Daily', '1w':'Weekly', '1M':'Monthly' };
 // Bar counts needed per TF to get meaningful pattern + S/R detection
@@ -10037,9 +10202,10 @@ function genDataForTF(sym, tf, bars) {
 }
 
 // Analyse a single symbol on a single timeframe
-function analyseTF(sym, tf) {
+function analyseTF(sym, tf, realData) {
+  // Use real data if provided, otherwise fall back to generated placeholder
   const bars = PMB_TF_BARS[tf] || 200;
-  const data  = genDataForTF(sym, tf, bars);
+  const data  = realData && realData.length >= 10 ? realData : genDataForTF(sym, tf, bars);
   const n     = data.length;
   const pats  = detectPatterns(data);
   const sr    = detectSR(data);
@@ -10150,26 +10316,34 @@ async function generatePremarket() {
   // Build nav items immediately (as loading placeholders)
   buildPMBNav(symsToAnalyse, true);
 
-  // Analyse each symbol across all TFs
+  // Analyse each symbol across all TFs — fetch real Binance data first
   for (const sym of symsToAnalyse) {
     const tfData = {};
     for (const tf of PMB_TFS) {
-      pmbSetProgress(Math.round(done / total * 80) + 2, `Analysing ${sym.s} on ${PMB_TF_LABELS[tf]}…`);
-      // Small yield to keep UI responsive
+      pmbSetProgress(Math.round(done / total * 80) + 2, `Fetching ${sym.s} ${PMB_TF_LABELS[tf]} data…`);
       await new Promise(r => setTimeout(r, 0));
-      tfData[tf] = analyseTF(sym.s, tf);
+      // Fetch real Binance candles for crypto
+      let realData = null;
+      if(sym.t === 'Crypto'){
+        try{
+          realData = await fetchBinanceCandles(sym.s, tf);
+        }catch(e){ realData = null; }
+      }
+      tfData[tf] = analyseTF(sym.s, tf, realData);
       done++;
     }
     const confluence = computeConfluence(tfData);
     // Daily data for price/move display
     const daily = tfData['1d'];
+    // Use the real price from the actual data (daily TF last bar)
+    const realPrice = daily?.price || (SYMS.find(s=>s.s===sym.s)?.p) || 0;
     pmbAnalyses[sym.s] = {
       sym: sym.s, name: sym.n, type: sym.t, exchange: sym.e,
       tfData, confluence,
-      price: daily.price,
-      movePct: daily.movePct,
-      dailyBias: daily.bias,
-      dailyRSI: daily.rsi
+      price: realPrice,
+      movePct: daily?.movePct || 0,
+      dailyBias: daily?.bias || 'neut',
+      dailyRSI: daily?.rsi || '—'
     };
     // Update nav item as it completes
     updatePMBNavItem(sym.s, pmbAnalyses[sym.s]);
@@ -10480,33 +10654,102 @@ function buildSymbolPane(a) {
 
 async function generateSymbolNarrative(a) {
   const c = a.confluence;
-  const tfSummary = PMB_TFS.map(tf => {
-    const t = a.tfData[tf];
-    if (!t) return '';
-    return `${PMB_TF_LABELS[tf]}: ${t.bias.toUpperCase()} | RSI ${t.rsi} | ${t.topPat ? t.topPat.name : 'no pattern'} | Nearest S: ${t.nearestS ? fP(t.nearestS) : 'n/a'} | Nearest R: ${t.nearestR ? fP(t.nearestR) : 'n/a'}`;
-  }).join('\n');
-
   const htfLabel = c.htfBias === 'bull' ? 'BULLISH' : c.htfBias === 'bear' ? 'BEARISH' : 'MIXED';
   const daily = a.tfData['1d'];
+  const h1    = a.tfData['1h'];
+  const now   = new Date();
+  const dateStr = now.toLocaleDateString([], {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  const hour    = now.getUTCHours();
+  const session = hour < 7 ? 'Asia' : hour < 12 ? 'Europe' : hour < 21 ? 'US' : 'Asia';
 
-  const prompt = `You are a senior FX/equity analyst writing a concise pre-market brief for ${a.sym} (${a.name}). Be specific, analytical, and direct. No disclaimers.
+  // Build multi-TF data rows
+  const tfRows = ['1h','1d','1w','1M'].map(tf => {
+    const t = a.tfData[tf];
+    if (!t) return null;
+    return `  ${tf.padEnd(3)}: ${t.bias.toUpperCase().padEnd(7)} | RSI ${String(t.rsi).padEnd(5)} | ATR ${t.atr ? fP(t.atr) : 'n/a'} | S: ${t.nearestS ? fP(t.nearestS) : 'n/a'} | R: ${t.nearestR ? fP(t.nearestR) : 'n/a'}${t.topPat ? ' | Pattern: '+t.topPat.name : ''}`;
+  }).filter(Boolean).join('\n');
 
-MULTI-TIMEFRAME DATA:
-${tfSummary}
+  const allS = ['1w','1d','1h'].flatMap(tf => { const t = a.tfData[tf]; return t?.nearestS ? [t.nearestS] : []; });
+  const allR = ['1w','1d','1h'].flatMap(tf => { const t = a.tfData[tf]; return t?.nearestR ? [t.nearestR] : []; });
+  const supportLevels    = [...new Set(allS.map(p => fP(p)))].slice(0,4).join(', ') || 'None detected';
+  const resistanceLevels = [...new Set(allR.map(p => fP(p)))].slice(0,4).join(', ') || 'None detected';
 
-CONFLUENCE: ${c.verdict} (score: ${c.confScore}/100)
-Higher TF bias (Weekly+Monthly): ${htfLabel}
-Daily aligns with HTF: ${c.dailyMatchesHTF ? 'YES — confluent' : 'NO — conflicting'}
-Current price: ${fP(a.price)} | Daily move: ${a.movePct >= 0 ? '+' : ''}${a.movePct}%
+  const rsiDaily  = daily?.rsi ? `${daily.rsi} ${daily.rsi > 70 ? '(Overbought)' : daily.rsi < 30 ? '(Oversold)' : '(Neutral)'}` : 'N/A';
+  const rsiH1     = h1?.rsi    ? `${h1.rsi} ${h1.rsi > 70 ? '(Overbought)'   : h1.rsi < 30    ? '(Oversold)'   : '(Neutral)'}` : 'N/A';
+  const volStatus = a.movePct > 1 ? 'Elevated — strong bullish move' : a.movePct < -1 ? 'Elevated — strong bearish move' : 'Normal';
+  const dailyMove = `${a.movePct >= 0 ? '+' : ''}${a.movePct}%`;
+  const isBTC     = a.sym.includes('BTC');
+  const cryptoCtx = isBTC
+    ? 'BTC is the market benchmark — its structure drives overall crypto sentiment.'
+    : `Monitor BTC dominance and BTC price action for correlation signals on ${a.sym}.`;
 
-Write a PRE-MARKET BRIEF for ${a.sym} with these sections:
-📍 SITUATION (1-2 sentences: where is price right now relative to structure?)
-🔀 CONFLUENCE (1-2 sentences: do the timeframes agree? What does HTF say?)
-🎯 KEY LEVELS (list 2-3 specific prices to watch — S/R from Weekly/Monthly + Daily)
-⚡ TRADE CONTEXT (1-2 sentences: is there a setup forming? What needs to happen?)
-⚠ RISK (1 sentence: what could invalidate the bias or signal caution?)
+  const prompt = `You are a professional financial market analyst responsible for preparing a clear and concise pre-market briefing for traders. Your goal is to summarise the most important market developments and highlight potential trading opportunities for the upcoming session. Use objective analysis based on macroeconomic context, market sentiment, technical structure, and key levels.
 
-Keep it tight — max 8 lines total. Use exact price levels. Sound like a Bloomberg terminal note.`;
+INPUT DATA:
+Date: ${dateStr}
+Session: ${session}
+Asset: ${a.sym} (${a.name})
+Current Price: ${fP(a.price)}
+Daily Move: ${dailyMove}
+Overall Confluence: ${c.verdict} (score: ${c.confScore}/100)
+Higher TF Bias (Weekly + Monthly): ${htfLabel}
+Daily Aligns with HTF: ${c.dailyMatchesHTF ? 'YES — confluent' : 'NO — conflicting'}
+
+Multi-Timeframe Technical Data:
+${tfRows}
+
+Key Support Levels: ${supportLevels}
+Key Resistance Levels: ${resistanceLevels}
+
+Indicators:
+  RSI (Daily): ${rsiDaily}
+  RSI (1H): ${rsiH1}
+  Volume Conditions: ${volStatus}
+  ATR (Daily): ${daily?.atr ? fP(daily.atr) : 'N/A'}
+
+Crypto Market Context: ${cryptoCtx}
+Patterns Detected: ${['1d','1h'].map(tf => a.tfData[tf]?.topPat?.name).filter(Boolean).join(', ') || 'None'}
+--------------------------------
+PRE-MARKET BRIEFING STRUCTURE
+
+1. GLOBAL MARKET OVERVIEW
+Summarise the current state of global markets and how they relate to ${a.sym}. Identify whether overall sentiment is bullish, bearish, or neutral. Use the multi-timeframe data above to support your view.
+
+2. MACRO & NEWS DRIVERS
+Highlight the most important macroeconomic events or news affecting ${a.sym} today, including:
+- central bank developments
+- economic data releases (CPI, NFP, FOMC etc.)
+- geopolitical developments
+- crypto-specific drivers (ETF flows, regulatory news, on-chain activity)
+Explain how these events could influence price behaviour.
+
+3. KEY MARKET LEVELS
+Identify the most important technical levels for ${a.sym}:
+- Major support zones (use exact prices from the data above)
+- Major resistance zones (use exact prices from the data above)
+- Breakout or breakdown areas
+Explain why each level is significant.
+
+4. VOLATILITY & SENTIMENT
+Assess market sentiment using RSI, price momentum, multi-timeframe bias, and volume conditions.
+Classify sentiment as: Bullish / Bearish / Mixed / Neutral
+Explain the reasoning using the data provided.
+
+5. POTENTIAL TRADING THEMES TODAY
+Identify 3–5 possible themes or narratives traders may focus on for ${a.sym} today. Examples: momentum continuation, key level retest, volatility expansion, BTC correlation play, altcoin rotation.
+
+6. WATCHLIST SETUPS
+For ${a.sym}, provide:
+  Asset Name: ${a.sym}
+  Current Market Context: (describe current structure)
+  Potential Setup: (breakout, pullback, trend continuation, or range trade — be specific)
+  Key Levels to Watch: (use exact prices from the data above)
+
+7. RISK EVENTS TO WATCH
+List the most important factors during this session that could cause volatility for ${a.sym}. Include technical invalidation levels and macro sensitivity.
+
+8. TRADER SUMMARY
+A 3–4 sentence summary of the most important things a trader should watch for ${a.sym} today. Be specific, use the exact price levels provided, and remain actionable. Do not make guaranteed predictions or provide financial advice.`;
 
   return await groqFetch(prompt);
 }
@@ -10603,14 +10846,14 @@ async function fetchPMBNews(symStrs) {
 .ais-sort-btn:hover,.ais-sort-btn.on{background:rgba(255,255,255,.1);color:var(--tx);}
 
 /* Body / grid */
-#ais-body{flex:1;overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px;align-content:start;}
+#ais-body{flex:1;overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px;align-content:start;}
 #ais-body::-webkit-scrollbar{width:4px;}
 #ais-body::-webkit-scrollbar-track{background:transparent;}
 #ais-body::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px;}
 #ais-idle{grid-column:1/-1;padding:60px 20px;text-align:center;}
 
 /* Card */
-.ais-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:background .15s,border-color .15s,transform .15s;animation:ais-card-in .2s ease-out both;}
+.ais-card{background:rgba(255,255,255,.04);border:1px solid var(--b1);border-radius:12px;display:flex;flex-direction:column;transition:background .15s,border-color .15s,transform .15s;animation:ais-card-in .2s ease-out both;}
 @keyframes ais-card-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .ais-card:hover{background:rgba(255,255,255,.06);border-color:var(--b2);transform:translateY(-1px);}
 .ais-card-hdr{display:flex;align-items:center;gap:8px;padding:12px 14px 8px;}
@@ -10637,7 +10880,7 @@ async function fetchPMBNews(symStrs) {
 .ais-lvl{background:rgba(255,255,255,.03);border-radius:7px;padding:5px 6px;text-align:center;}
 .ais-lvl-lbl{font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);letter-spacing:.4px;margin-bottom:2px;}
 .ais-lvl-val{font-size:10px;font-weight:600;font-family:ui-monospace,'SF Mono',monospace;}
-.ais-idea{padding:10px 14px;border-top:1px solid var(--b1);font-size:11px;line-height:1.75;color:var(--tx2);flex:1;}
+.ais-idea{padding:10px 14px;border-top:1px solid var(--b1);font-size:11px;line-height:1.75;color:var(--tx2);}
 .ais-idea-lbl{font-size:11px;font-weight:600;font-family:ui-monospace,'SF Mono',monospace;letter-spacing:.8px;color:var(--tx3);margin-bottom:5px;text-transform:uppercase;}
 .ais-tags{display:flex;flex-wrap:wrap;gap:4px;padding:7px 14px;border-top:1px solid var(--b1);}
 .ais-tag{font-size:11px;font-family:ui-monospace,'SF Mono',monospace;padding:1px 7px;border-radius:20px;background:rgba(255,255,255,.05);color:var(--tx3);}
@@ -10682,11 +10925,7 @@ async function fetchPMBNews(symStrs) {
       <div class="ais-filter-group">
         <span class="ais-filter-lbl">TYPE</span>
         <span class="ais-chip type-all on" data-group="type" onclick="aisTypeAll(this)">All</span>
-        <span class="ais-chip type on" data-filter="Stock"   data-group="type" onclick="aisToggleFilter(this)">Stocks</span>
         <span class="ais-chip type on" data-filter="Crypto"  data-group="type" onclick="aisToggleFilter(this)">Crypto</span>
-        <span class="ais-chip type on" data-filter="Forex"   data-group="type" onclick="aisToggleFilter(this)">Forex</span>
-        <span class="ais-chip type on" data-filter="Futures" data-group="type" onclick="aisToggleFilter(this)">Futures</span>
-        <span class="ais-chip type on" data-filter="ETF"     data-group="type" onclick="aisToggleFilter(this)">ETFs</span>
       </div>
       <!-- Direction filter -->
       <div class="ais-filter-group">
@@ -10758,7 +10997,7 @@ async function fetchPMBNews(symStrs) {
 // ══ AI BEST SETUPS ════════════════════════════════════════════════════════════
 let aisSetups   = [];
 let aisSortKey  = 'score';
-let aisActiveTypes = new Set(['Stock','Crypto','Forex','Futures','ETF']);
+let aisActiveTypes = new Set(['Crypto']);
 let aisActiveDirs  = new Set(['bull','bear']);
 let aisTFScan    = new Set(['1m','5m','15m','1h','4h','1d','1w','1M']); // used at scan time
 let aisTFFilter  = new Set(['1m','5m','15m','1h','4h','1d','1w','1M']); // used for live filtering
@@ -10812,7 +11051,7 @@ function aisToggleTF(el){
   aisApplyFilter();
 }
 
-const ALL_TYPES = ['Stock','Crypto','Forex','Futures','ETF'];
+const ALL_TYPES = ['Crypto'];
 
 function aisTypeAll(){
   const allOn = ALL_TYPES.every(t => aisActiveTypes.has(t));
@@ -10901,20 +11140,89 @@ function closeAISetups(){
   resetDrag(document.getElementById('ais-modal'));
 }
 
+function aisOpenChart(sym, dir, entry, sl, target, tf){
+  closeAISetups();
+
+  const symObj = SYMS.find(x => x.s === sym);
+  if(!symObj) return;
+
+  const doPlace = () => {
+    // Always anchor drawing to the LATEST real bar in curData
+    const barIdx = curData.length - 1;
+    if(barIdx < 0) return;
+
+    // Use the actual last close as entry (scan price may be stale by seconds)
+    // but keep SL/TP offsets relative to the scan's entry
+    const lastClose = curData[barIdx].close;
+    const entryOffset = entry - lastClose;          // usually ~0 if data is fresh
+    const realEntry = lastClose;                    // place at current price
+    const realSL    = sl    - entryOffset;
+    const realTP    = target - entryOffset;
+
+    // Remove any previous AI-placed drawings
+    drawings = drawings.filter(d => !d._aisPlaced);
+
+    const drawing = {
+      type: dir === 'bull' ? 'long' : 'short',
+      bar:  barIdx,
+      price: +realEntry.toFixed(lastClose < 10 ? 4 : 2),
+      sl:    +realSL.toFixed(lastClose < 10 ? 4 : 2),
+      tp:    +realTP.toFixed(lastClose < 10 ? 4 : 2),
+      halfBars: 16,
+      halfDuration: halfBarsToSecs(16, curTF),
+      _aisPlaced: true,
+    };
+    drawings.push(drawing);
+    saveDrawings(curSym.s, curTF);
+
+    // Scroll to show the drawing with some breathing room
+    rightBarIndex = curData.length - 1 + 15;
+    priceHi = null; priceLo = null;
+
+    showTradeAnalysisPopup(drawing);
+    draw();
+  };
+
+  // If we need to switch symbol or TF, do it first
+  const needSymSwitch = curSym.s !== sym;
+  const needTFSwitch  = tf && curTF !== tf;
+
+  if(!needSymSwitch && !needTFSwitch){
+    doPlace();
+  } else if(needSymSwitch){
+    // loadSym sets curTF-aware data — switch TF first if needed
+    if(needTFSwitch){
+      const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
+      if(tfBtn) setTF(tfBtn, tf);
+    }
+    loadSym(sym).then(doPlace);
+  } else {
+    // Same symbol, different TF
+    const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
+    if(tfBtn){
+      setTF(tfBtn, tf);
+      // setTF calls loadSym internally — wait for data
+      setTimeout(doPlace, 800);
+    } else {
+      doPlace();
+    }
+  }
+}
+
 function aisSetProgress(pct, lbl){
   document.getElementById('ais-prog-fill').style.width = pct + '%';
   document.getElementById('ais-prog-lbl').textContent  = lbl;
 }
 
 // ── Analyse one symbol on one specific TF ────────────────────────────────────
-function aisAnalyseSymbol(sym, tf){
+function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const tfCfg = AIS_TF_CFG[tf] || AIS_TF_CFG['1d'];
   const TF_ORDER = ['1m','5m','15m','1h','4h','1d','1w','1M'];
   const tfIdx    = TF_ORDER.indexOf(tf);
   const higherTF = tfIdx < TF_ORDER.length - 1 ? TF_ORDER[tfIdx + 1] : null;
 
-  function calc(t, barCount){
-    const data = genDataForTF(sym.s, t, barCount);
+  function calc(t, barCount, realData){
+    const data = (realData && realData.length >= 10) ? realData : genDataForTF(sym.s, t, barCount);
     const n    = data.length;
     const pats = detectPatterns(data);
     const sr   = detectSR(data);
@@ -10935,8 +11243,8 @@ function aisAnalyseSymbol(sym, tf){
     return {data,bias,topPat,rsi:rsiV[n-1],atr:atrV[n-1]||0,price,nearestS,nearestR,movePct,emaAligned,smaAligned,n};
   }
 
-  const primary = calc(tf, tfCfg.bars);
-  const higher  = higherTF ? calc(higherTF, Math.min(tfCfg.bars, 150)) : null;
+  const primary = calc(tf, tfCfg.bars, realData);
+  const higher  = higherTF ? calc(higherTF, Math.min(tfCfg.bars, 150), higherRealData) : null;
 
   const price = primary.price, atr = primary.atr;
   const biasVotes = {bull:0,bear:0};
@@ -10999,9 +11307,21 @@ async function runAISetupScan(){
   let done = 0;
   for(const sym of SYMS){
     for(const tf of selectedTFs){
-      aisSetProgress(Math.round((done/total)*55)+2, `Scanning ${sym.s} · ${tf}…`);
+      aisSetProgress(Math.round((done/total)*55)+2, `Fetching ${sym.s} · ${tf}…`);
       await new Promise(r=>setTimeout(r,0));
-      aisSetups.push(aisAnalyseSymbol(sym, tf));
+      // Fetch real Binance data — use cache if available
+      let realData = dataCache[sym.s+'_'+tf] || null;
+      if(!realData && sym.t==='Crypto'){
+        try{ realData = await fetchBinanceCandles(sym.s, tf); if(realData.length) dataCache[sym.s+'_'+tf]=realData; }catch(e){ realData=null; }
+      }
+      // Also fetch higher TF for confluence
+      const TF_ORDER=['1m','5m','15m','1h','4h','1d','1w','1M'];
+      const htf = TF_ORDER[TF_ORDER.indexOf(tf)+1]||null;
+      let higherReal = htf ? (dataCache[sym.s+'_'+htf]||null) : null;
+      if(!higherReal && htf && sym.t==='Crypto'){
+        try{ higherReal = await fetchBinanceCandles(sym.s, htf); if(higherReal.length) dataCache[sym.s+'_'+htf]=higherReal; }catch(e){ higherReal=null; }
+      }
+      aisSetups.push(aisAnalyseSymbol(sym, tf, realData, higherReal));
       done++;
     }
   }
@@ -11013,6 +11333,11 @@ async function runAISetupScan(){
   aisRenderCards();
 
   const top6 = aisSetups.slice(0,6);
+  // Show loading skeletons for top-6 cards while AI generates
+  top6.forEach(s => {
+    const el = document.getElementById(`ais-idea-${s.sym}-${s.tf}`);
+    if(el) el.innerHTML = `<div class="ais-skel" style="width:95%"></div><div class="ais-skel" style="width:80%;margin-top:5px"></div><div class="ais-skel" style="width:70%;margin-top:5px"></div>`;
+  });
   for(let i=0;i<top6.length;i++){
     const s=top6[i], cid=`${s.sym}-${s.tf}`;
     aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}…`);
@@ -11119,16 +11444,17 @@ function aisCardHTML(s, rank){
     </div>
     <div class="ais-idea">
       <div class="ais-idea-lbl">💡 AI TRADE IDEA</div>
-      <div id="ais-idea-${cid}">
-        <div class="ais-skel" style="width:95%"></div>
-        <div class="ais-skel" style="width:80%;margin-top:5px"></div>
-        <div class="ais-skel" style="width:70%;margin-top:5px"></div>
+      <div id="ais-idea-${cid}" style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;padding:2px 0;">
+        AI idea generated for top 6 setups only.
       </div>
     </div>
     <div class="ais-tags">${tags.map(t=>`<span class="ais-tag">${t}</span>`).join('')}</div>
     <div class="ais-cta">
-      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target})">Open Chart ›</button>
-      <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} · Score ${s.score}</span>
+      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart ›</button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} · Score ${s.score}</span>
+        <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:var(--tx3);">Scanned ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
     </div>
   </div>`;
 }
@@ -11176,11 +11502,51 @@ function aisDrawMiniChart(s){
 }
 
 async function aisGenerateIdea(s){
-  const dir  = s.dir==='bull'?'bullish':'bearish';
-  const prompt = `You are a professional trader. Give a 2-sentence trade idea for ${s.sym} on the ${s.tf} timeframe.
-Direction: ${dir}. Entry: ${fP(s.entry)}, SL: ${fP(s.sl)}, Target: ${fP(s.target)}, R:R: ${s.rr}.
-Pattern: ${s.patLabel}. Confidence: ${s.conf}%.
-Be specific, concise, no fluff. No disclaimers.`;
+  const dir = s.dir === 'bull' ? 'Bullish' : 'Bearish';
+  const opp = s.dir === 'bull' ? 'Bearish' : 'Bullish';
+
+  // Gather richer context from the scanned data
+  const rsiLabel = s.rsi ? (s.rsi > 70 ? `${s.rsi} (Overbought)` : s.rsi < 30 ? `${s.rsi} (Oversold)` : `${s.rsi} (Neutral)`) : 'N/A';
+  const momentum = s.movePct > 1 ? 'Strong positive momentum' : s.movePct < -1 ? 'Strong negative momentum' : 'Neutral momentum';
+  const volStatus = s.movePct > 0.5 ? 'Above average — conviction move' : 'Normal — watch for volume expansion';
+  const keyS = s.keyLevel && s.dir === 'bull' ? fP(s.keyLevel) : 'N/A';
+  const keyR = s.keyLevel && s.dir === 'bear' ? fP(s.keyLevel) : 'N/A';
+
+  const prompt = `You are a professional quantitative market scanner. Your sole job is to identify whether a compelling technical setup is forming on this asset right now. You are NOT evaluating a trade — you are discovering an opportunity that a trader should investigate further.
+
+Do not evaluate entry/SL/TP quality. Do not give a trading recommendation. Just explain what is forming and why it matters.
+
+SCANNED ASSET DATA:
+Asset: ${s.sym} (${s.name})
+Timeframe: ${s.tf}
+Current Price: ${fP(s.price)}
+Recent 5-bar Move: ${s.movePct >= 0 ? '+' : ''}${s.movePct}%
+Market Bias (patterns): ${dir}
+Pattern Detected: ${s.patLabel}
+RSI(14): ${rsiLabel}
+EMA Alignment: ${s.tfAgree >= 2 ? 'Aligned across timeframes' : 'Mixed — lower confluence'}
+Key Support: ${keyS}
+Key Resistance: ${keyR}
+ATR: ${s.atr ? fP(s.atr) : 'N/A'}
+Volume: ${volStatus}
+Timeframe Confluence: ${s.tfAgree >= 2 ? 'Higher TF confirms direction' : 'Higher TF conflicting or neutral'}
+Scan Confidence: ${s.conf}/100
+--------------------------------
+SCANNER OUTPUT — respond with exactly these 4 sections:
+
+1. WHAT IS FORMING
+In 2–3 sentences, describe the specific technical setup detected. Name it precisely (e.g. bull flag, support bounce, breakout attempt, liquidity sweep). Explain what makes this worth watching using the data above.
+
+2. WHY IT MATTERS
+In 2 sentences, explain the confluence factors that make this setup significant. Reference specific price levels and indicator readings from the data.
+
+3. KEY LEVELS TO WATCH
+List exactly 2–3 price levels a trader should monitor. For each, state whether it is a trigger level (entry confirmation), support, or resistance. Use exact prices.
+
+4. WHAT TO WAIT FOR
+In 1–2 sentences, state the specific confirmation signal a trader should wait for before considering this setup. Do NOT recommend an entry. Just describe what would confirm or invalidate the setup.
+
+This is a discovery output only. The trader will use Trade Analysis to evaluate any specific trade they decide to place.`;
   const res = await groqFetch(prompt);
   return res;
 }
@@ -11448,6 +11814,23 @@ Be specific, concise, no fluff. No disclaimers.`;
     <!-- Status banner injected here by JS -->
     <div id="tap-status-banner"></div>
 
+    <!-- Verdict banner — populated by AI after analysis -->
+    <div id="tap-verdict-banner" style="display:none;margin:0 22px 14px;border-radius:8px;padding:14px 18px;border:1px solid transparent;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div>
+          <div id="tap-verdict-label" style="font-family:ui-monospace,'SF Mono',monospace;font-size:15px;font-weight:700;letter-spacing:.5px;margin-bottom:4px;"></div>
+          <div id="tap-verdict-sub" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;opacity:0.8;"></div>
+        </div>
+        <div style="text-align:right;">
+          <div id="tap-verdict-score" style="font-family:ui-monospace,'SF Mono',monospace;font-size:32px;font-weight:700;line-height:1;"></div>
+          <div id="tap-verdict-prob" style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;opacity:0.75;margin-top:3px;"></div>
+        </div>
+      </div>
+      <div style="height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;">
+        <div id="tap-verdict-bar" style="height:100%;border-radius:3px;transition:width .7s ease;width:0%;"></div>
+      </div>
+    </div>
+
     <!-- Levels strip -->
     <div id="tap-levels-block">
     <div id="tap-levels">
@@ -11506,15 +11889,6 @@ Be specific, concise, no fluff. No disclaimers.`;
       </div>
 
       <!-- Historical similar trades -->
-      <div class="tap-section">
-        <div class="tap-sec-hdr">
-          <span class="tap-sec-icon">📜</span>
-          <span class="tap-sec-title" style="color:var(--bl);">HISTORICAL SIMILAR SETUPS</span>
-          <span id="tap-hist-count" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:auto;"></span>
-        </div>
-        <div id="tap-hist-items"></div>
-      </div>
-
       <!-- AI Analysis -->
       <div class="tap-section">
         <div class="tap-sec-hdr">
@@ -11523,6 +11897,15 @@ Be specific, concise, no fluff. No disclaimers.`;
           <span id="tap-ai-loading" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:8px;display:none;">⟳ analysing…</span>
         </div>
         <div id="tap-ai-out"><div class="tap-skel" style="height:13px;width:90%;margin:4px 0;"></div><div class="tap-skel" style="height:13px;width:75%;margin:4px 0;"></div><div class="tap-skel" style="height:13px;width:82%;margin:4px 0;"></div></div>
+      </div>
+
+      <div class="tap-section">
+        <div class="tap-sec-hdr">
+          <span class="tap-sec-icon">📜</span>
+          <span class="tap-sec-title" style="color:var(--bl);">HISTORICAL SIMILAR SETUPS</span>
+          <span id="tap-hist-count" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:auto;"></span>
+        </div>
+        <div id="tap-hist-items"></div>
       </div>
 
       <!-- Journal trade history on this symbol -->
@@ -11635,6 +12018,38 @@ Be specific, concise, no fluff. No disclaimers.`;
 // Popup ✕ just collapses to badge — NEVER deletes the cache.
 const tapAnalysisCache = {};
 
+// ── Analysis lock — persisted to localStorage per symbol ──────────────────────
+// Once an analysis runs for a symbol, it is locked permanently.
+// Key: 'tap-lock-{sym}', Value: JSON {aiResult, ts, entry, sl, tp}
+function tapSaveLock(sym, result, d){
+  try{
+    _lsSet('tap-lock-'+sym, JSON.stringify({
+      aiResult: result,
+      ts: Date.now(),
+      entry: d?.price, sl: d?.sl, tp: d?.tp,
+      tf: curTF
+    }));
+  }catch(e){}
+}
+function tapLoadLock(sym){
+  try{
+    const raw = _lsGet('tap-lock-'+sym);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function tapHasLock(sym){
+  // Check memory cache first, then localStorage
+  if(tapAnalysisCache[sym]?.aiResult) return true;
+  const lock = tapLoadLock(sym);
+  if(lock?.aiResult){
+    // Restore to memory cache
+    tapAnalysisCache[sym] = tapAnalysisCache[sym] || { sym, aiResult: null };
+    tapAnalysisCache[sym].aiResult = lock.aiResult;
+    return true;
+  }
+  return false;
+}
+
 let _tapDrawing = null;  // drawing currently in popup/modal
 
 // ── Blocked toast — shown when user tries to place a second trade on same symbol ──
@@ -11673,7 +12088,7 @@ function tapSyncDrawingToPopup(d){
   } else {
     tapAnalysisCache[curSym.s].drawing = d;
     tapAnalysisCache[curSym.s].tf = curTF;
-    tapAnalysisCache[curSym.s].aiResult = null; // stale after move
+    // Keep aiResult — lock is permanent once set, even after drag/resize
   }
   // Always refresh popup fields if it's visible
   if(document.getElementById('tap-anchor').style.display !== 'none'){
@@ -11733,7 +12148,7 @@ function tapTradeStatus(d){
   if(!curData.length) return { status:'', statusCol:'' };
   const isLong   = d.type === 'long';
   const n        = curData.length;
-  const halfBars = d.halfBars || 8;
+  const halfBars = effectiveHalfBars(d);
   const entryBar = Math.round(d.bar - halfBars); // left edge = entry bar
 
   // ── CASE 1: Trade center or entry is in the future (beyond last bar) ────────
@@ -11754,7 +12169,7 @@ function tapTradeStatus(d){
   // above every candle high in the box window, it was never reachable — invalid.
   // If it sits below every candle low — also never reachable — invalid.
   // This catches: box above chart, box below chart, box in empty historical space.
-  const rightEdge = Math.min(n - 1, Math.round(d.bar + (d.halfBars || 8)));
+  const rightEdge = Math.min(n - 1, Math.round(d.bar + effectiveHalfBars(d)));
   const lastB    = curData[n-1];
   const curPrice = (lastB.high + lastB.low + lastB.close) / 3;
 
@@ -11809,8 +12224,20 @@ function tapTradeStatus(d){
 // ── Show the floating popup (anchored top-right of chart-area) ────────────────
 function showTradeAnalysisPopup(d){
   _tapDrawing = d;
-  // Save to cache — one per symbol, never overwritten until badge ✕
-  tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: curTF, aiResult: null };
+  // If a lock already exists for this symbol, preserve it — never reset aiResult
+  if(!tapAnalysisCache[curSym.s]){
+    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: curTF, aiResult: null };
+  } else {
+    tapAnalysisCache[curSym.s].drawing = d;
+    // Keep aiResult intact — once locked, always locked
+  }
+  // Check localStorage for persisted lock (page reload case)
+  if(!tapAnalysisCache[curSym.s].aiResult){
+    const lock = tapLoadLock(curSym.s);
+    if(lock?.aiResult) tapAnalysisCache[curSym.s].aiResult = lock.aiResult;
+  }
+  const oldNotice = document.getElementById('tap-cached-notice');
+  if(oldNotice) oldNotice.remove();
   _tapAnchorFill(d);
   document.getElementById('tap-badge').style.display  = 'none';
   document.getElementById('tap-anchor').style.display = 'block';
@@ -11887,13 +12314,11 @@ function tapDismissConfirm(){
 // ── Analyse gate — warn before consuming the one-per-session slot ─────────────
 function tapAnalyseGate(){
   if(!_tapDrawing) return;
-  // Hard gate: block invalid/untriggered trades regardless of button visibility
   const { status } = tapTradeStatus(_tapDrawing);
   if(status.includes('Invalid Placement') || status.includes('Not Triggered')) return;
-  const cached = tapAnalysisCache[curSym.s];
-  // If result already cached, open directly — slot already used
-  if(cached && cached.aiResult){ openFullTradeAnalysis(); return; }
-  // Otherwise show the one-shot warning
+  // Check lock — once analysed, always show saved result
+  if(tapHasLock(curSym.s)){ openFullTradeAnalysis(); return; }
+  // No prior analysis — show one-time confirmation warning
   document.getElementById('tap-ac-sym').textContent = curSym.s;
   document.getElementById('tap-analyse-confirm').style.display = 'flex';
 }
@@ -11928,7 +12353,7 @@ function tapCaptureScreenshot(){
     const savedRightBarIndex = rightBarIndex;
 
     if(d){
-      const halfBars = d.halfBars || 8;
+      const halfBars = effectiveHalfBars(d);
       // Centre the drawing: right edge = drawing center + halfBars + padding
       const zoomBarWidth = Math.min(24, Math.max(14, barWidth * 2));  // 2× current, capped 14–24px
       barWidth = zoomBarWidth;
@@ -12090,9 +12515,32 @@ async function openFullTradeAnalysis(){
   const aiLoadingEl = document.getElementById('tap-ai-loading');
 
   if(cached && cached.aiResult){
-    // Already ran — just display it
+    // ── Showing cached result — make it crystal clear this is the saved analysis
     aiOutEl.textContent = cached.aiResult;
+    tapRenderVerdictBanner(cached.aiResult);
     aiLoadingEl.style.display = 'none';
+
+    // Prominent "cached result" notice + 1-analysis-per-trade rule explanation
+    let noticeEl = document.getElementById('tap-cached-notice');
+    if(!noticeEl){
+      noticeEl = document.createElement('div');
+      noticeEl.id = 'tap-cached-notice';
+      noticeEl.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;
+          background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:8px;">
+          <div style="font-size:18px;line-height:1;margin-top:1px;">🔒</div>
+          <div style="flex:1;">
+            <div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--amber);
+              letter-spacing:.5px;margin-bottom:4px;">ANALYSIS LOCKED — 1 PER SYMBOL</div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--tx2);line-height:1.6;">
+              You have already used your one analysis for <strong style="color:var(--amber);">${curSym.s}</strong>.
+              This result is permanently saved. Placing a new trade on this symbol will always show this analysis.
+              Switch to a different symbol to get a new analysis.
+            </div>
+          </div>
+        </div>`;
+      aiOutEl.parentNode.insertBefore(noticeEl, aiOutEl);
+    }
   } else {
     aiOutEl.innerHTML = `
       <div class="tap-skel" style="height:13px;width:92%;margin:5px 0;"></div>
@@ -12103,10 +12551,11 @@ async function openFullTradeAnalysis(){
     try {
       const text = await tapGenerateAI(d, rr, status);
       aiOutEl.textContent = text;
-      // Cache the result — re-opening modal shows it instantly
+      // Lock permanently — save to memory cache and localStorage
       if(cached) cached.aiResult = text;
-      // Update popup button label now that result is ready
+      tapSaveLock(curSym.s, text, d);
       _tapAnchorFill(d);
+      tapRenderVerdictBanner(text);
     } catch(e) {
       const msg = e.message || 'unknown error';
       aiOutEl.innerHTML =
@@ -12550,6 +12999,81 @@ function tapRenderJournalHistory(){
 }
 
 // ── AI narrative — dedicated fetch with higher token budget ───────────────────
+function tapRenderVerdictBanner(text){
+  const banner   = document.getElementById('tap-verdict-banner');
+  const lbl      = document.getElementById('tap-verdict-label');
+  const scoreEl  = document.getElementById('tap-verdict-score');
+  const subEl    = document.getElementById('tap-verdict-sub');
+  const probEl   = document.getElementById('tap-verdict-prob');
+  const barEl    = document.getElementById('tap-verdict-bar');
+  if(!banner) return;
+
+  // Only search verdict keywords in the FINAL VERDICT section at the end of the response
+  // Prevents false positives from status words like "INVALID Placement" at the top
+  const verdictIdx = text.toUpperCase().lastIndexOf('FINAL VERDICT');
+  const searchZone = verdictIdx >= 0 ? text.slice(verdictIdx) : text.slice(-400);
+  const zone = searchZone.toUpperCase();
+
+  // Extract actual combined score from Trade Quality Scoring section
+  const scoringIdx = text.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringZone = scoringIdx >= 0 ? text.slice(scoringIdx, scoringIdx+600) : '';
+  const scoreRaw = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i)
+                || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
+  const parsedScore = scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null;
+
+  let verdict='', verdictColor='#8899b0', bg='rgba(136,153,176,0.08)', border='rgba(136,153,176,0.2)';
+  let scoreVal = parsedScore, likelihood='', barPct=50;
+
+  if(zone.includes('STRONG SETUP')){
+    verdict='STRONG SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
+    scoreVal = scoreVal ?? 88; likelihood='High likelihood of success'; barPct=scoreVal;
+  } else if(zone.includes('ACCEPTABLE SETUP') || zone.includes('ACCEPTABLE')){
+    verdict='ACCEPTABLE SETUP'; verdictColor='#3d8eff'; bg='rgba(61,142,255,0.1)'; border='rgba(61,142,255,0.35)';
+    scoreVal = scoreVal ?? 68; likelihood='Moderate likelihood of success'; barPct=scoreVal;
+  } else if(zone.includes('RISKY SETUP') || zone.includes('RISKY')){
+    verdict='RISKY SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
+    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood — proceed with caution'; barPct=scoreVal;
+  } else if(zone.includes('AVOID TRADE') || zone.includes('AVOID')){
+    verdict='AVOID TRADE'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
+    scoreVal = scoreVal ?? 18; likelihood='Do not trade this setup'; barPct=scoreVal;
+  } else if(zone.includes('A+ SETUP')){
+    verdict='A+ SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
+    scoreVal = scoreVal ?? 95; likelihood='Excellent — high likelihood of success'; barPct=scoreVal;
+  } else if(zone.includes('A SETUP')){
+    verdict='A SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
+    scoreVal = scoreVal ?? 80; likelihood='Strong — good likelihood of success'; barPct=scoreVal;
+  } else if(zone.includes('B SETUP')){
+    verdict='B SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
+    scoreVal = scoreVal ?? 60; likelihood='Moderate — proceed with caution'; barPct=scoreVal;
+  } else if(zone.includes('C SETUP')){
+    verdict='C SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
+    scoreVal = scoreVal ?? 35; likelihood='Weak — high risk of failure'; barPct=scoreVal;
+  } else if(zone.includes('INVALID SETUP')){
+    verdict='INVALID SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
+    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid — do not trade'; barPct=scoreVal;
+  }
+
+  if(!verdict) return;
+
+  const probMatch = text.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
+  const probPct = probMatch ? parseInt(probMatch[1]) : null;
+  barPct = Math.min(100, Math.max(0, barPct ?? 50));
+
+  banner.style.display     = 'block';
+  banner.style.background  = bg;
+  banner.style.borderColor = border;
+  lbl.textContent          = verdict;
+  lbl.style.color          = verdictColor;
+  scoreEl.textContent      = scoreVal !== null ? scoreVal + '/100' : '—';
+  scoreEl.style.color      = verdictColor;
+  subEl.textContent        = likelihood;
+  subEl.style.color        = verdictColor;
+  probEl.textContent       = probPct ? probPct + '% probability of success' : 'See full analysis below';
+  probEl.style.color       = verdictColor;
+  barEl.style.background   = verdictColor;
+  setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);
+}
+
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
   const n      = curData.length;
@@ -12561,6 +13085,15 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const atr    = atrV[n-1] || 0;
   const sma20  = calcSMA(curData, 20);
   const sma50  = calcSMA(curData, 50);
+  const macdV  = calcMACD(curData);
+  const lastMACD = macdV[n-1];
+  const macdLine = lastMACD?.macd?.toFixed(5) || '—';
+  const macdSig  = lastMACD?.signal?.toFixed(5) || '—';
+  const macdHist = lastMACD?.hist?.toFixed(5) || '—';
+  const macdDir  = lastMACD?.hist > 0 ? 'Bullish momentum' : lastMACD?.hist < 0 ? 'Bearish momentum' : 'Neutral';
+  const ema9V  = calcEMA(curData,9);  const ema9last  = ema9V[n-1];
+  const ema21V = calcEMA(curData,21); const ema21last = ema21V[n-1];
+  const last3bars = curData.slice(-3).map(b => `${b.close>b.open?'Bullish':'Bearish'} (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' → ');
   const topPats    = [...pats].sort((a,b)=>b.conf-a.conf).slice(0,2).map(p=>p.name);
   const tp     = (b) => (b.high + b.low + b.close) / 3;  // typical price helper
   const recentMove = n >= 6 ? ((tp(curData[n-1]) - tp(curData[n-6])) / tp(curData[n-6]) * 100).toFixed(2) : '0';
@@ -12632,40 +13165,80 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
                        isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
 
-  const prompt = `You are a professional institutional-level technical analyst. Analyse this specific trade setup objectively using market structure, probability, and risk management. Do NOT give generic advice. Do NOT explain basic concepts. Only analyse this exact setup with the data provided.${outcomeCtx}
+  const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
-SYMBOL: ${curSym.s} | DIRECTION: ${isLong?'LONG':'SHORT'} | TIMEFRAME: ${curTF}
-TRADE STATE: ${tradeState}
-ENTRY: ${fP(d.price)} | STOP: ${fP(d.sl)} | TARGET: ${fP(d.tp)} | R:R ${rr.toFixed(2)}
-CURRENT PRICE: ${fP(curPrice)} (${distPct.toFixed(2)}% from entry) | Recent High: ${fP(lastHigh)} | Recent Low: ${fP(lastLow)}
+Be forensic, objective, and blunt. The trader does not need encouragement — they need an honest assessment.
+You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.${outcomeCtx}
 
-MARKET STRUCTURE:
-- Trend: ${trend} | Price is ${priceVsSma20}${priceVsSma50 ? ', '+priceVsSma50 : ''}
-- 20-bar swing high: ${fP(swingHigh)} | 20-bar swing low: ${fP(swingLow)}
-- 5-bar price move: ${recentMove}%
+INPUT DATA:
+Asset: ${curSym.s} (${curSym.n})
+Timeframe: ${curTF}
+Current Price: ${fP(curPrice)}
+Entry Price: ${fP(d.price)} (${((d.price - curPrice)/curPrice*100).toFixed(2)}% from current)
+Stop Loss: ${fP(d.sl)}
+Take Profit: ${fP(d.tp)}
+Direction: ${isLong ? 'LONG' : 'SHORT'}
+Trade State: ${tradeState}
+Risk/Reward: 1:${rr.toFixed(2)}
+ATR(14): ${fP(atr)} — stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}× ATR
 
-SUPPORT & RESISTANCE:
-- ${srStr}
-- Nearest support below entry: ${nearestS ? fP(nearestS) : 'none'}
-- Nearest resistance above entry: ${nearestR ? fP(nearestR) : 'none'}
+Market Structure:
+  Short-term trend (SMA20): ${sma20val&&curPrice?(curPrice>sma20val?'Bullish — price above SMA20 '+fP(sma20val):'Bearish — price below SMA20 '+fP(sma20val)):'N/A'}
+  Higher TF trend (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish — price above SMA50 '+fP(sma50val):'Bearish — price below SMA50 '+fP(sma50val)):'N/A'}
+  Nearest support below entry: ${nearestS?fP(nearestS):'None detected'}
+  Nearest resistance above entry: ${nearestR?fP(nearestR):'None detected'}
+  All S/R levels: ${sr.support.slice(0,3).map(fP).join(', ')||'None'} (S) | ${sr.resistance.slice(0,3).map(fP).join(', ')||'None'} (R)
 
-INDICATORS:
-- RSI(14): ${rsi} | ATR: ${fP(atr)} (${(atr/d.price*100).toFixed(2)}% of price)
-- Volume: ${volDesc}
+Indicators:
+  RSI(14): ${rsi}${parseFloat(rsi)>70?' — Overbought':parseFloat(rsi)<30?' — Oversold':' — Neutral'}
+  MACD: ${macdLine} / Signal: ${macdSig} / Hist: ${macdHist} (${macdDir})
+  EMA9: ${ema9last?fP(ema9last):'N/A'} | EMA21: ${ema21last?fP(ema21last):'N/A'} | SMA50: ${sma50val?fP(sma50val):'N/A'}
+  Volume: ${volDesc}
 
-DETECTED PATTERNS: ${allPatsStr}
-PERSONAL STATS: ${curSym.s} historical win rate: ${symWR}
+Recent Price Action (last 3 bars): ${last3bars}
+5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
+Patterns: ${allPatsStr}
+Trader's historical win rate on ${curSym.s}: ${symWR}
+-----------------------------
+TRADE VALIDATION PROCESS
 
-Respond with EXACTLY these 8 numbered sections. Be specific to the numbers above. No generic statements.
+1. ENTRY QUALITY
+Is the entry price logical? Is it near a key level (support/resistance/breakout)? Is it entering into strength or chasing? Is entry timing premature or well-positioned? Be specific.
 
-1. MARKET STRUCTURE
-2. ENTRY QUALITY
-3. RISK MANAGEMENT
-4. TARGET REALISM
-5. PROBABILITY ESTIMATE (give a % for TP hit vs SL hit)
-6. KEY RISKS (exactly 2–3 bullet points)
-7. FINAL VERDICT — classify as one of: A+ Setup | A Setup | B Setup | C Setup | Invalid Setup. One sentence explanation.
-8. IMPROVEMENT SUGGESTION — only if B or C. Suggest specific price levels for better entry, stop, or target. If A/A+, write "None — execute as planned."`;
+2. STOP LOSS EVALUATION
+Is the stop placed beyond a structural level? Is it too tight (within normal ATR noise) or too wide? Would a professional trader accept this stop placement?
+
+3. TAKE PROFIT EVALUATION
+Is the take profit level realistic? Does it align with the next major resistance or structure? Is the target achievable given current momentum?
+
+4. RISK-REWARD ASSESSMENT
+State whether 1:${rr.toFixed(2)} is acceptable, poor, or excellent for this setup and market conditions. Compare to the trader's historical average.
+
+5. CONFLUENCE ANALYSIS
+List the factors that support this trade (confluent) and those that work against it (conflicting). Be specific with indicator readings and price levels.
+
+6. TRADE QUALITY SCORE
+Score from 0–100 across:
+  Entry Quality (0–25):
+  Stop Placement (0–25):
+  Risk/Reward Logic (0–25):
+  Technical Confluence (0–25):
+  Combined Score:
+
+7. CRITICAL WEAKNESSES
+What are the 2–3 most important reasons this trade could fail? Be direct.
+
+8. SUGGESTED IMPROVEMENTS
+If the trade has weaknesses, suggest specific improved levels with reasoning. If it is strong, confirm the levels are appropriate.
+
+9. PROBABILITY ESTIMATE
+Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Explain your reasoning in one sentence.
+
+10. FINAL VERDICT
+Classify as one of: Strong Setup / Acceptable Setup / Risky Setup / Avoid Trade
+One sentence of reasoning. Be decisive.
+
+Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   const key = GROQ_KEYS[groqKeyIndex % GROQ_KEYS.length];
   let res, data;
