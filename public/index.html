@@ -6539,6 +6539,20 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
     futureCandles: futureCandles.length
   });
   
+  // CRITICAL: Pre-validate R:R ratio - reject setups that won't meet minimum R:R
+  const riskAmt = Math.abs(entryPrice - stopLoss);
+  const rewardAmt = Math.abs(takeProfit - entryPrice);
+  const rr = rewardAmt / Math.max(riskAmt, 0.0001);
+  
+  if (rr < 1.5) {
+    console.log(`❌ Setup rejected: Insufficient R:R ratio (${rr.toFixed(2)}:1, need at least 1.5:1)`);
+    return { 
+      valid: false, 
+      reason: 'AI analysis: Insufficient risk-to-reward ratio - rejecting setup',
+      outcome: 'insufficient_rr'
+    };
+  }
+  
   // Now simulate the trade with these exact levels
   let hitStopLoss = false;
   let hitTakeProfit = false;
