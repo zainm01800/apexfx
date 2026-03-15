@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Test Replay Features</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background: #07090d; color: #fff; }
+.test-section { margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; }
+.success { color: #4ade80; }
+.error { color: #f87171; }
+.info { color: #60a5fa; }
+</style>
+</head>
+<body>
+<h1>🧪 Replay & AI Mentor Feature Test</h1>
+
+<div class="test-section">
+<h2>✅ Features Implemented</h2>
+<ul>
+<li><strong>Chart Replay Controls:</strong> Play/pause, step forward/backward, speed control, timeline scrubbing</li>
+<li><strong>AI Trading Mentor:</strong> Real-time market analysis, setup strength evaluation, interactive questions</li>
+<li><strong>Integration:</strong> AI mentor updates during replay, click-to-analyze specific bars</li>
+<li><strong>UI Components:</strong> Floating panels with modern design, responsive controls</li>
+</ul>
+</div>
+
+<div class="test-section">
+<h2>🎯 Key Functions Added</h2>
+<ul>
+<li><code>toggleReplay()</code> - Starts/stops replay mode with AI mentor integration</li>
+<li><code>toggleAIMentor()</code> - Shows/hides AI analysis panel</li>
+<li><code>analyzeCurrentMarket()</code> - Analyzes price action and market structure</li>
+<li><code>updateReplayPosition()</code> - Syncs timeline and AI context during replay</li>
+<li><code>generateHumanlikeAnalysis()</code> - Creates conversational trading insights</li>
+</ul>
+</div>
+
+<div class="test-section">
+<h2>🔗 Integration Points</h2>
+<ul>
+<li>Existing replay system variables (<code>replayMode</code>, <code>replayCutoff</code>, <code>replayTimer</code>)</li>
+<li>Enhanced <code>updateReplayStatus()</code> to call new timeline updates</li>
+<li>Chart click handler works with both AI analysis and replay bar picking</li>
+<li>AI mentor adapts to replay context (shows current bar position)</li>
+</ul>
+</div>
+
+<div class="test-section">
+<h2>🎨 UI Elements Added</h2>
+<ul>
+<li>Replay controls panel with timeline, play/pause, step buttons, speed selector</li>
+<li>AI mentor panel with market analysis, setup strength, interactive questions</li>
+<li>Responsive design with glassmorphism effects and smooth animations</li>
+<li>Icon-based interface using emoji for universal compatibility</li>
+</ul>
+</div>
+
+<div class="test-section info">
+<h2>📋 How to Test</h2>
+<ol>
+<li>Open the main <code>index.html</code> file in your browser</li>
+<li>Load some chart data (use existing data loading features)</li>
+<li>Click the replay button (⏮) to start replay mode</li>
+<li>AI mentor should appear automatically alongside replay controls</li>
+<li>Use play/pause, step buttons, and timeline to control replay</li>
+<li>Click on chart bars for detailed AI analysis</li>
+<li>Adjust replay speed and observe AI insights updating in real-time</li>
+</ol>
+</div>
+
+<div class="test-section success">
+<h2>🚀 Ready for Use</h2>
+<p>The replay and AI mentor features are fully implemented and integrated with the existing APEX FX platform. All functionality has been designed to work seamlessly with the current chart system and user interface.</p>
+</div>
+
+<p><a href="index.html" style="color: #60a5fa; text-decoration: underline;">← Back to APEX FX</a></p>
+
+</body>
+</html>
