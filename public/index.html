@@ -9997,13 +9997,14 @@ async function testSupabaseConnection() {
 
 // Initialize Supabase when page loads
 function initializeSupabase() {
-  console.log('🔧 Initializing Supabase...');
+  console.log('🔧 Initializing Supabase...', { supabase: typeof supabase, _supaReady, _supa: !!_supa });
   
   try {
     if (typeof supabase !== 'undefined') {
+      console.log('📚 Creating Supabase client...');
       _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
       _supaReady = true;
-      console.log('✅ Supabase client initialized successfully');
+      console.log('✅ Supabase client initialized successfully', { _supaReady, _supa: !!_supa });
       
       // Test connection
       testSupabaseConnection().then(isConnected => {
@@ -10023,6 +10024,13 @@ function initializeSupabase() {
 
 // Initialize when DOM is ready and also wait a bit for Supabase library to load
 function waitForSupabaseAndInit() {
+  console.log('🔍 Checking Supabase availability...', { 
+    supabase: typeof supabase, 
+    readyState: document.readyState,
+    _supaReady,
+    _supa: !!_supa 
+  });
+  
   if (typeof supabase !== 'undefined') {
     console.log('📚 Supabase library found, initializing...');
     initializeSupabase();
@@ -10032,12 +10040,9 @@ function waitForSupabaseAndInit() {
   }
 }
 
-// Start initialization process
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', waitForSupabaseAndInit);
-} else {
-  waitForSupabaseAndInit();
-}
+// Start initialization process immediately
+console.log('🚀 Starting Supabase initialization process...');
+waitForSupabaseAndInit();
 
 // ── Storage helpers — localStorage (fast cache) + Supabase (persistent cloud) ──
 function _lsKey(key){ return _currentUser ? `apex-${_currentUser}-${key}` : `apex-${key}`; }
@@ -10165,14 +10170,24 @@ async function authLoginAsync(username, password){
   
   // Wait for Supabase to be ready
   if (!_supaReady || !_supa) {
-    console.error('❌ Supabase client not ready:', { _supaReady, _supa: !!_supa });
+    console.error('❌ Supabase client not ready:', { _supaReady, _supa: !!_supa, supabase: typeof supabase });
     
     if (typeof supabase === 'undefined') {
       console.error('❌ Supabase library not loaded - CDN issue');
       return { ok:false, err:'Authentication service not available. Please refresh the page and check your internet connection.' };
     } else {
-      console.error('❌ Supabase library loaded but client not ready');
-      return { ok:false, err:'Authentication service is still initializing. Please wait a moment and try again.' };
+      console.error('❌ Supabase library loaded but client not ready - attempting force initialization...');
+      
+      // Force initialization as fallback
+      try {
+        console.log('🔧 Force initializing Supabase...');
+        _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+        _supaReady = true;
+        console.log('✅ Force initialization successful', { _supaReady, _supa: !!_supa });
+      } catch (initError) {
+        console.error('❌ Force initialization failed:', initError);
+        return { ok:false, err:'Authentication service failed to initialize. Please refresh the page.' };
+      }
     }
   }
   
