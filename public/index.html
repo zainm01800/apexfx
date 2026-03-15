@@ -9961,6 +9961,13 @@ function updateUserBadge(displayName){
 const SUPA_URL  = 'https://ksxznauzvlsgfghvpeew.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzeHpuYXV6dmxzZ2ZnaHZwZWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0ODg4MjIsImV4cCI6MjA4OTA2NDgyMn0.B5a2zl8Vr_Q51fB9_Pv1Q8SXnh41xELgJkrRu0BEkEk';
 
+let _currentUser    = null; // username string
+let _currentUserId  = null; // Supabase auth UUID
+let _supaReady      = false;
+
+// Initialize Supabase immediately
+let _supa = null;
+
 // Test Supabase connectivity
 async function testSupabaseConnection() {
   console.log('🔍 Testing Supabase connectivity...');
@@ -9988,29 +9995,34 @@ async function testSupabaseConnection() {
   }
 }
 
-// Initialize Supabase with error handling
-let _supa = null;
-try {
-  if (typeof supabase !== 'undefined') {
-    _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
-    console.log('✅ Supabase client initialized successfully');
-    
-    // Test connection
-    testSupabaseConnection().then(isConnected => {
-      if (!isConnected) {
-        console.warn('⚠️ Supabase client initialized but service may be unreachable');
-      }
-    });
-  } else {
-    console.error('❌ Supabase library not loaded');
+// Initialize Supabase when page loads
+function initializeSupabase() {
+  console.log('🔧 Initializing Supabase...');
+  
+  try {
+    if (typeof supabase !== 'undefined') {
+      _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+      _supaReady = true;
+      console.log('✅ Supabase client initialized successfully');
+      
+      // Test connection
+      testSupabaseConnection().then(isConnected => {
+        if (!isConnected) {
+          console.warn('⚠️ Supabase client initialized but service may be unreachable');
+        }
+      });
+    } else {
+      console.error('❌ Supabase library not loaded');
+      _supaReady = false;
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize Supabase client:', error);
+    _supaReady = false;
   }
-} catch (error) {
-  console.error('❌ Failed to initialize Supabase client:', error);
 }
 
-let _currentUser    = null; // username string
-let _currentUserId  = null; // Supabase auth UUID
-let _supaReady      = false;
+// Initialize immediately when script loads
+initializeSupabase();
 
 // ── Storage helpers — localStorage (fast cache) + Supabase (persistent cloud) ──
 function _lsKey(key){ return _currentUser ? `apex-${_currentUser}-${key}` : `apex-${key}`; }
@@ -10136,9 +10148,9 @@ async function authLoginAsync(username, password){
   console.log('📧 Converting to email format');
   const email = _userEmail(username);
   
-  // Check if Supabase is available
-  if (!_supa) {
-    console.error('❌ Supabase client not initialized');
+  // Check if Supabase is ready
+  if (!_supaReady || !_supa) {
+    console.error('❌ Supabase client not ready:', { _supaReady, _supa: !!_supa });
     console.log('🔍 Checking if supabase library loaded...');
     
     if (typeof supabase === 'undefined') {
@@ -10146,7 +10158,9 @@ async function authLoginAsync(username, password){
       return { ok:false, err:'Authentication service not available. Please refresh the page and check your internet connection.' };
     } else {
       console.error('❌ Supabase library loaded but client not initialized');
-      return { ok:false, err:'Authentication service error. Please refresh the page.' };
+      // Try to initialize again
+      initializeSupabase();
+      return { ok:false, err:'Authentication service initializing. Please wait a moment and try again.' };
     }
   }
   
