@@ -1254,7 +1254,18 @@ body.is-dragging { user-select: none; }
           <span style="font-size:16px;">🧠</span>
           <span style="color:var(--tx1);font-weight:600;">AI Trading Mentor</span>
         </div>
-        <button onclick="toggleMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;">×</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--b1);background:var(--bg2);color:var(--tx1);border-radius:4px;">
+            <option value="">Select Strategy...</option>
+            <option value="breakout">Breakout</option>
+            <option value="trend">Trend</option>
+            <option value="support_resistance">S&R</option>
+            <option value="pullback">Pullback</option>
+            <option value="range">Range</option>
+            <option value="liquidity">Liquidity</option>
+          </select>
+          <button onclick="toggleMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;">×</button>
+        </div>
       </div>
       
       <div id="mentor-content" style="padding:12px;max-height:320px;overflow-y:auto;font-size:12px;line-height:1.5;">
@@ -5061,15 +5072,25 @@ let mentorState = {
   reviewedTrades: [], // Track trades reviewed in replay
   
   // Trade lifecycle states
-  lifecycleState: 'scanning', // 'scanning', 'method_selection', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'
+  lifecycleState: 'scanning', // 'scanning', 'method_selection', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed', 'waiting'
   setupWaitStart: null, // When setup wait state started
   setupWaitData: null, // Store setup data during wait
   monitoredTrade: null, // Trade being monitored
   tradeResultData: null, // Trade result data for final evaluation
   
+  // Waiting state for unclear market conditions
+  waitingStateStart: null, // When waiting state started
+  waitingStateMessage: null, // The message being displayed during waiting
+  waitingStateRecheckInterval: 10, // Re-check every 10 candles
+  
   // Trading method selection
   selectedTradingMethod: null, // 'breakout', 'trend', 'support_resistance', 'pullback', 'range', 'liquidity'
   tradingMethodSelected: false, // Whether user has selected a trading method
+  
+  // UI update prevention
+  lastUIUpdate: -1, // Track last bar when UI was updated
+  uiUpdateCooldown: 2, // Only update UI every 2 bars max unless state changes
+  lastLifecycleState: 'scanning', // Track last lifecycle state for change detection
   
   // Message persistence and locking
   lockedMessage: null, // Current locked setup message
@@ -5190,6 +5211,81 @@ function addRealtimeUpdate(currentBar) {
     if (mentorState.realtimeUpdates.length > 3) {
       mentorState.realtimeUpdates.shift();
     }
+  }
+}
+
+function updateMentorUI() {
+  const panel = document.getElementById('ai-mentor-panel');
+  const insightsEl = document.getElementById('mentor-insights');
+  const questionEl = document.getElementById('mentor-question');
+  
+  if (!panel || !insightsEl || !questionEl) return;
+  
+  // Check if we should update UI (prevent rapid refreshing)
+  const barsSinceLastUpdate = currentBar - mentorState.lastUIUpdate;
+  const shouldUpdateUI = barsSinceLastUpdate >= mentorState.uiUpdateCooldown || 
+                        mentorState.lifecycleState !== mentorState.lastLifecycleState ||
+                        mentorState.messageLocked ||
+                        mentorState.lifecycleState === 'waiting';
+  
+  if (!shouldUpdateUI && mentorState.lastUIUpdate > 0) {
+    // Skip UI update to prevent rapid refreshing
+    return;
+  }
+  
+  // Update the last update tracking
+  mentorState.lastUIUpdate = currentBar;
+  mentorState.lastLifecycleState = mentorState.lifecycleState;
+  
+  // Build insights HTML
+  let insightsHTML = '';
+  if (mentorState.currentInsights && mentorState.currentInsights.length > 0) {
+    insightsHTML = mentorState.currentInsights.map(insight => {
+      // Handle markdown-style bold text
+      const formattedInsight = insight.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<div style="margin-bottom:4px;">${formattedInsight}</div>`;
+    }).join('');
+  }
+  
+  // Add real-time updates if in setup wait state
+  if (mentorState.lifecycleState === 'setup_wait' && mentorState.realtimeUpdates.length > 0) {
+    insightsHTML += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);">';
+    insightsHTML += '<div style="color:var(--cyan);font-size:11px;margin-bottom:4px;">📊 Live Updates:</div>';
+    mentorState.realtimeUpdates.slice(-3).forEach(update => {
+      insightsHTML += `<div style="color:var(--tx3);font-size:11px;margin-bottom:2px;">• ${update}</div>`;
+    });
+    insightsHTML += '</div>';
+  }
+  
+  // Add trade monitoring updates if in trade monitoring state
+  if (mentorState.lifecycleState === 'trade_monitoring' && mentorState.tradeMonitoringUpdates.length > 0) {
+    insightsHTML += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);">';
+    insightsHTML += '<div style="color:var(--amber);font-size:11px;margin-bottom:4px;">📈 Trade Progress:</div>';
+    mentorState.tradeMonitoringUpdates.slice(-3).forEach(update => {
+      insightsHTML += `<div style="color:var(--tx3);font-size:11px;margin-bottom:2px;">• ${update}</div>`;
+    });
+    insightsHTML += '</div>';
+  }
+  
+  insightsEl.innerHTML = insightsHTML;
+  questionEl.innerHTML = mentorState.currentQuestion || '';
+  
+  // Show/hide setup message controls
+  const setupControls = document.getElementById('setup-message-controls');
+  if (setupControls) {
+    setupControls.style.display = mentorState.messageLocked && mentorState.lockedMessage === 'setup' ? 'block' : 'none';
+  }
+  
+  // Show/hide trade completion controls
+  const completionControls = document.getElementById('trade-completion-controls');
+  if (completionControls) {
+    completionControls.style.display = mentorState.lifecycleState === 'trade_result' && mentorState.resultExplained ? 'block' : 'none';
+  }
+  
+  // Update trading method selector
+  const methodSelector = document.getElementById('trading-method-select');
+  if (methodSelector) {
+    methodSelector.value = mentorState.selectedTradingMethod || '';
   }
 }
 
@@ -5851,6 +5947,104 @@ function closeTradeReview() {
 
 // ══ TRADING METHOD FILTERING ═══════════════════════════════════════════════════════════
 
+function changeTradingMethod(newMethod) {
+  console.log('🔄 Trading method changed to:', newMethod);
+  
+  if (!newMethod) {
+    // User deselected - clear method
+    mentorState.selectedTradingMethod = null;
+    mentorState.tradingMethodSelected = false;
+    mentorState.currentInsights = ['📚 No trading method selected. Please select a strategy to begin.'];
+    mentorState.currentQuestion = 'Choose a trading style from the dropdown menu above.';
+    updateMentorUI();
+    return;
+  }
+  
+  // Get method display name
+  const methodNames = {
+    'breakout': 'Breakout Trading',
+    'trend': 'Trend Following',
+    'support_resistance': 'Support & Resistance',
+    'pullback': 'Pullback Trading',
+    'range': 'Range Trading',
+    'liquidity': 'Liquidity Sweep'
+  };
+  
+  const methodDisplayName = methodNames[newMethod] || newMethod;
+  
+  // Reset all states when strategy changes
+  resetMentorStateForStrategyChange();
+  
+  // Set new method
+  mentorState.selectedTradingMethod = newMethod;
+  mentorState.tradingMethodSelected = true;
+  
+  // Update message to confirm change
+  mentorState.currentInsights = [`🎯 Trading method switched to ${methodDisplayName}.`];
+  mentorState.currentQuestion = `The mentor will now focus on ${methodDisplayName.toLowerCase()} setups. Scanning for opportunities...`;
+  
+  // Reset to scanning state
+  mentorState.lifecycleState = 'scanning';
+  
+  console.log('✅ Trading method updated:', {
+    method: newMethod,
+    displayName: methodDisplayName,
+    lifecycleState: mentorState.lifecycleState
+  });
+  
+  updateMentorUI();
+  toast(`🎯 Strategy changed to ${methodDisplayName}`);
+}
+
+function resetMentorStateForStrategyChange() {
+  console.log('🔄 Resetting mentor state for strategy change');
+  
+  // Cancel any active setup
+  mentorState.setupWaitStart = null;
+  mentorState.setupWaitData = null;
+  mentorState.monitoredTrade = null;
+  mentorState.tradeResultData = null;
+  mentorState.resultExplained = false;
+  
+  // Clear waiting state
+  mentorState.waitingStateStart = null;
+  mentorState.waitingStateMessage = null;
+  
+  // Clear message locks
+  mentorState.messageLocked = false;
+  mentorState.lockedMessage = null;
+  mentorState.lockedInsights = [];
+  mentorState.lockedQuestion = '';
+  mentorState.realtimeUpdates = [];
+  
+  // Clear example trade
+  mentorState.exampleTrade = null;
+  mentorState.exampleTradeActive = false;
+  mentorState.exampleTradeOutcome = null;
+  mentorState.tradeMonitoringUpdates = [];
+  
+  // Hide any control panels
+  const setupControls = document.getElementById('setup-message-controls');
+  if (setupControls) {
+    setupControls.style.display = 'none';
+  }
+  
+  const completionControls = document.getElementById('trade-completion-controls');
+  if (completionControls) {
+    completionControls.style.display = 'none';
+  }
+  
+  // Resume replay if it was paused
+  if (replayMode && replayPaused && mentorState.setupPausedReplay) {
+    replayPaused = false;
+    mentorState.setupPausedReplay = false;
+    const replayBtn = document.getElementById('replay-play-btn');
+    if (replayBtn) {
+      replayBtn.innerHTML = '⏸️';
+    }
+  }
+}
+
 function filterSetupByTradingMethod(setupDetection, selectedMethod) {
   // If no setup detected, return as-is
   if (setupDetection.setup === 'none') {
@@ -5861,12 +6055,12 @@ function filterSetupByTradingMethod(setupDetection, selectedMethod) {
   
   // Define which setup types are allowed for each trading method
   const methodAllowedSetups = {
-    'breakout': ['breakout', 'range_breakout', 'resistance_rejection', 'support_bounce'],
-    'trend': ['trend_pullback', 'flag_continuation', 'structure_continuation'],
-    'support_resistance': ['support_bounce', 'resistance_rejection', 'range_breakout'],
-    'pullback': ['trend_pullback', 'flag_continuation', 'structure_continuation'],
-    'range': ['range_breakout', 'support_bounce', 'resistance_rejection'],
-    'liquidity': ['liquidity_sweep', 'support_bounce', 'resistance_rejection']
+    'breakout': ['breakout', 'range_breakout', 'resistance_break', 'support_breakdown'],
+    'trend': ['trend_pullback', 'ma_pullback', 'continuation_structure', 'higher_lows'],
+    'support_resistance': ['support_bounce', 'resistance_rejection', 'strong_support', 'strong_resistance'],
+    'pullback': ['trend_pullback', 'ma_pullback', 'flag_continuation', 'structure_continuation'],
+    'range': ['range_top', 'range_bottom', 'range_breakout'],
+    'liquidity': ['liquidity_sweep', 'stop_hunt', 'reversal_sweep']
   };
   
   const allowedSetups = methodAllowedSetups[selectedMethod];
@@ -7648,6 +7842,84 @@ function handleTradeMonitoringState(currentBar) {
   updateMentorUI();
 }
 
+function handleWaitingState(currentBar) {
+  // Check if it's time to re-check for setups
+  const barsInWaitingState = currentBar - mentorState.waitingStateStart;
+  
+  if (barsInWaitingState % mentorState.waitingStateRecheckInterval === 0) {
+    console.log('🔄 Re-checking for setups after waiting period');
+    
+    // Temporarily switch to scanning to re-check
+    mentorState.lifecycleState = 'scanning';
+    
+    // Run setup detection
+    const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+    
+    // Apply trading method filtering if a method is selected
+    if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
+      setupDetection = filterSetupByTradingMethod(setupDetection, mentorState.selectedTradingMethod);
+    }
+    
+    // Apply replay knowledge advantage validation
+    if (setupDetection.setup !== 'none') {
+      const validation = validateSetupWithFutureData(setupDetection, currentBar, curData);
+      if (!validation.valid) {
+        setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
+      } else {
+        setupDetection.validation = validation;
+      }
+    }
+    
+    if (setupDetection.setup !== 'none') {
+      // Found a setup - exit waiting state and proceed with setup
+      console.log('✅ Setup found during re-check, exiting waiting state');
+      mentorState.lifecycleState = 'setup_wait';
+      mentorState.setupWaitStart = currentBar;
+      mentorState.setupWaitData = setupDetection;
+      mentorState.lastTradeSuggestionBar = currentBar;
+      mentorState.messageLocked = true;
+      mentorState.lockedMessage = 'setup';
+      mentorState.lockedInsights = [...mentorState.currentInsights];
+      mentorState.lockedQuestion = mentorState.currentQuestion;
+      mentorState.setupPausedReplay = true;
+      
+      // Clear waiting state
+      mentorState.waitingStateStart = null;
+      mentorState.waitingStateMessage = null;
+      
+      // Generate setup message and pause replay
+      generateSetupMessageWithExampleTrade(setupDetection, currentBar);
+      if (replayMode) {
+        pauseReplayForSetup();
+      }
+      
+      updateMentorUI();
+    } else {
+      // Still no setup - continue waiting
+      console.log('⏳ Still no setup found, continuing waiting state');
+      mentorState.lifecycleState = 'waiting';
+      // Don't update UI - keep the same message displayed
+    }
+  } else {
+    // Not time to re-check yet - just update UI without changing message
+    updateMentorUI();
+  }
+}
+
+function enterWaitingState(message) {
+  console.log('⏳ Entering waiting state:', message);
+  
+  mentorState.lifecycleState = 'waiting';
+  mentorState.waitingStateStart = currentBar;
+  mentorState.waitingStateMessage = message;
+  
+  // Set the message once and don't change it
+  mentorState.currentInsights = [message];
+  mentorState.currentQuestion = 'The mentor will re-check for setups periodically...';
+  
+  updateMentorUI();
+}
+
 function handleTradeResultState(currentBar) {
   console.log('📋 Handle trade result state');
   
@@ -8059,6 +8331,10 @@ function updateMentor() {
     // Waiting for user to select trading method - just update UI
     updateMentorUI();
     return;
+  } else if (mentorState.lifecycleState === 'waiting') {
+    // In waiting state - only re-check every 10 candles
+    handleWaitingState(currentBar);
+    return;
   } else if (mentorState.lifecycleState === 'setup_wait') {
     handleSetupWaitState(currentBar);
     return;
@@ -8179,9 +8455,8 @@ function updateMentor() {
         updateMentorUI();
         return;
       } else {
-        console.log('🤖 No quality setup found, generating no-setup message');
-        generateNoSetupMessage();
-        mentorState.lifecycleState = 'scanning'; // Ensure we're back to scanning
+        console.log('🤖 No quality setup found, entering waiting state');
+        enterWaitingState('Market is currently unclear. Waiting for a stronger setup with proper confluence.');
       }
       
       updateMentorUI();
