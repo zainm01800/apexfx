@@ -1869,6 +1869,19 @@ let _currentUserId  = null; // Supabase auth UUID
 let _supaReady      = false;
 let _supa           = null;
 
+// ══ BUILTIN INDICATORS (declared early to prevent hoisting issues) ══════════════════════════════════════════
+const BUILTIN_INDS = [
+  {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
+  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9 & 21)',  icon:'📈'},
+  {id:'bb',      name:'BB',       desc:'Bollinger Bands (20, 2)',              icon:'〰'},
+  {id:'vwap',    name:'VWAP',     desc:'Volume Weighted Average Price',        icon:'💹'},
+  {id:'vol',     name:'Volume',   desc:'Volume histogram sub-panel',           icon:'📊'},
+  {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'📉'},
+  {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'〰'},
+  {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'📉'},
+  {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
+];
+
 // ══ SYMBOLS ══════════════════════════════════════════════════════════════════
 const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
@@ -8769,18 +8782,6 @@ function ilTab(btn,tab){
   renderIndList(q);
 }
 function filterIndList(q){ renderIndList(q); }
-
-const BUILTIN_INDS = [
-  {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
-  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9 & 21)',  icon:'📈'},
-  {id:'bb',      name:'BB',       desc:'Bollinger Bands (20, 2)',              icon:'〰'},
-  {id:'vwap',    name:'VWAP',     desc:'Volume Weighted Average Price',        icon:'💹'},
-  {id:'vol',     name:'Volume',   desc:'Volume histogram sub-panel',           icon:'📊'},
-  {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'📉'},
-  {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'〰'},
-  {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'📉'},
-  {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
-];
 
 // Helper — gets current search query regardless of where the search input lives
 function _indSearchQ(){ return (document.getElementById('ov-ind-search')||{}).value||''; }
