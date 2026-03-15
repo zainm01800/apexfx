@@ -4995,7 +4995,11 @@ function replayTogglePlay(){
           e.message.includes('undefined is not an object') ||
           e.message.includes('Cannot access property') ||
           e.message.includes('setup') ||
-          e.message.includes('mentor')
+          e.message.includes('mentor') ||
+          e.message.includes('currentBar is not defined') ||
+          e.message.includes('Assignment to constant variable') ||
+          e.message.includes('enterWaitingState') ||
+          e.message.includes('handleWaitingState')
         )) {
           console.warn('⚠ Setup detection or mentor error - continuing replay');
           // Don't stop replay, just continue to next step
@@ -7862,7 +7866,7 @@ function handleWaitingState(currentBar) {
     mentorState.lifecycleState = 'scanning';
     
     // Run setup detection
-    const setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+    let setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
     
     // Apply trading method filtering if a method is selected
     if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
@@ -7915,11 +7919,11 @@ function handleWaitingState(currentBar) {
   }
 }
 
-function enterWaitingState(message) {
+function enterWaitingState(message, currentBar) {
   console.log('⏳ Entering waiting state:', message);
   
   mentorState.lifecycleState = 'waiting';
-  mentorState.waitingStateStart = currentBar;
+  mentorState.waitingStateStart = currentBar || replayCutoff;
   mentorState.waitingStateMessage = message;
   
   // Set the message once and don't change it
@@ -8465,7 +8469,7 @@ function updateMentor() {
         return;
       } else {
         console.log('🤖 No quality setup found, entering waiting state');
-        enterWaitingState('Market is currently unclear. Waiting for a stronger setup with proper confluence.');
+        enterWaitingState('Market is currently unclear. Waiting for a stronger setup with proper confluence.', currentBar);
       }
       
       updateMentorUI();
