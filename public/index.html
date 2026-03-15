@@ -5267,10 +5267,18 @@ function draw(){
   });
 }
 function _drawImmediate(){
-  if(!curData.length)return;
+  if(!curData || !curData.length) return;
   const mc=_el('main-canvas');
+  if(!mc) return;
   const W=mc.width, H=mc.height;
-  if(!W||!H)return;
+  if(!W||!H) return;
+  
+  // Additional safety checks for replay mode
+  if(replayMode && (replayCutoff < 0 || replayCutoff >= curData.length)) {
+    // Reset replay state if it becomes invalid
+    stopReplay();
+    return;
+  }
 
   // Pre-warm CSS var cache once per draw
   _warmCSSVars();
@@ -6802,12 +6810,6 @@ function setupEvents(){
       if(handleDrawMousedown(lx, ly, e)) return;
     }
 
-    // ── Prevent panning when replay mode is active ────────────────────────
-    if(replayMode && zone === 'pan'){
-      // In replay mode, clicking the pan area should only control replay, not pan the chart
-      return;
-    }
-
     if(zone === 'pan'){
       isPanning    = true;
       panStartX    = e.clientX;
@@ -6820,9 +6822,6 @@ function setupEvents(){
       mc.style.cursor = 'grabbing';
     }
     else if(zone === 'xscale'){
-      // ── Prevent scaling when replay mode is active ────────────────────────
-      if(replayMode) return;
-      
       isXScaling      = true;
       xScaleStartX    = e.clientX;
       xScaleStartBW   = barWidth;
@@ -6832,9 +6831,6 @@ function setupEvents(){
       mc.style.cursor = 'ew-resize';
     }
     else if(zone === 'yscale'){
-      // ── Prevent scaling when replay mode is active ────────────────────────
-      if(replayMode) return;
-      
       isYScaling        = true;
       yScaleStartY      = e.clientY;
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
@@ -6864,6 +6860,13 @@ function setupEvents(){
     }
 
     if(isPanning){
+      // Add safety checks for replay mode
+      if(!curData || curData.length <= 1 || barWidth <= 0) {
+        isPanning = false;
+        mc.style.cursor = 'crosshair';
+        return;
+      }
+      
       const dx   = e.clientX - panStartX;
       const dy   = e.clientY - panStartY;
 
@@ -6879,14 +6882,23 @@ function setupEvents(){
       priceHi = panStartHi + dy * pricePx;
       priceLo = panStartLo + dy * pricePx;
 
-      // Auto-fetch more history when panned to left edge
-      const firstVisible = Math.ceil(rightBarIndex - mc.width / barWidth);
-      if(firstVisible <= 5 && !isFetchingMore) fetchMoreHistory();
+      // Auto-fetch more history when panned to left edge (but not during replay)
+      if(!replayMode) {
+        const firstVisible = Math.ceil(rightBarIndex - mc.width / barWidth);
+        if(firstVisible <= 5 && !isFetchingMore) fetchMoreHistory();
+      }
 
       draw(); return;
     }
 
     if(isXScaling){
+      // Add safety checks for replay mode
+      if(!curData || curData.length <= 1 || barWidth <= 0) {
+        isXScaling = false;
+        mc.style.cursor = 'crosshair';
+        return;
+      }
+      
       const dx   = e.clientX - xScaleStartX;
       // Exponential so small moves near centre feel natural
       const newBW = Math.max(1, Math.min(80, xScaleStartBW * Math.pow(1.005, dx)));
@@ -6900,6 +6912,13 @@ function setupEvents(){
     }
 
     if(isYScaling){
+      // Add safety checks for replay mode
+      if(!curData || curData.length <= 1 || !yScaleStartHi || !yScaleStartLo) {
+        isYScaling = false;
+        mc.style.cursor = 'crosshair';
+        return;
+      }
+      
       const dy       = e.clientY - yScaleStartY;
       const oldRange = yScaleStartHi - yScaleStartLo;
       // drag down = zoom in (tighter range), drag up = zoom out
