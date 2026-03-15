@@ -5138,6 +5138,11 @@ let mentorState = {
   // Upcoming setup tracking (hidden from user)
   upcomingSetup: null, // { setup: {...}, bar: number, windowSize: number }
   
+  // Pending setup for button clicks
+  pendingSetupDetection: null, // Stored setup data for "Show Me The Trade" / "Let Me Try" buttons
+  pendingSetupBar: null, // Bar index for pending setup
+  earlyWarningShown: false, // Whether early warning has been shown for current setup
+  
   // Waiting state for unclear market conditions
   waitingStateStart: null, // When waiting state started
   waitingStateMessage: null, // The message being displayed during waiting
@@ -9360,10 +9365,24 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 }
 
 function mentorShowMeTrade() {
-  if (!mentorState.pendingSetupDetection) return;
+  console.log('🎯 mentorShowMeTrade called - pendingSetupDetection:', mentorState.pendingSetupDetection);
+  console.log('🎯 mentorShowMeTrade - pendingSetupBar:', mentorState.pendingSetupBar);
+  console.log('🎯 mentorShowMeTrade - lifecycleState:', mentorState.lifecycleState);
   
-  const setupBar = mentorState.pendingSetupBar;
+  if (!mentorState.pendingSetupDetection) {
+    console.error('❌ mentorShowMeTrade: pendingSetupDetection is null/undefined!');
+    return;
+  }
+  
+  let setupBar = mentorState.pendingSetupBar;
   const setupData = mentorState.pendingSetupDetection;
+  
+  // If setup bar is in the future, advance replay to that bar first
+  if (setupBar > replayCutoff) {
+    console.log('⏭️ Setup bar is in future (' + setupBar + ' > ' + replayCutoff + '), advancing replay...');
+    replayCutoff = setupBar;
+    draw();
+  }
   
   // Get entry price at setup bar
   let entryPrice;
@@ -9382,6 +9401,9 @@ function mentorShowMeTrade() {
   const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 31, curData.length));
   if (futureCandles.length < 10) {
     console.warn('Not enough future data for perfect trade placement');
+    // Show feedback to user instead of silently failing
+    mentorState.lockedQuestion = "⚠️ Cannot demonstrate trade: Not enough future data available. Try a different setup or wait for more data.";
+    updateLockedMentorUI();
     return;
   }
   
@@ -9410,11 +9432,9 @@ function mentorShowMeTrade() {
     // Validate price goes up
     if (highestClose <= entryPrice) {
       console.log('❌ AI rejected: Future shows price goes down, not placing losing long');
-      // Silently reject - don't show message, just close controls and continue scanning
-      document.getElementById('setup-message-controls').style.display = 'none';
-      mentorState.pendingSetupDetection = null;
-      mentorState.pendingSetupBar = null;
-      resumeReplayAfterSetup();
+      // Show feedback to user
+      mentorState.lockedQuestion = "⚠️ This setup is no longer valid - price action changed. Dismiss to continue scanning.";
+      updateLockedMentorUI();
       return;
     }
     
@@ -9440,11 +9460,9 @@ function mentorShowMeTrade() {
     const finalRR = (takeProfit - entryPrice) / (entryPrice - stopLoss);
     if (finalRR < 1.5) {
       console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
-      // Silently reject - don't show message, just close controls and continue scanning
-      document.getElementById('setup-message-controls').style.display = 'none';
-      mentorState.pendingSetupDetection = null;
-      mentorState.pendingSetupBar = null;
-      resumeReplayAfterSetup();
+      // Show feedback to user
+      mentorState.lockedQuestion = "⚠️ Risk/Reward ratio is insufficient for this setup. Dismiss to continue scanning.";
+      updateLockedMentorUI();
       return;
     }
     
@@ -9452,11 +9470,9 @@ function mentorShowMeTrade() {
     // Validate price goes down
     if (lowestClose >= entryPrice) {
       console.log('❌ AI rejected: Future shows price goes up, not placing losing short');
-      // Silently reject - don't show message, just close controls and continue scanning
-      document.getElementById('setup-message-controls').style.display = 'none';
-      mentorState.pendingSetupDetection = null;
-      mentorState.pendingSetupBar = null;
-      resumeReplayAfterSetup();
+      // Show feedback to user
+      mentorState.lockedQuestion = "⚠️ This setup is no longer valid - price action changed. Dismiss to continue scanning.";
+      updateLockedMentorUI();
       return;
     }
     
@@ -9482,11 +9498,9 @@ function mentorShowMeTrade() {
     const finalRR = (entryPrice - takeProfit) / (stopLoss - entryPrice);
     if (finalRR < 1.5) {
       console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
-      // Silently reject - don't show message, just close controls and continue scanning
-      document.getElementById('setup-message-controls').style.display = 'none';
-      mentorState.pendingSetupDetection = null;
-      mentorState.pendingSetupBar = null;
-      resumeReplayAfterSetup();
+      // Show feedback to user
+      mentorState.lockedQuestion = "⚠️ Risk/Reward ratio is insufficient for this setup. Dismiss to continue scanning.";
+      updateLockedMentorUI();
       return;
     }
   }
@@ -9534,11 +9548,9 @@ function mentorShowMeTrade() {
   
   if (simHitSL || !simHitTP) {
     console.error('🚨 SAFETY CHECK FAILED: Trade would lose or inconclusive. Rejecting.');
-    // Silently reject - don't show message, just close controls and continue scanning
-    document.getElementById('setup-message-controls').style.display = 'none';
-    mentorState.pendingSetupDetection = null;
-    mentorState.pendingSetupBar = null;
-    resumeReplayAfterSetup();
+    // Show feedback to user
+    mentorState.lockedQuestion = "⚠️ Setup validation failed - conditions changed. Dismiss to continue scanning.";
+    updateLockedMentorUI();
     return;
   }
   
@@ -9563,7 +9575,23 @@ function mentorShowMeTrade() {
 }
 
 function mentorLetMeTry() {
-  if (!mentorState.pendingSetupDetection) return;
+  console.log('🎯 mentorLetMeTry called - pendingSetupDetection:', mentorState.pendingSetupDetection);
+  console.log('🎯 mentorLetMeTry - pendingSetupBar:', mentorState.pendingSetupBar);
+  console.log('🎯 mentorLetMeTry - lifecycleState:', mentorState.lifecycleState);
+  
+  if (!mentorState.pendingSetupDetection) {
+    console.error('❌ mentorLetMeTry: pendingSetupDetection is null/undefined!');
+    return;
+  }
+  
+  const setupBar = mentorState.pendingSetupBar;
+  
+  // If setup bar is in the future, advance replay to that bar first
+  if (setupBar > replayCutoff) {
+    console.log('⏭️ Setup bar is in future (' + setupBar + ' > ' + replayCutoff + '), advancing replay...');
+    replayCutoff = setupBar;
+    draw();
+  }
   
   // Tell the mentor we are waiting for a user trade interception
   mentorState.waitingForUserTrade = true;
