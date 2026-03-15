@@ -716,11 +716,15 @@ canvas{display:block;flex-shrink:0;}
 .il-desc{font-family:var(--font-mono);font-size:11px;color:var(--tx2);margin-top:1px;}
 
 /* ─── AUTH SCREEN ────────────────────────────────────────────────────────── */
-#auth-screen{display:flex;position:fixed;inset:0;z-index:9999;background:var(--bg);
+#auth-screen{display:flex;position:fixed;inset:0;z-index:99999;background:var(--bg);
   align-items:center;justify-content:center;flex-direction:column;}
 #auth-box{width:360px;background:var(--bg2);border:1px solid var(--line2);
   border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,.8);overflow:hidden;}
 #auth-box * { pointer-events: auto !important; }
+
+/* Hide all modals/overlays when auth screen is shown */
+#auth-screen ~ * { display: none !important; }
+#auth-screen + #app { display: none !important; }
 #auth-logo{padding:28px 28px 18px;border-bottom:1px solid var(--line);}
 #auth-logo-text{font-family:var(--font-mono);font-size:18px;font-weight:700;
   letter-spacing:2px;color:var(--tx);text-transform:uppercase;}
@@ -1286,7 +1290,7 @@ body.is-dragging { user-select: none; }
         </div>
         <div id="ai-mentor-controls" style="display:flex;gap:4px;margin-bottom:6px;">
           <button id="ai-mentor-toggle" onclick="toggleAIMentorMode()" style="flex:1;padding:6px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.25);color:var(--green);font-size:10px;border-radius:3px;cursor:pointer;font-weight:600;font-family:var(--font-mono);">Start Tutorial</button>
-          <button id="ai-mentor-step" onclick="aiMentorStep()" style="flex:1;padding:6px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:3px;cursor:pointer;font-weight:600;font-family:var(--font-mono);">Next Step</button>
+          <button id="ai-mentor-step" onclick="aiMentorNextStep()" style="flex:1;padding:6px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:3px;cursor:pointer;font-weight:600;font-family:var(--font-mono);">Next Step</button>
         </div>
       </div>
       
@@ -4938,7 +4942,7 @@ function toggleAIMentorMode() {
   }
 }
 
-function aiMentorStep() {
+function aiMentorNextStep() {
   if (!aiMentorMode) {
     toast('🤖 Enable AI Mentor first');
     return;
