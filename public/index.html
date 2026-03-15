@@ -9860,7 +9860,7 @@ async function authSubmitLogin(){
     doLogin(result.username, result.displayName);
     
     console.log('🎉 Login process completed');
-    loadSym('AAPL');
+    loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
@@ -9894,7 +9894,7 @@ async function authSubmitRegister(){
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
-  loadSym('AAPL');
+  loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -10452,7 +10452,7 @@ window.addEventListener('load', () => {
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       doLogin(username, displayName);
-      loadSym('AAPL');
+      loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
     } else {
       // No active session — show auth screen
       document.getElementById('app').style.display = 'none';
