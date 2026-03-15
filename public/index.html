@@ -1238,12 +1238,41 @@ body.is-dragging { user-select: none; }
       <span id="st-replay" style="display:none;align-items:center;gap:4px;margin-left:6px;">
         <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
         <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
+        <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 6px;background:rgba(138,43,226,.15);border:1px solid rgba(138,43,226,.4);color:var(--purple);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;">🧠 Mentor</button>
       </span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
       <span id="st-clk" style="font-size:11px;color:var(--tx2);margin-right:6px;"></span>
       <span id="sb-time" style="color:var(--tx3);"></span>
+    </div>
+
+    <!-- AI TRADING MENTOR PANEL -->
+    <div id="ai-mentor-panel" style="display:none;position:fixed;top:60px;right:20px;width:320px;max-height:400px;background:var(--bg2);border:1px solid var(--b1);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;overflow:hidden;">
+      <div style="padding:12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">🧠</span>
+          <span style="color:var(--tx1);font-weight:600;">AI Trading Mentor</span>
+        </div>
+        <button onclick="toggleMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;">×</button>
+      </div>
+      
+      <div id="mentor-content" style="padding:12px;max-height:320px;overflow-y:auto;font-size:12px;line-height:1.5;">
+        <div id="mentor-insights" style="color:var(--tx2);margin-bottom:12px;"></div>
+        <div id="mentor-question" style="color:var(--amber);font-weight:500;margin-bottom:12px;"></div>
+        <div id="mentor-decisions" style="display:none;">
+          <div style="color:var(--tx1);font-weight:500;margin-bottom:8px;">What would you do?</div>
+          <button onclick="mentorDecision('enter')" style="display:block;width:100%;padding:8px;margin-bottom:6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);border-radius:4px;cursor:pointer;">📈 Enter Trade</button>
+          <button onclick="mentorDecision('wait')" style="display:block;width:100%;padding:8px;margin-bottom:6px;background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.4);color:var(--amber);border-radius:4px;cursor:pointer;">⏳ Wait for Confirmation</button>
+          <button onclick="mentorDecision('skip')" style="display:block;width:100%;padding:8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:var(--rd);border-radius:4px;cursor:pointer;">⏭️ Skip Trade</button>
+        </div>
+        <div id="mentor-feedback" style="display:none;color:var(--tx2);font-style:italic;margin-top:12px;"></div>
+      </div>
+      
+      <div style="padding:8px;background:var(--bg3);border-top:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
+        <span id="mentor-candle-info" style="color:var(--tx3);font-size:11px;"></span>
+        <button onclick="mentorHint()" style="padding:4px 8px;background:var(--bg1);border:1px solid var(--b1);color:var(--tx2);border-radius:3px;cursor:pointer;font-size:11px;">💡 Hint</button>
+      </div>
     </div>
 
   </div><!-- /main-col -->
@@ -4873,6 +4902,414 @@ function replayHoverBar(){
     Math.round(firstBar + (mouseX - (W - (rightBarIndex - firstBar) * barWidth)) / barWidth)
   ));
 }
+
+// ══ AI TRADING MENTOR ═══════════════════════════════════════════════════════════
+// Real-time trading coach for Bar Replay mode - analyzes only current and past data
+
+let mentorState = {
+  enabled: false,
+  currentBar: -1,
+  analysis: null,
+  pendingDecision: false,
+  activeTrade: null,
+  feedbackQueue: [],
+  lastInsight: '',
+  learningMode: true
+};
+
+// Market Analysis Engine (NO future data)
+function analyzeMarketData(barIndex) {
+  if (!curData || barIndex < 0 || barIndex >= curData.length) return null;
+  
+  const data = curData.slice(0, barIndex + 1); // Only current and past data
+  const current = data[data.length - 1];
+  const previous = data.length > 1 ? data[data.length - 2] : current;
+  
+  // Trend Analysis
+  const sma20 = calculateSMA(data, 20);
+  const sma50 = calculateSMA(data, 50);
+  const trend = analyzeTrend(data, sma20, sma50);
+  
+  // Support/Resistance Levels
+  const levels = findKeyLevels(data);
+  const nearestResistance = findNearestLevel(current.high, levels.resistance);
+  const nearestSupport = findNearestLevel(current.low, levels.support);
+  
+  // Volume Analysis
+  const volumeAnalysis = analyzeVolume(data);
+  
+  // Pattern Recognition
+  const patterns = detectPatterns(data);
+  
+  // Market Structure
+  const structure = analyzeMarketStructure(data);
+  
+  return {
+    trend,
+    structure,
+    current: {
+      price: current.close,
+      high: current.high,
+      low: current.low,
+      volume: current.volume,
+      change: ((current.close - previous.close) / previous.close * 100).toFixed(2)
+    },
+    levels: {
+      resistance: nearestResistance,
+      support: nearestSupport
+    },
+    volume: volumeAnalysis,
+    patterns,
+    indicators: {
+      sma20: sma20[sma20.length - 1],
+      sma50: sma50[sma50.length - 1]
+    }
+  };
+}
+
+// Helper Functions for Analysis
+function calculateSMA(data, period) {
+  const sma = [];
+  for (let i = period - 1; i < data.length; i++) {
+    const sum = data.slice(i - period + 1, i + 1).reduce((acc, bar) => acc + bar.close, 0);
+    sma.push(sum / period);
+  }
+  return sma;
+}
+
+function analyzeTrend(data, sma20, sma50) {
+  if (sma20.length < 2 || sma50.length < 2) return 'neutral';
+  
+  const currentSMA20 = sma20[sma20.length - 1];
+  const currentSMA50 = sma50[sma50.length - 1];
+  const prevSMA20 = sma20[sma20.length - 2];
+  const prevSMA50 = sma50[sma50.length - 2];
+  
+  const price = data[data.length - 1].close;
+  
+  if (currentSMA20 > currentSMA50 && price > currentSMA20) {
+    return currentSMA20 > prevSMA20 ? 'strong_uptrend' : 'uptrend';
+  } else if (currentSMA20 < currentSMA50 && price < currentSMA20) {
+    return currentSMA20 < prevSMA20 ? 'strong_downtrend' : 'downtrend';
+  }
+  
+  return 'neutral';
+}
+
+function findKeyLevels(data) {
+  const resistance = [];
+  const support = [];
+  const lookback = Math.min(20, data.length);
+  
+  for (let i = lookback; i < data.length - lookback; i++) {
+    const bar = data[i];
+    
+    // Check if this is a resistance level
+    let isResistance = true;
+    for (let j = i - lookback; j < i; j++) {
+      if (data[j].high >= bar.high) isResistance = false;
+    }
+    for (let j = i + 1; j <= i + lookback; j++) {
+      if (data[j].high >= bar.high) isResistance = false;
+    }
+    if (isResistance) resistance.push(bar.high);
+    
+    // Check if this is a support level
+    let isSupport = true;
+    for (let j = i - lookback; j < i; j++) {
+      if (data[j].low <= bar.low) isSupport = false;
+    }
+    for (let j = i + 1; j <= i + lookback; j++) {
+      if (data[j].low <= bar.low) isSupport = false;
+    }
+    if (isSupport) support.push(bar.low);
+  }
+  
+  return { resistance, support };
+}
+
+function findNearestLevel(price, levels) {
+  if (!levels.length) return null;
+  return levels.reduce((nearest, level) => {
+    const currentDistance = Math.abs(price - level);
+    const nearestDistance = Math.abs(price - nearest);
+    return currentDistance < nearestDistance ? level : nearest;
+  }, levels[0]);
+}
+
+function analyzeVolume(data) {
+  if (data.length < 2) return 'normal';
+  
+  const current = data[data.length - 1].volume;
+  const avgVolume = data.slice(-20).reduce((sum, bar) => sum + bar.volume, 0) / Math.min(20, data.length);
+  
+  if (current > avgVolume * 2) return 'very_high';
+  if (current > avgVolume * 1.5) return 'high';
+  if (current < avgVolume * 0.5) return 'low';
+  return 'normal';
+}
+
+function detectPatterns(data) {
+  const patterns = [];
+  const last3 = data.slice(-3);
+  if (last3.length < 3) return patterns;
+  
+  // Detect potential reversal patterns
+  const [bar1, bar2, bar3] = last3;
+  
+  // Hammer pattern
+  if (bar3.low < bar3.open * 0.98 && bar3.close > bar3.open && bar3.volume > 0) {
+    patterns.push('hammer');
+  }
+  
+  // Engulfing pattern
+  if (bar2.close < bar2.open && bar3.close > bar3.open && bar3.close > bar2.open && bar3.open < bar2.close) {
+    patterns.push('bullish_engulfing');
+  }
+  
+  return patterns;
+}
+
+function analyzeMarketStructure(data) {
+  if (data.length < 10) return 'unknown';
+  
+  const recentHighs = data.slice(-10).map(bar => bar.high);
+  const recentLows = data.slice(-10).map(bar => bar.low);
+  
+  const higherHighs = recentHighs.filter((high, i) => i > 0 && high > recentHighs[i - 1]).length;
+  const higherLows = recentLows.filter((low, i) => i > 0 && low > recentLows[i - 1]).length;
+  
+  if (higherHighs >= 3 && higherLows >= 2) return 'uptrend_structure';
+  if (higherHighs <= 1 && higherLows <= 1) return 'downtrend_structure';
+  return 'range_structure';
+}
+
+// Mentor UI Functions
+function toggleMentor() {
+  mentorState.enabled = !mentorState.enabled;
+  const panel = document.getElementById('ai-mentor-panel');
+  const btn = document.getElementById('st-replay-mentor');
+  
+  if (mentorState.enabled && replayMode) {
+    panel.style.display = 'block';
+    if (btn) btn.style.background = 'rgba(138,43,226,.4)';
+    updateMentor();
+  } else {
+    panel.style.display = 'none';
+    if (btn) btn.style.background = 'rgba(138,43,226,.15)';
+  }
+}
+
+function updateMentor() {
+  if (!mentorState.enabled || !replayMode || replayPicking) return;
+  
+  const currentBar = replayCutoff;
+  if (currentBar !== mentorState.currentBar) {
+    mentorState.currentBar = currentBar;
+    mentorState.analysis = analyzeMarketData(currentBar);
+    
+    if (mentorState.analysis) {
+      generateMentorInsights();
+      updateMentorUI();
+    }
+  }
+}
+
+function generateMentorInsights() {
+  const analysis = mentorState.analysis;
+  if (!analysis) return;
+  
+  let insights = [];
+  let question = '';
+  let shouldPromptDecision = false;
+  
+  // Market Structure Insights
+  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  
+  // Trend Analysis
+  if (analysis.trend !== 'neutral') {
+    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
+  }
+  
+  // Key Levels
+  if (analysis.levels.resistance) {
+    const distance = ((analysis.levels.resistance - analysis.current.price) / analysis.current.price * 100).toFixed(1);
+    insights.push(`Resistance at $${analysis.levels.resistance.toFixed(2)} (${distance}% away)`);
+    
+    if (distance < 2) {
+      question = "Price is approaching resistance. What would you expect here?";
+      shouldPromptDecision = true;
+    }
+  }
+  
+  if (analysis.levels.support) {
+    const distance = ((analysis.current.price - analysis.levels.support) / analysis.current.price * 100).toFixed(1);
+    insights.push(`Support at $${analysis.levels.support.toFixed(2)} (${distance}% away)`);
+    
+    if (distance < 2) {
+      question = "Price is near support. How would you approach this level?";
+      shouldPromptDecision = true;
+    }
+  }
+  
+  // Volume Analysis
+  if (analysis.volume === 'high' || analysis.volume === 'very_high') {
+    insights.push(`Volume is ${analysis.volume.replace('_', ' ')} - increased market interest`);
+  }
+  
+  // Pattern Recognition
+  if (analysis.patterns.length > 0) {
+    const pattern = analysis.patterns[0];
+    insights.push(`Potential ${pattern.replace('_', ' ')} pattern forming`);
+    
+    if (pattern === 'bullish_engulfing') {
+      question = "We're seeing a bullish engulfing pattern. Would you enter now or wait for confirmation?";
+      shouldPromptDecision = true;
+    }
+  }
+  
+  // Price Action
+  const change = parseFloat(analysis.current.change);
+  if (Math.abs(change) > 1) {
+    const direction = change > 0 ? 'up' : 'down';
+    insights.push(`Price moved ${direction} by ${Math.abs(change)}% this candle`);
+  }
+  
+  mentorState.lastInsight = insights.join('. ');
+  mentorState.pendingDecision = shouldPromptDecision;
+  
+  // Store for UI updates
+  mentorState.currentInsights = insights;
+  mentorState.currentQuestion = question;
+}
+
+function updateMentorUI() {
+  const insightsEl = document.getElementById('mentor-insights');
+  const questionEl = document.getElementById('mentor-question');
+  const decisionsEl = document.getElementById('mentor-decisions');
+  const candleInfoEl = document.getElementById('mentor-candle-info');
+  
+  // Update insights
+  if (insightsEl && mentorState.currentInsights) {
+    insightsEl.innerHTML = mentorState.currentInsights.join('. ');
+  }
+  
+  // Update question
+  if (questionEl && mentorState.currentQuestion) {
+    questionEl.textContent = mentorState.currentQuestion;
+    questionEl.style.display = mentorState.currentQuestion ? 'block' : 'none';
+  }
+  
+  // Show/hide decision buttons
+  if (decisionsEl) {
+    decisionsEl.style.display = mentorState.pendingDecision ? 'block' : 'none';
+  }
+  
+  // Update candle info
+  if (candleInfoEl && mentorState.analysis) {
+    const bar = curData[mentorState.currentBar];
+    const date = new Date(bar.time);
+    candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} • ${date.toLocaleDateString()}`;
+  }
+}
+
+function mentorDecision(decision) {
+  if (!mentorState.pendingDecision) return;
+  
+  mentorState.pendingDecision = false;
+  mentorState.activeTrade = {
+    decision,
+    entryPrice: mentorState.analysis.current.price,
+    barIndex: mentorState.currentBar,
+    timestamp: Date.now()
+  };
+  
+  // Hide decision buttons
+  document.getElementById('mentor-decisions').style.display = 'none';
+  
+  // Provide immediate feedback
+  provideDecisionFeedback(decision);
+  
+  // Update UI
+  updateMentorUI();
+}
+
+function provideDecisionFeedback(decision) {
+  const feedbackEl = document.getElementById('mentor-feedback');
+  if (!feedbackEl) return;
+  
+  let feedback = '';
+  
+  switch(decision) {
+    case 'enter':
+      feedback = `Entering at $${mentorState.analysis.current.price.toFixed(2)}. Remember to set your stop loss and take profit levels. Good risk management is key!`;
+      break;
+    case 'wait':
+      feedback = `Smart decision! Waiting for confirmation reduces risk. Look for price action signals like a break of structure or volume confirmation.`;
+      break;
+    case 'skip':
+      feedback = `Sometimes the best trade is no trade. Patience is a virtue in trading. Stay focused and wait for better setups.`;
+      break;
+  }
+  
+  feedbackEl.textContent = feedback;
+  feedbackEl.style.display = 'block';
+  
+  // Hide feedback after 5 seconds
+  setTimeout(() => {
+    feedbackEl.style.display = 'none';
+  }, 5000);
+}
+
+function mentorHint() {
+  if (!mentorState.analysis) return;
+  
+  const hints = [
+    "Always consider the overall market context before entering a trade.",
+    "Risk management should be your top priority - never risk more than 1-2% per trade.",
+    "Look for confluence: multiple factors supporting your trade decision.",
+    "The trend is your friend - don't fight it unless you have strong reasons.",
+    "Volume confirms price action - look for volume on breakouts."
+  ];
+  
+  const randomHint = hints[Math.floor(Math.random() * hints.length)];
+  toast(`💡 ${randomHint}`);
+}
+
+// Integration with Replay System
+function integrateMentorWithReplay() {
+  // Show mentor when replay starts
+  const originalStartReplay = startReplay;
+  startReplay = function() {
+    originalStartReplay();
+    if (mentorState.enabled) {
+      document.getElementById('ai-mentor-panel').style.display = 'block';
+    }
+  };
+  
+  // Hide mentor when replay ends
+  const originalStopReplay = stopReplay;
+  stopReplay = function() {
+    originalStopReplay();
+    document.getElementById('ai-mentor-panel').style.display = 'none';
+  };
+  
+  // Update mentor on each replay step
+  const originalReplayStep = replayStep;
+  replayStep = function(n) {
+    originalReplayStep(n);
+    setTimeout(updateMentor, 100); // Small delay to ensure bar is updated
+  };
+}
+
+// Initialize mentor integration
+integrateMentorWithReplay();
+
+// Make mentor functions globally accessible
+window.toggleMentor = toggleMentor;
+window.mentorDecision = mentorDecision;
+window.mentorHint = mentorHint;
+window.updateMentor = updateMentor;
 
 // ══ PRE-TRADE CHECKLIST ═══════════════════════════════════════════════════════
 const DEFAULT_CHECKS = [
