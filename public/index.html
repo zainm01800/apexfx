@@ -903,6 +903,13 @@ body.is-dragging { user-select: none; }
       <span>📷</span><span class="nav-tip">Screenshot</span>
     </button>
 
+    <div class="nav-sep"></div>
+
+    <!-- AI Trading Tutor -->
+    <button class="nav-btn" id="nav-tutor" onclick="toggleOverlay('tutor')" title="AI Trading Tutor" draggable="true" ondragstart="navDragStart(event,'tutor','AI Trading Tutor')" ondragend="navDragEnd(event)">
+      <span>🎓</span><span class="nav-tip">AI Trading Tutor</span>
+    </button>
+
     <div class="nav-spacer"></div>
 
     <!-- Settings -->
@@ -1070,6 +1077,68 @@ body.is-dragging { user-select: none; }
           onmouseout="this.style.background='rgba(245,166,35,.07)'">⚗ Build Custom Indicator</button>
       </div>
     </div>
+
+    <!-- AI TRADING TUTOR sub-panel -->
+    <div id="ov-tutor" class="ov-body" style="display:none;flex-direction:column;height:100%;">
+
+      <!-- Toolbar row -->
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);flex-shrink:0;">
+        <button id="tutor-analyse-btn" onclick="tutorRunAnalysis()"
+          style="flex:1;padding:7px 10px;background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);
+          color:#3d8eff;font-size:10px;font-weight:700;border-radius:var(--r);cursor:pointer;
+          font-family:var(--font-mono);letter-spacing:.5px;transition:background .15s;"
+          onmouseover="this.style.background='rgba(61,142,255,.22)'"
+          onmouseout="this.style.background='rgba(61,142,255,.12)'">⚡ ANALYSE CHART</button>
+        <button onclick="tutorClearLesson()" title="Clear lesson"
+          style="padding:7px 9px;background:var(--bg3);border:1px solid var(--line);color:var(--tx3);
+          font-size:10px;border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);"
+          onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">↺</button>
+        <button onclick="tutorMarkersToggle()" id="tutor-markers-btn" title="Toggle chart markers"
+          style="padding:7px 9px;background:var(--bg3);border:1px solid var(--line);color:var(--amber);
+          font-size:10px;border-radius:var(--r);cursor:pointer;font-family:var(--font-mono);"
+          onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">◎</button>
+      </div>
+
+      <!-- Stage progress pills -->
+      <div id="tutor-stages" style="display:none;gap:4px;padding:8px 10px 6px;flex-shrink:0;flex-wrap:wrap;">
+        <span class="tutor-stage-pill" data-stage="1" title="Market Structure">1</span>
+        <span class="tutor-stage-pill" data-stage="2" title="Key Levels">2</span>
+        <span class="tutor-stage-pill" data-stage="3" title="Pattern">3</span>
+        <span class="tutor-stage-pill" data-stage="4" title="Entry Reasoning">4</span>
+        <span class="tutor-stage-pill" data-stage="5" title="Risk Management">5</span>
+        <span class="tutor-stage-pill" data-stage="6" title="Trade Evaluation">6</span>
+        <span class="tutor-stage-pill" data-stage="7" title="Ask Me">7</span>
+        <span id="tutor-stage-label" style="font-size:9px;color:var(--tx3);font-family:var(--font-mono);align-self:center;margin-left:4px;"></span>
+      </div>
+
+      <!-- Main scrollable lesson area -->
+      <div id="tutor-body" style="flex:1;overflow-y:auto;padding:10px 12px;"></div>
+
+      <!-- Typing loader -->
+      <div id="tutor-loader" style="display:none;padding:10px 14px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:8px;color:var(--tx3);font-size:10px;font-family:var(--font-mono);">
+          <span class="ai-typing-dots"><span></span><span></span><span></span></span>
+          Tutor is thinking…
+        </div>
+      </div>
+
+      <!-- Interactive Q&A input -->
+      <div id="tutor-chat-row" style="display:none;padding:8px 10px;border-top:1px solid var(--line);flex-shrink:0;">
+        <div style="display:flex;gap:6px;align-items:flex-end;">
+          <textarea id="tutor-input" rows="2" placeholder="Ask a follow-up question…"
+            style="flex:1;resize:none;background:var(--bg3);border:1px solid var(--line);color:var(--tx);
+            font-size:11px;padding:6px 9px;border-radius:var(--r);outline:none;
+            font-family:var(--font-mono);line-height:1.5;"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();tutorSendMessage();}"></textarea>
+          <button onclick="tutorSendMessage()"
+            style="padding:8px 11px;background:rgba(61,142,255,.18);border:1px solid rgba(61,142,255,.35);
+            color:#3d8eff;font-size:13px;border-radius:var(--r);cursor:pointer;line-height:1;align-self:stretch;"
+            onmouseover="this.style.background='rgba(61,142,255,.32)'"
+            onmouseout="this.style.background='rgba(61,142,255,.18)'">↑</button>
+        </div>
+      </div>
+
+    </div><!-- /ov-tutor -->
 
   </div><!-- /overlay-panel -->
 
@@ -4674,44 +4743,38 @@ async function sendTutorMessage(){
 function _drawTutorZones(entry, sl, tp, srZones, data){
   if(!data || !data.length) return;
   try {
-    const lastIdx = data.length - 1;
     // Remove any previous tutor markers
     drawings = drawings.filter(d => !d._tutorMarker);
 
     // Entry zone
     if(entry){
-      drawings.push({ id:'tm_entry', type:'hray', x1: Math.max(0, lastIdx-5), y1: entry,
-        color:'#f0a500', lineWidth:1.5, lineDash:'dashed',
-        label:`Entry $${fP(entry)}`, _tutorMarker:true });
+      drawings.push({ id:'tm_entry', type:'hray', price: entry,
+        color:'#f0a500', _tutorMarker:true });
     }
     // Stop loss zone
     if(sl){
-      drawings.push({ id:'tm_sl', type:'hray', x1: Math.max(0, lastIdx-5), y1: sl,
-        color:'#ff4d6a', lineWidth:1, lineDash:'dashed',
-        label:`SL $${fP(sl)}`, _tutorMarker:true });
+      drawings.push({ id:'tm_sl', type:'hray', price: sl,
+        color:'#ff4d6a', _tutorMarker:true });
     }
     // Take profit zone
     if(tp){
-      drawings.push({ id:'tm_tp', type:'hray', x1: Math.max(0, lastIdx-5), y1: tp,
-        color:'#00d4a0', lineWidth:1, lineDash:'dashed',
-        label:`TP $${fP(tp)}`, _tutorMarker:true });
+      drawings.push({ id:'tm_tp', type:'hray', price: tp,
+        color:'#00d4a0', _tutorMarker:true });
     }
     // Key S/R zones (top 2 support + 2 resistance)
     if(srZones){
       (srZones.support||[]).slice(0,2).forEach((p,i)=>{
-        drawings.push({ id:'tm_sup'+i, type:'hray', x1:0, y1:p,
-          color:'rgba(0,212,160,0.4)', lineWidth:1, lineDash:'dotted',
-          label:`Support $${fP(p)}`, _tutorMarker:true });
+        drawings.push({ id:'tm_sup'+i, type:'hray', price: p,
+          color:'rgba(0,212,160,0.5)', _tutorMarker:true });
       });
       (srZones.resistance||[]).slice(0,2).forEach((p,i)=>{
-        drawings.push({ id:'tm_res'+i, type:'hray', x1:0, y1:p,
-          color:'rgba(255,77,106,0.4)', lineWidth:1, lineDash:'dotted',
-          label:`Resistance $${fP(p)}`, _tutorMarker:true });
+        drawings.push({ id:'tm_res'+i, type:'hray', price: p,
+          color:'rgba(255,77,106,0.5)', _tutorMarker:true });
       });
     }
     if(typeof draw === 'function') draw();
-    // Auto-clear tutor markers after 3 minutes so they don't clutter the chart
-    setTimeout(()=>{ drawings = drawings.filter(d=>!d._tutorMarker); if(typeof draw==='function') draw(); }, 180000);
+    // Auto-clear tutor markers after 5 minutes so they don't clutter the chart
+    setTimeout(()=>{ drawings = drawings.filter(d=>!d._tutorMarker); if(typeof draw==='function') draw(); }, 300000);
   } catch(e) {}
 }
 
@@ -14081,6 +14144,384 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── AI TRADING TUTOR (Sidebar Panel) ─────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _tutorSidebarHistory  = [];   // multi-turn chat context for sidebar tutor
+let _tutorMarkersOn       = true; // whether chart markers are currently shown
+let _tutorHasLesson       = false;// whether analysis has been run this session
+let _tutorAnalysisContext = '';   // short ctx string passed to follow-up chat
+
+const _TUTOR_STAGE_LABELS = [
+  '', 'Market Structure', 'Key Levels', 'Pattern',
+  'Entry Reasoning', 'Risk Management', 'Trade Evaluation', 'Ask Me'
+];
+
+// Called by toggleOverlay when tutor panel opens — show welcome if blank
+function tutorAutoStart(){
+  if(_tutorHasLesson) return;
+  const body = document.getElementById('tutor-body');
+  if(!body) return;
+  if(body.innerHTML.trim()) return;
+  body.innerHTML = `
+    <div class="tutor-welcome">
+      <span>🎓</span>
+      <strong style="color:var(--tx);display:block;margin-bottom:6px;font-size:13px;">AI Trading Tutor</strong>
+      Click <strong style="color:#3d8eff;">⚡ ANALYSE CHART</strong> and I'll walk you<br>
+      through the current setup like a real mentor —<br>
+      structure, levels, pattern, entry logic,<br>
+      risk, evaluation, then I'll quiz you.
+      <div style="margin-top:14px;font-size:10px;color:var(--tx3);">
+        Visual markers will appear on the chart.<br>
+        Ask me anything in the chat below.
+      </div>
+    </div>`;
+}
+
+// Clear any drawings we added to the chart
+function clearTutorMarkers(){
+  try {
+    drawings = drawings.filter(d => !d._tutorMarker);
+    if(typeof draw === 'function') draw();
+  } catch(e){}
+}
+
+// Toggle chart marker visibility
+function tutorMarkersToggle(){
+  const btn = document.getElementById('tutor-markers-btn');
+  if(_tutorMarkersOn){
+    clearTutorMarkers();
+    _tutorMarkersOn = false;
+    if(btn){ btn.style.opacity = '.4'; btn.title = 'Show chart markers'; }
+  } else {
+    _tutorMarkersOn = true;
+    if(btn){ btn.style.opacity = '1'; btn.title = 'Hide chart markers'; }
+    // Re-run marker draw from last known data
+    if(window._tutorLastZones){
+      const z = window._tutorLastZones;
+      _drawTutorZones(z.entry, z.sl, z.tp, z.sr, curData);
+    }
+  }
+}
+
+// Reset panel to blank state
+function tutorClearLesson(){
+  clearTutorMarkers();
+  _tutorHasLesson       = false;
+  _tutorSidebarHistory  = [];
+  _tutorAnalysisContext = '';
+  _tutorMarkersOn       = true;
+  window._tutorLastZones = null;
+  const body = document.getElementById('tutor-body');
+  if(body) body.innerHTML = '';
+  const chatRow  = document.getElementById('tutor-chat-row');
+  const stages   = document.getElementById('tutor-stages');
+  const loader   = document.getElementById('tutor-loader');
+  if(chatRow) chatRow.style.display = 'none';
+  if(stages)  stages.style.display  = 'none';
+  if(loader)  loader.style.display  = 'none';
+  const btn = document.getElementById('tutor-markers-btn');
+  if(btn){ btn.style.opacity = '1'; btn.title = 'Hide chart markers'; }
+  tutorAutoStart();
+}
+
+// Activate a stage pill (1-7)
+function _tutorSetStage(n){
+  document.querySelectorAll('.tutor-stage-pill').forEach(el => {
+    const s = parseInt(el.dataset.stage);
+    el.classList.toggle('done',   s < n);
+    el.classList.toggle('active', s === n);
+  });
+  const lbl = document.getElementById('tutor-stage-label');
+  if(lbl) lbl.textContent = _TUTOR_STAGE_LABELS[n] || '';
+}
+
+// Append a content block to the tutor body
+function _tutorAppend(html, cls){
+  const body = document.getElementById('tutor-body');
+  if(!body) return;
+  const div = document.createElement('div');
+  div.className = 'tutor-lesson-block' + (cls ? ' ' + cls : '');
+  div.innerHTML = html;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+  return div;
+}
+
+// Show or hide the spinner
+function _tutorLoading(on){
+  const el = document.getElementById('tutor-loader');
+  if(el) el.style.display = on ? 'block' : 'none';
+}
+
+// ── Main analysis function ─────────────────────────────────────────────────────
+async function tutorRunAnalysis(){
+  if(!curData || curData.length < 20){
+    _tutorAppend(`<div style="color:var(--tx3);font-size:11px;font-family:var(--font-mono);padding:8px 0;">
+      ⚠ Not enough chart data loaded yet. Switch to a symbol and try again.</div>`);
+    return;
+  }
+
+  // Reset UI
+  const body      = document.getElementById('tutor-body');
+  const chatRow   = document.getElementById('tutor-chat-row');
+  const stagesEl  = document.getElementById('tutor-stages');
+  const analyseBtn = document.getElementById('tutor-analyse-btn');
+  if(body) body.innerHTML = '';
+  if(chatRow)  chatRow.style.display  = 'none';
+  if(stagesEl) stagesEl.style.display = 'flex';
+  if(analyseBtn){ analyseBtn.disabled = true; analyseBtn.textContent = '⏳ Analysing…'; }
+
+  _tutorSetStage(1);
+  _tutorLoading(true);
+
+  // ── Gather live chart data ─────────────────────────────────────────────────
+  const data  = curData;
+  const sym   = (curSym && curSym.s) ? curSym.s : 'this symbol';
+  const tf    = curTF || '';
+  const last  = data[data.length - 1];
+  const prev  = data[data.length - 2] || last;
+  const pctChg = ((last.close - prev.close) / prev.close * 100).toFixed(2);
+
+  // Last 5 candles summary
+  const last5 = data.slice(-5).map((c, i) => {
+    const bull = c.close >= c.open;
+    const body_size = Math.abs(c.close - c.open);
+    const range = c.high - c.low;
+    return `  C${i+1}: O=${fP(c.open)} H=${fP(c.high)} L=${fP(c.low)} C=${fP(c.close)} ${bull?'▲':'▼'} Body:${fP(body_size)} Range:${fP(range)}`;
+  }).join('\n');
+
+  // Indicators
+  const rsiArr  = calcRSI(data);
+  const rsi     = rsiArr.length ? rsiArr[rsiArr.length - 1].toFixed(1) : 'N/A';
+  const atrArr  = calcATR(data);
+  const atr     = atrArr.length ? fP(atrArr[atrArr.length - 1]) : 'N/A';
+  let macdLine = 'N/A', signalLine = 'N/A', histVal = 'N/A';
+  try {
+    const macdObj = calcMACD(data);
+    if(macdObj && macdObj.macd && macdObj.macd.length) macdLine = fP(macdObj.macd[macdObj.macd.length-1]);
+    if(macdObj && macdObj.signal && macdObj.signal.length) signalLine = fP(macdObj.signal[macdObj.signal.length-1]);
+    if(macdObj && macdObj.hist && macdObj.hist.length) histVal = fP(macdObj.hist[macdObj.hist.length-1]);
+  } catch(e){}
+
+  const sma20 = (()=>{
+    try{ const vals = calcSMA(data, 20); const v = vals.filter(x=>x!==null); return v.length ? fP(v[v.length-1]) : 'N/A'; }catch(e){ return 'N/A'; }
+  })();
+  const sma50 = (()=>{
+    try{ const vals = calcSMA(data, 50); const v = vals.filter(x=>x!==null); return v.length ? fP(v[v.length-1]) : 'N/A'; }catch(e){ return 'N/A'; }
+  })();
+
+  // Volume
+  const avgVol20 = Math.round(data.slice(-20).reduce((s,d)=>s+d.volume,0)/20);
+  const volRatio = (last.volume / (avgVol20||1)).toFixed(2);
+
+  // S/R
+  const srZones = detectSR(data);
+  const supStr  = (srZones.support   || []).slice(0,3).map(fP).join(', ') || 'None identified';
+  const resStr  = (srZones.resistance|| []).slice(0,3).map(fP).join(', ') || 'None identified';
+
+  // Patterns
+  const patterns = detectPatterns(data);
+  const patStr  = patterns.length
+    ? patterns.slice(0,3).map(p=>`${p.name} (${(p.conf*100).toFixed(0)}% conf, ${p.dir})`).join('; ')
+    : 'No strong pattern detected';
+
+  // ── ATR-based zone estimation ──────────────────────────────────────────────
+  const atrRaw = atrArr.length ? atrArr[atrArr.length - 1] : 0;
+  const close  = last.close;
+  const mainPat = patterns[0];
+  const isBull  = !mainPat || mainPat.dir === 'bull';
+  const entry   = isBull ? close : close;
+  const sl      = isBull ? +(close - atrRaw * 1.2).toFixed(5) : +(close + atrRaw * 1.2).toFixed(5);
+  const tp      = isBull ? +(close + atrRaw * 2.0).toFixed(5) : +(close - atrRaw * 2.0).toFixed(5);
+
+  // Draw chart zones
+  if(_tutorMarkersOn){
+    window._tutorLastZones = { entry, sl, tp, sr: srZones };
+    _drawTutorZones(entry, sl, tp, srZones, data);
+  }
+
+  // ── Build prompt ───────────────────────────────────────────────────────────
+  const prompt = `You are an expert trading mentor delivering a structured lesson about the current chart. Your tone is warm, direct, and professional — like a senior trader coaching a junior. Use plain English. Be concise — bullet points preferred, no walls of text.
+
+CHART & MARKET DATA:
+Symbol: ${sym}   Timeframe: ${tf}
+Price: ${fP(close)}   Change: ${pctChg}%
+Last 5 candles:
+${last5}
+
+INDICATORS:
+- RSI(14): ${rsi}${rsi !== 'N/A' ? (parseFloat(rsi) < 30 ? ' [OVERSOLD]' : parseFloat(rsi) > 70 ? ' [OVERBOUGHT]' : '') : ''}
+- MACD line: ${macdLine}  Signal: ${signalLine}  Histogram: ${histVal}
+- SMA(20): ${sma20}   SMA(50): ${sma50}   Price vs SMA20: ${sma20 !== 'N/A' ? (close > parseFloat(sma20) ? 'Above ↑' : 'Below ↓') : 'N/A'}
+- ATR(14): ${atr}   Volume vs 20-avg: ${volRatio}x
+
+KEY LEVELS:
+- Support zones: ${supStr}
+- Resistance zones: ${resStr}
+
+DETECTED PATTERNS: ${patStr}
+
+TRADE ZONES I've marked on the chart:
+- Entry reference: ${fP(entry)}
+- Stop Loss reference: ${fP(sl)} (${isBull?'below':'above'} entry, ~1.2x ATR)
+- Take Profit reference: ${fP(tp)} (${isBull?'above':'below'} entry, ~2x ATR = ~1:${(Math.abs(tp-entry)/Math.abs(sl-entry)).toFixed(1)} R/R)
+
+YOUR TASK:
+Write a structured trading lesson covering ALL 7 sections below. Each section heading must start with its number and be in ALL CAPS. Use 2-3 concise bullet points per section.
+
+1. MARKET STRUCTURE
+(Describe the current trend, where price is in that trend, and what recent price action tells us)
+
+2. KEY LEVELS
+(Explain the most important support and resistance levels and WHY they matter right now)
+
+3. PATTERN
+(Identify the candlestick or chart pattern forming, its reliability, and what it signals)
+
+4. ENTRY REASONING
+(Explain where a professional would look to enter, what confluence factors support it, and the exact logic — not just "buy here", teach the WHY)
+
+5. RISK MANAGEMENT
+(Explain where to place the stop and why that specific level, sizing principles, and max risk per trade rule)
+
+6. TRADE EVALUATION
+(Score this setup 1-10, explain the overall R/R, what would confirm the trade, and what would invalidate it entirely)
+
+7. INTERACTIVE
+Ask the trader ONE thought-provoking question about this specific setup to test their understanding. Make it require real thinking, not a yes/no answer.`;
+
+  // ── Send to AI ─────────────────────────────────────────────────────────────
+  let responseText = '';
+  try {
+    responseText = await groqFetch(prompt);
+  } catch(e) {
+    _tutorLoading(false);
+    _tutorAppend(`<div style="color:var(--red);font-size:11px;font-family:var(--font-mono);padding:8px 0;">
+      ⚠ Could not reach AI tutor — check your Groq API key in Settings.</div>`);
+    if(analyseBtn){ analyseBtn.disabled = false; analyseBtn.textContent = '⚡ ANALYSE CHART'; }
+    return;
+  }
+
+  // ── Render response ────────────────────────────────────────────────────────
+  _tutorLoading(false);
+
+  // Symbol / timeframe header
+  _tutorAppend(`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid var(--line);">
+      <div>
+        <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--tx);">${sym}</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--tx3);margin-left:6px;">${tf}</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-family:var(--font-mono);font-size:11px;color:${parseFloat(pctChg)>=0?'var(--green)':'var(--red)'};">${parseFloat(pctChg)>=0?'+':''}${pctChg}%</span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--tx2);">${fP(close)}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <div style="background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;font-family:var(--font-mono);font-size:10px;">
+        <span style="color:var(--tx3);">RSI </span><span style="color:${parseFloat(rsi)<30?'var(--green)':parseFloat(rsi)>70?'var(--red)':'var(--tx)'};">${rsi}</span>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;font-family:var(--font-mono);font-size:10px;">
+        <span style="color:var(--tx3);">ATR </span><span style="color:var(--tx);">${atr}</span>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;font-family:var(--font-mono);font-size:10px;">
+        <span style="color:var(--tx3);">Vol </span><span style="color:${parseFloat(volRatio)>1.5?'var(--amber)':'var(--tx)'};">${volRatio}x avg</span>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;font-family:var(--font-mono);font-size:10px;">
+        <span style="color:var(--tx3);">SMA20 </span><span style="color:${close>parseFloat(sma20)?'var(--green)':'var(--red)'};">${close>parseFloat(sma20)?'▲ Above':'▼ Below'}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:var(--r);background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);color:#f0a500;">
+        Entry ${fP(entry)}
+      </div>
+      <div style="font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:var(--r);background:rgba(255,77,106,.1);border:1px solid rgba(255,77,106,.3);color:var(--red);">
+        SL ${fP(sl)}
+      </div>
+      <div style="font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:var(--r);background:rgba(0,212,160,.1);border:1px solid rgba(0,212,160,.3);color:var(--green);">
+        TP ${fP(tp)}
+      </div>
+    </div>`);
+
+  // Animate through stages as we render
+  _tutorSetStage(1);
+  const formatted = _formatAIMentorResponse(responseText);
+  _tutorAppend(formatted);
+
+  // Light animation — step through stages as user reads
+  const stageTimers = [1,2,3,4,5,6,7].map((s,i) =>
+    setTimeout(() => _tutorSetStage(s), i * 600)
+  );
+
+  // ── Store context for multi-turn follow-up ────────────────────────────────
+  _tutorAnalysisContext = `You are an expert trading mentor. You just analysed ${sym} on the ${tf} timeframe. Here is a summary of that analysis:\n\nSymbol: ${sym} ${tf}\nPrice: ${fP(close)} (${pctChg}%)\nRSI: ${rsi} | ATR: ${atr} | Vol ratio: ${volRatio}x\nSupport: ${supStr}\nResistance: ${resStr}\nPatterns: ${patStr}\nEntry ref: ${fP(entry)} | SL: ${fP(sl)} | TP: ${fP(tp)}\n\nYour initial lesson:\n${responseText.slice(0,900)}`;
+
+  _tutorSidebarHistory = [
+    { role:'system',    content: _tutorAnalysisContext },
+    { role:'assistant', content: responseText }
+  ];
+
+  _tutorHasLesson = true;
+
+  // Show chat input and finish button state
+  if(chatRow) chatRow.style.display = 'block';
+  if(analyseBtn){ analyseBtn.disabled = false; analyseBtn.textContent = '🔄 Re-analyse'; }
+
+  // Scroll body to top so user reads from beginning
+  if(body) setTimeout(() => body.scrollTop = 0, 100);
+}
+
+// ── Send a follow-up question to the sidebar tutor ────────────────────────────
+async function tutorSendMessage(){
+  const inp = document.getElementById('tutor-input');
+  if(!inp) return;
+  const userMsg = inp.value.trim();
+  if(!userMsg) return;
+  inp.value = '';
+
+  const body = document.getElementById('tutor-body');
+  if(!body) return;
+
+  // Show user message
+  _tutorAppend(`<div class="tutor-msg-user">You: ${_escHtml(userMsg)}</div>`);
+
+  // Add to history
+  _tutorSidebarHistory.push({ role:'user', content: userMsg });
+
+  // Typing placeholder
+  const typingDiv = _tutorAppend(`
+    <div style="display:flex;align-items:center;gap:8px;color:var(--tx3);font-size:11px;font-family:var(--font-mono);padding:4px 0;">
+      <span class="ai-typing-dots"><span></span><span></span><span></span></span>
+      Mentor is thinking…
+    </div>`);
+
+  _tutorLoading(false);
+
+  try {
+    const sysCtx = _tutorSidebarHistory[0]?.content || 'You are an expert trading mentor.';
+    const recentTurns = _tutorSidebarHistory.slice(1).slice(-6).map(m =>
+      m.role === 'user' ? `Student: ${m.content}` : `Mentor: ${m.content}`
+    ).join('\n\n');
+
+    const followUpPrompt = `${sysCtx}\n\n--- RECENT CONVERSATION ---\n${recentTurns}\n\nStudent: ${userMsg}\n\nMentor (be concise, educational, use bullet points where helpful, 3-5 key points max. Reference the specific chart data above where relevant):`;
+
+    const reply = await groqFetch(followUpPrompt);
+    _tutorSidebarHistory.push({ role:'assistant', content: reply });
+
+    if(typingDiv){
+      typingDiv.innerHTML = `<div style="border-left:2px solid rgba(61,142,255,.4);padding-left:8px;margin:2px 0;">${_formatAIMentorResponse(reply)}</div>`;
+    }
+  } catch(e) {
+    if(typingDiv) typingDiv.innerHTML = `<div style="color:var(--tx3);font-size:11px;">⚠ Couldn't reach mentor — try again.</div>`;
+  }
+
+  body.scrollTop = body.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 
 </script>
 <script src="./app.js" defer></script>
