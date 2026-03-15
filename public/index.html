@@ -6991,7 +6991,11 @@ function updateMentorUIWithCooldown(candlesRemaining) {
   let insights = [];
   
   // Basic market context
-  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  if (analysis.structure && analysis.structure.trend) {
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
+  } else {
+    insights.push(`Market structure: analyzing...`);
+  }
   
   if (analysis.trend !== 'neutral') {
     insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
@@ -7011,7 +7015,11 @@ function generateHighQualityTradeInsights(setupDetection) {
   let shouldPromptDecision = false;
   
   // Market Structure Insights
-  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  if (analysis.structure && analysis.structure.trend) {
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
+  } else {
+    insights.push(`Market structure: analyzing...`);
+  }
   
   // Trend Analysis
   if (analysis.trend !== 'neutral') {
@@ -7104,7 +7112,11 @@ function generateNoSetupMessage() {
   let question = '';
   
   // Market Structure Insights
-  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  if (analysis.structure && analysis.structure.trend) {
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
+  } else {
+    insights.push(`Market structure: analyzing...`);
+  }
   
   // Trend Analysis
   if (analysis.trend !== 'neutral') {
@@ -7112,7 +7124,7 @@ function generateNoSetupMessage() {
   }
   
   // Market context filter
-  if (analysis.structure === 'choppy' || analysis.structure === 'unclear') {
+  if (analysis.structure && analysis.structure.trend && (analysis.structure.trend.includes('choppy') || analysis.structure.trend.includes('unclear'))) {
     question = "Market is currently choppy and unclear. Waiting for a stronger setup before considering trades.";
   } else {
     question = "Market is currently unclear. Waiting for a stronger setup with proper confluence.";
@@ -7139,7 +7151,11 @@ function generateMentorInsights() {
   let shouldPromptDecision = false;
   
   // Market Structure Insights
-  insights.push(`Market structure: ${analysis.structure.replace('_', ' ')}`);
+  if (analysis.structure && analysis.structure.trend) {
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
+  } else {
+    insights.push(`Market structure: analyzing...`);
+  }
   
   // Trend Analysis
   if (analysis.trend !== 'neutral') {
