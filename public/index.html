@@ -4708,6 +4708,9 @@ function replayPickBar(barIndex){
 function replayStep(n){
   if(!replayMode || replayPicking) return;
   if(!curData || curData.length <= 1) return;
+  // Prevent stepping beyond the end or if replay is complete
+  if(replayCutoff >= curData.length - 1 && n > 0) return;
+  if(replayCutoff <= 1 && n < 0) return;
   replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff + n));
   updateReplayStatus();
   draw();
@@ -4724,10 +4727,21 @@ function replayTogglePlay(){
     replayTimer = null;
     updateReplayStatus(); draw(); toast('⏸ Paused');
   } else {
+    // Check if already at the end
+    if(replayCutoff >= curData.length - 1) {
+      toast('⏹ Already at end — Esc to exit');
+      return;
+    }
     replayTimer = setInterval(()=>{
       try {
-        if(!curData || curData.length <= 1 || replayCutoff >= curData.length - 1){
+        // Double-check conditions to prevent race conditions
+        if(!replayMode || replayPicking || !curData || curData.length <= 1) {
           clearInterval(replayTimer); replayTimer = null;
+          return;
+        }
+        if(replayCutoff >= curData.length - 1){
+          clearInterval(replayTimer); replayTimer = null;
+          updateReplayStatus(); draw(); // Ensure final state is rendered
           toast('⏹ Replay complete — Esc to exit');
           return;
         }
@@ -4735,6 +4749,7 @@ function replayTogglePlay(){
       } catch(e) {
         console.error('Replay timer error:', e);
         clearInterval(replayTimer); replayTimer = null;
+        updateReplayStatus(); draw(); // Ensure UI is consistent
         toast('⚠ Replay error - stopped');
       }
     }, replaySpeed);
@@ -7890,6 +7905,11 @@ document.addEventListener('keydown',e=>{
   }
   // Replay controls when active (arrows just step, chart still pannable)
   if(replayMode && !replayPicking){
+    // Prevent keyboard controls when replay is complete
+    if(curData && replayCutoff >= curData.length - 1) {
+      if(e.key===' '){ e.preventDefault(); toast('⏹ Already at end — Esc to exit'); return; }
+      if(e.key==='ArrowRight'){ e.preventDefault(); toast('⏹ Already at end'); return; }
+    }
     if(e.key==='ArrowRight'){ e.preventDefault(); replayStep(1);   return; }
     if(e.key==='ArrowLeft'){  e.preventDefault(); replayStep(-1);  return; }
     if(e.key==='ArrowUp'){    e.preventDefault(); replayStep(10);  return; }
