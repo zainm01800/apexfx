@@ -883,9 +883,16 @@ body.is-dragging { user-select: none; }
     <button class="nav-btn" id="nav-inds" onclick="toggleOverlay('inds')" title="Indicators" draggable="true" ondragstart="navDragStart(event,'inds','Indicators')" ondragend="navDragEnd(event)">
       <span>📈</span><span class="nav-tip">Indicators</span>
     </button>
+    
+    <div class="nav-sep"></div>
+    
     <!-- Replay -->
     <button class="nav-btn" id="btn-replay" onclick="toggleReplay()" title="Bar Replay">
       <span>⏮</span><span class="nav-tip">Bar Replay</span>
+    </button>
+    <!-- AI Mentor -->
+    <button class="nav-btn" id="btn-ai-mentor" onclick="toggleAIMentor()" title="AI Trading Mentor">
+      <span>🤖</span><span class="nav-tip">AI Mentor</span>
     </button>
 
     <div class="nav-sep"></div>
@@ -1171,16 +1178,62 @@ body.is-dragging { user-select: none; }
 
       <!-- CHART AREA -->
       <div id="chart-area">
+        <!-- Chart Replay Controls -->
+        <div id="replay-controls" style="display:none;position:absolute;top:10px;left:10px;z-index:100;background:rgba(22,30,44,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;gap:10px;min-width:320px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--tx);letter-spacing:0.5px;">CHART REPLAY</span>
+            <button onclick="toggleReplay()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px;padding:2px;">×</button>
+          </div>
+          
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <button id="replay-play-btn" onclick="toggleReplayPlay()" style="background:var(--green);color:white;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">▶</button>
+            <button onclick="replayStepBackward()" style="background:var(--bg3);color:var(--tx);border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">◀</button>
+            <button onclick="replayStepForward()" style="background:var(--bg3);color:var(--tx);border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">▶</button>
+            
+            <div style="flex:1;display:flex;align-items:center;gap:6px;">
+              <input type="range" id="replay-timeline" min="0" max="100" value="0" style="flex:1;height:4px;background:var(--bg3);outline:none;border-radius:2px;cursor:pointer;">
+              <span id="replay-time" style="font-size:10px;color:var(--tx2);min-width:45px;text-align:right;">00:00</span>
+            </div>
+          </div>
+          
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:10px;color:var(--tx3);">Speed:</label>
+            <select id="replay-speed" onchange="updateReplaySpeed()" style="background:var(--bg3);color:var(--tx);border:1px solid var(--line);border-radius:3px;padding:2px 6px;font-size:10px;">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+            
+            <button onclick="resetReplay()" style="background:var(--bg3);color:var(--tx);border:none;border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;margin-left:auto;">Reset</button>
+          </div>
+        </div>
+
+        <!-- AI Trading Mentor Panel -->
+        <div id="ai-mentor-panel" style="display:none;position:absolute;top:10px;right:10px;z-index:100;background:rgba(22,30,44,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px;width:320px;max-height:400px;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:11px;font-weight:600;color:var(--am);letter-spacing:0.5px;">AI TRADING MENTOR</span>
+            <button onclick="toggleAIMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px;padding:2px;">×</button>
+          </div>
+          
+          <div id="ai-mentor-content" style="font-size:11px;line-height:1.6;color:var(--tx2);">
+            <div style="text-align:center;padding:20px;color:var(--tx3);">
+              <div style="font-size:24px;margin-bottom:8px;">🤖</div>
+              <div>Click on any chart area or trade setup to get AI guidance</div>
+            </div>
+          </div>
+          
+          <div id="ai-mentor-questions" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:6px;">Interactive Questions:</div>
+            <div id="ai-questions-list"></div>
+          </div>
+        </div>
+
         <!-- Trade analysis badge -->
         <div id="tap-badge" style="display:none;position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:500;
           background:rgba(9,12,18,0.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-          border:1px solid rgba(0,212,160,.35);border-radius:8px;
-          box-shadow:0 4px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden;pointer-events:all;">
-          <div id="tap-badge-inner" style="display:flex;align-items:center;gap:0;">
-            <div id="tap-badge-info" style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;" onclick="tapReopenFromBadge()">
-              <span id="tap-badge-dir" style="font-family:var(--font-mono);font-size:10px;font-weight:600;"></span>
-              <span id="tap-badge-sym" style="font-family:var(--font-mono);font-size:11px;color:var(--tx2);"></span>
-              <span id="tap-badge-price" style="font-family:var(--font-mono);font-size:11px;color:var(--amber);"></span>
+          border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;
+          font-family:var(--font-mono);font-size:11px;color:var(--tx);white-space:nowrap;">
               <span style="font-family:var(--font-mono);font-size:11px;color:var(--green);opacity:.8;">🔬 View Analysis</span>
             </div>
             <button onclick="tapAskDismiss()" title="Dismiss"
@@ -4748,6 +4801,8 @@ function updateReplayStatus(){
       play.style.borderColor = replayTimer ? 'rgba(240,48,96,.4)' : 'rgba(0,201,160,.4)';
       play.style.background  = replayTimer ? 'rgba(240,48,96,.15)' : 'rgba(0,201,160,.15)';
     }
+    // Update custom replay controls
+    updateReplayPosition();
   }
 }
 
@@ -14048,6 +14103,564 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
+// ══ CHART REPLAY FUNCTIONALITY ════════════════════════════════════════════════
+let replayData = [];
+let replayIndex = 0;
+let replayPlaying = false;
+let replayInterval = null;
+let replayOriginalData = [];
+
+function toggleReplay() {
+  // Call existing replay functionality
+  if(replayMode) {
+    stopReplay();
+    hideReplayControls();
+  } else {
+    startReplay();
+    showReplayControls();
+    
+    // Show AI mentor alongside replay
+    if (document.getElementById('ai-mentor-panel').style.display === 'none') {
+      toggleAIMentor();
+    }
+  }
+}
+
+function showReplayControls() {
+  const panel = document.getElementById('replay-controls');
+  panel.style.display = 'block';
+}
+
+function hideReplayControls() {
+  const panel = document.getElementById('replay-controls');
+  panel.style.display = 'none';
+}
+
+function toggleReplayPlay() {
+  const btn = document.getElementById('replay-play-btn');
+  
+  if(replayTimer) {
+    // Use existing replay pause functionality
+    if(replayTimer) {
+      clearInterval(replayTimer);
+      replayTimer = null;
+    }
+    btn.textContent = '▶';
+    btn.style.background = 'var(--green)';
+  } else {
+    // Use existing replay play functionality
+    if(!replayMode || replayPicking) return;
+    replayTimer = setInterval(() => {
+      if(replayCutoff < curData.length - 1) {
+        replayStep(1);
+      } else {
+        if(replayTimer) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+        }
+        btn.textContent = '▶';
+        btn.style.background = 'var(--green)';
+      }
+    }, replaySpeed);
+    btn.textContent = '⏸';
+    btn.style.background = 'var(--amber)';
+  }
+}
+
+function replayStepForward() {
+  replayStep(1);
+  const btn = document.getElementById('replay-play-btn');
+  btn.textContent = '▶';
+  btn.style.background = 'var(--green)';
+}
+
+function replayStepBackward() {
+  replayStep(-1);
+  const btn = document.getElementById('replay-play-btn');
+  btn.textContent = '▶';
+  btn.style.background = 'var(--green)';
+}
+
+function resetReplay() {
+  if(replayTimer) {
+    clearInterval(replayTimer);
+    replayTimer = null;
+  }
+  replayCutoff = 1;
+  updateReplayStatus();
+  draw();
+  const btn = document.getElementById('replay-play-btn');
+  btn.textContent = '▶';
+  btn.style.background = 'var(--green)';
+}
+
+function updateReplaySpeed() {
+  const select = document.getElementById('replay-speed');
+  replaySpeed = parseFloat(select.value) * 500; // Convert to milliseconds
+  
+  if(replayTimer) {
+    // Restart timer with new speed
+    clearInterval(replayTimer);
+    replayTimer = setInterval(() => {
+      if(replayCutoff < curData.length - 1) {
+        replayStep(1);
+      } else {
+        if(replayTimer) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+        }
+        const btn = document.getElementById('replay-play-btn');
+        btn.textContent = '▶';
+        btn.style.background = 'var(--green)';
+      }
+    }, replaySpeed);
+  }
+}
+
+function updateReplayPosition() {
+  // Update timeline based on existing replayCutoff
+  const timeline = document.getElementById('replay-timeline');
+  const timeDisplay = document.getElementById('replay-time');
+  
+  if (curData.length > 0 && replayCutoff > 0) {
+    const progress = (replayCutoff / (curData.length - 1)) * 100;
+    timeline.value = progress;
+    
+    // Format time display
+    const currentBar = curData[replayCutoff];
+    if (currentBar && currentBar.time) {
+      const time = new Date(currentBar.time);
+      timeDisplay.textContent = time.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+  }
+  
+  // Update AI mentor with current context
+  if (document.getElementById('ai-mentor-panel').style.display !== 'none') {
+    updateAIMentorContext();
+  }
+}
+
+// Timeline drag handler
+document.addEventListener('DOMContentLoaded', () => {
+  const timeline = document.getElementById('replay-timeline');
+  if (timeline) {
+    timeline.addEventListener('input', (e) => {
+      if (curData.length > 0 && replayMode) {
+        if(replayTimer) {
+          clearInterval(replayTimer);
+          replayTimer = null;
+        }
+        const progress = parseFloat(e.target.value) / 100;
+        replayCutoff = Math.floor(progress * (curData.length - 1));
+        replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff));
+        updateReplayStatus();
+        updateReplayPosition();
+        draw();
+        const btn = document.getElementById('replay-play-btn');
+        btn.textContent = '▶';
+        btn.style.background = 'var(--green)';
+      }
+    });
+  }
+});
+
+// ══ AI TRADING MENTOR FUNCTIONALITY ═════════════════════════════════════════════
+let aiMentorMode = false;
+let currentAnalysisContext = null;
+
+function toggleAIMentor() {
+  const panel = document.getElementById('ai-mentor-panel');
+  const btn = document.getElementById('btn-ai-mentor');
+  
+  aiMentorMode = !aiMentorMode;
+  
+  if (aiMentorMode) {
+    panel.style.display = 'block';
+    btn.classList.add('active');
+    updateAIMentorContext();
+  } else {
+    panel.style.display = 'none';
+    btn.classList.remove('active');
+  }
+}
+
+function updateAIMentorContext() {
+  const content = document.getElementById('ai-mentor-content');
+  
+  if (!curData || curData.length === 0) {
+    content.innerHTML = `
+      <div style="text-align:center;padding:20px;color:var(--tx3);">
+        <div style="font-size:24px;margin-bottom:8px;">🤖</div>
+        <div>Load chart data to get AI guidance</div>
+      </div>
+    `;
+    return;
+  }
+  
+  const currentPrice = curData[curData.length - 1].c;
+  const analysis = analyzeCurrentMarket();
+  
+  content.innerHTML = generateHumanlikeAnalysis(analysis, currentPrice);
+  
+  // Add interactive questions
+  generateInteractiveQuestions(analysis);
+}
+
+function analyzeCurrentMarket() {
+  // Use replay data if in replay mode, otherwise use current data
+  const dataForAnalysis = replayMode && replayCutoff > 0 ? 
+    curData.slice(0, replayCutoff) : curData;
+    
+  if (dataForAnalysis.length < 20) return { trend: 'insufficient_data' };
+  
+  const recent = dataForAnalysis.slice(-20);
+  const current = dataForAnalysis[dataForAnalysis.length - 1];
+  const previous = dataForAnalysis[dataForAnalysis.length - 2];
+  
+  // Trend analysis
+  const highs = recent.map(b => b.h);
+  const lows = recent.map(b => b.l);
+  const closes = recent.map(b => b.c);
+  
+  const higherHighs = highs.filter((h, i) => i > 0 && h > highs[i-1]).length;
+  const higherLows = lows.filter((l, i) => i > 0 && l > lows[i-1]).length;
+  const higherCloses = closes.filter((c, i) => i > 0 && c > closes[i-1]).length;
+  
+  let trend = 'range';
+  if (higherHighs > 10 && higherLows > 10 && higherCloses > 10) {
+    trend = 'uptrend';
+  } else if (higherHighs < 5 && higherLows < 5 && higherCloses < 5) {
+    trend = 'downtrend';
+  }
+  
+  // Support/Resistance
+  const resistance = Math.max(...highs);
+  const support = Math.min(...lows);
+  
+  // Recent price action
+  const priceChange = ((current.c - previous.c) / previous.c) * 100;
+  const volume = current.v || 0;
+  const avgVolume = recent.reduce((sum, b) => sum + (b.v || 0), 0) / recent.length;
+  
+  return {
+    trend,
+    current: current.c,
+    previous: previous.c,
+    change: priceChange,
+    support,
+    resistance,
+    volume,
+    avgVolume,
+    isBullish: current.c > current.o,
+    isBearish: current.c < current.o,
+    range: resistance - support,
+    inUpperRange: current.c > (support + (resistance - support) * 0.7),
+    inLowerRange: current.c < (support + (resistance - support) * 0.3),
+    isReplayMode: replayMode,
+    replayPosition: replayMode ? `${replayCutoff}/${curData.length}` : null
+  };
+}
+
+function generateHumanlikeAnalysis(analysis, currentPrice) {
+  if (analysis.trend === 'insufficient_data') {
+    return `
+      <div style="text-align:center;padding:20px;color:var(--tx3);">
+        <div style="font-size:24px;margin-bottom:8px;">🤖</div>
+        <div>I need more price data to provide meaningful analysis</div>
+        <div style="font-size:10px;margin-top:8px;">Load at least 20 candles for better insights</div>
+      </div>
+    `;
+  }
+  
+  let analysisHTML = '<div style="line-height:1.8;">';
+  
+  // Replay context
+  if (analysis.isReplayMode) {
+    analysisHTML += `
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:600;color:var(--am);margin-bottom:4px;">⏮ Replay Mode</div>
+        <div style="color:var(--tx2);font-size:10px;">
+          Analyzing bar ${analysis.replayPosition} of the session
+        </div>
+      </div>
+    `;
+  }
+  
+  // Market Structure
+  analysisHTML += `
+    <div style="margin-bottom:12px;">
+      <div style="font-weight:600;color:var(--am);margin-bottom:4px;">📊 Market Structure</div>
+      <div style="color:var(--tx2);">
+        ${analysis.trend === 'uptrend' ? 
+          "We're seeing higher highs and higher lows - this looks like an uptrend forming" :
+          analysis.trend === 'downtrend' ? 
+          "The market is making lower highs and lower lows - typical downtrend behavior" :
+          "Price is moving sideways in a range - waiting for a breakout direction"
+        }
+      </div>
+    </div>
+  `;
+  
+  // Key Levels
+  analysisHTML += `
+    <div style="margin-bottom:12px;">
+      <div style="font-weight:600;color:var(--am);margin-bottom:4px;">🎯 Key Levels</div>
+      <div style="color:var(--tx2);">
+        Resistance at <span style="color:var(--red);font-family:monospace;">${analysis.resistance.toFixed(2)}</span>
+        and support at <span style="color:var(--green);font-family:monospace;">${analysis.support.toFixed(2)}</span>
+        <div style="font-size:10px;margin-top:2px;color:var(--tx3);">
+          Current price: ${currentPrice.toFixed(2)} 
+          (${analysis.inUpperRange ? 'near resistance' : analysis.inLowerRange ? 'near support' : 'mid-range'})
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Recent Action
+  analysisHTML += `
+    <div style="margin-bottom:12px;">
+      <div style="font-weight:600;color:var(--am);margin-bottom:4px;">📈 Recent Action</div>
+      <div style="color:var(--tx2);">
+        ${analysis.isBullish ? 
+          `Bullish candle - buyers stepped in with ${analysis.change > 0 ? '+' : ''}${analysis.change.toFixed(2)}% move` :
+          `Bearish candle - sellers took control with ${analysis.change > 0 ? '+' : ''}${analysis.change.toFixed(2)}% move`
+        }
+        ${analysis.volume > analysis.avgVolume * 1.5 ? 
+          '<div style="font-size:10px;margin-top:2px;color:var(--am);">🔥 High volume - strong conviction!</div>' :
+          analysis.volume < analysis.avgVolume * 0.5 ? 
+          '<div style="font-size:10px;margin-top:2px;color:var(--tx3);">Low volume - weak participation</div>' : ''
+        }
+      </div>
+    </div>
+  `;
+  
+  // Setup Evaluation
+  const setupStrength = evaluateSetupStrength(analysis);
+  analysisHTML += `
+    <div style="margin-bottom:12px;">
+      <div style="font-weight:600;color:var(--am);margin-bottom:4px;">⚡ Setup Strength</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+          <div style="width:${setupStrength.score}%;height:100%;background:${setupStrength.color};transition:width 0.3s;"></div>
+        </div>
+        <span style="font-size:10px;color:${setupStrength.color};font-weight:600;">${setupStrength.label}</span>
+      </div>
+      <div style="font-size:10px;margin-top:4px;color:var(--tx3);">${setupStrength.reasoning}</div>
+    </div>
+  `;
+  
+  analysisHTML += '</div>';
+  return analysisHTML;
+}
+
+function evaluateSetupStrength(analysis) {
+  let score = 50; // Base score
+  let label = 'NEUTRAL';
+  let color = 'var(--amber)';
+  let reasoning = '';
+  
+  // Trend factor
+  if (analysis.trend === 'uptrend' && analysis.isBullish) {
+    score += 20;
+    reasoning += 'Trend alignment +20. ';
+  } else if (analysis.trend === 'downtrend' && analysis.isBearish) {
+    score += 20;
+    reasoning += 'Trend alignment +20. ';
+  } else if (analysis.trend === 'range') {
+    score -= 10;
+    reasoning += 'No clear trend -10. ';
+  }
+  
+  // Volume factor
+  if (analysis.volume > analysis.avgVolume * 1.5) {
+    score += 15;
+    reasoning += 'Strong volume +15. ';
+  } else if (analysis.volume < analysis.avgVolume * 0.5) {
+    score -= 15;
+    reasoning += 'Weak volume -15. ';
+  }
+  
+  // Level proximity
+  if (analysis.inUpperRange || analysis.inLowerRange) {
+    score += 10;
+    reasoning += 'Near key level +10. ';
+  }
+  
+  // Determine final rating
+  if (score >= 80) {
+    label = 'A+ SETUP';
+    color = 'var(--green)';
+  } else if (score >= 65) {
+    label = 'A SETUP';
+    color = 'var(--green)';
+  } else if (score >= 50) {
+    label = 'B SETUP';
+    color = 'var(--amber)';
+  } else if (score >= 35) {
+    label = 'C SETUP';
+    color = 'var(--red)';
+  } else {
+    label = 'AVOID';
+    color = 'var(--red)';
+  }
+  
+  return { score: Math.min(100, Math.max(0, score)), label, color, reasoning };
+}
+
+function generateInteractiveQuestions(analysis) {
+  const questionsDiv = document.getElementById('ai-mentor-questions');
+  const questionsList = document.getElementById('ai-questions-list');
+  
+  if (analysis.trend === 'insufficient_data') {
+    questionsDiv.style.display = 'none';
+    return;
+  }
+  
+  questionsDiv.style.display = 'block';
+  
+  const questions = [];
+  
+  // Trend questions
+  if (analysis.trend === 'uptrend') {
+    questions.push({
+      question: "Where would you look for entry opportunities in this uptrend?",
+      answer: "Consider pullbacks to support levels or breakout confirmations above resistance"
+    });
+  } else if (analysis.trend === 'downtrend') {
+    questions.push({
+      question: "What's the safest way to short this downtrend?",
+      answer: "Wait for rallies to resistance levels, then enter on bearish reversal patterns"
+    });
+  } else {
+    questions.push({
+      question: "Which direction would you trade this range?",
+      answer: "Buy near support with tight stops, or sell near resistance - wait for breakout confirmation"
+    });
+  }
+  
+  // Risk management questions
+  questions.push({
+    question: `Where would you place your stop loss? (Current: ${analysis.current.toFixed(2)})`,
+    answer: analysis.isBullish ? 
+      `Just below the recent low around ${analysis.support.toFixed(2)}` :
+      `Just above the recent high around ${analysis.resistance.toFixed(2)}`
+  });
+  
+  // Display questions
+  questionsList.innerHTML = questions.map((q, i) => `
+    <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:4px;">
+      <div style="font-size:10px;color:var(--am);margin-bottom:4px;">❓ ${q.question}</div>
+      <div style="font-size:9px;color:var(--tx3);cursor:pointer;" onclick="this.style.color='var(--tx2)';this.textContent='${q.answer}'">
+        Click to see answer...
+      </div>
+    </div>
+  `).join('');
+}
+
+// Chart click handler for AI analysis
+const mainCanvas = document.getElementById('main-canvas');
+if (mainCanvas) {
+  mainCanvas.addEventListener('click', (e) => {
+    if (aiMentorMode) {
+      // Get click position relative to chart
+      const rect = mainCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Find corresponding bar - adjust for replay mode
+      const dataForAnalysis = replayMode && replayCutoff > 0 ? 
+        curData.slice(0, replayCutoff) : curData;
+        
+      const barIndex = Math.floor((x / rect.width) * dataForAnalysis.length);
+      if (barIndex >= 0 && barIndex < dataForAnalysis.length) {
+        analyzeSpecificPoint(barIndex, dataForAnalysis);
+      }
+    } else if (replayMode && replayPicking) {
+      // Handle replay bar picking
+      const rect = mainCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const barIndex = Math.floor((x / rect.width) * curData.length);
+      if (barIndex >= 0 && barIndex < curData.length) {
+        replayPickBar(barIndex);
+      }
+    }
+  });
+}
+
+function analyzeSpecificPoint(barIndex, dataForAnalysis = null) {
+  const data = dataForAnalysis || curData;
+  const bar = data[barIndex];
+  const content = document.getElementById('ai-mentor-content');
+  
+  content.innerHTML = `
+    <div style="line-height:1.8;">
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:600;color:var(--am);margin-bottom:4px;">📍 Point Analysis</div>
+        <div style="color:var(--tx2);">
+          Looking at this specific candle from ${new Date(bar.time).toLocaleString()}
+          ${replayMode ? `<div style="font-size:10px;margin-top:2px;color:var(--am);">Replay: Bar ${barIndex + 1}/${data.length}</div>` : ''}
+          <div style="font-size:10px;margin-top:2px;">
+            Open: ${bar.o.toFixed(2)} | High: ${bar.h.toFixed(2)} | 
+            Low: ${bar.l.toFixed(2)} | Close: ${bar.c.toFixed(2)}
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:600;color:var(--am);margin-bottom:4px;">🎯 What I See</div>
+        <div style="color:var(--tx2);">
+          ${bar.c > bar.o ? 
+            "This is a bullish candle - buyers won the battle here" :
+            "Bearish candle - sellers took control at this point"
+          }
+          <div style="font-size:10px;margin-top:2px;">
+            Range: ${(bar.h - bar.l).toFixed(2)} points | 
+            Body: ${Math.abs(bar.c - bar.o).toFixed(2)} points
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:600;color:var(--am);margin-bottom:4px;">💡 Trading Insight</div>
+        <div style="color:var(--tx2);font-size:10px;">
+          ${generateContextualInsight(bar, barIndex, data)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function generateContextualInsight(bar, index, data = null) {
+  const dataContext = data || curData;
+  if (index === 0) return "This is the first candle - establishing the initial context";
+  
+  const prevBar = dataContext[index - 1];
+  const nextBar = index < dataContext.length - 1 ? dataContext[index + 1] : null;
+  
+  let insight = "";
+  
+  if (bar.c > bar.o && prevBar.c < prevBar.o) {
+    insight = "Bullish reversal pattern - buyers stepped in after bearish action";
+  } else if (bar.c < bar.o && prevBar.c > prevBar.o) {
+    insight = "Bearish reversal - sellers overcame buying pressure";
+  } else if (bar.c > bar.o && prevBar.c > prevBar.o) {
+    insight = "Continuation of bullish momentum - trend staying strong";
+  } else if (bar.c < bar.o && prevBar.c < prevBar.o) {
+    insight = "Bearish continuation - sellers maintaining control";
+  } else {
+    insight = "Indecision candle - market weighing next direction";
+  }
+  
+  if (nextBar) {
+    insight += ` Next candle ${nextBar.c > bar.c ? 'confirmed' : 'rejected'} this move.`;
+  }
+  
+  return insight;
+}
 
 </script>
 <script src="./app.js" defer></script>
