@@ -4987,16 +4987,25 @@ function replayTogglePlay(){
         replayStep(1);
       } catch(e) {
         console.error('Replay timer error:', e);
+        console.error('Error stack:', e.stack);
+        
         // Only stop replay on critical errors, not on setup detection issues
-        if (e.message && e.message.includes('Cannot read properties of undefined')) {
-          console.warn('⚠ Setup detection error - continuing replay');
+        if (e.message && (
+          e.message.includes('Cannot read properties of undefined') ||
+          e.message.includes('undefined is not an object') ||
+          e.message.includes('Cannot access property') ||
+          e.message.includes('setup') ||
+          e.message.includes('mentor')
+        )) {
+          console.warn('⚠ Setup detection or mentor error - continuing replay');
           // Don't stop replay, just continue to next step
           return;
         } else {
           // Stop on critical errors
+          console.error('🚨 Critical replay error - stopping replay');
           clearInterval(replayTimer); replayTimer = null;
           updateReplayStatus(); draw(); // Ensure UI is consistent
-          toast('⚠ Replay error - stopped');
+          toast('⚠ Replay error - stopped: ' + (e.message || 'Unknown error'));
         }
       }
     }, replaySpeed);
@@ -6199,15 +6208,15 @@ function detectStructuredSetups(data, barIndex) {
     dataLength: data.length, 
     barIndex, 
     hasData: !!data,
-    lastBar: data ? data[data.length - 1] : null
+    currentBar: data && barIndex >= 0 && barIndex < data.length ? data[barIndex] : null
   });
   
-  if (!data || data.length < 30) {
-    console.log('❌ Insufficient data for setup detection');
+  if (!data || data.length < 30 || barIndex < 0 || barIndex >= data.length) {
+    console.log('❌ Insufficient data for setup detection or invalid barIndex');
     return { setup: 'none', quality: 'none', confluence: 0 };
   }
   
-  const current = data[data.length - 1];
+  const current = data[barIndex];
   console.log('🔍 Current bar:', current);
   
   // Analyze market structure
@@ -6310,8 +6319,8 @@ function detectStructuredSetups(data, barIndex) {
   // Create a basic setup if no specific patterns found (to ensure some activity)
   if (setups.length === 0) {
     // Always create some kind of setup for training purposes
-    const current = data[data.length - 1];
-    const previous = data[data.length - 2];
+    const current = data[barIndex];
+    const previous = barIndex > 0 ? data[barIndex - 1] : current;
     const priceChange = (current.close - previous.close) / previous.close;
     
     let direction = 'long';
@@ -6420,11 +6429,11 @@ function detectFlagPattern(data, structure) {
   return { detected: false };
 }
 
-function detectSupportBounce(data) {
+function detectSupportBounce(data, structure) {
   if (data.length < 10) return { detected: false };
   
   const recent = data.slice(-5);
-  const current = data[data.length - 1];
+  const current = data[data.length - 1]; // This is OK since helper functions work on full data
   
   // Find recent low
   const recentLows = recent.map(d => d.low);
