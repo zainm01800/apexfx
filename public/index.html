@@ -2949,7 +2949,6 @@ function buildJournal(){
         ${e.screenshot?`<img class="jentry-thumb" src="${e.screenshot}" onclick="viewSnap('${e.id}')" title="Click to fullscreen">`:''}
         ${!e.archived?`<div style="margin-top:7px;border-top:1px solid var(--b1);padding-top:7px;display:flex;gap:5px;">
           <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">🔬 AI Autopsy</button>
-          <button onclick="event.stopPropagation();replayFromJournal('${e.id}')" title="Replay this trade — loads symbol at entry date in Bar Replay mode" style="padding:5px 9px;background:rgba(0,201,160,.06);border:1px solid rgba(0,201,160,.25);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:700;white-space:nowrap;" onmouseover="this.style.background='rgba(0,201,160,.14)'" onmouseout="this.style.background='rgba(0,201,160,.06)'">⏮ Replay Trade</button>
         </div>
         <div id="autopsy-${e.id}" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:3px;border-left:3px solid var(--am);font-size:11px;line-height:1.7;color:var(--tx2);white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
         `:''}
@@ -6803,6 +6802,12 @@ function setupEvents(){
       if(handleDrawMousedown(lx, ly, e)) return;
     }
 
+    // ── Prevent panning when replay mode is active ────────────────────────
+    if(replayMode && zone === 'pan'){
+      // In replay mode, clicking the pan area should only control replay, not pan the chart
+      return;
+    }
+
     if(zone === 'pan'){
       isPanning    = true;
       panStartX    = e.clientX;
@@ -6815,6 +6820,9 @@ function setupEvents(){
       mc.style.cursor = 'grabbing';
     }
     else if(zone === 'xscale'){
+      // ── Prevent scaling when replay mode is active ────────────────────────
+      if(replayMode) return;
+      
       isXScaling      = true;
       xScaleStartX    = e.clientX;
       xScaleStartBW   = barWidth;
@@ -6824,6 +6832,9 @@ function setupEvents(){
       mc.style.cursor = 'ew-resize';
     }
     else if(zone === 'yscale'){
+      // ── Prevent scaling when replay mode is active ────────────────────────
+      if(replayMode) return;
+      
       isYScaling        = true;
       yScaleStartY      = e.clientY;
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
@@ -9738,92 +9749,6 @@ window.addEventListener('load', () => {
 </div>
 
 <script>
-// ── REPLAY FROM JOURNAL ──────────────────────────────────────────────────────
-// Loads the symbol from a journal entry, seeks to the entry date, starts replay
-async function replayFromJournal(id) {
-  const entry = journal.find(e => e.id === id);
-  if (!entry) { toast('Entry not found'); return; }
-
-  const sym = entry.sym;
-  const tf  = entry.tf || '1d';
-  const entryDate = entry.time ? new Date(entry.time) : null;
-
-  // Close journal panel and switch to chart view
-  rpTab(document.querySelector('.rp-tab'), 'ai');
-
-  // Show a loading toast
-  toast(`⏮ Loading ${sym} ${tf} for replay…`);
-
-  // Set timeframe first
-  curTF = tf;
-  document.querySelectorAll('.tf').forEach(b => b.classList.remove('on'));
-  const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-  if (tfBtn) tfBtn.classList.add('on');
-
-  // Load the symbol — this fetches real data
-  await loadSym(sym);
-
-  // Now seek to the entry date in the data
-  if (entryDate && curData.length) {
-    const entryTs = Math.floor(entryDate.getTime() / 1000);
-
-    // Find the bar index closest to the entry date
-    let closestIdx = 0;
-    let closestDiff = Infinity;
-    curData.forEach((bar, i) => {
-      const diff = Math.abs(bar.time - entryTs);
-      if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
-    });
-
-    // Give a small buffer — show a few bars before entry so there's context
-    const contextBars = Math.max(10, Math.round(40 / barWidth));
-    const cutoffIdx = Math.max(1, closestIdx - 2); // replay starts just before entry bar
-
-    // Position chart so the cutoff bar is visible, with some runway to the right
-    rightBarIndex = cutoffIdx + contextBars + 5;
-    priceHi = null; priceLo = null;
-
-    // Start replay at the cutoff
-    replayMode    = true;
-    replayPicking = false;
-    replayCutoff  = cutoffIdx;
-
-    const replayBtn = document.getElementById('btn-replay');
-    if (replayBtn) replayBtn.classList.add('on');
-
-    updateReplayStatus();
-    draw();
-
-    // Draw an amber "ENTRY" marker annotation on the chart at entry price
-    if (entry.entry) {
-      // Add a horizontal ray drawing at the entry price so it's visible
-      const entryPrice = entry.entry;
-      const slPrice    = entry.sl   || null;
-      const tpPrice    = entry.tp   || null;
-      const isLong     = entry.dir === 'long';
-
-      // Clear any existing replay markers
-      drawings = drawings.filter(d => !d._replayMarker);
-
-      // Entry level (amber)
-      drawings.push({ id: 'rm_entry', type: 'hray', x1: cutoffIdx, y1: entryPrice, color: '#f0a500', lineWidth: 1.5, lineDash: 'dashed', label: `Entry $${fP(entryPrice)}`, _replayMarker: true });
-      if (slPrice)
-        drawings.push({ id: 'rm_sl', type: 'hray', x1: cutoffIdx, y1: slPrice, color: '#f03060', lineWidth: 1, lineDash: 'dashed', label: `SL $${fP(slPrice)}`, _replayMarker: true });
-      if (tpPrice)
-        drawings.push({ id: 'rm_tp', type: 'hray', x1: cutoffIdx, y1: tpPrice, color: '#00c9a0', lineWidth: 1, lineDash: 'dashed', label: `TP $${fP(tpPrice)}`, _replayMarker: true });
-
-      draw();
-    }
-
-    const dateStr = entryDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    toast(`⏮ Replay — ${sym} from ${dateStr} · Press Space/→ to step forward`);
-  } else {
-    // No date — just start normal replay
-    startReplay();
-    toast(`⏮ Replay mode — click chart to set start bar`);
-  }
-}
-
 function openTutorial(){
   document.getElementById('tut-bg').classList.add('open');
 }
