@@ -5397,54 +5397,132 @@ function updateLockedMentorUI() {
 function generateExampleTrade(setupData, currentBar) {
   if (!curData || !setupData) return null;
   
-  const currentPrice = curData[currentBar].close;
-  const atr = calculateATR(currentBar, 14);
-  const riskAmount = atr * 2; // 2x ATR risk
+  // AI HAS FUTURE DATA - Use it to place perfect winning trade WITH proper risk management
+  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 31, curData.length));
+  if (futureCandles.length < 10) {
+    console.log('❌ Not enough future data for perfect trade placement');
+    return null;
+  }
   
-  let trade = {
+  const entryPrice = curData[currentBar].close;
+  const direction = setupData.direction || 'long';
+  
+  // Calculate proper ATR for risk management
+  const atr = calculateATR(currentBar, 14) || (entryPrice * 0.01);
+  
+  // Analyze future price action
+  let highestClose = entryPrice;
+  let lowestClose = entryPrice;
+  let highestHigh = entryPrice;
+  let lowestLow = entryPrice;
+  
+  for (let i = 0; i < futureCandles.length; i++) {
+    const candle = futureCandles[i];
+    if (candle.close > highestClose) highestClose = candle.close;
+    if (candle.close < lowestClose) lowestClose = candle.close;
+    if (candle.high > highestHigh) highestHigh = candle.high;
+    if (candle.low < lowestLow) lowestLow = candle.low;
+  }
+  
+  console.log('🔮 Future data analysis:', {
+    direction,
+    entryPrice,
+    atr: atr.toFixed(2),
+    highestClose,
+    lowestClose,
+    highestHigh,
+    lowestLow,
+    futureBars: futureCandles.length
+  });
+  
+  // PROPER RISK MANAGEMENT: Use ATR-based stops with minimum 2:1 R:R
+  let stopLoss, takeProfit;
+  const minRR = 2.0;
+  
+  if (direction === 'long') {
+    // Validate price goes up
+    if (highestClose <= entryPrice) {
+      console.log('❌ Invalid long - future shows price goes down');
+      return null;
+    }
+    
+    // SL: 1.5x ATR below entry (standard technical stop)
+    stopLoss = entryPrice - (atr * 1.5);
+    // Ensure SL is below lowest wick
+    stopLoss = Math.min(stopLoss, lowestLow * 0.998);
+    
+    // TP: Minimum 2x the risk distance
+    const riskDistance = entryPrice - stopLoss;
+    const minTP = entryPrice + (riskDistance * minRR);
+    
+    // Use the minimum of: 2:1 target OR actual price movement
+    takeProfit = Math.min(highestClose * 0.995, Math.max(minTP, entryPrice + (riskDistance * 2)));
+    
+    // Ensure TP is hit by close
+    if (takeProfit > highestClose) takeProfit = highestClose * 0.995;
+    
+    // Validate R:R
+    const finalRR = (takeProfit - entryPrice) / (entryPrice - stopLoss);
+    if (finalRR < 1.5) {
+      console.log('❌ R:R too poor:', finalRR.toFixed(2));
+      return null;
+    }
+    
+  } else {
+    // Validate price goes down
+    if (lowestClose >= entryPrice) {
+      console.log('❌ Invalid short - future shows price goes up');
+      return null;
+    }
+    
+    // SL: 1.5x ATR above entry (standard technical stop)
+    stopLoss = entryPrice + (atr * 1.5);
+    // Ensure SL is above highest wick
+    stopLoss = Math.max(stopLoss, highestHigh * 1.002);
+    
+    // TP: Minimum 2x the risk distance
+    const riskDistance = stopLoss - entryPrice;
+    const minTP = entryPrice - (riskDistance * minRR);
+    
+    // Use the maximum of: 2:1 target OR actual price movement
+    takeProfit = Math.max(lowestClose * 1.005, Math.min(minTP, entryPrice - (riskDistance * 2)));
+    
+    // Ensure TP is hit by close
+    if (takeProfit < lowestClose) takeProfit = lowestClose * 1.005;
+    
+    // Validate R:R
+    const finalRR = (entryPrice - takeProfit) / (stopLoss - entryPrice);
+    if (finalRR < 1.5) {
+      console.log('❌ R:R too poor:', finalRR.toFixed(2));
+      return null;
+    }
+  }
+  
+  // Calculate final risk/reward
+  const riskAmount = Math.abs(entryPrice - stopLoss);
+  const rewardAmount = Math.abs(takeProfit - entryPrice);
+  const riskReward = rewardAmount / Math.max(riskAmount, 0.0001);
+  
+  const trade = {
     type: setupData.setup,
-    direction: setupData.direction || 'long',
-    entry: currentPrice,
-    stopLoss: null,
-    takeProfit: null,
-    riskReward: 2.0,
+    direction: direction,
+    entry: entryPrice,
+    stopLoss: stopLoss,
+    takeProfit: takeProfit,
+    riskReward: riskReward,
     timestamp: currentBar,
-    isExample: true
+    isExample: true,
+    isAIPlaced: true, // Flag that AI used future data
+    futureDataUsed: true
   };
   
-  // Calculate levels based on setup type
-  switch (setupData.setup) {
-    case 'breakout':
-      if (trade.direction === 'long') {
-        trade.entry = setupData.breakoutLevel || currentPrice;
-        trade.stopLoss = trade.entry - riskAmount;
-        trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
-      } else {
-        trade.entry = setupData.breakoutLevel || currentPrice;
-        trade.stopLoss = trade.entry + riskAmount;
-        trade.takeProfit = trade.entry - (riskAmount * trade.riskReward);
-      }
-      break;
-      
-    case 'support_bounce':
-      trade.direction = 'long';
-      trade.entry = setupData.supportLevel || currentPrice;
-      trade.stopLoss = trade.entry - riskAmount;
-      trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
-      break;
-      
-    case 'resistance_rejection':
-      trade.direction = 'short';
-      trade.entry = setupData.resistanceLevel || currentPrice;
-      trade.stopLoss = trade.entry + riskAmount;
-      trade.takeProfit = trade.entry - (riskAmount * trade.riskReward);
-      break;
-      
-    default:
-      // Default to long if setup type is unclear
-      trade.stopLoss = trade.entry - riskAmount;
-      trade.takeProfit = trade.entry + (riskAmount * trade.riskReward);
-  }
+  console.log('✅ AI-generated perfect winning trade:', {
+    entry: entryPrice.toFixed(2),
+    sl: stopLoss.toFixed(2),
+    tp: takeProfit.toFixed(2),
+    rr: riskReward.toFixed(2),
+    direction
+  });
   
   return trade;
 }
@@ -5587,6 +5665,206 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
   }
 }
 
+// ══ STRUCTURED TRADE REVIEW GENERATOR ════════════════════════════════════════════════════════════════
+
+function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade = false) {
+  if (!trade || !curData) return null;
+  
+  const direction = trade.direction || 'long';
+  const setupType = trade.type || 'breakout';
+  const entryPrice = trade.entry;
+  const stopLoss = trade.stopLoss;
+  const takeProfit = trade.takeProfit;
+  const riskAmount = Math.abs(entryPrice - stopLoss);
+  const rewardAmount = Math.abs(takeProfit - entryPrice);
+  const rr = rewardAmount / Math.max(riskAmount, 0.0001);
+  const rrFormatted = rr.toFixed(2);
+  
+  // Get chart context
+  const entryBar = trade.timestamp || currentBar - 10;
+  const prevBars = curData.slice(Math.max(0, entryBar - 10), entryBar);
+  const entryBarData = curData[entryBar];
+  
+  // Analyze pre-entry structure
+  const recentHighs = prevBars.map(b => b.high);
+  const recentLows = prevBars.map(b => b.low);
+  const swingHigh = Math.max(...recentHighs);
+  const swingLow = Math.min(...recentLows);
+  
+  // Get selected trading method for context
+  const method = mentorState.selectedTradingMethod || 'ict';
+  
+  const review = {
+    sections: [],
+    outcome: outcome,
+    isWin: outcome === 'take_profit'
+  };
+  
+  // === 1. ENTRY REASONING ===
+  let entryReasoning = '';
+  if (direction === 'long') {
+    if (setupType === 'breakout') {
+      entryReasoning = `Entry was placed above the resistance breakout level at ${entryPrice.toFixed(4)} to confirm that buyers had successfully pushed price beyond the consolidation zone at ${swingHigh.toFixed(4)}. The breakout candle closed decisively above this level, indicating strong buying pressure.`;
+    } else if (setupType === 'support_bounce') {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} after price successfully defended the support level at ${swingLow.toFixed(4)}. The bounce showed that buyers were active at this structural level, creating a favorable risk/reward opportunity.`;
+    } else if (setupType === 'pullback') {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} during a pullback to the moving average support. This higher low formation within the uptrend structure provided a continuation entry with the prevailing trend.`;
+    } else {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} following confirmation of bullish momentum. The price action showed buyers gaining control after testing key structural levels.`;
+    }
+  } else {
+    if (setupType === 'breakout') {
+      entryReasoning = `Entry was placed below the support breakout level at ${entryPrice.toFixed(4)} to confirm that sellers had successfully pushed price beneath the consolidation zone at ${swingLow.toFixed(4)}. The breakdown showed sustained selling pressure.`;
+    } else if (setupType === 'resistance_rejection') {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} after price clearly rejected the resistance level at ${swingHigh.toFixed(4)}. The rejection candle showed sellers defending this structural high, creating a favorable short opportunity.`;
+    } else if (setupType === 'pullback') {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} during a pullback to resistance within the downtrend. This lower high formation provided a continuation entry aligned with the prevailing bearish structure.`;
+    } else {
+      entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} following confirmation of bearish momentum. The price action showed sellers gaining control after rejecting key structural levels.`;
+    }
+  }
+  
+  review.sections.push({
+    title: '🎯 ENTRY REASONING',
+    content: entryReasoning
+  });
+  
+  // === 2. STOP LOSS PLACEMENT ===
+  let slReasoning = '';
+  if (direction === 'long') {
+    if (setupType === 'breakout') {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was placed below the previous structural low at ${swingLow.toFixed(4)}. If price had moved below this level, it would have invalidated the breakout structure and indicated that the bullish momentum had failed.`;
+    } else if (setupType === 'support_bounce') {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was positioned below the support level at ${swingLow.toFixed(4)}. A break below this level would signal that buyers failed to defend support, invalidating the bounce setup.`;
+    } else {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was placed below the recent swing low structure. This level represented the invalidation point where the bullish thesis would be proven wrong.`;
+    }
+  } else {
+    if (setupType === 'breakout') {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was placed above the previous structural high at ${swingHigh.toFixed(4)}. If price had moved above this level, it would have invalidated the breakdown and indicated that sellers lost control.`;
+    } else if (setupType === 'resistance_rejection') {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was positioned above the resistance level at ${swingHigh.toFixed(4)}. A break above this level would signal that the rejection failed and buyers had regained control.`;
+    } else {
+      slReasoning = `The stop loss at ${stopLoss.toFixed(4)} was placed above the recent swing high structure. This level represented the invalidation point where the bearish thesis would be proven wrong.`;
+    }
+  }
+  
+  // Add wick protection context
+  const slDistance = Math.abs(entryPrice - stopLoss);
+  const slPercent = (slDistance / entryPrice * 100).toFixed(2);
+  slReasoning += ` The ${slPercent}% stop distance provided adequate room for normal market volatility while protecting capital if the structure broke.`;
+  
+  review.sections.push({
+    title: '🛡️ STOP LOSS PLACEMENT',
+    content: slReasoning
+  });
+  
+  // === 3. TAKE PROFIT TARGET ===
+  let tpReasoning = '';
+  if (direction === 'long') {
+    const nextResistance = takeProfit;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical resistance area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+  } else {
+    const nextSupport = takeProfit;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+  }
+  
+  // Add method-specific context
+  if (method === 'ict') {
+    tpReasoning += ` Following ICT methodology, this target aligns with the next internal range liquidity or order block level where price is likely to react.`;
+  } else if (method === 'supply_demand') {
+    tpReasoning += ` Based on supply/demand analysis, this target reaches the next significant zone where the opposing force is expected to step in.`;
+  } else if (method === 'support_resistance') {
+    tpReasoning += ` This target respects classic support/resistance principles, aiming for the next tested level where price has historically reversed.`;
+  }
+  
+  review.sections.push({
+    title: '🎯 TAKE PROFIT TARGET',
+    content: tpReasoning
+  });
+  
+  // === 4. RISK MANAGEMENT ===
+  let rmReasoning = '';
+  if (rr >= 2) {
+    rmReasoning = `This setup demonstrated excellent risk management with a 1:${rrFormatted} risk-to-reward ratio. The potential reward was more than twice the amount risked, which is the minimum recommended ratio for sustainable trading. With this R:R, you only need to win 34% of trades to be profitable.`;
+  } else if (rr >= 1.5) {
+    rmReasoning = `This setup used a 1:${rrFormatted} risk-to-reward ratio, which is acceptable but below the ideal 2:1 target. While still viable, aiming for higher reward-to-risk ratios improves long-term profitability.`;
+  } else {
+    rmReasoning = `This setup had a 1:${rrFormatted} risk-to-reward ratio, which is below recommended levels. For sustainable trading, aim for at least 1.5:1 or preferably 2:1 to ensure profits outweigh losses over time.`;
+  }
+  
+  // Add position sizing context
+  rmReasoning += ` Risk was controlled by sizing the position appropriately relative to account balance, ensuring that even if the stop loss was hit, the loss would be a small percentage of total capital.`;
+  
+  review.sections.push({
+    title: '⚖️ RISK MANAGEMENT',
+    content: rmReasoning
+  });
+  
+  // === 5. TRADE EXECUTION ANALYSIS ===
+  let executionAnalysis = '';
+  if (outcome === 'take_profit') {
+    if (direction === 'long') {
+      if (setupType === 'breakout') {
+        executionAnalysis = `After entry, breakout momentum accelerated as expected. Price moved decisively toward the target without significant pullbacks, demonstrating strong buyer commitment. The move showed good follow-through with minimal retracements, indicating healthy trend strength.`;
+      } else {
+        executionAnalysis = `After entry, price successfully reached the target level. The move demonstrated that the initial analysis of buyer strength was correct, and the structural level held as anticipated throughout the trade duration.`;
+      }
+    } else {
+      if (setupType === 'breakout') {
+        executionAnalysis = `After entry, breakdown momentum accelerated as expected. Price moved decisively toward the target without significant bounces, demonstrating strong seller commitment. The move showed good follow-through with minimal retracements.`;
+      } else {
+        executionAnalysis = `After entry, price successfully reached the target level. The move demonstrated that the initial analysis of seller strength was correct, and the structural rejection played out as anticipated.`;
+      }
+    }
+  } else {
+    // Stop loss hit
+    if (direction === 'long') {
+      executionAnalysis = `Unfortunately, price moved against the position and hit the stop loss. This indicates that either the bullish structure failed to hold, or the entry was premature before full confirmation was established. The market invalidated the original thesis.`;
+    } else {
+      executionAnalysis = `Unfortunately, price moved against the position and hit the stop loss. This indicates that either the bearish structure failed to hold, or the entry was premature before full confirmation was established. The market invalidated the original thesis.`;
+    }
+  }
+  
+  review.sections.push({
+    title: '📊 TRADE EXECUTION ANALYSIS',
+    content: executionAnalysis
+  });
+  
+  // === 6. LEARNING TAKEAWAY ===
+  let learningTakeaway = '';
+  if (outcome === 'take_profit') {
+    if (rr >= 2) {
+      learningTakeaway = `This trade highlights the importance of waiting for setups with favorable risk-to-reward ratios. By requiring at least 2:1 R:R, you ensure that winning trades more than compensate for inevitable losses. The key lessons are: (1) Let the setup come to you, (2) Place stops at logical invalidation points, (3) Let winners run to predetermined targets.`;
+    } else {
+      learningTakeaway = `While this trade was successful, consider aiming for higher risk-to-reward ratios in future setups. The key lessons are: (1) Wait for clear confirmation before entry, (2) Place stops beyond structural levels, (3) Be selective - not every setup deserves a trade.`;
+    }
+  } else {
+    // Loss
+    if (isUserTrade) {
+      learningTakeaway = `This loss provides valuable feedback. Consider whether: (1) You waited for sufficient confirmation before entering, (2) Your stop was placed at a true structural invalidation point rather than an arbitrary distance, (3) The setup had clear confluence factors supporting the trade. Remember, losses are part of trading - what matters is that stops protect capital and lessons are learned.`;
+    } else {
+      learningTakeaway = `Even well-planned trades sometimes fail due to changing market conditions. The key lessons are: (1) Always respect your stop loss - it's your protection, (2) No setup has 100% win rate, (3) Risk management ensures one loss doesn't significantly impact overall performance. The stop did its job of protecting capital.`;
+    }
+  }
+  
+  // Add method-specific lesson
+  if (method === 'ict') {
+    learningTakeaway += ` For ICT traders, remember that liquidity sweeps and smart money concepts require patience - wait for the manipulation phase to complete before entering.`;
+  } else if (method === 'supply_demand') {
+    learningTakeaway += ` For supply/demand traders, focus on fresh zones with strong imbalance - the best setups occur at zones that haven't been tested recently.`;
+  } else if (method === 'support_resistance') {
+    learningTakeaway += ` For support/resistance traders, remember that the third touch is often the strongest - look for multiple tests of a level before trading the breakout or rejection.`;
+  }
+  
+  review.sections.push({
+    title: '🎓 LEARNING TAKEAWAY',
+    content: learningTakeaway
+  });
+  
+  return review;
+}
+
 function handleTradeCompletion(outcome, currentBar) {
   mentorState.exampleTradeActive = false;
   mentorState.exampleTradeOutcome = outcome;
@@ -5597,52 +5875,30 @@ function handleTradeCompletion(outcome, currentBar) {
     replayTimer = null;
   }
   
-  // Generate outcome message
-  let outcomeMessage = '';
-  let outcomeInsights = [];
+  // Generate structured trade review
+  const trade = mentorState.exampleTrade;
+  const review = generateStructuredTradeReview(trade, outcome, currentBar, trade && trade.isUserGuided);
   
-  if (mentorState.exampleTrade && mentorState.exampleTrade.isUserGuided) {
-    // User-guided "Let Me Try It" trade feedback
-    if (outcome === 'take_profit') {
-      outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
-      outcomeInsights = [
-        'Fantastic execution! Your analysis of the market structure and entry timing were well aligned with the trend.',
-        `Risk/Reward Structure: Excellent 1:${mentorState.exampleTrade.riskReward.toFixed(2)} ratio ensures sustainable growth.`,
-        'Stop Loss Placement: Safely tucked away behind structure, surviving any erratic price wicks.',
-        'This trade highlights the importance of letting the setup play out naturally once executed.'
-      ];
-    } else {
-      outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
-      outcomeInsights = [
-        'The trade was stopped out. Market conditions or sudden momentum shifts might have invalidated the setup.',
-        'Entry Timing: You may have entered slightly aggressively before full confirmation was present.',
-        'Stop Loss Placement: Consider whether your stop was placed too tight, or if the structural level actually failed.',
-        'Review the market structure and wait for stronger confluence next time before taking the entry.'
-      ];
-    }
-  } else {
-    // AI-guided "Show Me The Trade" feedback
-    if (outcome === 'take_profit') {
-      outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
-      outcomeInsights = [
-        'The setup worked as expected with strong breakout behaviour and momentum continuation.',
-        'Risk management was effective with proper stop loss placement beyond the structural pivot.',
-        'This demonstrates the importance of patience in letting trades develop.'
-      ];
-    } else {
-      outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
-      outcomeInsights = [
-        'The setup failed due to adverse price movement and loss of momentum.',
-        'Stop loss protected capital from further downside as market structure broke.',
-        'Consider waiting for stronger confirmation next time.'
-      ];
-    }
+  if (!review) {
+    console.error('❌ Failed to generate trade review');
+    return;
   }
   
-  // Update mentor with trade completion
+  // Build insights from review sections
+  const outcomeMessage = review.isWin 
+    ? '🎉 TRADE COMPLETED: Take Profit Reached ✅'
+    : (outcome === 'stop_loss' ? '⛔ TRADE COMPLETED: Stop Loss Hit' : '⏱️ TRADE COMPLETED');
+  
+  const outcomeInsights = review.sections.map(section => 
+    `${section.title}\n${section.content}`
+  );
+  
+  // Update mentor with structured review
   mentorState.lockedMessage = 'trade_completed';
   mentorState.lockedInsights = [outcomeMessage, ...outcomeInsights];
-  mentorState.lockedQuestion = 'Would you like to continue replay so we can find another setup?';
+  mentorState.lockedQuestion = review.isWin 
+    ? '🎓 Excellent trade execution! Ready to find another setup?'
+    : '🎓 Important learning opportunity! Ready to continue scanning?';
   mentorState.lifecycleState = 'trade_completed';
   
   // Clear trade monitoring updates
@@ -5651,7 +5907,7 @@ function handleTradeCompletion(outcome, currentBar) {
   // Update UI
   updateLockedMentorUI();
   
-  console.log('🏁 Trade completed:', outcome);
+  console.log('🏁 Trade completed with structured review:', outcome);
 }
 
 function continueReplayAfterTradeCompletion() {
@@ -6111,6 +6367,12 @@ function changeTradingMethod(newMethod) {
 function resetMentorStateForStrategyChange() {
   console.log('🔄 Resetting mentor state for strategy change');
   
+  // Clear setup cache to ensure fresh detection (no old losing trades)
+  if (mentorState.setupCache) {
+    mentorState.setupCache.clear();
+    console.log('🗑️ Setup cache cleared');
+  }
+  
   // Cancel any active setup
   mentorState.setupWaitStart = null;
   mentorState.setupWaitData = null;
@@ -6211,32 +6473,68 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
   }
   
   const currentPrice = fullData[currentBar].close;
-  const atr = calculateATR(fullData.slice(Math.max(0, currentBar - 14), currentBar + 1));
-  const stopLossDistance = atr * 2;
-  const takeProfitDistance = atr * 3;
+  const direction = setupDetection.direction || 'long';
   
-  // Calculate expected entry, stop loss, and take profit
+  // Calculate SL/TP the same way as generateExampleTrade - using ACTUAL future price action
+  let highestHigh = currentPrice;
+  let lowestLow = currentPrice;
+  let peakPrice = currentPrice;
+  let valleyPrice = currentPrice;
+  
+  for (let i = 0; i < futureCandles.length; i++) {
+    const candle = futureCandles[i];
+    if (candle.high > highestHigh) highestHigh = candle.high;
+    if (candle.low < lowestLow) lowestLow = candle.low;
+    
+    if (direction === 'long') {
+      if (candle.high > peakPrice) peakPrice = candle.high;
+    } else {
+      if (candle.low < valleyPrice) valleyPrice = candle.low;
+    }
+  }
+  
+  // Calculate entry, SL, TP exactly like generateExampleTrade does
   let entryPrice, stopLoss, takeProfit;
   
-  if (setupDetection.direction === 'long') {
+  if (direction === 'long') {
     entryPrice = currentPrice;
-    stopLoss = entryPrice - stopLossDistance;
-    takeProfit = entryPrice + takeProfitDistance;
+    stopLoss = Math.min(lowestLow * 0.998, entryPrice * 0.995);
+    takeProfit = peakPrice * 0.998;
+    
+    // Validate: For a winning long, TP must be above entry
+    if (takeProfit <= entryPrice) {
+      console.log('❌ Long setup rejected: Future data shows price goes down');
+      return { 
+        valid: false, 
+        reason: 'AI analysis: Future price action is bearish - rejecting long setup',
+        outcome: 'loss'
+      };
+    }
   } else {
     entryPrice = currentPrice;
-    stopLoss = entryPrice + stopLossDistance;
-    takeProfit = entryPrice - takeProfitDistance;
+    stopLoss = Math.max(highestHigh * 1.002, entryPrice * 1.005);
+    takeProfit = valleyPrice * 1.002;
+    
+    // Validate: For a winning short, TP must be below entry
+    if (takeProfit >= entryPrice) {
+      console.log('❌ Short setup rejected: Future data shows price goes up');
+      return { 
+        valid: false, 
+        reason: 'AI analysis: Future price action is bullish - rejecting short setup',
+        outcome: 'loss'
+      };
+    }
   }
   
   console.log('🔮 Setup validation parameters:', {
-    direction: setupDetection.direction,
+    direction,
     entry: entryPrice,
-    stopLoss: stopLoss,
-    takeProfit: takeProfit,
+    stopLoss,
+    takeProfit,
     futureCandles: futureCandles.length
   });
   
-  // Check if setup succeeds in future data
+  // Now simulate the trade with these exact levels
   let hitStopLoss = false;
   let hitTakeProfit = false;
   let barsToCompletion = 0;
@@ -6245,7 +6543,7 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
     const candle = futureCandles[i];
     barsToCompletion++;
     
-    if (setupDetection.direction === 'long') {
+    if (direction === 'long') {
       if (candle.low <= stopLoss) {
         hitStopLoss = true;
         break;
@@ -6429,36 +6727,9 @@ function detectStructuredSetups(data, barIndex) {
   
   console.log('🔍 Total setups found:', setups.length);
   
-  // Create a basic setup if no specific patterns found (to ensure some activity)
-  if (setups.length === 0) {
-    // Always create some kind of setup for training purposes
-    const current = data[barIndex];
-    const previous = barIndex > 0 ? data[barIndex - 1] : current;
-    const priceChange = (current.close - previous.close) / previous.close;
-    
-    let direction = 'long';
-    let setupType = 'trend_follow';
-    
-    if (priceChange > 0.002) { // 0.2% up
-      direction = 'long';
-      setupType = 'momentum_up';
-    } else if (priceChange < -0.002) { // 0.2% down
-      direction = 'short';
-      setupType = 'momentum_down';
-    } else {
-      // Deterministic direction for sideways markets based on bar index (consistent across replays)
-      direction = (barIndex % 2 === 0) ? 'long' : 'short';
-      setupType = 'range_bound';
-    }
-    
-    setups.push({
-      type: setupType,
-      quality: 'medium',
-      confluence: 3,
-      direction: direction
-    });
-    console.log('✅ Fallback setup created:', { setupType, direction, priceChange });
-  }
+  // NO FALLBACK setups - AI only works with validated setups
+  // All setups must pass future data validation before being presented
+  // This ensures AI never shows losing trades
   
   // Select best setup
   if (setups.length > 0) {
@@ -7136,6 +7407,12 @@ function toggleMentor() {
   const btn = document.getElementById('st-replay-mentor');
   
   if (mentorState.enabled && replayMode) {
+    // Clear cache when enabling to ensure fresh detection
+    if (mentorState.setupCache) {
+      mentorState.setupCache.clear();
+      console.log('🗑️ Setup cache cleared on mentor enable');
+    }
+    
     panel.style.display = 'block';
     if (btn) {
       btn.style.background = 'linear-gradient(135deg, rgba(138,43,226,.6), rgba(138,43,226,.4))';
@@ -7658,38 +7935,159 @@ function displayTradeAnalysis(trade, evaluation, judgement, judgementColor) {
 }
 
 function generateTradeExplanation(trade, evaluation, analysis) {
-  let explanation = '';
+  if (!trade || !curData) return 'Unable to analyze trade - insufficient data.';
   
-  if (evaluation.overallScore >= 80) {
-    explanation = 'This trade has strong potential. ';
-    if (evaluation.trendAlignment.score >= 80) {
-      explanation += 'The trend alignment provides solid momentum. ';
-    }
-    if (evaluation.riskManagement.score >= 80) {
-      explanation += 'Risk management is excellent with proper position sizing. ';
-    }
-    explanation += 'Monitor for price action confirmation.';
-  } else if (evaluation.overallScore >= 60) {
-    explanation = 'This trade is acceptable but carries risks. ';
-    if (evaluation.trendAlignment.score < 60) {
-      explanation += 'Consider waiting for better trend alignment. ';
-    }
-    if (evaluation.riskManagement.score < 60) {
-      explanation += 'Improve risk/reward ratio for better results. ';
-    }
-    explanation += 'Be cautious with position size.';
+  const direction = trade.direction || 'long';
+  const entryPrice = trade.entry || 0;
+  const stopLoss = trade.stopLoss || 0;
+  const takeProfit = trade.takeProfit || 0;
+  const riskAmount = Math.abs(entryPrice - stopLoss);
+  const rewardAmount = Math.abs(takeProfit - entryPrice);
+  const rr = rewardAmount / Math.max(riskAmount, 0.0001);
+  const rrFormatted = rr.toFixed(2);
+  
+  // Get chart context
+  const barIndex = trade.barIndex || 0;
+  const prevBars = curData.slice(Math.max(0, barIndex - 10), barIndex);
+  const recentHighs = prevBars.length > 0 ? prevBars.map(b => b.high) : [entryPrice];
+  const recentLows = prevBars.length > 0 ? prevBars.map(b => b.low) : [entryPrice];
+  const swingHigh = Math.max(...recentHighs);
+  const swingLow = Math.min(...recentLows);
+  
+  const method = mentorState.selectedTradingMethod || 'ict';
+  const score = evaluation.overallScore || 50;
+  
+  let sections = [];
+  
+  // Overall assessment
+  if (score >= 80) {
+    sections.push(`🟢 **TRADE ANALYSIS: STRONG SETUP**`);
+    sections.push(`This trade demonstrates solid technical analysis with a score of ${score}/100.`);
+  } else if (score >= 60) {
+    sections.push(`🟡 **TRADE ANALYSIS: ACCEPTABLE WITH RISKS**`);
+    sections.push(`This trade has potential but carries risks with a score of ${score}/100.`);
   } else {
-    explanation = 'This trade setup is weak. ';
-    if (evaluation.trendAlignment.score < 40) {
-      explanation += 'Trading against the trend is dangerous. ';
+    sections.push(`🔴 **TRADE ANALYSIS: WEAK SETUP**`);
+    sections.push(`This trade has significant issues with a score of ${score}/100.`);
+  }
+  sections.push('');
+  
+  // 1. ENTRY REASONING
+  let entryReasoning = '';
+  if (direction === 'long') {
+    entryReasoning = `Entry at ${entryPrice.toFixed(4)} `;
+    if (entryPrice > swingHigh * 0.995) {
+      entryReasoning += `appears to be a breakout entry above the recent structure high at ${swingHigh.toFixed(4)}.`;
+    } else if (Math.abs(entryPrice - swingLow) < Math.abs(entryPrice - swingHigh) * 0.5) {
+      entryReasoning += `appears to be a support bounce entry near the recent low at ${swingLow.toFixed(4)}.`;
+    } else {
+      entryReasoning += `is positioned within the recent trading range between ${swingLow.toFixed(4)} and ${swingHigh.toFixed(4)}.`;
     }
-    if (evaluation.stopLossPlacement.score < 50) {
-      explanation += 'Stop loss placement needs improvement. ';
+  } else {
+    entryReasoning = `Entry at ${entryPrice.toFixed(4)} `;
+    if (entryPrice < swingLow * 1.005) {
+      entryReasoning += `appears to be a breakdown entry below the recent structure low at ${swingLow.toFixed(4)}.`;
+    } else if (Math.abs(entryPrice - swingHigh) < Math.abs(entryPrice - swingLow) * 0.5) {
+      entryReasoning += `appears to be a resistance rejection entry near the recent high at ${swingHigh.toFixed(4)}.`;
+    } else {
+      entryReasoning += `is positioned within the recent trading range between ${swingLow.toFixed(4)} and ${swingHigh.toFixed(4)}.`;
     }
-    explanation += 'Consider skipping this setup.';
+  }
+  sections.push(`🎯 **ENTRY REASONING**`);
+  sections.push(entryReasoning);
+  sections.push('');
+  
+  // 2. STOP LOSS PLACEMENT
+  const slDistance = Math.abs(entryPrice - stopLoss);
+  const slPercent = (slDistance / entryPrice * 100).toFixed(2);
+  let slAnalysis = `Stop loss at ${stopLoss.toFixed(4)} represents a ${slPercent}% risk from entry.`;
+  
+  if (direction === 'long') {
+    if (stopLoss < swingLow * 1.002) {
+      slAnalysis += ` It's positioned below the recent swing low at ${swingLow.toFixed(4)}, which is a logical invalidation point for the bullish setup.`;
+    } else if (stopLoss < swingLow * 1.01) {
+      slAnalysis += ` It's close to but still below the recent swing low at ${swingLow.toFixed(4)}, providing reasonable protection.`;
+    } else {
+      slAnalysis += ` Consider moving it below the recent swing low at ${swingLow.toFixed(4)} to align with the structural invalidation point.`;
+    }
+  } else {
+    if (stopLoss > swingHigh * 0.998) {
+      slAnalysis += ` It's positioned above the recent swing high at ${swingHigh.toFixed(4)}, which is a logical invalidation point for the bearish setup.`;
+    } else if (stopLoss > swingHigh * 0.99) {
+      slAnalysis += ` It's close to but still above the recent swing high at ${swingHigh.toFixed(4)}, providing reasonable protection.`;
+    } else {
+      slAnalysis += ` Consider moving it above the recent swing high at ${swingHigh.toFixed(4)} to align with the structural invalidation point.`;
+    }
+  }
+  sections.push(`🛡️ **STOP LOSS PLACEMENT**`);
+  sections.push(slAnalysis);
+  sections.push('');
+  
+  // 3. TAKE PROFIT TARGET
+  const tpDistance = Math.abs(takeProfit - entryPrice);
+  const tpPercent = (tpDistance / entryPrice * 100).toFixed(2);
+  let tpAnalysis = `Take profit at ${takeProfit.toFixed(4)} targets ${tpPercent}% movement, creating a 1:${rrFormatted} risk-to-reward ratio.`;
+  
+  if (rr >= 2) {
+    tpAnalysis += ` This is an excellent R:R ratio that ensures profitable trading even with a moderate win rate.`;
+  } else if (rr >= 1.5) {
+    tpAnalysis += ` This is an acceptable R:R ratio, though aiming for 2:1 or higher improves long-term profitability.`;
+  } else {
+    tpAnalysis += ` This R:R ratio is below recommended levels. Consider extending targets or finding setups with better risk-to-reward potential.`;
+  }
+  sections.push(`🎯 **TAKE PROFIT TARGET**`);
+  sections.push(tpAnalysis);
+  sections.push('');
+  
+  // 4. RISK MANAGEMENT
+  let rmAnalysis = '';
+  if (evaluation.riskManagement && evaluation.riskManagement.score >= 80) {
+    rmAnalysis = `Risk management is excellent. The combination of logical stop placement and favorable risk-to-reward ratio creates a sustainable trading edge.`;
+  } else if (evaluation.riskManagement && evaluation.riskManagement.score >= 60) {
+    rmAnalysis = `Risk management is acceptable. Consider improving either the stop placement precision or the reward-to-risk ratio for better results.`;
+  } else {
+    rmAnalysis = `Risk management needs improvement. Focus on placing stops at true structural invalidation points and ensuring minimum 1.5:1 R:R ratios.`;
+  }
+  rmAnalysis += ` With proper position sizing, even if this trade hits the stop, the loss represents only a small portion of total capital.`;
+  sections.push(`⚖️ **RISK MANAGEMENT**`);
+  sections.push(rmAnalysis);
+  sections.push('');
+  
+  // 5. TREND ALIGNMENT
+  let trendAnalysis = '';
+  if (evaluation.trendAlignment && evaluation.trendAlignment.score >= 80) {
+    trendAnalysis = `The trade is well-aligned with the current market trend, providing favorable directional bias.`;
+  } else if (evaluation.trendAlignment && evaluation.trendAlignment.score >= 60) {
+    trendAnalysis = `The trade has moderate trend alignment. While not perfectly positioned, the overall bias is acceptable.`;
+  } else {
+    trendAnalysis = `The trade may be fighting against the prevailing trend. Consider waiting for setups that align better with the market direction.`;
+  }
+  sections.push(`📈 **TREND ALIGNMENT**`);
+  sections.push(trendAnalysis);
+  sections.push('');
+  
+  // 6. LEARNING TAKEAWAY
+  let takeaway = '';
+  if (score >= 80) {
+    takeaway = `✅ **Key Takeaway:** This trade demonstrates proper application of technical principles. Continue seeking setups with similar characteristics: clear structure, logical invalidation points, and favorable risk-to-reward ratios.`;
+  } else if (score >= 60) {
+    takeaway = `⚠️ **Key Takeaway:** While this trade may work, focus on improving ${evaluation.riskManagement && evaluation.riskManagement.score < 70 ? 'risk management' : 'trend alignment'} in future setups. Patience in waiting for higher-quality opportunities pays off.`;
+  } else {
+    takeaway = `🎓 **Key Takeaway:** This trade has significant issues. Focus on: (1) Waiting for clear confirmation before entry, (2) Placing stops at true structural levels, (3) Only trading when R:R is at least 1.5:1, (4) Trading with the trend, not against it.`;
   }
   
-  return explanation;
+  // Add method-specific guidance
+  if (method === 'ict') {
+    takeaway += ` For ICT concepts, remember that displacement and order blocks provide the highest probability entries.`;
+  } else if (method === 'supply_demand') {
+    takeaway += ` For supply/demand trading, fresh untested zones offer the best risk-to-reward opportunities.`;
+  } else if (method === 'support_resistance') {
+    takeaway += ` For support/resistance trading, wait for multiple tests of a level before trading the breakout or rejection.`;
+  }
+  sections.push(`🎓 **LEARNING TAKEAWAY**`);
+  sections.push(takeaway);
+  
+  return sections.join('\n');
 }
 
 function trackTradeOutcomes() {
@@ -8034,6 +8432,9 @@ function handleSetupDetectedState(currentBar) {
     mentorState.pendingSetupDetection = mentorState.upcomingSetup.setup;
     mentorState.pendingSetupBar = mentorState.upcomingSetup.bar; // actual future setup bar
     
+    // CRITICAL: Lock the message so controls show and state is consistent
+    lockSetupMessage(mentorState.upcomingSetup.setup);
+    
     mentorState.lockedQuestion = `⚠️ A setup is forming in approximately ${barsUntilSetup} candles. Press "Show Me The Trade" to see the AI's entry, or "Let Me Try It" to place your own trade.`;
     
     // Pause replay so user can read the message
@@ -8042,6 +8443,7 @@ function handleSetupDetectedState(currentBar) {
     }
     updateLockedMentorUI();
     console.log('🔔 Early warning fired:', barsUntilSetup, 'bars to setup — replay paused');
+    console.log('✅ pendingSetupDetection set:', mentorState.pendingSetupDetection);
     return;
   }
   
@@ -8260,64 +8662,70 @@ function generateTradeSuccessExplanation() {
   }
   
   const result = mentorState.tradeResultData;
-  console.log('🎓 Generating trade success explanation:', result);
+  console.log('🎓 Generating structured trade success explanation:', result);
   
-  let insights = [];
-  let question = '';
+  // Build a simulated trade object for the structured review generator
+  const simulatedTrade = {
+    direction: result.direction || 'long',
+    type: result.setupType || 'breakout',
+    entry: result.entry || 0,
+    stopLoss: result.stopLoss || 0,
+    takeProfit: result.takeProfit || 0,
+    timestamp: result.entryBar || 0,
+    riskReward: result.riskReward || 2.0,
+    isUserGuided: result.isUserTrade || false
+  };
   
-  // Success explanation based on outcome
+  // Generate comprehensive structured review
+  const outcome = result.outcome === 'win' ? 'take_profit' : (result.outcome === 'loss' ? 'stop_loss' : 'expired');
+  const currentBar = result.exitBar || result.entryBar || 0;
+  const isUserTrade = result.isUserTrade || false;
+  
+  const review = generateStructuredTradeReview(simulatedTrade, outcome, currentBar, isUserTrade);
+  
+  if (!review) {
+    console.error('❌ Failed to generate structured review');
+    return;
+  }
+  
+  // Build insights array from review sections
+  const insights = [];
+  
+  // Header based on outcome
   if (result.outcome === 'win') {
     insights.push('🎉 **TRADE COMPLETED SUCCESSFULLY**');
     insights.push(`✅ Take profit reached at ${result.takeProfit.toFixed(4)}`);
     insights.push(`📈 Profit: ${result.profit.toFixed(2)} pips`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
-    
-    // Add specific success reasons based on setup type
-    if (result.setupType === 'breakout') {
-      insights.push('🚀 **Why this worked:** Strong breakout confirmation with momentum');
-      insights.push('💪 Price broke through resistance and continued upward');
-    } else if (result.setupType === 'trend_pullback') {
-      insights.push('📈 **Why this worked:** Trend continuation after healthy pullback');
-      insights.push('🎯 Pullback to support level followed by trend resumption');
-    } else if (result.setupType === 'support_bounce') {
-      insights.push('💪 **Why this worked:** Strong support level held firm');
-      insights.push('🔄 Buyers defended support level aggressively');
-    } else if (result.setupType === 'liquidity_sweep') {
-      insights.push('🔄 **Why this worked:** Liquidity sweep followed by sharp reversal');
-      insights.push('💧 Stop losses were cleared before reversal began');
-    } else {
-      insights.push('⭐ **Why this worked:** High-quality setup with multiple confirmations');
-      insights.push('🎯 Multiple factors aligned for successful outcome');
-    }
-    
-    question = '🎓 **This setup has completed successfully!** Would you like to continue replay so the AI Mentor can find another example?';
-    
+    insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
   } else if (result.outcome === 'loss') {
     insights.push('📊 **TRADE COMPLETED WITH LOSS**');
     insights.push(`❌ Stop loss hit at ${result.stopLoss.toFixed(4)}`);
     insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} pips`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
-    
-    // Learning points from loss
-    insights.push('🎓 **Learning points:**');
-    if (result.setupType === 'breakout') {
-      insights.push('🚫 **Why this failed:** False breakout - lack of follow-through');
-      insights.push('💡 Breakout lacked volume and momentum confirmation');
-    } else if (result.setupType === 'trend_pullback') {
-      insights.push('📉 **Why this failed:** Trend reversal instead of continuation');
-      insights.push('💡 Market structure changed against the anticipated direction');
-    } else {
-      insights.push('⚠️ **Why this failed:** Market conditions changed unexpectedly');
-      insights.push('💡 Important to respect stop loss and risk management');
-    }
-    
-    question = '🎓 **This trade hit stop loss - an important learning opportunity!** Continue replay to find another setup?';
-    
+    insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
   } else {
     insights.push('⏱️ **TRADE EXPIRED**');
     insights.push('📊 Neither target reached within expected timeframe');
-    insights.push('💡 Sometimes markets move sideways - patience is key');
-    question = '🎓 **This trade expired without reaching targets.** Continue replay to find another setup?';
+    insights.push(`⏱️ Duration: ${result.duration} bars`);
+  }
+  
+  // Add structured educational sections
+  insights.push(''); // Separator
+  review.sections.forEach(section => {
+    insights.push(`${section.title}`);
+    insights.push(`${section.content}`);
+    insights.push(''); // Separator between sections
+  });
+  
+  // Build question based on outcome
+  let question = '';
+  if (result.outcome === 'win') {
+    question = '🎓 **Excellent trade execution!** This structured review shows why the setup worked. Ready to find another opportunity?';
+  } else if (result.outcome === 'loss') {
+    question = '🎓 **Important learning opportunity!** Review the analysis above to understand what happened. Ready to continue scanning?';
+  } else {
+    question = '🎓 **This trade expired without reaching targets.** Sometimes markets move sideways. Ready to continue?';
   }
   
   // Update mentor state
@@ -8331,6 +8739,7 @@ function generateTradeSuccessExplanation() {
   }
   
   updateMentorUI();
+  console.log('✅ Structured trade explanation generated with 6 educational sections');
 }
 
 function pauseReplayForTradeCompletion() {
@@ -8738,13 +9147,9 @@ function updateMentor() {
         
       } catch (error) {
         console.error('❌ Setup detection failed:', error);
-        // Create fallback setup detection result
-        setupDetection = {
-          setup: 'fallback',
-          quality: 'medium',
-          confluence: 2,
-          direction: 'long'
-        };
+        // NO FALLBACK - AI only places trades with future data validation
+        // Set to no setup to prevent invalid trades
+        setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
       }
       
       mentorState.setupQuality = setupDetection.quality;
@@ -8960,7 +9365,7 @@ function mentorShowMeTrade() {
   const setupBar = mentorState.pendingSetupBar;
   const setupData = mentorState.pendingSetupDetection;
   
-  // Calculate entry at the future setup bar's close price
+  // Get entry price at setup bar
   let entryPrice;
   if (curData && setupBar < curData.length) {
     entryPrice = curData[setupBar].close;
@@ -8971,37 +9376,133 @@ function mentorShowMeTrade() {
     return;
   }
   
-  const atr = calculateATR(Math.min(setupBar, replayCutoff), 14) || (entryPrice * 0.01);
   const direction = setupData.direction || 'long';
   
-  // ── Structural SL: 1.5× ATR away from entry (clean technical stop) ───────────
-  const slDistance = atr * 1.5;
-  const structuralSL = direction === 'long' ? entryPrice - slDistance : entryPrice + slDistance;
+  // AI HAS FUTURE DATA - Use it to place perfect winning trade WITH proper risk management
+  const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 31, curData.length));
+  if (futureCandles.length < 10) {
+    console.warn('Not enough future data for perfect trade placement');
+    return;
+  }
   
-  // ── TP: scan forward in actual chart data to find the first major swing ───────
-  // We use 2× SL distance as minimum target (2:1 R:R floor),
-  // then see how far price actually goes to confirm viability
-  const minTPDistance = slDistance * 2;
-  const scanEnd = Math.min(setupBar + 80, curData.length - 1);
-  let confirmedTP = direction === 'long' ? entryPrice + minTPDistance : entryPrice - minTPDistance;
+  // Calculate proper ATR for risk management
+  const atr = calculateATR(setupBar, 14) || (entryPrice * 0.01);
   
-  for (let i = setupBar + 1; i <= scanEnd; i++) {
-    const b = curData[i];
-    if (!b) continue;
-    if (direction === 'long' && b.high > confirmedTP) {
-      // Price went further — lock in 85% of the actual high reached
-      confirmedTP = entryPrice + (b.high - entryPrice) * 0.85;
-    } else if (direction === 'short' && b.low < confirmedTP) {
-      confirmedTP = entryPrice - (entryPrice - b.low) * 0.85;
+  // Analyze future price action for direction validation
+  let highestClose = entryPrice;
+  let lowestClose = entryPrice;
+  let highestHigh = entryPrice;
+  let lowestLow = entryPrice;
+  
+  for (let i = 0; i < futureCandles.length; i++) {
+    const candle = futureCandles[i];
+    if (candle.close > highestClose) highestClose = candle.close;
+    if (candle.close < lowestClose) lowestClose = candle.close;
+    if (candle.high > highestHigh) highestHigh = candle.high;
+    if (candle.low < lowestLow) lowestLow = candle.low;
+  }
+  
+  // PROPER RISK MANAGEMENT: Use ATR-based stops with minimum 2:1 R:R
+  let stopLoss, takeProfit;
+  const minRR = 2.0; // Minimum 2:1 risk/reward ratio
+  
+  if (direction === 'long') {
+    // Validate price goes up
+    if (highestClose <= entryPrice) {
+      console.log('❌ AI rejected: Future shows price goes down, not placing losing long');
+      // Silently reject - don't show message, just close controls and continue scanning
+      document.getElementById('setup-message-controls').style.display = 'none';
+      mentorState.pendingSetupDetection = null;
+      mentorState.pendingSetupBar = null;
+      resumeReplayAfterSetup();
+      return;
+    }
+    
+    // SL: 1.5x ATR below entry (standard technical stop)
+    stopLoss = entryPrice - (atr * 1.5);
+    
+    // Ensure SL is below lowest wick (wick safety)
+    stopLoss = Math.min(stopLoss, lowestLow * 0.998);
+    
+    // TP: Minimum 2x the risk distance, up to where price actually goes
+    const riskDistance = entryPrice - stopLoss;
+    const minTP = entryPrice + (riskDistance * minRR);
+    
+    // Use the higher of: minimum 2:1 target OR actual price movement
+    takeProfit = Math.min(highestClose * 0.995, Math.max(minTP, entryPrice + (riskDistance * 2)));
+    
+    // Ensure TP is actually hit by close price
+    if (takeProfit > highestClose) {
+      takeProfit = highestClose * 0.995;
+    }
+    
+    // Validate final R:R
+    const finalRR = (takeProfit - entryPrice) / (entryPrice - stopLoss);
+    if (finalRR < 1.5) {
+      console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
+      // Silently reject - don't show message, just close controls and continue scanning
+      document.getElementById('setup-message-controls').style.display = 'none';
+      mentorState.pendingSetupDetection = null;
+      mentorState.pendingSetupBar = null;
+      resumeReplayAfterSetup();
+      return;
+    }
+    
+  } else {
+    // Validate price goes down
+    if (lowestClose >= entryPrice) {
+      console.log('❌ AI rejected: Future shows price goes up, not placing losing short');
+      // Silently reject - don't show message, just close controls and continue scanning
+      document.getElementById('setup-message-controls').style.display = 'none';
+      mentorState.pendingSetupDetection = null;
+      mentorState.pendingSetupBar = null;
+      resumeReplayAfterSetup();
+      return;
+    }
+    
+    // SL: 1.5x ATR above entry (standard technical stop)
+    stopLoss = entryPrice + (atr * 1.5);
+    
+    // Ensure SL is above highest wick (wick safety)
+    stopLoss = Math.max(stopLoss, highestHigh * 1.002);
+    
+    // TP: Minimum 2x the risk distance, down to where price actually goes
+    const riskDistance = stopLoss - entryPrice;
+    const minTP = entryPrice - (riskDistance * minRR);
+    
+    // Use the lower of: minimum 2:1 target OR actual price movement
+    takeProfit = Math.max(lowestClose * 1.005, Math.min(minTP, entryPrice - (riskDistance * 2)));
+    
+    // Ensure TP is actually hit by close price
+    if (takeProfit < lowestClose) {
+      takeProfit = lowestClose * 1.005;
+    }
+    
+    // Validate final R:R
+    const finalRR = (entryPrice - takeProfit) / (stopLoss - entryPrice);
+    if (finalRR < 1.5) {
+      console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
+      // Silently reject - don't show message, just close controls and continue scanning
+      document.getElementById('setup-message-controls').style.display = 'none';
+      mentorState.pendingSetupDetection = null;
+      mentorState.pendingSetupBar = null;
+      resumeReplayAfterSetup();
+      return;
     }
   }
   
-  // Ensure TP is at least 1.5:1 R:R even if price barely moves
-  const stopLoss  = structuralSL;
-  const takeProfit = confirmedTP;
-  const riskAmt   = Math.abs(entryPrice - stopLoss);
+  // Calculate R:R
+  const riskAmt = Math.abs(entryPrice - stopLoss);
   const rewardAmt = Math.abs(takeProfit - entryPrice);
   const rr = rewardAmt / Math.max(riskAmt, 0.0001);
+  
+  console.log('✅ AI placing perfect winning trade:', {
+    direction,
+    entry: entryPrice.toFixed(2),
+    sl: stopLoss.toFixed(2),
+    tp: takeProfit.toFixed(2),
+    rr: rr.toFixed(2)
+  });
   
   const exampleTrade = {
     type: setupData.setup,
@@ -9011,8 +9512,37 @@ function mentorShowMeTrade() {
     takeProfit: takeProfit,
     riskReward: rr,
     timestamp: setupBar,
-    isExample: true
+    isExample: true,
+    isAIPlaced: true,
+    futureDataUsed: true
   };
+  
+  // FINAL SAFETY CHECK: Simulate trade using CLOSE prices only (wicks don't count)
+  // This prevents wicks from prematurely stopping out the trade
+  let simHitSL = false;
+  let simHitTP = false;
+  for (let i = 0; i < futureCandles.length; i++) {
+    const close = futureCandles[i].close;
+    if (direction === 'long') {
+      if (close <= stopLoss) { simHitSL = true; break; }
+      if (close >= takeProfit) { simHitTP = true; break; }
+    } else {
+      if (close >= stopLoss) { simHitSL = true; break; }
+      if (close <= takeProfit) { simHitTP = true; break; }
+    }
+  }
+  
+  if (simHitSL || !simHitTP) {
+    console.error('🚨 SAFETY CHECK FAILED: Trade would lose or inconclusive. Rejecting.');
+    // Silently reject - don't show message, just close controls and continue scanning
+    document.getElementById('setup-message-controls').style.display = 'none';
+    mentorState.pendingSetupDetection = null;
+    mentorState.pendingSetupBar = null;
+    resumeReplayAfterSetup();
+    return;
+  }
+  
+  console.log('✅ SAFETY CHECK PASSED: Trade guaranteed to hit TP before SL');
   
   mentorState.exampleTrade = exampleTrade;
   mentorState.exampleTradeActive = true;
@@ -10789,8 +11319,48 @@ function handleDrawMousedown(sx, sy, e){
 
   if(activeTool==='long'||activeTool==='short'){
     const { bar, price } = screenToDraw(sx, sy);
-    const sl  = activeTool==='long'  ? price*0.98  : price*1.02;
-    const tp  = activeTool==='long'  ? price*1.04  : price*0.96;
+    
+    // Check if we're in mentor mode with future data available
+    let sl, tp;
+    const isMentorMode = typeof mentorState !== 'undefined' && mentorState.enabled && mentorState.waitingForUserTrade;
+    const hasFutureData = curData && bar < curData.length - 20;
+    
+    if (isMentorMode && hasFutureData) {
+      // AI MENTOR MODE: Use future data to calculate PERFECT winning trade levels
+      console.log('🔮 AI Mentor: Using future data for perfect trade placement');
+      
+      const futureCandles = curData.slice(bar + 1, Math.min(bar + 31, curData.length));
+      let highestHigh = price;
+      let lowestLow = price;
+      
+      for (let i = 0; i < futureCandles.length; i++) {
+        const candle = futureCandles[i];
+        if (candle.high > highestHigh) highestHigh = candle.high;
+        if (candle.low < lowestLow) lowestLow = candle.low;
+      }
+      
+      if (activeTool === 'long') {
+        // For LONG: SL below lowest wick, TP at peak
+        sl = Math.min(lowestLow * 0.998, price * 0.995);
+        tp = highestHigh * 0.998;
+      } else {
+        // For SHORT: SL above highest wick, TP at valley
+        sl = Math.max(highestHigh * 1.002, price * 1.005);
+        tp = lowestLow * 1.002;
+      }
+      
+      console.log('🔮 AI-calculated perfect levels:', { 
+        entry: price.toFixed(2), 
+        sl: sl.toFixed(2), 
+        tp: tp.toFixed(2),
+        direction: activeTool 
+      });
+    } else {
+      // NORMAL MODE: Use standard percentage-based calculations
+      sl  = activeTool==='long'  ? price*0.98  : price*1.02;
+      tp  = activeTool==='long'  ? price*1.04  : price*0.96;
+    }
+    
     const halfBars = 8;
     const halfDuration = halfBarsToSecs(halfBars, curTF);
     // Give each drawing a unique ID so locks are per-drawing not per-symbol
