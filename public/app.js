@@ -7,7 +7,7 @@ let _overlayLocked = false;
 
 function toggleOverlay(name) {
   const panel = document.getElementById('overlay-panel');
-  const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools',inds:'Indicators',tutor:'AI Tutor'};
+  const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools',inds:'Indicators'};
 
   // Locked + same panel clicked → unlock and close
   if (_overlayLocked && _activeOverlay === name) {
@@ -23,7 +23,7 @@ function toggleOverlay(name) {
   }
 
   // Hide all sub-panels
-  ['ov-watch','ov-alerts','ov-scanner','ov-draw','ov-inds','ov-tutor'].forEach(id => {
+  ['ov-watch','ov-alerts','ov-scanner','ov-draw','ov-inds'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -56,10 +56,6 @@ function toggleOverlay(name) {
     renderIndList('');
     setTimeout(() => { const s2 = document.getElementById('ov-ind-search'); if(s2) s2.focus(); }, 80);
   }
-  if (name === 'tutor') {
-    // Auto-analyse chart when panel opens if no analysis shown yet
-    setTimeout(() => { if(typeof tutorAutoStart === 'function') tutorAutoStart(); }, 80);
-  }
 
   panel.classList.add('open');
   if (_overlayLocked) {
@@ -70,7 +66,7 @@ function toggleOverlay(name) {
   _activeOverlay = name;
 
   // Update nav button active states
-  ['watch','alerts','scanner','draw','inds','tutor'].forEach(n => {
+  ['watch','alerts','scanner','draw','inds'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.toggle('active', n === name);
   });
@@ -83,11 +79,10 @@ function closeOverlay() {
   const panel = document.getElementById('overlay-panel');
   panel.classList.remove('open', 'locked');
   document.getElementById('app').classList.remove('panel-locked');
-  ['watch','alerts','scanner','draw','inds','tutor'].forEach(n => {
+  ['watch','alerts','scanner','draw','inds'].forEach(n => {
     const btn = document.getElementById('nav-' + n);
     if (btn) btn.classList.remove('active');
   });
-  if(typeof clearTutorMarkers === 'function') clearTutorMarkers();
   _activeOverlay = null;
   _overlayLocked = false;
   _updateLockBtn();
