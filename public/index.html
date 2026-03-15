@@ -1293,8 +1293,9 @@ body.is-dragging { user-select: none; }
         <!-- Setup Message Controls -->
         <div id="setup-message-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:8px;margin-bottom:12px;">
           <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
-            <button onclick="dismissSetupMessage()" style="padding:4px 8px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">Dismiss Setup</button>
-            <button onclick="resumeReplayAfterSetup()" style="padding:4px 8px;background:var(--blue);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Resume Replay</button>
+            <button onclick="dismissSetupMessage()" style="padding:4px 8px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">Dismiss</button>
+            <button onclick="mentorShowMeTrade()" style="padding:4px 8px;background:var(--blue);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Show Me The Trade</button>
+            <button onclick="mentorLetMeTry()" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Let Me Try It</button>
           </div>
         </div>
         
@@ -5372,6 +5373,9 @@ function updateLockedMentorUI() {
   if (mentorState.lockedMessage === 'trade_completed') {
     setupControlsEl.style.display = 'none';
     completionControlsEl.style.display = 'block';
+  } else if (mentorState.activeTrainingMode || mentorState.exampleTradeActive) {
+    setupControlsEl.style.display = 'none';
+    completionControlsEl.style.display = 'none';
   } else {
     setupControlsEl.style.display = 'block';
     completionControlsEl.style.display = 'none';
@@ -5572,26 +5576,48 @@ function handleTradeCompletion(outcome, currentBar) {
   let outcomeMessage = '';
   let outcomeInsights = [];
   
-  if (outcome === 'take_profit') {
-    outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
-    outcomeInsights = [
-      'The setup worked as expected with strong momentum continuation.',
-      'Risk management was effective with proper stop loss placement.',
-      'This demonstrates the importance of patience in letting trades develop.'
-    ];
+  if (mentorState.exampleTrade && mentorState.exampleTrade.isUserGuided) {
+    // User-guided "Let Me Try It" trade feedback
+    if (outcome === 'take_profit') {
+      outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
+      outcomeInsights = [
+        'Fantastic execution! Your analysis of the market structure and entry timing were well aligned with the trend.',
+        `Risk/Reward Structure: Excellent 1:${mentorState.exampleTrade.riskReward.toFixed(2)} ratio ensures sustainable growth.`,
+        'Stop Loss Placement: Safely tucked away behind structure, surviving any erratic price wicks.',
+        'This trade highlights the importance of letting the setup play out naturally once executed.'
+      ];
+    } else {
+      outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
+      outcomeInsights = [
+        'The trade was stopped out. Market conditions or sudden momentum shifts might have invalidated the setup.',
+        'Entry Timing: You may have entered slightly aggressively before full confirmation was present.',
+        'Stop Loss Placement: Consider whether your stop was placed too tight, or if the structural level actually failed.',
+        'Review the market structure and wait for stronger confluence next time before taking the entry.'
+      ];
+    }
   } else {
-    outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
-    outcomeInsights = [
-      'The setup failed due to adverse price movement.',
-      'Stop loss protected capital from further downside.',
-      'Consider waiting for stronger confirmation next time.'
-    ];
+    // AI-guided "Show Me The Trade" feedback
+    if (outcome === 'take_profit') {
+      outcomeMessage = 'Trade Outcome: Take Profit Reached 🎯';
+      outcomeInsights = [
+        'The setup worked as expected with strong breakout behaviour and momentum continuation.',
+        'Risk management was effective with proper stop loss placement beyond the structural pivot.',
+        'This demonstrates the importance of patience in letting trades develop.'
+      ];
+    } else {
+      outcomeMessage = 'Trade Outcome: Stop Loss Hit ⛔';
+      outcomeInsights = [
+        'The setup failed due to adverse price movement and loss of momentum.',
+        'Stop loss protected capital from further downside as market structure broke.',
+        'Consider waiting for stronger confirmation next time.'
+      ];
+    }
   }
   
   // Update mentor with trade completion
   mentorState.lockedMessage = 'trade_completed';
   mentorState.lockedInsights = [outcomeMessage, ...outcomeInsights];
-  mentorState.lockedQuestion = 'This setup has now completed. Would you like to continue replay so the AI mentor can find the next opportunity?';
+  mentorState.lockedQuestion = 'Would you like to continue replay so we can find another setup?';
   mentorState.lifecycleState = 'trade_completed';
   
   // Clear trade monitoring updates
@@ -8790,18 +8816,54 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
   const analysis = mentorState.analysis;
   console.log('🤖 generateSetupMessageWithExampleTrade called:', setupDetection);
   
+  // Store the impending trade data to use if user says "Show Me"
+  mentorState.pendingSetupDetection = setupDetection;
+  mentorState.pendingSetupBar = currentBar;
+  
   // High quality trade insights provide the basis of the setup message
   generateHighQualityTradeInsights(setupDetection);
   
   // Transform the question into an actionable mentor pause message
-  mentorState.currentQuestion = mentorState.currentQuestion + 
-    " The replay has been paused to allow you to analyze this setup. Would you like to observe how this trade might play out?";
+  mentorState.currentQuestion = "A valid " + (setupDetection.setup || "trading") + " setup is forming based on the selected strategy. You can either watch the AI demonstrate the trade or try placing the trade yourself.";
+  
+  // Lock the message so it stays visible and shows the options
+  lockSetupMessage(setupDetection);
+  updateLockedMentorUI();
+}
+
+function mentorShowMeTrade() {
+  if (!mentorState.pendingSetupDetection) return;
   
   // Generate and draw the theoretical example trade for the user to watch
-  activateExampleTrade(setupDetection, currentBar);
+  activateExampleTrade(mentorState.pendingSetupDetection, mentorState.pendingSetupBar);
   
-  // Lock the message so it stays visible while the setup develops
-  lockSetupMessage(setupDetection);
+  // Reset message to show monitoring text and hide the setup controls
+  mentorState.lockedQuestion = "AI is demonstrating the trade. Watching position...";
+  document.getElementById('setup-message-controls').style.display = 'none';
+  
+  // Clear the pending state
+  mentorState.pendingSetupDetection = null;
+  mentorState.pendingSetupBar = null;
+  
+  resumeReplayAfterSetup();
+}
+
+function mentorLetMeTry() {
+  if (!mentorState.pendingSetupDetection) return;
+  
+  // Tell the mentor we are waiting for a user trade interception
+  mentorState.waitingForUserTrade = true;
+  mentorState.activeTrainingMode = 'user_guided';
+  
+  // Reset message to prompt user
+  mentorState.lockedQuestion = "Place your trade using the Long/Short drawing tool. The AI will evaluate your placement once it resolves.";
+  document.getElementById('setup-message-controls').style.display = 'none';
+  
+  // Clear the pending state
+  mentorState.pendingSetupDetection = null;
+  mentorState.pendingSetupBar = null;
+  
+  resumeReplayAfterSetup();
 }
 
 function generateNoSetupMessage() {
@@ -10513,6 +10575,30 @@ function handleDrawMousedown(sx, sy, e){
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
     draw(); setTool('cursor');
+    
+    // Intercept drawing if we are in "Let Me Try It" mode
+    if (typeof mentorState !== 'undefined' && mentorState.waitingForUserTrade) {
+      mentorState.waitingForUserTrade = false;
+      mentorState.exampleTrade = {
+        type: 'user_placement',
+        direction: activeTool,
+        entry: price,
+        stopLoss: sl,
+        takeProfit: tp,
+        riskReward: Math.abs(tp - price) / Math.abs(price - sl),
+        timestamp: bar,
+        isUserGuided: true
+      };
+      mentorState.exampleTradeActive = true;
+      mentorState.tradeMonitoringUpdates = [];
+      
+      mentorState.lockedQuestion = "Monitoring your trade. Watching position...";
+      updateLockedMentorUI();
+      
+      console.log('🎯 User guided trade activated:', mentorState.exampleTrade);
+      return true;
+    }
+    
     showTradeAnalysisPopup(drawing, true); // freshPlacement=true — don't restore old lock
     return true;
   }
