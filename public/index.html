@@ -1876,6 +1876,12 @@ let _autoSaveInterval = null;
 const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
 
+// ══ DRAWING VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+let drawings = []; // completed drawings
+
+// ══ DOM CACHE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+let _elCache = {}; // Cached DOM element references
+
 // ══ BUILTIN INDICATORS (declared early to prevent hoisting issues) ══════════════════════════════════════════
 const BUILTIN_INDS = [
   {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
@@ -5206,14 +5212,23 @@ function closeMentorPopup() {
   if (popup) {
     popup.style.transition = 'all 0.2s ease';
     popup.style.opacity = '0';
-    popup.style.transform = 'translate(-50%, -50%) scale(0.9)';
-    
+    popup.style.transform = 'scale(0.95)';
     setTimeout(() => {
       popup.style.display = 'none';
       popup.style.opacity = '1';
-      popup.style.transform = 'translate(-50%, -50%) scale(1)';
+      popup.style.transform = 'scale(1)';
     }, 200);
   }
+}
+
+function enableMentorFromPopup() {
+  closeMentorPopup();
+  mentorState.enabled = true;
+  const panel = document.getElementById('ai-mentor-panel');
+  if (panel) {
+    panel.style.display = 'block';
+  }
+  showMentorMessage('Mentor enabled! Start a replay to get AI guidance.');
 }
 
 // Chart Tool Functions for Trade Placement
@@ -6619,7 +6634,6 @@ function getCSSVar(v){
 }
 function invalidateCSSVarCache(){ _cssVarCache = {}; _cssVarCacheDirty = true; }
 // Cached DOM element references (only looked up once)
-let _elCache = {};
 function _el(id){ return _elCache[id] || (_elCache[id] = document.getElementById(id)); }
 function invalidateElCache(){ _elCache = {}; }
 
@@ -7161,7 +7175,6 @@ function _drawImmediate(){
 
 // ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
 let activeTool = 'cursor';
-let drawings   = [];         // completed drawings
 
 // ── Per-symbol drawing persistence ───────────────────────────────────────────
 // ── Drawing coordinate helpers ──────────────────────────────────────────────
