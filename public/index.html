@@ -7644,8 +7644,20 @@ function enableMentorFromPopup() {
 function selectTradingMethod(method) {
   mentorState.selectedTradingMethod = method;
   mentorState.tradingMethodSelected = true;
-  // NOTE: set lifecycleState AFTER any state-based checks below
   mentorState.lifecycleState = 'scanning';
+
+  // Test annotation: place a visible marker at the current bar so user knows
+  // the annotation system is working. Clears when setup is found.
+  if (replayMode && curData && replayCutoff > 0) {
+    const bar   = replayCutoff;
+    const price = curData[bar]?.close;
+    if (price) {
+      _clearMentorAnnotationsSilent();
+      _addMentorArrow(bar, price, `🎯 ${method} strategy active`, 'down', false);
+      _addMentorLabel(bar, price, [`Strategy: ${method}`, 'Scanning for setups...']);
+      if (typeof draw === 'function') draw();
+    }
+  }
 
   // Hide method selection panel
   const methodSelection = document.getElementById('trading-method-selection');
@@ -8621,8 +8633,13 @@ function handleSetupDetectedState(currentBar) {
 
     if (replayMode) pauseReplayForSetup();
 
-    // ── Draw chart annotations to show the user what to look at ─────────────
-    setTimeout(() => _mentorAnnotateSetup(setupData, setupBar, currentBar), 80);
+    // ── Draw chart annotations showing the setup criteria visible RIGHT NOW ────
+    // Annotate currentBar (what the user can see now), not setupBar (future/hidden).
+    // After annotations are added, call draw() immediately so they appear.
+    setTimeout(() => {
+      _mentorAnnotateSetup(setupData, currentBar, currentBar);
+      if (typeof draw === 'function') draw();
+    }, 80);
 
     updateLockedMentorUI();
 
@@ -9946,9 +9963,20 @@ function mentorShowMeTrade() {
   };
 
   // ── Draw levels on the chart RIGHT NOW even though the candle hasn't arrived ─
-  // The user sees the entry line, SL and TP ahead of time and watches the
-  // candle approach and hit the entry live.
   drawExampleTrade(exampleTrade);
+
+  // Add an arrow annotation at the entry bar pointing to the entry level
+  // This visually confirms WHERE the trade will be entered on the chart
+  _clearMentorAnnotationsSilent();
+  const entryDir = direction === 'long' ? 'up' : 'down';
+  _addMentorArrow(entryBar, entryPrice,
+    direction === 'long' ? '▶ LONG entry' : '▶ SHORT entry',
+    entryDir, true);
+  // Mark the stop loss level
+  _addMentorBox(entryBar - 3, entryBar + 10,
+    direction === 'long' ? stopLoss : entryPrice,
+    direction === 'long' ? entryPrice : stopLoss,
+    `SL zone: ${fP(stopLoss)}`);
 
   mentorState.exampleTrade       = exampleTrade;
   mentorState.exampleTradeActive = true;   // monitoring runs every step
@@ -12468,8 +12496,16 @@ let _mentorAnnotationIds = []; // track IDs so we can clear them
 function clearMentorAnnotations() {
   drawings = drawings.filter(d => !d.isMentorAnnotation);
   _mentorAnnotationIds = [];
-  saveDrawings(curSym.s, curTF);
-  draw();
+  try { saveDrawings(curSym.s, curTF); } catch(e) {}
+  // Don't call draw() here — caller is responsible for redrawing
+  // (avoids premature draw when called mid-annotation inside _mentorAnnotateSetup)
+  if (typeof draw === 'function') draw();
+}
+
+// Silent clear — no redraw. Used internally before adding new annotations.
+function _clearMentorAnnotationsSilent() {
+  drawings = drawings.filter(d => !d.isMentorAnnotation);
+  _mentorAnnotationIds = [];
 }
 
 // Add an arrow pointing at a specific bar/price.
@@ -12531,15 +12567,18 @@ function _addMentorLabel(bar, price, lines) {
 // ── Annotate key setup moments ────────────────────────────────────────────
 // Called when the early-warning pause fires. Reads the setup type and places
 // relevant annotations on the chart to show the user WHAT to look at.
-function _mentorAnnotateSetup(setupDetection, setupBar, currentBar) {
-  if (!curData || setupBar >= curData.length) return;
-  clearMentorAnnotations(); // remove any previous annotations first
+function _mentorAnnotateSetup(setupDetection, anchorBar, currentBar) {
+  // anchorBar is the last VISIBLE bar — we annotate what's already on screen
+  if (!curData || anchorBar < 0 || anchorBar >= curData.length) return;
+  _clearMentorAnnotationsSilent();
 
   const method   = mentorState.selectedTradingMethod || 'breakout';
   const dir      = setupDetection.direction || 'long';
-  const bar      = setupBar;
+  const bar      = Math.min(anchorBar, curData.length - 1);
   const c        = curData[bar];
   if (!c) return;
+
+  console.log('🎨 _mentorAnnotateSetup:', { method, dir, bar, price: c.close });
 
   const atr = calculateATR(bar, 14) || (c.close * 0.01);
   const lookback = curData.slice(Math.max(0, bar - 15), bar + 1);
