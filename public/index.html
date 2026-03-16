@@ -5397,9 +5397,10 @@ function updateMentorUI() {
   let insightsHTML = '';
   if (mentorState.currentInsights && mentorState.currentInsights.length > 0) {
     insightsHTML = mentorState.currentInsights.map(insight => {
-      // Handle markdown-style bold text
-      const formattedInsight = insight.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<div style="margin-bottom:4px;">${formattedInsight}</div>`;
+      if (!insight || !insight.trim()) return '<div style="height:6px;"></div>';
+      const escaped = insight.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const formatted = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<div style="margin-bottom:8px;line-height:1.45;color:var(--tx2);font-size:11px;">${formatted}</div>`;
     }).join('');
   }
   
@@ -5470,7 +5471,16 @@ function updateLockedMentorUI() {
     displayContent.push(...mentorState.tradeMonitoringUpdates);
   }
   
-  insightsEl.textContent = displayContent.join('\n');
+  // Render each line as its own block with spacing — AI responses use blank
+  // lines as separators between bullet points, which need visual gaps not just \n
+  insightsEl.innerHTML = displayContent
+    .map(line => {
+      if (!line || !line.trim()) return '<div style="height:6px;"></div>';
+      // Detect monitoring update lines (start with • or ⏳ etc)
+      const isUpdate = /^[•⏳🔔⚡🎯✅⚠️🔴📈📉]/.test(line.trim());
+      return `<div style="margin-bottom:${isUpdate ? '4' : '8'}px;line-height:1.45;color:${isUpdate ? 'var(--tx3)' : 'var(--tx2)'};font-size:11px;">${line.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+    })
+    .join('');
   questionEl.textContent = mentorState.lockedQuestion;
   
   // Show appropriate controls based on state
@@ -6504,19 +6514,6 @@ function closeTradeReview() {
 // ══ TRADING METHOD FILTERING ═══════════════════════════════════════════════════════════
 
 function changeTradingMethod(newMethod) {
-  console.log('🔄 Trading method changed to:', newMethod);
-  
-  if (!newMethod) {
-    // User deselected - clear method
-    mentorState.selectedTradingMethod = null;
-    mentorState.tradingMethodSelected = false;
-    mentorState.currentInsights = ['📚 No trading method selected. Please select a strategy to begin.'];
-    mentorState.currentQuestion = 'Choose a trading style from the dropdown menu above.';
-    updateMentorUI();
-    return;
-  }
-  
-  // Get method display name
   const methodNames = {
     'breakout': 'Breakout Trading',
     'trend': 'Trend Following',
@@ -6525,38 +6522,66 @@ function changeTradingMethod(newMethod) {
     'range': 'Range Trading',
     'liquidity': 'Liquidity Sweep'
   };
-  
+
+  if (!newMethod) {
+    mentorState.selectedTradingMethod = null;
+    mentorState.tradingMethodSelected = false;
+    mentorState.currentInsights = ['📚 No strategy selected — pick one to begin.'];
+    mentorState.currentQuestion = 'Choose a trading style from the dropdown above.';
+    updateMentorUI();
+    return;
+  }
+
   const methodDisplayName = methodNames[newMethod] || newMethod;
-  
-  // Reset all states when strategy changes
+
+  // ── Pause replay immediately so we don't scan mid-switch ─────────────────
+  const wasPlaying = !!(replayMode && replayTimer);
+  if (wasPlaying) {
+    clearInterval(replayTimer);
+    replayTimer = null;
+    updateReplayStatus();
+  }
+
+  // ── Show switching state in panel ─────────────────────────────────────────
+  mentorState.currentInsights = [
+    `🔄 Switching to ${methodDisplayName}...`,
+    `⏸ Replay paused while strategy resets.`,
+  ];
+  mentorState.currentQuestion = 'Clearing old state and rescanning for new setups...';
+  updateMentorUI();
+
+  // ── Reset all mentor state for the new method ─────────────────────────────
   resetMentorStateForStrategyChange();
-  
-  // Set new method
   mentorState.selectedTradingMethod = newMethod;
   mentorState.tradingMethodSelected = true;
-  
-  // Update message to confirm change
-  mentorState.currentInsights = [`🎯 Trading method switched to ${methodDisplayName}.`];
-  mentorState.currentQuestion = `The mentor will now focus on ${methodDisplayName.toLowerCase()} setups. Scanning for opportunities...`;
-  
-  // Reset to scanning state
-  mentorState.lifecycleState = 'scanning';
+  mentorState.lifecycleState        = 'scanning';
+  mentorState._proximityHintCache   = null; // clear AI hint cache
 
-  console.log('✅ Trading method updated:', {
-    method: newMethod,
-    displayName: methodDisplayName,
-    lifecycleState: mentorState.lifecycleState
-  });
+  // Sync finder dropdown if open
+  const mfSel = document.getElementById('mf-method-select');
+  if (mfSel) mfSel.value = newMethod;
 
-  // Trigger a fresh scan so the new strategy takes effect immediately.
-  // Previously only updateMentorUI() was called which redraws the panel but
-  // doesn't run any analysis — same root bug as selectTradingMethod.
-  if (replayMode) {
-    triggerReplayRescan();
-  } else {
+  // ── Small delay so UI updates are visible, then rescan ───────────────────
+  setTimeout(() => {
+    mentorState.currentInsights = [`🎯 ${methodDisplayName} — scanning for setups...`];
+    mentorState.currentQuestion = 'Looking for setups that meet the strict criteria for this strategy.';
     updateMentorUI();
-  }
-  toast(`🎯 Strategy changed to ${methodDisplayName}`);
+
+    if (replayMode) {
+      triggerReplayRescan();
+      // Auto-resume if it was playing before the switch
+      if (wasPlaying) {
+        setTimeout(() => {
+          if (replayMode && !replayTimer) {
+            replayTimer = setInterval(() => replayStep(1), replaySpeed || 500);
+            updateReplayStatus();
+          }
+        }, 300);
+      }
+    }
+  }, 200);
+
+  toast(`🎯 Strategy → ${methodDisplayName}`);
 }
 
 function resetMentorStateForStrategyChange() {
@@ -9339,30 +9364,26 @@ async function _mentorAISetupAnalysis(setupDetection, barIndex) {
     ? 'NOTE: This is a crypto asset — liquidity sweeps are more deliberate, false breakouts more common, round numbers act as major S&R, and funding rates affect trend continuation probability.'
     : '';
 
-  const prompt = `You are a professional trading mentor giving a concise setup briefing. Be direct and specific.
+  const prompt = `You are a trading mentor. Write a SHORT setup briefing — like a quick message from a senior trader to a student. Conversational, human, easy to read.
 
-ASSET: ${ctx.sym} | TIMEFRAME: ${ctx.tf} | TYPE: ${ctx.assetType}
-STRATEGY: ${ctx.method.toUpperCase()} — ${methodDesc}
+CONTEXT: ${ctx.sym} ${ctx.tf} | ${ctx.assetType} | Strategy: ${ctx.method}
 ${cryptoNote}
 
-RECENT PRICE ACTION (last 25 bars):
+PRICE DATA (last 25 bars):
 ${ctx.ohlcvStr}
 
-KEY INDICATORS at bar ${barIndex}:
-Price: ${ctx.price} | ATR(14): ${ctx.atr}
-RSI(14): ${ctx.rsi} | EMA9: ${ctx.ema9} | EMA21: ${ctx.ema21}
-SMA20: ${ctx.sma20} | SMA50: ${ctx.sma50}
+INDICATORS: Price ${ctx.price} | ATR ${ctx.atr} | RSI ${ctx.rsi} | EMA9 ${ctx.ema9} | EMA21 ${ctx.ema21} | SMA20 ${ctx.sma20} | SMA50 ${ctx.sma50}
 
-DETECTED SETUP: ${setupDetection.setup?.replace(/_/g,' ')} | Direction: ${setupDetection.direction} | Confluence: ${setupDetection.confluence}/4 | Quality: ${setupDetection.quality}
+SETUP: ${setupDetection.setup?.replace(/_/g,' ')} ${setupDetection.direction?.toUpperCase()} | Confluence ${setupDetection.confluence}/4 | ${(setupDetection.quality||'').toUpperCase()}
 
-Write a SHORT mentor briefing (3-4 bullet points, max 120 words total) that:
-1. States what the setup is and which specific criteria are met
-2. Names the key level and WHY it matters (prior tested level, structure, etc.)
-3. What to watch for as the setup develops (confirmation signal needed)
-4. ONE risk factor the trader should be aware of
-${ctx.isCrypto ? '5. One crypto-specific consideration (liquidity, funding, round number, session)' : ''}
+Write EXACTLY 4 SHORT lines. Each line starts with a different emoji. Each line is ONE sentence, max 18 words. Put a blank line between each.
 
-Format: bullet points starting with an emoji. No preamble. No "In conclusion". Be a mentor, not a textbook.`;
+Line 1 (🔍): What the setup is and the one key criterion that triggered it
+Line 2 (📍): The specific price level that matters and why (name the actual number)
+Line 3 (👀): The one thing to watch for as confirmation before price moves
+Line 4 (⚠️): The main risk — what would invalidate this${ctx.isCrypto ? ' (crypto-specific is fine)' : ''}
+
+Do not use sub-bullets. Do not write more than 4 lines. No intro sentence. Start straight with line 1.`;
 
   try {
     return await groqFetch(prompt);
@@ -9377,27 +9398,21 @@ async function _mentorAITradePlacement(trade, barIndex) {
   const ctx = _buildMentorContext(barIndex, 15);
   if (!ctx) return null;
 
-  const prompt = `You are a trading mentor explaining a specific trade placement. Be concise and educational.
+  const prompt = `You are a trading mentor. Explain this trade in plain English — like you're quickly walking a student through it. Keep it tight and human.
 
-ASSET: ${ctx.sym} | TF: ${ctx.tf} | STRATEGY: ${ctx.method}
+${ctx.sym} ${ctx.tf} | ${trade.direction.toUpperCase()} | ${ctx.method} strategy
+Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)} | R:R: ${trade.riskReward.toFixed(2)}:1 | ATR: ${ctx.atr}
 
-TRADE:
-Direction: ${trade.direction.toUpperCase()}
-Entry: ${trade.entry.toFixed(4)} (next bar open after setup confirmation)
-Stop Loss: ${trade.stopLoss.toFixed(4)}
-Take Profit: ${trade.takeProfit.toFixed(4)}
-R:R Ratio: ${trade.riskReward.toFixed(2)}:1
-ATR(14): ${ctx.atr}
-
-RECENT PRICE ACTION (last 15 bars):
+Recent bars:
 ${ctx.ohlcvStr}
 
-Write exactly 3 bullet points (max 80 words total):
-• Entry — why this specific price makes sense structurally
-• Stop Loss — what structural level it is below/above and why that invalidates the thesis  
-• Take Profit — what the target represents (resistance level, measured move, etc.)
+Write EXACTLY 3 lines. Each line starts with a different emoji. Each line is ONE sentence, max 20 words. Put a blank line between each.
 
-Be specific to these actual numbers. No preamble.`;
+Line 1 (🎯): Why we entered at ${trade.entry.toFixed(4)} — what structure or signal confirmed it
+Line 2 (🛡️): Why the stop is at ${trade.stopLoss.toFixed(4)} — what level makes this trade wrong
+Line 3 (🏆): What ${trade.takeProfit.toFixed(4)} represents — resistance, measured move, liquidity
+
+No intro. No summary. Start straight with line 1.`;
 
   try {
     return await groqFetch(prompt);
@@ -9413,26 +9428,23 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar) {
   if (!ctx) return null;
   const isWin = outcome === 'take_profit';
 
-  const prompt = `You are a trading mentor delivering a post-trade debrief. Be honest and educational.
+  const prompt = `You are a trading mentor. Give a quick post-trade debrief — honest, human, like a coach reviewing a play.
 
-ASSET: ${ctx.sym} | TF: ${ctx.tf} | STRATEGY: ${ctx.method}
+${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN — TP hit' : '❌ LOSS — SL hit'} | ${ctx.method} strategy
+Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1
 
-TRADE RESULT: ${isWin ? '✅ TAKE PROFIT HIT' : '❌ STOP LOSS HIT'}
-Direction: ${trade.direction.toUpperCase()}
-Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)}
-R:R: ${trade.riskReward.toFixed(2)}:1
-
-PRICE ACTION DURING TRADE (last 30 bars):
+Price action (last 30 bars):
 ${ctx.ohlcvStr}
 
-Write a debrief in exactly 4 bullet points (max 150 words total):
-• What the setup was and whether the entry thesis was correct
-• ${isWin ? 'What drove price to the target — which criteria confirmed momentum' : 'What caused the stop to be hit — which criterion failed or was absent'}
-• One specific thing the trader should look for NEXT TIME on this setup type
-• Whether the risk management (SL/TP placement) was appropriate given the ATR
+Write EXACTLY 4 lines. Each starts with a different emoji. Each is ONE sentence, max 20 words. Put a blank line between each.
 
-${isWin ? 'Tone: positive reinforcement, note what was done right.' : 'Tone: constructive, not discouraging. Frame it as a learning trade.'}
-No preamble. Start with the first bullet point.`;
+Line 1 (${isWin ? '✅' : '❌'}): Was the entry thesis correct? One sentence on what the setup showed
+Line 2 (📊): ${isWin ? 'What drove price to target — which factor gave momentum' : 'What went wrong — which criterion was weak or missing'}
+Line 3 (💡): The one thing to look for next time on this setup type (be specific)
+Line 4 (⚖️): Was the SL/TP sizing appropriate for ATR ${ctx.atr}? One honest sentence
+
+${isWin ? 'Tone: positive but not sycophantic.' : 'Tone: constructive. No blame. Frame it as useful data.'}
+No intro. Start with line 1.`;
 
   try {
     return await groqFetch(prompt);
@@ -9450,12 +9462,9 @@ async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
   const barsAway = setupBar - currentBar;
   const setupName = (setupDetection.setup || 'setup').replace(/_/g,' ');
 
-  const prompt = `You are a trading mentor giving a 1-sentence hint while a ${ctx.method} setup approaches (${barsAway} bars away) on ${ctx.sym} ${ctx.tf}.
+  const prompt = `Trading mentor hint — ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}.
 
-Price: ${ctx.price} | RSI: ${ctx.rsi} | EMA9: ${ctx.ema9} | EMA21: ${ctx.ema21}
-Setup type: ${setupName} | Direction: ${setupDetection.direction}
-
-Write ONE sentence (max 25 words) telling the trader what specific price action to watch for RIGHT NOW as the setup approaches. Be concrete. No preamble.`;
+Write one short sentence (max 20 words) — what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
 
   try {
     const hint = await groqFetch(prompt);
@@ -10524,8 +10533,8 @@ function runMentorFinderScan() {
   if (scanBtn)  { scanBtn.disabled = true; scanBtn.textContent = 'Scanning...'; }
 
   const total  = curData.length;
-  const step   = 3;
-  const minGap = 20;
+  const step   = 4;    // check every 4th bar (was 3 — reduces noise)
+  const minGap = 40;   // minimum 40 bars between reported setups (was 20 — prevents clusters)
   let   i      = 50;
   let   lastFoundBar = -999;
 
@@ -10548,10 +10557,11 @@ function runMentorFinderScan() {
         const scanMethod = method || mentorState.selectedTradingMethod || 'breakout';
         const sd = detectStructuredSetups(curData.slice(0, i + 1), i, scanMethod);
 
-        // Accept confluence >= 1 in scanner — we want to surface any
-        // real setup, not just textbook-perfect ones. The card shows quality/confluence
-        // so users can judge for themselves.
-        if (sd.setup === 'none' || sd.confluence < 1) continue;
+        // Only surface HIGH-quality setups — confluence >= 3 means at least 3 of 4
+        // methodology criteria are met. This prevents the scanner from finding a trade
+        // every few bars and only shows genuinely valid setups.
+        if (sd.setup === 'none' || sd.confluence < 3) continue;
+        if (sd.quality === 'low') continue; // reject low-quality even if confluence passes
         if (i - lastFoundBar < minGap) continue;
 
         const futureC = curData.slice(i + 1, Math.min(i + 51, curData.length));
