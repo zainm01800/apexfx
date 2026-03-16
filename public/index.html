@@ -6358,14 +6358,21 @@ function changeTradingMethod(newMethod) {
   
   // Reset to scanning state
   mentorState.lifecycleState = 'scanning';
-  
+
   console.log('✅ Trading method updated:', {
     method: newMethod,
     displayName: methodDisplayName,
     lifecycleState: mentorState.lifecycleState
   });
-  
-  updateMentorUI();
+
+  // Trigger a fresh scan so the new strategy takes effect immediately.
+  // Previously only updateMentorUI() was called which redraws the panel but
+  // doesn't run any analysis — same root bug as selectTradingMethod.
+  if (replayMode) {
+    triggerReplayRescan();
+  } else {
+    updateMentorUI();
+  }
   toast(`🎯 Strategy changed to ${methodDisplayName}`);
 }
 
@@ -7484,64 +7491,67 @@ function closeMentorPopup() {
   if (popup) {
     popup.style.transition = 'all 0.2s ease';
     popup.style.opacity = '0';
-    popup.style.transform = 'scale(0.95)';
+    popup.style.transform = 'translate(-50%, -50%) scale(0.95)';
     setTimeout(() => {
       popup.style.display = 'none';
+      // Reset to base state so next open animates correctly
+      popup.style.transition = '';
       popup.style.opacity = '1';
-      popup.style.transform = 'scale(1)';
+      popup.style.transform = 'translate(-50%, -50%) scale(1)';
     }, 200);
   }
 }
 
 function enableMentorFromPopup() {
   closeMentorPopup();
-  mentorState.enabled = true;
-  mentorState.currentBar = -1; // Reset to force re-analysis
-  mentorState.lastTradeSuggestionBar = -1000; // Reset cooldown
-  mentorState.lifecycleState = 'method_selection'; // Start with method selection
-  mentorState.setupWaitStart = null;
-  mentorState.setupWaitData = null;
-  mentorState.monitoredTrade = null;
-  mentorState.exampleTrade = null;
-  mentorState.exampleTradeActive = false;
-  mentorState.exampleTradeOutcome = null;
-  mentorState.tradeMonitoringUpdates = [];
-  mentorState.tradeResultData = null;
-  mentorState.selectedTradingMethod = null;
-  mentorState.tradingMethodSelected = false;
-  mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
-  mentorState.currentQuestion = 'Please select your preferred trading style to begin...';
-  
-  const panel = document.getElementById('ai-mentor-panel');
-  if (panel) {
-    panel.style.display = 'block';
-  }
-  
-  // Show trading method selection
-  const methodSelection = document.getElementById('trading-method-selection');
-  if (methodSelection) {
-    methodSelection.style.display = 'block';
-  }
-  
-  updateMentorUI();
+  // Defer activation until after the popup close animation (200ms) has fully completed.
+  // Without this delay, Vercel's CDN-served JS can race the setTimeout inside
+  // closeMentorPopup and the panel.style.display = 'none' fires AFTER we show the panel.
+  setTimeout(() => {
+    mentorState.enabled = true;
+    mentorState.currentBar = -1; // Reset to force re-analysis
+    mentorState.lastTradeSuggestionBar = -1000; // Reset cooldown
+    mentorState.lifecycleState = 'method_selection'; // Start with method selection
+    mentorState.setupWaitStart = null;
+    mentorState.setupWaitData = null;
+    mentorState.monitoredTrade = null;
+    mentorState.exampleTrade = null;
+    mentorState.exampleTradeActive = false;
+    mentorState.exampleTradeOutcome = null;
+    mentorState.tradeMonitoringUpdates = [];
+    mentorState.tradeResultData = null;
+    mentorState.selectedTradingMethod = null;
+    mentorState.tradingMethodSelected = false;
+    mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
+    mentorState.currentQuestion = 'Please select your preferred trading style to begin...';
+
+    const panel = document.getElementById('ai-mentor-panel');
+    if (panel) {
+      panel.style.display = 'block';
+    }
+
+    // Show trading method selection
+    const methodSelection = document.getElementById('trading-method-selection');
+    if (methodSelection) {
+      methodSelection.style.display = 'block';
+    }
+
+    updateMentorUI();
+  }, 250);
 }
 
 function selectTradingMethod(method) {
   mentorState.selectedTradingMethod = method;
   mentorState.tradingMethodSelected = true;
-  mentorState.lifecycleState = 'scanning'; // Start scanning after method selection
-  
+  // NOTE: set lifecycleState AFTER any state-based checks below
+  mentorState.lifecycleState = 'scanning';
+
   // Hide method selection panel
   const methodSelection = document.getElementById('trading-method-selection');
   if (methodSelection) {
     methodSelection.style.display = 'none';
   }
-  
-  // Trigger re-scan when user changes trading method
-  if (replayMode && (mentorState.lifecycleState === 'no_setup_found' || mentorState.lifecycleState === 'waiting')) {
-    triggerReplayRescan();
-  }
-  
+
   // Update welcome message based on selected method
   const methodNames = {
     'breakout': 'Breakout Trading',
@@ -7551,11 +7561,20 @@ function selectTradingMethod(method) {
     'range': 'Range Trading',
     'liquidity': 'Liquidity Sweep'
   };
-  
+
   mentorState.currentInsights = [`📚 Now teaching: ${methodNames[method]}`];
   mentorState.currentQuestion = 'Analyzing market data for ' + methodNames[method].toLowerCase() + ' opportunities...';
-  
-  updateMentorUI();
+
+  // Always trigger a fresh scan in replay mode — previously this was gated on
+  // lifecycleState being 'no_setup_found' or 'waiting', but by this point it had
+  // already been set to 'scanning', so the condition was always false and neither
+  // triggerReplayRescan() nor updateMentor() ever ran on first click.
+  if (replayMode) {
+    triggerReplayRescan();
+  } else {
+    updateMentorUI();
+  }
+
   toast(`📚 Teaching ${methodNames[method]} strategy`);
 }
 
