@@ -1304,16 +1304,6 @@ body.is-dragging { user-select: none; }
                 style="padding:3px 10px;background:var(--bg1);color:var(--tx3);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">No</button>
             </div>
           </div>
-          <!-- Bubble toggle row -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--b1);">
-            <span style="color:var(--tx3);font-size:11px;">Show explanation bubbles?</span>
-            <div style="display:flex;gap:6px;">
-              <button id="btn-bubbles-yes" onclick="mentorToggleBubbles(true)"
-                style="padding:3px 10px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;">Yes ✓</button>
-              <button id="btn-bubbles-no" onclick="mentorToggleBubbles(false)"
-                style="padding:3px 10px;background:var(--bg1);color:var(--tx3);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">No</button>
-            </div>
-          </div>
           <!-- Action buttons -->
           <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
             <button onclick="dismissSetupMessage()" style="padding:5px 10px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:4px;cursor:pointer;font-size:11px;">Dismiss</button>
@@ -8804,7 +8794,9 @@ function enterSetupDetectedState(windowScan) {
   }
 
   console.log('🎯 Setup detected — entering setup_detected state at bar', windowScan.bar);
-  mentorState.lifecycleState = 'setup_detected';
+  mentorState.lifecycleState    = 'setup_detected';
+  mentorState._confluencePauses = new Set(); // fresh for each new setup
+  mentorState._lastAnnotateBar  = null;
   mentorState.upcomingSetup = {
     setup: windowScan.setup,
     bar:   windowScan.bar,
@@ -10036,7 +10028,6 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 
 // Annotation preference — default ON, user can toggle via the setup controls
 mentorState.annotationsEnabled = true;
-mentorState.bubblesEnabled = true;
 
 function mentorToggleAnnotations(enable) {
   mentorState.annotationsEnabled = enable;
@@ -10056,39 +10047,6 @@ function mentorToggleAnnotations(enable) {
     // Re-draw annotations if they were disabled then re-enabled
     const tsd = mentorState._tradeSetupData;
     _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
-  }
-}
-
-function mentorToggleBubbles(enable) {
-  mentorState.bubblesEnabled = enable;
-  const btnYes = document.getElementById('btn-bubbles-yes');
-  const btnNo  = document.getElementById('btn-bubbles-no');
-  if (btnYes && btnNo) {
-    btnYes.style.background = enable ? 'var(--green)' : 'var(--bg1)';
-    btnYes.style.color      = enable ? 'white' : 'var(--tx3)';
-    btnYes.style.border     = enable ? 'none' : '1px solid var(--b1)';
-    btnNo.style.background  = enable ? 'var(--bg1)' : 'var(--rd)';
-    btnNo.style.color       = enable ? 'var(--tx3)' : 'white';
-    btnNo.style.border      = enable ? '1px solid var(--b1)' : 'none';
-  }
-  if (!enable) {
-    // Hide all bubbles
-    const bubbleDrawings = drawings.filter(d => d.type === 'mentor_bubble' && d.isMentorAnnotation);
-    bubbleDrawings.forEach(d => {
-      const idx = drawings.indexOf(d);
-      if (idx !== -1) {
-        drawings.splice(idx, 1);
-        const idIdx = _mentorAnnotationIds.indexOf(d.id);
-        if (idIdx !== -1) _mentorAnnotationIds.splice(idIdx, 1);
-      }
-    });
-    if (bubbleDrawings.length > 0) {
-      try { saveDrawings(curSym.s, curTF); } catch(e) {}
-      draw();
-      toast('Explanation bubbles hidden');
-    }
-  } else {
-    toast('Explanation bubbles enabled');
   }
 }
 
@@ -10159,27 +10117,6 @@ function mentorShowMeTrade() {
   mentorState._annotationsDrawnForTrade = false; // force re-draw on new trade
 
   drawExampleTrade(exampleTrade);
-
-  // Add educational bubbles for Entry, SL, and TP
-  const atr = calculateATR(entryBar, 14) || (entryPrice * 0.002);
-
-  // Entry bubble - explains the breakout/breakdown signal
-  const entryText = direction === 'long'
-    ? 'Entry: Breakout above resistance signals buyers gaining control.'
-    : 'Entry: Breakdown below support signals sellers in control.';
-  _addMentorBubble(entryBar, entryPrice + atr * 1.5, entryText, 'down', 1);
-
-  // SL bubble - explains the invalidation level
-  const slText = direction === 'long'
-    ? 'Stop loss: Below this swing low — a close here invalidates the bullish structure.'
-    : 'Stop loss: Above this swing high — a close here invalidates the bearish structure.';
-  _addMentorBubble(entryBar, stopLoss - atr * 1.2, slText, 'up', 1);
-
-  // TP bubble - explains the profit target
-  const tpText = direction === 'long'
-    ? 'Take profit: Targets the next major resistance where sellers previously appeared.'
-    : 'Take profit: Targets the next major support where buyers previously appeared.';
-  _addMentorBubble(entryBar, takeProfit + atr * 1.2, tpText, 'down', 1);
 
   // Scroll chart to show both current bar and entry bar
   const mc2 = document.getElementById('main-canvas');
@@ -12197,74 +12134,10 @@ function hitTest(d, sx, sy){
       return sx>x-4&&sx<x+w&&sy>y-16&&sy<y+4;
     }
     case 'mentor_arrow':{
-      // First check if this arrow is in the top 4 visible arrows
-      const mentorArrows = drawings.filter(d => d.type === 'mentor_arrow');
-      const tierPriority = { primary: 3, secondary: 2, tertiary: 1 };
-      const topMentorArrows = mentorArrows
-        .sort((a, b) => (tierPriority[b.tier || 'secondary'] || 2) - (tierPriority[a.tier || 'secondary'] || 2))
-        .slice(0, 4);
-      
-      if (!topMentorArrows.includes(d)) {
-        return false; // This arrow is not visible due to clutter limit
-      }
-      
-      const ax = _barX(d.bar), ay = _py(d.price);
-      
-      // Get canvas dimensions
-      const canvas = document.getElementById('main-canvas');
-      const canvasWidth = canvas?.width || 800;
-      const canvasHeight = canvas?.height || 600;
-      const midY = canvasHeight / 2;
-      
-      // Determine box placement (same as rendering)
-      const placeAbove = ay <= midY;
-      
-      // Calculate text dimensions (same as rendering)
-      const fontSize = 11;
-      const maxBoxWidth = 250;
-      const padding = 12;
-      const lineHeight = fontSize + 4;
-      
-      // Approximate text wrapping for hit test
-      const avgCharWidth = fontSize * 0.55;
-      const words = (d.label || '').split(' ');
-      const lines = [];
-      let currentLine = '';
-      
-      for (const word of words) {
-        const testLine = currentLine + (currentLine ? ' ' : '') + word;
-        const testWidth = testLine.length * avgCharWidth;
-        
-        if (testWidth > maxBoxWidth - padding * 2 && currentLine) {
-          lines.push(currentLine);
-          currentLine = word;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      
-      if (currentLine) lines.push(currentLine);
-      if (lines.length === 0) lines.push('');
-      
-      const boxWidth = Math.min(maxBoxWidth, Math.max(...lines.map(line => line.length * avgCharWidth)) + padding * 2);
-      const boxHeight = lines.length * lineHeight + padding * 2;
-      
-      // Position box (same as rendering)
-      const margin = 20;
-      const boxX = Math.max(margin, Math.min(canvasWidth - boxWidth - margin, ax - boxWidth / 2));
-      const boxY = placeAbove ? margin : canvasHeight - margin - boxHeight;
-      
-      // Check if point is in explanation box
-      if (sx >= boxX && sx <= boxX + boxWidth && sy >= boxY && sy <= boxY + boxHeight) {
-        return true;
-      }
-      
-      // Check if point is near anchor
-      if (Math.abs(sx - ax) < 12 && Math.abs(sy - ay) < 12) {
-        return true;
-      }
-      
-      return false;
+      const ax=_barX(d.bar), ay=_py(d.price);
+      const arrLen=40, isDown=d.pointing!=='up';
+      const tipY=ay+(isDown?-8:8), tailY=tipY+(isDown?-arrLen:arrLen);
+      return Math.abs(sx-ax)<12 && sy>=Math.min(tipY,tailY)-5 && sy<=Math.max(tipY,tailY)+5;
     }
     case 'mentor_box':{
       const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
@@ -12275,71 +12148,6 @@ function hitTest(d, sx, sy){
     case 'mentor_label':{
       const lax=_barX(d.bar),lay=_py(d.price);
       return Math.abs(sx-lax)<barWidth*3 && Math.abs(sy-lay)<30;
-    }
-    case 'mentor_bubble':{
-      // Pointer-based layout: bubble sits outside chart area with line to chart level
-      const bx = _barX(d.bar);
-      const by = _py(d.price);
-      const priority = d.priority || 2;
-      // Get canvas dimensions from main-canvas element
-      const canvas = document.getElementById('main-canvas');
-      const canvasWidth = canvas?.width || 800;
-      const canvasHeight = canvas?.height || 600;
-      const placementSide = d.placementSide || (by < canvasHeight/2 ? 'above' : 'below');
-      const txt = d.text || '';
-
-      // Calculate bubble dimensions (same as render)
-      const fontSize = 11;
-      const maxWidth = 260;
-      const padX = 12;
-      const padY = 10;
-      const spacing = 8;
-
-      // Word wrap to calculate dimensions (approximate without ctx)
-      const words = txt.split(' ');
-      const lines = [];
-      let currentLine = '';
-      const avgCharWidth = fontSize * 0.55; // approximate avg char width
-      for (let i = 0; i < words.length; i++) {
-        const testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
-        const testWidth = testLine.length * avgCharWidth;
-        if (testWidth > maxWidth - padX * 2 && currentLine) {
-          lines.push(currentLine);
-          currentLine = words[i];
-        } else {
-          currentLine = testLine;
-        }
-      }
-      if (currentLine) lines.push(currentLine);
-
-      const lineH = fontSize + 4;
-      // Estimate box width based on longest line
-      const longestLine = lines.reduce((a, b) => a.length > b.length ? a : b, '');
-      const boxW = Math.min(longestLine.length * avgCharWidth + padX * 2, maxWidth);
-      const boxH = lines.length * lineH + padY * 2;
-
-      // Calculate stacking offset (same as render)
-      const allBubbles = drawings.filter(b => b.type === 'mentor_bubble' && b.isMentorAnnotation);
-      const sameSideBubbles = allBubbles.filter(b => (b.placementSide || 'below') === placementSide);
-      const myIndex = sameSideBubbles.findIndex(b => b.id === d.id);
-      const stackOffset = myIndex > 0 ? sameSideBubbles.slice(0, myIndex).reduce((sum, b) => {
-        const prevLines = b.text ? b.text.split(' ').length / 6 + 1 : 2;
-        const prevHeight = Math.max(prevLines, 2) * lineH + padY * 2;
-        return sum + prevHeight + spacing;
-      }, 0) : 0;
-
-      // Calculate box position (same as render)
-      let boxX, boxY;
-      if (placementSide === 'above') {
-        boxY = 15 + stackOffset;
-        boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, bx - boxW / 2));
-      } else {
-        boxY = canvasHeight - 15 - boxH - stackOffset;
-        boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, bx - boxW / 2));
-      }
-
-      // Check if point is inside bubble box
-      return sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH;
     }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
@@ -12851,18 +12659,18 @@ function _clearMentorAnnotationsSilent() {
 
 // Add an arrow pointing at a specific bar/price.
 // direction: 'down' (arrow points down toward candle from above) or 'up'
-function _addMentorArrow(bar, price, label, direction = 'down', highlight = false) {
+function _addMentorArrow(bar, price, label, direction = 'down', highlight = false, explanation = '') {
   const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  // Offset the arrow tip slightly above/below the candle body
   const atr = calculateATR(bar, 14) || (price * 0.002);
   const offsetPrice = direction === 'down'
-    ? price + atr * 0.6   // arrow comes from above
-    : price - atr * 0.6;  // arrow comes from below
+    ? price + atr * 0.6
+    : price - atr * 0.6;
   const drawing = {
     type: 'mentor_arrow',
     bar, price: offsetPrice,
     pointing: direction === 'up' ? 'up' : 'down',
     label: label || '',
+    explanation: explanation || '',  // full explanation shown in bubble
     highlight,
     id,
     isMentorAnnotation: true,
@@ -12905,65 +12713,6 @@ function _addMentorLabel(bar, price, lines) {
   return id;
 }
 
-// Add a speech bubble with educational explanation near an annotation.
-// Duplicate-suppression: skip if a bubble with the same text exists within 10 bars.
-// Enforces max 4 bubble cap (prunes lowest-priority bubbles when limit exceeded).
-// Pointer-based layout: bubble sits outside chart with line connecting to the level.
-function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
-  // Only add if bubbles are enabled (default true)
-  if (mentorState.bubblesEnabled === false) return null;
-
-  // Prune: keep only highest-priority bubbles if > 4 total
-  const existing = drawings.filter(d => d.type === 'mentor_bubble' && d.isMentorAnnotation);
-
-  // Duplicate-suppression: skip if same text within 10 bars
-  if (existing.some(b => b.text === text && Math.abs(b.bar - bar) < 10)) return null;
-
-  // Enforce max 4 bubble cap - remove lowest priority
-  while (existing.length >= 4) {
-    const lowest = existing.sort((a, b) => b.priority - a.priority).pop();
-    const idx = drawings.indexOf(lowest);
-    if (idx !== -1) {
-      drawings.splice(idx, 1);
-      const idIdx = _mentorAnnotationIds.indexOf(lowest.id);
-      if (idIdx !== -1) _mentorAnnotationIds.splice(idIdx, 1);
-    }
-  }
-
-  // Determine placement side based on price position in visible range
-  // Calculate visible price range from current data
-  let vMin = Infinity, vMax = -Infinity;
-  const startIdx = Math.max(0, curData.length - 80); // approximate visible range
-  for (let i = startIdx; i < curData.length; i++) {
-    if (curData[i]) {
-      vMin = Math.min(vMin, curData[i].low);
-      vMax = Math.max(vMax, curData[i].high);
-    }
-  }
-  if (vMin === Infinity) { vMin = price * 0.95; vMax = price * 1.05; }
-  const midPrice = (vMax + vMin) / 2;
-  // If price is in upper half, bubble goes above chart; if lower half, below chart
-  const placementSide = price > midPrice ? 'above' : 'below';
-
-  const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  const drawing = {
-    type: 'mentor_bubble',
-    bar,
-    price,
-    text,
-    tailDir: placementSide === 'above' ? 'down' : 'up', // tail points toward chart
-    priority,
-    placementSide, // 'above' or 'below' - determines vertical stacking
-    stackOffset: 0, // will be calculated during render based on other bubbles
-    isMentorAnnotation: true,
-    id,
-    candleIndex: bar,
-  };
-  drawings.push(drawing);
-  _mentorAnnotationIds.push(id);
-  return id;
-}
-
 // ══ MENTOR ANNOTATION ENGINE ═════════════════════════════════════════════════
 // Universal, clean annotation system.
 // Rules:
@@ -12972,34 +12721,6 @@ function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
 //   • All within visible candle range (no off-screen labels)
 //   • Overlap prevention via label stagger
 //   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
-
-// Educational explanations for speech bubbles near annotations
-const BUBBLE_EXPLANATIONS = {
-  'Support zone':         'This area is identified as support because price previously rejected this level multiple times, showing strong buying pressure. Multiple touches confirm strong demand here.',
-  'Resistance zone':      'Sellers stepped in here previously. Multiple tests show strong supply — watch for a wick rejection before entering short.',
-  'Rejection wick':       'A long wick shows strong rejection at this level. Buyers/sellers rejected the price and closed it back, signaling a potential reversal.',
-  'Liquidity pool':        'Stop losses cluster here. Price sweeps this area to trigger those stops and grab liquidity before reversing.',
-  'Breakout level':        'Price must close clearly above this level to confirm a true breakout. A breakout here signals buyers gaining control.',
-  'Breakdown level':       'Price must close clearly below this level to confirm a true breakdown. A breakdown here signals sellers in control.',
-  'Fib 38–62% pullback zone': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
-  'Fib 38-62% pullback zone': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
-  'Pullback zone (38–62%)': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
-  'Pullback zone (38-62%)': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
-  'Displacement':          'This strong candle shows buyers/sellers took control after the sweep. This displacement is the confirmation signal for entry.',
-  'Stop hunt':             'Price briefly moved above/below the previous swing to trigger stop losses and grab liquidity, then quickly rejected. This often precedes a reversal.',
-  'Consolidation range':   'Price is coiling in a tight range. Compressed energy here often leads to explosive moves when price finally breaks out.',
-  'Trading range':         'Price bounces between two boundaries. Trade near the edges; avoid the middle where direction is uncertain.',
-  'Higher low':            'Each new low is higher than the last — buyers are stepping in earlier. This confirms bullish market structure.',
-  'Lower high':            'Each new high is lower than the last — sellers are stepping in earlier. This confirms bearish market structure.',
-  'Prior test':            'Price has tested this level before — it shows where buyers/sellers previously became active and may react again.',
-  'Swing high — pullback from here': 'This swing high marked where sellers took control. Pullbacks often retest these swing levels before continuing.',
-  'Swing low — pullback from here': 'This swing low marked where buyers took control. Pullbacks often retest these swing levels before continuing.',
-  'Original swing':        'This was the original swing point that created the liquidity pool below/above. These levels often attract price.',
-  'Boundary reaction':     'Price has reacted at this boundary before — a confirmed support/resistance level where traders expect action.',
-  'Entry:':                'Entry point where the setup confirms. The trade is triggered when price validates the pattern.',
-  'Stop loss:':            'Invalidation level — if price closes here, the setup thesis is wrong and the trade should be exited.',
-  'Take profit:':          'Target based on next major support/resistance where opposing pressure previously stopped price.',
-};
 
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
@@ -13039,26 +12760,26 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
                     : showLevels ? visibleUpTo     // stage 2 annotations visible now
                     : visibleUpTo;                 // stage 1 always visible from current bar
 
-  function addZone(f, t, price, label, pri) {
+  function addZone(f, t, price, label, pri, explanation) {
     const preEntryMax = showConf ? 4 : 3;
     if (ann.filter(a=>a.type!=='context').length >= preEntryMax || !inRange(price)) return;
     const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
     if (!isVis(fb) || fb >= tb) return;
-    ann.push({ type:'zone', f:fb, t:tb, price, label, pri:pri||2, candleIndex:stageCandle });
+    ann.push({ type:'zone', f:fb, t:tb, price, label, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
   }
-  function addBox(f, t, lo, hi, label, pri) {
+  function addBox(f, t, lo, hi, label, pri, explanation) {
     const preEntryMax = showConf ? 4 : 3;
     if (ann.filter(a=>a.type!=='context').length >= preEntryMax) return;
     const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
     const cl = Math.max(lo, rangeLow - atr*0.3);
     const ch = Math.min(hi, rangeHigh + atr*0.3);
     if (!isVis(fb) || fb >= tb || cl >= ch) return;
-    ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2, candleIndex:stageCandle });
+    ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
   }
-  function addArrow(bar, price, label, pointing, highlight, pri) {
+  function addArrow(bar, price, label, pointing, highlight, pri, explanation) {
     const preEntryMax = showConf ? 4 : 3;
     if (ann.filter(a=>a.type!=='context').length >= preEntryMax || !isVis(bar) || !inRange(price)) return;
-    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:stageCandle });
+    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
   }
 
   // Find real swing points anchored to actual candle OHLC
@@ -13095,14 +12816,20 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
                 : tDn && dir==='short' ? `Lower high — downtrend intact`
                 : dir==='long'  ? `Swing low`
                 :                 `Swing high`;
-      addArrow(ctxSw.bar, ctxSw.price, lbl, dir==='long'?'up':'down', false, 3);
+      addArrow(ctxSw.bar, ctxSw.price, lbl, dir==='long'?'up':'down', false, 3,
+        tUp&&dir==='long'  ? 'Each higher low confirms the uptrend is intact. This is where buyers stepped in and defended price, pushing it higher.'
+        : tDn&&dir==='short' ? 'Each lower high confirms the downtrend is intact. Sellers defended this level, pushing price lower each time.'
+        : dir==='long'  ? 'Price found buyers here and bounced. This swing low marks where demand entered the market.'
+        :                   'Price found sellers here and reversed. This swing high marks where supply entered the market.');
     }
     // Second context swing if we have room and they're different enough
     const ctxSw2 = (dir==='long' ? swingL : swingH).slice(-2)[0];
     if (ctxSw2 && ctxSw && Math.abs(ctxSw2.bar - ctxSw.bar) > 8) {
       addArrow(ctxSw2.bar, ctxSw2.price,
         dir==='long' ? `Prior swing low` : `Prior swing high`,
-        dir==='long'?'up':'down', false, 3);
+        dir==='long'?'up':'down', false, 3,
+        dir==='long' ? 'An earlier swing low — together with the more recent one, this establishes a series of higher lows, confirming the uptrend structure.'
+                     : 'An earlier swing high — together with the more recent one, this establishes a series of lower highs, confirming the downtrend structure.');
     }
   }
 
@@ -13128,7 +12855,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           }
           if (firstTouch>=0 && firstTouch<visibleUpTo)
             addZone(firstTouch, visibleUpTo+5, level,
-              dir==='long' ? `Support zone` : `Resistance zone`, 1);
+              dir==='long' ? `Support zone` : `Resistance zone`, 1,
+              dir==='long' ? 'Price has previously bounced from this level multiple times, confirming strong buying interest. This level is significant because the market has memory — buyers will likely defend it again.'
+                           : 'Price has previously reversed at this level multiple times, confirming strong selling pressure. Sellers have shown they are willing to defend this price repeatedly.');
         }
         break;
       }
@@ -13140,10 +12869,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             && inRange(conso.lower) && inRange(conso.upper)) {
           const cf = Math.max(histFrom, detectionBar-15);
           if (isVis(cf) && cf<visibleUpTo) {
-            addBox(cf, visibleUpTo, conso.lower, conso.upper, `Consolidation range`, 1);
+            addBox(cf, visibleUpTo, conso.lower, conso.upper, `Consolidation range`, 1,
+              'Price is compressing into a tight range, coiling like a spring. This consolidation builds energy. The longer and tighter the range, the more powerful the eventual breakout. Volume typically shrinks before the expansion.');
             const bl = dir==='long' ? conso.upper : conso.lower;
             if (inRange(bl)) addZone(cf, visibleUpTo+6, bl,
-              dir==='long' ? `Breakout level` : `Breakdown level`, 1);
+              dir==='long' ? `Breakout level` : `Breakdown level`, 1,
+              dir==='long' ? 'The upper boundary of the consolidation range. A candle closing above this level with conviction confirms the breakout — buyers have overwhelmed the sellers who were defending this price.'
+                           : 'The lower boundary of the consolidation range. A candle closing below this level confirms the breakdown — sellers have overwhelmed buyers who were defending this price.');
           }
         }
         break;
@@ -13163,14 +12895,17 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const anch = Math.max(0, dir==='long' ? hiI : loI);
           if (isVis(anch) && anch<visibleUpTo && inRange(f382) && inRange(f618))
             addBox(anch, visibleUpTo+6, Math.min(f382,f618), Math.max(f382,f618),
-              `Fib 38–62% pullback zone`, 1);
+              `Fib 38–62% pullback zone`, 1,
+              'The Fibonacci golden zone — statistically, most healthy pullbacks in trending markets end within the 38–62% retracement. This is the optimal entry area: tight stop below the swing low, trade in the direction of the trend.');
           // Mark the swing that defines the Fib
           const fibAnchorBar  = dir==='long' ? hiI : loI;
           const fibAnchorPrice = dir==='long' ? swHi : swLo;
           if (isVis(fibAnchorBar) && inRange(fibAnchorPrice))
             addArrow(fibAnchorBar, fibAnchorPrice,
               dir==='long' ? `Swing high — Fib measured from here` : `Swing low — Fib measured from here`,
-              dir==='long'?'down':'up', false, 2);
+              dir==='long'?'down':'up', false, 2,
+              dir==='long' ? 'This is the most recent swing high. The Fibonacci retracement is measured from this point down to the swing low. The 38–62% zone sits below it — the typical reversal area in uptrends.'
+                           : 'This is the most recent swing low. The Fibonacci retracement is measured from this point up to the swing high. The 38–62% zone sits above it — the typical reversal area in downtrends.');
         }
         break;
       }
@@ -13180,7 +12915,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (sw.detected && inRange(sw.sweepLevel)) {
           const anch = Math.max(histFrom, detectionBar-25);
           if (isVis(anch) && anch<visibleUpTo)
-            addZone(anch, visibleUpTo+4, sw.sweepLevel, `Liquidity pool`, 1);
+            addZone(anch, visibleUpTo+4, sw.sweepLevel, `Liquidity pool`, 1,
+              dir==='long' ? 'Stop losses from retail traders are clustered below this prior swing low. Larger players push price into this area to trigger those stops and fill their own buy orders at a discount — before reversing higher.'
+                           : 'Stop losses from retail traders are clustered above this prior swing high. Larger players push price into this area to trigger those stops and fill their own sell orders at a premium — before reversing lower.');
         }
         break;
       }
@@ -13190,11 +12927,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (conso.isConsolidating && inRange(conso.lower) && inRange(conso.upper)) {
           const anch = Math.max(histFrom, detectionBar-18);
           if (isVis(anch) && anch<visibleUpTo) {
-            addBox(anch, visibleUpTo+4, conso.lower, conso.upper, `Trading range`, 1);
+            addBox(anch, visibleUpTo+4, conso.lower, conso.upper, `Trading range`, 1,
+              'Price is oscillating between two well-defined levels. In a range, the edge is at the boundaries. Buying at the bottom and selling at the top — or shorting the top and covering at the bottom — are the highest-probability trades.');
             const boundary = dir==='long' ? conso.lower : conso.upper;
             if (inRange(boundary))
               addZone(anch, visibleUpTo+4, boundary,
-                dir==='long' ? `Range support` : `Range resistance`, 1);
+                dir==='long' ? `Range support` : `Range resistance`, 1,
+                dir==='long' ? 'The lower boundary of the range — where buyers have stepped in every time price has reached this level. A rejection wick or bullish close here confirms the bounce entry.'
+                             : 'The upper boundary of the range — where sellers have stepped in every time price has reached this level. A rejection wick or bearish close here confirms the fade entry.');
           }
         }
         break;
@@ -13226,7 +12966,12 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
               wick/body>=1.5 ? `Rejection wick`
               : wick/body>=0.7 ? `Reaction at level`
               : `Testing level`,
-              dir==='long'?'up':'down', true, 1);
+              dir==='long'?'up':'down', true, 1,
+              wick/body>=1.5
+                ? (dir==='long' ? 'Price wicked sharply below the support level and snapped back. The long wick shows buyers aggressively rejected lower prices — a strong reversal signal.'
+                                : 'Price wicked sharply above resistance and was pushed back. The long wick shows sellers aggressively rejected higher prices — a strong reversal signal.')
+                : (dir==='long' ? 'Price is testing the support zone. Watch for the candle to close back above the level to confirm buyers are defending it.'
+                                : 'Price is testing the resistance zone. Watch for the candle to close below the level to confirm sellers are defending it.'));
           break;
         }
 
@@ -13234,7 +12979,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const px = dir==='long' ? dc.high : dc.low;
           if (inRange(px))
             addArrow(detectionBar, px, `Breakout`,
-              dir==='long'?'down':'up', true, 1);
+              dir==='long'?'down':'up', true, 1,
+              dir==='long' ? 'Price closed convincingly above the resistance level. This breakout confirms that buyers have overwhelmed sellers. The level that was resistance may now act as support.'
+                           : 'Price closed convincingly below the support level. This breakdown confirms sellers are in control. The level that was support may now act as resistance.');
           break;
         }
 
@@ -13247,7 +12994,12 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
               pb.detected && pb.retrace
                 ? `${Math.round(pb.retrace*100)}% pullback`
                 : `Trend resuming`,
-              dir==='long'?'up':'down', true, 1);
+              dir==='long'?'up':'down', true, 1,
+              pb.detected && pb.retrace
+                ? (dir==='long' ? `Price has retraced ${Math.round(pb.retrace*100)}% into the Fibonacci zone — the typical area where pullbacks end in uptrends. Volume is contracting, meaning sellers are losing conviction. This is a potential entry point.`
+                                : `Price has retraced ${Math.round(pb.retrace*100)}% into the Fibonacci zone — the typical area where pullbacks end in downtrends. A continuation lower is expected from here.`)
+                : (dir==='long' ? 'The pullback appears to be ending and the uptrend is resuming. Look for a bullish confirmation candle to time the entry.'
+                                : 'The retracement appears to be ending and the downtrend is resuming. Look for a bearish confirmation candle to time the entry.'));
           break;
         }
 
@@ -13257,11 +13009,15 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const swC = isVis(swB) ? curData[swB] : null;
           if (sw.detected && swC) {
             const sp = dir==='long' ? swC.low : swC.high;
-            if (inRange(sp)) addArrow(swB, sp, `Stop hunt`, dir==='long'?'up':'down', false, 2);
+            if (inRange(sp)) addArrow(swB, sp, `Stop hunt`, dir==='long'?'up':'down', false, 2,
+              dir==='long' ? 'Price briefly dipped below the prior low, triggering stop losses from retail traders positioned there. This stop sweep is manufactured by larger players to fill their buy orders at a better price.'
+                           : 'Price briefly spiked above the prior high, triggering stop losses. This sweep is engineered to fill institutional sell orders before the move lower.');
           }
           const dp = dir==='long' ? dc.high : dc.low;
           if (inRange(dp))
-            addArrow(detectionBar, dp, `Displacement`, dir==='long'?'down':'up', true, 1);
+            addArrow(detectionBar, dp, `Displacement`, dir==='long'?'down':'up', true, 1,
+              dir==='long' ? 'After the stop sweep, price reversed sharply upward in a single strong candle. This displacement shows institutional buyers have now entered. Enter on the open of the next candle.'
+                           : 'After the stop sweep, price reversed sharply downward. This displacement confirms institutional selling. Enter on the open of the next candle.');
           break;
         }
 
@@ -13269,7 +13025,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const px = dir==='long' ? dc.low : dc.high;
           if (inRange(px))
             addArrow(detectionBar, px, `Boundary reaction`,
-              dir==='long'?'up':'down', true, 1);
+              dir==='long'?'up':'down', true, 1,
+              dir==='long' ? 'Price has reached the lower boundary of the range where buyers have previously defended. Watch for a wick rejection or bullish close to confirm the bounce entry.'
+                           : 'Price has reached the upper boundary of the range where sellers have previously defended. Watch for a wick rejection or bearish close to confirm the rejection entry.');
           break;
         }
       }
@@ -13283,7 +13041,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (peak && peak.bar < visibleUpTo-3 && inRange(peak.price))
           addArrow(peak.bar, peak.price,
             dir==='long' ? `Swing high — pullback from here` : `Swing low — pullback from here`,
-            dir==='long'?'down':'up', false, 2);
+            dir==='long'?'down':'up', false, 2,
+            dir==='long' ? 'The trend peaked here before the current pullback began. This is the swing high — the Fibonacci retracement is measured from this point down to the recent low.'
+                         : 'The trend bottomed here before the current pullback began. This is the swing low — the Fibonacci retracement is measured from this point up to the recent high.');
 
       } else if (method==='support_resistance') {
         const det   = dir==='long' ? detectSupportBounce(data) : detectResistanceRejection(data);
@@ -13300,7 +13060,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             const ec = curData[firstTest];
             const ep = dir==='long' ? ec.low : ec.high;
             if (ep && inRange(ep))
-              addArrow(firstTest, ep, `Prior test`, dir==='long'?'up':'down', false, 2);
+              addArrow(firstTest, ep, `Prior test`, dir==='long'?'up':'down', false, 2,
+              dir==='long' ? 'The first time price tested this support level — and held. This established the level as significant. The more times a level is tested and holds, the stronger it becomes.'
+                           : 'The first time price tested this resistance level — and was rejected. This established the level as significant. Repeated rejections confirm strong selling interest here.');
           }
         }
 
@@ -13309,7 +13071,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const pool = sw.detected ? (dir==='long' ? swingL : swingH).filter(s=>Math.abs(s.price-sw.sweepLevel)<atr*1.5) : [];
         const src  = pool.slice(-1)[0];
         if (src && inRange(src.price))
-          addArrow(src.bar, src.price, `Original swing`, dir==='long'?'up':'down', false, 2);
+          addArrow(src.bar, src.price, `Original swing`, dir==='long'?'up':'down', false, 2,
+              dir==='long' ? 'This prior low built the liquidity pool. Retail traders placed stop losses below this obvious swing low. Those stops are the target that was just swept.'
+                           : 'This prior high built the liquidity pool. Retail traders placed stops above this obvious swing high. Those stops were targeted and swept.');
       }
     }
   }
@@ -13353,15 +13117,14 @@ function _commit(ann) {
         return;
       }
       _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
-      // Add educational bubble for zone
-      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
-      if (bubbleText) {
-        _addMentorBubble(a.t, a.price + atr*1.5, bubbleText, 'down', a.pri||2);
+      // If this zone has an explanation, add an explanation arrow near its right edge
+      if (a.explanation && (a.pri||2) <= 2) {
+        _addMentorArrow(Math.min(a.t, now), a.price,
+          a.label, 'up', false, a.explanation);
       }
-      // Track primary zone for confluence pause
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
-        firstPrimaryBar   = a.t; // point arrow at right edge of zone (current bar)
+        firstPrimaryBar   = Math.min(a.t, now);
         firstPrimaryPrice = a.price;
         firstPrimaryDir   = 'up';
       }
@@ -13376,15 +13139,14 @@ function _commit(ann) {
         return;
       }
       _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
-      // Add educational bubble for box
-      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
-      if (bubbleText) {
-        const bubblePrice = a.lo + (a.hi - a.lo) / 2; // center of box
-        _addMentorBubble(a.t, a.hi + atr*1.2, bubbleText, 'down', a.pri||2);
+      // Explanation arrow for box at its midpoint right edge
+      if (a.explanation && (a.pri||2) <= 2) {
+        _addMentorArrow(Math.min(a.t, now), (a.lo+a.hi)/2,
+          a.label, 'up', false, a.explanation);
       }
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
-        firstPrimaryBar   = a.t;
+        firstPrimaryBar   = Math.min(a.t, now);
         firstPrimaryPrice = (a.lo + a.hi) / 2;
         firstPrimaryDir   = 'up';
       }
@@ -13398,14 +13160,7 @@ function _commit(ann) {
       const pyKey = Math.round(price / (atr*0.4));
       if (usedPY[pyKey]) price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
       usedPY[pyKey] = true;
-      _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight);
-      // Add educational bubble for arrow
-      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
-      if (bubbleText) {
-        const bubblePrice = a.pointing === 'down' ? price - atr*1.5 : price + atr*1.5;
-        const tailDir = a.pointing === 'down' ? 'up' : 'down';
-        _addMentorBubble(a.bar, bubblePrice, bubbleText, tailDir, a.pri||2);
-      }
+      _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight, a.explanation||'');
       if ((a.pri||2) === 1 && a.highlight && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
         firstPrimaryBar   = a.bar;
@@ -13434,22 +13189,19 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   if (mentorState._confluencePauses.has(label)) return;
   mentorState._confluencePauses.add(label);
 
-  // Build the explanation for this confluence type (rich educational language)
+  // Build the explanation for this confluence type
   const explanations = {
-    'Support zone':        'Price rejected this level before, attracting buyers. Multiple touches confirm strong demand here.',
-    'Resistance zone':     'Sellers stepped in here previously. Multiple tests show strong supply — watch for a wick rejection before entering short.',
-    'Consolidation range': 'Price is coiling in a tight range. Compressed energy here often leads to explosive moves.',
+    'Support zone':        'Price has previously bounced from this level. Buyers are defending it — watch for a rejection wick to confirm.',
+    'Resistance zone':     'Price has previously reversed here. Sellers stepped in at this level — watch for a wick rejection before entering short.',
+    'Consolidation range': 'Price is coiling in a tight range. This compression builds energy. A breakout from this range often leads to a strong directional move.',
     'Breakout level':      'This is the key level to break. A candle closing convincingly above/below this line is the trigger to enter.',
     'Breakdown level':     'This is the support line to break. A close below confirms the breakdown and is the entry trigger.',
     'Fib 38–62% pullback zone': 'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
     'Pullback zone (38–62%)':   'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
-    'Liquidity pool':      'Stop losses are clustered here. Price sweeps this area to trigger those stops before reversing.',
-    'Trading range':       'Price is bouncing between two boundaries. Trade the edges; avoid the middle of the range.',
+    'Liquidity pool':      'Stop losses are clustered here. A wick into this zone sweeps those stops before reversing — the sweep is the entry signal.',
+    'Trading range':       'Price is bouncing between two levels. The strategy is to enter at the boundaries. Avoid trading near the middle of the range.',
     'Range support':       'The lower boundary of the range — where buyers have repeatedly defended. Look for a reaction here.',
     'Range resistance':    'The upper boundary of the range — where sellers have repeatedly stepped in. Look for a rejection here.',
-    'Rejection wick':      'A long wick shows strong rejection at this level. Buyers/sellers rejected the price and closed it back.',
-    'Higher low':          'Each new low is higher than the last — buyers are stepping in earlier, confirming uptrend.',
-    'Lower high':          'Each new high is lower than the last — sellers are stepping in earlier, confirming downtrend.',
   };
   const explanation = explanations[label]
     || `${label} — a key area where price has previously reacted. Watch closely as price approaches.`;
@@ -13466,9 +13218,6 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
     const arrowPrice = dir === 'up' ? c.low - atr * 0.5 : c.high + atr * 0.5;
     _addMentorArrow(replayCutoff, arrowPrice,
       `📍 ${label}`, dir === 'up' ? 'up' : 'down', false);
-    // Add educational bubble for the confluence
-    _addMentorBubble(replayCutoff, dir === 'up' ? arrowPrice - atr*1.2 : arrowPrice + atr*1.2,
-      explanation, dir === 'up' ? 'up' : 'down', 1);
   }
 
   // Show explanation in the mentor panel
@@ -13486,33 +13235,8 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
 }
 
 
-// Helper function to wrap text into multiple lines
-function wrapText(ctx, text, maxWidth) {
-  const words = text.split(' ');
-  const lines = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    const testLine = currentLine + (currentLine ? ' ' : '') + word;
-    const metrics = ctx.measureText(testLine);
-    
-    if (metrics.width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-  
-  return lines.length > 0 ? lines : [''];
-}
-
-
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
+  ctx._mentorBubbleCount = 0; // reset per-frame bubble count
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
     bg2:  getCSSVar('--bg2') || '#0c0e16',
@@ -13552,20 +13276,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     }
   }
 
-  // Filter mentor arrows to limit clutter - show only top 4 by priority
-  const mentorArrows = all.filter(d => d.type === 'mentor_arrow');
-  const otherDrawings = all.filter(d => d.type !== 'mentor_arrow');
-  
-  // Sort mentor arrows by tier priority and take top 4
-  const tierPriority = { primary: 3, secondary: 2, tertiary: 1 };
-  const topMentorArrows = mentorArrows
-    .sort((a, b) => (tierPriority[b.tier || 'secondary'] || 2) - (tierPriority[a.tier || 'secondary'] || 2))
-    .slice(0, 4);
-  
-  // Combine filtered mentor arrows with other drawings
-  const filteredDrawings = [...otherDrawings, ...topMentorArrows];
-
-  filteredDrawings.forEach(d=>{
+  all.forEach(d=>{
     ctx.save();
     const isSel = d===selectedDrawing;
     const isWIP = d===drawingWIP;
@@ -13786,121 +13497,154 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       //   d.tier = 'tertiary'  → 50% opacity, smaller label
 
       case 'mentor_arrow': {
-        const ax      = barXfn(d.bar);
-        const ay      = pyfn(d.price);
-        const tier    = d.tier || 'secondary';
-        const alpha   = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
-        const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
-        const tipSize   = tier === 'primary' ? 6 : 5;
-        
-        // Get canvas dimensions
-        const canvas = document.getElementById('main-canvas');
-        const canvasWidth = canvas?.width || 800;
-        const canvasHeight = canvas?.height || 600;
-        const midY = canvasHeight / 2;
-        
-        // Determine box placement based on anchor position
-        const placeAbove = ay <= midY;
-        
-        // Calculate text dimensions with wrapping
-        const fontSize = 11;
-        const maxBoxWidth = 250;
-        const padding = 12;
-        const lineHeight = fontSize + 4;
-        
-        ctx.font = `${fontSize}px sans-serif`;
-        const lines = wrapText(ctx, d.label || '', maxBoxWidth - padding * 2);
-        const boxWidth = Math.min(maxBoxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)) + padding * 2);
-        const boxHeight = lines.length * lineHeight + padding * 2;
-        
-        // Position explanation box outside chart area
-        const margin = 20;
-        let boxX, boxY;
-        
-        // Horizontal positioning - avoid edges
-        boxX = Math.max(margin, Math.min(canvasWidth - boxWidth - margin, ax - boxWidth / 2));
-        
-        // Vertical positioning based on anchor location
-        if (placeAbove) {
-          boxY = margin; // Place at top
-        } else {
-          boxY = canvasHeight - margin - boxHeight; // Place at bottom
-        }
-        
-        // Calculate connection points
-        const anchorX = ax;
-        const anchorY = ay;
-        const boxConnectX = boxX + boxWidth / 2;
-        const boxConnectY = placeAbove ? boxY + boxHeight : boxY;
-        
-        // Draw angled connector line
+        const ax  = barXfn(d.bar);
+        const ay  = pyfn(d.price);
+
+        // Hide if anchor bar is off screen
+        if (ax < -barWidth || ax > W + barWidth) break;
+
+        // Enforce max 4 callout bubbles — skip lower-priority ones
+        if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
+        const tier = d.tier || 'secondary';
+        const isPriTier = tier === 'primary' || d.highlight;
+        if (ctx._mentorBubbleCount >= 4 && !isPriTier) break;
+        if (d.explanation) ctx._mentorBubbleCount++;
+
+        const isDown    = d.pointing !== 'up';
+        const tier      = d.tier || 'secondary';
+        const isPrimary = tier === 'primary';
+        const accentCol = d.highlight ? '#f0a500' : isPrimary ? '#00c9a0' : tier === 'secondary' ? '#7c5cbf' : '#4a6080';
+        const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.82 : 0.6;
+
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = isSel ? 2 : 1.5;
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        
-        // Create angled connection
-        if (placeAbove) {
-          // Arrow pointing upward
-          ctx.moveTo(anchorX, anchorY);
-          
-          // Create a nice angled path
-          const midY = anchorY - (anchorY - boxConnectY) * 0.6;
-          const midX = anchorX + (boxConnectX - anchorX) * 0.3;
-          
-          ctx.lineTo(midX, midY);
-          ctx.lineTo(boxConnectX, boxConnectY);
-        } else {
-          // Arrow pointing downward
-          ctx.moveTo(anchorX, anchorY);
-          
-          // Create a nice angled path
-          const midY = anchorY + (boxConnectY - anchorY) * 0.6;
-          const midX = anchorX + (boxConnectX - anchorX) * 0.3;
-          
-          ctx.lineTo(midX, midY);
-          ctx.lineTo(boxConnectX, boxConnectY);
-        }
-        
-        ctx.stroke();
-        
-        // Draw anchor point on chart
+
+        // ── Callout bubble: floats above/below candle range, never on candles ──
+        // Anchor dot at exact price level
         ctx.fillStyle = accentCol;
         ctx.beginPath();
-        ctx.arc(anchorX, anchorY, 4, 0, Math.PI * 2);
+        ctx.arc(ax, ay, isPrimary ? 4 : 3, 0, Math.PI*2);
         ctx.fill();
-        
-        // Draw explanation box
-        ctx.fillStyle = 'rgba(12,14,22,0.92)';
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = isSel ? 2 : 1;
-        roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 4);
-        ctx.fill();
-        ctx.stroke();
-        
-        // Draw wrapped text
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        
-        lines.forEach((line, index) => {
-          const textY = boxY + padding + index * lineHeight;
-          ctx.fillText(line, boxX + padding, textY);
-        });
-        
-        // Selection indicator
+
+        if (d.label) {
+          const explanation = d.explanation || '';
+          const fontSize    = isPrimary ? 10 : 9;
+          const padX = 8, padY = 6;
+          const maxBubbleW  = Math.min(200, W * 0.28);
+
+          // Measure and wrap text
+          ctx.font = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
+          const titleLine = d.label.slice(0, 40);
+          const titleW    = ctx.measureText(titleLine).width;
+
+          // Wrap explanation into lines
+          const explLines = [];
+          if (explanation) {
+            ctx.font = `${fontSize - 1}px sans-serif`;
+            const words = explanation.split(' ');
+            let line = '';
+            for (const w of words) {
+              const test = line ? line + ' ' + w : w;
+              if (ctx.measureText(test).width > maxBubbleW - padX*2) {
+                if (line) explLines.push(line);
+                line = w;
+              } else { line = test; }
+            }
+            if (line) explLines.push(line);
+          }
+
+          const lineH     = fontSize + 3;
+          const totalLines = 1 + explLines.length;
+          const bubbleW   = Math.min(maxBubbleW, Math.max(titleW + padX*2, 120));
+          const bubbleH   = padY*2 + lineH * totalLines + (explLines.length ? 4 : 0);
+
+          // Decide bubble placement: above or below chart based on price position
+          // Bubble never sits on candles — it floats near chart edge
+          const anchorInUpperHalf = ay < H * 0.5;
+          const bubbleY = anchorInUpperHalf
+            ? Math.max(4, ay - bubbleH - 28)          // place above anchor
+            : Math.min(H - bubbleH - 4, ay + 28);     // place below anchor
+
+          // Horizontal: center on anchor, clamp to canvas
+          let bubbleX = ax - bubbleW / 2;
+          bubbleX = Math.max(4, Math.min(W - bubbleW - 4, bubbleX));
+
+          // ── L-shaped angled connector: price dot → corner → bubble ──
+          const connCornerX = bubbleX + bubbleW * 0.3;
+          const connStartY  = ay + (anchorInUpperHalf ? -4 : 4);
+          const connEndY    = anchorInUpperHalf ? bubbleY + bubbleH : bubbleY;
+
+          ctx.strokeStyle = accentCol;
+          ctx.lineWidth   = isPrimary ? 1.5 : 1;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(ax, connStartY);
+          // Vertical segment to corner
+          const midY = anchorInUpperHalf
+            ? connStartY - Math.abs(connStartY - connEndY) * 0.4
+            : connStartY + Math.abs(connEndY - connStartY) * 0.4;
+          ctx.lineTo(ax, midY);
+          // Angled to corner
+          ctx.lineTo(connCornerX, connEndY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Small arrowhead at bubble end
+          const ahY  = connEndY + (anchorInUpperHalf ? -1 : 1);
+          const ahSz = 3;
+          ctx.fillStyle = accentCol;
+          ctx.beginPath();
+          if (anchorInUpperHalf) {
+            ctx.moveTo(connCornerX, ahY);
+            ctx.lineTo(connCornerX - ahSz, ahY - ahSz*1.6);
+            ctx.lineTo(connCornerX + ahSz, ahY - ahSz*1.6);
+          } else {
+            ctx.moveTo(connCornerX, ahY);
+            ctx.lineTo(connCornerX - ahSz, ahY + ahSz*1.6);
+            ctx.lineTo(connCornerX + ahSz, ahY + ahSz*1.6);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          // ── Bubble background ──
+          ctx.globalAlpha = alpha * 0.97 * (isWIP ? 0.7 : 1);
+          ctx.fillStyle   = 'rgba(10,12,22,0.94)';
+          roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 5);
+          ctx.fill();
+          ctx.strokeStyle = accentCol;
+          ctx.lineWidth   = isPrimary ? 1 : 0.75;
+          roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 5);
+          ctx.stroke();
+
+          // ── Title line ──
+          ctx.font      = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
+          ctx.fillStyle = isPrimary ? '#e8f4f0' : tier === 'secondary' ? '#c8c0e8' : '#8090a8';
+          ctx.textAlign = 'left';
+          ctx.fillText(titleLine, bubbleX + padX, bubbleY + padY + fontSize);
+
+          // ── Explanation lines ──
+          if (explLines.length) {
+            ctx.font      = `${fontSize - 1}px sans-serif`;
+            ctx.fillStyle = '#7890a4';
+            explLines.forEach((ln, li) => {
+              ctx.fillText(ln, bubbleX + padX, bubbleY + padY + fontSize + 5 + lineH * (li + 1));
+            });
+          }
+
+          ctx.textAlign = 'left';
+        }
+
+        // Selection ring
         if (isSel) {
           ctx.strokeStyle = accentCol;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth   = 1.5;
           ctx.setLineDash([2, 2]);
           ctx.beginPath();
-          ctx.arc(anchorX, anchorY, tipSize + 6, 0, Math.PI * 2);
+          ctx.arc(ax, ay, 8, 0, Math.PI*2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        
+
         ctx.restore();
         break;
       }
@@ -14037,128 +13781,6 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           while (ctx.measureText(txt).width > boxW - padX * 2 - 4 && txt.length > 4) txt = txt.slice(0, -1);
           ctx.fillText(txt, lbx + padX, lby + padY + lineH * (li + 1) - 2);
         });
-
-        ctx.restore();
-        break;
-      }
-
-      case 'mentor_bubble': {
-        // Pointer-based speech bubble - sits outside chart with line connecting to level
-        const bx = barXfn(d.bar);
-        const by = pyfn(d.price);
-        const priority = d.priority || 2;
-        const placementSide = d.placementSide || (by < H/2 ? 'above' : 'below');
-        const txt = d.text || '';
-
-        // Styling
-        const isCritical = priority === 1;
-        const isKey = priority === 2;
-        const accentCol = isCritical ? '#00c9a0' : isKey ? '#f0a500' : '#7c5cbf';
-        const bgCol = 'rgba(12,14,22,0.95)';
-        const fontSize = 11;
-        const maxWidth = 260;
-        const padX = 12;
-        const padY = 10;
-        const pointerLen = 25; // Length of pointer line
-        const spacing = 8; // Spacing between stacked bubbles
-
-        ctx.save();
-        ctx.font = `${fontSize}px sans-serif`;
-
-        // Word wrap text to fit maxWidth
-        const words = txt.split(' ');
-        const lines = [];
-        let currentLine = '';
-        for (let i = 0; i < words.length; i++) {
-          const testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
-          const testWidth = ctx.measureText(testLine).width;
-          if (testWidth > maxWidth - padX * 2 && currentLine) {
-            lines.push(currentLine);
-            currentLine = words[i];
-          } else {
-            currentLine = testLine;
-          }
-        }
-        if (currentLine) lines.push(currentLine);
-
-        const lineH = fontSize + 4;
-        const boxW = Math.min(Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2, maxWidth);
-        const boxH = lines.length * lineH + padY * 2;
-        const cornerRadius = 8;
-
-        // Calculate vertical stacking offset
-        const allBubbles = drawings.filter(b => b.type === 'mentor_bubble' && b.isMentorAnnotation);
-        const sameSideBubbles = allBubbles.filter(b => (b.placementSide || 'below') === placementSide);
-        const myIndex = sameSideBubbles.findIndex(b => b.id === d.id);
-        const stackOffset = myIndex > 0 ? sameSideBubbles.slice(0, myIndex).reduce((sum, b) => {
-          // Estimate height of previous bubbles (they have same padding)
-          const prevLines = b.text ? b.text.split(' ').length / 6 + 1 : 2; // rough estimate
-          const prevHeight = Math.max(prevLines, 2) * lineH + padY * 2;
-          return sum + prevHeight + spacing;
-        }, 0) : 0;
-
-        // Position bubble outside chart area with pointer line
-        let boxX, boxY, pointerEndY;
-        if (placementSide === 'above') {
-          // Place above chart, stacked upward
-          boxY = 15 + stackOffset; // Start from top with padding
-          pointerEndY = boxY + boxH;
-          boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
-        } else {
-          // Place below chart, stacked downward
-          boxY = H - 15 - boxH - stackOffset;
-          pointerEndY = boxY;
-          boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
-        }
-
-        // Draw pointer line from bubble to chart level
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(bx, by); // Start at chart level
-        // Line goes to bubble edge
-        const pointerMidY = placementSide === 'above' ? by - pointerLen/2 : by + pointerLen/2;
-        ctx.lineTo(bx, pointerMidY); // Vertical part
-        ctx.lineTo(Math.max(boxX + 20, Math.min(boxX + boxW - 20, bx)), pointerEndY); // Connect to bubble
-        ctx.stroke();
-
-        // Draw bubble shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.beginPath();
-        roundRect(ctx, boxX + 2, boxY + 2, boxW, boxH, cornerRadius);
-        ctx.fill();
-
-        // Draw bubble background
-        ctx.fillStyle = bgCol;
-        ctx.beginPath();
-        roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
-        ctx.fill();
-
-        // Draw border
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = isCritical ? 2 : 1.5;
-        ctx.beginPath();
-        roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
-        ctx.stroke();
-
-        // Draw text with wrapping
-        ctx.textAlign = 'left';
-        ctx.fillStyle = isCritical ? '#e8f4f0' : isKey ? '#f5e6c8' : '#c8d0e4';
-        lines.forEach((line, i) => {
-          ctx.fillText(line, boxX + padX, boxY + padY + lineH * (i + 1) - 2);
-        });
-
-        // Selection highlight
-        if (isSel) {
-          ctx.strokeStyle = accentCol;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([3, 2]);
-          ctx.beginPath();
-          roundRect(ctx, boxX - 3, boxY - 3, boxW + 6, boxH + 6, cornerRadius + 2);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
 
         ctx.restore();
         break;
