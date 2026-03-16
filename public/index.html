@@ -12213,31 +12213,68 @@ function hitTest(d, sx, sy){
       return Math.abs(sx-lax)<barWidth*3 && Math.abs(sy-lay)<30;
     }
     case 'mentor_bubble':{
-      // Simple bounding-box hit test for speech bubble
-      const bx=_barX(d.bar);
-      const by=_py(d.price);
-      const priority=d.priority||2;
-      const tailDir=d.tailDir||'down';
-      const txt=d.text||'';
+      // Pointer-based layout: bubble sits outside chart area with line to chart level
+      const bx = _barX(d.bar);
+      const by = _py(d.price);
+      const priority = d.priority || 2;
+      const placementSide = d.placementSide || (by < H/2 ? 'above' : 'below');
+      const txt = d.text || '';
 
-      // Approximate bubble dimensions (same logic as rendering)
-      const fontSize=10;
-      const maxWidth=220;
-      const padX=10;
-      const padY=8;
-      const tailSize=8;
+      // Calculate bubble dimensions (same as render)
+      const fontSize = 11;
+      const maxWidth = 260;
+      const padX = 12;
+      const padY = 10;
+      const spacing = 8;
 
-      // Estimate text dimensions (conservative)
-      const approxCharWidth=6;
-      const approxLines=Math.min(2, Math.ceil(txt.length*approxCharWidth/maxWidth)||1);
-      const approxLineWidth=Math.min(txt.length*approxCharWidth, maxWidth);
-      const boxW=Math.min(approxLineWidth+padX*2, maxWidth);
-      const boxH=approxLines*(fontSize+3)+padY*2;
+      // Word wrap to calculate dimensions
+      const words = txt.split(' ');
+      const lines = [];
+      let currentLine = '';
+      ctx.save();
+      ctx.font = `${fontSize}px sans-serif`;
+      for (let i = 0; i < words.length; i++) {
+        const testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
+        const testWidth = ctx.measureText(testLine).width;
+        if (testWidth > maxWidth - padX * 2 && currentLine) {
+          lines.push(currentLine);
+          currentLine = words[i];
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      ctx.restore();
 
-      const boxX=bx-boxW/2;
-      const boxY=tailDir==='down' ? by-tailSize-boxH : by+tailSize;
+      const lineH = fontSize + 4;
+      const boxW = Math.min(Math.max(...lines.map(l => {
+        ctx.save(); ctx.font = `${fontSize}px sans-serif`;
+        const w = ctx.measureText(l).width; ctx.restore(); return w;
+      })) + padX * 2, maxWidth);
+      const boxH = lines.length * lineH + padY * 2;
 
-      return sx>=boxX-5 && sx<=boxX+boxW+5 && sy>=boxY-5 && sy<=boxY+boxH+5;
+      // Calculate stacking offset (same as render)
+      const allBubbles = drawings.filter(b => b.type === 'mentor_bubble' && b.isMentorAnnotation);
+      const sameSideBubbles = allBubbles.filter(b => (b.placementSide || 'below') === placementSide);
+      const myIndex = sameSideBubbles.findIndex(b => b.id === d.id);
+      const stackOffset = myIndex > 0 ? sameSideBubbles.slice(0, myIndex).reduce((sum, b) => {
+        const prevLines = b.text ? b.text.split(' ').length / 6 + 1 : 2;
+        const prevHeight = Math.max(prevLines, 2) * lineH + padY * 2;
+        return sum + prevHeight + spacing;
+      }, 0) : 0;
+
+      // Calculate box position (same as render)
+      let boxX, boxY;
+      if (placementSide === 'above') {
+        boxY = 15 + stackOffset;
+        boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
+      } else {
+        boxY = H - 15 - boxH - stackOffset;
+        boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
+      }
+
+      // Check if point is inside bubble box
+      return sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH;
     }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
@@ -12806,6 +12843,7 @@ function _addMentorLabel(bar, price, lines) {
 // Add a speech bubble with educational explanation near an annotation.
 // Duplicate-suppression: skip if a bubble with the same text exists within 10 bars.
 // Enforces max 4 bubble cap (prunes lowest-priority bubbles when limit exceeded).
+// Pointer-based layout: bubble sits outside chart with line connecting to the level.
 function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
   // Only add if bubbles are enabled (default true)
   if (mentorState.bubblesEnabled === false) return null;
@@ -12827,14 +12865,23 @@ function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
     }
   }
 
+  // Determine placement side based on price position in visible range
+  // The bubble will be placed outside the chart area
+  const canvasHeight = document.getElementById('main-canvas')?.height || 600;
+  const midPrice = (visibleMaxPrice + visibleMinPrice) / 2;
+  // If price is in upper half, bubble goes above chart; if lower half, below chart
+  const placementSide = price > midPrice ? 'above' : 'below';
+
   const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const drawing = {
     type: 'mentor_bubble',
     bar,
     price,
     text,
-    tailDir,
+    tailDir: placementSide === 'above' ? 'down' : 'up', // tail points toward chart
     priority,
+    placementSide, // 'above' or 'below' - determines vertical stacking
+    stackOffset: 0, // will be calculated during render based on other bubbles
     isMentorAnnotation: true,
     id,
     candleIndex: bar,
@@ -13839,29 +13886,29 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       }
 
       case 'mentor_bubble': {
-        // Speech bubble callout with tail pointer - educational explanations
+        // Pointer-based speech bubble - sits outside chart with line connecting to level
         const bx = barXfn(d.bar);
         const by = pyfn(d.price);
         const priority = d.priority || 2;
-        const tailDir = d.tailDir || 'down';
+        const placementSide = d.placementSide || (by < H/2 ? 'above' : 'below');
         const txt = d.text || '';
 
-        // Styling based on priority
+        // Styling
         const isCritical = priority === 1;
         const isKey = priority === 2;
-        const accentCol = isCritical ? '#00c9a0' : isKey ? '#f0a500' : '#7c5cbf'; // teal / amber / purple
-        const bgCol = 'rgba(10,12,20,0.92)';
-        const fontSize = 10;
-        const maxWidth = 220;
-        const padX = 10;
-        const padY = 8;
-        const tailSize = 8;
-        const cornerRadius = 6;
+        const accentCol = isCritical ? '#00c9a0' : isKey ? '#f0a500' : '#7c5cbf';
+        const bgCol = 'rgba(12,14,22,0.95)';
+        const fontSize = 11;
+        const maxWidth = 260;
+        const padX = 12;
+        const padY = 10;
+        const pointerLen = 25; // Length of pointer line
+        const spacing = 8; // Spacing between stacked bubbles
 
         ctx.save();
         ctx.font = `${fontSize}px sans-serif`;
 
-        // Word wrap text to max 2 lines
+        // Word wrap text to fit maxWidth
         const words = txt.split(' ');
         const lines = [];
         let currentLine = '';
@@ -13871,30 +13918,56 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           if (testWidth > maxWidth - padX * 2 && currentLine) {
             lines.push(currentLine);
             currentLine = words[i];
-            if (lines.length >= 2) break;
           } else {
             currentLine = testLine;
           }
         }
-        if (currentLine && lines.length < 2) lines.push(currentLine);
+        if (currentLine) lines.push(currentLine);
 
-        const lineH = fontSize + 3;
+        const lineH = fontSize + 4;
         const boxW = Math.min(Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2, maxWidth);
         const boxH = lines.length * lineH + padY * 2;
+        const cornerRadius = 8;
 
-        // Position bubble above or below anchor point based on tailDir
-        const tailY = tailDir === 'down' ? by - tailSize : by + tailSize;
-        const boxY = tailDir === 'down' ? tailY - boxH : tailY;
-        const boxX = bx - boxW / 2;
+        // Calculate vertical stacking offset
+        const allBubbles = drawings.filter(b => b.type === 'mentor_bubble' && b.isMentorAnnotation);
+        const sameSideBubbles = allBubbles.filter(b => (b.placementSide || 'below') === placementSide);
+        const myIndex = sameSideBubbles.findIndex(b => b.id === d.id);
+        const stackOffset = myIndex > 0 ? sameSideBubbles.slice(0, myIndex).reduce((sum, b) => {
+          // Estimate height of previous bubbles (they have same padding)
+          const prevLines = b.text ? b.text.split(' ').length / 6 + 1 : 2; // rough estimate
+          const prevHeight = Math.max(prevLines, 2) * lineH + padY * 2;
+          return sum + prevHeight + spacing;
+        }, 0) : 0;
 
-        // Clip to canvas bounds
-        if (boxX < 5 || boxX + boxW > W - 5 || boxY < 5 || boxY + boxH > H - 5) {
-          ctx.restore();
-          break;
+        // Position bubble outside chart area with pointer line
+        let boxX, boxY, pointerEndY;
+        if (placementSide === 'above') {
+          // Place above chart, stacked upward
+          boxY = 15 + stackOffset; // Start from top with padding
+          pointerEndY = boxY + boxH;
+          boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
+        } else {
+          // Place below chart, stacked downward
+          boxY = H - 15 - boxH - stackOffset;
+          pointerEndY = boxY;
+          boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
         }
 
-        // Draw shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        // Draw pointer line from bubble to chart level
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(bx, by); // Start at chart level
+        // Line goes to bubble edge
+        const pointerMidY = placementSide === 'above' ? by - pointerLen/2 : by + pointerLen/2;
+        ctx.lineTo(bx, pointerMidY); // Vertical part
+        ctx.lineTo(Math.max(boxX + 20, Math.min(boxX + boxW - 20, bx)), pointerEndY); // Connect to bubble
+        ctx.stroke();
+
+        // Draw bubble shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath();
         roundRect(ctx, boxX + 2, boxY + 2, boxW, boxH, cornerRadius);
         ctx.fill();
@@ -13905,21 +13978,6 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
         ctx.fill();
 
-        // Draw tail (triangle pointing toward anchor)
-        ctx.fillStyle = bgCol;
-        ctx.beginPath();
-        if (tailDir === 'down') {
-          ctx.moveTo(bx, by);
-          ctx.lineTo(bx - tailSize, boxY + boxH);
-          ctx.lineTo(bx + tailSize, boxY + boxH);
-        } else {
-          ctx.moveTo(bx, by);
-          ctx.lineTo(bx - tailSize, boxY);
-          ctx.lineTo(bx + tailSize, boxY);
-        }
-        ctx.closePath();
-        ctx.fill();
-
         // Draw border
         ctx.strokeStyle = accentCol;
         ctx.lineWidth = isCritical ? 2 : 1.5;
@@ -13927,22 +13985,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
         ctx.stroke();
 
-        // Draw tail border accent
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        if (tailDir === 'down') {
-          ctx.moveTo(bx - tailSize, boxY + boxH);
-          ctx.lineTo(bx, by);
-          ctx.lineTo(bx + tailSize, boxY + boxH);
-        } else {
-          ctx.moveTo(bx - tailSize, boxY);
-          ctx.lineTo(bx, by);
-          ctx.lineTo(bx + tailSize, boxY);
-        }
-        ctx.stroke();
-
-        // Draw text
+        // Draw text with wrapping
         ctx.textAlign = 'left';
         ctx.fillStyle = isCritical ? '#e8f4f0' : isKey ? '#f5e6c8' : '#c8d0e4';
         lines.forEach((line, i) => {
