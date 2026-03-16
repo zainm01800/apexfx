@@ -12197,16 +12197,29 @@ function hitTest(d, sx, sy){
       return sx>x-4&&sx<x+w&&sy>y-16&&sy<y+4;
     }
     case 'mentor_arrow':{
-      const ax=_barX(d.bar), ay=_py(d.price);
+      const ax = _barX(d.bar), ay = _py(d.price);
       const isDown = d.pointing !== 'up';
       
       // Get canvas dimensions
       const canvas = document.getElementById('main-canvas');
       const canvasWidth = canvas?.width || 800;
       const canvasHeight = canvas?.height || 600;
+      const midY = canvasHeight / 2;
       
-      // Determine callout position
-      const calloutAbove = d.calloutPosition === 'above' || (!d.calloutPosition && ay > canvasHeight / 2);
+      // Smart positioning logic (same as rendering)
+      const arrowsOnBottom = drawings.filter(other => 
+        other.type === 'mentor_arrow' && 
+        other.id !== d.id &&
+        _py(other.price) <= midY
+      ).length;
+      
+      const arrowsOnTop = drawings.filter(other => 
+        other.type === 'mentor_arrow' && 
+        other.id !== d.id &&
+        _py(other.price) > midY
+      ).length;
+      
+      const placeOnTop = arrowsOnBottom > arrowsOnTop || (arrowsOnBottom === arrowsOnTop && ay <= midY);
       
       // Calculate box dimensions
       const fontSize = 11;
@@ -12217,56 +12230,28 @@ function hitTest(d, sx, sy){
       const boxW = textWidth;
       const boxH = fontSize + 10;
       
-      // Calculate offset based on nearby arrows for clean spacing
-      let xOffset = 0;
-      let yOffset = 0;
-      if (sameSideArrows.length > 0) {
-        const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
-        const index = myIndex === -1 ? sameSideArrows.length : myIndex;
-        
-        // Match the grid organization from rendering
-        const cols = 3;
-        const row = Math.floor(index / cols);
-        const col = index % cols;
-        
-        xOffset = (col - 1) * minSpacing;
-        yOffset = row * (calloutAbove ? -25 : 25);
-      }
+      // Position callout box (same as rendering)
+      const margin = 20;
+      const boxX = Math.max(margin, Math.min(canvasWidth - boxW - margin, ax - boxW / 2));
+      const boxY = placeOnTop ? margin : canvasHeight - margin - boxH;
       
-      // Box position closer to anchor point (match rendering)
-      const naturalDistance = 90;
-      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + (d.randomValues?.boxOffset || 0)));
-      const boxY = calloutAbove 
-        ? Math.max(15, ay - naturalDistance + yOffset)
-        : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + yOffset);
+      // Only allow selection when clicking on anchor or box, not the line
+      // This allows panning when clicking on the line area
       
-      // Check if point is in box
+      // Check if point is in box (allow selection)
       if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
         return true;
       }
       
-      // Check if point is near anchor (no randomness for stability)
-      const anchorX = ax + xOffset;
+      // Check if point is near anchor (allow selection)
+      const anchorX = ax;
       const anchorY = ay + (isDown ? -4 : 4);
       if (Math.abs(sx - anchorX) < 12 && Math.abs(sy - anchorY) < 12) {
         return true;
       }
       
-      // Check if point is on connector line (simplified)
-      const boxConnectX = boxX + boxW / 2;
-      const boxConnectY = calloutAbove ? boxY + boxH : boxY;
-      
-      // Simple line hit test
-      const distToLine = Math.abs((boxConnectY - anchorY) * sx - (boxConnectX - anchorX) * sy + boxConnectX * anchorY - boxConnectY * anchorX) / 
-                         Math.sqrt(Math.pow(boxConnectY - anchorY, 2) + Math.pow(boxConnectX - anchorX, 2));
-      
-      return distToLine < 5;
-    }
-    case 'mentor_box':{
-      const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
-      const by1=_py(d.priceHigh),by2=_py(d.priceLow);
-      return sx>=Math.min(bx1,bx2)-barWidth && sx<=Math.max(bx1,bx2)+barWidth &&
-             sy>=Math.min(by1,by2)-10 && sy<=Math.max(by1,by2)+10;
+      // Do NOT hit test the line - this allows panning when clicking on the line
+      return false;
     }
     case 'mentor_label':{
       const lax=_barX(d.bar),lay=_py(d.price);
@@ -13813,17 +13798,29 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const alpha   = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
         const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
         const tipSize   = tier === 'primary' ? 6 : 5;
+        const stemLen   = tier === 'primary' ? 22 : 16;
+
+        // Smart positioning: count arrows on top vs bottom
+        const canvas = document.getElementById('main-canvas');
+        const canvasHeight = canvas?.height || 600;
+        const midY = canvasHeight / 2;
         
-        // Get canvas dimensions properly
-        const mc = document.getElementById('main-canvas');
-        const canvasHeight = mc ? mc.height : 600;
-        const canvasWidth = mc ? mc.width : 800;
+        const arrowsOnBottom = drawings.filter(other => 
+          other.type === 'mentor_arrow' && 
+          other.id !== d.id &&
+          pyfn(other.price) <= midY
+        ).length;
         
-        // Determine arrow direction and callout position
-        const calloutAbove = d.calloutPosition === 'above' || (!d.calloutPosition && ay > canvasHeight / 2);
-        const placementSide = calloutAbove ? 'above' : 'below';
+        const arrowsOnTop = drawings.filter(other => 
+          other.type === 'mentor_arrow' && 
+          other.id !== d.id &&
+          pyfn(other.price) > midY
+        ).length;
         
-        // Calculate callout box position (similar to mentor_bubble)
+        // Smart positioning logic: place on top if bottom is crowded
+        const placeOnTop = arrowsOnBottom > arrowsOnTop || (arrowsOnBottom === arrowsOnTop && ay <= midY);
+        
+        // Calculate callout box position
         const fontSize = 11;
         const padX = 12;
         const maxWidth = 200;
@@ -13832,51 +13829,10 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const boxW = textWidth;
         const boxH = fontSize + 10;
         
-        // Horizontal positioning with clutter control
-        const minSpacing = 60; // minimum spacing between arrows
-        const sameSideArrows = drawings.filter(other => 
-          other.type === 'mentor_arrow' && 
-          other.id !== d.id &&
-          (other.calloutPosition === placementSide || 
-           (!other.calloutPosition && ((placementSide === 'above' && pyfn(other.price) > canvasHeight/2) ||
-                                      (placementSide === 'below' && pyfn(other.price) <= canvasHeight/2))))
-        );
-        
-        // Calculate offset based on nearby arrows for clean spacing
-        let xOffset = 0;
-        let yOffset = 0;
-        if (sameSideArrows.length > 0) {
-          const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
-          const index = myIndex === -1 ? sameSideArrows.length : myIndex;
-          
-          // Create a grid-like organization
-          const cols = 3; // Max 3 arrows per row
-          const row = Math.floor(index / cols);
-          const col = index % cols;
-          
-          xOffset = (col - 1) * minSpacing; // -60, 0, +60
-          yOffset = row * (calloutAbove ? -25 : 25); // Stack rows vertically
-        }
-        
-        // Store random values for consistent positioning and hit testing
-        if (!d.randomValues) {
-          d.randomValues = {
-            boxOffset: (Math.random() - 0.5) * 8, // Further reduced
-            boxYOffset: 0, // No vertical randomness for cleaner look
-            anchorXOffset: 0, // No anchor randomness for stability
-            anchorYOffset: 0,
-            elbowXOffset: (Math.random() - 0.5) * 15, // Subtle elbow variation
-            elbowYOffset: 0,
-            pathType: Math.floor(Math.random() * 2) // Only 2 cleaner path types
-          };
-        }
-        
-        // Box position with organized spacing
-        const naturalDistance = 90; // Fixed distance for consistency
-        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + d.randomValues.boxOffset));
-        const boxY = calloutAbove 
-          ? Math.max(15, ay - naturalDistance + yOffset)
-          : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + yOffset);
+        // Position callout box on top or bottom based on smart logic
+        const margin = 20;
+        const boxX = Math.max(margin, Math.min(canvas.width - boxW - margin, ax - boxW / 2));
+        const boxY = placeOnTop ? margin : canvasHeight - margin - boxH;
         
         // Smooth fade-in animation
         const creationTime = d.creationTime || Date.now();
@@ -13887,70 +13843,56 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         
         ctx.save();
         ctx.globalAlpha = alpha * easeOut;
-        
-        // Anchor point with organized offset (no randomness)
-        const anchorX = ax + xOffset;
-        const anchorY = ay + (isDown ? -4 : 4);
-        
-        // Connection points
-        const boxConnectX = boxX + boxW / 2;
-        const boxConnectY = calloutAbove ? boxY + boxH : boxY;
-        
-        // Elbow connector path with subtle variation
-        const elbowX = boxConnectX + d.randomValues.elbowXOffset;
-        const elbowY = anchorY + (calloutAbove ? -20 : 20) * easeOut; // Fixed elbow distance
-        
-        // Draw elbow connector
+
+        // Draw straight line from anchor to callout box
         ctx.strokeStyle = accentCol;
         ctx.lineWidth = isSel ? 2 : 1.5;
         ctx.setLineDash([]);
-        ctx.lineJoin = 'round';
-        
         ctx.beginPath();
-        // Start at anchor point (on chart)
+        
+        // Line from anchor point to box
+        const anchorX = ax;
+        const anchorY = ay + (isDown ? -4 : 4);
+        const boxConnectX = boxX + boxW / 2;
+        const boxConnectY = placeOnTop ? boxY + boxH : boxY;
+        
         ctx.moveTo(anchorX, anchorY);
-        
-        // Create clean path with minimal randomness
-        const pathType = d.randomValues.pathType;
-        
-        if (pathType === 0) {
-          // Simple clean elbow
-          const bendX = anchorX + (elbowX - anchorX) * 0.5; // Fixed midpoint
-          const bendY = anchorY + (calloutAbove ? -15 : 15) * easeOut;
-          ctx.lineTo(bendX, bendY);
-          ctx.lineTo(elbowX, elbowY);
-        } else {
-          // Single angled path (cleaner)
-          const midX = (anchorX + elbowX) / 2;
-          const midY = anchorY + (calloutAbove ? -18 : 18) * easeOut;
-          ctx.lineTo(midX, midY);
-          ctx.lineTo(elbowX, elbowY);
-        }
-        
-        // Final segment to box
         ctx.lineTo(boxConnectX, boxConnectY);
         ctx.stroke();
-        
+
         // Triangle arrowhead at anchor
         ctx.fillStyle = accentCol;
         ctx.beginPath();
         if (isDown) {
-          ctx.moveTo(anchorX, anchorY);
-          ctx.lineTo(anchorX - tipSize, anchorY + tipSize * 1.8);
-          ctx.lineTo(anchorX + tipSize, anchorY + tipSize * 1.8);
+          ctx.moveTo(anchorX,            anchorY);
+          ctx.lineTo(anchorX - tipSize,  anchorY + tipSize * 1.8);
+          ctx.lineTo(anchorX + tipSize,  anchorY + tipSize * 1.8);
         } else {
-          ctx.moveTo(anchorX, anchorY);
-          ctx.lineTo(anchorX - tipSize, anchorY - tipSize * 1.8);
-          ctx.lineTo(anchorX + tipSize, anchorY - tipSize * 1.8);
+          ctx.moveTo(anchorX,            anchorY);
+          ctx.lineTo(anchorX - tipSize,  anchorY - tipSize * 1.8);
+          ctx.lineTo(anchorX + tipSize,  anchorY - tipSize * 1.8);
         }
         ctx.closePath();
         ctx.fill();
-        
-        // Small circle at anchor point
-        ctx.beginPath();
-        ctx.arc(anchorX, anchorY, 3, 0, Math.PI * 2);
+
+        // Callout box
+        ctx.fillStyle = 'rgba(12,14,22,0.92)';
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth = isSel ? 2 : 1;
+        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
         ctx.fill();
-        
+        ctx.stroke();
+
+        // Label text
+        if (d.label) {
+          const firstLine = d.label.split(' - ')[0].trim().slice(0, 32);
+          ctx.font = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(firstLine, boxX + boxW / 2, boxY + boxH / 2);
+        }
+
         // Selection ring
         if (isSel) {
           ctx.strokeStyle = accentCol;
@@ -13961,25 +13903,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        
-        // Callout box background
-        ctx.fillStyle = 'rgba(12, 14, 22, 0.92)';
-        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
-        ctx.fill();
-        ctx.strokeStyle = accentCol;
-        ctx.lineWidth = 0.5;
-        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
-        ctx.stroke();
-        
-        // Label text
-        if (d.label) {
-          const firstLine = d.label.split(' - ')[0].trim().slice(0, 32);
-          ctx.font = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.fillStyle = '#fff';
-          ctx.fillText(firstLine, boxX + boxW / 2, boxY + boxH / 2 + 3);
-        }
-        
+
         ctx.restore();
         break;
       }
