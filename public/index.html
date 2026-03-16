@@ -5047,14 +5047,20 @@ function replayStep(n){
   updateReplayStatus();
   draw();
 
-  // If in setup_detected state, refresh annotations immediately on any step
-  // (including backwards) so they always reflect what the user can currently see
-  if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+  // Refresh setup annotations on every step — forward OR backward.
+  // Works in both setup_detected (approaching trade) and trade_monitoring (during trade).
+  const _lc = mentorState.lifecycleState;
+  if (_lc === 'setup_detected' && mentorState.upcomingSetup) {
     const _setupBar = mentorState.upcomingSetup.bar;
     const _barsAway = _setupBar - replayCutoff;
     if (!mentorState.earlyWarningShown && _barsAway > 5) {
       _mentorAnnotateSetup(mentorState.upcomingSetup.setup, replayCutoff, _setupBar);
     }
+  } else if ((_lc === 'trade_monitoring' || _lc === 'trade_completed' || _lc === 'trade_result')
+             && mentorState._tradeSetupData) {
+    // During and after the trade — keep the setup annotations visible and updating
+    const tsd = mentorState._tradeSetupData;
+    _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
   }
   
   // Monitor example trade if active
@@ -5306,6 +5312,8 @@ function dismissSetupMessage() {
   mentorState.setupWaitData = null;
   mentorState._freezeScrollForPreview = false;
 
+  mentorState._tradeSetupData = null;
+  mentorState._lastAnnotateBar = null;
   clearMentorAnnotations();
   resumeReplayAfterSetup();
   
@@ -6022,7 +6030,10 @@ function handleTradeCompletion(outcome, currentBar) {
 }
 
 function continueReplayAfterTradeCompletion() {
-  clearMentorAnnotations(); // clear setup annotations from the chart
+  // Annotations kept until user clears manually — but clear the stored setup data
+  // so the NEXT trade starts fresh
+  mentorState._tradeSetupData = null;
+  mentorState._lastAnnotateBar = null;
   // Reset trade state
   mentorState.exampleTrade = null;
   mentorState.exampleTradeActive = false;
@@ -6568,6 +6579,8 @@ function changeTradingMethod(newMethod) {
   updateMentorUI();
 
   // ── Reset all mentor state for the new method ─────────────────────────────
+  mentorState._tradeSetupData = null;
+  mentorState._lastAnnotateBar = null;
   clearMentorAnnotations(); // remove any setup markers from the previous strategy
   resetMentorStateForStrategyChange();
   mentorState.selectedTradingMethod = newMethod;
@@ -8630,11 +8643,13 @@ function handleSetupDetectedState(currentBar) {
       return;
     }
 
-    // Store for use by mentorShowMeTrade
+    // Store for use by mentorShowMeTrade AND for annotations during the trade
     setupData._prevalidatedLevels = prelevels;
     setupData._entryBar           = entryBar;
     mentorState.pendingSetupDetection = setupData;
     mentorState.pendingSetupBar       = setupBar;
+    // Keep a persistent copy so annotations can be redrawn during trade monitoring
+    mentorState._tradeSetupData = { setup: setupData, setupBar, anchorBar: currentBar };
 
     // Show immediate placeholder while AI analysis loads
     const dir       = setupData.direction || 'long';
@@ -8768,12 +8783,13 @@ function _buildSetupDetectedMessage(currentBar) {
   const direction = mentorState.upcomingSetup.setup.direction || '';
   const barsAway  = setupBar - currentBar;
 
-  // Refresh annotations whenever replayCutoff changes (forward OR backward).
-  // Use Math.abs so scrubbing backwards also triggers a redraw.
+  // Refresh annotations whenever the bar changes (forward or backward)
   const barDelta = Math.abs(currentBar - (mentorState._lastAnnotateBar || -999));
   if (barDelta >= 1) {
     mentorState._lastAnnotateBar = currentBar;
     if (!mentorState.earlyWarningShown && barsAway > 5) {
+      // Also save for later use during trade monitoring
+      mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
       _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
     }
   }
@@ -12632,11 +12648,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
   function isVisible(b) { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
 
-  // Level band: LEFT edge anchored at firstBar, RIGHT edge = visibleUpTo (grows as replay advances)
+  // Level band: LEFT edge anchored at firstBar, RIGHT edge = visibleUpTo.
+  // Only draws once the anchor bar is visible AND at least one bar has passed since.
+  // This prevents the band appearing before the candle it references.
   function levelBand(price, label, firstBar) {
-    const f = Math.max(0, firstBar);
+    const f = Math.max(0, Math.floor(firstBar));
     const t = visibleUpTo + 2;
-    if (!isVisible(f) || f > t) return;
+    // Don't draw if the anchor bar hasn't been seen yet, or nothing to extend right into
+    if (f >= visibleUpTo || !isVisible(f) || t <= f) return;
     _addMentorBox(f, t, price - atr * 0.10, price + atr * 0.10, label);
   }
 
@@ -12653,7 +12672,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
       const breakLevel = dir === 'long' ? conso.upper : conso.lower;
 
-      // Consolidation box: anchored left, right grows to visibleUpTo
+      // Consolidation box: only draw once the consolidation zone is visible
+      if (consoFrom >= visibleUpTo) break;
       _addMentorBox(consoFrom, visibleUpTo, conso.lower, conso.upper,
         `📦 Consolidation — ${Math.round((conso.upper - conso.lower) / atr * 10) / 10}× ATR`);
 
@@ -12693,10 +12713,12 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (dist < atr * 0.7) { firstTouchBar = i; break; }
       }
 
-      // Level band: anchored at firstTouchBar, right edge grows with visibleUpTo
-      levelBand(level,
-        dir === 'long' ? `🟢 Support: ${fP(level)}` : `🔴 Resistance: ${fP(level)}`,
-        firstTouchBar);
+      // Level band: only draw once a touch is actually visible on screen
+      if (firstTouchBar < visibleUpTo) {
+        levelBand(level,
+          dir === 'long' ? `🟢 Support: ${fP(level)}` : `🔴 Resistance: ${fP(level)}`,
+          firstTouchBar);
+      }
 
       // Scan for ALL touches between firstTouchBar and visibleUpTo
       const allTests = [];
@@ -12814,7 +12836,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const swLoI = detectionBar - 24 + look.findIndex(b => b.low === swLow);
       const fibAnchor = Math.max(0, dir === 'long' ? swHiI : swLoI);
 
-      if (isVisible(fibAnchor)) {
+      if (isVisible(fibAnchor) && fibAnchor < visibleUpTo) {
         _addMentorBox(fibAnchor, visibleUpTo + 8,
           Math.min(fib382, fib618), Math.max(fib382, fib618), `📐 38–62% Fib zone`);
 
@@ -12844,7 +12866,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       if (!c || !conso.isConsolidating) break;
 
       const rangeAnchor = Math.max(0, detectionBar - 20);
-      if (!isVisible(rangeAnchor)) break;
+      if (!isVisible(rangeAnchor) || rangeAnchor >= visibleUpTo) break;
 
       const mid = (conso.upper + conso.lower) / 2;
       _addMentorBox(rangeAnchor, visibleUpTo + 4, conso.lower, conso.upper,
