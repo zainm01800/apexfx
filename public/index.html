@@ -8588,12 +8588,6 @@ function handleSetupWaitState(currentBar) {
     return;
   }
 
-    currentBar, 
-    setupStart: mentorState.setupWaitStart,
-    setupData: mentorState.setupWaitData,
-    messageLocked: mentorState.messageLocked
-  });
-  
   detectReplayTradePlacement();
   
   const setupStillValid = isSetupStillValid(currentBar);
@@ -8621,10 +8615,6 @@ function handleSetupWaitState(currentBar) {
 }
 
 function handleTradeMonitoringState(currentBar) {
-    currentBar, 
-    monitoredTrade: mentorState.monitoredTrade 
-  });
-  
   if (!mentorState.monitoredTrade) {
     setMentorState('scanning', 'no monitored trade');
     return;
@@ -9680,14 +9670,7 @@ function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
   const currentBar = replayCutoff;
-    currentBar, 
-    enabled: mentorState.enabled, 
-    replayMode, 
-    replayPicking,
-    curDataLength: curData ? curData.length : 'null',
-    curDataAvailable: !!curData
-  });
-  
+
   // Check if we have data to analyze
   if (!curData || curData.length === 0) {
     if (mentorState.currentInsights) {
@@ -10438,14 +10421,6 @@ function updateMentorUI() {
     updateLockedMentorUI();
     return;
   }
-  
-  // Debug logging
-  console.log('🤖 updateMentorUI called:', {
-    hasInsights: !!mentorState.currentInsights,
-    hasQuestion: !!mentorState.currentQuestion,
-    insightsType: typeof mentorState.currentInsights,
-    insightsValue: mentorState.currentInsights
-  });
   
   // Update insights - handle both array and string
   if (insightsEl && mentorState.currentInsights) {
@@ -12816,9 +12791,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
   const method       = mentorState.selectedTradingMethod || 'breakout';
   const dir          = setupDetection.direction || 'long';
-  const detectionBar = Math.min(setupBar, curData.length - 1);
-  const visibleUpTo  = Math.min(anchorBar, replayCutoff, detectionBar, curData.length - 1);
-  const barsAway     = setupBar - visibleUpTo;
+  // Reuse detBar/visUp/barsAway computed above in the state-key guard
+  const detectionBar = detBar;
+  const visibleUpTo  = visUp;
+  // barsAway already declared above — no redeclaration needed
 
   if (visibleUpTo < 10) return;
 
