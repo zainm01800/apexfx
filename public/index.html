@@ -5330,9 +5330,10 @@ function dismissSetupMessage() {
   mentorState.setupWaitData = null;
   mentorState._freezeScrollForPreview = false;
 
-  mentorState._tradeSetupData = null;
-  mentorState._lastAnnotateBar = null;
-  mentorState._confluencePauses = new Set();
+  mentorState._tradeSetupData    = null;
+  mentorState._lastAnnotateBar   = null;
+  mentorState._lastAnnotateStage = 0;
+  mentorState._confluencePauses  = new Set();
   clearMentorAnnotations();
   resumeReplayAfterSetup();
   
@@ -6050,8 +6051,9 @@ function handleTradeCompletion(outcome, currentBar) {
 
 function continueReplayAfterTradeCompletion() {
   // Clear stored setup data so NEXT trade starts fresh (annotations stay until user deletes)
-  mentorState._tradeSetupData = null;
-  mentorState._lastAnnotateBar = null;
+  mentorState._tradeSetupData       = null;
+  mentorState._lastAnnotateBar      = null;
+  mentorState._lastAnnotateStage    = 0;
   mentorState._annotationsDrawnForTrade = false;
   // Reset trade state
   mentorState.exampleTrade = null;
@@ -8795,8 +8797,9 @@ function enterSetupDetectedState(windowScan) {
 
   console.log('🎯 Setup detected — entering setup_detected state at bar', windowScan.bar);
   mentorState.lifecycleState    = 'setup_detected';
-  mentorState._confluencePauses = new Set(); // fresh for each new setup
-  mentorState._lastAnnotateBar  = null;
+  mentorState._confluencePauses  = new Set();
+  mentorState._lastAnnotateBar   = null;
+  mentorState._lastAnnotateStage = 0; // reset stage tracker for new setup
   mentorState.upcomingSetup = {
     setup: windowScan.setup,
     bar:   windowScan.bar,
@@ -8816,15 +8819,30 @@ function _buildSetupDetectedMessage(currentBar) {
   const direction = mentorState.upcomingSetup.setup.direction || '';
   const barsAway  = setupBar - currentBar;
 
-  // Refresh annotations whenever the bar changes (forward or backward)
-  const barDelta = Math.abs(currentBar - (mentorState._lastAnnotateBar || -999));
-  if (barDelta >= 1) {
-    mentorState._lastAnnotateBar = currentBar;
-    if (!mentorState.earlyWarningShown && barsAway > 5) {
-      // Also save for later use during trade monitoring
-      mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
-      _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
-    }
+  // Determine current annotation stage (1/2/3)
+  const annStage = barsAway > 25 ? 1 : barsAway > 12 ? 2 : 3;
+
+  // Only redraw annotations when:
+  //   (a) Stage advances (new confluences to reveal), OR
+  //   (b) User scrubs BACKWARD (future annotations must disappear)
+  // Never redraw on every forward candle — annotations lock once placed.
+  const lastStage = mentorState._lastAnnotateStage || 0;
+  const lastBar   = mentorState._lastAnnotateBar   || 9999;
+  const scrubBack = currentBar < lastBar - 1;
+  const stageAdv  = annStage > lastStage;
+
+  if ((stageAdv || scrubBack) && !mentorState.earlyWarningShown && barsAway > 5) {
+    mentorState._lastAnnotateBar   = currentBar;
+    mentorState._lastAnnotateStage = annStage;
+    // Save for later use during trade monitoring
+    mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
+    _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
+  } else if (!mentorState._lastAnnotateBar) {
+    // First time — always draw stage 1
+    mentorState._lastAnnotateBar   = currentBar;
+    mentorState._lastAnnotateStage = annStage;
+    mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
+    _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
   }
 
   // Progressive panel messages that match the annotation steps
@@ -12747,9 +12765,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   function inRange(p) { return Number.isFinite(p) && p >= rangeLow - atr*0.5 && p <= rangeHigh + atr*0.5; }
   function isVis(b)   { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
 
-  // Progressive build — three stages as replay approaches setup
-  const showLevels = barsAway <= 35;  // stage 2: key level / zone
-  const showConf   = barsAway <= 20;  // stage 3: confirmation + entry signal
+  // Progressive build — 3 stages. Only show confluences in a 25-bar window before entry.
+  // Anything earlier than 25 bars = minimal context only.
+  const showLevels = barsAway <= 25;  // stage 2: key level / zone (25 bars out)
+  const showConf   = barsAway <= 12;  // stage 3: confirmation + entry (12 bars out)
 
   // Annotation collector — max 5, committed at end
   // priority 1=primary, 2=secondary, 3=tertiary
@@ -12782,9 +12801,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
     ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
   }
 
-  // Find real swing points anchored to actual candle OHLC
-  function findSwings(type, strength) {
-    const out = [];
+  // Major swing detection — requires:
+  //   • 3 candles on each side (strength=3), so at least 7 candles to confirm
+  //   • minimum 1.5×ATR size to filter micro-noise
+  //   • results deduplicated: swings too close together are merged (keep strongest)
+  function findMajorSwings(type) {
+    const strength = 3;
+    const minSize  = atr * 1.5; // ignore tiny swings
+    const raw = [];
     for (let i = histFrom+strength; i <= visibleUpTo-strength; i++) {
       const c = curData[i]; if (!c) continue;
       let ok = true;
@@ -12792,13 +12816,33 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const p=curData[i-j], n=curData[i+j]; if (!p||!n){ok=false;break;}
         if (type==='high'?(p.high>=c.high||n.high>=c.high):(p.low<=c.low||n.low<=c.low)){ok=false;break;}
       }
+      if (!ok) continue;
       const price = type==='high' ? c.high : c.low;
-      if (ok && inRange(price)) out.push({ bar:i, price });
+      if (!inRange(price)) continue;
+      // Size filter: swing must be at least 1.5×ATR from adjacent bars
+      const prevPrice = type==='high' ? Math.max(...[1,2,3].map(j=>curData[i-j]?.low||0))
+                                      : Math.min(...[1,2,3].map(j=>curData[i-j]?.high||Infinity));
+      const nextPrice = type==='high' ? Math.max(...[1,2,3].map(j=>curData[i+j]?.low||0))
+                                      : Math.min(...[1,2,3].map(j=>curData[i+j]?.high||Infinity));
+      const prominence = type==='high' ? price - Math.max(prevPrice, nextPrice)
+                                       : Math.min(prevPrice, nextPrice) - price;
+      if (prominence < minSize) continue;
+      raw.push({ bar:i, price, prominence });
+    }
+    // Dedup: within a 6-bar window keep only the most prominent
+    const out = [];
+    for (const sw of raw) {
+      const last = out[out.length-1];
+      if (last && sw.bar - last.bar < 6) {
+        if (sw.prominence > last.prominence) out[out.length-1] = sw;
+      } else {
+        out.push(sw);
+      }
     }
     return out;
   }
-  const swingH = findSwings('high', 3);
-  const swingL = findSwings('low',  3);
+  const swingH = findMajorSwings('high');
+  const swingL = findMajorSwings('low');
 
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -12822,14 +12866,17 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         : dir==='long'  ? 'Price found buyers here and bounced. This swing low marks where demand entered the market.'
         :                   'Price found sellers here and reversed. This swing high marks where supply entered the market.');
     }
-    // Second context swing if we have room and they're different enough
-    const ctxSw2 = (dir==='long' ? swingL : swingH).slice(-2)[0];
-    if (ctxSw2 && ctxSw && Math.abs(ctxSw2.bar - ctxSw.bar) > 8) {
-      addArrow(ctxSw2.bar, ctxSw2.price,
-        dir==='long' ? `Prior swing low` : `Prior swing high`,
-        dir==='long'?'up':'down', false, 3,
-        dir==='long' ? 'An earlier swing low — together with the more recent one, this establishes a series of higher lows, confirming the uptrend structure.'
-                     : 'An earlier swing high — together with the more recent one, this establishes a series of lower highs, confirming the downtrend structure.');
+    // Only show a second context swing if we're far from the setup (pure context phase)
+    // and the two swings are clearly distinct (10+ bars apart)
+    if (barsAway > 20) {
+      const ctxSw2 = (dir==='long' ? swingL : swingH).slice(-2)[0];
+      if (ctxSw2 && ctxSw && Math.abs(ctxSw2.bar - ctxSw.bar) > 10) {
+        addArrow(ctxSw2.bar, ctxSw2.price,
+          dir==='long' ? `Prior swing low` : `Prior swing high`,
+          dir==='long'?'up':'down', false, 3,
+          dir==='long' ? 'An earlier swing low — together with the more recent one, this establishes a series of higher lows, confirming the uptrend structure.'
+                       : 'An earlier swing high — together with the more recent one, this establishes a series of lower highs, confirming the downtrend structure.');
+      }
     }
   }
 
@@ -13530,31 +13577,42 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           const padX = 8, padY = 6;
           const maxBubbleW  = Math.min(200, W * 0.28);
 
-          // Measure and wrap text
+          // Wrap title — may need wrapping too
           ctx.font = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
-          const titleLine = d.label.slice(0, 40);
-          const titleW    = ctx.measureText(titleLine).width;
-
-          // Wrap explanation into lines
-          const explLines = [];
-          if (explanation) {
-            ctx.font = `${fontSize - 1}px sans-serif`;
-            const words = explanation.split(' ');
+          const innerW    = maxBubbleW - padX * 2;
+          function wrapText(text, font, maxW) {
+            ctx.font = font;
+            const words = text.split(' ');
+            const lines = [];
             let line = '';
             for (const w of words) {
               const test = line ? line + ' ' + w : w;
-              if (ctx.measureText(test).width > maxBubbleW - padX*2) {
-                if (line) explLines.push(line);
-                line = w;
+              if (ctx.measureText(test).width > maxW && line) {
+                lines.push(line); line = w;
               } else { line = test; }
             }
-            if (line) explLines.push(line);
+            if (line) lines.push(line);
+            return lines;
           }
 
-          const lineH     = fontSize + 3;
-          const totalLines = 1 + explLines.length;
-          const bubbleW   = Math.min(maxBubbleW, Math.max(titleW + padX*2, 120));
-          const bubbleH   = padY*2 + lineH * totalLines + (explLines.length ? 4 : 0);
+          const titleFont = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
+          const explFont  = `${fontSize - 1}px sans-serif`;
+          const titleLines = wrapText(d.label, titleFont, innerW);
+          const explLines  = explanation ? wrapText(explanation, explFont, innerW) : [];
+
+          // Measure actual max line width for bubble sizing
+          ctx.font = titleFont;
+          const allLines = [...titleLines, ...explLines];
+          let actualMaxW = 100;
+          allLines.forEach((ln, i) => {
+            ctx.font = i < titleLines.length ? titleFont : explFont;
+            actualMaxW = Math.max(actualMaxW, ctx.measureText(ln).width);
+          });
+
+          const lineH      = fontSize + 3;
+          const totalLines = titleLines.length + explLines.length;
+          const bubbleW    = Math.min(maxBubbleW, actualMaxW + padX * 2 + 4);
+          const bubbleH    = padY * 2 + lineH * totalLines + (explLines.length ? 6 : 0);
 
           // Decide bubble placement: above or below chart based on price position
           // Bubble never sits on candles — it floats near chart edge
@@ -13614,18 +13672,24 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 5);
           ctx.stroke();
 
-          // ── Title line ──
-          ctx.font      = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
-          ctx.fillStyle = isPrimary ? '#e8f4f0' : tier === 'secondary' ? '#c8c0e8' : '#8090a8';
+          // ── Title lines ──
           ctx.textAlign = 'left';
-          ctx.fillText(titleLine, bubbleX + padX, bubbleY + padY + fontSize);
+          let textY = bubbleY + padY + fontSize;
+          titleLines.forEach((ln, li) => {
+            ctx.font      = titleFont;
+            ctx.fillStyle = isPrimary ? '#e8f4f0' : tier === 'secondary' ? '#c8c0e8' : '#8090a8';
+            ctx.fillText(ln, bubbleX + padX, textY);
+            textY += lineH;
+          });
 
           // ── Explanation lines ──
           if (explLines.length) {
-            ctx.font      = `${fontSize - 1}px sans-serif`;
-            ctx.fillStyle = '#7890a4';
-            explLines.forEach((ln, li) => {
-              ctx.fillText(ln, bubbleX + padX, bubbleY + padY + fontSize + 5 + lineH * (li + 1));
+            textY += 3; // small gap between title and explanation
+            explLines.forEach(ln => {
+              ctx.font      = explFont;
+              ctx.fillStyle = '#6880a0';
+              ctx.fillText(ln, bubbleX + padX, textY);
+              textY += lineH;
             });
           }
 
