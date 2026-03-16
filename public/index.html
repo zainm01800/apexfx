@@ -12227,15 +12227,14 @@ function hitTest(d, sx, sy){
       const padY = 10;
       const spacing = 8;
 
-      // Word wrap to calculate dimensions
+      // Word wrap to calculate dimensions (approximate without ctx)
       const words = txt.split(' ');
       const lines = [];
       let currentLine = '';
-      ctx.save();
-      ctx.font = `${fontSize}px sans-serif`;
+      const avgCharWidth = fontSize * 0.55; // approximate avg char width
       for (let i = 0; i < words.length; i++) {
         const testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
-        const testWidth = ctx.measureText(testLine).width;
+        const testWidth = testLine.length * avgCharWidth;
         if (testWidth > maxWidth - padX * 2 && currentLine) {
           lines.push(currentLine);
           currentLine = words[i];
@@ -12244,13 +12243,11 @@ function hitTest(d, sx, sy){
         }
       }
       if (currentLine) lines.push(currentLine);
-      ctx.restore();
 
       const lineH = fontSize + 4;
-      const boxW = Math.min(Math.max(...lines.map(l => {
-        ctx.save(); ctx.font = `${fontSize}px sans-serif`;
-        const w = ctx.measureText(l).width; ctx.restore(); return w;
-      })) + padX * 2, maxWidth);
+      // Estimate box width based on longest line
+      const longestLine = lines.reduce((a, b) => a.length > b.length ? a : b, '');
+      const boxW = Math.min(longestLine.length * avgCharWidth + padX * 2, maxWidth);
       const boxH = lines.length * lineH + padY * 2;
 
       // Calculate stacking offset (same as render)
