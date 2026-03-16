@@ -12623,23 +12623,20 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const method = mentorState.selectedTradingMethod || 'breakout';
   const dir    = setupDetection.direction || 'long';
 
-  // detectionBar = where the setup formed (has all the candle data we need)
-  // visibleUpTo  = last bar the user has SEEN in replay (never annotate future bars)
   const detectionBar = Math.min(setupBar, curData.length - 1);
-  const visibleUpTo  = Math.min(anchorBar, replayCutoff, curData.length - 1);
+  // visibleUpTo = the furthest bar the user has seen — never draw beyond this
+  const visibleUpTo  = Math.min(anchorBar, replayCutoff, detectionBar, curData.length - 1);
   const data         = curData.slice(0, detectionBar + 1);
   const structure    = analyzeMarketStructure(data);
   const atr          = calculateATR(detectionBar, 14) || (curData[detectionBar]?.close * 0.005) || 1;
 
-  // Only annotate bars the user has already seen
-  function visibleBar(b) { return Math.min(b, visibleUpTo); }
-  function isVisible(b)  { return b <= visibleUpTo; }
+  function isVisible(b) { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
 
-  // Thin horizontal level band — extend only across visible bars
-  function levelBox(price, label, fromBar, toBar) {
-    const f = Math.max(0, fromBar ?? visibleUpTo - 30);
-    const t = Math.min(visibleUpTo + 3, toBar ?? visibleUpTo + 3);
-    if (f > t) return;
+  // Level band: LEFT edge anchored at firstBar, RIGHT edge = visibleUpTo (grows as replay advances)
+  function levelBand(price, label, firstBar) {
+    const f = Math.max(0, firstBar);
+    const t = visibleUpTo + 2;
+    if (!isVisible(f) || f > t) return;
     _addMentorBox(f, t, price - atr * 0.10, price + atr * 0.10, label);
   }
 
@@ -12647,29 +12644,36 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
     case 'breakout':
     case 'range_breakout': {
-      const conso = detectConsolidation(data);
-      const c     = curData[visibleUpTo];
-      if (!c) break;
+      const conso   = detectConsolidation(data);
+      const c       = curData[visibleUpTo];
+      if (!c || !conso.isConsolidating) break;
 
-      if (conso.isConsolidating) {
-        const breakLevel = dir === 'long' ? conso.upper : conso.lower;
-        const consoFrom  = Math.max(0, detectionBar - 16);
-        if (!isVisible(consoFrom)) break;
+      const consoFrom  = Math.max(0, detectionBar - 16);
+      if (!isVisible(consoFrom)) break;
 
-        _addMentorBox(consoFrom, visibleUpTo, conso.lower, conso.upper,
-          `📦 Consolidation — ${Math.round((conso.upper - conso.lower) / atr * 10) / 10}× ATR`);
-        levelBox(breakLevel,
-          dir === 'long' ? `🔑 Resistance: ${fP(breakLevel)}` : `🔑 Support: ${fP(breakLevel)}`,
-          consoFrom, visibleUpTo + 5);
-        _addMentorArrow(visibleUpTo, dir === 'long' ? c.high : c.low,
-          dir === 'long' ? `🚀 Breakout candle` : `📉 Breakdown candle`,
+      const breakLevel = dir === 'long' ? conso.upper : conso.lower;
+
+      // Consolidation box: anchored left, right grows to visibleUpTo
+      _addMentorBox(consoFrom, visibleUpTo, conso.lower, conso.upper,
+        `📦 Consolidation — ${Math.round((conso.upper - conso.lower) / atr * 10) / 10}× ATR`);
+
+      // Broken level: always starts at consoFrom
+      levelBand(breakLevel,
+        dir === 'long' ? `🔑 Resistance: ${fP(breakLevel)}` : `🔑 Support: ${fP(breakLevel)}`,
+        consoFrom);
+
+      // Breakout arrow only on the candle where it happened (detectionBar)
+      if (isVisible(detectionBar)) {
+        const bc = curData[detectionBar];
+        _addMentorArrow(detectionBar, dir === 'long' ? bc.high : bc.low,
+          dir === 'long' ? `🚀 Breakout` : `📉 Breakdown`,
           dir === 'long' ? 'down' : 'up', true);
       }
       break;
     }
 
     case 'support_resistance': {
-      const sb  = dir === 'long' ? detectSupportBounce(data) : { detected: false };
+      const sb  = dir === 'long' ? detectSupportBounce(data)      : { detected: false };
       const rr  = dir === 'short' ? detectResistanceRejection(data) : { detected: false };
       const det = dir === 'long' ? sb : rr;
       const c   = curData[visibleUpTo];
@@ -12679,42 +12683,50 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         ? (det.supportLevel || det.resistanceLevel)
         : (curData[detectionBar + 1]?.open || c.close);
 
-      // Level zone — across all visible history
-      const lvlFrom = Math.max(0, visibleUpTo - 40);
-      _addMentorBox(lvlFrom, visibleUpTo + 4,
-        level - atr * 0.28, level + atr * 0.28,
-        dir === 'long'
-          ? `🟢 Support: ${fP(level)}`
-          : `🔴 Resistance: ${fP(level)}`);
-
-      // Tests — max 4, spread out, only visible bars, skip if too close together
-      const allTests = [];
-      for (let i = lvlFrom; i <= visibleUpTo; i++) {
+      // Find the FIRST bar where price touched this level — anchor the box there
+      const searchFrom = Math.max(0, detectionBar - 45);
+      let firstTouchBar = visibleUpTo; // fallback
+      for (let i = searchFrom; i <= visibleUpTo; i++) {
         const candle = curData[i];
         if (!candle) continue;
         const dist = dir === 'long' ? Math.abs(candle.low - level) : Math.abs(candle.high - level);
-        if (dist < atr * 0.6) allTests.push(i);
+        if (dist < atr * 0.7) { firstTouchBar = i; break; }
       }
-      // Cluster nearby tests — keep only the best representative per cluster (5-bar window)
+
+      // Level band: anchored at firstTouchBar, right edge grows with visibleUpTo
+      levelBand(level,
+        dir === 'long' ? `🟢 Support: ${fP(level)}` : `🔴 Resistance: ${fP(level)}`,
+        firstTouchBar);
+
+      // Scan for ALL touches between firstTouchBar and visibleUpTo
+      const allTests = [];
+      for (let i = firstTouchBar; i <= visibleUpTo; i++) {
+        const candle = curData[i];
+        if (!candle) continue;
+        const dist = dir === 'long' ? Math.abs(candle.low - level) : Math.abs(candle.high - level);
+        if (dist < atr * 0.65) allTests.push(i);
+      }
+
+      // Cluster to max 4 (5-bar window dedup)
       const clusters = [];
-      for (const testBar of allTests) {
+      for (const tb of allTests) {
         const last = clusters[clusters.length - 1];
-        if (!last || testBar - last > 5) clusters.push(testBar);
+        if (!last || tb - last > 5) clusters.push(tb);
       }
-      // Show max 4, label as "1st test", "2nd test", "3rd test", "Latest"
-      const labels = ['1st test', '2nd test', '3rd test', 'Latest'];
-      clusters.slice(-4).forEach((tb, i) => {
-        const candle = curData[tb];
-        if (!candle || !isVisible(tb)) return;
-        const isLatest = tb >= visibleUpTo - 2;
+
+      const testLabels = ['1st test', '2nd test', '3rd test', 'Latest'];
+      clusters.slice(-4).forEach((tb, idx) => {
+        if (!isVisible(tb)) return;
+        const candle   = curData[tb];
+        const isLatest = (idx === clusters.slice(-4).length - 1);
         _addMentorArrow(tb, dir === 'long' ? candle.low : candle.high,
           isLatest
             ? (dir === 'long' ? `✅ Bounce — enter` : `✅ Rejection — enter`)
-            : labels[i] || `Test ${i + 1}`,
+            : testLabels[idx] || `Test ${idx + 1}`,
           dir === 'long' ? 'up' : 'down', isLatest);
       });
 
-      // Wick quality on the reaction candle
+      // Wick quality on the most recent visible reaction candle
       const wickSize = dir === 'long'
         ? Math.max(0, Math.min(c.open, c.close) - c.low)
         : Math.max(0, c.high - Math.max(c.open, c.close));
@@ -12724,10 +12736,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         _addMentorLabel(visibleUpTo,
           dir === 'long' ? c.high + atr * 0.5 : c.low - atr * 0.5, [
             ratio >= 1.0
-              ? `✅ Wick ${ratio.toFixed(1)}× body — rejection confirmed`
-              : `⚠️ Wick ${ratio.toFixed(1)}× body — weak signal`,
-            structure.trend?.includes('up') && dir === 'long' ? '✅ With the trend' :
-            structure.trend?.includes('down') && dir === 'short' ? '✅ With the trend' : '⚠️ Counter-trend',
+              ? `✅ Wick ${ratio.toFixed(1)}× body — strong signal`
+              : `⚠️ Wick ${ratio.toFixed(1)}× body — weak`,
+            structure.trend?.includes('up') && dir === 'long' ? '✅ With uptrend'
+            : structure.trend?.includes('down') && dir === 'short' ? '✅ With downtrend'
+            : '⚠️ Counter-trend',
           ]);
       }
       break;
@@ -12744,13 +12757,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const ema20    = ema20arr[ema20arr.length - 1];
       const ema50    = ema50arr[ema50arr.length - 1];
 
-      if (ema20) levelBox(ema20, `📊 EMA20: ${fP(ema20)}`,
-        Math.max(0, visibleUpTo - 20), visibleUpTo + 6);
+      // EMAs: anchor at a fixed point in history, extend right to visibleUpTo
+      const emaAnchor = Math.max(0, visibleUpTo - 20);
+      if (ema20) levelBand(ema20, `📊 EMA20: ${fP(ema20)}`, emaAnchor);
       if (ema50 && Math.abs(ema50 - (ema20||0)) < atr * 8)
-        levelBox(ema50, `📊 EMA50: ${fP(ema50)}`,
-        Math.max(0, visibleUpTo - 20), visibleUpTo + 6);
+        levelBand(ema50, `📊 EMA50: ${fP(ema50)}`, emaAnchor);
 
-      // Impulse + pullback boxes — only visible portion
+      // Impulse + pullback: only draw the portion that's visible
       const look   = data.slice(-30);
       const lkHi   = Math.max(...look.map(b => b.high));
       const lkLo   = Math.min(...look.map(b => b.low));
@@ -12759,12 +12772,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const ipkBar = dir === 'long' ? lkHiI : lkLoI;
       const istBar = dir === 'long' ? lkLoI : lkHiI;
 
-      if (isVisible(istBar) && ipkBar > istBar) {
+      if (isVisible(istBar) && istBar >= 0) {
         const visEnd = Math.min(ipkBar, visibleUpTo);
-        const impH = Math.max(...curData.slice(istBar, visEnd + 1).map(b => b.high));
-        const impL = Math.min(...curData.slice(istBar, visEnd + 1).map(b => b.low));
-        _addMentorBox(istBar, visEnd, impL, impH, '⚡ Impulse leg');
-
+        if (visEnd > istBar) {
+          const impH = Math.max(...curData.slice(istBar, visEnd + 1).map(b => b.high));
+          const impL = Math.min(...curData.slice(istBar, visEnd + 1).map(b => b.low));
+          _addMentorBox(istBar, visEnd, impL, impH, '⚡ Impulse leg');
+        }
         if (isVisible(ipkBar) && visibleUpTo > ipkBar) {
           const pbH = Math.max(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.high));
           const pbL = Math.min(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.low));
@@ -12784,8 +12798,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
       const ema20arr = calcEMA(data, 20);
       const ema20    = ema20arr[ema20arr.length - 1];
-      if (ema20) levelBox(ema20, `✅ EMA20: ${fP(ema20)} — pullback target`,
-        Math.max(0, visibleUpTo - 20), visibleUpTo + 8);
+      if (ema20) levelBand(ema20, `✅ EMA20: ${fP(ema20)} — pullback target`,
+        Math.max(0, visibleUpTo - 20));
 
       const look    = data.slice(-25);
       const swHigh  = Math.max(...look.map(b => b.high));
@@ -12795,13 +12809,21 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const fib618  = dir === 'long' ? swHigh - swRange * 0.618 : swLow + swRange * 0.618;
       const retrace = swRange > 0 ? (dir === 'long' ? (swHigh - c.close) / swRange : (c.close - swLow) / swRange) : 0;
 
-      _addMentorBox(Math.max(0, visibleUpTo - 10), visibleUpTo + 8,
-        Math.min(fib382, fib618), Math.max(fib382, fib618), `📐 38–62% Fib zone`);
-
-      // Swing anchor — only if visible
+      // Fib zone: anchored at the swing high/low bar
       const swHiI = detectionBar - 24 + look.findIndex(b => b.high === swHigh);
-      if (dir === 'long' && isVisible(swHiI) && swHiI >= 0)
-        _addMentorArrow(swHiI, swHigh, `Swing high: ${fP(swHigh)}`, 'down', false);
+      const swLoI = detectionBar - 24 + look.findIndex(b => b.low === swLow);
+      const fibAnchor = Math.max(0, dir === 'long' ? swHiI : swLoI);
+
+      if (isVisible(fibAnchor)) {
+        _addMentorBox(fibAnchor, visibleUpTo + 8,
+          Math.min(fib382, fib618), Math.max(fib382, fib618), `📐 38–62% Fib zone`);
+
+        // Anchor arrow at swing high/low — only if visible
+        if (dir === 'long' && isVisible(swHiI) && swHiI >= 0)
+          _addMentorArrow(swHiI, swHigh, `Swing high: ${fP(swHigh)}`, 'down', false);
+        else if (dir === 'short' && isVisible(swLoI) && swLoI >= 0)
+          _addMentorArrow(swLoI, swLow, `Swing low: ${fP(swLow)}`, 'up', false);
+      }
 
       _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
         pb.detected && pb.volContracting
@@ -12821,10 +12843,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const c     = curData[visibleUpTo];
       if (!c || !conso.isConsolidating) break;
 
+      const rangeAnchor = Math.max(0, detectionBar - 20);
+      if (!isVisible(rangeAnchor)) break;
+
       const mid = (conso.upper + conso.lower) / 2;
-      _addMentorBox(Math.max(0, visibleUpTo - 20), visibleUpTo + 6,
-        conso.lower, conso.upper, `📦 Range: ${fP(conso.lower)} – ${fP(conso.upper)}`);
-      levelBox(mid, `Mid: ${fP(mid)}`, Math.max(0, visibleUpTo - 20), visibleUpTo + 6);
+      _addMentorBox(rangeAnchor, visibleUpTo + 4, conso.lower, conso.upper,
+        `📦 Range: ${fP(conso.lower)} – ${fP(conso.upper)}`);
+      levelBand(mid, `Mid: ${fP(mid)}`, rangeAnchor);
       _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
         dir === 'long' ? '🟢 Range bottom' : '🔴 Range top',
         dir === 'long' ? 'up' : 'down', true);
@@ -12837,29 +12862,35 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       if (!c) break;
 
       if (sweep.detected) {
-        levelBox(sweep.sweepLevel,
-          dir === 'long' ? `💧 Swept low: ${fP(sweep.sweepLevel)}` : `💧 Swept high: ${fP(sweep.sweepLevel)}`,
-          Math.max(0, visibleUpTo - 25), visibleUpTo + 4);
+        // Swept level band: anchored far left, extends right
+        const sweepAnchor = Math.max(0, detectionBar - 30);
+        levelBand(sweep.sweepLevel,
+          dir === 'long' ? `💧 Stop cluster: ${fP(sweep.sweepLevel)}` : `💧 Stop cluster: ${fP(sweep.sweepLevel)}`,
+          sweepAnchor);
 
+        // Sweep candle arrow — only when visible
         const sweepCandleBar = detectionBar - 1;
-        if (isVisible(sweepCandleBar) && curData[sweepCandleBar]) {
+        if (isVisible(sweepCandleBar)) {
           const sc = curData[sweepCandleBar];
           _addMentorArrow(sweepCandleBar, dir === 'long' ? sc.low : sc.high,
             `2️⃣ Stop hunt wick`, dir === 'long' ? 'up' : 'down', false);
         }
-        _addMentorArrow(visibleUpTo, dir === 'long' ? c.high : c.low,
-          `3️⃣ Displacement — enter next`, dir === 'long' ? 'down' : 'up', true);
-        _addMentorLabel(visibleUpTo, dir === 'long' ? c.high + atr : c.low - atr, [
-          `1️⃣ Stops at ${fP(sweep.sweepLevel)} were swept`,
-          `3️⃣ Strong close = institutional entry`,
-        ]);
+
+        // Displacement arrow — only when visible
+        if (isVisible(detectionBar)) {
+          _addMentorArrow(detectionBar, dir === 'long' ? curData[detectionBar].high : curData[detectionBar].low,
+            `3️⃣ Displacement — enter next`, dir === 'long' ? 'down' : 'up', true);
+          _addMentorLabel(detectionBar, dir === 'long' ? curData[detectionBar].high + atr : curData[detectionBar].low - atr, [
+            `1️⃣ Stops at ${fP(sweep.sweepLevel)} were swept`,
+            `3️⃣ Strong close = institutional entry`,
+          ]);
+        }
       }
       break;
     }
 
     default:
-      if (isVisible(detectionBar))
-        _addMentorArrow(visibleUpTo, curData[visibleUpTo]?.close || 0, 'Setup detected', 'down', true);
+      _addMentorArrow(visibleUpTo, curData[visibleUpTo]?.close || 0, 'Setup detected', 'down', true);
   }
 
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
