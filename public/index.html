@@ -12234,19 +12234,19 @@ function hitTest(d, sx, sy){
         xOffset = (index % 3) * minSpacing - minSpacing;
       }
       
-      // Box position
-      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset));
-      const boxY = calloutAbove ? 15 : canvasHeight - 15 - boxH;
+      // Box position with stored randomness (match rendering)
+      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset + (d.randomValues?.boxOffset || 0)));
+      const boxY = calloutAbove ? 15 + (d.randomValues?.boxYOffset || 0) : canvasHeight - 15 - boxH + (d.randomValues?.boxYOffset || 0);
       
       // Check if point is in box
       if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
         return true;
       }
       
-      // Check if point is near anchor
-      const anchorX = ax + xOffset;
-      const anchorY = ay + (isDown ? -4 : 4);
-      if (Math.abs(sx - anchorX) < 8 && Math.abs(sy - anchorY) < 8) {
+      // Check if point is near anchor (with stored randomness)
+      const anchorX = ax + xOffset + (d.randomValues?.anchorXOffset || 0);
+      const anchorY = ay + (isDown ? -4 : 4) + (d.randomValues?.anchorYOffset || 0);
+      if (Math.abs(sx - anchorX) < 12 && Math.abs(sy - anchorY) < 12) {
         return true;
       }
       
@@ -12856,17 +12856,32 @@ _addMentorArrow = function(...args) {
   return result;
 };
 
-// Test function for mentor arrows (remove after testing)
-window.testMentorArrow = function() {
-  if (curData && curData.length > 50) {
-    const testBar = Math.floor(curData.length * 0.7);
-    const testPrice = curData[testBar].c;
-    _addMentorArrow(testBar, testPrice, '🎯 Test Natural Arrow', 'down', true);
-    console.log('Test mentor arrow added');
-  } else {
-    console.log('No data available for testing');
-  }
-};
+// Test function for natural mentor arrows
+function testNaturalMentorArrows() {
+  // Clear existing mentor annotations
+  clearMentorAnnotations();
+  
+  // Add multiple arrows to show natural variation
+  const arrows = [
+    { bar: 10, price: 150, label: "Natural Arrow 1 - Simple Elbow", direction: "down" },
+    { bar: 15, price: 160, label: "Natural Arrow 2 - Curved Path", direction: "down" },
+    { bar: 20, price: 140, label: "Natural Arrow 3 - Angled Path", direction: "up" },
+    { bar: 25, price: 155, label: "Natural Arrow 4 - Random Offset", direction: "down" },
+    { bar: 30, price: 145, label: "Natural Arrow 5 - Varied Paths", direction: "up" }
+  ];
+  
+  arrows.forEach((arrow, index) => {
+    setTimeout(() => {
+      _addMentorArrow(arrow.bar, arrow.price, arrow.label, arrow.direction, index === 0);
+    }, index * 200); // Stagger creation for animation effect
+  });
+  
+  console.log("Natural mentor arrows test - arrows should have varied paths:");
+  console.log("- Different elbow positions and angles");
+  console.log("- Random anchor point offsets");
+  console.log("- Varied callout box positions");
+  console.log("- Three path types: simple elbow, curved, angled");
+}
 
 // ── Mentor Annotation System ─────────────────────────────────────────────
 // Draws arrows, highlight boxes, and label callouts on the chart at key
@@ -13833,9 +13848,22 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           xOffset = (index % 3) * minSpacing - minSpacing;
         }
         
-        // Box position with offset
-        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset));
-        const boxY = calloutAbove ? 15 : canvasHeight - 15 - boxH;
+        // Store random values for consistent positioning and hit testing
+        if (!d.randomValues) {
+          d.randomValues = {
+            boxOffset: (Math.random() - 0.5) * 20,
+            boxYOffset: Math.random() * 10,
+            anchorXOffset: (Math.random() - 0.5) * 8,
+            anchorYOffset: (Math.random() - 0.5) * 4,
+            elbowXOffset: (Math.random() - 0.5) * 40,
+            elbowYOffset: (Math.random() - 0.5) * 10,
+            pathType: Math.floor(Math.random() * 3)
+          };
+        }
+        
+        // Box position with stored randomness
+        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset + d.randomValues.boxOffset));
+        const boxY = calloutAbove ? 15 + d.randomValues.boxYOffset : canvasHeight - 15 - boxH + d.randomValues.boxYOffset;
         
         // Smooth fade-in animation
         const creationTime = d.creationTime || Date.now();
@@ -13847,17 +13875,17 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.save();
         ctx.globalAlpha = alpha * easeOut;
         
-        // Anchor point with offset
-        const anchorX = ax + xOffset;
-        const anchorY = ay + (isDown ? -4 : 4);
+        // Anchor point with stored random offset
+        const anchorX = ax + xOffset + d.randomValues.anchorXOffset;
+        const anchorY = ay + (isDown ? -4 : 4) + d.randomValues.anchorYOffset;
         
         // Connection points
         const boxConnectX = boxX + boxW / 2;
         const boxConnectY = calloutAbove ? boxY + boxH : boxY;
         
-        // Elbow connector path
-        const elbowX = boxConnectX;
-        const elbowY = anchorY + (calloutAbove ? -25 : 25) * easeOut;
+        // Elbow connector path with stored randomness
+        const elbowX = boxConnectX + d.randomValues.elbowXOffset;
+        const elbowY = anchorY + (calloutAbove ? -25 : 25) * easeOut + d.randomValues.elbowYOffset;
         
         // Draw elbow connector
         ctx.strokeStyle = accentCol;
@@ -13868,12 +13896,30 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.beginPath();
         // Start at anchor point (on chart)
         ctx.moveTo(anchorX, anchorY);
-        // Short line from anchor
-        const shortLen = 8;
-        ctx.lineTo(anchorX, anchorY + (calloutAbove ? -shortLen : shortLen));
-        // Elbow bend
-        ctx.lineTo(elbowX, elbowY);
-        // To box connection point
+        
+        // Create natural path with stored randomness
+        const pathType = d.randomValues.pathType;
+        
+        if (pathType === 0) {
+          // Simple elbow with random bend point
+          const bendX = anchorX + (elbowX - anchorX) * (0.3 + Math.random() * 0.4);
+          const bendY = anchorY + (calloutAbove ? -15 : 15) * easeOut;
+          ctx.lineTo(bendX, bendY);
+          ctx.lineTo(elbowX, elbowY);
+        } else if (pathType === 1) {
+          // Curved path
+          const controlX = (anchorX + elbowX) / 2 + (Math.random() - 0.5) * 30;
+          const controlY = (anchorY + elbowY) / 2 + (Math.random() - 0.5) * 20;
+          ctx.quadraticCurveTo(controlX, controlY, elbowX, elbowY);
+        } else {
+          // Angled path with two segments
+          const midX = anchorX + (elbowX - anchorX) * 0.5;
+          const midY = anchorY + (calloutAbove ? -20 : 20) * easeOut + (Math.random() - 0.5) * 15;
+          ctx.lineTo(midX, midY);
+          ctx.lineTo(elbowX, elbowY);
+        }
+        
+        // Final segment to box
         ctx.lineTo(boxConnectX, boxConnectY);
         ctx.stroke();
         
