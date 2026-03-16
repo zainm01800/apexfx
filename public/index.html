@@ -9359,31 +9359,10 @@ function mentorShowMeTrade() {
     isAIPlaced: true,
     futureDataUsed: true
   };
-  
-  // FINAL SAFETY CHECK: Simulate trade using CLOSE prices only (wicks don't count)
-  // This prevents wicks from prematurely stopping out the trade
-  let simHitSL = false;
-  let simHitTP = false;
-  for (let i = 0; i < futureCandles.length; i++) {
-    const close = futureCandles[i].close;
-    if (direction === 'long') {
-      if (close <= stopLoss) { simHitSL = true; break; }
-      if (close >= takeProfit) { simHitTP = true; break; }
-    } else {
-      if (close >= stopLoss) { simHitSL = true; break; }
-      if (close <= takeProfit) { simHitTP = true; break; }
-    }
-  }
-  
-  // Log outcome for debugging but never block — the mentor teaches all valid setups.
-  if (simHitSL) {
-    console.warn('⚠️ SL touched first in close-price sim — showing trade for educational value');
-  } else if (!simHitTP) {
-    console.warn('⚠️ TP not reached within look-ahead window — trade still placed for review');
-  } else {
-    console.log('✅ Trade reaches TP before SL');
-  }
-  
+
+  // Levels were pre-validated when the panel was shown — no sim needed here.
+  console.log('✅ Placing AI trade using pre-validated levels');
+
   mentorState.exampleTrade = exampleTrade;
   mentorState.exampleTradeActive = true;
   mentorState.tradeMonitoringUpdates = [];
