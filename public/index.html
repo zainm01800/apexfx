@@ -5401,134 +5401,43 @@ function updateLockedMentorUI() {
 
 function generateExampleTrade(setupData, currentBar) {
   if (!curData || !setupData) return null;
-  
-  // AI HAS FUTURE DATA - Use it to place perfect winning trade WITH proper risk management
-  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 31, curData.length));
-  if (futureCandles.length < 10) {
-    console.log('❌ Not enough future data for perfect trade placement');
+
+  // Look 50 bars ahead (was 30 — wider window means more chance of reaching target)
+  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
+  if (futureCandles.length < 5) {
+    console.log('❌ Not enough future data for trade placement');
     return null;
   }
-  
+
   const entryPrice = curData[currentBar].close;
-  const direction = setupData.direction || 'long';
-  
-  // Calculate proper ATR for risk management
-  const atr = calculateATR(currentBar, 14) || (entryPrice * 0.01);
-  
-  // Analyze future price action
-  let highestClose = entryPrice;
-  let lowestClose = entryPrice;
-  let highestHigh = entryPrice;
-  let lowestLow = entryPrice;
-  
-  for (let i = 0; i < futureCandles.length; i++) {
-    const candle = futureCandles[i];
-    if (candle.close > highestClose) highestClose = candle.close;
-    if (candle.close < lowestClose) lowestClose = candle.close;
-    if (candle.high > highestHigh) highestHigh = candle.high;
-    if (candle.low < lowestLow) lowestLow = candle.low;
+  const direction  = setupData.direction || 'long';
+
+  const levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+  if (!levels) {
+    console.log('❌ generateExampleTrade: price action invalidates direction');
+    return null;
   }
-  
-  console.log('🔮 Future data analysis:', {
-    direction,
-    entryPrice,
-    atr: atr.toFixed(2),
-    highestClose,
-    lowestClose,
-    highestHigh,
-    lowestLow,
-    futureBars: futureCandles.length
-  });
-  
-  // PROPER RISK MANAGEMENT: Use ATR-based stops with minimum 2:1 R:R
-  let stopLoss, takeProfit;
-  const minRR = 2.0;
-  
-  if (direction === 'long') {
-    // Validate price goes up
-    if (highestClose <= entryPrice) {
-      console.log('❌ Invalid long - future shows price goes down');
-      return null;
-    }
-    
-    // SL: 1.5x ATR below entry (standard technical stop)
-    stopLoss = entryPrice - (atr * 1.5);
-    // Ensure SL is below lowest wick
-    stopLoss = Math.min(stopLoss, lowestLow * 0.998);
-    
-    // TP: Minimum 2x the risk distance
-    const riskDistance = entryPrice - stopLoss;
-    const minTP = entryPrice + (riskDistance * minRR);
-    
-    // Use the minimum of: 2:1 target OR actual price movement
-    takeProfit = Math.min(highestClose * 0.995, Math.max(minTP, entryPrice + (riskDistance * 2)));
-    
-    // Ensure TP is hit by close
-    if (takeProfit > highestClose) takeProfit = highestClose * 0.995;
-    
-    // Validate R:R
-    const finalRR = (takeProfit - entryPrice) / (entryPrice - stopLoss);
-    if (finalRR < 1.5) {
-      console.log('❌ R:R too poor:', finalRR.toFixed(2));
-      return null;
-    }
-    
-  } else {
-    // Validate price goes down
-    if (lowestClose >= entryPrice) {
-      console.log('❌ Invalid short - future shows price goes up');
-      return null;
-    }
-    
-    // SL: 1.5x ATR above entry (standard technical stop)
-    stopLoss = entryPrice + (atr * 1.5);
-    // Ensure SL is above highest wick
-    stopLoss = Math.max(stopLoss, highestHigh * 1.002);
-    
-    // TP: Minimum 2x the risk distance
-    const riskDistance = stopLoss - entryPrice;
-    const minTP = entryPrice - (riskDistance * minRR);
-    
-    // Use the maximum of: 2:1 target OR actual price movement
-    takeProfit = Math.max(lowestClose * 1.005, Math.min(minTP, entryPrice - (riskDistance * 2)));
-    
-    // Ensure TP is hit by close
-    if (takeProfit < lowestClose) takeProfit = lowestClose * 1.005;
-    
-    // Validate R:R
-    const finalRR = (entryPrice - takeProfit) / (stopLoss - entryPrice);
-    if (finalRR < 1.5) {
-      console.log('❌ R:R too poor:', finalRR.toFixed(2));
-      return null;
-    }
-  }
-  
-  // Calculate final risk/reward
-  const riskAmount = Math.abs(entryPrice - stopLoss);
-  const rewardAmount = Math.abs(takeProfit - entryPrice);
-  const riskReward = rewardAmount / Math.max(riskAmount, 0.0001);
-  
+
+  const { stopLoss, takeProfit, rr } = levels;
+
   const trade = {
     type: setupData.setup,
-    direction: direction,
+    direction,
     entry: entryPrice,
-    stopLoss: stopLoss,
-    takeProfit: takeProfit,
-    riskReward: riskReward,
+    stopLoss,
+    takeProfit,
+    riskReward: rr,
     timestamp: currentBar,
     isExample: true,
-    isAIPlaced: true, // Flag that AI used future data
-    futureDataUsed: true
+    isAIPlaced: true,
+    futureDataUsed: true,
   };
-  
-  console.log('✅ AI-generated perfect winning trade:', {
-    entry: entryPrice.toFixed(2),
-    sl: stopLoss.toFixed(2),
-    tp: takeProfit.toFixed(2),
-    rr: riskReward.toFixed(2),
-    direction
+
+  console.log('✅ AI-generated trade:', {
+    entry: entryPrice.toFixed(4), sl: stopLoss.toFixed(4),
+    tp: takeProfit.toFixed(4), rr: rr.toFixed(2), direction,
   });
-  
+
   return trade;
 }
 
@@ -5941,6 +5850,71 @@ function continueReplayAfterTradeCompletion() {
   
   // Update UI
   updateMentorUI();
+}
+
+// ══ SHARED MENTOR TRADE LEVEL CALCULATOR ════════════════════════════════════════════════════════════
+// Single source of truth for SL/TP used by generateExampleTrade, mentorShowMeTrade,
+// and validateSetupWithFutureData.  Previous copies used ATR*1.5 then pushed the SL
+// even wider to the lowest wick, making risk distance huge and 2:1 TP unreachable.
+// This version uses a tight swing-based stop and looks 50 bars ahead so valid setups
+// are no longer incorrectly rejected.
+function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles) {
+  const atr = calculateATR(barIndex, 14) || (entryPrice * 0.01);
+
+  // --- Swing-based stop: use the lowest low / highest high of the last 5 bars ---
+  let swingStop;
+  if (direction === 'long') {
+    let swingLow = entryPrice;
+    for (let i = Math.max(0, barIndex - 5); i <= barIndex; i++) {
+      if (curData[i] && curData[i].low < swingLow) swingLow = curData[i].low;
+    }
+    // Stop just below swing low, but cap at 1.0×ATR so it's never absurdly tight
+    swingStop = Math.min(swingLow * 0.999, entryPrice - (atr * 0.5));
+    swingStop = Math.max(swingStop, entryPrice - atr); // never wider than 1×ATR
+  } else {
+    let swingHigh = entryPrice;
+    for (let i = Math.max(0, barIndex - 5); i <= barIndex; i++) {
+      if (curData[i] && curData[i].high > swingHigh) swingHigh = curData[i].high;
+    }
+    swingStop = Math.max(swingHigh * 1.001, entryPrice + (atr * 0.5));
+    swingStop = Math.min(swingStop, entryPrice + atr);
+  }
+
+  const riskDistance = Math.abs(entryPrice - swingStop);
+
+  // --- Future price extremes ---
+  let highestClose = entryPrice, lowestClose = entryPrice;
+  let highestHigh  = entryPrice, lowestLow   = entryPrice;
+  for (const c of futureCandles) {
+    if (c.close > highestClose) highestClose = c.close;
+    if (c.close < lowestClose)  lowestClose  = c.close;
+    if (c.high  > highestHigh)  highestHigh  = c.high;
+    if (c.low   < lowestLow)    lowestLow    = c.low;
+  }
+
+  // --- Direction validity check ---
+  if (direction === 'long'  && highestClose <= entryPrice) return null; // price never goes up
+  if (direction === 'short' && lowestClose  >= entryPrice) return null; // price never goes down
+
+  // --- Take-profit: target 2:1, capped at where price actually goes ---
+  let stopLoss, takeProfit;
+  if (direction === 'long') {
+    stopLoss   = swingStop;
+    const target2to1 = entryPrice + riskDistance * 2;
+    takeProfit = Math.min(highestClose * 0.995, target2to1);
+    // If full 2:1 wasn't reached, use whatever the price achieved (min 1:1)
+    if (takeProfit <= entryPrice) takeProfit = entryPrice + riskDistance;
+  } else {
+    stopLoss   = swingStop;
+    const target2to1 = entryPrice - riskDistance * 2;
+    takeProfit = Math.max(lowestClose * 1.005, target2to1);
+    if (takeProfit >= entryPrice) takeProfit = entryPrice - riskDistance;
+  }
+
+  const rewardAmt = Math.abs(takeProfit - entryPrice);
+  const rr = rewardAmt / Math.max(riskDistance, 0.0001);
+
+  return { stopLoss, takeProfit, rr, atr, riskDistance };
 }
 
 function calculateATR(barIndex, period = 14) {
@@ -6469,172 +6443,42 @@ function filterSetupByTradingMethod(setupDetection, selectedMethod) {
 // ══ REPLAY KNOWLEDGE ADVANTAGE ═══════════════════════════════════════════════════════════
 
 function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
-  if (!replayMode || !fullData || fullData.length <= currentBar + 20) {
-    // Not in replay mode or not enough future data - accept setup
-    console.log('🔮 No future data available for validation, accepting setup');
+  if (!replayMode || !fullData || fullData.length <= currentBar + 5) {
     return { valid: true, reason: 'No future data available' };
   }
-  
-  console.log('🔮 Validating setup with future data...');
-  
-  // Get future candles (next 20-30 candles for validation)
-  const futureCandles = fullData.slice(currentBar + 1, Math.min(currentBar + 31, fullData.length));
-  if (futureCandles.length < 10) {
-    console.log('🔮 Insufficient future data for validation');
+
+  // Look 50 bars ahead for validation
+  const futureCandles = fullData.slice(currentBar + 1, Math.min(currentBar + 51, fullData.length));
+  if (futureCandles.length < 5) {
     return { valid: true, reason: 'Insufficient future data' };
   }
-  
+
   const entryPrice = fullData[currentBar].close;
-  const direction = setupDetection.direction || 'long';
-  
-  // Calculate ATR for risk management (same as mentorShowMeTrade)
-  const atr = calculateATR(currentBar, 14) || (entryPrice * 0.01);
-  
-  // Analyze future price action
-  let highestClose = entryPrice;
-  let lowestClose = entryPrice;
-  let highestHigh = entryPrice;
-  let lowestLow = entryPrice;
-  
-  for (let i = 0; i < futureCandles.length; i++) {
-    const candle = futureCandles[i];
-    if (candle.close > highestClose) highestClose = candle.close;
-    if (candle.close < lowestClose) lowestClose = candle.close;
-    if (candle.high > highestHigh) highestHigh = candle.high;
-    if (candle.low < lowestLow) lowestLow = candle.low;
-  }
-  
-  // Calculate SL/TP using SAME method as mentorShowMeTrade
-  let stopLoss, takeProfit;
-  const minRR = 2.0;
-  
-  if (direction === 'long') {
-    // Validate price goes up
-    if (highestClose <= entryPrice) {
-      console.log('❌ Long setup rejected: Future data shows price goes down');
-      return { valid: false, reason: 'AI analysis: Future price action is bearish', outcome: 'loss' };
-    }
-    
-    // SL: 1.5x ATR below entry with wick safety (same as mentorShowMeTrade)
-    stopLoss = entryPrice - (atr * 1.5);
-    stopLoss = Math.min(stopLoss, lowestLow * 0.998);
-    
-    // TP: Minimum 2x risk distance, up to where price actually goes
-    const riskDistance = entryPrice - stopLoss;
-    const minTP = entryPrice + (riskDistance * minRR);
-    takeProfit = Math.min(highestClose * 0.995, Math.max(minTP, entryPrice + (riskDistance * 2)));
-    
-    // Ensure TP is above entry
-    if (takeProfit <= entryPrice) {
-      return { valid: false, reason: 'AI analysis: Cannot achieve profitable target', outcome: 'loss' };
-    }
-  } else {
-    // Validate price goes down
-    if (lowestClose >= entryPrice) {
-      console.log('❌ Short setup rejected: Future data shows price goes up');
-      return { valid: false, reason: 'AI analysis: Future price action is bullish', outcome: 'loss' };
-    }
-    
-    // SL: 1.5x ATR above entry with wick safety (same as mentorShowMeTrade)
-    stopLoss = entryPrice + (atr * 1.5);
-    stopLoss = Math.max(stopLoss, highestHigh * 1.002);
-    
-    // TP: Minimum 2x risk distance, down to where price actually goes
-    const riskDistance = stopLoss - entryPrice;
-    const minTP = entryPrice - (riskDistance * minRR);
-    takeProfit = Math.max(lowestClose * 1.005, Math.min(minTP, entryPrice - (riskDistance * 2)));
-    
-    // Ensure TP is below entry
-    if (takeProfit >= entryPrice) {
-      return { valid: false, reason: 'AI analysis: Cannot achieve profitable target', outcome: 'loss' };
-    }
-  }
-  
-  console.log('🔮 Setup validation parameters:', {
-    direction, entry: entryPrice, stopLoss, takeProfit, atr, futureCandles: futureCandles.length
-  });
-  
-  // CRITICAL: Pre-validate R:R ratio using SAME calculation as mentorShowMeTrade
-  const riskAmt = Math.abs(entryPrice - stopLoss);
-  const rewardAmt = Math.abs(takeProfit - entryPrice);
-  const rr = rewardAmt / Math.max(riskAmt, 0.0001);
-  
-  if (rr < 1.5) {
-    console.log(`❌ Setup rejected: Insufficient R:R ratio (${rr.toFixed(2)}:1, need at least 1.5:1)`);
-    return { 
-      valid: false, 
-      reason: 'AI analysis: Insufficient risk-to-reward ratio - rejecting setup',
-      outcome: 'insufficient_rr'
+  const direction  = setupDetection.direction || 'long';
+
+  const levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+
+  // Only reject if the price literally never moves in the required direction
+  if (!levels) {
+    console.log('❌ Setup rejected: price action moves against direction');
+    return {
+      valid: false,
+      reason: 'AI analysis: Future price action moves against the trade direction',
+      outcome: 'loss',
     };
   }
-  
-  // Now simulate the trade with these exact levels
-  let hitStopLoss = false;
-  let hitTakeProfit = false;
-  let barsToCompletion = 0;
-  
-  for (let i = 0; i < futureCandles.length; i++) {
-    const candle = futureCandles[i];
-    barsToCompletion++;
-    
-    if (direction === 'long') {
-      if (candle.low <= stopLoss) {
-        hitStopLoss = true;
-        break;
-      }
-      if (candle.high >= takeProfit) {
-        hitTakeProfit = true;
-        break;
-      }
-    } else {
-      if (candle.high >= stopLoss) {
-        hitStopLoss = true;
-        break;
-      }
-      if (candle.low <= takeProfit) {
-        hitTakeProfit = true;
-        break;
-      }
-    }
-  }
-  
-  // Validate setup based on outcome - AI has future data advantage, so only accept GUARANTEED winners
-  if (hitTakeProfit && !hitStopLoss) {
-    console.log('✅ Setup validated: Guaranteed winner - AI knowledge advantage used');
-    return { 
-      valid: true, 
-      reason: 'AI verified: Setup reaches take profit before stop loss',
-      barsToCompletion: barsToCompletion,
-      outcome: 'win'
-    };
-  } else if (hitStopLoss) {
-    console.log('❌ Setup rejected: AI knows this will hit stop loss');
-    return { 
-      valid: false, 
-      reason: 'AI analysis: Setup hits stop loss - filtering out to maintain perfect win rate',
-      barsToCompletion: barsToCompletion,
-      outcome: 'loss'
-    };
-  } else if (!hitTakeProfit && !hitStopLoss) {
-    console.log('⚠️ Setup inconclusive: Neither target reached - rejecting to maintain perfect record');
-    // AI only shows guaranteed winners, reject inconclusive setups
-    return { 
-      valid: false, 
-      reason: 'AI analysis: Setup outcome inconclusive - rejecting to maintain perfect win rate',
-      barsToCompletion: barsToCompletion,
-      outcome: 'inconclusive'
-    };
-  } else {
-    console.log('🤔 Setup complex: Both targets reached - AI knows this is risky');
-    // Complex outcomes are also rejected - AI only shows clean winners
-    return { 
-      valid: false, 
-      reason: 'AI analysis: Complex outcome - rejecting to maintain perfect win rate',
-      barsToCompletion: barsToCompletion,
-      outcome: 'complex'
-    };
-  }
+
+  // Accept with whatever R:R is achievable — mentor teaches even sub-2:1 setups
+  console.log(`✅ Setup validated — R:R ${levels.rr.toFixed(2)}:1`);
+  return {
+    valid: true,
+    reason: `Valid setup — R:R ${levels.rr.toFixed(2)}:1`,
+    riskReward: levels.rr,
+    stopLoss:   levels.stopLoss,
+    takeProfit: levels.takeProfit,
+  };
 }
+
 
 // ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
 
@@ -9438,125 +9282,26 @@ function mentorShowMeTrade() {
   
   const direction = setupData.direction || 'long';
   
-  // AI HAS FUTURE DATA - Use it to place perfect winning trade WITH proper risk management
-  const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 31, curData.length));
-  if (futureCandles.length < 10) {
-    console.warn('Not enough future data for perfect trade placement');
-    // Show feedback to user instead of silently failing
-    mentorState.lockedQuestion = "⚠️ Cannot demonstrate trade: Not enough future data available. Try a different setup or wait for more data.";
+  // AI HAS FUTURE DATA — use shared helper for consistent, tighter SL/TP
+  const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 51, curData.length));
+  if (futureCandles.length < 5) {
+    mentorState.lockedQuestion = '⚠️ Cannot demonstrate trade: Not enough future data available. Try advancing more candles first.';
     updateLockedMentorUI();
     return;
   }
-  
-  // Calculate proper ATR for risk management
-  const atr = calculateATR(setupBar, 14) || (entryPrice * 0.01);
-  
-  // Analyze future price action for direction validation
-  let highestClose = entryPrice;
-  let lowestClose = entryPrice;
-  let highestHigh = entryPrice;
-  let lowestLow = entryPrice;
-  
-  for (let i = 0; i < futureCandles.length; i++) {
-    const candle = futureCandles[i];
-    if (candle.close > highestClose) highestClose = candle.close;
-    if (candle.close < lowestClose) lowestClose = candle.close;
-    if (candle.high > highestHigh) highestHigh = candle.high;
-    if (candle.low < lowestLow) lowestLow = candle.low;
+
+  const levels = computeMentorTradeLevels(direction, entryPrice, setupBar, futureCandles);
+  if (!levels) {
+    mentorState.lockedQuestion = '⚠️ This setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
+    updateLockedMentorUI();
+    return;
   }
-  
-  // PROPER RISK MANAGEMENT: Use ATR-based stops with minimum 2:1 R:R
-  let stopLoss, takeProfit;
-  const minRR = 2.0; // Minimum 2:1 risk/reward ratio
-  
-  if (direction === 'long') {
-    // Validate price goes up
-    if (highestClose <= entryPrice) {
-      console.log('❌ AI rejected: Future shows price goes down, not placing losing long');
-      // Show feedback to user
-      mentorState.lockedQuestion = "⚠️ This setup is no longer valid - price action changed. Dismiss to continue scanning.";
-      updateLockedMentorUI();
-      return;
-    }
-    
-    // SL: 1.5x ATR below entry (standard technical stop)
-    stopLoss = entryPrice - (atr * 1.5);
-    
-    // Ensure SL is below lowest wick (wick safety)
-    stopLoss = Math.min(stopLoss, lowestLow * 0.998);
-    
-    // TP: Minimum 2x the risk distance, up to where price actually goes
-    const riskDistance = entryPrice - stopLoss;
-    const minTP = entryPrice + (riskDistance * minRR);
-    
-    // Use the higher of: minimum 2:1 target OR actual price movement
-    takeProfit = Math.min(highestClose * 0.995, Math.max(minTP, entryPrice + (riskDistance * 2)));
-    
-    // Ensure TP is actually hit by close price
-    if (takeProfit > highestClose) {
-      takeProfit = highestClose * 0.995;
-    }
-    
-    // Validate final R:R
-    const finalRR = (takeProfit - entryPrice) / (entryPrice - stopLoss);
-    if (finalRR < 1.5) {
-      console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
-      // Show feedback to user
-      mentorState.lockedQuestion = "⚠️ Risk/Reward ratio is insufficient for this setup. Dismiss to continue scanning.";
-      updateLockedMentorUI();
-      return;
-    }
-    
-  } else {
-    // Validate price goes down
-    if (lowestClose >= entryPrice) {
-      console.log('❌ AI rejected: Future shows price goes up, not placing losing short');
-      // Show feedback to user
-      mentorState.lockedQuestion = "⚠️ This setup is no longer valid - price action changed. Dismiss to continue scanning.";
-      updateLockedMentorUI();
-      return;
-    }
-    
-    // SL: 1.5x ATR above entry (standard technical stop)
-    stopLoss = entryPrice + (atr * 1.5);
-    
-    // Ensure SL is above highest wick (wick safety)
-    stopLoss = Math.max(stopLoss, highestHigh * 1.002);
-    
-    // TP: Minimum 2x the risk distance, down to where price actually goes
-    const riskDistance = stopLoss - entryPrice;
-    const minTP = entryPrice - (riskDistance * minRR);
-    
-    // Use the lower of: minimum 2:1 target OR actual price movement
-    takeProfit = Math.max(lowestClose * 1.005, Math.min(minTP, entryPrice - (riskDistance * 2)));
-    
-    // Ensure TP is actually hit by close price
-    if (takeProfit < lowestClose) {
-      takeProfit = lowestClose * 1.005;
-    }
-    
-    // Validate final R:R
-    const finalRR = (entryPrice - takeProfit) / (stopLoss - entryPrice);
-    if (finalRR < 1.5) {
-      console.log('❌ AI rejected: Cannot achieve minimum 1.5:1 R:R with this setup');
-      // Show feedback to user
-      mentorState.lockedQuestion = "⚠️ Risk/Reward ratio is insufficient for this setup. Dismiss to continue scanning.";
-      updateLockedMentorUI();
-      return;
-    }
-  }
-  
-  // Calculate R:R
-  const riskAmt = Math.abs(entryPrice - stopLoss);
-  const rewardAmt = Math.abs(takeProfit - entryPrice);
-  const rr = rewardAmt / Math.max(riskAmt, 0.0001);
-  
-  console.log('✅ AI placing perfect winning trade:', {
-    direction,
-    entry: entryPrice.toFixed(2),
-    sl: stopLoss.toFixed(2),
-    tp: takeProfit.toFixed(2),
-    rr: rr.toFixed(2)
+
+  const { stopLoss, takeProfit, rr } = levels;
+
+  console.log('✅ AI placing trade:', {
+    direction, entry: entryPrice.toFixed(4),
+    sl: stopLoss.toFixed(4), tp: takeProfit.toFixed(4), rr: rr.toFixed(2),
   });
   
   const exampleTrade = {
@@ -9587,15 +9332,14 @@ function mentorShowMeTrade() {
     }
   }
   
-  if (simHitSL || !simHitTP) {
-    console.error('🚨 SAFETY CHECK FAILED: Trade would lose or inconclusive. Rejecting.');
-    // Show feedback to user
-    mentorState.lockedQuestion = "⚠️ Setup validation failed - conditions changed. Dismiss to continue scanning.";
-    updateLockedMentorUI();
-    return;
+  // Log outcome for debugging but never block — the mentor teaches all valid setups.
+  if (simHitSL) {
+    console.warn('⚠️ SL touched first in close-price sim — showing trade for educational value');
+  } else if (!simHitTP) {
+    console.warn('⚠️ TP not reached within look-ahead window — trade still placed for review');
+  } else {
+    console.log('✅ Trade reaches TP before SL');
   }
-  
-  console.log('✅ SAFETY CHECK PASSED: Trade guaranteed to hit TP before SL');
   
   mentorState.exampleTrade = exampleTrade;
   mentorState.exampleTradeActive = true;
