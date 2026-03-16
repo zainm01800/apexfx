@@ -13627,7 +13627,6 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const ax  = barXfn(d.bar);
         const ay  = pyfn(d.price);
 
-        // Hide if candle off-screen
         if (ax < -barWidth * 2 || ax > W + barWidth * 2) break;
 
         const isDown    = d.pointing !== 'up';
@@ -13636,18 +13635,15 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const accentCol = d.highlight ? '#f0a500' : isPrimary ? '#00c9a0' : tier === 'secondary' ? '#7c5cbf' : '#4a6080';
         const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.85 : 0.65;
 
-        // Skip if no label/explanation — nothing to render
         if (!d.label && !d.explanation) {
-          // Just draw the anchor dot
           ctx.save();
-          ctx.fillStyle = accentCol;
-          ctx.globalAlpha = alpha;
+          ctx.fillStyle = accentCol; ctx.globalAlpha = alpha;
           ctx.beginPath(); ctx.arc(ax, ay, 3, 0, Math.PI*2); ctx.fill();
           ctx.restore();
           break;
         }
 
-        // ── Text measurement ────────────────────────────────────────────────
+        // ── Text measurement ─────────────────────────────────────────────────
         const explanation = d.explanation || '';
         const fontSize    = isPrimary ? 11 : 10;
         const padX = 10, padY = 7;
@@ -13681,130 +13677,110 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const bubbleH = padY * 2 + lineH * titleLines.length +
                         (explLines.length ? lineH * explLines.length + 5 : 0);
 
-        // ── Bubble placement ─────────────────────────────────────────────────
-        // RULE: bubbles must never overlap existing placed bubbles.
-        // Use ctx._placedBubbles to track placed rects this frame.
+        // ── Placement: bubbles live in the chart margins, never over candles ─
+        // Top band = top 18% of canvas height
+        // Bottom band = bottom 18% of canvas height
+        // Anchor is always somewhere in the middle (price area).
+        // Connector is long enough to bridge the gap.
         if (!ctx._placedBubbles) ctx._placedBubbles = [];
-
-        // Clutter limit: max 4 bubbles with explanation
         if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
         if (ctx._mentorBubbleCount >= 4 && !isPrimary && !d.highlight) break;
         if (explanation) ctx._mentorBubbleCount++;
 
-        // Decide which side (above or below the anchor) based on available space
-        // and where existing bubbles are — prefer the side with more clear space
-        const spaceAbove = ay;              // pixels above anchor
-        const spaceBelow = H - ay;          // pixels below anchor
+        const marginH    = Math.max(bubbleH + 10, H * 0.18); // height of top/bottom band
+        const topBandY   = 4;                                 // bubbles in top band start here
+        const botBandY   = H - marginH;                       // bubbles in bottom band start here
 
-        // Try each candidate position and pick the first one that doesn't collide
-        const gap = 14;
-        const candidates = [];
+        // Decide top vs bottom based on which has more space away from anchor
+        // (anchor closer to top → use bottom band, and vice versa)
+        const anchorInUpper = ay < H * 0.5;
+        const preferBottom  = anchorInUpper;  // anchor near top → bubble goes bottom
 
-        // Above the anchor
-        if (spaceAbove >= bubbleH + gap + 20) {
-          const bY = ay - gap - bubbleH;
-          // X: right-first, then left, then centred
-          const bXOptions = [
-            Math.min(ax + 8, W - bubbleW - 4),
-            Math.max(ax - bubbleW - 8, 4),
-            Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2)),
-          ];
-          for (const bX of bXOptions) {
-            if (bX >= 0) candidates.push({ bX: Math.max(4, bX), bY: Math.max(4, bY), above: true });
-          }
-        }
-        // Below the anchor
-        if (spaceBelow >= bubbleH + gap + 20) {
-          const bY = ay + gap;
-          const bXOptions = [
-            Math.min(ax + 8, W - bubbleW - 4),
-            Math.max(ax - bubbleW - 8, 4),
-            Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2)),
-          ];
-          for (const bX of bXOptions) {
-            if (bX >= 0) candidates.push({ bX: Math.max(4, bX), bY: Math.min(H - bubbleH - 4, bY), above: false });
-          }
-        }
-
-        // Fallback: if no space above or below, pick least-overlapping
-        if (!candidates.length) {
-          const bY = spaceAbove > spaceBelow ? Math.max(4, ay - gap - bubbleH) : Math.min(H - bubbleH - 4, ay + gap);
-          candidates.push({ bX: Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW/2)), bY, above: spaceAbove > spaceBelow });
-        }
-
-        // Pick first non-colliding candidate
         function overlaps(r1x, r1y, r1w, r1h, r2x, r2y, r2w, r2h) {
-          return r1x < r2x + r2w && r1x + r1w > r2x && r1y < r2y + r2h && r1y + r1h > r2y;
-        }
-        let chosen = candidates[candidates.length - 1]; // fallback = last candidate
-        for (const cand of candidates) {
-          const collides = ctx._placedBubbles.some(b =>
-            overlaps(cand.bX, cand.bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h));
-          if (!collides) { chosen = cand; break; }
+          return r1x < r2x+r2w+4 && r1x+r1w+4 > r2x && r1y < r2y+r2h+4 && r1y+r1h+4 > r2y;
         }
 
-        // If still colliding, nudge vertically until clear (max 60px nudge)
-        let { bX: bubbleX, bY: bubbleY, above: aboveAnchor } = chosen;
-        for (let nudge = 0; nudge < 60; nudge += lineH) {
-          const collides = ctx._placedBubbles.some(b =>
-            overlaps(bubbleX, bubbleY, bubbleW, bubbleH, b.x, b.y, b.w, b.h));
-          if (!collides) break;
-          bubbleY += aboveAnchor ? -lineH : lineH;
-          bubbleY = Math.max(4, Math.min(H - bubbleH - 4, bubbleY));
+        function tryPlace(inBottom) {
+          const bandTop = inBottom ? botBandY : topBandY;
+          const bandBot = inBottom ? H - 4 : marginH;
+          // Stack bubbles within the band from the top/bottom
+          let bY = inBottom ? botBandY : topBandY;
+          // Find first Y in band that doesn't collide
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const bYcand = bY + attempt * (bubbleH + 6);
+            if (bYcand + bubbleH > bandBot) break;
+            // X: centred on anchor, clamped
+            const bX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
+            if (!ctx._placedBubbles.some(b => overlaps(bX, bYcand, bubbleW, bubbleH, b.x, b.y, b.w, b.h))) {
+              return { bX, bY: bYcand, inBottom };
+            }
+          }
+          return null;
         }
 
-        // Register this bubble for collision checking by subsequent bubbles
+        let placement = tryPlace(preferBottom) || tryPlace(!preferBottom);
+        if (!placement) {
+          // Absolute fallback: stack at bottom
+          const bX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
+          const bY = Math.min(H - bubbleH - 4, botBandY + ctx._placedBubbles.length * (bubbleH + 6));
+          placement = { bX, bY, inBottom: true };
+        }
+
+        const { bX: bubbleX, bY: bubbleY, inBottom } = placement;
         ctx._placedBubbles.push({ x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH });
 
-        // ── Draw connector from anchor to bubble ─────────────────────────────
+        // ── Draw ─────────────────────────────────────────────────────────────
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // Anchor dot
+        // Anchor dot at price level
         ctx.fillStyle = accentCol;
-        ctx.beginPath(); ctx.arc(ax, ay, isPrimary ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.beginPath(); ctx.arc(ax, ay, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ax, ay, isPrimary ? 3.5 : 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.beginPath(); ctx.arc(ax, ay, 1.3, 0, Math.PI*2); ctx.fill();
 
-        // Arrowhead at the anchor price (points toward the candle)
-        const ahSz = isPrimary ? 5 : 4;
-        const tipY = ay;
-        ctx.fillStyle = accentCol;
-        ctx.beginPath();
-        if (aboveAnchor) {
-          ctx.moveTo(ax, tipY + ahSz*0.5); // point sits slightly below anchor dot
-          ctx.lineTo(ax - ahSz, tipY + ahSz*2.5);
-          ctx.lineTo(ax + ahSz, tipY + ahSz*2.5);
-        } else {
-          ctx.moveTo(ax, tipY - ahSz*0.5);
-          ctx.lineTo(ax - ahSz, tipY - ahSz*2.5);
-          ctx.lineTo(ax + ahSz, tipY - ahSz*2.5);
-        }
-        ctx.closePath(); ctx.fill();
+        // The connector goes from the anchor to the bubble edge —
+        // bubbleConnY = the edge of the bubble closest to the anchor
+        const bubbleConnY = inBottom ? bubbleY : bubbleY + bubbleH;
+        // Connector X clamped inside bubble horizontally
+        const connBX = Math.max(bubbleX + 12, Math.min(bubbleX + bubbleW - 12, ax));
 
-        // Connector line: anchor → bubble edge
-        const connBubbleEdgeY = aboveAnchor ? bubbleY + bubbleH : bubbleY;
-        const connBubbleEdgeX = Math.max(bubbleX + 10, Math.min(bubbleX + bubbleW - 10, ax));
-        const lineStartY = aboveAnchor ? tipY + ahSz*2.5 : tipY - ahSz*2.5;
-
+        // Draw long connector line (dashed)
         ctx.strokeStyle = accentCol;
         ctx.lineWidth   = isPrimary ? 1.5 : 1;
-        ctx.setLineDash([3, 3]);
-        ctx.globalAlpha = alpha * 0.7 * (isWIP ? 0.7 : 1);
+        ctx.setLineDash([3, 4]);
+        ctx.globalAlpha = alpha * 0.55 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
-        ctx.moveTo(ax, lineStartY);
-        if (Math.abs(connBubbleEdgeX - ax) < 6) {
-          ctx.lineTo(connBubbleEdgeX, connBubbleEdgeY); // straight vertical
+        ctx.moveTo(ax, ay);
+        if (Math.abs(connBX - ax) < 5) {
+          ctx.lineTo(ax, bubbleConnY);           // straight vertical
         } else {
-          const midY = (lineStartY + connBubbleEdgeY) / 2;
-          ctx.lineTo(ax,               midY);
-          ctx.lineTo(connBubbleEdgeX,  connBubbleEdgeY);
+          const midY = ay + (bubbleConnY - ay) * 0.5;
+          ctx.lineTo(ax, midY);
+          ctx.lineTo(connBX, bubbleConnY);
         }
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // ── Bubble background ────────────────────────────────────────────────
+        // Small arrowhead pointing toward the anchor (at the bubble-edge end of connector)
+        const ahSz = 3;
+        ctx.fillStyle = accentCol;
+        ctx.beginPath();
+        if (inBottom) {
+          // Arrow points UP (toward anchor above)
+          ctx.moveTo(connBX, bubbleConnY);
+          ctx.lineTo(connBX - ahSz, bubbleConnY + ahSz * 2.2);
+          ctx.lineTo(connBX + ahSz, bubbleConnY + ahSz * 2.2);
+        } else {
+          // Arrow points DOWN (toward anchor below)
+          ctx.moveTo(connBX, bubbleConnY);
+          ctx.lineTo(connBX - ahSz, bubbleConnY - ahSz * 2.2);
+          ctx.lineTo(connBX + ahSz, bubbleConnY - ahSz * 2.2);
+        }
+        ctx.closePath(); ctx.fill();
+
+        // ── Bubble ───────────────────────────────────────────────────────────
         ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
         ctx.fillStyle   = 'rgba(8, 11, 22, 0.97)';
         roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6); ctx.fill();
@@ -13814,7 +13790,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6); ctx.stroke();
 
         // Left accent bar
-        ctx.fillStyle = accentCol; ctx.globalAlpha = alpha * 0.55 * (isWIP ? 0.7 : 1);
+        ctx.fillStyle = accentCol; ctx.globalAlpha = alpha * 0.5 * (isWIP ? 0.7 : 1);
         roundRect(ctx, bubbleX, bubbleY + 5, 2.5, bubbleH - 10, 1); ctx.fill();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
@@ -13823,15 +13799,17 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         let textY   = bubbleY + padY + fontSize;
         ctx.textAlign = 'left';
         titleLines.forEach(ln => {
-          ctx.font      = titleFont;
+          ctx.font = titleFont;
           ctx.fillStyle = isPrimary ? '#dff0ec' : tier === 'secondary' ? '#c8c0e8' : '#96a8b8';
           ctx.fillText(ln, textX, textY); textY += lineH;
         });
         if (explLines.length) {
           textY += 4;
-          const sepY = textY - lineH - 2;
-          ctx.strokeStyle = accentCol; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.3;
-          ctx.beginPath(); ctx.moveTo(bubbleX + 8, sepY); ctx.lineTo(bubbleX + bubbleW - 8, sepY); ctx.stroke();
+          ctx.strokeStyle = accentCol; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.25;
+          ctx.beginPath();
+          ctx.moveTo(bubbleX + 8, textY - lineH - 1);
+          ctx.lineTo(bubbleX + bubbleW - 8, textY - lineH - 1);
+          ctx.stroke();
           ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
           explLines.forEach(ln => {
             ctx.font = explFont; ctx.fillStyle = '#6880a0';
