@@ -6835,18 +6835,28 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
     }
 
     case 'range': {
-      // Range boundary touches — reuse support/resistance detectors
-      const sb = detectSupportBounce(data);
-      if (sb.detected) {
-        candidates.push({ type: 'support_bounce', direction: 'long',
-          quality: sb.quality,
-          confluence: calculateSupportConfluence(sb, structure) });
+      // Range trading: confirm price is IN a range, then look for boundary reactions
+      const conso = detectConsolidation(data);
+      if (!conso.isConsolidating) break; // not a range environment — skip
+
+      // Range must be wide enough to trade (at least 3×ATR for meaningful R:R)
+      const rangeAtr = _atrRaw(data, 14) || 1;
+      if ((conso.upper - conso.lower) < rangeAtr * 3) break;
+
+      // Price near lower boundary → long setup
+      const current = data[data.length - 1];
+      const nearLower = Math.abs(current.close - conso.lower) / (conso.upper - conso.lower) < 0.20;
+      const nearUpper = Math.abs(current.close - conso.upper) / (conso.upper - conso.lower) > 0.80;
+
+      if (nearLower) {
+        const sb = detectSupportBounce(data);
+        if (sb.detected) candidates.push({ type: 'support_bounce', direction: 'long',
+          quality: sb.quality, confluence: calculateSupportConfluence(sb, structure) + 1 }); // +1 for range context
       }
-      const rr = detectResistanceRejection(data);
-      if (rr.detected) {
-        candidates.push({ type: 'resistance_rejection', direction: 'short',
-          quality: rr.quality,
-          confluence: calculateResistanceConfluence(rr, structure) });
+      if (nearUpper) {
+        const rr = detectResistanceRejection(data);
+        if (rr.detected) candidates.push({ type: 'resistance_rejection', direction: 'short',
+          quality: rr.quality, confluence: calculateResistanceConfluence(rr, structure) + 1 });
       }
       break;
     }
@@ -6955,7 +6965,11 @@ function _atrRaw(data, period) {
 function detectConsolidation(data) {
   if (data.length < 15) return { isConsolidating: false };
   const crypto = _isCrypto();
-  const lookback = data.slice(-20);
+  // Exclude the last candle from the consolidation window — it may be the breakout candle
+  // and would inflate the range or count as a boundary touch incorrectly.
+  // Require at least 8 bars in the zone for a tradeable consolidation.
+  const lookback = data.slice(-21, -1); // 20 bars, excluding current
+  if (lookback.length < 8) return { isConsolidating: false };
   const highs = lookback.map(d => d.high);
   const lows  = lookback.map(d => d.low);
   const hi = Math.max(...highs), lo = Math.min(...lows);
@@ -7019,26 +7033,50 @@ function calculateBreakoutConfluence(current, consolidation, structure) {
 
 // ── 2. FLAG/TREND: strong impulse + low-vol pullback + EMA still fanned ─────
 function detectFlagPattern(data, structure) {
-  if (data.length < 20 || !structure || structure.trend === 'neutral') return { detected: false };
+  if (data.length < 25 || !structure || structure.trend === 'neutral') return { detected: false };
   const isUp = structure.trend.includes('up');
-  // Impulse: prior 10-bar move must be > 2× ATR
   const atr = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  const impulse = data.slice(-15, -5);
-  const consolidation = data.slice(-5);
-  const impulseMagnitude = Math.abs(impulse[impulse.length-1].close - impulse[0].close);
-  if (impulseMagnitude < atr * 2) return { detected: false };
-  // Pullback must be low-volume and orderly (range narrowing)
-  const avgVolImpulse = impulse.reduce((s,d) => s+(d.volume||0), 0) / impulse.length;
-  const avgVolConsolidation = consolidation.reduce((s,d) => s+(d.volume||0), 0) / consolidation.length;
-  if (avgVolConsolidation >= avgVolImpulse) return { detected: false }; // volume not contracting
-  // Price must still be on correct side of 20 EMA
-  const ema20 = _ema(data, 20);
   const current = data[data.length - 1];
-  if (isUp  && current.close < ema20) return { detected: false };
-  if (!isUp && current.close > ema20) return { detected: false };
-  const quality = impulseMagnitude > atr * 3 ? 'high' : 'medium';
-  return { detected: true, direction: isUp ? 'long' : 'short', quality, pattern: 'flag' };
+
+  // Try multiple flag lengths (5–20 bar flags are all valid)
+  for (const flagLen of [5, 8, 12, 16, 20]) {
+    if (data.length < flagLen + 15) continue;
+    const impulse     = data.slice(-(flagLen + 15), -flagLen);
+    const flag        = data.slice(-flagLen);
+    if (impulse.length < 8) continue;
+
+    // Impulse: strong directional move > 2×ATR
+    const impulseMag = Math.abs(impulse[impulse.length-1].close - impulse[0].close);
+    if (impulseMag < atr * 2) continue;
+
+    // Impulse direction must match trend
+    const impulseUp = impulse[impulse.length-1].close > impulse[0].close;
+    if (isUp !== impulseUp) continue;
+
+    // Flag must retrace 10–50% of impulse (real pullback, not sideways drift)
+    const flagHigh   = Math.max(...flag.map(d => d.high));
+    const flagLow    = Math.min(...flag.map(d => d.low));
+    const flagRetrace = isUp
+      ? (impulse[impulse.length-1].close - Math.min(...flag.map(d => d.close))) / impulseMag
+      : (Math.max(...flag.map(d => d.close)) - impulse[impulse.length-1].close) / impulseMag;
+    if (flagRetrace < 0.10 || flagRetrace > 0.55) continue; // need real pullback, not >55%
+
+    // Volume contracting in the flag
+    const volImpulse = impulse.reduce((s,d) => s+(d.volume||0), 0) / impulse.length;
+    const volFlag    = flag.reduce((s,d) => s+(d.volume||0), 0) / flag.length;
+    if (volFlag >= volImpulse) continue;
+
+    // EMA20 still fanned — price above (bull) or below (bear) EMA
+    const ema20 = _ema(data, 20);
+    if (isUp  && current.close < ema20) continue;
+    if (!isUp && current.close > ema20) continue;
+
+    const quality = (impulseMag > atr * 3 && flagRetrace >= 0.20 && flagRetrace <= 0.50) ? 'high' : 'medium';
+    return { detected: true, direction: isUp ? 'long' : 'short', quality,
+             pattern: 'flag', flagLen, impulse: impulseMag, retrace: flagRetrace };
+  }
+  return { detected: false };
 }
 
 function calculateFlagConfluence(flag, structure) {
@@ -7064,19 +7102,29 @@ function detectSupportBounce(data) {
   const prev     = data[data.length - 2];
 
   const swingLows = [];
-  for (let i = 2; i < lookback.length - 2; i++) {
-    if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i-2].low &&
-        lookback[i].low < lookback[i+1].low && lookback[i].low < lookback[i+2].low) {
-      swingLows.push(lookback[i].low);
+  // Require 3 bars each side (strength=3) to filter micro-noise
+  const swingStrength = 3;
+  for (let i = swingStrength; i < lookback.length - swingStrength; i++) {
+    let isSwing = true;
+    for (let j = 1; j <= swingStrength; j++) {
+      if (lookback[i].low >= lookback[i-j].low || lookback[i].low >= lookback[i+j].low) {
+        isSwing = false; break;
+      }
+    }
+    // Minimum significance: swing must be at least 1×ATR below surrounding bars
+    if (isSwing) {
+      const surroundHigh = Math.min(lookback[i-1].low, lookback[i+1].low);
+      if (surroundHigh - lookback[i].low >= atr * 0.8) {
+        swingLows.push(lookback[i].low);
+      }
     }
   }
   if (swingLows.length < 1) return { detected: false };
 
-  // Crypto: require 3 touches minimum (less regulation, levels break more easily)
   const minTouches = crypto ? 3 : 2;
 
   for (const level of swingLows) {
-    const tolerance = atr * (crypto ? 0.7 : 0.5); // wider tolerance for crypto volatility
+    const tolerance = atr * (crypto ? 0.7 : 0.5);
     const touches = lookback.filter(d => Math.abs(d.low - level) < tolerance).length;
     if (touches < minTouches) continue;
     if (Math.abs(current.low - level) > tolerance * 1.5) continue;
@@ -7124,10 +7172,19 @@ function detectResistanceRejection(data) {
   const prev     = data[data.length - 2];
 
   const swingHighs = [];
-  for (let i = 2; i < lookback.length - 2; i++) {
-    if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i-2].high &&
-        lookback[i].high > lookback[i+1].high && lookback[i].high > lookback[i+2].high) {
-      swingHighs.push(lookback[i].high);
+  const swingStrR = 3;
+  for (let i = swingStrR; i < lookback.length - swingStrR; i++) {
+    let isSwing = true;
+    for (let j = 1; j <= swingStrR; j++) {
+      if (lookback[i].high <= lookback[i-j].high || lookback[i].high <= lookback[i+j].high) {
+        isSwing = false; break;
+      }
+    }
+    if (isSwing) {
+      const surroundLow = Math.max(lookback[i-1].high, lookback[i+1].high);
+      if (lookback[i].high - surroundLow >= atr * 0.8) {
+        swingHighs.push(lookback[i].high);
+      }
     }
   }
   if (swingHighs.length < 1) return { detected: false };
@@ -7192,23 +7249,37 @@ function detectTrendPullback(data, structure) {
   const ema20 = _ema(data, 20);
   if (!ema20) return { detected: false };
 
-  // Crypto: wider EMA zone tolerance (2.5%) — faster price action means price
-  // briefly overshoots the EMA before reversing. Traditional: 1.5%.
-  const emaZoneTol = crypto ? 0.025 : 0.015;
+  // EMA zone: price must be touching or slightly past the EMA (within 1.2% not 2.5%)
+  // 2.5% was too loose — bars miles away from EMA were qualifying
+  const emaZoneTol = crypto ? 0.015 : 0.010;
   const emaInZone  = Math.abs(current.close - ema20) / ema20 < emaZoneTol;
-  if (!emaInZone) return { detected: false };
+  // Also accept if price wicked through EMA (low < ema20 < close for longs)
+  const wickedThroughEMA = isUp
+    ? (current.low <= ema20 && current.close >= ema20 * 0.998)
+    : (current.high >= ema20 && current.close <= ema20 * 1.002);
+  if (!emaInZone && !wickedThroughEMA) return { detected: false };
 
   const impulseVol  = _avgVol(data.slice(0, -10), 10);
   const pullbackVol = _avgVol(data.slice(-10), 10);
-  const volContracting = pullbackVol < impulseVol;
+  const volContracting = pullbackVol < impulseVol * 0.85; // require meaningful vol drop
 
   const ema50 = _ema(data, 50);
   const trendIntact = isUp ? (ema20 > ema50) : (ema20 < ema50);
   if (!trendIntact) return { detected: false };
 
+  // Require a reversal candle at the pullback zone:
+  // For longs: current candle must close bullish (close > open) at the EMA
+  // For shorts: current candle must close bearish at the EMA
+  const prev2 = data[data.length - 2];
+  const isReversalCandle = isUp
+    ? (current.close > current.open && current.close > prev2.close)
+    : (current.close < current.open && current.close < prev2.close);
+  if (!isReversalCandle) return { detected: false };
+
   const quality = (volContracting && retrace >= 0.382 && retrace <= 0.618) ? 'high' : 'medium';
   return { detected: true, quality, direction: isUp ? 'long' : 'short',
-           pullbackLevel: current.close, retrace, emaInZone, volContracting };
+           pullbackLevel: current.close, retrace, emaInZone: emaInZone || wickedThroughEMA,
+           volContracting };
 }
 
 function calculatePullbackConfluence(pullback, structure) {
@@ -7249,44 +7320,48 @@ function detectLiquiditySweep(data) {
   if (!atr) return { detected: false };
   const crypto = _isCrypto();
 
-  // Crypto: look back further — engineered sweeps often target older, obvious levels
   const lookbackSize = crypto ? 30 : 20;
-  const lookback    = data.slice(-lookbackSize, -2);
+  // Exclude the sweep candle AND current from lookback — they define the sweep, not the level
+  const lookback    = data.slice(-lookbackSize - 2, -2);
   const sweepCandle = data[data.length - 2];
   const current     = data[data.length - 1];
 
   const priorLow  = Math.min(...lookback.map(d => d.low));
   const priorHigh = Math.max(...lookback.map(d => d.high));
 
-  // Crypto: displacement body threshold is lower (0.3× ATR) because crypto
-  // displacements after a sweep are fast and sharp — we don't want to miss them.
-  // Traditional markets need a larger body (0.5× ATR) for conviction.
-  const minDisplacementBody = crypto ? atr * 0.3 : atr * 0.5;
+  // The swept level must be a meaningful swing (not just a micro-low)
+  // Require it to have at least 2 candles nearby confirming it as a level
+  const levelTolerance = atr * 0.5;
+  const lowTests  = lookback.filter(d => Math.abs(d.low  - priorLow)  < levelTolerance).length;
+  const highTests = lookback.filter(d => Math.abs(d.high - priorHigh) < levelTolerance).length;
+  if (lowTests < 2 && highTests < 2) return { detected: false }; // not a significant level
 
-  // BULL sweep
+  const minDisplacementBody = crypto ? atr * 0.4 : atr * 0.5; // raised crypto threshold
+
+  // BULL sweep: wick below prior low + displacement up
   const wickBelowLow = sweepCandle.low < priorLow;
   const displacedUp  = current.close > sweepCandle.high &&
                        (current.close - current.open) > minDisplacementBody;
 
   if (wickBelowLow && displacedUp) {
     const wickDepth = priorLow - sweepCandle.low;
-    // Crypto: even a shallow sweep counts — thin books mean small wicks still grab stops
-    const minWickDepth = crypto ? 0 : atr * 0.1;
-    if (wickDepth >= minWickDepth) {
+    // Minimum wick depth: 0.3×ATR for crypto (was 0 — too loose), 0.2×ATR for traditional
+    const minWickDepth = crypto ? atr * 0.3 : atr * 0.2;
+    if (wickDepth >= minWickDepth && lowTests >= 2) {
       return { detected: true, quality: 'high', direction: 'long',
                sweepLevel: priorLow, wickDepth };
     }
   }
 
-  // BEAR sweep
+  // BEAR sweep: wick above prior high + displacement down
   const wickAboveHigh = sweepCandle.high > priorHigh;
   const displacedDown = current.close < sweepCandle.low &&
                         (current.open - current.close) > minDisplacementBody;
 
   if (wickAboveHigh && displacedDown) {
     const wickDepth = sweepCandle.high - priorHigh;
-    const minWickDepth = crypto ? 0 : atr * 0.1;
-    if (wickDepth >= minWickDepth) {
+    const minWickDepth = crypto ? atr * 0.3 : atr * 0.2;
+    if (wickDepth >= minWickDepth && highTests >= 2) {
       return { detected: true, quality: 'high', direction: 'short',
                sweepLevel: priorHigh, wickDepth };
     }
@@ -7316,13 +7391,16 @@ function detectStructureSetup(data, structure) {
   const lookback = data.slice(-20);
   // Find the last 3 swing lows (for uptrend) or swing highs (for downtrend)
   const pivots = [];
+  // Require 2 bars each side for pivot confirmation (was 1 — too noisy)
   for (let i = 2; i < lookback.length - 2; i++) {
     if (isUp) {
-      if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i+1].low) {
+      if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i-2]?.low &&
+          lookback[i].low < lookback[i+1].low && lookback[i].low < lookback[i+2]?.low) {
         pivots.push({ idx: i, price: lookback[i].low });
       }
     } else {
-      if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i+1].high) {
+      if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i-2]?.high &&
+          lookback[i].high > lookback[i+1].high && lookback[i].high > lookback[i+2]?.high) {
         pivots.push({ idx: i, price: lookback[i].high });
       }
     }
@@ -7330,14 +7408,14 @@ function detectStructureSetup(data, structure) {
   if (pivots.length < 2) return { detected: false };
   const last = pivots[pivots.length - 1];
   const prev = pivots[pivots.length - 2];
-  // Higher low (uptrend) or lower high (downtrend) — difference must be > 0.3×ATR (meaningful)
+  // Structural shift must be meaningful (> 0.5×ATR, raised from 0.3×ATR)
   const isValid = isUp
-    ? (last.price > prev.price + atr * 0.3)
-    : (last.price < prev.price - atr * 0.3);
+    ? (last.price > prev.price + atr * 0.5)
+    : (last.price < prev.price - atr * 0.5);
   if (!isValid) return { detected: false };
-  // Current bar must be near the pivot (within 1×ATR) — fresh signal
+  // Current bar must be CLOSE to the pivot — within 0.5×ATR, not 1×ATR
   const current = data[data.length - 1];
-  const nearPivot = Math.abs(current.close - last.price) < atr;
+  const nearPivot = Math.abs(current.close - last.price) < atr * 0.5;
   if (!nearPivot) return { detected: false };
   return { detected: true, quality: pivots.length >= 3 ? 'high' : 'medium',
            direction: isUp ? 'long' : 'short', setupType: isUp ? 'higher_low' : 'lower_high' };
@@ -13547,16 +13625,16 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const ax  = barXfn(d.bar);
         const ay  = pyfn(d.price);
 
-        // Hide if anchor bar is off screen
-        if (ax < -barWidth || ax > W + barWidth) break;
+        // Hide if candle is off-screen
+        if (ax < -barWidth * 2 || ax > W + barWidth * 2) break;
 
         const isDown    = d.pointing !== 'up';
         const tier      = d.tier || 'secondary';
         const isPrimary = tier === 'primary';
         const accentCol = d.highlight ? '#f0a500' : isPrimary ? '#00c9a0' : tier === 'secondary' ? '#7c5cbf' : '#4a6080';
-        const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.82 : 0.6;
+        const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.85 : 0.65;
 
-        // Enforce max 4 callout bubbles — skip lower-priority ones beyond limit
+        // Bubble clutter control — max 4 per frame
         if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
         if (ctx._mentorBubbleCount >= 4 && !isPrimary && !d.highlight) break;
         if (d.explanation) ctx._mentorBubbleCount++;
@@ -13564,145 +13642,175 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // ── Callout bubble: floats above/below candle range, never on candles ──
-        // Anchor dot at exact price level
+        const explanation = d.explanation || '';
+        const fontSize    = isPrimary ? 11 : 10;
+        const padX = 10, padY = 7;
+        const maxBubbleW  = Math.min(220, W * 0.30);
+        const innerW      = maxBubbleW - padX * 2;
+
+        // ── Text wrapping ────────────────────────────────────────────────────
+        function wrapText(text, font, maxW) {
+          ctx.font = font;
+          const words = text.split(' ');
+          const lines = []; let line = '';
+          for (const w of words) {
+            const test = line ? line + ' ' + w : w;
+            if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
+            else line = test;
+          }
+          if (line) lines.push(line);
+          return lines;
+        }
+        const titleFont  = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
+        const explFont   = `${fontSize - 1}px sans-serif`;
+        const titleLines = wrapText(d.label || '', titleFont, innerW);
+        const explLines  = explanation ? wrapText(explanation, explFont, innerW) : [];
+
+        // Measure bubble dimensions from actual wrapped text
+        let actualMaxW = 80;
+        [...titleLines, ...explLines].forEach((ln, i) => {
+          ctx.font = i < titleLines.length ? titleFont : explFont;
+          actualMaxW = Math.max(actualMaxW, ctx.measureText(ln).width);
+        });
+        const lineH    = fontSize + 4;
+        const bubbleW  = Math.min(maxBubbleW, actualMaxW + padX * 2 + 4);
+        const bubbleH  = padY * 2
+                       + lineH * titleLines.length
+                       + (explLines.length ? lineH * explLines.length + 5 : 0);
+
+        // ── Bubble position ──────────────────────────────────────────────────
+        // Place bubble 12px from the candle tip, on the side with more space.
+        // The connector tip goes TO the candle's actual wick/price level.
+        const gap         = 12;                          // px between tip and bubble edge
+        const aboveAnchor = !isDown;                     // arrow points up = bubble above
+        
+        // Tip of the arrow: at the candle wick, not offset
+        const tipX = ax;
+        const tipY = ay;
+
+        // Bubble Y: directly above or below the tip, with gap
+        let bubbleY = aboveAnchor
+          ? tipY - gap - bubbleH
+          : tipY + gap;
+
+        // Clamp bubble to canvas vertically
+        bubbleY = Math.max(4, Math.min(H - bubbleH - 4, bubbleY));
+
+        // Bubble X: prefer to the right of anchor if space, else left, else centred
+        let bubbleX;
+        if (ax + bubbleW + 8 <= W - 4)      bubbleX = ax + 8;        // right of candle
+        else if (ax - bubbleW - 8 >= 4)     bubbleX = ax - bubbleW - 8; // left of candle
+        else                                 bubbleX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
+
+        // ── Arrow connector: straight line from candle tip → bubble edge ────
+        // Connector end point = closest point on bubble to the tip
+        const connEndX = Math.max(bubbleX, Math.min(bubbleX + bubbleW, ax));
+        const connEndY = aboveAnchor ? bubbleY + bubbleH : bubbleY;
+
+        // Draw filled arrowhead at candle tip first (behind line)
+        const ahSz = isPrimary ? 5 : 4;
         ctx.fillStyle = accentCol;
         ctx.beginPath();
-        ctx.arc(ax, ay, isPrimary ? 4 : 3, 0, Math.PI*2);
+        if (aboveAnchor) {
+          // Arrow points UP — tip at bottom
+          ctx.moveTo(tipX,       tipY);
+          ctx.lineTo(tipX - ahSz, tipY + ahSz * 2);
+          ctx.lineTo(tipX + ahSz, tipY + ahSz * 2);
+        } else {
+          // Arrow points DOWN — tip at top
+          ctx.moveTo(tipX,       tipY);
+          ctx.lineTo(tipX - ahSz, tipY - ahSz * 2);
+          ctx.lineTo(tipX + ahSz, tipY - ahSz * 2);
+        }
+        ctx.closePath();
         ctx.fill();
 
-        if (d.label) {
-          const explanation = d.explanation || '';
-          const fontSize    = isPrimary ? 10 : 9;
-          const padX = 8, padY = 6;
-          const maxBubbleW  = Math.min(200, W * 0.28);
+        // Connector line from arrowhead base to bubble
+        const lineStartY = aboveAnchor ? tipY + ahSz * 2 : tipY - ahSz * 2;
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth   = isPrimary ? 1.5 : 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(ax, lineStartY);
+        // If bubble is directly above/below (same x): straight vertical
+        // If bubble is offset horizontally: single diagonal line to bubble corner
+        if (Math.abs(connEndX - ax) < 8) {
+          ctx.lineTo(connEndX, connEndY);
+        } else {
+          // Elbow: vertical then horizontal
+          const elbowY = aboveAnchor ? connEndY + 6 : connEndY - 6;
+          ctx.lineTo(ax,       elbowY);
+          ctx.lineTo(connEndX, connEndY);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-          // Wrap title — may need wrapping too
-          ctx.font = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
-          const innerW    = maxBubbleW - padX * 2;
-          function wrapText(text, font, maxW) {
-            ctx.font = font;
-            const words = text.split(' ');
-            const lines = [];
-            let line = '';
-            for (const w of words) {
-              const test = line ? line + ' ' + w : w;
-              if (ctx.measureText(test).width > maxW && line) {
-                lines.push(line); line = w;
-              } else { line = test; }
-            }
-            if (line) lines.push(line);
-            return lines;
-          }
+        // ── Bubble ───────────────────────────────────────────────────────────
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-          const titleFont = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
-          const explFont  = `${fontSize - 1}px sans-serif`;
-          const titleLines = wrapText(d.label, titleFont, innerW);
-          const explLines  = explanation ? wrapText(explanation, explFont, innerW) : [];
+        // Shadow for depth
+        ctx.shadowColor   = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur    = 8;
+        ctx.shadowOffsetY = 2;
+        ctx.fillStyle     = 'rgba(8, 11, 22, 0.96)';
+        roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6);
+        ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-          // Measure actual max line width for bubble sizing
-          ctx.font = titleFont;
-          const allLines = [...titleLines, ...explLines];
-          let actualMaxW = 100;
-          allLines.forEach((ln, i) => {
-            ctx.font = i < titleLines.length ? titleFont : explFont;
-            actualMaxW = Math.max(actualMaxW, ctx.measureText(ln).width);
-          });
+        // Border
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth   = isPrimary ? 1.5 : 1;
+        roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6);
+        ctx.stroke();
 
-          const lineH      = fontSize + 3;
-          const totalLines = titleLines.length + explLines.length;
-          const bubbleW    = Math.min(maxBubbleW, actualMaxW + padX * 2 + 4);
-          const bubbleH    = padY * 2 + lineH * totalLines + (explLines.length ? 6 : 0);
+        // Accent bar on left edge
+        ctx.fillStyle = accentCol;
+        ctx.globalAlpha = alpha * 0.6 * (isWIP ? 0.7 : 1);
+        roundRect(ctx, bubbleX, bubbleY + 4, 2.5, bubbleH - 8, 1);
+        ctx.fill();
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-          // Decide bubble placement: above or below chart based on price position
-          // Bubble never sits on candles — it floats near chart edge
-          const anchorInUpperHalf = ay < H * 0.5;
-          const bubbleY = anchorInUpperHalf
-            ? Math.max(4, ay - bubbleH - 28)          // place above anchor
-            : Math.min(H - bubbleH - 4, ay + 28);     // place below anchor
+        // ── Text ─────────────────────────────────────────────────────────────
+        const textX = bubbleX + padX + 4; // +4 offset for accent bar
+        let textY   = bubbleY + padY + fontSize;
 
-          // Horizontal: center on anchor, clamp to canvas
-          let bubbleX = ax - bubbleW / 2;
-          bubbleX = Math.max(4, Math.min(W - bubbleW - 4, bubbleX));
+        // Title (bold, brighter)
+        ctx.textAlign = 'left';
+        titleLines.forEach(ln => {
+          ctx.font      = titleFont;
+          ctx.fillStyle = isPrimary ? '#dff0ec' : tier === 'secondary' ? '#c8c0e8' : '#96a8b8';
+          ctx.fillText(ln, textX, textY);
+          textY += lineH;
+        });
 
-          // ── L-shaped angled connector: price dot → corner → bubble ──
-          const connCornerX = bubbleX + bubbleW * 0.3;
-          const connStartY  = ay + (anchorInUpperHalf ? -4 : 4);
-          const connEndY    = anchorInUpperHalf ? bubbleY + bubbleH : bubbleY;
-
-          ctx.strokeStyle = accentCol;
-          ctx.lineWidth   = isPrimary ? 1.5 : 1;
-          ctx.setLineDash([3, 3]);
-          ctx.beginPath();
-          ctx.moveTo(ax, connStartY);
-          // Vertical segment to corner
-          const midY = anchorInUpperHalf
-            ? connStartY - Math.abs(connStartY - connEndY) * 0.4
-            : connStartY + Math.abs(connEndY - connStartY) * 0.4;
-          ctx.lineTo(ax, midY);
-          // Angled to corner
-          ctx.lineTo(connCornerX, connEndY);
-          ctx.stroke();
-          ctx.setLineDash([]);
-
-          // Small arrowhead at bubble end
-          const ahY  = connEndY + (anchorInUpperHalf ? -1 : 1);
-          const ahSz = 3;
-          ctx.fillStyle = accentCol;
-          ctx.beginPath();
-          if (anchorInUpperHalf) {
-            ctx.moveTo(connCornerX, ahY);
-            ctx.lineTo(connCornerX - ahSz, ahY - ahSz*1.6);
-            ctx.lineTo(connCornerX + ahSz, ahY - ahSz*1.6);
-          } else {
-            ctx.moveTo(connCornerX, ahY);
-            ctx.lineTo(connCornerX - ahSz, ahY + ahSz*1.6);
-            ctx.lineTo(connCornerX + ahSz, ahY + ahSz*1.6);
-          }
-          ctx.closePath();
-          ctx.fill();
-
-          // ── Bubble background ──
-          ctx.globalAlpha = alpha * 0.97 * (isWIP ? 0.7 : 1);
-          ctx.fillStyle   = 'rgba(10,12,22,0.94)';
-          roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 5);
-          ctx.fill();
-          ctx.strokeStyle = accentCol;
-          ctx.lineWidth   = isPrimary ? 1 : 0.75;
-          roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 5);
-          ctx.stroke();
-
-          // ── Title lines ──
-          ctx.textAlign = 'left';
-          let textY = bubbleY + padY + fontSize;
-          titleLines.forEach((ln, li) => {
-            ctx.font      = titleFont;
-            ctx.fillStyle = isPrimary ? '#e8f4f0' : tier === 'secondary' ? '#c8c0e8' : '#8090a8';
-            ctx.fillText(ln, bubbleX + padX, textY);
+        // Explanation (lighter, smaller)
+        if (explLines.length) {
+          textY += 3;
+          explLines.forEach(ln => {
+            ctx.font      = explFont;
+            ctx.fillStyle = '#7080a0';
+            ctx.fillText(ln, textX, textY);
             textY += lineH;
           });
-
-          // ── Explanation lines ──
-          if (explLines.length) {
-            textY += 3; // small gap between title and explanation
-            explLines.forEach(ln => {
-              ctx.font      = explFont;
-              ctx.fillStyle = '#6880a0';
-              ctx.fillText(ln, bubbleX + padX, textY);
-              textY += lineH;
-            });
-          }
-
-          ctx.textAlign = 'left';
         }
 
-        // Selection ring
+        // ── Anchor dot at price level ─────────────────────────────────────
+        ctx.fillStyle = accentCol;
+        ctx.beginPath();
+        ctx.arc(ax, ay, isPrimary ? 3.5 : 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // White centre for visibility
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(ax, ay, isPrimary ? 1.5 : 1, 0, Math.PI * 2);
+        ctx.fill();
+
         if (isSel) {
           ctx.strokeStyle = accentCol;
-          ctx.lineWidth   = 1.5;
+          ctx.lineWidth = 1.5;
           ctx.setLineDash([2, 2]);
           ctx.beginPath();
-          ctx.arc(ax, ay, 8, 0, Math.PI*2);
+          ctx.arc(ax, ay, 9, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
