@@ -8531,14 +8531,18 @@ function handleSetupDetectedState(currentBar) {
   if (barsUntilSetup <= 15 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
     mentorState.earlyWarningShown = true;
 
-    // Pre-validate that a trade CAN be placed — compute levels from the future
-    // entry bar (setupBar+1 open) right now so we know before asking.
-    const entryBar = Math.min(setupBar + 1, curData.length - 1);
-    const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+    // Use pre-cached levels if available (injected by _mfLaunch), otherwise compute.
+    const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
     const entryPrice = curData[entryBar]?.open;
-    const prelevels = (futureFromEntry.length >= 5 && entryPrice)
-      ? computeMentorTradeLevels(setupData.direction || 'long', entryPrice, entryBar, futureFromEntry)
-      : null;
+
+    function futureFromEntryOk(eb) { return curData && curData.length > eb + 5; }
+    let prelevels = setupData._prevalidatedLevels || null;
+    if (!prelevels && futureFromEntryOk(entryBar)) {
+      const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+      prelevels = (futureFromEntry.length >= 5 && entryPrice)
+        ? computeMentorTradeLevels(setupData.direction || 'long', entryPrice, entryBar, futureFromEntry)
+        : null;
+    }
 
     if (!prelevels) {
       // Can't place a valid trade here — skip silently and keep scanning
@@ -8548,7 +8552,7 @@ function handleSetupDetectedState(currentBar) {
       return;
     }
 
-    // Cache pre-validated levels and store pending data
+    // Store for use by mentorShowMeTrade
     setupData._prevalidatedLevels = prelevels;
     setupData._entryBar           = entryBar;
     mentorState.pendingSetupDetection = setupData;
@@ -10398,15 +10402,17 @@ function _mfLaunch(idx) {
   const setup = _mfSetups[idx];
   if (!setup || !curData) return;
 
-  // Close the finder view
   toggleMentorFinder();
 
-  const PRE_BARS = 25;
+  // Start replay 30 bars before the setup bar — enough context to read the
+  // chart and understand why the setup is forming, and to see the question
+  // appear naturally as the candles approach.
+  const PRE_BARS = 30;
   const startBar = Math.max(1, setup.bar - PRE_BARS);
 
   if (replayMode) stopReplay();
 
-  // Map setup type → method and apply
+  // Map setup type → trading method
   const methodMap = {
     breakout:'breakout', range_breakout:'breakout',
     flag_continuation:'trend', structure_continuation:'trend',
@@ -10420,42 +10426,70 @@ function _mfLaunch(idx) {
   const sel1 = document.getElementById('trading-method-select');
   if (sel1) sel1.value = m;
 
-  // Reset mentor state cleanly
-  mentorState.enabled              = true;
-  mentorState.lifecycleState       = 'scanning';
-  mentorState.currentBar           = -1;
+  // ── Reset mentor state completely ─────────────────────────────────────────
+  mentorState.enabled                = true;
+  mentorState.currentBar             = -1;
   mentorState.lastTradeSuggestionBar = -1000;
-  mentorState.setupWaitStart       = null;
-  mentorState.setupWaitData        = null;
-  mentorState.exampleTrade         = null;
-  mentorState.exampleTradeActive   = false;
-  mentorState.messageLocked        = false;
-  mentorState.lockedMessage        = null;
-  mentorState.lockedInsights       = [];
-  mentorState.lockedQuestion       = '';
-  mentorState.realtimeUpdates      = [];
-  mentorState.pendingSetupDetection = null;
-  mentorState.pendingSetupBar      = null;
-  mentorState.upcomingSetup        = null;
-  mentorState.currentInsights      = ['🎯 Navigating to setup...'];
-  mentorState.currentQuestion      = 'Keep an eye on the price action. The mentor will pause when the setup materialises.';
+  mentorState.setupWaitStart         = null;
+  mentorState.setupWaitData          = null;
+  mentorState.exampleTrade           = null;
+  mentorState.exampleTradeActive     = false;
+  mentorState.messageLocked          = false;
+  mentorState.lockedMessage          = null;
+  mentorState.lockedInsights         = [];
+  mentorState.lockedQuestion         = '';
+  mentorState.realtimeUpdates        = [];
+  mentorState.pendingSetupDetection  = null;
+  mentorState.pendingSetupBar        = null;
+  mentorState.earlyWarningShown      = false;
+  mentorState.resultExplained        = false;
   if (mentorState.setupCache) mentorState.setupCache.clear();
 
-  // Show mentor panel, hide method selection UI
+  // ── Pre-inject the known setup as upcomingSetup so the mentor skips ────────
+  // scanning entirely. When replayCutoff reaches within 15 bars of setup.bar,
+  // handleSetupDetectedState fires the early question automatically.
+  // Build a minimal setup detection object from what the scanner found.
+  const injectedSetup = {
+    setup:     setup.setup,
+    direction: setup.direction,
+    quality:   setup.quality,
+    confluence: setup.confluence,
+    // Pre-cache the validated levels so no re-computation needed at question time
+    _prevalidatedLevels: setup.levels,
+    _entryBar: Math.min(setup.bar + 1, curData.length - 1),
+  };
+
+  mentorState.lifecycleState = 'setup_detected';
+  mentorState.upcomingSetup  = {
+    setup:      injectedSetup,
+    bar:        setup.bar,
+    windowSize: PRE_BARS,
+  };
+
+  // Brief scanning message while user reads the chart context
+  const setupLabel = setup.setup.replace(/_/g, ' ');
+  const dirEmoji   = setup.direction === 'long' ? '📈' : '📉';
+  mentorState.currentInsights = [
+    `${dirEmoji} Navigating to a ${setupLabel} setup`,
+    `Watch the price action develop — the mentor will pause and ask you what to do as the setup approaches.`,
+  ];
+  mentorState.currentQuestion = 'Use this time to study the chart structure leading up to the setup.';
+
+  // Show mentor panel
   const mentorPanel = document.getElementById('ai-mentor-panel');
   if (mentorPanel) mentorPanel.style.display = 'block';
   const methodSel = document.getElementById('trading-method-selection');
   if (methodSel) methodSel.style.display = 'none';
 
-  // Scroll chart: show setup with ~30 bars of right-side context
-  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 30);
+  // Scroll chart so the setup area is visible with context to the right
+  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 35);
   _replayScrollToBar(startBar);
 
-  // Start replay at startBar without picking phase
-  replayMode         = true;
-  replayPicking      = false;
-  replayCutoff       = startBar;
-  replayJustStarted  = true;
+  // Start replay at startBar (no picking phase needed)
+  replayMode        = true;
+  replayPicking     = false;
+  replayCutoff      = startBar;
+  replayJustStarted = true;
   setTimeout(() => { replayJustStarted = false; }, 500);
 
   const rbtn = document.getElementById('btn-replay');
@@ -10464,12 +10498,13 @@ function _mfLaunch(idx) {
   updateReplayStatus();
   draw();
 
+  // Give the DOM a tick then sync the mentor UI
   setTimeout(() => {
-    updateMentorUI && updateMentorUI();
-    updateMentor   && updateMentor();
+    _buildSetupDetectedMessage(replayCutoff);
+    updateMentorUI();
   }, 150);
 
-  toast('▶ Replay started — Space to play · → to step');
+  toast('▶ Replay started — play the candles and watch for the setup');
 }
 
 window.toggleMentorFinder    = toggleMentorFinder;
