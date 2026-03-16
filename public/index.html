@@ -12866,9 +12866,17 @@ function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
   }
 
   // Determine placement side based on price position in visible range
-  // The bubble will be placed outside the chart area
-  const canvasHeight = document.getElementById('main-canvas')?.height || 600;
-  const midPrice = (visibleMaxPrice + visibleMinPrice) / 2;
+  // Calculate visible price range from current data
+  let vMin = Infinity, vMax = -Infinity;
+  const startIdx = Math.max(0, curData.length - 80); // approximate visible range
+  for (let i = startIdx; i < curData.length; i++) {
+    if (curData[i]) {
+      vMin = Math.min(vMin, curData[i].low);
+      vMax = Math.max(vMax, curData[i].high);
+    }
+  }
+  if (vMin === Infinity) { vMin = price * 0.95; vMax = price * 1.05; }
+  const midPrice = (vMax + vMin) / 2;
   // If price is in upper half, bubble goes above chart; if lower half, below chart
   const placementSide = price > midPrice ? 'above' : 'below';
 
