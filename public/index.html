@@ -12651,318 +12651,6 @@ function _clearMentorAnnotationsSilent() {
   _mentorAnnotationIds = [];
 }
 
-// ── Mentor annotation layout rules (universal, strategy-agnostic) ──────────
-function _mentorGetVisibleWindow() {
-  try {
-    if (!curData || !curData.length || barWidth <= 0) return null;
-    const mc = _el('main-canvas');
-    if (!mc || !mc.width || !mc.height) return null;
-    const W = mc.width;
-    const firstBar = Math.max(0, Math.ceil(rightBarIndex - W / barWidth));
-    const _rawLast = Math.min(curData.length - 1, Math.floor(rightBarIndex));
-    const lastBar = (replayMode && !replayPicking && replayCutoff >= 0)
-      ? Math.min(_rawLast, replayCutoff)
-      : _rawLast;
-    if (lastBar <= firstBar) return null;
-    let hi = -Infinity, lo = Infinity;
-    for (let i = firstBar; i <= lastBar; i++) {
-      const c = curData[i];
-      if (!c) continue;
-      hi = Math.max(hi, c.high);
-      lo = Math.min(lo, c.low);
-    }
-    if (!isFinite(hi) || !isFinite(lo)) return null;
-    return { W: mc.width, H: mc.height, firstBar, lastBar, visHi: hi, visLo: lo };
-  } catch (e) {
-    return null;
-  }
-}
-
-function _mentorIsPrimaryLabelText(txt) {
-  const t = String(txt || '').toUpperCase();
-  return /(\bENTRY\b|\bSTOP\b|\bSL\b|\bTP\b|TAKE PROFIT|\bTARGET\b)/.test(t);
-}
-
-function _mentorPriorityScore(d) {
-  const t = String(d?.label || '').toUpperCase();
-  let s = 0;
-  if (d.type === 'mentor_arrow') s += 60;
-  if (d.type === 'mentor_box') s += 50;
-  if (d.type === 'mentor_label') s += 30;
-  if (d.highlight) s += 25;
-
-  // Primary: entry/SL/TP/major key levels
-  if (_mentorIsPrimaryLabelText(t)) s += 200;
-  if (/KEY LEVEL|BREAKOUT|BREAKDOWN|\bSUPPORT\b|\bRESISTANCE\b/.test(t)) s += 90;
-
-  // Secondary: zones/structure
-  if (/CONSOLIDATION|RANGE|ZONE|SUPPLY|DEMAND|LIQUIDITY/.test(t)) s += 50;
-  if (/SWING|HH|LL|HIGHER|LOWER|STRUCTURE/.test(t)) s += 30;
-
-  // Tertiary: context/explanations (keep smallest)
-  if (/CONFLUENCE|CONFIRM|REJECTION|VOLUME|EMA|TREND|BIAS|WAIT/.test(t)) s += 20;
-
-  return s;
-}
-
-function _mentorLabelKeyForMerge(d, win) {
-  if (!d || !win) return null;
-  const price = d.price != null ? d.price : (d.priceLow + d.priceHigh) / 2;
-  if (!Number.isFinite(price)) return null;
-  const band = (win.visHi - win.visLo) || (Math.abs(price) * 0.01) || 1;
-  const step = band / 120;
-  const bucket = Math.round(price / step) * step;
-  return bucket.toFixed(4);
-}
-
-function _mentorDrawingInVisibleWindow(d, win) {
-  if (!d || !win) return false;
-  const barIn = b => Number.isFinite(b) && b >= win.firstBar && b <= win.lastBar;
-  const priceIn = p => Number.isFinite(p) && p >= win.visLo && p <= win.visHi;
-  const allowOutside = _mentorIsPrimaryLabelText(d.label);
-
-  if (d.type === 'mentor_arrow' || d.type === 'mentor_label') {
-    if (!barIn(d.bar)) return false;
-    if (!allowOutside && !priceIn(d.price)) return false;
-    return true;
-  }
-  if (d.type === 'mentor_box') {
-    const b1 = Math.min(d.bar1, d.bar2), b2 = Math.max(d.bar1, d.bar2);
-    const intersects = b2 >= win.firstBar && b1 <= win.lastBar;
-    if (!intersects) return false;
-    const low = Math.min(d.priceLow, d.priceHigh);
-    const high = Math.max(d.priceLow, d.priceHigh);
-    if (!allowOutside && (high < win.visLo || low > win.visHi)) return false;
-    return true;
-  }
-  return true;
-}
-
-function _mentorClampToVisiblePrice(d, win) {
-  if (!d || !win) return d;
-  const allowOutside = _mentorIsPrimaryLabelText(d.label);
-  if (allowOutside) return d;
-
-  const eps = (win.visHi - win.visLo) * 0.01 || (win.visHi * 0.001) || 0.0001;
-  const clampP = p => Math.max(win.visLo + eps, Math.min(win.visHi - eps, p));
-
-  if (d.type === 'mentor_arrow' || d.type === 'mentor_label') {
-    d.price = clampP(d.price);
-  } else if (d.type === 'mentor_box') {
-    d.priceLow = clampP(d.priceLow);
-    d.priceHigh = clampP(d.priceHigh);
-    if (d.priceLow > d.priceHigh) {
-      const tmp = d.priceLow; d.priceLow = d.priceHigh; d.priceHigh = tmp;
-    }
-  }
-  return d;
-}
-
-function _mentorEstimateLabelRect(d, win) {
-  // Approximate the on-canvas bounding box for overlap checks (mentor_label only).
-  if (!d || d.type !== 'mentor_label' || !win) return null;
-  const barX = i => win.W - (rightBarIndex - i) * barWidth;
-  const py = p => win.H - (p - win.visLo) / (win.visHi - win.visLo) * win.H;
-  const x = barX(d.bar);
-  const y = py(d.price);
-  const txt = String(d.label || '');
-  const lines = txt.split('|').map(s => s.trim()).filter(Boolean);
-  const longest = Math.max(10, ...lines.map(l => l.length));
-  const boxW = Math.min(260, longest * 6.2 + 20); // rough text width
-  const boxH = Math.min(160, lines.length * 15 + 12);
-  const bxOff = barWidth * 1.5;
-  let lbx = x + bxOff;
-  // Prefer labels in the gutter next to the price scale so they don't cover candles.
-  const gutterLeft = win.W - (typeof R_PANEL_OFFSET === 'number' ? R_PANEL_OFFSET : 0) - boxW - 6;
-  if (lbx < gutterLeft) lbx = gutterLeft;
-  const lby = y - boxH / 2;
-  return { x: lbx, y: lby, w: boxW, h: boxH };
-}
-
-function _rectsOverlap(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function _mentorResolveLabelOverlaps(mentorDrawings, win) {
-  if (!win) return;
-  const labels = mentorDrawings.filter(d => d.type === 'mentor_label');
-  if (labels.length < 2) return;
-
-  // Keep labels close to their anchor; shift vertically for stacking and
-  // a few bars left/right if needed.
-  const maxShiftBars = 6;
-  const placed = [];
-  const margin = 6; // minimum spacing between label boxes
-
-  // Place higher-priority labels first, so higher-importance labels move less.
-  labels.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
-
-  for (const d of labels) {
-    _mentorClampToVisiblePrice(d, win);
-    let rect = _mentorEstimateLabelRect(d, win);
-    if (!rect) continue;
-    // Inflate rect slightly for min-spacing rule.
-    rect = { x: rect.x - margin, y: rect.y - margin, w: rect.w + margin * 2, h: rect.h + margin * 2 };
-
-    // If label box goes off the top/bottom, clamp price slightly inside and re-evaluate.
-    if (rect.y < 6 || rect.y + rect.h > win.H - 6) {
-      d.price = Math.max(win.visLo, Math.min(win.visHi, d.price));
-      const r2 = _mentorEstimateLabelRect(d, win);
-      if (r2) rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
-    }
-
-    let ok = true;
-    for (const p of placed) {
-      if (_rectsOverlap(rect, p.rect)) { ok = false; break; }
-    }
-    if (ok) { placed.push({ d, rect }); continue; }
-
-    // Smart stacking: if labels share the same price bucket, nudge vertically.
-    const key = _mentorLabelKeyForMerge(d, win);
-    if (!ok && key != null) {
-      const siblings = placed.filter(p => _mentorLabelKeyForMerge(p.d, win) === key);
-      if (siblings.length) {
-        const stackIndex = siblings.length;
-        const step = (win.visHi - win.visLo) * 0.012;
-        d.price += step * (stackIndex % 2 === 0 ? stackIndex : -stackIndex);
-        const r2 = _mentorEstimateLabelRect(d, win);
-        if (r2) {
-          rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
-          ok = true;
-          for (const p of placed) {
-            if (_rectsOverlap(rect, p.rect)) { ok = false; break; }
-          }
-        }
-      }
-    }
-
-    // Try bar shifts alternating left/right as a last resort.
-    const baseBar = d.bar;
-    for (let s = 1; s <= maxShiftBars; s++) {
-      for (const sign of [-1, 1]) {
-        const nb = Math.max(win.firstBar, Math.min(win.lastBar, baseBar + sign * s));
-        if (nb === d.bar) continue;
-        d.bar = nb;
-        const r2 = _mentorEstimateLabelRect(d, win);
-        if (!r2) continue;
-        rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
-        let hit = false;
-        for (const p of placed) {
-          if (_rectsOverlap(rect, p.rect)) { hit = true; break; }
-        }
-        if (!hit) { ok = true; break; }
-      }
-      if (ok) break;
-    }
-    if (ok) placed.push({ d, rect });
-  }
-}
-
-function _mentorPostProcessAnnotations({ maxPerSetup = 5 } = {}) {
-  const win = _mentorGetVisibleWindow();
-  if (!win) return;
-
-  // Only operate on mentor drawings (we clear + rebuild each time).
-  let mentorDrawings = drawings.filter(d => d && d.isMentorAnnotation);
-  if (!mentorDrawings.length) return;
-
-  // ── Zone cleanup: merge overlapping mentor_box zones into a single clean zone.
-  const boxes = mentorDrawings.filter(d => d.type === 'mentor_box');
-  const others = mentorDrawings.filter(d => d.type !== 'mentor_box');
-  const mergedBoxes = [];
-  for (const box of boxes) {
-    let merged = { ...box };
-    for (let i = 0; i < mergedBoxes.length; i++) {
-      const b = mergedBoxes[i];
-      const b1a = Math.min(b.bar1, b.bar2), b2a = Math.max(b.bar1, b.bar2);
-      const b1b = Math.min(merged.bar1, merged.bar2), b2b = Math.max(merged.bar1, merged.bar2);
-      const barOverlap = b2a >= b1b && b2b >= b1a;
-      const lowA = Math.min(b.priceLow, b.priceHigh);
-      const highA = Math.max(b.priceLow, b.priceHigh);
-      const lowB = Math.min(merged.priceLow, merged.priceHigh);
-      const highB = Math.max(merged.priceLow, merged.priceHigh);
-      const priceOverlap = highA >= lowB && highB >= lowA;
-      if (barOverlap && priceOverlap) {
-        const newBar1 = Math.min(b1a, b1b);
-        const newBar2 = Math.max(b2a, b2b);
-        const newLow = Math.min(lowA, lowB);
-        const newHigh = Math.max(highA, highB);
-        const labelA = String(b.label || '').trim();
-        const labelB = String(merged.label || '').trim();
-        const mergedLabel = labelA && labelB && labelA !== labelB
-          ? `${labelA} + ${labelB}`
-          : (labelA || labelB);
-        merged = {
-          ...merged,
-          bar1: newBar1,
-          bar2: newBar2,
-          priceLow: newLow,
-          priceHigh: newHigh,
-          label: mergedLabel,
-        };
-        mergedBoxes.splice(i, 1);
-        i = -1;
-      }
-    }
-    mergedBoxes.push(merged);
-  }
-  mentorDrawings = [...others, ...mergedBoxes];
-
-  // Drop anything not anchored to visible chart data / outside visible price range.
-  mentorDrawings = mentorDrawings
-    .filter(d => _mentorDrawingInVisibleWindow(d, win))
-    .map(d => _mentorClampToVisiblePrice(d, win));
-
-  // ── Merge related labels at the same price level (e.g. "Key Level" + "EMA Confluence").
-  const labels = mentorDrawings.filter(d => d.type === 'mentor_label');
-  const nonLabels = mentorDrawings.filter(d => d.type !== 'mentor_label');
-  const labelBuckets = new Map();
-  labels.forEach(d => {
-    const key = _mentorLabelKeyForMerge(d, win);
-    if (key == null) return;
-    if (!labelBuckets.has(key)) labelBuckets.set(key, []);
-    labelBuckets.get(key).push(d);
-  });
-  const mergedLabels = [];
-  for (const group of labelBuckets.values()) {
-    if (!group.length) continue;
-    group.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
-    const base = { ...group[0] };
-    const pieces = [];
-    group.forEach(g => {
-      const txt = String(g.label || '').trim();
-      if (!txt) return;
-      if (!pieces.includes(txt)) pieces.push(txt);
-    });
-    base.label = pieces.join(' + ');
-    mergedLabels.push(base);
-  }
-  mentorDrawings = [...nonLabels, ...mergedLabels];
-
-  // Enforce clutter limit using universal hierarchy scoring (max visible labels).
-  mentorDrawings.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
-  const kept = [];
-  let labelCount = 0;
-  for (const d of mentorDrawings) {
-    if (d.type === 'mentor_label') {
-      if (labelCount >= maxPerSetup) continue;
-      labelCount++;
-      kept.push(d);
-    } else {
-      kept.push(d);
-    }
-  }
-  mentorDrawings = kept;
-
-  // Avoid overlaps for explanatory callouts.
-  _mentorResolveLabelOverlaps(mentorDrawings, win);
-
-  // Commit back.
-  const keepIds = new Set(mentorDrawings.map(d => d.id));
-  drawings = drawings.filter(d => !d.isMentorAnnotation || keepIds.has(d.id));
-  _mentorAnnotationIds = mentorDrawings.map(d => d.id);
-}
-
 // Add an arrow pointing at a specific bar/price.
 // direction: 'down' (arrow points down toward candle from above) or 'up'
 function _addMentorArrow(bar, price, label, direction = 'down', highlight = false) {
@@ -13019,345 +12707,356 @@ function _addMentorLabel(bar, price, lines) {
   return id;
 }
 
-// ── Annotate key setup moments ────────────────────────────────────────────
-// Called when the early-warning pause fires. Reads the setup type and places
-// relevant annotations on the chart to show the user WHAT to look at.
+// ══ MENTOR ANNOTATION ENGINE ═════════════════════════════════════════════════
+// Universal, clean annotation system.
+// Rules:
+//   • Max 5 annotations per setup (1 context + 1 key level + 1 confluence + 1 entry + 1 objective)
+//   • All anchored to real price structures (no floating)
+//   • All within visible candle range (no off-screen labels)
+//   • Overlap prevention via label stagger
+//   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
+
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
   _clearMentorAnnotationsSilent();
 
-  const method      = mentorState.selectedTradingMethod || 'breakout';
-  const dir         = setupDetection.direction || 'long';
+  const method       = mentorState.selectedTradingMethod || 'breakout';
+  const dir          = setupDetection.direction || 'long';
   const detectionBar = Math.min(setupBar, curData.length - 1);
   const visibleUpTo  = Math.min(anchorBar, replayCutoff, detectionBar, curData.length - 1);
   const barsAway     = setupBar - visibleUpTo;
-  const data         = curData.slice(0, detectionBar + 1);
-  const structure    = analyzeMarketStructure(data);
-  const atr          = calculateATR(detectionBar, 14) || (curData[detectionBar]?.close * 0.005) || 1;
-  const c            = curData[visibleUpTo];
-  if (!c) return;
 
-  // ── Progressive analysis: build like a real trader step by step ─────────
-  // Step 1 (barsAway > 20): market context
-  // Step 2 (barsAway > 10): + key levels
-  // Step 3 (barsAway > 0):  + confluences
-  // All steps visible at pause (barsAway <= 25 triggers pause)
+  if (visibleUpTo < 10) return;
 
-  const step1 = true;            // always show market context
-  const step2 = barsAway <= 35;  // key levels appear as setup gets closer
-  const step3 = barsAway <= 20;  // confluences appear when setup is near
+  const data      = curData.slice(0, detectionBar + 1);
+  const structure = analyzeMarketStructure(data);
+  const atr       = calculateATR(detectionBar, 14) || (curData[detectionBar]?.close * 0.005) || 1;
 
-  function isVisible(b) { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
+  // Visible price range — no annotation outside candle boundaries
+  const visSlice  = curData.slice(Math.max(0, visibleUpTo - 60), visibleUpTo + 1);
+  const rangeHigh = Math.max(...visSlice.map(b => b.high));
+  const rangeLow  = Math.min(...visSlice.map(b => b.low));
+  const histFrom  = Math.max(0, visibleUpTo - 60);
 
-  // Thin level band anchored at a specific bar, grows right with replay
-  function levelBand(price, label, firstBar, extRight) {
-    const f = Math.max(0, Math.floor(firstBar));
-    const t = visibleUpTo + (extRight || 2);
-    if (f >= visibleUpTo || !isVisible(f) || t <= f) return;
-    _addMentorBox(f, t, price - atr * 0.10, price + atr * 0.10, label);
+  function inRange(p) { return Number.isFinite(p) && p >= rangeLow - atr*0.5 && p <= rangeHigh + atr*0.5; }
+  function isVis(b)   { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
+
+  // Progressive build — three stages as replay approaches setup
+  const showLevels = barsAway <= 35;  // stage 2: key level / zone
+  const showConf   = barsAway <= 20;  // stage 3: confirmation + entry signal
+
+  // Annotation collector — max 5, committed at end
+  // priority 1=primary, 2=secondary, 3=tertiary
+  const ann = [];
+  function addZone(f, t, price, label, pri) {
+    if (ann.filter(a=>a.type!=='context').length >= 5 || !inRange(price)) return;
+    const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
+    if (!isVis(fb) || fb >= tb) return;
+    ann.push({ type:'zone', f:fb, t:tb, price, label, pri:pri||2 });
+  }
+  function addBox(f, t, lo, hi, label, pri) {
+    if (ann.filter(a=>a.type!=='context').length >= 5) return;
+    const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
+    const cl = Math.max(lo, rangeLow - atr*0.3);
+    const ch = Math.min(hi, rangeHigh + atr*0.3);
+    if (!isVis(fb) || fb >= tb || cl >= ch) return;
+    ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2 });
+  }
+  function addArrow(bar, price, label, pointing, highlight, pri) {
+    if (ann.filter(a=>a.type!=='context').length >= 5 || !isVis(bar) || !inRange(price)) return;
+    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2 });
   }
 
-  // ══ STEP 1: MARKET CONTEXT ════════════════════════════════════════════════
-  if (step1) {
-    // Determine trend from EMA alignment
-    const ema20arr = calcEMA(data, 20);
-    const ema50arr = calcEMA(data, 50);
-    const ema20    = ema20arr[ema20arr.length - 1];
-    const ema50    = ema50arr[ema50arr.length - 1];
-    const trendUp  = structure.trend?.includes('up');
-    const trendDn  = structure.trend?.includes('down');
-    const ranging  = !trendUp && !trendDn;
-
-    // Find recent swing highs and lows to assess structure
-    const look40 = curData.slice(Math.max(0, visibleUpTo - 40), visibleUpTo + 1);
-    const swings  = [];
-    for (let i = 3; i < look40.length - 3; i++) {
-      const isHH = look40[i].high > look40[i-1].high && look40[i].high > look40[i+1].high
-                && look40[i].high > look40[i-2].high && look40[i].high > look40[i+2].high;
-      const isLL = look40[i].low  < look40[i-1].low  && look40[i].low  < look40[i+1].low
-                && look40[i].low  < look40[i-2].low  && look40[i].low  < look40[i+2].low;
-      if (isHH) swings.push({ bar: Math.max(0, visibleUpTo - 40) + i, price: look40[i].high, type: 'high' });
-      if (isLL) swings.push({ bar: Math.max(0, visibleUpTo - 40) + i, price: look40[i].low,  type: 'low' });
+  // Find real swing points anchored to actual candle OHLC
+  function findSwings(type, strength) {
+    const out = [];
+    for (let i = histFrom+strength; i <= visibleUpTo-strength; i++) {
+      const c = curData[i]; if (!c) continue;
+      let ok = true;
+      for (let j=1; j<=strength; j++) {
+        const p=curData[i-j], n=curData[i+j]; if (!p||!n){ok=false;break;}
+        if (type==='high'?(p.high>=c.high||n.high>=c.high):(p.low<=c.low||n.low<=c.low)){ok=false;break;}
+      }
+      const price = type==='high' ? c.high : c.low;
+      if (ok && inRange(price)) out.push({ bar:i, price });
     }
-
-    // Market structure label on EMA — shows trend visually
-    if (ema20 && isVisible(Math.max(0, visibleUpTo - 15))) {
-      const trendLabel = trendUp  ? '📈 Uptrend — higher highs and higher lows. Bias is LONG.'
-                       : trendDn  ? '📉 Downtrend — lower highs and lower lows. Bias is SHORT.'
-                       : '↔️ Range / consolidation — no clear trend. Wait for a breakout or boundary reaction.';
-      levelBand(ema20, trendLabel, Math.max(0, visibleUpTo - 15), 4);
-    }
-
-    // Mark the 2-3 most recent significant swings as structure reference points
-    const recentSwings = swings.slice(-4);
-    recentSwings.forEach((sw, i) => {
-      if (!isVisible(sw.bar)) return;
-      const isNewest = i === recentSwings.length - 1;
-      _addMentorArrow(sw.bar, sw.price,
-        sw.type === 'high'
-          ? (i === 0 ? 'Prior swing high' : isNewest ? `Recent swing high: ${fP(sw.price)}` : `Swing high: ${fP(sw.price)}`)
-          : (i === 0 ? 'Prior swing low'  : isNewest ? `Recent swing low: ${fP(sw.price)}`  : `Swing low: ${fP(sw.price)}`),
-        sw.type === 'high' ? 'down' : 'up', false);
-    });
+    return out;
   }
+  const swingH = findSwings('high', 3);
+  const swingL = findSwings('low',  3);
 
-  // ══ STEP 2: KEY AREAS OF INTEREST ════════════════════════════════════════
-  if (step2) {
-    // These are the zones that would draw a trader's eye — depends on method
 
-    if (method === 'support_resistance') {
-      // Detect the specific level the setup is based on
-      const det = dir === 'long' ? detectSupportBounce(data) : detectResistanceRejection(data);
-      const level = det.detected
-        ? (det.supportLevel || det.resistanceLevel)
-        : (curData[detectionBar + 1]?.open || c.close);
-
-      // Find first touch to anchor
-      const searchFrom = Math.max(0, detectionBar - 50);
-      let firstTouch = visibleUpTo;
-      for (let i = searchFrom; i <= visibleUpTo; i++) {
-        const candle = curData[i];
-        if (!candle) continue;
-        const d = dir === 'long' ? Math.abs(candle.low - level) : Math.abs(candle.high - level);
-        if (d < atr * 0.8) { firstTouch = i; break; }
-      }
-
-      if (firstTouch < visibleUpTo) {
-        levelBand(level,
-          dir === 'long'
-            ? `🟢 KEY LEVEL: ${fP(level)} — This level previously acted as support. Price has reacted here before, making it an area of interest.`
-            : `🔴 KEY LEVEL: ${fP(level)} — This level previously acted as resistance. Sellers have stepped in here before.`,
-          firstTouch, 6);
-      }
-
-    } else if (method === 'breakout' || method === 'range_breakout') {
-      const conso = detectConsolidation(data);
-      if (conso.isConsolidating) {
-        const consoFrom = Math.max(0, detectionBar - 16);
-        if (isVisible(consoFrom) && consoFrom < visibleUpTo) {
-          _addMentorBox(consoFrom, visibleUpTo, conso.lower, conso.upper,
-            `📦 CONSOLIDATION ZONE: ${fP(conso.lower)}–${fP(conso.upper)} — Price is compressing into a tight range. This coiling action builds pressure for a breakout. Watch for a decisive close outside this box.`);
-          const breakLevel = dir === 'long' ? conso.upper : conso.lower;
-          levelBand(breakLevel,
-            dir === 'long'
-              ? `🔑 BREAKOUT LEVEL: ${fP(breakLevel)} — The upper boundary of the range. A close above this confirms the breakout.`
-              : `🔑 BREAKDOWN LEVEL: ${fP(breakLevel)} — The lower boundary of the range. A close below this confirms the breakdown.`,
-            consoFrom, 8);
-        }
-      }
-
-    } else if (method === 'pullback' || method === 'trend') {
-      const look25 = data.slice(-25);
-      const swHi   = Math.max(...look25.map(b => b.high));
-      const swLo   = Math.min(...look25.map(b => b.low));
-      const swRange = swHi - swLo;
-      if (swRange > atr) {
-        const fib382 = dir === 'long' ? swHi - swRange * 0.382 : swLo + swRange * 0.382;
-        const fib618 = dir === 'long' ? swHi - swRange * 0.618 : swLo + swRange * 0.618;
-        const swHiI  = detectionBar - 24 + look25.findIndex(b => b.high === swHi);
-        const swLoI  = detectionBar - 24 + look25.findIndex(b => b.low  === swLo);
-        const anchor = Math.max(0, dir === 'long' ? swHiI : swLoI);
-        if (isVisible(anchor) && anchor < visibleUpTo) {
-          _addMentorBox(anchor, visibleUpTo + 8,
-            Math.min(fib382, fib618), Math.max(fib382, fib618),
-            `📐 GOLDEN ZONE (38–62% Fib): ${fP(Math.min(fib382,fib618))}–${fP(Math.max(fib382,fib618))} — The most common area where pullbacks end and trends resume. This is where traders look for entries.`);
-          if (dir === 'long' && isVisible(swHiI) && swHiI >= 0)
-            _addMentorArrow(swHiI, swHi, `Measured from this swing high: ${fP(swHi)}`, 'down', false);
-          else if (dir === 'short' && isVisible(swLoI) && swLoI >= 0)
-            _addMentorArrow(swLoI, swLo, `Measured from this swing low: ${fP(swLo)}`, 'up', false);
-        }
-      }
-
-    } else if (method === 'liquidity') {
-      const sweep = detectLiquiditySweep(data);
-      if (sweep.detected) {
-        const sweepAnchor = Math.max(0, detectionBar - 30);
-        if (isVisible(sweepAnchor) && sweepAnchor < visibleUpTo) {
-          levelBand(sweep.sweepLevel,
-            dir === 'long'
-              ? `💧 LIQUIDITY POOL: ${fP(sweep.sweepLevel)} — Retail stop losses were clustered below this low. These stops are a target for larger players who need to fill orders.`
-              : `💧 LIQUIDITY POOL: ${fP(sweep.sweepLevel)} — Retail stop losses clustered above this high. Large players target these stops to fill their sell orders.`,
-            sweepAnchor, 6);
-        }
-      }
-
-    } else if (method === 'range') {
-      const conso = detectConsolidation(data);
-      if (conso.isConsolidating) {
-        const rangeAnchor = Math.max(0, detectionBar - 20);
-        if (isVisible(rangeAnchor) && rangeAnchor < visibleUpTo) {
-          _addMentorBox(rangeAnchor, visibleUpTo + 4, conso.lower, conso.upper,
-            `📦 TRADING RANGE: ${fP(conso.lower)}–${fP(conso.upper)} — Price is bouncing between two levels. The strategy is to buy the bottom and sell the top. Avoid entering near the middle.`);
-          const boundary = dir === 'long' ? conso.lower : conso.upper;
-          levelBand(boundary,
-            dir === 'long'
-              ? `🟢 RANGE SUPPORT: ${fP(boundary)} — The lower boundary where buyers have repeatedly stepped in.`
-              : `🔴 RANGE RESISTANCE: ${fP(boundary)} — The upper boundary where sellers have repeatedly stepped in.`,
-            rangeAnchor, 6);
-        }
-      }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STAGE 1 — MARKET CONTEXT
+  // One structural reference. Tertiary (small, light).
+  // Shows the most recent relevant swing that defines the market structure.
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    const tUp = structure.trend?.includes('up');
+    const tDn = structure.trend?.includes('down');
+    // Pick the swing most relevant to this setup's direction
+    const ctxSw = (dir==='long' ? swingL : swingH).slice(-1)[0];
+    if (ctxSw) {
+      const lbl = tUp && dir==='long'  ? `Higher low — uptrend intact`
+                : tDn && dir==='short' ? `Lower high — downtrend intact`
+                : dir==='long'  ? `Swing low`
+                :                 `Swing high`;
+      addArrow(ctxSw.bar, ctxSw.price, lbl, dir==='long'?'up':'down', false, 3);
+    }
+    // Second context swing if we have room and they're different enough
+    const ctxSw2 = (dir==='long' ? swingL : swingH).slice(-2)[0];
+    if (ctxSw2 && ctxSw && Math.abs(ctxSw2.bar - ctxSw.bar) > 8) {
+      addArrow(ctxSw2.bar, ctxSw2.price,
+        dir==='long' ? `Prior swing low` : `Prior swing high`,
+        dir==='long'?'up':'down', false, 3);
     }
   }
 
-  // ══ STEP 3: CONFLUENCES ════════════════════════════════════════════════════
-  if (step3) {
-    const ema20arr = calcEMA(data, 20);
-    const ema50arr = calcEMA(data, 50);
-    const ema20    = ema20arr[ema20arr.length - 1];
-    const ema50    = ema50arr[ema50arr.length - 1];
-    const trendUp  = structure.trend?.includes('up');
-    const trendDn  = structure.trend?.includes('down');
 
-    // Confluence 1: EMA alignment with direction
-    if (ema20 && ema50) {
-      const emasAligned = dir === 'long' ? (ema20 > ema50) : (ema20 < ema50);
-      if (emasAligned && isVisible(Math.max(0, visibleUpTo - 8))) {
-        levelBand(ema20,
-          dir === 'long'
-            ? `✅ CONFLUENCE: EMA20 (${fP(ema20)}) > EMA50 — EMAs are stacked bullishly, confirming the uptrend. Entering long aligns with the higher timeframe trend.`
-            : `✅ CONFLUENCE: EMA20 (${fP(ema20)}) < EMA50 — EMAs are stacked bearishly, confirming the downtrend. Entering short aligns with the trend.`,
-          Math.max(0, visibleUpTo - 8), 5);
-      }
-    }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STAGE 2 — KEY LEVEL OR ZONE
+  // The single most important structure for this setup. Primary.
+  // Only drawn when real price data validates the zone.
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (showLevels) {
+    switch (method) {
 
-    // Confluence 2: Volume context
-    const recentVol = data.slice(-10).reduce((s, b) => s + (b.volume || 0), 0) / 10;
-    const priorVol  = data.slice(-30, -10).reduce((s, b) => s + (b.volume || 0), 0) / 20;
-    if (recentVol > 0 && priorVol > 0) {
-      const volShrinking = recentVol < priorVol * 0.85;
-      const volExpanding = recentVol > priorVol * 1.25;
-      if (volShrinking && (method === 'pullback' || method === 'trend' || method === 'flag_continuation')) {
-        _addMentorLabel(visibleUpTo, dir === 'long' ? c.high + atr * 0.8 : c.low - atr * 0.8, [
-          `✅ CONFLUENCE: Volume contracting (${Math.round(recentVol / priorVol * 100)}% of average)`,
-          `Shrinking volume during a pullback means the move against the trend is losing conviction. Sellers are not committed — a reversal is more likely.`,
-        ]);
-      } else if (volExpanding && (method === 'breakout' || method === 'range_breakout')) {
-        _addMentorLabel(visibleUpTo, dir === 'long' ? c.high + atr * 0.8 : c.low - atr * 0.8, [
-          `✅ CONFLUENCE: Volume expanding (${Math.round(recentVol / priorVol * 100)}% of average)`,
-          `Rising volume on a breakout confirms real buying/selling interest. Breakouts on low volume often fail — this one has participation.`,
-        ]);
+      case 'support_resistance': {
+        const det   = dir==='long' ? detectSupportBounce(data) : detectResistanceRejection(data);
+        const level = det.detected ? (det.supportLevel || det.resistanceLevel) : null;
+        if (level && inRange(level)) {
+          // Validate: at least one visible candle must have touched this level
+          let firstTouch = -1;
+          for (let i=histFrom; i<=visibleUpTo; i++) {
+            const cd = curData[i]; if (!cd) continue;
+            if ((dir==='long' ? Math.abs(cd.low-level) : Math.abs(cd.high-level)) < atr*0.9)
+              { firstTouch=i; break; }
+          }
+          if (firstTouch>=0 && firstTouch<visibleUpTo)
+            addZone(firstTouch, visibleUpTo+5, level,
+              dir==='long' ? `Support zone` : `Resistance zone`, 1);
+        }
+        break;
       }
-    }
 
-    // Confluence 3: Price action at the key level (wick, rejection, bounce)
-    const pb = (method === 'support_resistance') ? (dir === 'long' ? detectSupportBounce(data) : detectResistanceRejection(data)) : { detected: false };
-    if (pb.detected) {
-      const wickSize = dir === 'long'
-        ? Math.max(0, Math.min(c.open, c.close) - c.low)
-        : Math.max(0, c.high - Math.max(c.open, c.close));
-      const bodySize = Math.abs(c.close - c.open) || 0.001;
-      const ratio    = wickSize / bodySize;
-      if (wickSize > atr * 0.1) {
-        _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
-          ratio >= 1.5
-            ? `✅ STRONG REJECTION: Wick is ${ratio.toFixed(1)}× the body — buyers aggressively rejected lower prices. This is a high-conviction reversal signal.`
-            : ratio >= 0.8
-            ? `✅ REJECTION: Wick is ${ratio.toFixed(1)}× the body — price was pushed back from the level. Look for follow-through next candle.`
-            : `⚠️ WEAK REJECTION: Wick is only ${ratio.toFixed(1)}× the body — not very convincing yet. Wait for a stronger candle.`,
-          dir === 'long' ? 'up' : 'down', true);
+      case 'breakout': case 'range_breakout': {
+        const conso = detectConsolidation(data);
+        // Validate: range must be genuinely tight (real coiling, not random)
+        if (conso.isConsolidating && (conso.upper-conso.lower) < atr*5
+            && inRange(conso.lower) && inRange(conso.upper)) {
+          const cf = Math.max(histFrom, detectionBar-15);
+          if (isVis(cf) && cf<visibleUpTo) {
+            addBox(cf, visibleUpTo, conso.lower, conso.upper, `Consolidation range`, 1);
+            const bl = dir==='long' ? conso.upper : conso.lower;
+            if (inRange(bl)) addZone(cf, visibleUpTo+6, bl,
+              dir==='long' ? `Breakout level` : `Breakdown level`, 1);
+          }
+        }
+        break;
       }
-    }
 
-    // Confluence 4: Method-specific setup arrow
-    if (method === 'liquidity') {
-      const sweep = detectLiquiditySweep(data);
-      if (sweep.detected) {
-        const swpBar = detectionBar - 1;
-        if (isVisible(swpBar)) {
-          const sc = curData[swpBar];
-          _addMentorArrow(swpBar, dir === 'long' ? sc.low : sc.high,
-            `⚡ SWEEP: Wick broke below ${fP(sweep.sweepLevel)}, triggering retail stops — now reverting. This is the manipulation phase before smart money enters.`,
-            dir === 'long' ? 'up' : 'down', false);
+      case 'pullback': case 'trend':
+      case 'flag_continuation': case 'structure_continuation': {
+        const look25 = data.slice(-25);
+        const swHi   = Math.max(...look25.map(b=>b.high));
+        const swLo   = Math.min(...look25.map(b=>b.low));
+        const rng    = swHi - swLo;
+        if (rng > atr*2) {
+          const f382 = dir==='long' ? swHi-rng*0.382 : swLo+rng*0.382;
+          const f618 = dir==='long' ? swHi-rng*0.618 : swLo+rng*0.618;
+          const hiI  = detectionBar-24 + look25.findIndex(b=>b.high===swHi);
+          const loI  = detectionBar-24 + look25.findIndex(b=>b.low===swLo);
+          const anch = Math.max(0, dir==='long' ? hiI : loI);
+          if (isVis(anch) && anch<visibleUpTo && inRange(f382) && inRange(f618))
+            addBox(anch, visibleUpTo+6, Math.min(f382,f618), Math.max(f382,f618),
+              `Fib 38–62% pullback zone`, 1);
+          // Mark the swing that defines the Fib
+          const fibAnchorBar  = dir==='long' ? hiI : loI;
+          const fibAnchorPrice = dir==='long' ? swHi : swLo;
+          if (isVis(fibAnchorBar) && inRange(fibAnchorPrice))
+            addArrow(fibAnchorBar, fibAnchorPrice,
+              dir==='long' ? `Swing high — Fib measured from here` : `Swing low — Fib measured from here`,
+              dir==='long'?'down':'up', false, 2);
         }
-        if (isVisible(detectionBar)) {
-          _addMentorArrow(detectionBar, dir === 'long' ? curData[detectionBar].high : curData[detectionBar].low,
-            `✅ DISPLACEMENT: Strong candle after the sweep confirms institutional entry. Enter on the next candle open.`,
-            dir === 'long' ? 'down' : 'up', true);
-        }
+        break;
       }
-    } else if (method === 'pullback' || method === 'trend') {
-      // Show the impulse that proves the trend
-      const look30 = data.slice(-30);
-      const lkHi   = Math.max(...look30.map(b => b.high));
-      const lkLo   = Math.min(...look30.map(b => b.low));
-      const lkHiI  = detectionBar - 29 + look30.findIndex(b => b.high === lkHi);
-      const lkLoI  = detectionBar - 29 + look30.findIndex(b => b.low  === lkLo);
-      const istBar = dir === 'long' ? lkLoI : lkHiI;
-      const ipkBar = dir === 'long' ? lkHiI : lkLoI;
-      if (isVisible(istBar) && istBar >= 0 && ipkBar > istBar) {
-        const visEnd = Math.min(ipkBar, visibleUpTo);
-        if (visEnd > istBar) {
-          const impH = Math.max(...curData.slice(istBar, visEnd + 1).map(b => b.high));
-          const impL = Math.min(...curData.slice(istBar, visEnd + 1).map(b => b.low));
-          _addMentorBox(istBar, visEnd, impL, impH,
-            `⚡ IMPULSE LEG — A strong directional move that shows ${dir === 'long' ? 'buyers' : 'sellers'} are in control. We want to enter when this trend resumes from the pullback.`);
-        }
-        if (isVisible(ipkBar) && visibleUpTo > ipkBar) {
-          const pbH = Math.max(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.high));
-          const pbL = Math.min(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.low));
-          _addMentorBox(ipkBar, visibleUpTo, pbL, pbH,
-            `🏴 PULLBACK — Retracing on lower volume against the trend. This is NORMAL and healthy. Entries during pullbacks offer better risk/reward than chasing momentum.`);
-        }
-      }
-    }
 
-    // Confluence 5: S/R multiple tests (numbered, visible ones only)
-    if (method === 'support_resistance') {
-      const det   = dir === 'long' ? detectSupportBounce(data) : detectResistanceRejection(data);
-      const level = det.detected ? (det.supportLevel || det.resistanceLevel) : null;
-      if (level) {
-        const allTests = [];
-        for (let i = Math.max(0, detectionBar - 50); i <= visibleUpTo; i++) {
-          const candle = curData[i];
-          if (!candle) continue;
-          const d = dir === 'long' ? Math.abs(candle.low - level) : Math.abs(candle.high - level);
-          if (d < atr * 0.65) allTests.push(i);
+      case 'liquidity': {
+        const sw = detectLiquiditySweep(data);
+        if (sw.detected && inRange(sw.sweepLevel)) {
+          const anch = Math.max(histFrom, detectionBar-25);
+          if (isVis(anch) && anch<visibleUpTo)
+            addZone(anch, visibleUpTo+4, sw.sweepLevel, `Liquidity pool`, 1);
         }
-        const clusters = [];
-        for (const tb of allTests) {
-          const last = clusters[clusters.length - 1];
-          if (!last || tb - last > 5) clusters.push(tb);
-        }
-        const testDesc = [
-          'First test — level just established',
-          'Second test — held again, level confirmed',
-          'Third test — strong confluence, multiple rejections',
-          'Latest test — look for entry confirmation',
-        ];
-        clusters.slice(-4).forEach((tb, idx) => {
-          if (!isVisible(tb)) return;
-          const isLatest = idx === clusters.slice(-4).length - 1;
-          _addMentorArrow(tb, dir === 'long' ? curData[tb].low : curData[tb].high,
-            isLatest
-              ? (dir === 'long' ? `✅ ENTRY SIGNAL: Price bouncing from ${fP(level)} again` : `✅ ENTRY SIGNAL: Price rejected at ${fP(level)} again`)
-              : testDesc[idx] || `Test ${idx + 1}`,
-            dir === 'long' ? 'up' : 'down', isLatest);
-        });
+        break;
       }
-    }
 
-    // Confluence 6: trend alignment bonus
-    const trendAligned = (dir === 'long' && trendUp) || (dir === 'short' && trendDn);
-    if (trendAligned && step3 && !step2) {
-      // Only add this label if we didn't already add volume/rejection labels
-      _addMentorLabel(Math.min(visibleUpTo, detectionBar - 2),
-        c.close + (dir === 'long' ? atr * 0.3 : -atr * 0.3), [
-          `✅ TREND ALIGNED: The setup direction matches the broader market trend.`,
-          `Trading in the direction of the trend significantly improves the probability of success.`,
-        ]);
+      case 'range': {
+        const conso = detectConsolidation(data);
+        if (conso.isConsolidating && inRange(conso.lower) && inRange(conso.upper)) {
+          const anch = Math.max(histFrom, detectionBar-18);
+          if (isVis(anch) && anch<visibleUpTo) {
+            addBox(anch, visibleUpTo+4, conso.lower, conso.upper, `Trading range`, 1);
+            const boundary = dir==='long' ? conso.lower : conso.upper;
+            if (inRange(boundary))
+              addZone(anch, visibleUpTo+4, boundary,
+                dir==='long' ? `Range support` : `Range resistance`, 1);
+          }
+        }
+        break;
+      }
     }
   }
 
-  // Enforce clean, professional markup rules:
-  // - anchored to chart data
-  // - within visible candle price range (except entry/SL/TP/targets)
-  // - max 5 annotations per setup
-  // - avoid overlapping callouts
-  _mentorPostProcessAnnotations({ maxPerSetup: 5 });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STAGE 3 — CONFIRMATION + ENTRY SIGNAL
+  // Entry arrow at the actual setup candle. One structural reference.
+  // Anchored strictly to OHLC prices of real candles.
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (showConf) {
+    const dc = isVis(detectionBar) ? curData[detectionBar] : null;
+
+    // Entry/confirmation arrow — primary, at exact candle price
+    if (dc) {
+      switch (method) {
+
+        case 'support_resistance': {
+          const px   = dir==='long' ? dc.low : dc.high;
+          const wick = dir==='long'
+            ? Math.max(0, Math.min(dc.open,dc.close)-dc.low)
+            : Math.max(0, dc.high-Math.max(dc.open,dc.close));
+          const body = Math.abs(dc.close-dc.open)||0.001;
+          if (inRange(px))
+            addArrow(detectionBar, px,
+              wick/body>=1.5 ? `Rejection wick`
+              : wick/body>=0.7 ? `Reaction at level`
+              : `Testing level`,
+              dir==='long'?'up':'down', true, 1);
+          break;
+        }
+
+        case 'breakout': case 'range_breakout': {
+          const px = dir==='long' ? dc.high : dc.low;
+          if (inRange(px))
+            addArrow(detectionBar, px, `Breakout`,
+              dir==='long'?'down':'up', true, 1);
+          break;
+        }
+
+        case 'pullback': case 'trend':
+        case 'flag_continuation': case 'structure_continuation': {
+          const pb = detectTrendPullback(data, structure);
+          const px = dir==='long' ? dc.low : dc.high;
+          if (inRange(px))
+            addArrow(detectionBar, px,
+              pb.detected && pb.retrace
+                ? `${Math.round(pb.retrace*100)}% pullback`
+                : `Trend resuming`,
+              dir==='long'?'up':'down', true, 1);
+          break;
+        }
+
+        case 'liquidity': {
+          const sw  = detectLiquiditySweep(data);
+          const swB = detectionBar-1;
+          const swC = isVis(swB) ? curData[swB] : null;
+          if (sw.detected && swC) {
+            const sp = dir==='long' ? swC.low : swC.high;
+            if (inRange(sp)) addArrow(swB, sp, `Stop hunt`, dir==='long'?'up':'down', false, 2);
+          }
+          const dp = dir==='long' ? dc.high : dc.low;
+          if (inRange(dp))
+            addArrow(detectionBar, dp, `Displacement`, dir==='long'?'down':'up', true, 1);
+          break;
+        }
+
+        case 'range': {
+          const px = dir==='long' ? dc.low : dc.high;
+          if (inRange(px))
+            addArrow(detectionBar, px, `Boundary reaction`,
+              dir==='long'?'up':'down', true, 1);
+          break;
+        }
+      }
+    }
+
+    // One structural reference — only the most relevant, only if space
+    if (ann.filter(a=>a.pri<=2).length < 4) {
+      if (method==='pullback'||method==='trend'||
+          method==='flag_continuation'||method==='structure_continuation') {
+        const peak = (dir==='long' ? swingH : swingL).slice(-1)[0];
+        if (peak && peak.bar < visibleUpTo-3 && inRange(peak.price))
+          addArrow(peak.bar, peak.price,
+            dir==='long' ? `Swing high — pullback from here` : `Swing low — pullback from here`,
+            dir==='long'?'down':'up', false, 2);
+
+      } else if (method==='support_resistance') {
+        const det   = dir==='long' ? detectSupportBounce(data) : detectResistanceRejection(data);
+        const level = det.detected ? (det.supportLevel||det.resistanceLevel) : null;
+        if (level && inRange(level)) {
+          // Find the single earliest visible test of the level
+          let firstTest = -1;
+          for (let i=histFrom; i<visibleUpTo-3; i++) {
+            const cd=curData[i]; if(!cd) continue;
+            if ((dir==='long'?Math.abs(cd.low-level):Math.abs(cd.high-level)) < atr*0.7)
+              { firstTest=i; break; }
+          }
+          if (firstTest>=0 && isVis(firstTest)) {
+            const ec = curData[firstTest];
+            const ep = dir==='long' ? ec.low : ec.high;
+            if (ep && inRange(ep))
+              addArrow(firstTest, ep, `Prior test`, dir==='long'?'up':'down', false, 2);
+          }
+        }
+
+      } else if (method==='liquidity') {
+        const sw   = detectLiquiditySweep(data);
+        const pool = sw.detected ? (dir==='long' ? swingL : swingH).filter(s=>Math.abs(s.price-sw.sweepLevel)<atr*1.5) : [];
+        const src  = pool.slice(-1)[0];
+        if (src && inRange(src.price))
+          addArrow(src.bar, src.price, `Original swing`, dir==='long'?'up':'down', false, 2);
+      }
+    }
+  }
+
+  _commit(ann);
+}
+
+
+// ── Commit: draw annotations with visual hierarchy + overlap prevention ──────
+function _commit(ann) {
+  if (!ann?.length) return;
+
+  const atr = calculateATR(Math.min(replayCutoff, curData.length-1), 14) || 1;
+
+  // Sort primary→secondary→tertiary so important items render on top
+  ann.sort((a,b) => (a.pri||2)-(b.pri||2));
+
+  const usedAt = {}; // track arrow positions per bar for staggering
+
+  ann.forEach(a => {
+    if (a.type==='zone') {
+      _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
+
+    } else if (a.type==='box') {
+      _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
+
+    } else if (a.type==='arrow') {
+      // Stagger arrows at the same bar to prevent overlap
+      const key   = `${a.bar}_${a.pointing}`;
+      const used  = usedAt[key]||0;
+      const off   = used * atr * 0.55 * (a.pointing==='down'?1:-1);
+      usedAt[key] = used+1;
+      _addMentorArrow(a.bar, a.price+off, a.label, a.pointing, a.highlight);
+    }
+  });
 
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
-  if (typeof draw === 'function') draw();
+  if (typeof draw==='function') draw();
 }
+
+
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
@@ -13607,142 +13306,226 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       // mentor_label: floating callout with explanation text
       // All are selectable and deletable. Marked with isMentorAnnotation=true.
 
+      // ── MENTOR ANNOTATIONS ─────────────────────────────────────────────────
+      // Three types following visual hierarchy:
+      //   mentor_arrow  → structure points (small, clean triangle marker + label)
+      //   mentor_box    → zones (semi-transparent fill, subtle border, inline label)
+      //   mentor_label  → explanatory notes (compact callout anchored to price)
+      //
+      // Priority tiers control opacity and size:
+      //   d.tier = 'primary'   → full opacity, bold label
+      //   d.tier = 'secondary' → 75% opacity
+      //   d.tier = 'tertiary'  → 50% opacity, smaller label
+
       case 'mentor_arrow': {
-        const ax = barXfn(d.bar);
-        const ay = pyfn(d.price);
-        const isDown = d.pointing !== 'up';
-        const arrLen = 40;
-        const tipY   = ay + (isDown ? -8 : 8);
-        const tailY  = tipY + (isDown ? -arrLen : arrLen);
-        const purple = '#8a2be2';
-        const pulseCol = d.highlight ? '#ffcc00' : purple;
+        const ax      = barXfn(d.bar);
+        const ay      = pyfn(d.price);
+        const isDown  = d.pointing !== 'up';
+        const tier    = d.tier || 'secondary';
+        const alpha   = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
+        const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
+        const tipSize   = tier === 'primary' ? 6 : 5;
+        const stemLen   = tier === 'primary' ? 22 : 16;
 
-        // Shadow glow
         ctx.save();
-        ctx.shadowColor = pulseCol;
-        ctx.shadowBlur  = isSel ? 14 : 8;
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // Arrow shaft
-        ctx.strokeStyle = pulseCol;
-        ctx.lineWidth   = isSel ? 3 : 2;
+        // Stem — thin, clean
+        const tipY  = ay + (isDown ? -4 : 4);
+        const tailY = tipY + (isDown ? -stemLen : stemLen);
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth   = isSel ? 2 : 1.5;
         ctx.setLineDash([]);
         ctx.beginPath();
         ctx.moveTo(ax, tailY);
         ctx.lineTo(ax, tipY);
         ctx.stroke();
 
-        // Arrowhead
-        ctx.fillStyle = pulseCol;
+        // Triangle arrowhead
+        ctx.fillStyle = accentCol;
         ctx.beginPath();
         if (isDown) {
-          ctx.moveTo(ax,       tipY);
-          ctx.lineTo(ax - 7,   tipY + 12);
-          ctx.lineTo(ax + 7,   tipY + 12);
+          ctx.moveTo(ax,            tipY);
+          ctx.lineTo(ax - tipSize,  tipY + tipSize * 1.8);
+          ctx.lineTo(ax + tipSize,  tipY + tipSize * 1.8);
         } else {
-          ctx.moveTo(ax,       tipY);
-          ctx.lineTo(ax - 7,   tipY - 12);
-          ctx.lineTo(ax + 7,   tipY - 12);
+          ctx.moveTo(ax,            tipY);
+          ctx.lineTo(ax - tipSize,  tipY - tipSize * 1.8);
+          ctx.lineTo(ax + tipSize,  tipY - tipSize * 1.8);
         }
+        ctx.closePath();
         ctx.fill();
-        ctx.restore();
 
-        // Label box above/below the arrow tail
-        if (d.label) {
-          ctx.font = 'bold 10px sans-serif';
-          const tw  = Math.min(ctx.measureText(d.label).width, 180);
-          const lx  = ax - tw / 2 - 6;
-          const ly  = isDown ? tailY - 22 : tailY + 6;
-          ctx.fillStyle = isSel ? 'rgba(138,43,226,0.35)' : 'rgba(138,43,226,0.22)';
-          roundRect(ctx, lx, ly, tw + 12, 18, 4);
-          ctx.fill();
-          if (isSel) { ctx.strokeStyle = pulseCol; ctx.lineWidth = 1; roundRect(ctx, lx, ly, tw + 12, 18, 4); ctx.stroke(); }
-          ctx.fillStyle = '#fff';
-          ctx.textAlign = 'center';
-          ctx.fillText(d.label.slice(0, 30), ax, ly + 13);
-          ctx.textAlign = 'left';
+        // Selection ring
+        if (isSel) {
+          ctx.strokeStyle = accentCol;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath();
+          ctx.arc(ax, tipY, tipSize + 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
+
+        // Label — short first line only, positioned near tail
+        if (d.label) {
+          const firstLine = d.label.split('—')[0].trim().slice(0, 32);
+          const fontSize  = tier === 'tertiary' ? 9 : tier === 'primary' ? 11 : 10;
+          ctx.font        = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
+          ctx.textAlign   = 'center';
+          const tw        = ctx.measureText(firstLine).width;
+          const lx        = ax - tw / 2 - 5;
+          const ly        = isDown ? tailY - 18 : tailY + 3;
+          // Pill background
+          ctx.fillStyle   = 'rgba(12,14,22,0.88)';
+          roundRect(ctx, lx, ly, tw + 10, fontSize + 6, 3);
+          ctx.fill();
+          ctx.strokeStyle = accentCol;
+          ctx.lineWidth   = 0.5;
+          roundRect(ctx, lx, ly, tw + 10, fontSize + 6, 3);
+          ctx.stroke();
+          ctx.fillStyle   = tier === 'primary' ? '#ffffff' : '#b8c4d8';
+          ctx.fillText(firstLine, ax, ly + fontSize + 1);
+          ctx.textAlign   = 'left';
+        }
+        ctx.restore();
         break;
       }
 
       case 'mentor_box': {
-        const bx1 = barXfn(d.bar1);
-        const bx2 = barXfn(d.bar2);
-        const by1 = pyfn(d.priceHigh);
-        const by2 = pyfn(d.priceLow);
-        const bxL = Math.min(bx1, bx2) - barWidth * 0.5;
-        const bxR = Math.max(bx1, bx2) + barWidth * 0.5;
-        const byT = Math.min(by1, by2) - 4;
-        const byB = Math.max(by1, by2) + 4;
-        const purple = d.color || '#8a2be2';
+        const bx1   = barXfn(d.bar1);
+        const bx2   = barXfn(d.bar2);
+        const by1   = pyfn(d.priceHigh);
+        const by2   = pyfn(d.priceLow);
+        const bxL   = Math.min(bx1, bx2) - barWidth * 0.3;
+        const bxR   = Math.max(bx1, bx2) + barWidth * 0.3;
+        const byT   = Math.min(by1, by2);
+        const byB   = Math.max(by1, by2);
+        const bW    = bxR - bxL;
+        const bHt   = byB - byT;
+        const tier  = d.tier || 'secondary';
+        const alpha = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
+
+        // Colour by tier: primary = teal, secondary = purple, tertiary = muted blue
+        const fillCol   = tier === 'primary'   ? 'rgba(0,201,160,'    : tier === 'secondary' ? 'rgba(100,60,180,' : 'rgba(60,80,140,';
+        const strokeCol = tier === 'primary'   ? '#00c9a0'             : tier === 'secondary' ? '#7c5cbf'          : '#4a6080';
+        const fillAlpha = (isSel ? 0.18 : 0.08) * alpha;
+        const strAlpha  = (isSel ? 1.0  : 0.55) * alpha;
 
         ctx.save();
-        ctx.shadowColor = purple;
-        ctx.shadowBlur  = isSel ? 12 : 6;
-        ctx.fillStyle   = isSel ? 'rgba(138,43,226,0.18)' : 'rgba(138,43,226,0.10)';
-        ctx.fillRect(bxL, byT, bxR - bxL, byB - byT);
-        ctx.strokeStyle = purple;
-        ctx.lineWidth   = isSel ? 2 : 1.5;
-        ctx.setLineDash(isSel ? [] : [4, 3]);
-        ctx.strokeRect(bxL, byT, bxR - bxL, byB - byT);
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
+
+        // Zone fill — very light
+        ctx.fillStyle = fillCol + fillAlpha + ')';
+        ctx.fillRect(bxL, byT, bW, bHt);
+
+        // Top and bottom edge lines — cleaner than full border for zones
+        ctx.strokeStyle = strokeCol;
+        ctx.globalAlpha = strAlpha * (isWIP ? 0.7 : 1);
+        ctx.lineWidth   = tier === 'primary' ? 1.5 : 1;
+        ctx.setLineDash(tier === 'tertiary' ? [3, 3] : []);
+        // Top edge
+        ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxR, byT); ctx.stroke();
+        // Bottom edge
+        ctx.beginPath(); ctx.moveTo(bxL, byB); ctx.lineTo(bxR, byB); ctx.stroke();
+        // Dashed sides (very subtle)
+        ctx.globalAlpha = strAlpha * 0.3;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxL, byB); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bxR, byT); ctx.lineTo(bxR, byB); ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
 
-        if (d.label) {
-          ctx.font = 'bold 10px sans-serif';
-          const tw  = Math.min(ctx.measureText(d.label).width, 200);
-          const lx  = bxL;
-          const ly  = byT - 22;
-          ctx.fillStyle = 'rgba(138,43,226,0.28)';
-          roundRect(ctx, lx, ly, tw + 12, 18, 4);
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.textAlign = 'left';
-          ctx.fillText(d.label.slice(0, 35), lx + 6, ly + 13);
+        // Inline label — right-aligned inside the box at top edge
+        if (d.label && bW > 30) {
+          const firstLine = d.label.split('—')[0].split(':')[0].trim().slice(0, 28);
+          const fontSize  = tier === 'tertiary' ? 8 : 9;
+          ctx.font        = `${fontSize}px sans-serif`;
+          ctx.textAlign   = 'left';
+          const tw        = ctx.measureText(firstLine).width;
+          const lx        = bxL + 4;
+          const ly        = byT - (fontSize + 4);
+          // Only draw if label fits and is above visible area bottom
+          if (ly > 0 && lx + tw < W - 20) {
+            ctx.globalAlpha = alpha * 0.85;
+            ctx.fillStyle   = 'rgba(12,14,22,0.82)';
+            roundRect(ctx, lx - 2, ly - 1, tw + 8, fontSize + 4, 2);
+            ctx.fill();
+            ctx.fillStyle   = tier === 'primary' ? '#9fe8d8' : tier === 'secondary' ? '#a99fd8' : '#7090a8';
+            ctx.fillText(firstLine, lx + 2, ly + fontSize - 1);
+            ctx.globalAlpha = 1;
+          }
         }
         break;
       }
 
       case 'mentor_label': {
-        const lax = barXfn(d.bar);
-        const lay = pyfn(d.price);
-        const txt = d.label || '';
-        ctx.font = '11px sans-serif';
-        const lines = txt.split('|').map(s => s.trim()).filter(Boolean);
-        const maxW  = Math.max(...lines.map(l => ctx.measureText(l).width), 60);
-        const padX  = 10, padY = 6, lineH = 15;
-        const boxW  = maxW + padX * 2;
-        const boxH  = lines.length * lineH + padY * 2;
-        // Position box to the right of the bar, shift up
-        const bxOff = barWidth * 1.5;
-        const lbx = lax + bxOff;
+        const lax  = barXfn(d.bar);
+        const lay  = pyfn(d.price);
+        const tier = d.tier || 'tertiary';
+        const txt  = d.label || '';
+        // Split on pipe or em-dash — show max 2 lines
+        const allLines = txt.split(/\||—/).map(s => s.trim()).filter(Boolean).slice(0, 2);
+        const fontSize = tier === 'primary' ? 10 : 9;
+        ctx.font       = `${fontSize}px sans-serif`;
+        const maxW     = Math.max(...allLines.map(l => ctx.measureText(l).width), 50);
+        const lineH    = fontSize + 4;
+        const padX     = 7, padY = 5;
+        const boxW     = Math.min(maxW + padX * 2, 220);
+        const boxH     = allLines.length * lineH + padY * 2;
+        const alpha    = tier === 'primary' ? 0.95 : tier === 'secondary' ? 0.80 : 0.65;
+
+        // Position: prefer right of bar, flip left if too close to screen edge
+        const bxOff = barWidth * 2;
+        let lbx = lax + bxOff;
+        if (lbx + boxW > W - 20) lbx = lax - bxOff - boxW;
         const lby = lay - boxH / 2;
 
-        // Connector line from bar to box
-        ctx.strokeStyle = 'rgba(138,43,226,0.5)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
+        // Only draw if fully within canvas
+        if (lby < 0 || lby + boxH > H || lbx < 0) break;
+
+        const accentCol = tier === 'primary' ? 'rgba(0,201,160,0.7)' : tier === 'secondary' ? 'rgba(124,92,191,0.6)' : 'rgba(74,96,128,0.4)';
+
+        ctx.save();
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
+
+        // Dot connector at bar
+        ctx.fillStyle = accentCol;
         ctx.beginPath();
-        ctx.moveTo(lax, lay);
-        ctx.lineTo(lbx, lay);
+        ctx.arc(lax, lay, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Thin leader line
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth   = 0.75;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(lax + (lbx > lax ? 2 : -2), lay);
+        ctx.lineTo(lbx + (lbx > lax ? 0 : boxW), lay);
         ctx.stroke();
         ctx.setLineDash([]);
 
         // Box
-        ctx.fillStyle = isSel ? 'rgba(138,43,226,0.3)' : 'rgba(15,17,28,0.92)';
-        roundRect(ctx, lbx, lby, boxW, boxH, 5);
+        ctx.fillStyle   = 'rgba(10,12,20,0.90)';
+        roundRect(ctx, lbx, lby, boxW, boxH, 3);
         ctx.fill();
-        ctx.strokeStyle = isSel ? '#8a2be2' : 'rgba(138,43,226,0.6)';
-        ctx.lineWidth = isSel ? 2 : 1;
-        roundRect(ctx, lbx, lby, boxW, boxH, 5);
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth   = 0.75;
+        roundRect(ctx, lbx, lby, boxW, boxH, 3);
         ctx.stroke();
 
-        // Text lines
-        ctx.fillStyle = '#e8ecf8';
+        // Text
         ctx.textAlign = 'left';
-        lines.forEach((line, li) => {
-          ctx.fillText(line, lbx + padX, lby + padY + lineH * (li + 1) - 3);
+        allLines.forEach((line, li) => {
+          ctx.font      = `${li === 0 ? (tier === 'primary' ? 'bold ' : '') : ''}${fontSize}px sans-serif`;
+          ctx.fillStyle = li === 0 ? (tier === 'primary' ? '#e8f4f0' : '#c8d0e4') : '#8090a8';
+          // Truncate if needed
+          let txt = line;
+          while (ctx.measureText(txt).width > boxW - padX * 2 - 4 && txt.length > 4) txt = txt.slice(0, -1);
+          ctx.fillText(txt, lbx + padX, lby + padY + lineH * (li + 1) - 2);
         });
-        ctx.textAlign = 'left';
+
+        ctx.restore();
         break;
       }
 
