@@ -6573,11 +6573,12 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
 
 // ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
 
-function detectStructuredSetups(data, barIndex) {
-  // Check cache first — same bar + same method always returns same result
-  const tradingMethod = mentorState.selectedTradingMethod || 'none';
+function detectStructuredSetups(data, barIndex, _methodOverride) {
+  // _methodOverride lets callers (like the scanner) specify a method without
+  // touching global state, avoiding the cache-key corruption bug.
+  const tradingMethod = _methodOverride || mentorState.selectedTradingMethod || 'none';
   const cacheKey = `${barIndex}_${tradingMethod}`;
-  if (mentorState.cacheEnabled && mentorState.setupCache.has(cacheKey)) {
+  if (!_methodOverride && mentorState.cacheEnabled && mentorState.setupCache.has(cacheKey)) {
     return mentorState.setupCache.get(cacheKey);
   }
 
@@ -6720,7 +6721,7 @@ function detectStructuredSetups(data, barIndex) {
   candidates = candidates.filter(s => s.confluence >= 2);
 
   if (candidates.length === 0) {
-    if (mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, NONE);
+    if (!_methodOverride && mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, NONE);
     return NONE;
   }
 
@@ -6735,8 +6736,7 @@ function detectStructuredSetups(data, barIndex) {
     details: best,
   };
 
-  if (mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, result);
-  console.log(`🏆 Setup detected [${tradingMethod}]: ${result.setup} ${result.direction} conf=${result.confluence}`);
+  if (!_methodOverride && mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, result);
   return result;
 }
 
@@ -8611,13 +8611,17 @@ function enterNoSetupState(currentBar) {
 
   for (let bar = currentBar + 1; bar <= maxLook; bar++) {
     try {
-      const sd = detectStructuredSetups(curData.slice(0, bar + 1), bar);
-      if (sd.setup !== 'none' && sd.confluence >= 2) {
+      const sd = detectStructuredSetups(curData.slice(0, bar + 1), bar, method !== 'none' ? method : undefined);
+      if (sd.setup !== 'none' && sd.confluence >= 1) {
         const futureCandles = curData.slice(bar + 1, Math.min(bar + 51, curData.length));
         if (futureCandles.length >= 5) {
-          const entryPrice = curData[bar].close;
+          const entryBar = Math.min(bar + 1, curData.length - 1);
+          const entryPrice = curData[entryBar].open;
           const direction = sd.direction || 'long';
-          const levels = computeMentorTradeLevels(direction, entryPrice, bar, futureCandles);
+          const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+          const levels = futureFromEntry.length >= 5
+            ? computeMentorTradeLevels(direction, entryPrice, entryBar, futureFromEntry)
+            : null;
           if (levels) { foundBar = bar; break; }
         }
       }
@@ -8667,7 +8671,8 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
 
   const directionHint = (() => {
     try {
-      const sd = detectStructuredSetups(curData.slice(0, foundBar + 1), foundBar);
+      const sd = detectStructuredSetups(curData.slice(0, foundBar + 1), foundBar,
+                   method !== 'none' ? method : undefined);
       if (sd.direction === 'long')  return '📈 Potential long opportunity forming.';
       if (sd.direction === 'short') return '📉 Potential short opportunity forming.';
     } catch(e) {}
@@ -8719,13 +8724,12 @@ function scanForSetupsInWindow(currentBar) {
   // Scan the entire window for setups
   for (let bar = windowStart; bar <= windowEnd; bar++) {
     try {
-      const setupDetection = detectStructuredSetups(curData.slice(0, bar + 1), bar);
-      
-      // Apply trading method filtering
-      let filteredSetup = setupDetection;
-      if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
-        filteredSetup = filterSetupByTradingMethod(setupDetection, mentorState.selectedTradingMethod);
-      }
+      // Pass method override so the detector uses the correct method and avoids
+      // polluting the global cache with wrong-method results.
+      const activeMethod = mentorState.tradingMethodSelected && mentorState.selectedTradingMethod
+        ? mentorState.selectedTradingMethod : undefined;
+      const setupDetection = detectStructuredSetups(curData.slice(0, bar + 1), bar, activeMethod);
+      let filteredSetup = setupDetection; // filterSetupByTradingMethod is now a passthrough
       
       // Apply replay validation if in replay mode
       if (replayMode && filteredSetup.setup !== 'none') {
@@ -10157,6 +10161,9 @@ function runMentorFinderScan() {
   }
   _mfScanKey = key;
   _mfSetups  = [];
+  // Clear setup cache — stale cached results from a different method would cause
+  // "no setups found" since the cache key includes the old method name.
+  if (mentorState.setupCache) mentorState.setupCache.clear();
 
   // Show progress
   const idle     = document.getElementById('mf-idle');
@@ -10194,12 +10201,15 @@ function runMentorFinderScan() {
     const end = Math.min(i + 100, total);
     for (; i < end; i += step) {
       try {
-        const savedMethod = mentorState.selectedTradingMethod;
-        if (method) mentorState.selectedTradingMethod = method;
-        const sd = detectStructuredSetups(curData.slice(0, i + 1), i);
-        mentorState.selectedTradingMethod = savedMethod;
+        // Pass method directly as override — avoids global state mutation and
+        // cache-key corruption that caused the "no setups found" bug.
+        const scanMethod = method || mentorState.selectedTradingMethod || 'breakout';
+        const sd = detectStructuredSetups(curData.slice(0, i + 1), i, scanMethod);
 
-        if (sd.setup === 'none' || sd.confluence < 2) continue;
+        // Accept confluence >= 1 in scanner — we want to surface any
+        // real setup, not just textbook-perfect ones. The card shows quality/confluence
+        // so users can judge for themselves.
+        if (sd.setup === 'none' || sd.confluence < 1) continue;
         if (i - lastFoundBar < minGap) continue;
 
         const futureC = curData.slice(i + 1, Math.min(i + 51, curData.length));
@@ -10207,13 +10217,19 @@ function runMentorFinderScan() {
 
         const entryPrice = curData[i].close;
         const dir   = sd.direction || 'long';
-        const levels = computeMentorTradeLevels(dir, entryPrice, i, futureC);
+
+        // Use entryBar (next bar open) for level computation, same as the live mentor
+        const entryBar = Math.min(i + 1, curData.length - 1);
+        const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+        if (futureFromEntry.length < 5) continue;
+        const entryPriceActual = curData[entryBar].open;
+        const levels = computeMentorTradeLevels(dir, entryPriceActual, entryBar, futureFromEntry);
         if (!levels) continue;
 
         lastFoundBar = i;
         _mfSetups.push({ bar: i, setup: sd.setup, direction: dir,
           quality: sd.quality, confluence: sd.confluence,
-          label: barLabel(i), levels, price: entryPrice });
+          label: barLabel(i), levels, price: entryPriceActual });
       } catch(e) {}
     }
 
