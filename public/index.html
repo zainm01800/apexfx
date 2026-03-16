@@ -5306,14 +5306,18 @@ function setMentorState(newState, reason) {
 // ══ MENTOR REPLAY CONTROL ═══════════════════════════════════════════════════════════
 
 function pauseReplayForSetup() {
-  if (!replayMode || !replayTimer) return;
-  
+  if (!replayMode) return;
+  // Don't interrupt manual scrubbing — the user is deliberately moving through bars.
+  // The setup panel will still show; they can read it and press Space when ready.
+  if (_replayLineDragging || isPanning) return;
+  if (!replayTimer) return; // already paused (manual stepping via arrow keys etc.)
+
   clearInterval(replayTimer);
   replayTimer = null;
   mentorState.setupPausedReplay = true;
   updateReplayStatus();
   draw();
-  toast('⏸ Auto-paused for setup analysis');
+  toast('⏸ Setup found — replay paused');
 }
 
 function resumeReplayAfterSetup(autoPlay = false) {
@@ -9025,10 +9029,10 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
 
   // Give a deliberately vague hint — ranges, not exact numbers
   let proximity;
-  if      (barsAway <= 10)  proximity = 'very close — within the next 5–15 candles';
-  else if (barsAway <= 30)  proximity = 'approaching — roughly 15–40 candles ahead';
-  else if (barsAway <= 80)  proximity = 'forming — somewhere in the next 30–100 candles';
-  else if (barsAway <= 200) proximity = 'developing — estimated 80–250 candles ahead';
+  if      (barsAway <= 25)  proximity = 'very close — the mentor will pause replay shortly';
+  else if (barsAway <= 60)  proximity = 'approaching — roughly 25–60 candles ahead';
+  else if (barsAway <= 120) proximity = 'forming — somewhere in the next 60–120 candles';
+  else if (barsAway <= 250) proximity = 'developing — estimated 120–250 candles ahead';
   else                      proximity = 'distant — well ahead in the replay session';
 
   const directionHint = (() => {
@@ -9048,7 +9052,7 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   ].filter(Boolean);
 
   mentorState.currentQuestion =
-    'Keep the replay running — the mentor will pause automatically when the setup begins to materialise.';
+    'Keep the replay running — the mentor will pause when the setup begins to materialise. You can also continue manually.';
 }
 
 function getAdaptiveScanWindow() {
@@ -9674,12 +9678,22 @@ function updateMentor() {
     if (barsSinceNoSetup > 0 && mentorState._noSetupFoundBar > 0) {
       // Update the message with the current bar so distance counts down live
       _buildNoSetupMessage(currentBar, mentorState._noSetupFoundBar, mentorState.selectedTradingMethod || 'none');
-      // Once we reach within 5 bars of the found setup, transition to setup_detected
-      if (currentBar >= mentorState._noSetupFoundBar - 5) {
-        const sd = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+      // Transition to setup_detected when within 25 bars — matches the early warning
+      // threshold so the pause fires promptly instead of 20 bars after "very close" appears.
+      const barsToSetup = mentorState._noSetupFoundBar - currentBar;
+      if (barsToSetup <= 25) {
+        const sd = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar,
+                     mentorState.selectedTradingMethod || undefined);
         if (sd.setup !== 'none') {
           mentorState._noSetupFoundBar = -1;
           enterSetupDetectedState({ setup: sd, bar: currentBar, windowSize: 0 });
+          return;
+        }
+        // Setup not detected at current bar yet — re-scan forward to find exact bar
+        const ws = scanForSetupsInWindow(currentBar);
+        if (ws.setup.setup !== 'none' && ws.bar > currentBar) {
+          mentorState._noSetupFoundBar = -1;
+          enterSetupDetectedState(ws);
           return;
         }
       }
