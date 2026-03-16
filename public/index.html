@@ -5332,6 +5332,7 @@ function dismissSetupMessage() {
 
   mentorState._tradeSetupData = null;
   mentorState._lastAnnotateBar = null;
+  mentorState._confluencePauses = new Set();
   clearMentorAnnotations();
   resumeReplayAfterSetup();
   
@@ -8682,6 +8683,7 @@ function handleSetupDetectedState(currentBar) {
     mentorState.lockedMessage   = 'setup';
     mentorState._proximityHintCache = null; // clear for fresh hint
     mentorState.annotationsEnabled = true;  // default ON for each new setup
+    mentorState._confluencePauses = new Set(); // reset per-setup pause tracking
     // Reset annotation toggle buttons to default (Yes selected)
     setTimeout(() => {
       const y = document.getElementById('btn-annotations-yes');
@@ -12147,7 +12149,8 @@ function hitTest(d, sx, sy){
     }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
-      const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+      const hb=effectiveHalfBars(d);
+      const bx=d.isMentorExample?ex:ex-hb*barWidth, w=d.isMentorExample?hb*barWidth:hb*2*barWidth;
       const sly=_py(d.sl), tpy=_py(d.tp);
       const minY=Math.min(ey,sly,tpy)-TOL, maxY=Math.max(ey,sly,tpy)+TOL;
       return sx>bx-TOL&&sx<bx+w+TOL&&sy>minY&&sy<maxY;
@@ -12217,7 +12220,8 @@ function getHandles(d){
       return [{id:'p1', x:_barX(d.bar), y:_py(d.price), cur:'move'}];
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
-      const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+      const hb=effectiveHalfBars(d);
+      const bx=d.isMentorExample?ex:ex-hb*barWidth, w=d.isMentorExample?hb*barWidth:hb*2*barWidth;
       const sly=_py(d.sl), tpy=_py(d.tp);
       const boxTop=Math.min(ey,sly,tpy), boxBot=Math.max(ey,sly,tpy);
       const midY=(boxTop+boxBot)/2;
@@ -13041,68 +13045,139 @@ function _commit(ann) {
   if (!ann?.length) return;
 
   const atr = calculateATR(Math.min(replayCutoff, curData.length-1), 14) || 1;
-  const now  = replayCutoff; // current replay position
+  const now  = replayCutoff;
 
-  // Sort primary→secondary→tertiary so important items render on top
   ann.sort((a,b) => (a.pri||2)-(b.pri||2));
 
-  const usedAt = {};   // track arrow bar positions for stagger
-  const usedPY = {};   // track y-positions for label overlap prevention
+  const usedAt = {};
+  const usedPY = {};
+
+  // Track whether this call produces a NEW primary annotation that warrants a pause
+  let firstPrimaryLabel = null;
+  let firstPrimaryBar   = -1;
+  let firstPrimaryPrice = null;
+  let firstPrimaryDir   = 'up';
 
   ann.forEach(a => {
-    // Time-aware: skip annotations that haven't been "discovered" yet
-    // candleIndex is set per annotation; defaults to visibleUpTo
     const ci = a.candleIndex ?? now;
     if (ci > now) return;
 
     if (a.type==='zone') {
-      // Merge check: if another zone exists within 1×ATR, merge labels
       const existing = drawings.find(d =>
         d.isMentorAnnotation && d.type==='mentor_box' &&
         d.priceHigh && d.priceLow &&
         Math.abs(((d.priceHigh+d.priceLow)/2) - a.price) < atr*1.5);
       if (existing) {
-        // Merge by appending to label, don't draw a duplicate zone
-        if (!existing.label.includes(a.label))
-          existing.label += ' + ' + a.label;
+        if (!existing.label.includes(a.label)) existing.label += ' + ' + a.label;
         return;
       }
       _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
+      // Track primary zone for confluence pause
+      if ((a.pri||2) === 1 && !firstPrimaryLabel) {
+        firstPrimaryLabel = a.label;
+        firstPrimaryBar   = a.t; // point arrow at right edge of zone (current bar)
+        firstPrimaryPrice = a.price;
+        firstPrimaryDir   = 'up';
+      }
 
     } else if (a.type==='box') {
-      // Merge: if another box overlaps this one significantly, combine labels
       const existing = drawings.find(d =>
         d.isMentorAnnotation && d.type==='mentor_box' &&
         d.priceLow && d.priceHigh &&
         d.priceLow < a.hi + atr && d.priceHigh > a.lo - atr);
       if (existing) {
-        if (!existing.label.includes(a.label))
-          existing.label += ' + ' + a.label;
+        if (!existing.label.includes(a.label)) existing.label += ' + ' + a.label;
         return;
       }
       _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
+      if ((a.pri||2) === 1 && !firstPrimaryLabel) {
+        firstPrimaryLabel = a.label;
+        firstPrimaryBar   = a.t;
+        firstPrimaryPrice = (a.lo + a.hi) / 2;
+        firstPrimaryDir   = 'up';
+      }
 
     } else if (a.type==='arrow') {
-      // Stagger arrows at same bar to prevent overlap
       const key   = `${a.bar}_${a.pointing}`;
       const used  = usedAt[key]||0;
       const off   = used * atr * 0.55 * (a.pointing==='down'?1:-1);
       usedAt[key] = used+1;
-
-      // Vertical overlap with existing labels: shift if too close
       let price = a.price + off;
       const pyKey = Math.round(price / (atr*0.4));
-      if (usedPY[pyKey]) {
-        price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
-      }
+      if (usedPY[pyKey]) price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
       usedPY[pyKey] = true;
-
       _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight);
+      if ((a.pri||2) === 1 && a.highlight && !firstPrimaryLabel) {
+        firstPrimaryLabel = a.label;
+        firstPrimaryBar   = a.bar;
+        firstPrimaryPrice = price;
+        firstPrimaryDir   = a.pointing === 'up' ? 'up' : 'down';
+      }
     }
   });
 
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
   if (typeof draw==='function') draw();
+
+  // ── Confluence pause: when a new primary annotation appears during setup_detected,
+  //    pause replay and draw an explanation dialogue at the current bar ──────────
+  _maybePauseForConfluence(firstPrimaryLabel, firstPrimaryBar, firstPrimaryPrice, firstPrimaryDir, atr);
+}
+
+// Pause and show a dialogue when a major confluence is first spotted
+function _maybePauseForConfluence(label, bar, price, dir, atr) {
+  if (!label || !replayMode || !replayTimer) return;
+  if (mentorState.lifecycleState !== 'setup_detected') return;
+  if (!mentorState.upcomingSetup) return;
+
+  // Only fire once per unique label — avoid re-pausing on every redraw
+  if (!mentorState._confluencePauses) mentorState._confluencePauses = new Set();
+  if (mentorState._confluencePauses.has(label)) return;
+  mentorState._confluencePauses.add(label);
+
+  // Build the explanation for this confluence type
+  const explanations = {
+    'Support zone':        'Price has previously bounced from this level. Buyers are defending it — watch for a rejection wick to confirm.',
+    'Resistance zone':     'Price has previously reversed here. Sellers stepped in at this level — watch for a wick rejection before entering short.',
+    'Consolidation range': 'Price is coiling in a tight range. This compression builds energy. A breakout from this range often leads to a strong directional move.',
+    'Breakout level':      'This is the key level to break. A candle closing convincingly above/below this line is the trigger to enter.',
+    'Breakdown level':     'This is the support line to break. A close below confirms the breakdown and is the entry trigger.',
+    'Fib 38–62% pullback zone': 'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
+    'Pullback zone (38–62%)':   'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
+    'Liquidity pool':      'Stop losses are clustered here. A wick into this zone sweeps those stops before reversing — the sweep is the entry signal.',
+    'Trading range':       'Price is bouncing between two levels. The strategy is to enter at the boundaries. Avoid trading near the middle of the range.',
+    'Range support':       'The lower boundary of the range — where buyers have repeatedly defended. Look for a reaction here.',
+    'Range resistance':    'The upper boundary of the range — where sellers have repeatedly stepped in. Look for a rejection here.',
+  };
+  const explanation = explanations[label]
+    || `${label} — a key area where price has previously reacted. Watch closely as price approaches.`;
+
+  // Pause replay
+  clearInterval(replayTimer);
+  replayTimer = null;
+  mentorState.setupPausedReplay = true;
+  updateReplayStatus();
+
+  // Draw an explanation arrow at the current bar pointing at the confluence
+  const c = curData[Math.min(bar, replayCutoff)];
+  if (c) {
+    const arrowPrice = dir === 'up' ? c.low - atr * 0.5 : c.high + atr * 0.5;
+    _addMentorArrow(replayCutoff, arrowPrice,
+      `📍 ${label}`, dir === 'up' ? 'up' : 'down', false);
+  }
+
+  // Show explanation in the mentor panel
+  mentorState.currentInsights = [
+    `⏸ Mentor spotted a confluence — replay paused`,
+    `📌 ${label}`,
+    explanation,
+    `Press Space or ▶ to continue when ready.`,
+  ];
+  mentorState.currentQuestion = 'Study this level before the trade forms.';
+  updateMentorUI();
+  draw();
+
+  toast(`⏸ Confluence: ${label}`);
 }
 
 
@@ -13681,7 +13756,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         }
         case 'long': case 'short':{
           const ex=barXfn(d.bar),ey=pyfn(d.price);
-          const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth,w=hb*2*barWidth;
+          const hb=effectiveHalfBars(d); const bx=d.isMentorExample?ex:ex-hb*barWidth,w=d.isMentorExample?hb*barWidth:hb*2*barWidth;
           const sly=pyfn(d.sl),tpy=pyfn(d.tp);
           ctx.strokeRect(bx-4,Math.min(ey,sly,tpy)-4,w+8,Math.abs(Math.max(ey,sly,tpy)-Math.min(ey,sly,tpy))+8); break;
         }
