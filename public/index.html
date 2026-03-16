@@ -4998,21 +4998,22 @@ window.getReplayState = () => ({ replayMode, replayPicking, replayCutoff, replay
 // Scroll rightBarIndex so the replay cutoff bar is visible with context bars to
 // the right. Called whenever replayCutoff is set or the line is dragged.
 function _replayScrollToBar(bar) {
+  // If we're paused showing a setup preview, don't scroll — the view is
+  // intentionally showing the future entry bar and we don't want it overridden.
+  if (mentorState._freezeScrollForPreview) return;
+
   if (!curData || barWidth <= 0) return;
   const mc = _el('main-canvas');
   if (!mc) return;
   const W = mc.width;
   const visibleBars = W / barWidth;
-  const contextRight = Math.min(30, visibleBars * 0.25); // ~25% of screen or 30 bars
-  // Position the cutoff bar with contextRight bars of space to its right
+  const contextRight = Math.min(30, visibleBars * 0.25);
   const targetRight = bar + contextRight;
-  // Only scroll if the cutoff would be off-screen or within 5 bars of edge
   const currentFirst = Math.ceil(rightBarIndex - visibleBars);
   const cutoffIsOffLeft  = bar < currentFirst + 5;
   const cutoffIsOffRight = bar > rightBarIndex - 5;
   if (cutoffIsOffLeft || cutoffIsOffRight) {
     rightBarIndex = targetRight;
-    // Clamp
     rightBarIndex = Math.max(visibleBars * 0.5,
                     Math.min(curData.length - 1 + visibleBars * 0.1, rightBarIndex));
   }
@@ -5273,6 +5274,7 @@ function pauseReplayForSetup() {
 
 function resumeReplayAfterSetup(autoPlay = false) {
   mentorState.setupPausedReplay = false;
+  mentorState._freezeScrollForPreview = false; // allow scroll to follow replay again
   if (autoPlay && replayMode && !replayTimer) {
     // Auto-start the replay timer so the trade plays out immediately
     replayTimer = setInterval(() => {
@@ -5294,10 +5296,9 @@ function dismissSetupMessage() {
   mentorState.lifecycleState = 'scanning';
   mentorState.setupWaitStart = null;
   mentorState.setupWaitData = null;
+  mentorState._freezeScrollForPreview = false;
 
-  // Clear chart annotations when setup is dismissed
   clearMentorAnnotations();
-
   resumeReplayAfterSetup();
   
   mentorState.currentInsights = ['📊 Resuming market scanning...'];
@@ -8671,12 +8672,14 @@ function handleSetupDetectedState(currentBar) {
       mentorState._previewTrade = previewTrade;
       drawExampleTrade(previewTrade);
 
-      // Step 2: scroll chart so the entry bar is visible to the right of centre —
-      // user sees both the historical context AND the future entry level
-      const targetRight = entryBar + 15;
-      if (targetRight > rightBarIndex) {
-        rightBarIndex = targetRight;
-      }
+      // Step 2: Freeze scroll so _replayScrollToBar can't override our view,
+      // then scroll to show: [history context] ... [current bar] ... [entry bar] ... [space]
+      mentorState._freezeScrollForPreview = true;
+      const mc = document.getElementById('main-canvas');
+      const visibleBars = mc ? mc.width / barWidth : 100;
+      // Put the entry bar at ~70% across the screen so there's history on the left
+      // and visible space on the right to see the trade box
+      rightBarIndex = Math.round(entryBar + visibleBars * 0.30);
 
       // Step 3: annotate history
       _mentorAnnotateSetup(setupData, currentBar, setupBar);
@@ -10824,10 +10827,13 @@ function _mfLaunch(idx) {
   const methodSel = document.getElementById('trading-method-selection');
   if (methodSel) methodSel.style.display = 'none';
 
-  // Scroll chart so the setup area is visible with context to the right
-  // Show 50 bars past the setup bar so the full preview trade box is visible
-  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 50);
-  _replayScrollToBar(startBar);
+  // Position chart so startBar is on the left and setup.bar is visible.
+  // Don't call _replayScrollToBar — it uses barWidth which may not be ready yet.
+  // Instead set rightBarIndex so startBar lands at ~20% from the left edge.
+  // We use a generous estimate of ~80 visible bars; actual barWidth is set on first draw.
+  const estVisibleBars = 80;
+  rightBarIndex = Math.min(curData.length - 1 + 10, startBar + estVisibleBars);
+  mentorState._freezeScrollForPreview = false; // not frozen yet — will freeze at pause
 
   // Start replay at startBar (no picking phase needed)
   replayMode        = true;
