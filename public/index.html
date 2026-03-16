@@ -5621,30 +5621,33 @@ function monitorExampleTrade(currentBar) {
     updateLockedMentorUI();
   }
 
-  // CLOSE prices only — the AI placed SL/TP knowing future wicks, so wicks
-  // must NEVER trigger outcomes on the AI demo trade.
-  const currentClose = curData[currentBar].close;
+  // Realistic execution model:
+  //   SL — triggered by a wick (low for longs, high for shorts), same as real markets
+  //   TP — requires a close beyond the target (confirms the move)
+  // Check SL wick FIRST — if a candle wicks through the SL and closes above (for longs),
+  // the trade is still stopped out at the SL price.
+  const bar = curData[currentBar];
+  const currentClose  = bar.close;
   const previousClose = curData[currentBar - 1]?.close || currentClose;
 
   let tradeCompleted = false;
   let outcome = null;
 
   if (trade.direction === 'long') {
-    if (currentClose >= trade.takeProfit) {
-      tradeCompleted = true;
-      outcome = 'take_profit';
-    } else if (currentClose <= trade.stopLoss) {
-      // Should never happen — SL is placed beyond the worst wick before TP
+    if (bar.low <= trade.stopLoss) {          // wick hits SL
       tradeCompleted = true;
       outcome = 'stop_loss';
+    } else if (currentClose >= trade.takeProfit) {  // close confirms TP
+      tradeCompleted = true;
+      outcome = 'take_profit';
     }
   } else {
-    if (currentClose <= trade.takeProfit) {
-      tradeCompleted = true;
-      outcome = 'take_profit';
-    } else if (currentClose >= trade.stopLoss) {
+    if (bar.high >= trade.stopLoss) {         // wick hits SL
       tradeCompleted = true;
       outcome = 'stop_loss';
+    } else if (currentClose <= trade.takeProfit) {  // close confirms TP
+      tradeCompleted = true;
+      outcome = 'take_profit';
     }
   }
 
@@ -5653,10 +5656,10 @@ function monitorExampleTrade(currentBar) {
     return;
   }
 
-  addTradeMonitoringUpdate(currentClose, previousClose, trade);
+  addTradeMonitoringUpdate(currentClose, previousClose, trade, bar);
 }
 
-function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
+function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar) {
   const riskDist   = Math.abs(trade.entry - trade.stopLoss);
   const rewardDist = Math.abs(trade.takeProfit - trade.entry);
   if (riskDist === 0) return;
@@ -5688,6 +5691,19 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
     update = `⚠️ Price pulled back to ${pnlR.toFixed(1)}R — normal in any trade, stop loss is protecting the position`;
   } else {
     update = `🔴 Near stop loss (${pnlR.toFixed(1)}R) — price testing the invalidation level`;
+  }
+
+  // Wick proximity warning — alert if the wick is getting close to SL even if close is not
+  if (currentBar && trade.direction === 'long' && currentBar.low) {
+    const wickDistToSL = (currentBar.low - trade.stopLoss) / riskDist;
+    if (wickDistToSL < 0.15 && pnlR > -0.5) {
+      update = `⚠️ Wick approaching SL — low @ ${currentBar.low.toFixed(4)}, stop @ ${trade.stopLoss.toFixed(4)}`;
+    }
+  } else if (currentBar && trade.direction === 'short' && currentBar.high) {
+    const wickDistToSL = (trade.stopLoss - currentBar.high) / riskDist;
+    if (wickDistToSL < 0.15 && pnlR > -0.5) {
+      update = `⚠️ Wick approaching SL — high @ ${currentBar.high.toFixed(4)}, stop @ ${trade.stopLoss.toFixed(4)}`;
+    }
   }
 
   // Only add if meaningfully different from the last update
@@ -6069,28 +6085,30 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
       : entryPrice - targetDistance;
 
     for (let i = 0; i < futureCandles.length; i++) {
-      const closePrice = futureCandles[i].close;
-      const hit = direction === 'long'
-        ? closePrice >= targetPrice
-        : closePrice <= targetPrice;
-      if (hit) {
-        // Make sure price hasn't already closed through the SL before this bar
-        let slHitFirst = false;
-        for (let j = 0; j < i; j++) {
-          const c = futureCandles[j].close;
-          if (direction === 'long' && c <= stopLoss) { slHitFirst = true; break; }
-          if (direction === 'short' && c >= stopLoss) { slHitFirst = true; break; }
-        }
-        if (!slHitFirst) {
-          takeProfit = targetPrice;
-          break;
-        }
+      const c = futureCandles[i];
+
+      // SL check: use the wick (low for longs, high for shorts).
+      // Stops are triggered by wicks in real trading — if a wick hits the SL
+      // before TP is reached by close, this trade would have been stopped out.
+      const slHitByWick = direction === 'long'
+        ? c.low  <= stopLoss
+        : c.high >= stopLoss;
+      if (slHitByWick) break; // SL hit — this R:R level is not achievable
+
+      // TP check: use the close price.
+      // We require a close beyond the target so the trade is confirmed.
+      const tpHitByClose = direction === 'long'
+        ? c.close >= targetPrice
+        : c.close <= targetPrice;
+      if (tpHitByClose) {
+        takeProfit = targetPrice;
+        break;
       }
     }
     if (takeProfit !== null) break;
   }
 
-  // If no TP achievable without SL being hit first, reject the setup
+  // If no TP achievable before SL wick is hit, reject the setup
   if (takeProfit === null) return null;
 
   const rewardAmt = Math.abs(takeProfit - entryPrice);
