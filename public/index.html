@@ -8590,8 +8590,7 @@ function handleSetupDetectedState(currentBar) {
   const barsUntilSetup  = setupBar - currentBar;
   const setupData       = mentorState.upcomingSetup.setup;
 
-  // TRACE every call so we can see exactly when and what fires
-  console.log(`📍 handleSetupDetectedState: currentBar=${currentBar} setupBar=${setupBar} barsUntilSetup=${barsUntilSetup} earlyWarningShown=${mentorState.earlyWarningShown} replayCutoff=${replayCutoff}`);
+
 
   // ── Early question: pause ~25 bars before the setup bar ─────────────────
   // 25 bars gives enough space to:
@@ -8944,7 +8943,9 @@ function scanForSetupsInWindow(currentBar) {
   
   // Calculate adaptive window based on timeframe
   const windowSizeBars = getAdaptiveScanWindow();
-  const windowStart = Math.max(0, currentBar - windowSizeBars);
+  // Only scan FORWARD — past bars are already visible to the user and
+  // injecting them as "upcoming" causes barsUntilSetup to be negative.
+  const windowStart = currentBar + 1;
   const windowEnd = Math.min(curData.length - 1, currentBar + windowSizeBars);
   
   console.log(`📊 Scanning window: bars ${windowStart} to ${windowEnd} (±${windowSizeBars} candles for ${curTF} timeframe)`);
@@ -9751,11 +9752,11 @@ function updateMentor() {
         // Scan the adaptive window for any valid setups
         const windowScan = scanForSetupsInWindow(currentBar);
         
-        if (windowScan.setup.setup === 'none') {
-          // No setups found in the entire window
+        if (windowScan.setup.setup === 'none' || windowScan.bar <= currentBar) {
+          // No setups found ahead — enter waiting state
           enterNoSetupState(currentBar);
         } else {
-          // Found setups in the window - hide location and enter setup_detected state
+          // Found a setup AHEAD — hide location and enter setup_detected state
           console.log('🎯 Found setups in adaptive window, entering setup_detected state');
           enterSetupDetectedState(windowScan);
         }
