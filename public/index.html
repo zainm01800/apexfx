@@ -12198,9 +12198,67 @@ function hitTest(d, sx, sy){
     }
     case 'mentor_arrow':{
       const ax=_barX(d.bar), ay=_py(d.price);
-      const arrLen=40, isDown=d.pointing!=='up';
-      const tipY=ay+(isDown?-8:8), tailY=tipY+(isDown?-arrLen:arrLen);
-      return Math.abs(sx-ax)<12 && sy>=Math.min(tipY,tailY)-5 && sy<=Math.max(tipY,tailY)+5;
+      const isDown = d.pointing !== 'up';
+      
+      // Get canvas dimensions
+      const canvas = document.getElementById('main-canvas');
+      const canvasWidth = canvas?.width || 800;
+      const canvasHeight = canvas?.height || 600;
+      
+      // Determine callout position
+      const calloutAbove = d.calloutPosition === 'above' || (!d.calloutPosition && ay > canvasHeight / 2);
+      
+      // Calculate box dimensions
+      const fontSize = 11;
+      const padX = 12;
+      const maxWidth = 200;
+      const label = d.label || '';
+      const textWidth = Math.min(label.length * fontSize * 0.55 + padX * 2, maxWidth);
+      const boxW = textWidth;
+      const boxH = fontSize + 10;
+      
+      // Calculate offset for clutter control
+      const minSpacing = 60;
+      const sameSideArrows = drawings.filter(other => 
+        other.type === 'mentor_arrow' && 
+        other.id !== d.id &&
+        (other.calloutPosition === (calloutAbove ? 'above' : 'below') || 
+         (!other.calloutPosition && ((calloutAbove && _py(other.price) > canvasHeight/2) ||
+                                    (!calloutAbove && _py(other.price) <= canvasHeight/2))))
+      );
+      
+      let xOffset = 0;
+      if (sameSideArrows.length > 0) {
+        const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
+        const index = myIndex === -1 ? sameSideArrows.length : myIndex;
+        xOffset = (index % 3) * minSpacing - minSpacing;
+      }
+      
+      // Box position
+      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset));
+      const boxY = calloutAbove ? 15 : canvasHeight - 15 - boxH;
+      
+      // Check if point is in box
+      if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
+        return true;
+      }
+      
+      // Check if point is near anchor
+      const anchorX = ax + xOffset;
+      const anchorY = ay + (isDown ? -4 : 4);
+      if (Math.abs(sx - anchorX) < 8 && Math.abs(sy - anchorY) < 8) {
+        return true;
+      }
+      
+      // Check if point is on connector line (simplified)
+      const boxConnectX = boxX + boxW / 2;
+      const boxConnectY = calloutAbove ? boxY + boxH : boxY;
+      
+      // Simple line hit test
+      const distToLine = Math.abs((boxConnectY - anchorY) * sx - (boxConnectX - anchorX) * sy + boxConnectX * anchorY - boxConnectY * anchorX) / 
+                         Math.sqrt(Math.pow(boxConnectY - anchorY, 2) + Math.pow(boxConnectX - anchorX, 2));
+      
+      return distToLine < 5;
     }
     case 'mentor_box':{
       const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
@@ -12763,6 +12821,51 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// Animation loop for smooth fade-in effects
+let _animationRaf = null;
+let _lastAnimationTime = 0;
+
+function _startAnimationLoop() {
+  if (_animationRaf) return;
+  
+  const animate = (timestamp) => {
+    // Check if any mentor arrows need animation
+    const hasAnimatingArrows = drawings.some(d => 
+      d.type === 'mentor_arrow' && 
+      d.creationTime && 
+      (Date.now() - d.creationTime) < 400
+    );
+    
+    if (hasAnimatingArrows) {
+      _animationRaf = requestAnimationFrame(animate);
+      // Trigger redraw for animation
+      draw();
+    } else {
+      _animationRaf = null;
+    }
+  };
+  
+  _animationRaf = requestAnimationFrame(animate);
+}
+
+// Trigger animation when mentor arrows are added
+const originalAddMentorArrow = _addMentorArrow;
+_addMentorArrow = function(...args) {
+  const result = originalAddMentorArrow.apply(this, args);
+  _startAnimationLoop();
+  return result;
+};
+
+// Test function for mentor arrows (remove after testing)
+function testMentorArrow() {
+  if (curData && curData.length > 50) {
+    const testBar = Math.floor(curData.length * 0.7);
+    const testPrice = curData[testBar].c;
+    _addMentorArrow(testBar, testPrice, '🎯 Test Natural Arrow', 'down', true);
+    console.log('Test mentor arrow added');
+  }
+}
+
 // ── Mentor Annotation System ─────────────────────────────────────────────
 // Draws arrows, highlight boxes, and label callouts on the chart at key
 // setup moments. All annotations are full drawings — selectable and deletable
@@ -12802,6 +12905,7 @@ function _addMentorArrow(bar, price, label, direction = 'down', highlight = fals
     highlight,
     id,
     isMentorAnnotation: true,
+    creationTime: Date.now(), // For fade-in animation
   };
   drawings.push(drawing);
   _mentorAnnotationIds.push(id);
@@ -13690,69 +13794,135 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const alpha   = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
         const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
         const tipSize   = tier === 'primary' ? 6 : 5;
-        const stemLen   = tier === 'primary' ? 22 : 16;
-
+        
+        // Get canvas height for positioning
+        const canvasHeight = H || 600;
+        const canvasWidth = W || 800;
+        
+        // Determine arrow direction and callout position
+        const calloutAbove = d.calloutPosition === 'above' || (!d.calloutPosition && ay > canvasHeight / 2);
+        const placementSide = calloutAbove ? 'above' : 'below';
+        
+        // Calculate callout box position (similar to mentor_bubble)
+        const fontSize = 11;
+        const padX = 12;
+        const maxWidth = 200;
+        const label = d.label || '';
+        const textWidth = Math.min(label.length * fontSize * 0.55 + padX * 2, maxWidth);
+        const boxW = textWidth;
+        const boxH = fontSize + 10;
+        
+        // Horizontal positioning with clutter control
+        const minSpacing = 60; // minimum spacing between arrows
+        const sameSideArrows = drawings.filter(other => 
+          other.type === 'mentor_arrow' && 
+          other.id !== d.id &&
+          (other.calloutPosition === placementSide || 
+           (!other.calloutPosition && ((placementSide === 'above' && pyfn(other.price) > canvasHeight/2) ||
+                                      (placementSide === 'below' && pyfn(other.price) <= canvasHeight/2))))
+        );
+        
+        // Calculate offset based on nearby arrows
+        let xOffset = 0;
+        if (sameSideArrows.length > 0) {
+          const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
+          const index = myIndex === -1 ? sameSideArrows.length : myIndex;
+          xOffset = (index % 3) * minSpacing - minSpacing;
+        }
+        
+        // Box position with offset
+        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset));
+        const boxY = calloutAbove ? 15 : canvasHeight - 15 - boxH;
+        
+        // Smooth fade-in animation
+        const creationTime = d.creationTime || Date.now();
+        const age = Date.now() - creationTime;
+        const fadeInDuration = 400; // ms
+        const animProgress = Math.min(1, age / fadeInDuration);
+        const easeOut = 1 - Math.pow(1 - animProgress, 3); // ease-out cubic
+        
         ctx.save();
-        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
-
-        // Stem — thin, clean
-        const tipY  = ay + (isDown ? -4 : 4);
-        const tailY = tipY + (isDown ? -stemLen : stemLen);
+        ctx.globalAlpha = alpha * easeOut;
+        
+        // Anchor point with offset
+        const anchorX = ax + xOffset;
+        const anchorY = ay + (isDown ? -4 : 4);
+        
+        // Connection points
+        const boxConnectX = boxX + boxW / 2;
+        const boxConnectY = calloutAbove ? boxY + boxH : boxY;
+        
+        // Elbow connector path
+        const elbowX = boxConnectX;
+        const elbowY = anchorY + (calloutAbove ? -25 : 25) * easeOut;
+        
+        // Draw elbow connector
         ctx.strokeStyle = accentCol;
-        ctx.lineWidth   = isSel ? 2 : 1.5;
+        ctx.lineWidth = isSel ? 2 : 1.5;
         ctx.setLineDash([]);
+        ctx.lineJoin = 'round';
+        
         ctx.beginPath();
-        ctx.moveTo(ax, tailY);
-        ctx.lineTo(ax, tipY);
+        // Start at anchor point (on chart)
+        ctx.moveTo(anchorX, anchorY);
+        // Short line from anchor
+        const shortLen = 8;
+        ctx.lineTo(anchorX, anchorY + (calloutAbove ? -shortLen : shortLen));
+        // Elbow bend
+        ctx.lineTo(elbowX, elbowY);
+        // To box connection point
+        ctx.lineTo(boxConnectX, boxConnectY);
         ctx.stroke();
-
-        // Triangle arrowhead
+        
+        // Triangle arrowhead at anchor
         ctx.fillStyle = accentCol;
         ctx.beginPath();
         if (isDown) {
-          ctx.moveTo(ax,            tipY);
-          ctx.lineTo(ax - tipSize,  tipY + tipSize * 1.8);
-          ctx.lineTo(ax + tipSize,  tipY + tipSize * 1.8);
+          ctx.moveTo(anchorX, anchorY);
+          ctx.lineTo(anchorX - tipSize, anchorY + tipSize * 1.8);
+          ctx.lineTo(anchorX + tipSize, anchorY + tipSize * 1.8);
         } else {
-          ctx.moveTo(ax,            tipY);
-          ctx.lineTo(ax - tipSize,  tipY - tipSize * 1.8);
-          ctx.lineTo(ax + tipSize,  tipY - tipSize * 1.8);
+          ctx.moveTo(anchorX, anchorY);
+          ctx.lineTo(anchorX - tipSize, anchorY - tipSize * 1.8);
+          ctx.lineTo(anchorX + tipSize, anchorY - tipSize * 1.8);
         }
         ctx.closePath();
         ctx.fill();
-
+        
+        // Small circle at anchor point
+        ctx.beginPath();
+        ctx.arc(anchorX, anchorY, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
         // Selection ring
         if (isSel) {
           ctx.strokeStyle = accentCol;
           ctx.lineWidth = 1.5;
           ctx.setLineDash([2, 2]);
           ctx.beginPath();
-          ctx.arc(ax, tipY, tipSize + 4, 0, Math.PI * 2);
+          ctx.arc(anchorX, anchorY, tipSize + 4, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
-
-        // Label — short first line only, positioned near tail
+        
+        // Callout box background
+        ctx.fillStyle = 'rgba(12, 14, 22, 0.92)';
+        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
+        ctx.fill();
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth = 0.5;
+        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
+        ctx.stroke();
+        
+        // Label text
         if (d.label) {
-          const firstLine = d.label.split('—')[0].trim().slice(0, 32);
-          const fontSize  = tier === 'tertiary' ? 9 : tier === 'primary' ? 11 : 10;
-          ctx.font        = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
-          ctx.textAlign   = 'center';
-          const tw        = ctx.measureText(firstLine).width;
-          const lx        = ax - tw / 2 - 5;
-          const ly        = isDown ? tailY - 18 : tailY + 3;
-          // Pill background
-          ctx.fillStyle   = 'rgba(12,14,22,0.88)';
-          roundRect(ctx, lx, ly, tw + 10, fontSize + 6, 3);
-          ctx.fill();
-          ctx.strokeStyle = accentCol;
-          ctx.lineWidth   = 0.5;
-          roundRect(ctx, lx, ly, tw + 10, fontSize + 6, 3);
-          ctx.stroke();
-          ctx.fillStyle   = tier === 'primary' ? '#ffffff' : '#b8c4d8';
-          ctx.fillText(firstLine, ax, ly + fontSize + 1);
-          ctx.textAlign   = 'left';
+          const firstLine = d.label.split(' - ')[0].trim().slice(0, 32);
+          ctx.font = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#fff';
+          ctx.fillText(firstLine, boxX + boxW / 2, boxY + boxH / 2 + 3);
         }
+        
         ctx.restore();
         break;
       }
