@@ -5578,6 +5578,26 @@ function monitorExampleTrade(currentBar) {
   if (!mentorState.exampleTradeActive || !mentorState.exampleTrade || !curData) return;
 
   const trade = mentorState.exampleTrade;
+
+  // If the entry bar hasn't been reached yet, just show a "waiting for entry" note.
+  // This happens when "Show Me The Trade" is clicked before the setup bar arrives.
+  if (currentBar < trade.barIndex) {
+    const barsToEntry = trade.barIndex - currentBar;
+    const hint = barsToEntry <= 3 ? 'Entry candle arriving...' : `Entry in ~${barsToEntry} candles`;
+    if (!mentorState.tradeMonitoringUpdates.includes(hint)) {
+      mentorState.tradeMonitoringUpdates = [hint];
+      updateLockedMentorUI();
+    }
+    return;
+  }
+
+  // Entry bar reached — clear pending flag
+  if (trade.pendingEntry) {
+    trade.pendingEntry = false;
+    mentorState.tradeMonitoringUpdates = ['✅ Entry bar reached — trade is now active'];
+    updateLockedMentorUI();
+  }
+
   // CLOSE prices only — the AI placed SL/TP knowing future wicks, so wicks
   // must NEVER trigger outcomes on the AI demo trade.
   const currentClose = curData[currentBar].close;
@@ -8475,71 +8495,85 @@ function handleTradeMonitoringState(currentBar) {
 }
 
 function handleSetupDetectedState(currentBar) {
-  console.log('🎯 Handle setup_detected state at bar', currentBar);
-  
   if (!mentorState.upcomingSetup) return;
-  
-  const setupBar = mentorState.upcomingSetup.bar;
-  const barsUntilSetup = setupBar - currentBar;
-  
-  // 10-candle early warning — notify once and PAUSE so user can read
-  if (barsUntilSetup <= 10 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
+
+  const setupBar        = mentorState.upcomingSetup.bar;
+  const barsUntilSetup  = setupBar - currentBar;
+  const setupData       = mentorState.upcomingSetup.setup;
+
+  // ── Early question: pause ~15 bars before the setup bar ─────────────────
+  // Give the user a chance to decide BEFORE the candle arrives, so if they
+  // choose "Show Me The Trade" the levels appear on the chart ahead of time
+  // and they watch the candle actually reach the entry live.
+  if (barsUntilSetup <= 15 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
     mentorState.earlyWarningShown = true;
-    
-    // Save setup data NOW so Show Me The Trade button works from this alert
-    mentorState.pendingSetupDetection = mentorState.upcomingSetup.setup;
-    mentorState.pendingSetupBar = mentorState.upcomingSetup.bar; // actual future setup bar
-    
-    // CRITICAL: Lock the message so controls show and state is consistent
-    lockSetupMessage(mentorState.upcomingSetup.setup);
-    
-    // Keep the hint vague — don't reveal the exact bar count
-    const urgencyHint = barsUntilSetup <= 3 ? 'imminent' : 'very close';
-    mentorState.lockedQuestion = `⚠️ The setup is ${urgencyHint}. Press "Show Me The Trade" to see the AI's entry, or "Let Me Try It" to place your own trade.`;
-    
-    // Pause replay so user can read the message
-    if (replayMode) {
-      pauseReplayForSetup();
+
+    // Pre-validate that a trade CAN be placed — compute levels from the future
+    // entry bar (setupBar+1 open) right now so we know before asking.
+    const entryBar = Math.min(setupBar + 1, curData.length - 1);
+    const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+    const entryPrice = curData[entryBar]?.open;
+    const prelevels = (futureFromEntry.length >= 5 && entryPrice)
+      ? computeMentorTradeLevels(setupData.direction || 'long', entryPrice, entryBar, futureFromEntry)
+      : null;
+
+    if (!prelevels) {
+      // Can't place a valid trade here — skip silently and keep scanning
+      mentorState.earlyWarningShown = false;
+      mentorState.upcomingSetup = null;
+      mentorState.lifecycleState = 'scanning';
+      return;
     }
+
+    // Cache pre-validated levels and store pending data
+    setupData._prevalidatedLevels = prelevels;
+    setupData._entryBar           = entryBar;
+    mentorState.pendingSetupDetection = setupData;
+    mentorState.pendingSetupBar       = setupBar;
+
+    // Lock the panel message with setup insights
+    generateHighQualityTradeInsights(setupData);
+    lockSetupMessage(setupData);
+
+    const dir       = setupData.direction || 'long';
+    const dirEmoji  = dir === 'long' ? '📈' : '📉';
+    const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
+    mentorState.lockedQuestion =
+      `${dirEmoji} A ${setupName} setup is forming. ` +
+      `Press "Show Me The Trade" to draw the AI's levels now and watch the candle arrive — ` +
+      `or press "Let Me Try It" to place your own trade as it develops.`;
+
+    // Pause replay so the user has time to read and decide
+    if (replayMode) pauseReplayForSetup();
     updateLockedMentorUI();
-    console.log('🔔 Early warning fired:', barsUntilSetup, 'bars to setup — replay paused');
-    console.log('✅ pendingSetupDetection set:', mentorState.pendingSetupDetection);
     return;
   }
-  
-  // Setup bar reached — pre-validate before locking the panel
+
+  // ── If early warning already shown but replay was resumed (Let Me Try path)
+  //    and setup bar is now reached — transition to setup_wait normally
   if (currentBar >= setupBar) {
-    console.log('✅ Setup bar reached, pre-validating before showing panel');
-
     mentorState.earlyWarningShown = false;
+    mentorState.upcomingSetup = null;
 
-    const setupData = mentorState.upcomingSetup.setup;
-    mentorState.upcomingSetup = null; // clear regardless of outcome
+    // If the user already clicked "Show Me The Trade" (exampleTradeActive),
+    // don't re-trigger the panel — just let trade monitoring continue.
+    if (mentorState.exampleTradeActive) return;
 
     const shown = generateSetupMessageWithExampleTrade(setupData, currentBar);
-
     if (!shown) {
-      // Trade levels not achievable — skip silently and resume scanning
-      console.log('⏭️ Setup at target bar failed pre-validation — resuming scan');
       mentorState.lifecycleState = 'scanning';
       mentorState.lastTradeSuggestionBar = currentBar;
       updateMentorUI();
       return;
     }
 
-    // Panel shown — lock state and pause
-    mentorState.lifecycleState = 'setup_wait';
-    mentorState.setupWaitStart = currentBar;
-    mentorState.setupWaitData = setupData;
+    mentorState.lifecycleState    = 'setup_wait';
+    mentorState.setupWaitStart    = currentBar;
+    mentorState.setupWaitData     = setupData;
     mentorState.setupPausedReplay = true;
-
-    if (replayMode) {
-      pauseReplayForSetup();
-    }
-
+    if (replayMode) pauseReplayForSetup();
     updateMentorUI();
   }
-  // Otherwise, continue replay and keep the same message
 }
 
 function handleWaitingState(currentBar) {
@@ -9588,55 +9622,33 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 }
 
 function mentorShowMeTrade() {
-  console.log('🎯 mentorShowMeTrade called - pendingSetupDetection:', mentorState.pendingSetupDetection);
-  console.log('🎯 mentorShowMeTrade - pendingSetupBar:', mentorState.pendingSetupBar);
-  console.log('🎯 mentorShowMeTrade - lifecycleState:', mentorState.lifecycleState);
-  
   if (!mentorState.pendingSetupDetection) {
-    console.error('❌ mentorShowMeTrade: pendingSetupDetection is null/undefined!');
+    console.error('❌ mentorShowMeTrade: no pendingSetupDetection');
     return;
   }
-  
-  let setupBar = mentorState.pendingSetupBar;
+  if (!curData) { console.warn('No price data'); return; }
+
   const setupData = mentorState.pendingSetupDetection;
-  
-  // If setup bar is in the future, advance replay to that bar first
-  if (setupBar > replayCutoff) {
-    console.log('⏭️ Setup bar is in future (' + setupBar + ' > ' + replayCutoff + '), advancing replay...');
-    replayCutoff = setupBar;
-    draw();
-  }
-  
+  const setupBar  = mentorState.pendingSetupBar;
   const direction = setupData.direction || 'long';
-  if (!curData) { console.warn('No price data for example trade'); return; }
 
-  // ── Smart entry price ────────────────────────────────────────────────────
-  // Enter on the OPEN of the next bar after the setup bar — this mimics a real
-  // trader waiting for bar close confirmation before entering, and avoids the
-  // unrealistic "entered at the exact close" look.
-  const entryBar = Math.min(setupBar + 1, curData.length - 1);
-  if (entryBar > replayCutoff) {
-    replayCutoff = entryBar;
-    draw();
+  // ── Use pre-validated levels computed when the question was asked ─────────
+  // The entry bar is the OPEN of the bar AFTER the setup bar — already cached.
+  const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
+  const entryPrice = curData[entryBar]?.open;
+  if (!entryPrice) {
+    mentorState.lockedQuestion = '⚠️ Price data unavailable for this setup.';
+    updateLockedMentorUI();
+    return;
   }
-  const entryPrice = curData[entryBar].open;
 
-  // Recompute levels from the actual entry bar so SL/TP are relative to entry
-  const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
-  let levels = futureFromEntry.length >= 5
-    ? computeMentorTradeLevels(direction, entryPrice, entryBar, futureFromEntry)
-    : setupData._prevalidatedLevels; // fallback to cached if near end of data
-
-  if (!levels) levels = setupData._prevalidatedLevels;
+  let levels = setupData._prevalidatedLevels;
   if (!levels) {
-    // Fallback: recompute (handles edge case where cache is missing)
-    const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 51, curData.length));
-    levels = futureCandles.length >= 5
-      ? computeMentorTradeLevels(direction, entryPrice, setupBar, futureCandles)
-      : null;
+    // Recompute as fallback
+    const fut = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+    levels = fut.length >= 5 ? computeMentorTradeLevels(direction, entryPrice, entryBar, fut) : null;
   }
   if (!levels) {
-    // Should never reach here after the pre-validation gate, but handle gracefully
     mentorState.lockedQuestion = '⚠️ Setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
     updateLockedMentorUI();
     return;
@@ -9644,42 +9656,52 @@ function mentorShowMeTrade() {
 
   const { stopLoss, takeProfit, rr } = levels;
 
-  console.log('✅ AI placing trade:', {
-    direction, entry: entryPrice.toFixed(4),
-    sl: stopLoss.toFixed(4), tp: takeProfit.toFixed(4), rr: rr.toFixed(2),
-  });
-  
   const exampleTrade = {
-    type: setupData.setup,
-    direction: direction,
-    entry: entryPrice,
-    stopLoss: stopLoss,
-    takeProfit: takeProfit,
-    riskReward: rr,
-    timestamp: entryBar,  // actual entry bar (next bar after setup)
-    barIndex: entryBar,
-    isExample: true,
-    isAIPlaced: true,
-    futureDataUsed: true
+    type:        setupData.setup,
+    direction,
+    entry:       entryPrice,
+    stopLoss,
+    takeProfit,
+    riskReward:  rr,
+    timestamp:   entryBar,
+    barIndex:    entryBar,
+    isExample:   true,
+    isAIPlaced:  true,
+    futureDataUsed: true,
+    // Flag: trade is drawn but entry bar hasn't been reached yet.
+    // monitorExampleTrade will only start tracking once replayCutoff >= entryBar.
+    pendingEntry: replayCutoff < entryBar,
   };
 
-  console.log('✅ AI trade placed at bar', entryBar, 'entry:', entryPrice.toFixed(4));
-
-  mentorState.exampleTrade = exampleTrade;
-  mentorState.exampleTradeActive = true;
-  mentorState.tradeMonitoringUpdates = [];
-  
-  // Draw the trade at the future setup bar on the chart
+  // ── Draw levels on the chart RIGHT NOW even though the candle hasn't arrived ─
+  // The user sees the entry line, SL and TP ahead of time and watches the
+  // candle approach and hit the entry live.
   drawExampleTrade(exampleTrade);
-  
-  mentorState.lockedQuestion = `AI trade placed: ${direction.toUpperCase()} at ${entryPrice.toFixed(4)} | SL: ${stopLoss.toFixed(4)} | TP: ${takeProfit.toFixed(4)} (RR ${exampleTrade.riskReward.toFixed(1)}:1). Resuming replay...`;
-  document.getElementById('setup-message-controls').style.display = 'none';
-  
-  // Clear the pending state
-  mentorState.pendingSetupDetection = null;
-  mentorState.pendingSetupBar = null;
-  
+
+  mentorState.exampleTrade       = exampleTrade;
+  mentorState.exampleTradeActive = true;   // monitoring runs every step
+  mentorState.tradeMonitoringUpdates = [];
+  mentorState.pendingSetupDetection  = null;
+  mentorState.pendingSetupBar        = null;
+
+  // ── Update mentor panel message ───────────────────────────────────────────
+  const dirLabel = direction.toUpperCase();
+  const rrLabel  = rr.toFixed(1);
+  mentorState.lockedQuestion =
+    `📊 AI levels drawn: ${dirLabel} entry @ ${entryPrice.toFixed(4)} | ` +
+    `SL ${stopLoss.toFixed(4)} | TP ${takeProfit.toFixed(4)} (${rrLabel}:1 R:R). ` +
+    `▶ Resume replay and watch the candle arrive at the entry.`;
+
+  const ctrl = document.getElementById('setup-message-controls');
+  if (ctrl) ctrl.style.display = 'none';
+
+  // Transition lifecycle so the panel stays in monitoring mode
+  mentorState.lifecycleState    = 'trade_monitoring';
+  mentorState.setupPausedReplay = false;
+
   updateLockedMentorUI();
+
+  // ── Resume replay — user watches the trade develop live ──────────────────
   resumeReplayAfterSetup();
 }
 
