@@ -5551,21 +5551,23 @@ function drawExampleTrade(trade) {
   
   // Build a real long/short drawing using the same internal format
   const drawingType = trade.direction === 'short' ? 'short' : 'long';
-  const halfBars = 20; // visible extent on chart
-  const halfDuration = halfBarsToSecs(halfBars, curTF);
+  // Use trade.halfBars if provided (e.g. for preview trades that need wider extent),
+  // otherwise default to 20 bars each side
+  const halfBars = trade.halfBars || 20;
+  const halfDuration = trade.halfDuration || halfBarsToSecs(halfBars, curTF);
   const drawingId = 'mentor_example_' + Date.now();
-  
+
   const drawing = {
     type: drawingType,
     bar: trade.timestamp,
     price: trade.entry,
     sl: trade.stopLoss,
     tp: trade.takeProfit,
-    halfBars: halfBars,
-    halfDuration: halfDuration,
+    halfBars,
+    halfDuration,
     tf: curTF,
     id: drawingId,
-    isMentorExample: true  // flag so we never open the trade analysis popup for this
+    isMentorExample: true
   };
   
   drawings.push(drawing);
@@ -8645,6 +8647,11 @@ function handleSetupDetectedState(currentBar) {
         drawings = drawings.filter(d => d.id !== prevTradeId);
         mentorState.exampleTradeDrawingId = null;
       }
+      // halfBars controls how wide the trade box is drawn.
+      // We want it to visually extend from roughly the current bar to well past the entry,
+      // so the user clearly sees it's in the future. Use barsUntilSetup + 20.
+      const previewHalfBars = barsUntilSetup + 20;
+
       const previewTrade = {
         type:        setupData.setup,
         direction:   setupData.direction || 'long',
@@ -8658,13 +8665,20 @@ function handleSetupDetectedState(currentBar) {
         isAIPlaced:  true,
         futureDataUsed: true,
         pendingEntry: true,
+        halfBars:    previewHalfBars,
+        halfDuration: halfBarsToSecs(previewHalfBars, curTF),
       };
-      // Store preview so monitoring doesn't activate until entry bar is reached
       mentorState._previewTrade = previewTrade;
       drawExampleTrade(previewTrade);
 
-      // Step 2: annotate the HISTORY — look back from currentBar to show the
-      // setup criteria that have already formed on the chart
+      // Step 2: scroll chart so the entry bar is visible to the right of centre —
+      // user sees both the historical context AND the future entry level
+      const targetRight = entryBar + 15;
+      if (targetRight > rightBarIndex) {
+        rightBarIndex = targetRight;
+      }
+
+      // Step 3: annotate history
       _mentorAnnotateSetup(setupData, currentBar, setupBar);
       draw();
     }, 80);
@@ -10736,7 +10750,7 @@ function _mfLaunch(idx) {
   // Start replay 30 bars before the setup bar — enough context to read the
   // chart and understand why the setup is forming, and to see the question
   // appear naturally as the candles approach.
-  const PRE_BARS = 30;
+  const PRE_BARS = 40;
   const startBar = Math.max(1, setup.bar - PRE_BARS);
 
   if (replayMode) stopReplay();
@@ -10811,7 +10825,8 @@ function _mfLaunch(idx) {
   if (methodSel) methodSel.style.display = 'none';
 
   // Scroll chart so the setup area is visible with context to the right
-  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 35);
+  // Show 50 bars past the setup bar so the full preview trade box is visible
+  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 50);
   _replayScrollToBar(startBar);
 
   // Start replay at startBar (no picking phase needed)
