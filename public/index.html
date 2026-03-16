@@ -12651,6 +12651,210 @@ function _clearMentorAnnotationsSilent() {
   _mentorAnnotationIds = [];
 }
 
+// ── Mentor annotation layout rules (universal, strategy-agnostic) ──────────
+function _mentorGetVisibleWindow() {
+  try {
+    if (!curData || !curData.length || barWidth <= 0) return null;
+    const mc = _el('main-canvas');
+    if (!mc || !mc.width || !mc.height) return null;
+    const W = mc.width;
+    const firstBar = Math.max(0, Math.ceil(rightBarIndex - W / barWidth));
+    const _rawLast = Math.min(curData.length - 1, Math.floor(rightBarIndex));
+    const lastBar = (replayMode && !replayPicking && replayCutoff >= 0)
+      ? Math.min(_rawLast, replayCutoff)
+      : _rawLast;
+    if (lastBar <= firstBar) return null;
+    let hi = -Infinity, lo = Infinity;
+    for (let i = firstBar; i <= lastBar; i++) {
+      const c = curData[i];
+      if (!c) continue;
+      hi = Math.max(hi, c.high);
+      lo = Math.min(lo, c.low);
+    }
+    if (!isFinite(hi) || !isFinite(lo)) return null;
+    return { W: mc.width, H: mc.height, firstBar, lastBar, visHi: hi, visLo: lo };
+  } catch (e) {
+    return null;
+  }
+}
+
+function _mentorIsPrimaryLabelText(txt) {
+  const t = String(txt || '').toUpperCase();
+  return /(\bENTRY\b|\bSTOP\b|\bSL\b|\bTP\b|TAKE PROFIT|\bTARGET\b)/.test(t);
+}
+
+function _mentorPriorityScore(d) {
+  const t = String(d?.label || '').toUpperCase();
+  let s = 0;
+  if (d.type === 'mentor_arrow') s += 60;
+  if (d.type === 'mentor_box') s += 50;
+  if (d.type === 'mentor_label') s += 30;
+  if (d.highlight) s += 25;
+
+  // Primary: entry/SL/TP/major key levels
+  if (_mentorIsPrimaryLabelText(t)) s += 200;
+  if (/KEY LEVEL|BREAKOUT|BREAKDOWN|\bSUPPORT\b|\bRESISTANCE\b/.test(t)) s += 90;
+
+  // Secondary: zones/structure
+  if (/CONSOLIDATION|RANGE|ZONE|SUPPLY|DEMAND|LIQUIDITY/.test(t)) s += 50;
+  if (/SWING|HH|LL|HIGHER|LOWER|STRUCTURE/.test(t)) s += 30;
+
+  // Tertiary: context/explanations (keep smallest)
+  if (/CONFLUENCE|CONFIRM|REJECTION|VOLUME|EMA|TREND|BIAS|WAIT/.test(t)) s += 20;
+
+  return s;
+}
+
+function _mentorDrawingInVisibleWindow(d, win) {
+  if (!d || !win) return false;
+  const barIn = b => Number.isFinite(b) && b >= win.firstBar && b <= win.lastBar;
+  const priceIn = p => Number.isFinite(p) && p >= win.visLo && p <= win.visHi;
+  const allowOutside = _mentorIsPrimaryLabelText(d.label);
+
+  if (d.type === 'mentor_arrow' || d.type === 'mentor_label') {
+    if (!barIn(d.bar)) return false;
+    if (!allowOutside && !priceIn(d.price)) return false;
+    return true;
+  }
+  if (d.type === 'mentor_box') {
+    const b1 = Math.min(d.bar1, d.bar2), b2 = Math.max(d.bar1, d.bar2);
+    const intersects = b2 >= win.firstBar && b1 <= win.lastBar;
+    if (!intersects) return false;
+    const low = Math.min(d.priceLow, d.priceHigh);
+    const high = Math.max(d.priceLow, d.priceHigh);
+    if (!allowOutside && (high < win.visLo || low > win.visHi)) return false;
+    return true;
+  }
+  return true;
+}
+
+function _mentorClampToVisiblePrice(d, win) {
+  if (!d || !win) return d;
+  const allowOutside = _mentorIsPrimaryLabelText(d.label);
+  if (allowOutside) return d;
+
+  const eps = (win.visHi - win.visLo) * 0.01 || (win.visHi * 0.001) || 0.0001;
+  const clampP = p => Math.max(win.visLo + eps, Math.min(win.visHi - eps, p));
+
+  if (d.type === 'mentor_arrow' || d.type === 'mentor_label') {
+    d.price = clampP(d.price);
+  } else if (d.type === 'mentor_box') {
+    d.priceLow = clampP(d.priceLow);
+    d.priceHigh = clampP(d.priceHigh);
+    if (d.priceLow > d.priceHigh) {
+      const tmp = d.priceLow; d.priceLow = d.priceHigh; d.priceHigh = tmp;
+    }
+  }
+  return d;
+}
+
+function _mentorEstimateLabelRect(d, win) {
+  // Approximate the on-canvas bounding box for overlap checks (mentor_label only).
+  if (!d || d.type !== 'mentor_label' || !win) return null;
+  const barX = i => win.W - (rightBarIndex - i) * barWidth;
+  const py = p => win.H - (p - win.visLo) / (win.visHi - win.visLo) * win.H;
+  const x = barX(d.bar);
+  const y = py(d.price);
+  const txt = String(d.label || '');
+  const lines = txt.split('|').map(s => s.trim()).filter(Boolean);
+  const longest = Math.max(10, ...lines.map(l => l.length));
+  const boxW = Math.min(260, longest * 6.2 + 20); // rough text width
+  const boxH = Math.min(160, lines.length * 15 + 12);
+  const bxOff = barWidth * 1.5;
+  const lbx = x + bxOff;
+  const lby = y - boxH / 2;
+  return { x: lbx, y: lby, w: boxW, h: boxH };
+}
+
+function _rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function _mentorResolveLabelOverlaps(mentorDrawings, win) {
+  if (!win) return;
+  const labels = mentorDrawings.filter(d => d.type === 'mentor_label');
+  if (labels.length < 2) return;
+
+  // Keep labels close to their anchor; shift a few bars left/right if needed.
+  const maxShiftBars = 6;
+  const placed = [];
+
+  // Place higher-priority labels first, so lower-priority ones move.
+  labels.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
+
+  for (const d of labels) {
+    _mentorClampToVisiblePrice(d, win);
+    let rect = _mentorEstimateLabelRect(d, win);
+    if (!rect) continue;
+
+    // If label box goes off the right edge, shift anchor left.
+    const chartRight = win.W - (typeof R_PANEL_OFFSET === 'number' ? R_PANEL_OFFSET : 0);
+    if (rect.x + rect.w > chartRight - 6) {
+      const barsLeft = Math.ceil((rect.x + rect.w - (chartRight - 6)) / Math.max(1, barWidth));
+      d.bar = Math.max(win.firstBar, d.bar - barsLeft);
+      rect = _mentorEstimateLabelRect(d, win);
+    }
+
+    // If label box goes off the top/bottom, clamp price.
+    if (rect.y < 6 || rect.y + rect.h > win.H - 6) {
+      d.price = Math.max(win.visLo, Math.min(win.visHi, d.price));
+      rect = _mentorEstimateLabelRect(d, win);
+    }
+
+    let ok = true;
+    for (const p of placed) {
+      if (_rectsOverlap(rect, p.rect)) { ok = false; break; }
+    }
+    if (ok) { placed.push({ d, rect }); continue; }
+
+    // Try bar shifts alternating left/right.
+    const baseBar = d.bar;
+    for (let s = 1; s <= maxShiftBars; s++) {
+      for (const sign of [-1, 1]) {
+        const nb = Math.max(win.firstBar, Math.min(win.lastBar, baseBar + sign * s));
+        if (nb === d.bar) continue;
+        d.bar = nb;
+        rect = _mentorEstimateLabelRect(d, win);
+        if (!rect) continue;
+        if (rect.x + rect.w > chartRight - 6) continue;
+        let hit = false;
+        for (const p of placed) {
+          if (_rectsOverlap(rect, p.rect)) { hit = true; break; }
+        }
+        if (!hit) { ok = true; break; }
+      }
+      if (ok) break;
+    }
+    if (ok) placed.push({ d, rect });
+  }
+}
+
+function _mentorPostProcessAnnotations({ maxPerSetup = 5 } = {}) {
+  const win = _mentorGetVisibleWindow();
+  if (!win) return;
+
+  // Only operate on mentor drawings (we clear + rebuild each time).
+  let mentorDrawings = drawings.filter(d => d && d.isMentorAnnotation);
+  if (!mentorDrawings.length) return;
+
+  // Drop anything not anchored to visible chart data / outside visible price range.
+  mentorDrawings = mentorDrawings
+    .filter(d => _mentorDrawingInVisibleWindow(d, win))
+    .map(d => _mentorClampToVisiblePrice(d, win));
+
+  // Enforce clutter limit using universal hierarchy scoring.
+  mentorDrawings.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
+  mentorDrawings = mentorDrawings.slice(0, Math.max(0, maxPerSetup));
+
+  // Avoid overlaps for explanatory callouts.
+  _mentorResolveLabelOverlaps(mentorDrawings, win);
+
+  // Commit back.
+  const keepIds = new Set(mentorDrawings.map(d => d.id));
+  drawings = drawings.filter(d => !d.isMentorAnnotation || keepIds.has(d.id));
+  _mentorAnnotationIds = mentorDrawings.map(d => d.id);
+}
+
 // Add an arrow pointing at a specific bar/price.
 // direction: 'down' (arrow points down toward candle from above) or 'up'
 function _addMentorArrow(bar, price, label, direction = 'down', highlight = false) {
@@ -13035,6 +13239,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         ]);
     }
   }
+
+  // Enforce clean, professional markup rules:
+  // - anchored to chart data
+  // - within visible candle price range (except entry/SL/TP/targets)
+  // - max 5 annotations per setup
+  // - avoid overlapping callouts
+  _mentorPostProcessAnnotations({ maxPerSetup: 5 });
 
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
   if (typeof draw === 'function') draw();
