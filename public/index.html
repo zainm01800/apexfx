@@ -12217,7 +12217,9 @@ function hitTest(d, sx, sy){
       const bx = _barX(d.bar);
       const by = _py(d.price);
       const priority = d.priority || 2;
-      const placementSide = d.placementSide || (by < H/2 ? 'above' : 'below');
+      // Get canvas height from main-canvas element
+      const canvasHeight = document.getElementById('main-canvas')?.height || 600;
+      const placementSide = d.placementSide || (by < canvasHeight/2 ? 'above' : 'below');
       const txt = d.text || '';
 
       // Calculate bubble dimensions (same as render)
@@ -12266,7 +12268,7 @@ function hitTest(d, sx, sy){
         boxY = 15 + stackOffset;
         boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
       } else {
-        boxY = H - 15 - boxH - stackOffset;
+        boxY = canvasHeight - 15 - boxH - stackOffset;
         boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
       }
 
