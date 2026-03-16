@@ -12217,38 +12217,37 @@ function hitTest(d, sx, sy){
       const boxW = textWidth;
       const boxH = fontSize + 10;
       
-      // Calculate offset for clutter control
-      const minSpacing = 60;
-      const sameSideArrows = drawings.filter(other => 
-        other.type === 'mentor_arrow' && 
-        other.id !== d.id &&
-        (other.calloutPosition === (calloutAbove ? 'above' : 'below') || 
-         (!other.calloutPosition && ((calloutAbove && _py(other.price) > canvasHeight/2) ||
-                                    (!calloutAbove && _py(other.price) <= canvasHeight/2))))
-      );
-      
+      // Calculate offset based on nearby arrows for clean spacing
       let xOffset = 0;
+      let yOffset = 0;
       if (sameSideArrows.length > 0) {
         const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
         const index = myIndex === -1 ? sameSideArrows.length : myIndex;
-        xOffset = (index % 3) * minSpacing - minSpacing;
+        
+        // Match the grid organization from rendering
+        const cols = 3;
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        
+        xOffset = (col - 1) * minSpacing;
+        yOffset = row * (calloutAbove ? -25 : 25);
       }
       
       // Box position closer to anchor point (match rendering)
-      const naturalDistance = 80 + (d.randomValues?.boxYOffset || 5); // Approximate distance
+      const naturalDistance = 90;
       const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + (d.randomValues?.boxOffset || 0)));
       const boxY = calloutAbove 
-        ? Math.max(15, ay - naturalDistance + (d.randomValues?.boxYOffset || 0))
-        : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + (d.randomValues?.boxYOffset || 0));
+        ? Math.max(15, ay - naturalDistance + yOffset)
+        : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + yOffset);
       
       // Check if point is in box
       if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
         return true;
       }
       
-      // Check if point is near anchor (with stored randomness)
-      const anchorX = ax + xOffset + (d.randomValues?.anchorXOffset || 0);
-      const anchorY = ay + (isDown ? -4 : 4) + (d.randomValues?.anchorYOffset || 0);
+      // Check if point is near anchor (no randomness for stability)
+      const anchorX = ax + xOffset;
+      const anchorY = ay + (isDown ? -4 : 4);
       if (Math.abs(sx - anchorX) < 12 && Math.abs(sy - anchorY) < 12) {
         return true;
       }
@@ -13843,33 +13842,41 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
                                       (placementSide === 'below' && pyfn(other.price) <= canvasHeight/2))))
         );
         
-        // Calculate offset based on nearby arrows
+        // Calculate offset based on nearby arrows for clean spacing
         let xOffset = 0;
+        let yOffset = 0;
         if (sameSideArrows.length > 0) {
           const myIndex = sameSideArrows.findIndex(other => other.id > d.id);
           const index = myIndex === -1 ? sameSideArrows.length : myIndex;
-          xOffset = (index % 3) * minSpacing - minSpacing;
+          
+          // Create a grid-like organization
+          const cols = 3; // Max 3 arrows per row
+          const row = Math.floor(index / cols);
+          const col = index % cols;
+          
+          xOffset = (col - 1) * minSpacing; // -60, 0, +60
+          yOffset = row * (calloutAbove ? -25 : 25); // Stack rows vertically
         }
         
         // Store random values for consistent positioning and hit testing
         if (!d.randomValues) {
           d.randomValues = {
-            boxOffset: (Math.random() - 0.5) * 12, // Reduced from 20
-            boxYOffset: Math.random() * 6, // Reduced from 10
-            anchorXOffset: (Math.random() - 0.5) * 4, // Reduced from 8
-            anchorYOffset: (Math.random() - 0.5) * 2, // Reduced from 4
-            elbowXOffset: (Math.random() - 0.5) * 20, // Reduced from 40
-            elbowYOffset: (Math.random() - 0.5) * 6, // Reduced from 10
-            pathType: Math.floor(Math.random() * 3)
+            boxOffset: (Math.random() - 0.5) * 8, // Further reduced
+            boxYOffset: 0, // No vertical randomness for cleaner look
+            anchorXOffset: 0, // No anchor randomness for stability
+            anchorYOffset: 0,
+            elbowXOffset: (Math.random() - 0.5) * 15, // Subtle elbow variation
+            elbowYOffset: 0,
+            pathType: Math.floor(Math.random() * 2) // Only 2 cleaner path types
           };
         }
         
-        // Box position closer to anchor point for natural annotation
-        const naturalDistance = 80 + Math.random() * 40; // 80-120px from anchor
+        // Box position with organized spacing
+        const naturalDistance = 90; // Fixed distance for consistency
         const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + d.randomValues.boxOffset));
         const boxY = calloutAbove 
-          ? Math.max(15, ay - naturalDistance + d.randomValues.boxYOffset)
-          : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + d.randomValues.boxYOffset);
+          ? Math.max(15, ay - naturalDistance + yOffset)
+          : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + yOffset);
         
         // Smooth fade-in animation
         const creationTime = d.creationTime || Date.now();
@@ -13881,17 +13888,17 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.save();
         ctx.globalAlpha = alpha * easeOut;
         
-        // Anchor point with stored random offset
-        const anchorX = ax + xOffset + d.randomValues.anchorXOffset;
-        const anchorY = ay + (isDown ? -4 : 4) + d.randomValues.anchorYOffset;
+        // Anchor point with organized offset (no randomness)
+        const anchorX = ax + xOffset;
+        const anchorY = ay + (isDown ? -4 : 4);
         
         // Connection points
         const boxConnectX = boxX + boxW / 2;
         const boxConnectY = calloutAbove ? boxY + boxH : boxY;
         
-        // Elbow connector path with stored randomness
+        // Elbow connector path with subtle variation
         const elbowX = boxConnectX + d.randomValues.elbowXOffset;
-        const elbowY = anchorY + (calloutAbove ? -25 : 25) * easeOut + d.randomValues.elbowYOffset;
+        const elbowY = anchorY + (calloutAbove ? -20 : 20) * easeOut; // Fixed elbow distance
         
         // Draw elbow connector
         ctx.strokeStyle = accentCol;
@@ -13903,24 +13910,19 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         // Start at anchor point (on chart)
         ctx.moveTo(anchorX, anchorY);
         
-        // Create natural path with stored randomness
+        // Create clean path with minimal randomness
         const pathType = d.randomValues.pathType;
         
         if (pathType === 0) {
-          // Simple elbow with random bend point
-          const bendX = anchorX + (elbowX - anchorX) * (0.3 + Math.random() * 0.4);
+          // Simple clean elbow
+          const bendX = anchorX + (elbowX - anchorX) * 0.5; // Fixed midpoint
           const bendY = anchorY + (calloutAbove ? -15 : 15) * easeOut;
           ctx.lineTo(bendX, bendY);
           ctx.lineTo(elbowX, elbowY);
-        } else if (pathType === 1) {
-          // Curved path
-          const controlX = (anchorX + elbowX) / 2 + (Math.random() - 0.5) * 30;
-          const controlY = (anchorY + elbowY) / 2 + (Math.random() - 0.5) * 20;
-          ctx.quadraticCurveTo(controlX, controlY, elbowX, elbowY);
         } else {
-          // Angled path with two segments
-          const midX = anchorX + (elbowX - anchorX) * 0.5;
-          const midY = anchorY + (calloutAbove ? -20 : 20) * easeOut + (Math.random() - 0.5) * 15;
+          // Single angled path (cleaner)
+          const midX = (anchorX + elbowX) / 2;
+          const midY = anchorY + (calloutAbove ? -18 : 18) * easeOut;
           ctx.lineTo(midX, midY);
           ctx.lineTo(elbowX, elbowY);
         }
