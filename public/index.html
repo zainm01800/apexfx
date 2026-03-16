@@ -5402,17 +5402,19 @@ function updateLockedMentorUI() {
 function generateExampleTrade(setupData, currentBar) {
   if (!curData || !setupData) return null;
 
-  // Look 50 bars ahead (was 30 — wider window means more chance of reaching target)
-  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
-  if (futureCandles.length < 5) {
-    console.log('❌ Not enough future data for trade placement');
-    return null;
-  }
-
   const entryPrice = curData[currentBar].close;
   const direction  = setupData.direction || 'long';
 
-  const levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+  // Use pre-validated levels if available (set by generateSetupMessageWithExampleTrade)
+  let levels = setupData._prevalidatedLevels || null;
+  if (!levels) {
+    const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
+    if (futureCandles.length < 5) {
+      console.log('❌ Not enough future data for trade placement');
+      return null;
+    }
+    levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+  }
   if (!levels) {
     console.log('❌ generateExampleTrade: price action invalidates direction');
     return null;
@@ -8337,28 +8339,36 @@ function handleSetupDetectedState(currentBar) {
     return;
   }
   
-  // Setup bar reached — pause and show choose dialog
+  // Setup bar reached — pre-validate before locking the panel
   if (currentBar >= setupBar) {
-    console.log('✅ Setup bar reached, transitioning to setup_wait');
-    
-    mentorState.earlyWarningShown = false; // reset for next setup
-    
-    // Transition to setup_wait state with the setup data
+    console.log('✅ Setup bar reached, pre-validating before showing panel');
+
+    mentorState.earlyWarningShown = false;
+
+    const setupData = mentorState.upcomingSetup.setup;
+    mentorState.upcomingSetup = null; // clear regardless of outcome
+
+    const shown = generateSetupMessageWithExampleTrade(setupData, currentBar);
+
+    if (!shown) {
+      // Trade levels not achievable — skip silently and resume scanning
+      console.log('⏭️ Setup at target bar failed pre-validation — resuming scan');
+      mentorState.lifecycleState = 'scanning';
+      mentorState.lastTradeSuggestionBar = currentBar;
+      updateMentorUI();
+      return;
+    }
+
+    // Panel shown — lock state and pause
     mentorState.lifecycleState = 'setup_wait';
     mentorState.setupWaitStart = currentBar;
-    mentorState.setupWaitData = mentorState.upcomingSetup.setup;
-    
-    // Generate setup message with example trade
-    generateSetupMessageWithExampleTrade(mentorState.upcomingSetup.setup, currentBar);
-    
-    // Clear upcoming setup
-    mentorState.upcomingSetup = null;
-    
-    // Pause replay for setup analysis
+    mentorState.setupWaitData = setupData;
+    mentorState.setupPausedReplay = true;
+
     if (replayMode) {
       pauseReplayForSetup();
     }
-    
+
     updateMentorUI();
   }
   // Otherwise, continue replay and keep the same message
@@ -9056,26 +9066,32 @@ function updateMentor() {
           enterSetupDetectedState(windowScan);
           return;
         } else {
-          // Setup is at current bar - enter setup wait state and pause replay
-          console.log('🤖 Setup at current bar, entering setup wait state and pausing replay');
+          // Setup is at current bar — pre-validate before committing to setup_wait.
+          // generateSetupMessageWithExampleTrade returns false if trade levels are
+          // not achievable; in that case we silently skip and keep scanning.
+          console.log('🤖 Setup at current bar, pre-validating before showing panel');
+
+          const shown = generateSetupMessageWithExampleTrade(setupDetection, currentBar);
+
+          if (!shown) {
+            // Trade levels not achievable — treat as no setup, keep scanning
+            console.log('⏭️ Setup pre-validation failed — continuing scan silently');
+            mentorState.lastTradeSuggestionBar = currentBar; // apply cooldown to avoid tight loop
+            updateMentorUI();
+            return;
+          }
+
+          // Panel shown — now lock state and pause replay
           mentorState.lifecycleState = 'setup_wait';
           mentorState.setupWaitStart = currentBar;
           mentorState.setupWaitData = setupDetection;
           mentorState.lastTradeSuggestionBar = currentBar;
-          mentorState.messageLocked = true;
-          mentorState.lockedMessage = 'setup';
-          mentorState.lockedInsights = [...mentorState.currentInsights];
-          mentorState.lockedQuestion = mentorState.currentQuestion;
           mentorState.setupPausedReplay = true;
-          
-          // Generate setup message with example trade
-          generateSetupMessageWithExampleTrade(setupDetection, currentBar);
-          
-          // PAUSE REPLAY - Critical change
+
           if (replayMode) {
             pauseReplayForSetup();
           }
-          
+
           updateMentorUI();
           return;
         }
@@ -9230,23 +9246,47 @@ function generateHighQualityTradeInsights(setupDetection) {
   mentorState.currentQuestion = question;
 }
 
+// Returns true if the setup panel was shown, false if silently skipped.
+// Pre-validates that trade levels are achievable before showing anything to the user.
+// This prevents the "R:R insufficient" error panel from ever appearing.
 function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
-  const analysis = mentorState.analysis;
   console.log('🤖 generateSetupMessageWithExampleTrade called:', setupDetection);
-  
-  // Store the impending trade data to use if user says "Show Me"
+
+  if (!curData) return false;
+
+  // Pre-validate: confirm we can actually compute valid trade levels using the
+  // same helper that mentorShowMeTrade will use — no surprises at click time.
+  const direction     = setupDetection.direction || 'long';
+  const entryPrice    = curData[currentBar].close;
+  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
+
+  if (futureCandles.length < 5) {
+    console.log('⏭️ Not enough future data — skipping setup silently');
+    return false;
+  }
+
+  const levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+  if (!levels) {
+    console.log('⏭️ Price moves against direction — skipping setup silently');
+    return false;
+  }
+
+  // Cache validated levels so mentorShowMeTrade reuses them directly
+  setupDetection._prevalidatedLevels = levels;
+
+  // All good — store pending data and show the panel
   mentorState.pendingSetupDetection = setupDetection;
-  mentorState.pendingSetupBar = currentBar;
-  
-  // High quality trade insights provide the basis of the setup message
+  mentorState.pendingSetupBar       = currentBar;
+
   generateHighQualityTradeInsights(setupDetection);
-  
-  // Transform the question into an actionable mentor pause message
-  mentorState.currentQuestion = "A valid " + (setupDetection.setup || "trading") + " setup is forming based on the selected strategy. You can either watch the AI demonstrate the trade or try placing the trade yourself.";
-  
-  // Lock the message so it stays visible and shows the options
+
+  const setupName = (setupDetection.setup || 'trading').replace(/_/g, ' ');
+  mentorState.currentQuestion =
+    `Valid ${setupName} setup detected. Watch the AI demonstrate the trade, or try placing it yourself.`;
+
   lockSetupMessage(setupDetection);
   updateLockedMentorUI();
+  return true;
 }
 
 function mentorShowMeTrade() {
@@ -9282,17 +9322,20 @@ function mentorShowMeTrade() {
   
   const direction = setupData.direction || 'long';
   
-  // AI HAS FUTURE DATA — use shared helper for consistent, tighter SL/TP
-  const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 51, curData.length));
-  if (futureCandles.length < 5) {
-    mentorState.lockedQuestion = '⚠️ Cannot demonstrate trade: Not enough future data available. Try advancing more candles first.';
-    updateLockedMentorUI();
-    return;
-  }
-
-  const levels = computeMentorTradeLevels(direction, entryPrice, setupBar, futureCandles);
+  // Use pre-validated levels cached when the panel was shown — this guarantees
+  // they are always valid and avoids the double-computation that caused the
+  // "R:R insufficient" error message to appear.
+  let levels = setupData._prevalidatedLevels;
   if (!levels) {
-    mentorState.lockedQuestion = '⚠️ This setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
+    // Fallback: recompute (handles edge case where cache is missing)
+    const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 51, curData.length));
+    levels = futureCandles.length >= 5
+      ? computeMentorTradeLevels(direction, entryPrice, setupBar, futureCandles)
+      : null;
+  }
+  if (!levels) {
+    // Should never reach here after the pre-validation gate, but handle gracefully
+    mentorState.lockedQuestion = '⚠️ Setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
     updateLockedMentorUI();
     return;
   }
