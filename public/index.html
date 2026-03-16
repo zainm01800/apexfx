@@ -5962,76 +5962,101 @@ function continueReplayAfterTradeCompletion() {
 }
 
 // ══ SHARED MENTOR TRADE LEVEL CALCULATOR ════════════════════════════════════════════════════════════
-// The AI has full chart history in replay mode — it uses that advantage to place a
-// trade that is GUARANTEED to win: SL is placed safely below the lowest wick that
-// occurs BEFORE price moves in the trade direction, and TP is set at the highest/
-// lowest close reached before any meaningful reversal.
+// Proper trade construction:
+//   1. SL first — placed at the nearest structural swing low/high within 2×ATR,
+//      giving a sensible, tight stop that reflects real invalidation.
+//   2. TP second — the first future close that achieves at least 1.5:1 R:R.
+//      If price never reaches 1.5:1, we try 1:1 as an absolute minimum.
+//      If even that can't be reached, return null (setup rejected).
 //
-// Monitoring (monitorExampleTrade) checks CLOSE prices only — wicks cannot stop out
-// the AI trade. The SL is kept on the chart for visual reference only.
+// Monitoring (monitorExampleTrade) checks CLOSE prices only — wicks on the chart
+// are visual reference only and will never stop out the AI trade.
 function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles) {
   const atr = calculateATR(barIndex, 14) || (entryPrice * 0.01);
-
   if (!futureCandles || futureCandles.length < 5) return null;
 
-  // ── Step 1: Walk future candles to find the best close-price TP ─────────
-  // For longs: find the highest close before a significant reversal.
-  // For shorts: find the lowest close before a significant reversal.
-  let bestClose = entryPrice;
-  let worstWickBeforeTP = direction === 'long' ? entryPrice : entryPrice; // lowest low / highest high before TP bar
-
-  let tpBar = -1;
-  for (let i = 0; i < futureCandles.length; i++) {
-    const c = futureCandles[i];
+  // ── Step 1: Structural SL from the last 10 bars of history ───────────────
+  // Find the nearest significant swing low (for longs) or swing high (for shorts)
+  // within the last 10 bars. Cap at 1.5×ATR so the stop is never absurdly wide.
+  let structuralStop = null;
+  const lookback = Math.min(10, barIndex);
+  if (curData && barIndex >= lookback) {
     if (direction === 'long') {
-      // Track the deepest wick BEFORE we commit to a TP bar
-      if (tpBar === -1 && c.low < worstWickBeforeTP) worstWickBeforeTP = c.low;
-      if (c.close > bestClose) {
-        bestClose = c.close;
-        tpBar = i;
+      let swingLow = entryPrice;
+      for (let k = barIndex - lookback; k <= barIndex; k++) {
+        if (curData[k] && curData[k].low < swingLow) swingLow = curData[k].low;
+      }
+      // SL just below the swing low — but cap at 1.5×ATR from entry
+      structuralStop = swingLow * 0.999;
+      if (entryPrice - structuralStop > atr * 1.5) {
+        structuralStop = entryPrice - atr * 1.5;
       }
     } else {
-      if (tpBar === -1 && c.high > worstWickBeforeTP) worstWickBeforeTP = c.high;
-      if (c.close < bestClose) {
-        bestClose = c.close;
-        tpBar = i;
+      let swingHigh = entryPrice;
+      for (let k = barIndex - lookback; k <= barIndex; k++) {
+        if (curData[k] && curData[k].high > swingHigh) swingHigh = curData[k].high;
+      }
+      structuralStop = swingHigh * 1.001;
+      if (structuralStop - entryPrice > atr * 1.5) {
+        structuralStop = entryPrice + atr * 1.5;
       }
     }
   }
-
-  // Must move meaningfully in the right direction
-  if (direction === 'long'  && bestClose <= entryPrice) return null;
-  if (direction === 'short' && bestClose >= entryPrice) return null;
-
-  // ── Step 2: TP = best close minus a small buffer so it registers on close ─
-  let takeProfit;
-  if (direction === 'long') {
-    takeProfit = bestClose * 0.9995; // just below best close
-  } else {
-    takeProfit = bestClose * 1.0005; // just above best close
+  // Fallback: 1×ATR stop
+  if (!structuralStop) {
+    structuralStop = direction === 'long'
+      ? entryPrice - atr
+      : entryPrice + atr;
   }
 
-  // ── Step 3: SL = safely beyond the worst wick that appears before TP ─────
-  // Place SL 0.2×ATR beyond that wick — guaranteed never touched by close prices
-  // (monitorExampleTrade only checks closes, not wicks).
-  let stopLoss;
-  if (direction === 'long') {
-    // SL below the deepest wick seen before TP bar
-    stopLoss = Math.min(worstWickBeforeTP, entryPrice) * 0.9985 - (atr * 0.2);
-    // Hard cap: SL never more than 3×ATR from entry (keeps R:R readable on chart)
-    stopLoss = Math.max(stopLoss, entryPrice - atr * 3);
-  } else {
-    stopLoss = Math.max(worstWickBeforeTP, entryPrice) * 1.0015 + (atr * 0.2);
-    stopLoss = Math.min(stopLoss, entryPrice + atr * 3);
-  }
-
+  const stopLoss    = structuralStop;
   const riskDistance = Math.abs(entryPrice - stopLoss);
-  const rewardAmt    = Math.abs(takeProfit - entryPrice);
-  const rr           = rewardAmt / Math.max(riskDistance, 0.0001);
+  if (riskDistance < 0.0001) return null;
+
+  // ── Step 2: TP = first future close that hits ≥1.5:1 R:R ─────────────────
+  // Walk future candles and find the first close that achieves the target.
+  // If 1.5:1 is never reached, try 1.2:1, then 1:1 as absolute minimum.
+  const minRRLevels = [1.5, 1.2, 1.0];
+  let takeProfit = null;
+
+  for (const minRR of minRRLevels) {
+    const targetDistance = riskDistance * minRR;
+    const targetPrice = direction === 'long'
+      ? entryPrice + targetDistance
+      : entryPrice - targetDistance;
+
+    for (let i = 0; i < futureCandles.length; i++) {
+      const closePrice = futureCandles[i].close;
+      const hit = direction === 'long'
+        ? closePrice >= targetPrice
+        : closePrice <= targetPrice;
+      if (hit) {
+        // Make sure price hasn't already closed through the SL before this bar
+        let slHitFirst = false;
+        for (let j = 0; j < i; j++) {
+          const c = futureCandles[j].close;
+          if (direction === 'long' && c <= stopLoss) { slHitFirst = true; break; }
+          if (direction === 'short' && c >= stopLoss) { slHitFirst = true; break; }
+        }
+        if (!slHitFirst) {
+          takeProfit = targetPrice;
+          break;
+        }
+      }
+    }
+    if (takeProfit !== null) break;
+  }
+
+  // If no TP achievable without SL being hit first, reject the setup
+  if (takeProfit === null) return null;
+
+  const rewardAmt = Math.abs(takeProfit - entryPrice);
+  const rr        = rewardAmt / riskDistance;
 
   console.log('🎯 computeMentorTradeLevels:', {
-    direction, entry: entryPrice, stopLoss, takeProfit,
-    rr: rr.toFixed(2), tpBar, worstWickBeforeTP
+    direction, entry: entryPrice.toFixed(4),
+    sl: stopLoss.toFixed(4), tp: takeProfit.toFixed(4),
+    rr: rr.toFixed(2), atr: atr.toFixed(4)
   });
 
   return { stopLoss, takeProfit, rr, atr, riskDistance };
