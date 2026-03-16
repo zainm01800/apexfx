@@ -5986,40 +5986,61 @@ function handleTradeCompletion(outcome, currentBar) {
 }
 
 function continueReplayAfterTradeCompletion() {
-  // Clear stored setup data so NEXT trade starts fresh (annotations stay until user deletes)
-  mentorState._tradeSetupData       = null;
-  mentorState._lastAnnotateBar      = null;
-  mentorState._lastAnnotateStage    = 0;
+  // ── Full state reset for next trade ─────────────────────────────────────
+  // Annotation state
+  mentorState._tradeSetupData           = null;
+  mentorState._lastAnnotateBar          = null;
+  mentorState._lastAnnotateStage        = 0;
+  mentorState._lastAnnStateKey          = null;  // force fresh annotation draw
   mentorState._annotationsDrawnForTrade = false;
-  if (typeof _scanCache !== 'undefined') _scanCache = { bar: -1, result: null, method: null };
-  // Reset trade state
-  mentorState.exampleTrade = null;
-  mentorState.exampleTradeActive = false;
-  mentorState.exampleTradeOutcome = null;
-  mentorState.tradeMonitoringUpdates = [];
-  
-  // Reset message lock
-  mentorState.messageLocked = false;
-  mentorState.lockedMessage = null;
-  mentorState.lockedInsights = [];
-  mentorState.lockedQuestion = '';
-  mentorState.realtimeUpdates = [];
-  
-  // Return to scanning
-  mentorState.lifecycleState = 'scanning';
-  mentorState.currentInsights = ['📊 Resuming market scanning for new opportunities...'];
-  mentorState.currentQuestion = 'Looking for the next trading setup...';
-  
-  mentorState.setupPausedReplay = false;
-  mentorState._freezeScrollForPreview = false;
 
-  // Auto-start replay — spec says Continue should resume without user pressing play
+  // Scan / AI state
+  if (typeof _scanCache !== 'undefined') _scanCache = { bar: -1, result: null, method: null };
+  mentorState._aiGeneration             = (mentorState._aiGeneration || 0) + 1;
+  mentorState._confluencePauses         = new Set();
+  mentorState._lastMentorUpdateBar      = -99;  // allow immediate scan on next bar
+  mentorState._analysisCache            = null;
+
+  // Setup detection state
+  mentorState.earlyWarningShown         = false;
+  mentorState.upcomingSetup             = null;
+  mentorState.pendingSetupDetection     = null;
+  mentorState.pendingSetupBar           = null;
+
+  // Trade state
+  mentorState.exampleTrade              = null;
+  mentorState.exampleTradeActive        = false;
+  mentorState.exampleTradeOutcome       = null;
+  mentorState.exampleTradeDrawingId     = null;
+  mentorState.tradeMonitoringUpdates    = [];
+  mentorState.monitoredTrade            = null;
+  mentorState.tradeResultData           = null;
+  mentorState.resultExplained           = false;
+
+  // Message / UI lock
+  mentorState.messageLocked             = false;
+  mentorState.lockedMessage             = null;
+  mentorState.lockedInsights            = [];
+  mentorState.lockedQuestion            = '';
+  mentorState.realtimeUpdates           = [];
+  mentorState.lastTradeSuggestionBar    = replayCutoff; // start cooldown from current bar
+
+  // Replay state
+  mentorState.setupPausedReplay         = false;
+  mentorState._freezeScrollForPreview   = false;
+
+  // Use setMentorState so dependent fields sync correctly
+  setMentorState('scanning', 'trade completed');
+  mentorState.currentInsights = ['🔍 Scanning for the next setup...'];
+  mentorState.currentQuestion = 'Watch the chart — the mentor will highlight the next opportunity.';
+
+  updateMentorUI();
+
+  // Auto-resume replay
   if (replayMode && !replayTimer) {
     replayTimer = setInterval(() => replayStep(1), replaySpeed || 500);
     updateReplayStatus();
   }
-
-  updateMentorUI();
 }
 
 // ══ SHARED MENTOR TRADE LEVEL CALCULATOR ════════════════════════════════════════════════════════════
@@ -9227,53 +9248,10 @@ function pauseReplayForTradeCompletion() {
   }
 }
 
-function continueReplayAfterTradeCompletion() {
-  // Clear the trade review UI first
-  closeTradeReview();
-  
-  // Reset all trade-related states
-  mentorState.lifecycleState = 'scanning';
-  mentorState.setupWaitStart = null;
-  mentorState.setupWaitData = null;
-  mentorState.monitoredTrade = null;
-  mentorState.tradeResultData = null;
-  mentorState.resultExplained = false;
-  mentorState.messageLocked = false;
-  mentorState.lockedMessage = null;
-  mentorState.lockedInsights = [];
-  mentorState.lockedQuestion = '';
-  mentorState.realtimeUpdates = [];
-  mentorState.exampleTrade = null;
-  mentorState.exampleTradeActive = false;
-  mentorState.exampleTradeOutcome = null;
-  mentorState.tradeMonitoringUpdates = [];
-  
-  // Hide trade completion controls
-  const controls = document.getElementById('trade-completion-controls');
-  if (controls) {
-    controls.style.display = 'none';
-  }
-  
-  // Resume replay if it was paused
-  if (replayMode && replayPaused && mentorState.setupPausedReplay) {
-    replayPaused = false;
-    mentorState.setupPausedReplay = false;
-    console.log('▶️ Replay resumed after trade completion');
-    
-    // Update replay button
-    const replayBtn = document.getElementById('replay-play-btn');
-    if (replayBtn) {
-      replayBtn.innerHTML = '⏸️';
-    }
-  }
-  
-  // Reset to scanning state
-  mentorState.currentInsights = ['📊 Resuming market scanning...'];
-  mentorState.currentQuestion = 'Looking for new trading opportunities...';
-  
-  updateMentorUI();
-  toast('🔍 Continuing replay - searching for next setup...');
-}
+// NOTE: the authoritative continueReplayAfterTradeCompletion is defined earlier
+// in the file (the first definition). This second definition was a stale duplicate
+// that won via JS hoisting and didn't reset the annotation/cache state, causing
+// annotations to not appear on the second trade. Removed — first definition handles all.
 
 // ══ LIFECYCLE HELPER FUNCTIONS ═══════════════════════════════════════════════════════════
 
