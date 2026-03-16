@@ -4890,31 +4890,27 @@ function toggleReplay(){
 }
 
 function triggerReplayRescan() {
+  // CRITICAL: Never interrupt setup_detected or later states — the injected
+  // upcomingSetup from _mfLaunch must survive until the early warning fires.
+  const protectedStates = ['setup_detected', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'];
+  if (protectedStates.includes(mentorState.lifecycleState)) {
+    console.log('🔄 triggerReplayRescan skipped — protected state:', mentorState.lifecycleState);
+    return;
+  }
+
   console.log('🔄 Triggering immediate replay rescan...');
-  
-  // Reset to scanning state
   mentorState.lifecycleState = 'scanning';
   mentorState.waitingStateStart = null;
   mentorState.waitingStateMessage = null;
-  mentorState.upcomingSetup = null; // Clear any upcoming setup
-  
-  // Clear locked message to allow fresh analysis
+  mentorState.upcomingSetup = null;
   mentorState.messageLocked = false;
   mentorState.lockedMessage = '';
   mentorState.lockedInsights = [];
   mentorState.lockedQuestion = '';
-  
-  // Show scanning message
   mentorState.currentInsights = ['🔍 Scanning for trading setups...'];
   mentorState.currentQuestion = 'Analyzing market data for valid setups...';
-  
-  // Force immediate update
   updateMentorUI();
-  
-  // Trigger immediate mentor update to re-scan
-  setTimeout(() => {
-    updateMentor();
-  }, 100);
+  setTimeout(() => { updateMentor(); }, 100);
 }
 
 function startReplay(){
@@ -8763,8 +8759,15 @@ function handleWaitingState(currentBar) {
 }
 
 function enterSetupDetectedState(windowScan) {
-  console.log('🎯 Setup detected but location hidden - entering setup_detected state');
+  // Don't overwrite an already-injected setup (e.g. from _mfLaunch).
+  // The injected setup has a known future bar and must not be replaced by a
+  // scan that might find a different bar closer to currentBar.
+  if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+    console.log('🔒 enterSetupDetectedState: existing setup preserved, skipping override');
+    return;
+  }
 
+  console.log('🎯 Setup detected — entering setup_detected state at bar', windowScan.bar);
   mentorState.lifecycleState = 'setup_detected';
   mentorState.upcomingSetup = {
     setup: windowScan.setup,
@@ -9606,7 +9609,12 @@ function updateMentor() {
     updateMentorUI();
     return;
   } else if (mentorState.lifecycleState === 'setup_detected') {
-    // Rebuild proximity message live on every bar, then check if setup bar reached
+    // Guard: if upcomingSetup was cleared somehow, go back to scanning
+    if (!mentorState.upcomingSetup) {
+      mentorState.lifecycleState = 'scanning';
+      updateMentorUI();
+      return;
+    }
     _buildSetupDetectedMessage(currentBar);
     handleSetupDetectedState(currentBar);
     return;
