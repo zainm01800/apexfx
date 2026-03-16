@@ -12857,14 +12857,16 @@ _addMentorArrow = function(...args) {
 };
 
 // Test function for mentor arrows (remove after testing)
-function testMentorArrow() {
+window.testMentorArrow = function() {
   if (curData && curData.length > 50) {
     const testBar = Math.floor(curData.length * 0.7);
     const testPrice = curData[testBar].c;
     _addMentorArrow(testBar, testPrice, '🎯 Test Natural Arrow', 'down', true);
     console.log('Test mentor arrow added');
+  } else {
+    console.log('No data available for testing');
   }
-}
+};
 
 // ── Mentor Annotation System ─────────────────────────────────────────────
 // Draws arrows, highlight boxes, and label callouts on the chart at key
@@ -13795,9 +13797,10 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
         const tipSize   = tier === 'primary' ? 6 : 5;
         
-        // Get canvas height for positioning
-        const canvasHeight = H || 600;
-        const canvasWidth = W || 800;
+        // Get canvas dimensions properly
+        const mc = document.getElementById('main-canvas');
+        const canvasHeight = mc ? mc.height : 600;
+        const canvasWidth = mc ? mc.width : 800;
         
         // Determine arrow direction and callout position
         const calloutAbove = d.calloutPosition === 'above' || (!d.calloutPosition && ay > canvasHeight / 2);
