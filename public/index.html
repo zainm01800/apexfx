@@ -5270,12 +5270,18 @@ function pauseReplayForSetup() {
   toast('⏸ Auto-paused for setup analysis');
 }
 
-function resumeReplayAfterSetup() {
-  if (!mentorState.setupPausedReplay) return;
-  
+function resumeReplayAfterSetup(autoPlay = false) {
   mentorState.setupPausedReplay = false;
-  // Don't auto-resume - let user manually resume
-  toast('▶ Replay ready - press Space to continue');
+  if (autoPlay && replayMode && !replayTimer) {
+    // Auto-start the replay timer so the trade plays out immediately
+    replayTimer = setInterval(() => {
+      replayStep(1);
+    }, replaySpeed || 500);
+    updateReplayStatus();
+    draw();
+  } else {
+    toast('▶ Replay ready — press Space to continue');
+  }
 }
 
 function dismissSetupMessage() {
@@ -5579,22 +5585,39 @@ function monitorExampleTrade(currentBar) {
 
   const trade = mentorState.exampleTrade;
 
-  // If the entry bar hasn't been reached yet, just show a "waiting for entry" note.
-  // This happens when "Show Me The Trade" is clicked before the setup bar arrives.
+  // ── Pre-entry phase: educate while candles approach the entry line ──────────
   if (currentBar < trade.barIndex) {
     const barsToEntry = trade.barIndex - currentBar;
-    const hint = barsToEntry <= 3 ? 'Entry candle arriving...' : `Entry in ~${barsToEntry} candles`;
-    if (!mentorState.tradeMonitoringUpdates.includes(hint)) {
-      mentorState.tradeMonitoringUpdates = [hint];
+    let commentary;
+    if (barsToEntry > 8) {
+      commentary = `⏳ ${barsToEntry} candles until entry @ ${trade.entry.toFixed(4)} — watch price approaching the level`;
+    } else if (barsToEntry > 3) {
+      commentary = `🔔 Entry approaching in ~${barsToEntry} candles — price is converging on the entry zone`;
+    } else if (barsToEntry > 1) {
+      commentary = `⚡ Entry imminent — next ${barsToEntry} candles will determine if price reaches the entry`;
+    } else {
+      commentary = `🎯 Entry candle forming — watch this candle closely`;
+    }
+    // Update at most once per bar
+    const lastUpdate = mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1];
+    if (lastUpdate !== commentary) {
+      mentorState.tradeMonitoringUpdates = [commentary];
+      mentorState.lockedQuestion = '▶ Replay running — watch the trade unfold live...';
       updateLockedMentorUI();
     }
     return;
   }
 
-  // Entry bar reached — clear pending flag
+  // ── Entry bar reached ────────────────────────────────────────────────────
   if (trade.pendingEntry) {
     trade.pendingEntry = false;
-    mentorState.tradeMonitoringUpdates = ['✅ Entry bar reached — trade is now active'];
+    const dirLabel = trade.direction === 'long' ? 'LONG' : 'SHORT';
+    mentorState.tradeMonitoringUpdates = [
+      `✅ Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
+      `🛡️ Stop Loss active @ ${trade.stopLoss.toFixed(4)}`,
+      `🏆 Target @ ${trade.takeProfit.toFixed(4)} — R:R ${trade.riskReward?.toFixed(1) || '?'}:1`,
+    ];
+    mentorState.lockedQuestion = '📊 Trade is live — watching for TP or SL...';
     updateLockedMentorUI();
   }
 
@@ -5634,51 +5657,51 @@ function monitorExampleTrade(currentBar) {
 }
 
 function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
-  const priceChange = (currentPrice - previousPrice) / previousPrice;
-  const distanceToEntry = Math.abs(currentPrice - trade.entry) / trade.entry;
-  const distanceToSL = Math.abs(currentPrice - trade.stopLoss) / trade.entry;
-  const distanceToTP = Math.abs(currentPrice - trade.takeProfit) / trade.entry;
-  
-  let update = '';
-  
-  // Determine trade status
-  if (distanceToEntry < 0.005) {
-    update = "• Price consolidating around entry level";
-  } else if ((trade.direction === 'long' && currentPrice > trade.entry) || 
-             (trade.direction === 'short' && currentPrice < trade.entry)) {
-    update = "• Trade moving in favorable direction";
-    
-    if (distanceToTP < 0.01) {
-      update = "• Approaching take profit level";
-    } else if (distanceToTP < 0.05) {
-      update = "• Gaining momentum towards target";
-    }
+  const riskDist   = Math.abs(trade.entry - trade.stopLoss);
+  const rewardDist = Math.abs(trade.takeProfit - trade.entry);
+  if (riskDist === 0) return;
+
+  // How far price has moved as a fraction of risk
+  const pnlR = trade.direction === 'long'
+    ? (currentPrice - trade.entry) / riskDist
+    : (trade.entry - currentPrice) / riskDist;
+
+  // % of the way to TP
+  const pctToTP = trade.direction === 'long'
+    ? Math.max(0, (currentPrice - trade.entry) / rewardDist * 100)
+    : Math.max(0, (trade.entry - currentPrice) / rewardDist * 100);
+
+  const priceChange = (currentPrice - previousPrice) / (previousPrice || 1);
+  const momentum = trade.direction === 'long' ? priceChange > 0 : priceChange < 0;
+
+  let update;
+
+  if (pnlR >= 1.4) {
+    update = `🏆 Almost there! Price is ${pctToTP.toFixed(0)}% of the way to TP — holding strong`;
+  } else if (pnlR >= 0.8) {
+    update = `✅ Trade at +${pnlR.toFixed(1)}R — well into profit, target within reach`;
+  } else if (pnlR >= 0.3) {
+    update = `📈 Trade progressing: +${pnlR.toFixed(1)}R — ${pctToTP.toFixed(0)}% to target${momentum ? ', momentum positive' : ''}`;
+  } else if (pnlR >= 0) {
+    update = `📊 Just above entry — trade open, watching for momentum to build`;
+  } else if (pnlR >= -0.5) {
+    update = `⚠️ Price pulled back to ${pnlR.toFixed(1)}R — normal in any trade, stop loss is protecting the position`;
   } else {
-    update = "• Trade moving against entry";
-    
-    if (distanceToSL < 0.01) {
-      update = "• ⚠️ Approaching stop loss level";
-    } else if (distanceToSL < 0.05) {
-      update = "• ⚠️ Risk increasing, watch stop loss";
-    }
+    update = `🔴 Near stop loss (${pnlR.toFixed(1)}R) — price testing the invalidation level`;
   }
-  
-  // Add momentum analysis
-  if (Math.abs(priceChange) > 0.02) {
-    if ((trade.direction === 'long' && priceChange > 0) || 
-        (trade.direction === 'short' && priceChange < 0)) {
-      update += " (strong momentum)";
-    } else {
-      update += " (weakening momentum)";
-    }
-  }
-  
-  // Add update if it's new
-  if (update && !mentorState.tradeMonitoringUpdates.includes(update)) {
+
+  // Only add if meaningfully different from the last update
+  const last = mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1];
+  if (update !== last) {
     mentorState.tradeMonitoringUpdates.push(update);
-    // Keep only last 4 updates
-    if (mentorState.tradeMonitoringUpdates.length > 4) {
+    if (mentorState.tradeMonitoringUpdates.length > 3) {
       mentorState.tradeMonitoringUpdates.shift();
+    }
+    // Update the locked question too so the amber text stays relevant
+    if (mentorState.messageLocked) {
+      const rLabel = pnlR >= 0 ? `+${pnlR.toFixed(1)}R` : `${pnlR.toFixed(1)}R`;
+      mentorState.lockedQuestion = `📊 Trade running — P&L: ${rLabel} | TP @ ${trade.takeProfit.toFixed(4)}`;
+      updateLockedMentorUI();
     }
   }
 }
@@ -9684,25 +9707,38 @@ function mentorShowMeTrade() {
   mentorState.pendingSetupDetection  = null;
   mentorState.pendingSetupBar        = null;
 
-  // ── Update mentor panel message ───────────────────────────────────────────
-  const dirLabel = direction.toUpperCase();
-  const rrLabel  = rr.toFixed(1);
-  mentorState.lockedQuestion =
-    `📊 AI levels drawn: ${dirLabel} entry @ ${entryPrice.toFixed(4)} | ` +
-    `SL ${stopLoss.toFixed(4)} | TP ${takeProfit.toFixed(4)} (${rrLabel}:1 R:R). ` +
-    `▶ Resume replay and watch the candle arrive at the entry.`;
+  // ── Panel: educational commentary instead of a raw level dump ─────────────
+  const dirLabel   = direction === 'long' ? 'LONG' : 'SHORT';
+  const dirEmoji   = direction === 'long' ? '📈' : '📉';
+  const rrLabel    = rr.toFixed(1);
+  const setupName  = (setupData.setup || 'trading').replace(/_/g, ' ');
+
+  // Insights: explain each level clearly
+  mentorState.lockedInsights = [
+    `${dirEmoji} AI is placing a ${dirLabel} trade on a ${setupName} setup`,
+    `🎯 Entry: ${entryPrice.toFixed(4)} — entering on the open of the next bar after setup confirmation`,
+    `🛡️ Stop Loss: ${stopLoss.toFixed(4)} — placed below the recent structural low to invalidate the setup`,
+    `🏆 Take Profit: ${takeProfit.toFixed(4)} — targeting ${rrLabel}:1 risk-to-reward`,
+    `📊 Watch the candles approach the entry line. The trade becomes active when price reaches ${entryPrice.toFixed(4)}.`,
+  ];
+  mentorState.lockedQuestion = '▶ Playing replay — watch the trade unfold live...';
+  mentorState.messageLocked  = true;
+  mentorState.lockedMessage  = 'ai_trade_pending';
 
   const ctrl = document.getElementById('setup-message-controls');
   if (ctrl) ctrl.style.display = 'none';
 
-  // Transition lifecycle so the panel stays in monitoring mode
+  // Show trade-completion controls only after trade resolves
+  const complCtrl = document.getElementById('trade-completion-controls');
+  if (complCtrl) complCtrl.style.display = 'none';
+
   mentorState.lifecycleState    = 'trade_monitoring';
   mentorState.setupPausedReplay = false;
 
   updateLockedMentorUI();
 
-  // ── Resume replay — user watches the trade develop live ──────────────────
-  resumeReplayAfterSetup();
+  // ── Auto-play immediately — user watches the whole thing live ─────────────
+  resumeReplayAfterSetup(true);
 }
 
 function mentorLetMeTry() {
