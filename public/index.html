@@ -1293,18 +1293,29 @@ body.is-dragging { user-select: none; }
         </div>
         
         <!-- Setup Message Controls -->
-        <div id="setup-message-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:8px;margin-bottom:12px;">
+        <div id="setup-message-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:10px;margin-bottom:12px;">
+          <!-- Annotation toggle row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--b1);">
+            <span style="color:var(--tx3);font-size:11px;">Show chart annotations?</span>
+            <div style="display:flex;gap:6px;">
+              <button id="btn-annotations-yes" onclick="mentorToggleAnnotations(true)"
+                style="padding:3px 10px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;">Yes ✓</button>
+              <button id="btn-annotations-no" onclick="mentorToggleAnnotations(false)"
+                style="padding:3px 10px;background:var(--bg1);color:var(--tx3);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">No</button>
+            </div>
+          </div>
+          <!-- Action buttons -->
           <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
-            <button onclick="dismissSetupMessage()" style="padding:4px 8px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">Dismiss</button>
-            <button onclick="mentorShowMeTrade()" style="padding:4px 8px;background:var(--blue);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Show Me The Trade</button>
-            <button onclick="mentorLetMeTry()" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Let Me Try It</button>
+            <button onclick="dismissSetupMessage()" style="padding:5px 10px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:4px;cursor:pointer;font-size:11px;">Dismiss</button>
+            <button onclick="mentorShowMeTrade()" style="padding:5px 12px;background:var(--blue);color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">Show Me The Setup</button>
+            <button onclick="mentorLetMeTry()" style="padding:5px 12px;background:var(--green);color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">Let Me Do It</button>
           </div>
         </div>
         
         <!-- Trade Completion Controls -->
         <div id="trade-completion-controls" style="display:none;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:8px;margin-bottom:12px;">
           <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
-            <button onclick="continueReplayAfterTradeCompletion()" style="padding:4px 8px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;">Continue Replay</button>
+            <button onclick="continueReplayAfterTradeCompletion()" style="padding:6px 16px;background:var(--green);color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">▶ Continue Replay</button>
           </div>
         </div>
         
@@ -6030,8 +6041,7 @@ function handleTradeCompletion(outcome, currentBar) {
 }
 
 function continueReplayAfterTradeCompletion() {
-  // Annotations kept until user clears manually — but clear the stored setup data
-  // so the NEXT trade starts fresh
+  // Clear stored setup data so NEXT trade starts fresh (annotations stay until user deletes)
   mentorState._tradeSetupData = null;
   mentorState._lastAnnotateBar = null;
   // Reset trade state
@@ -6052,12 +6062,15 @@ function continueReplayAfterTradeCompletion() {
   mentorState.currentInsights = ['📊 Resuming market scanning for new opportunities...'];
   mentorState.currentQuestion = 'Looking for the next trading setup...';
   
-  // Resume replay if it was paused
-  if (mentorState.setupPausedReplay || replayMode) {
-    resumeReplayAfterSetup();
+  mentorState.setupPausedReplay = false;
+  mentorState._freezeScrollForPreview = false;
+
+  // Auto-start replay — spec says Continue should resume without user pressing play
+  if (replayMode && !replayTimer) {
+    replayTimer = setInterval(() => replayStep(1), replaySpeed || 500);
+    updateReplayStatus();
   }
-  
-  // Update UI
+
   updateMentorUI();
 }
 
@@ -8660,6 +8673,14 @@ function handleSetupDetectedState(currentBar) {
     mentorState.messageLocked   = true;
     mentorState.lockedMessage   = 'setup';
     mentorState._proximityHintCache = null; // clear for fresh hint
+    mentorState.annotationsEnabled = true;  // default ON for each new setup
+    // Reset annotation toggle buttons to default (Yes selected)
+    setTimeout(() => {
+      const y = document.getElementById('btn-annotations-yes');
+      const n = document.getElementById('btn-annotations-no');
+      if (y) { y.style.background='var(--green)'; y.style.color='white'; y.style.border='none'; }
+      if (n) { n.style.background='var(--bg1)'; n.style.color='var(--tx3)'; n.style.border='1px solid var(--b1)'; }
+    }, 50);
 
     if (replayMode) pauseReplayForSetup();
 
@@ -8696,7 +8717,7 @@ function handleSetupDetectedState(currentBar) {
         ];
       }
       mentorState.lockedQuestion =
-        `Press "Show Me The Trade" to place AI levels and watch it play out — or "Let Me Try It" to place your own.`;
+        `A potential ${setupName} setup based on your ${ctx?.method || method} strategy is forming. Would you like the mentor to guide you through it?`;
       updateLockedMentorUI();
     });
     return;
@@ -9529,10 +9550,10 @@ Write EXACTLY 4 lines. Each starts with a different emoji. Each is ONE sentence,
 
 Line 1 (${isWin ? '✅' : '❌'}): Did the core ${setupType} thesis play out — what specifically confirmed or failed?
 Line 2 (📊): Name the strongest confluence that was present, and whether it mattered to the outcome
-Line 3 (💡): What EXACT thing to check next time before entering a ${setupType} trade (one specific criterion)
-Line 4 (⚖️): Was the SL at ${trade.stopLoss.toFixed(4)} the right structural level, or should it have been different?
+Line 3 (💡): Key lesson — one specific, actionable thing the trader should do differently or look for next time
+Line 4 (⚖️): Was the SL at ${trade.stopLoss.toFixed(4)} the right structural level, or should it have been tighter/wider?
 
-${isWin ? 'Tone: reinforce what worked, one thing to improve.' : 'Tone: constructive. Identify the weakest confluence and why it failed.'}
+${isWin ? 'Tone: positive reinforcement — say what worked and one thing to sharpen.' : 'Tone: constructive. Frame it as useful data. Every losing trade teaches something.'}
 No intro. Start with line 1.`;
 
   try {
@@ -9980,6 +10001,30 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
   lockSetupMessage(setupDetection);
   updateLockedMentorUI();
   return true;
+}
+
+// Annotation preference — default ON, user can toggle via the setup controls
+mentorState.annotationsEnabled = true;
+
+function mentorToggleAnnotations(enable) {
+  mentorState.annotationsEnabled = enable;
+  const btnYes = document.getElementById('btn-annotations-yes');
+  const btnNo  = document.getElementById('btn-annotations-no');
+  if (btnYes && btnNo) {
+    btnYes.style.background = enable ? 'var(--green)' : 'var(--bg1)';
+    btnYes.style.color      = enable ? 'white' : 'var(--tx3)';
+    btnYes.style.border     = enable ? 'none' : '1px solid var(--b1)';
+    btnNo.style.background  = enable ? 'var(--bg1)' : 'var(--rd)';
+    btnNo.style.color       = enable ? 'var(--tx3)' : 'white';
+    btnNo.style.border      = enable ? '1px solid var(--b1)' : 'none';
+  }
+  if (!enable) {
+    clearMentorAnnotations();
+  } else if (mentorState._tradeSetupData) {
+    // Re-draw annotations if they were disabled then re-enabled
+    const tsd = mentorState._tradeSetupData;
+    _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+  }
 }
 
 function mentorShowMeTrade() {
@@ -12638,6 +12683,11 @@ function _addMentorLabel(bar, price, lines) {
 // relevant annotations on the chart to show the user WHAT to look at.
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData) return;
+  // Respect the user's annotation preference
+  if (mentorState.annotationsEnabled === false) {
+    _clearMentorAnnotationsSilent();
+    return;
+  }
   _clearMentorAnnotationsSilent();
 
   const method = mentorState.selectedTradingMethod || 'breakout';
