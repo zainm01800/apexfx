@@ -1239,7 +1239,7 @@ body.is-dragging { user-select: none; }
         <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
         <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
         <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 8px;background:linear-gradient(135deg, rgba(138,43,226,.3), rgba(138,43,226,.15));border:1px solid rgba(138,43,226,.6);color:var(--purple);font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;box-shadow:0 2px 4px rgba(138,43,226,.2);transition:all 0.3s ease;">🧠 Mentor</button>
-        <button onclick="openTradeFinderPanel()" style="padding:2px 8px;background:linear-gradient(135deg,rgba(61,127,255,.3),rgba(61,127,255,.15));border:1px solid rgba(61,127,255,.6);color:var(--bl);font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;box-shadow:0 2px 4px rgba(61,127,255,.2);" title="Find valid setups on this chart">🔍 Find Trades</button>
+
       </span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
@@ -1249,14 +1249,14 @@ body.is-dragging { user-select: none; }
     </div>
 
     <!-- AI TRADING MENTOR PANEL -->
-    <div id="ai-mentor-panel" style="display:none;position:fixed;top:60px;right:20px;width:320px;max-height:400px;background:var(--bg2);border:1px solid var(--b1);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;overflow:hidden;">
-      <div id="mentor-header" style="padding:12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;cursor:move;">
+    <div id="ai-mentor-panel" style="display:none;position:fixed;top:60px;right:20px;width:340px;max-height:480px;background:var(--bg2);border:1px solid var(--b1);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;overflow:hidden;">
+      <div id="mentor-header" style="padding:10px 12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;cursor:move;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;">🧠</span>
-          <span style="color:var(--tx1);font-weight:600;">AI Trading Mentor</span>
+          <span style="font-size:15px;">🧠</span>
+          <span style="color:var(--tx1);font-weight:600;font-size:13px;">AI Trading Mentor</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--b1);background:var(--bg2);color:var(--tx1);border-radius:4px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--b1);background:var(--bg2);color:var(--tx1);border-radius:4px;">
             <option value="">Select Strategy...</option>
             <option value="breakout">Breakout</option>
             <option value="trend">Trend</option>
@@ -1265,8 +1265,8 @@ body.is-dragging { user-select: none; }
             <option value="range">Range</option>
             <option value="liquidity">Liquidity</option>
           </select>
-          <button onclick="openTradeFinderPanel()" title="Find valid setups on this chart" style="background:none;border:none;color:var(--bl);cursor:pointer;font-size:13px;padding:0 4px;font-weight:700;">🔍</button>
-          <button onclick="toggleMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;">×</button>
+          <button id="mentor-finder-toggle" onclick="toggleMentorFinder()" title="Find valid trades on this chart" style="padding:3px 8px;background:rgba(61,127,255,.15);border:1px solid rgba(61,127,255,.4);color:var(--bl);cursor:pointer;font-size:10px;font-weight:700;border-radius:3px;">🔍 Find</button>
+          <button onclick="toggleMentor()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;line-height:1;">×</button>
         </div>
       </div>
       
@@ -1334,6 +1334,59 @@ body.is-dragging { user-select: none; }
         <span id="mentor-candle-info" style="color:var(--tx3);font-size:11px;"></span>
         <button onclick="mentorHint()" style="padding:4px 8px;background:var(--bg1);border:1px solid var(--b1);color:var(--tx2);border-radius:3px;cursor:pointer;font-size:11px;">💡 Hint</button>
       </div>
+
+      <!-- ── EMBEDDED TRADE FINDER VIEW (hidden by default) ──────────────── -->
+      <div id="mentor-finder-view" style="display:none;flex-direction:column;position:absolute;inset:0;background:var(--bg2);border-radius:8px;overflow:hidden;z-index:2;">
+        <!-- Finder header -->
+        <div style="padding:10px 12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:15px;">🔍</span>
+            <div>
+              <div style="color:var(--tx1);font-weight:700;font-size:12px;">Find Valid Trades</div>
+              <div id="mf-subtitle" style="color:var(--tx3);font-size:10px;">Select a strategy and scan</div>
+            </div>
+          </div>
+          <button onclick="toggleMentorFinder()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:18px;padding:0;line-height:1;">×</button>
+        </div>
+        <!-- Scan controls -->
+        <div style="padding:10px 12px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;">
+          <select id="mf-method-select" style="flex:1;font-size:11px;padding:4px 6px;border:1px solid var(--b1);background:var(--bg2);color:var(--tx1);border-radius:4px;">
+            <option value="">All strategies</option>
+            <option value="breakout">🔥 Breakout</option>
+            <option value="trend">📈 Trend</option>
+            <option value="support_resistance">🎯 S&R</option>
+            <option value="pullback">↩️ Pullback</option>
+            <option value="range">📊 Range</option>
+            <option value="liquidity">💧 Liquidity</option>
+          </select>
+          <button onclick="runMentorFinderScan()" id="mf-scan-btn" style="padding:4px 12px;background:var(--purple);color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;">Scan Chart</button>
+        </div>
+        <!-- Progress -->
+        <div id="mf-progress-wrap" style="display:none;padding:4px 12px;background:var(--bg3);border-bottom:1px solid var(--b1);">
+          <div style="height:3px;background:var(--bg1);border-radius:2px;overflow:hidden;">
+            <div id="mf-progress-bar" style="height:100%;background:var(--purple);width:0%;transition:width 0.2s;border-radius:2px;"></div>
+          </div>
+          <div id="mf-progress-txt" style="color:var(--tx3);font-size:10px;margin-top:3px;text-align:center;"></div>
+        </div>
+        <!-- Results list -->
+        <div id="mf-results" style="flex:1;overflow-y:auto;padding:8px;min-height:0;">
+          <div id="mf-idle" style="text-align:center;padding:28px 16px;color:var(--tx3);">
+            <div style="font-size:26px;margin-bottom:8px;">📊</div>
+            <div style="font-size:12px;color:var(--tx2);font-weight:600;">Select a strategy and press Scan</div>
+            <div style="font-size:11px;margin-top:4px;">The AI will find every valid setup on the loaded chart</div>
+          </div>
+          <div id="mf-list" style="display:none;"></div>
+          <div id="mf-empty" style="display:none;text-align:center;padding:24px 16px;color:var(--tx3);">
+            <div style="font-size:26px;margin-bottom:8px;">🔎</div>
+            <div style="font-size:12px;color:var(--tx2);">No setups found for this strategy</div>
+            <div style="font-size:11px;margin-top:4px;">Try a different strategy or load more data</div>
+          </div>
+        </div>
+        <!-- Footer count -->
+        <div style="padding:6px 12px;background:var(--bg3);border-top:1px solid var(--b1);">
+          <span id="mf-count" style="color:var(--tx3);font-size:10px;"></span>
+        </div>
+      </div>
     </div>
 
     <!-- MENTOR POPUP NOTIFICATION -->
@@ -1351,41 +1404,6 @@ body.is-dragging { user-select: none; }
         <button onclick="closeMentorPopup()" style="padding:10px 20px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:6px;cursor:pointer;">Maybe Later</button>
       </div>
     </div>
-
-  <!-- ── MENTOR TRADE FINDER PANEL ───────────────────────────────────────── -->
-  <div id="trade-finder-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:2px solid var(--purple);border-radius:12px;padding:0;box-shadow:0 8px 32px rgba(138,43,226,0.35);z-index:2100;width:400px;max-width:95vw;max-height:80vh;overflow:hidden;display:none;flex-direction:column;">
-    <div style="padding:14px 16px;background:var(--bg3);border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">🔍</span>
-        <div>
-          <div style="color:var(--tx1);font-weight:700;font-size:13px;">AI Trade Finder</div>
-          <div id="tf-subtitle" style="color:var(--tx3);font-size:11px;">Scanning chart for setups...</div>
-        </div>
-      </div>
-      <button onclick="closeTradeFinderPanel()" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:20px;padding:0;line-height:1;">×</button>
-    </div>
-    <div id="tf-body" style="overflow-y:auto;max-height:calc(80vh - 130px);padding:12px;">
-      <div id="tf-scanning" style="text-align:center;padding:24px;color:var(--tx2);">
-        <div style="font-size:28px;margin-bottom:10px;">⚙️</div>
-        <div style="font-weight:600;margin-bottom:6px;">Scanning all chart data...</div>
-        <div style="font-size:11px;color:var(--tx3);">This may take a moment for long datasets</div>
-        <div id="tf-progress" style="margin-top:12px;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
-          <div id="tf-progress-bar" style="height:100%;background:var(--purple);width:0%;transition:width 0.3s;border-radius:2px;"></div>
-        </div>
-      </div>
-      <div id="tf-results" style="display:none;"></div>
-      <div id="tf-empty" style="display:none;text-align:center;padding:24px;color:var(--tx3);">
-        <div style="font-size:28px;margin-bottom:10px;">🔎</div>
-        <div style="font-weight:600;color:var(--tx2);">No setups found</div>
-        <div style="font-size:11px;margin-top:6px;">Try a different strategy or load more historical data</div>
-      </div>
-    </div>
-    <div style="padding:10px 14px;background:var(--bg3);border-top:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;">
-      <span id="tf-count" style="color:var(--tx3);font-size:11px;"></span>
-      <button onclick="closeTradeFinderPanel()" style="padding:6px 16px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:5px;cursor:pointer;font-size:11px;">Close</button>
-    </div>
-  </div>
-  <div id="trade-finder-overlay" onclick="closeTradeFinderPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2099;"></div>
 
   </div><!-- /main-col -->
 
@@ -5834,19 +5852,32 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
     }
   }
   
-  // Add method-specific lesson from methodology
+  // Add method-specific lesson from methodology (with crypto context where applicable)
+  const isCryptoAsset = _isCrypto();
   if (method === 'breakout') {
-    learningTakeaway += ` Breakout key lesson: the best breakouts come from tight, well-formed consolidation zones with decreasing volatility. Volume expansion at the breakout candle is the single most important confirmation signal.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto Breakout lesson: false breakouts are endemic in crypto due to thin liquidity. The retest of the broken level is not optional — it is the entry. Require 1.5× volume on the breakout candle and 3+ boundary touches on the zone before trading it.`
+      : ` Breakout key lesson: the best breakouts come from tight, well-formed consolidation zones with decreasing volatility. Volume expansion at the breakout candle is the single most important confirmation signal.`;
   } else if (method === 'trend') {
-    learningTakeaway += ` Trend key lesson: identify the trend phase (early/middle/late) before sizing your position. Early-trend pullbacks offer the best entries; late-trend entries near extended structure carry the most reversal risk.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto Trend lesson: timeframes are compressed in crypto — a 4H trend behaves like a weekly trend in forex. Monitor perpetual funding rates: high positive funding in an uptrend signals overleveraged longs and raises pullback probability even when structure looks intact.`
+      : ` Trend key lesson: identify the trend phase (early/middle/late) before sizing your position. Early-trend pullbacks offer the best entries; late-trend entries near extended structure carry the most reversal risk.`;
   } else if (method === 'support_resistance') {
-    learningTakeaway += ` S&R key lesson: a level gains strength with each reaction but weakens with repeated testing. The confirmation candle (rejection wick, engulfing, reclaim) is non-negotiable — never pre-empt the reaction.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto S&R lesson: round numbers ($50k, $100k, $3000) are the most powerful S&R levels in crypto — stops concentrate there and larger players know it. Require 3+ touches minimum and look for the sweep-then-reverse pattern (liquidity grab) before treating the level as confirmed support or resistance.`
+      : ` S&R key lesson: a level gains strength with each reaction but weakens with repeated testing. The confirmation candle (rejection wick, engulfing, reclaim) is non-negotiable — never pre-empt the reaction.`;
   } else if (method === 'pullback') {
-    learningTakeaway += ` Pullback key lesson: the HTF trend must be intact before trading pullbacks. A complex (ABC) pullback is still valid — patience at the confluence zone, combined with a clear trigger candle, is the edge.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto Pullback lesson: shallow 25–38% retracements are common in crypto as momentum traders re-enter quickly. Check perpetual funding: heavily positive funding = wait for a deeper pullback (50–61.8%) before entering longs. The 15m/1H in crypto functions like the 1H/4H in forex.`
+      : ` Pullback key lesson: the HTF trend must be intact before trading pullbacks. A complex (ABC) pullback is still valid — patience at the confluence zone, combined with a clear trigger candle, is the edge.`;
   } else if (method === 'range') {
-    learningTakeaway += ` Range key lesson: ranges resolve into breakouts. Watch for coiling action (LH/HL inside the range) near the boundaries — when volume expands and price closes outside, the breakout framework takes over.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto Range lesson: the 24/7 market means range boundaries drift across Asia/London/NY sessions. Weekend ranges are notorious — they are frequently broken violently on Monday opens. Require 3 boundary touches per side and never hold a range trade into the weekend.`
+      : ` Range key lesson: ranges resolve into breakouts. Watch for coiling action (LH/HL inside the range) near the boundaries — when volume expands and price closes outside, the breakout framework takes over.`;
   } else if (method === 'liquidity') {
-    learningTakeaway += ` Liquidity key lesson: the sequence is Accumulation → Manipulation (sweep) → Distribution. Never enter during the manipulation phase — wait for the displacement candle after the sweep that confirms the reversal direction.`;
+    learningTakeaway += isCryptoAsset
+      ? ` Crypto Liquidity lesson: liquidity sweeps are the single most reliable pattern in crypto because larger players deliberately engineer them in a lightly regulated, thin market. The displacement candle after the sweep is fast — have your entry ready before the sweep candle closes. The target is always the opposing liquidity pool.`
+      : ` Liquidity key lesson: the sequence is Accumulation → Manipulation (sweep) → Distribution. Never enter during the manipulation phase — wait for the displacement candle after the sweep that confirms the reversal direction.`;
   }
   
   review.sections.push({
@@ -6709,6 +6740,18 @@ function detectStructuredSetups(data, barIndex) {
   return result;
 }
 
+// ── Crypto-awareness helper ──────────────────────────────────────────────────
+// Returns true when the loaded symbol is a crypto asset. Used throughout the
+// detection functions to apply crypto-specific adjustments:
+//  - Looser breakout body threshold (noisier, higher false-breakout rate)
+//  - Higher volume confirmation bar for breakouts (need stronger signal)
+//  - More aggressive liquidity sweep detection (thinner books, engineered sweeps)
+//  - Shorter pullback tolerance (moves compress timeframes)
+//  - 24/7 market → no session bias, so range boundaries checked more strictly
+function _isCrypto() {
+  return !!(curSym && curSym.t === 'Crypto');
+}
+
 // ══ METHODOLOGY-STRICT DETECTION FUNCTIONS ══════════════════════════════════════════════════
 // Each function enforces the real criteria from the trading methodology document.
 // Strict criteria replace the 80-candle cooldown — bad setups are rejected here, not timed out.
@@ -6741,19 +6784,28 @@ function _atrRaw(data, period) {
 
 // ── 1. BREAKOUT: consolidation zone + decisive close + volume expansion ──────
 function detectConsolidation(data) {
-  // Need at least 15 bars to confirm a real consolidation zone
   if (data.length < 15) return { isConsolidating: false };
+  const crypto = _isCrypto();
   const lookback = data.slice(-20);
   const highs = lookback.map(d => d.high);
   const lows  = lookback.map(d => d.low);
   const hi = Math.max(...highs), lo = Math.min(...lows);
   const mid = (hi + lo) / 2;
   const rangePercent = (hi - lo) / mid * 100;
-  // Consolidation: range < 4% and at least 2 clear touches of upper and lower band
-  const upperTouches = lookback.filter(d => d.high >= hi * 0.997).length;
-  const lowerTouches = lookback.filter(d => d.low  <= lo * 1.003).length;
-  const isConsolidating = rangePercent < 4 && upperTouches >= 2 && lowerTouches >= 2;
-  const quality = rangePercent < 2 ? 'high' : rangePercent < 3 ? 'medium' : 'low';
+
+  // Crypto: allow wider consolidation (up to 6% — crypto volatility is higher)
+  // but require 3 boundary touches (higher false-breakout rate demands tighter zones)
+  const maxRange    = crypto ? 6   : 4;
+  const minTouches  = crypto ? 3   : 2;
+  const touchTol    = crypto ? 0.995 : 0.997; // slightly wider tolerance for touch detection
+
+  const upperTouches = lookback.filter(d => d.high >= hi * touchTol).length;
+  const lowerTouches = lookback.filter(d => d.low  <= lo * (2 - touchTol)).length;
+  const isConsolidating = rangePercent < maxRange && upperTouches >= minTouches && lowerTouches >= minTouches;
+
+  // Quality thresholds also adjusted for crypto's wider natural ranges
+  const quality = rangePercent < (crypto ? 3 : 2) ? 'high'
+                : rangePercent < (crypto ? 5 : 3) ? 'medium' : 'low';
   const avgVol = _avgVol(data, 20);
   return { isConsolidating, quality, upper: hi, lower: lo, range: rangePercent,
            avgVolume: avgVol, upperTouches, lowerTouches };
@@ -6761,29 +6813,37 @@ function detectConsolidation(data) {
 
 function isBreakingOut(current, consolidation) {
   if (!consolidation.isConsolidating) return false;
-  // Body must close outside the zone (not just a wick)
+  const crypto = _isCrypto();
   const bodyTop = Math.max(current.open, current.close);
   const bodyBot = Math.min(current.open, current.close);
   const bodySize = Math.abs(current.close - current.open);
   const candleRange = current.high - current.low;
-  // Body must be > 50% of the candle range (strong close)
-  if (candleRange > 0 && bodySize / candleRange < 0.5) return false;
+  // Crypto: require stronger body (60%+ of range) — noisier market, more fakeouts
+  const minBodyRatio = crypto ? 0.60 : 0.50;
+  if (candleRange > 0 && bodySize / candleRange < minBodyRatio) return false;
   // Close must be clearly outside the zone
-  return current.close > consolidation.upper * 1.001 ||
-         current.close < consolidation.lower * 0.999;
+  // Crypto: require a slightly larger margin to reduce false signals
+  const margin = crypto ? 1.002 : 1.001;
+  return current.close > consolidation.upper * margin ||
+         current.close < consolidation.lower * (2 - margin);
 }
 
 function calculateBreakoutConfluence(current, consolidation, structure) {
+  const crypto = _isCrypto();
   let c = 0;
-  // 1. Candle closes outside zone with strong body (> 50% of range)
+  // 1. Strong body close outside zone
   const bodySize = Math.abs(current.close - current.open);
   const candleRange = current.high - current.low || 1;
-  if (bodySize / candleRange >= 0.5) c++;
-  // 2. Volume above 20-bar average
-  if (current.volume > (consolidation.avgVolume||1) * 1.2) c++;
-  // 3. Zone quality (multiple touches = stronger zone)
-  if (consolidation.upperTouches >= 3 || consolidation.lowerTouches >= 3) c++;
-  // 4. Trend alignment: breakout in direction of HTF trend
+  const minBody = crypto ? 0.60 : 0.50;
+  if (bodySize / candleRange >= minBody) c++;
+  // 2. Volume confirmation — crypto needs higher bar (1.5× avg, not 1.2×)
+  //    because crypto retail volume is noisy and a genuine breakout needs real conviction
+  const volThreshold = crypto ? 1.5 : 1.2;
+  if (current.volume > (consolidation.avgVolume||1) * volThreshold) c++;
+  // 3. Zone quality (multiple boundary touches)
+  const minTouchesForPoint = crypto ? 4 : 3; // crypto needs more retests to confirm level
+  if (consolidation.upperTouches >= minTouchesForPoint || consolidation.lowerTouches >= minTouchesForPoint) c++;
+  // 4. Trend alignment
   if (structure && structure.trend && structure.trend !== 'neutral') c++;
   return Math.min(c, 4);
 }
@@ -6824,12 +6884,16 @@ function calculateFlagConfluence(flag, structure) {
 // ── 3. SUPPORT BOUNCE: level with 2+ prior touches + confirmation candle ─────
 function detectSupportBounce(data) {
   if (data.length < 30) return { detected: false };
-  const atr = _atrRaw(data, 14);
+  const atr    = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  const lookback = data.slice(-30);
+  const crypto = _isCrypto();
+
+  // Crypto: look back further — 24/7 market has more price history to establish levels
+  const lookbackSize = crypto ? 50 : 30;
+  const lookback = data.slice(-lookbackSize);
   const current  = data[data.length - 1];
   const prev     = data[data.length - 2];
-  // Find significant swing lows in lookback
+
   const swingLows = [];
   for (let i = 2; i < lookback.length - 2; i++) {
     if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i-2].low &&
@@ -6838,44 +6902,58 @@ function detectSupportBounce(data) {
     }
   }
   if (swingLows.length < 1) return { detected: false };
-  // Find a support level that has 2+ tests (within ATR tolerance)
+
+  // Crypto: require 3 touches minimum (less regulation, levels break more easily)
+  const minTouches = crypto ? 3 : 2;
+
   for (const level of swingLows) {
-    const tolerance = atr * 0.5;
+    const tolerance = atr * (crypto ? 0.7 : 0.5); // wider tolerance for crypto volatility
     const touches = lookback.filter(d => Math.abs(d.low - level) < tolerance).length;
-    if (touches < 2) continue;
-    // Current bar must be testing the level (low within tolerance)
+    if (touches < minTouches) continue;
     if (Math.abs(current.low - level) > tolerance * 1.5) continue;
-    // Confirmation: bullish rejection candle — close in upper half with rejection wick
-    const bodyBot = Math.min(current.open, current.close);
-    const bodyTop = Math.max(current.open, current.close);
+
+    const bodyBot   = Math.min(current.open, current.close);
+    const bodyTop   = Math.max(current.open, current.close);
     const lowerWick = bodyBot - current.low;
-    const bodySize  = bodyTop - bodyBot;
-    const isRejection = lowerWick > bodySize && current.close > prev.close;
+    const bodySize  = bodyTop - bodyBot || atr * 0.1;
+
+    // Crypto: require larger rejection wick relative to body (1.5× for crypto vs 1× standard)
+    // — thin books mean stop hunts are common; we need a clear wick for a real bounce
+    const minWickRatio = crypto ? 1.5 : 1.0;
+    const isRejection  = lowerWick > bodySize * minWickRatio && current.close > prev.close;
     if (!isRejection) continue;
-    const quality = touches >= 3 ? 'high' : 'medium';
+
+    const quality = touches >= (crypto ? 4 : 3) ? 'high' : 'medium';
     return { detected: true, quality, supportLevel: level, touches };
   }
   return { detected: false };
 }
 
 function calculateSupportConfluence(support, structure) {
+  const crypto = _isCrypto();
   let c = 1;
-  if (support.touches >= 3) c++; // Level tested 3+ times
-  if (structure && structure.trend && structure.trend.includes('up')) c++; // Trend aligned
-  // Check for Fibonacci / round number (simplified: if touches is very high it's a major level)
-  if (support.touches >= 4) c++;
+  if (support.touches >= 3) c++;
+  if (structure && structure.trend && structure.trend.includes('up')) c++;
+  // Crypto: extra confluence for round-number proximity (very significant in crypto)
+  const level = support.supportLevel || 0;
+  const isRoundNumber = level > 0 && (level % 1000 < 50 || level % 100 < 5 || level % 10 < 1);
+  if (crypto && isRoundNumber) c++;
+  else if (support.touches >= 4) c++;
   return Math.min(c, 4);
 }
 
 // ── 4. RESISTANCE REJECTION: level with 2+ touches + rejection candle ────────
 function detectResistanceRejection(data) {
   if (data.length < 30) return { detected: false };
-  const atr = _atrRaw(data, 14);
+  const atr    = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  const lookback = data.slice(-30);
+  const crypto = _isCrypto();
+
+  const lookbackSize = crypto ? 50 : 30;
+  const lookback = data.slice(-lookbackSize);
   const current  = data[data.length - 1];
   const prev     = data[data.length - 2];
-  // Find significant swing highs
+
   const swingHighs = [];
   for (let i = 2; i < lookback.length - 2; i++) {
     if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i-2].high &&
@@ -6884,67 +6962,81 @@ function detectResistanceRejection(data) {
     }
   }
   if (swingHighs.length < 1) return { detected: false };
+
+  const minTouches = crypto ? 3 : 2;
+
   for (const level of swingHighs) {
-    const tolerance = atr * 0.5;
+    const tolerance = atr * (crypto ? 0.7 : 0.5);
     const touches = lookback.filter(d => Math.abs(d.high - level) < tolerance).length;
-    if (touches < 2) continue;
+    if (touches < minTouches) continue;
     if (Math.abs(current.high - level) > tolerance * 1.5) continue;
-    // Confirmation: bearish rejection candle — close in lower half with upper wick
-    const bodyBot = Math.min(current.open, current.close);
-    const bodyTop = Math.max(current.open, current.close);
+
+    const bodyBot   = Math.min(current.open, current.close);
+    const bodyTop   = Math.max(current.open, current.close);
     const upperWick = current.high - bodyTop;
-    const bodySize  = bodyTop - bodyBot;
-    const isRejection = upperWick > bodySize && current.close < prev.close;
+    const bodySize  = bodyTop - bodyBot || atr * 0.1;
+
+    const minWickRatio = crypto ? 1.5 : 1.0;
+    const isRejection  = upperWick > bodySize * minWickRatio && current.close < prev.close;
     if (!isRejection) continue;
-    const quality = touches >= 3 ? 'high' : 'medium';
+
+    const quality = touches >= (crypto ? 4 : 3) ? 'high' : 'medium';
     return { detected: true, quality, resistanceLevel: level, touches };
   }
   return { detected: false };
 }
 
 function calculateResistanceConfluence(resistance, structure) {
+  const crypto = _isCrypto();
   let c = 1;
   if (resistance.touches >= 3) c++;
   if (structure && structure.trend && structure.trend.includes('down')) c++;
-  if (resistance.touches >= 4) c++;
+  const level = resistance.resistanceLevel || 0;
+  const isRoundNumber = level > 0 && (level % 1000 < 50 || level % 100 < 5 || level % 10 < 1);
+  if (crypto && isRoundNumber) c++;
+  else if (resistance.touches >= 4) c++;
   return Math.min(c, 4);
 }
 
 // ── 5. TREND PULLBACK: HTF trend intact + retrace to 38–61.8% Fib + EMA ─────
 function detectTrendPullback(data, structure) {
   if (data.length < 30 || !structure || structure.trend === 'neutral') return { detected: false };
-  const isUp = structure.trend.includes('up');
-  // Identify the prior swing for Fibonacci measurement (last 20 bars)
-  const lookback = data.slice(-25);
-  const highs = lookback.map(d => d.high);
-  const lows  = lookback.map(d => d.low);
-  const swingHigh = Math.max(...highs);
-  const swingLow  = Math.min(...lows);
+  const isUp   = structure.trend.includes('up');
+  const crypto = _isCrypto();
+
+  const lookback  = data.slice(-25);
+  const swingHigh = Math.max(...lookback.map(d => d.high));
+  const swingLow  = Math.min(...lookback.map(d => d.low));
   const swingSize = swingHigh - swingLow;
   if (swingSize === 0) return { detected: false };
+
   const current = data[data.length - 1];
-  // Calculate retracement depth
-  let retrace;
-  if (isUp) {
-    retrace = (swingHigh - current.close) / swingSize;
-  } else {
-    retrace = (current.close - swingLow) / swingSize;
-  }
-  // Only accept 38.2%–61.8% retracements (standard to deep pullback zone)
-  if (retrace < 0.30 || retrace > 0.65) return { detected: false };
-  // EMA 20 must be in pullback zone — confirms dynamic support/resistance
+  const retrace = isUp
+    ? (swingHigh - current.close) / swingSize
+    : (current.close - swingLow) / swingSize;
+
+  // Crypto: accept 25%–65% retracements — moves are faster and shallower pullbacks
+  // are common because momentum traders re-enter quickly. Traditional: 30%–65%.
+  const minRetrace = crypto ? 0.25 : 0.30;
+  if (retrace < minRetrace || retrace > 0.65) return { detected: false };
+
   const ema20 = _ema(data, 20);
   if (!ema20) return { detected: false };
-  const emaInZone = Math.abs(current.close - ema20) / ema20 < 0.015;
+
+  // Crypto: wider EMA zone tolerance (2.5%) — faster price action means price
+  // briefly overshoots the EMA before reversing. Traditional: 1.5%.
+  const emaZoneTol = crypto ? 0.025 : 0.015;
+  const emaInZone  = Math.abs(current.close - ema20) / ema20 < emaZoneTol;
   if (!emaInZone) return { detected: false };
-  // Volume during pullback should be contracting vs prior impulse
-  const impulseVol = _avgVol(data.slice(0, -10), 10);
+
+  const impulseVol  = _avgVol(data.slice(0, -10), 10);
   const pullbackVol = _avgVol(data.slice(-10), 10);
   const volContracting = pullbackVol < impulseVol;
-  // EMA 50 still pointing in trend direction (no cross)
+
   const ema50 = _ema(data, 50);
   const trendIntact = isUp ? (ema20 > ema50) : (ema20 < ema50);
   if (!trendIntact) return { detected: false };
+
   const quality = (volContracting && retrace >= 0.382 && retrace <= 0.618) ? 'high' : 'medium';
   return { detected: true, quality, direction: isUp ? 'long' : 'short',
            pullbackLevel: current.close, retrace, emaInZone, volContracting };
@@ -6986,38 +7078,63 @@ function detectLiquiditySweep(data) {
   if (data.length < 20) return { detected: false };
   const atr = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  const lookback = data.slice(-20, -2); // Prior swing reference
-  const sweepCandle = data[data.length - 2]; // The sweep candle
-  const current     = data[data.length - 1]; // Displacement / confirmation candle
-  // Find prior swing lows and highs
+  const crypto = _isCrypto();
+
+  // Crypto: look back further — engineered sweeps often target older, obvious levels
+  const lookbackSize = crypto ? 30 : 20;
+  const lookback    = data.slice(-lookbackSize, -2);
+  const sweepCandle = data[data.length - 2];
+  const current     = data[data.length - 1];
+
   const priorLow  = Math.min(...lookback.map(d => d.low));
   const priorHigh = Math.max(...lookback.map(d => d.high));
-  // BULL sweep: wick below prior swing low then close sharply back above
+
+  // Crypto: displacement body threshold is lower (0.3× ATR) because crypto
+  // displacements after a sweep are fast and sharp — we don't want to miss them.
+  // Traditional markets need a larger body (0.5× ATR) for conviction.
+  const minDisplacementBody = crypto ? atr * 0.3 : atr * 0.5;
+
+  // BULL sweep
   const wickBelowLow = sweepCandle.low < priorLow;
-  const displacedUp  = current.close > sweepCandle.high && // displacement close above sweep candle
-                       (current.close - current.open) > atr * 0.5; // strong displacement body
+  const displacedUp  = current.close > sweepCandle.high &&
+                       (current.close - current.open) > minDisplacementBody;
+
   if (wickBelowLow && displacedUp) {
-    return { detected: true, quality: 'high', direction: 'long',
-             sweepLevel: priorLow, wickDepth: priorLow - sweepCandle.low };
+    const wickDepth = priorLow - sweepCandle.low;
+    // Crypto: even a shallow sweep counts — thin books mean small wicks still grab stops
+    const minWickDepth = crypto ? 0 : atr * 0.1;
+    if (wickDepth >= minWickDepth) {
+      return { detected: true, quality: 'high', direction: 'long',
+               sweepLevel: priorLow, wickDepth };
+    }
   }
-  // BEAR sweep: wick above prior swing high then close sharply back below
+
+  // BEAR sweep
   const wickAboveHigh = sweepCandle.high > priorHigh;
   const displacedDown = current.close < sweepCandle.low &&
-                        (current.open - current.close) > atr * 0.5;
+                        (current.open - current.close) > minDisplacementBody;
+
   if (wickAboveHigh && displacedDown) {
-    return { detected: true, quality: 'high', direction: 'short',
-             sweepLevel: priorHigh, wickDepth: sweepCandle.high - priorHigh };
+    const wickDepth = sweepCandle.high - priorHigh;
+    const minWickDepth = crypto ? 0 : atr * 0.1;
+    if (wickDepth >= minWickDepth) {
+      return { detected: true, quality: 'high', direction: 'short',
+               sweepLevel: priorHigh, wickDepth };
+    }
   }
+
   return { detected: false };
 }
 
 function calculateLiquiditySweepConfluence(sweep, structure) {
+  const crypto = _isCrypto();
   let c = 1;
   if (sweep.quality === 'high') c++;
-  // Wick depth relative to ATR — deeper sweep = more stops taken = stronger signal
   if (sweep.wickDepth && sweep.wickDepth > 0) c++;
-  // Opposite trend structure (sweep reverses against recent momentum)
-  if (structure && structure.trend !== 'neutral') c++;
+  // Crypto: liquidity sweep gets a bonus point — it's the most reliable pattern
+  // in crypto due to the frequency of deliberate stop hunts by larger players
+  if (crypto) c++;
+  else if (structure && structure.trend !== 'neutral') c++;
   return Math.min(c, 4);
 }
 
@@ -9292,22 +9409,28 @@ function generateHighQualityTradeInsights(setupDetection) {
       insights.push(`🔥 High-quality ${dir} ${setupLabel} detected`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoBreakoutNote = _isCrypto()
+        ? ` ⚠️ Crypto breakout note: false breakouts are far more common in crypto due to thin liquidity. Require a higher volume bar (1.5× avg minimum) and ideally wait for a retest of the broken level before entering — chasing the initial candle is a common mistake.`
+        : '';
       question = `BREAKOUT SETUP — Consolidation zone has been identified preceding this ${dir} move. ` +
         `Confirm: (1) Is the breakout candle closing decisively above/below the level? ` +
         `(2) Is volume expanding vs the 20-bar average? ` +
         `(3) Is there a clear measured-move target? ` +
-        `Watch for a false breakout — look for a retest of the broken level as confirmation before committing.`;
+        `Watch for a false breakout — look for a retest of the broken level as confirmation before committing.` + cryptoBreakoutNote;
       break;
     }
     case 'trend': {
       insights.push(`📈 High-quality ${dir} trend setup detected`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoTrendNote = _isCrypto()
+        ? ` ⚡ Crypto trend note: crypto trends move faster than forex equivalents — a 4H trend can behave like a weekly trend. Watch funding rates on perpetuals: strongly positive funding in an uptrend signals overleveraged longs and increases the probability of a sharp pullback even if structure looks intact.`
+        : '';
       question = `TREND SETUP — ${trend} trend structure identified. ` +
         `Check: (1) Are EMAs fanned in trend direction (20 > 50 > 200 for uptrend)? ` +
         `(2) Is price making Higher Highs / Higher Lows (uptrend) or LH/LL (downtrend)? ` +
         `(3) Is this an early, middle, or late-stage trend? ` +
-        `Only trade pullback entries in the HTF trend direction — avoid counter-trend trades unless a confirmed reversal exists.`;
+        `Only trade pullback entries in the HTF trend direction — avoid counter-trend trades unless a confirmed reversal exists.` + cryptoTrendNote;
       break;
     }
     case 'support_resistance': {
@@ -9315,22 +9438,28 @@ function generateHighQualityTradeInsights(setupDetection) {
       insights.push(`🎯 High-quality ${srType} detected`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoSRNote = _isCrypto()
+        ? ` 🕐 Crypto S&R note: with no daily open/close, use Asia, London, and NY session highs/lows as your key reference points. Round numbers ($50k, $100k, $3000) act as powerful magnets — price often sweeps just beyond them to grab stops before reversing. Require at least 3 touches on crypto; 2 touches is not enough in a 24/7 market.`
+        : '';
       question = `S&R SETUP — Key ${dir === 'long' ? 'support' : 'resistance'} level identified. ` +
         `Check: (1) How many times has price reacted at this level? (more = stronger) ` +
         `(2) Is there Fibonacci confluence (38.2%, 50%, or 61.8%)? ` +
         `(3) Look for a confirmation candle — rejection wick, engulfing, or reclaim of the level. ` +
-        `Stop goes on a confirmed CLOSE beyond the level — a wick alone does not invalidate.`;
+        `Stop goes on a confirmed CLOSE beyond the level — a wick alone does not invalidate.` + cryptoSRNote;
       break;
     }
     case 'pullback': {
       insights.push(`↩️ High-quality ${dir} pullback entry detected`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoPullbackNote = _isCrypto()
+        ? ` ⚡ Crypto pullback note: timeframes are compressed — what would be a pullback to the daily EMA in forex can happen in a few 4H candles in crypto. Shallow pullbacks (25–38%) are more common because momentum traders re-enter quickly. If perpetual futures funding is heavily positive on a long setup, wait for a deeper pullback before entering.`
+        : '';
       question = `PULLBACK SETUP — Retracement into trend identified. ` +
         `Check: (1) Is the HTF trend intact? Only enter pullbacks in the trend direction. ` +
         `(2) What type is this — shallow (20–38%), standard (38–50%), or deep (50–61.8%)? ` +
         `(3) Is pullback volume decreasing (healthy) or impulsive wide-range candles (reversal warning)? ` +
-        `Look for a trigger candle at the pullback zone: pinbar, engulfing, or inside bar break.`;
+        `Look for a trigger candle at the pullback zone: pinbar, engulfing, or inside bar break.` + cryptoPullbackNote;
       break;
     }
     case 'range': {
@@ -9338,22 +9467,28 @@ function generateHighQualityTradeInsights(setupDetection) {
       insights.push(`📊 High-quality range ${dir === 'long' ? 'long' : 'short'} setup at ${rangeEdge}`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoRangeNote = _isCrypto()
+        ? ` 🌐 Crypto range note: without a daily session close, range boundaries can shift subtly across Asia/London/NY sessions. Weekend ranges are notorious for being broken on the Monday open — avoid range trades entered on a Friday close. Require at least 3 touches on each boundary in crypto.`
+        : '';
       question = `RANGE SETUP — Price is at the ${rangeEdge} of a defined range. ` +
         `Check: (1) Are there 2–3 clear touches on both boundaries confirming the range? ` +
         `(2) Avoid entering at the range midpoint — wait for boundary reactions. ` +
         `(3) Look for coiling action (LH/HL inside range) which precedes a breakout. ` +
-        `If price closes outside the range on volume, switch to a breakout framework.`;
+        `If price closes outside the range on volume, switch to a breakout framework.` + cryptoRangeNote;
       break;
     }
     case 'liquidity': {
       insights.push(`💧 Liquidity sweep + reversal setup detected`);
       insights.push(`Confluence score: ${conf}/4 ⭐`);
       insights.push(`Setup quality: ${quality}`);
+      const cryptoLiqNote = _isCrypto()
+        ? ` 🎯 Crypto liquidity note: sweeps are far more deliberate and frequent in crypto due to thin order books and less regulation. Large players actively engineer stop hunts around obvious swing highs/lows and round numbers. The displacement candle after the sweep is often fast and strong — if you hesitate, you miss it. This is the highest-probability pattern in crypto trading.`
+        : '';
       question = `LIQUIDITY SWEEP SETUP — Institutional stop-hunt pattern identified. ` +
         `Check: (1) Did price wick beyond a key swing high/low to grab stops, then sharply reverse? ` +
         `(2) Is there an Order Block (last bearish candle before bullish impulse, or vice versa) nearby? ` +
         `(3) Is there a Fair Value Gap (FVG) — 3-candle sequence where wick 1 and wick 3 don't overlap? ` +
-        `Entry: after confirmed displacement candle away from the swept level. Target: opposing liquidity pool.`;
+        `Entry: after confirmed displacement candle away from the swept level. Target: opposing liquidity pool.` + cryptoLiqNote;
       break;
     }
     default: {
@@ -9849,6 +9984,7 @@ function provideDecisionFeedback(decision) {
 function mentorHint() {
   const method = mentorState.selectedTradingMethod || 'breakout';
 
+  const isCrypto = _isCrypto();
   const hintsByMethod = {
     breakout: [
       "💡 Breakout: confirm the candle CLOSES beyond the level — a wick alone is not a breakout.",
@@ -9856,6 +9992,11 @@ function mentorHint() {
       "💡 Breakout: measure the height of the base/pattern and project it from the breakout point for your target.",
       "💡 Breakout: a retest of the broken level as new support/resistance is often the safest entry.",
       "💡 Breakout: if price immediately reverses back inside the range, it's a false breakout — exit quickly.",
+      ...(isCrypto ? [
+        "💡 Crypto Breakout: false breakouts are far more common in crypto — never chase the initial candle. Wait for a retest.",
+        "💡 Crypto Breakout: require volume 1.5× the 20-bar average on the breakout candle — thin books fake out easily.",
+        "💡 Crypto Breakout: the more boundary touches before the breakout, the better — 3+ touches means the level is well-known and stops are clustered there.",
+      ] : []),
     ],
     trend: [
       "💡 Trend: only trade in the HTF trend direction — fighting the trend reduces your win rate significantly.",
@@ -9863,6 +10004,11 @@ function mentorHint() {
       "💡 Trend: EMAs fanned in order (20 > 50 > 200) confirm a healthy uptrend. Compressed EMAs = no trend.",
       "💡 Trend: late-stage trends show narrowing swings and shrinking momentum — reduce size as the trend ages.",
       "💡 Trend: pullbacks to the 20 EMA in a strong trend are often the highest probability entries.",
+      ...(isCrypto ? [
+        "💡 Crypto Trend: a 4H crypto trend can produce moves equivalent to a weekly trend in forex — pace is compressed.",
+        "💡 Crypto Trend: check perpetual futures funding rates. Heavy positive funding in an uptrend = overleveraged longs = higher pullback risk even if structure looks intact.",
+        "💡 Crypto Trend: crypto trends often end with a parabolic blow-off or a sharp liquidity sweep of the last swing high. Reduce size in late-trend conditions.",
+      ] : []),
     ],
     support_resistance: [
       "💡 S&R: the more times a level has been tested, the stronger it is — but repeated tests also weaken it.",
@@ -9870,6 +10016,11 @@ function mentorHint() {
       "💡 S&R: look for level flips — former resistance becoming support after a breakout is a high-quality setup.",
       "💡 S&R: Fibonacci levels (38.2%, 50%, 61.8%) aligning with S&R create powerful confluence zones.",
       "💡 S&R: check the distance to the next level — if reward-to-risk is less than 1.5:1, skip the trade.",
+      ...(isCrypto ? [
+        "💡 Crypto S&R: round numbers ($10k, $50k, $100k) are major levels in crypto — stops cluster there making them targets for sweeps.",
+        "💡 Crypto S&R: use Asia/London/NY session highs and lows as your reference points — there is no daily candle close the same way as forex.",
+        "💡 Crypto S&R: weekend ranges are frequently broken on the Monday open — avoid holding S&R trades over the weekend.",
+      ] : []),
     ],
     pullback: [
       "💡 Pullback: always confirm the HTF trend is intact before entering a pullback trade.",
@@ -9877,6 +10028,11 @@ function mentorHint() {
       "💡 Pullback: the 38.2%–61.8% Fibonacci zone combined with the 20 EMA is the highest probability entry area.",
       "💡 Pullback: wait for a trigger candle (pinbar, engulfing, inside bar break) before entering the pullback.",
       "💡 Pullback: a complex pullback (double pullback / ABC) is still valid — don't chase a shallow retracement.",
+      ...(isCrypto ? [
+        "💡 Crypto Pullback: shallow 25–38% retracements are common in strong crypto trends — momentum traders re-enter quickly.",
+        "💡 Crypto Pullback: if perpetual funding is heavily positive, wait for a deeper pullback (50–61.8%) before entering longs.",
+        "💡 Crypto Pullback: the 15m and 1H timeframes in crypto behave like the 1H and 4H in forex — compress your analysis timeframe accordingly.",
+      ] : []),
     ],
     range: [
       "💡 Range: never enter at the midpoint of a range — wait for a boundary reaction.",
@@ -9884,6 +10040,11 @@ function mentorHint() {
       "💡 Range: if price starts coiling (LH/HL inside the range), a breakout is approaching — watch volume.",
       "💡 Range: if price closes outside the range on above-average volume, switch to a breakout framework.",
       "💡 Range: volume nodes (HVNs) inside the range act as magnets — price often stalls at these levels.",
+      ...(isCrypto ? [
+        "💡 Crypto Range: the 24/7 market means range boundaries shift subtly across sessions — re-mark them at the start of each session.",
+        "💡 Crypto Range: weekend ranges are a trap — they are frequently broken violently on Monday opens.",
+        "💡 Crypto Range: require 3 boundary touches on each side in crypto before trading the range — thin books make 2-touch levels unreliable.",
+      ] : []),
     ],
     liquidity: [
       "💡 Liquidity: equal highs and equal lows are engineered liquidity targets — institutions will hunt them.",
@@ -9891,6 +10052,11 @@ function mentorHint() {
       "💡 Liquidity: Order Blocks are the last opposite-colour candle before a strong impulse — price returns to fill orders there.",
       "💡 Liquidity: a Fair Value Gap (3-candle imbalance) is where price was never traded — it is drawn back to fill it.",
       "💡 Liquidity: the sequence is Accumulation → Manipulation (sweep) → Distribution. Enter after the sweep, not before.",
+      ...(isCrypto ? [
+        "💡 Crypto Liquidity: sweeps are deliberately engineered by larger players in crypto — thin order books make it easy to push price to obvious stop clusters.",
+        "💡 Crypto Liquidity: round numbers in crypto ($50k, $100k, $3000) are prime sweep targets — stops concentrate there and are harvested regularly.",
+        "💡 Crypto Liquidity: the displacement candle after a sweep is often very fast in crypto — have your entry ready before the sweep completes.",
+      ] : []),
     ],
   };
 
@@ -9950,222 +10116,212 @@ window.showMentorPopup = showMentorPopup;
 window.closeMentorPopup = closeMentorPopup;
 window.enableMentorFromPopup = enableMentorFromPopup;
 
-// ══ AI TRADE FINDER ══════════════════════════════════════════════════════════
-// Scans the entire loaded chart for setups matching the selected method,
-// lists them with approximate locations, and launches replay to each one.
+// ══ AI TRADE FINDER (embedded in mentor panel) ══════════════════════════════
+// The finder lives inside the mentor panel — toggled with the 🔍 Find button.
+// Scans the whole chart, lists setups as cards, and launches replay to each one.
 
-let _tfSetups = [];    // cached scan results
-let _tfScanSym = null; // symbol+method we last scanned
+let _mfSetups    = [];    // last scan results
+let _mfScanKey   = null;  // sym+method+length key so we know when to re-scan
+let _mfViewOpen  = false; // whether finder view is showing
 
-function openTradeFinderPanel() {
-  const panel   = document.getElementById('trade-finder-panel');
-  const overlay = document.getElementById('trade-finder-overlay');
-  if (!panel) return;
-
-  panel.style.display    = 'flex';
-  overlay.style.display  = 'block';
-
-  const method = mentorState.selectedTradingMethod || null;
-  const sym    = (curSym?.s || '') + '_' + (method || 'none') + '_' + (curData ? curData.length : 0);
-
-  // Re-scan if method or symbol changed, or no results cached
-  if (sym !== _tfScanSym || _tfSetups.length === 0) {
-    _tfScanSym = sym;
-    _tfSetups  = [];
-    _runTradeScan(method);
-  } else {
-    _renderTradeFinderResults(_tfSetups, method);
+function toggleMentorFinder() {
+  _mfViewOpen = !_mfViewOpen;
+  const view = document.getElementById('mentor-finder-view');
+  const btn  = document.getElementById('mentor-finder-toggle');
+  if (!view) return;
+  view.style.display = _mfViewOpen ? 'flex' : 'none';
+  if (btn) {
+    btn.style.background   = _mfViewOpen ? 'rgba(61,127,255,.35)' : 'rgba(61,127,255,.15)';
+    btn.style.borderColor  = _mfViewOpen ? 'rgba(61,127,255,.8)'  : 'rgba(61,127,255,.4)';
+  }
+  // Pre-select current strategy in the finder dropdown
+  if (_mfViewOpen) {
+    const sel = document.getElementById('mf-method-select');
+    if (sel && mentorState.selectedTradingMethod) sel.value = mentorState.selectedTradingMethod;
   }
 }
 
-function closeTradeFinderPanel() {
-  const panel   = document.getElementById('trade-finder-panel');
-  const overlay = document.getElementById('trade-finder-overlay');
-  if (panel)   { panel.style.display   = 'none'; }
-  if (overlay) { overlay.style.display = 'none'; }
-}
+function runMentorFinderScan() {
+  const methodSel = document.getElementById('mf-method-select');
+  const method    = methodSel ? methodSel.value : (mentorState.selectedTradingMethod || '');
 
-// Scan the whole chart in a chunked async loop so the UI stays responsive.
-function _runTradeScan(method) {
   if (!curData || curData.length < 50) {
-    _renderTradeFinderResults([], method);
+    _mfRenderResults([], method);
     return;
   }
 
-  const subtitle = document.getElementById('tf-subtitle');
-  const scanning = document.getElementById('tf-scanning');
-  const results  = document.getElementById('tf-results');
-  const empty    = document.getElementById('tf-empty');
-  const bar      = document.getElementById('tf-progress-bar');
+  const key = (curSym?.s||'') + '_' + method + '_' + curData.length;
+  if (key === _mfScanKey && _mfSetups.length > 0) {
+    _mfRenderResults(_mfSetups, method);
+    return;
+  }
+  _mfScanKey = key;
+  _mfSetups  = [];
 
-  if (subtitle) subtitle.textContent = 'Scanning chart for ' + (method || 'all') + ' setups...';
-  if (scanning) scanning.style.display = 'block';
-  if (results)  results.style.display  = 'none';
-  if (empty)    empty.style.display    = 'none';
-  if (bar)      bar.style.width        = '0%';
+  // Show progress
+  const idle     = document.getElementById('mf-idle');
+  const list     = document.getElementById('mf-list');
+  const empty    = document.getElementById('mf-empty');
+  const progWrap = document.getElementById('mf-progress-wrap');
+  const progBar  = document.getElementById('mf-progress-bar');
+  const progTxt  = document.getElementById('mf-progress-txt');
+  const subtitle = document.getElementById('mf-subtitle');
+  const scanBtn  = document.getElementById('mf-scan-btn');
 
-  const found   = [];
-  const total   = curData.length;
-  const step    = 3; // check every 3rd bar for speed
-  const minGap  = 20; // minimum bars between reported setups
-  let   i       = 50;
+  if (idle)     idle.style.display    = 'none';
+  if (list)     list.style.display    = 'none';
+  if (empty)    empty.style.display   = 'none';
+  if (progWrap) progWrap.style.display = 'block';
+  if (scanBtn)  { scanBtn.disabled = true; scanBtn.textContent = 'Scanning...'; }
+
+  const total  = curData.length;
+  const step   = 3;
+  const minGap = 20;
+  let   i      = 50;
   let   lastFoundBar = -999;
 
-  // Build a quick date-label from a bar index
   function barLabel(idx) {
-    if (!curData[idx]) return `Bar ${idx}`;
+    if (!curData[idx]) return 'Bar ' + idx;
     const d = new Date(curData[idx].time * 1000);
-    const isIntraday = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
-    return isIntraday
-      ? d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' +
-        d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})
-      : d.toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'});
+    const intra = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
+    return intra
+      ? d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' ' +
+        d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
+      : d.toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'});
   }
 
   function chunk() {
-    const end = Math.min(i + 80, total);
+    const end = Math.min(i + 100, total);
     for (; i < end; i += step) {
       try {
-        // Temporarily override method so detectStructuredSetups uses the right one
         const savedMethod = mentorState.selectedTradingMethod;
         if (method) mentorState.selectedTradingMethod = method;
-
         const sd = detectStructuredSetups(curData.slice(0, i + 1), i);
-
         mentorState.selectedTradingMethod = savedMethod;
 
         if (sd.setup === 'none' || sd.confluence < 2) continue;
         if (i - lastFoundBar < minGap) continue;
 
-        // Validate with future data
         const futureC = curData.slice(i + 1, Math.min(i + 51, curData.length));
         if (futureC.length < 5) continue;
-        const entry  = curData[i].close;
-        const dir    = sd.direction || 'long';
-        const levels = computeMentorTradeLevels(dir, entry, i, futureC);
+
+        const entryPrice = curData[i].close;
+        const dir   = sd.direction || 'long';
+        const levels = computeMentorTradeLevels(dir, entryPrice, i, futureC);
         if (!levels) continue;
 
         lastFoundBar = i;
-        found.push({
-          bar:       i,
-          setup:     sd.setup,
-          direction: dir,
-          quality:   sd.quality,
-          confluence: sd.confluence,
-          label:     barLabel(i),
-          levels,
-        });
-      } catch(e) { /* skip bad bars */ }
+        _mfSetups.push({ bar: i, setup: sd.setup, direction: dir,
+          quality: sd.quality, confluence: sd.confluence,
+          label: barLabel(i), levels, price: entryPrice });
+      } catch(e) {}
     }
 
-    if (bar) bar.style.width = Math.round(i / total * 100) + '%';
+    const pct = Math.round(i / total * 100);
+    if (progBar) progBar.style.width = pct + '%';
+    if (progTxt) progTxt.textContent = 'Scanning bar ' + Math.min(i, total) + ' / ' + total + ' — ' + _mfSetups.length + ' found so far';
+    if (subtitle) subtitle.textContent = 'Scanning... ' + pct + '%';
 
     if (i < total) {
-      setTimeout(chunk, 0); // yield to browser
+      setTimeout(chunk, 0);
     } else {
-      _tfSetups = found;
-      _renderTradeFinderResults(found, method);
+      if (progWrap) progWrap.style.display = 'none';
+      if (scanBtn)  { scanBtn.disabled = false; scanBtn.textContent = 'Scan Chart'; }
+      _mfRenderResults(_mfSetups, method);
     }
   }
-
   setTimeout(chunk, 0);
 }
 
-// Build the results list in the panel.
-function _renderTradeFinderResults(setups, method) {
-  const scanning = document.getElementById('tf-scanning');
-  const results  = document.getElementById('tf-results');
-  const empty    = document.getElementById('tf-empty');
-  const subtitle = document.getElementById('tf-subtitle');
-  const count    = document.getElementById('tf-count');
+function _mfRenderResults(setups, method) {
+  const idle    = document.getElementById('mf-idle');
+  const list    = document.getElementById('mf-list');
+  const empty   = document.getElementById('mf-empty');
+  const count   = document.getElementById('mf-count');
+  const subtitle = document.getElementById('mf-subtitle');
 
-  if (scanning) scanning.style.display = 'none';
+  if (idle) idle.style.display = 'none';
 
   if (!setups || setups.length === 0) {
-    if (empty)   empty.style.display   = 'block';
-    if (results) results.style.display = 'none';
+    if (empty)   empty.style.display = 'block';
+    if (list)    list.style.display  = 'none';
+    if (count)   count.textContent   = 'No setups found';
     if (subtitle) subtitle.textContent = 'No setups found';
-    if (count)   count.textContent     = '';
     return;
   }
 
   if (empty)   empty.style.display   = 'none';
-  if (results) results.style.display = 'block';
-  if (subtitle) subtitle.textContent = 'Found ' + setups.length + ' valid setup' + (setups.length === 1 ? '' : 's');
+  if (list)    list.style.display    = 'block';
   if (count)   count.textContent     = setups.length + ' setup' + (setups.length === 1 ? '' : 's') + ' found';
+  if (subtitle) subtitle.textContent = setups.length + ' valid trade' + (setups.length === 1 ? '' : 's') + ' detected';
 
-  const methodLabels = {
-    breakout:'Breakout', trend:'Trend', support_resistance:'S&R',
-    pullback:'Pullback', range:'Range', liquidity:'Liquidity Sweep',
-    flag_continuation:'Flag', structure_continuation:'Structure',
-    range_breakout:'Range Breakout', resistance_rejection:'Resistance Rej.',
-    support_bounce:'Support Bounce', trend_pullback:'Trend Pullback',
+  const labels = {
+    breakout:'Breakout', range_breakout:'Range Breakout', flag_continuation:'Flag',
+    structure_continuation:'Structure', support_bounce:'Support Bounce',
+    resistance_rejection:'Resistance Rej.', trend_pullback:'Pullback',
     liquidity_sweep:'Liq. Sweep',
   };
 
-  results.innerHTML = setups.map((s, idx) => {
-    const dirIcon  = s.direction === 'long' ? '📈' : '📉';
-    const dirCol   = s.direction === 'long' ? 'var(--tl)' : 'var(--rd)';
-    const qualCol  = s.quality === 'high' ? 'var(--tl)' : s.quality === 'medium' ? 'var(--am)' : 'var(--tx3)';
-    const rrTxt    = s.levels ? s.levels.rr.toFixed(1) + ':1' : '';
-    const setupLbl = methodLabels[s.setup] || s.setup.replace(/_/g,' ');
-    const confStars = '★'.repeat(s.confluence) + '☆'.repeat(Math.max(0, 4 - s.confluence));
+  list.innerHTML = setups.map((s, idx) => {
+    const dirIcon = s.direction === 'long' ? '📈' : '📉';
+    const dirCol  = s.direction === 'long' ? 'var(--tl)' : 'var(--rd)';
+    const qCol    = s.quality === 'high' ? 'var(--tl)' : s.quality === 'medium' ? 'var(--am)' : 'var(--tx3)';
+    const stars   = '★'.repeat(s.confluence) + '☆'.repeat(Math.max(0, 4 - s.confluence));
+    const lbl     = labels[s.setup] || s.setup.replace(/_/g,' ');
+    const rrTxt   = s.levels ? 'R:R ~' + s.levels.rr.toFixed(1) : '';
+    const price   = s.price ? ' @ ' + s.price.toFixed(s.price < 10 ? 4 : 2) : '';
 
-    return `<div style="background:var(--bg3);border:1px solid var(--b1);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color 0.2s;"
-      onmouseover="this.style.borderColor='rgba(138,43,226,.6)'"
-      onmouseout="this.style.borderColor='var(--b1)'"
-      onclick="launchReplayToSetup(${idx})">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;">${dirIcon}</span>
-          <span style="color:${dirCol};font-weight:700;font-size:12px;">${s.direction.toUpperCase()}</span>
-          <span style="color:var(--tx2);font-size:12px;font-weight:600;">${setupLbl}</span>
+    return `<div style="background:var(--bg3);border:1px solid var(--b1);border-radius:6px;padding:9px 10px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;"
+      onmouseover="this.style.borderColor='rgba(138,43,226,.7)';this.style.background='var(--bg1)'"
+      onmouseout="this.style.borderColor='var(--b1)';this.style.background='var(--bg3)'"
+      onclick="_mfLaunch(${idx})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:14px;">${dirIcon}</span>
+          <span style="color:${dirCol};font-weight:700;font-size:11px;">${s.direction.toUpperCase()}</span>
+          <span style="color:var(--tx1);font-size:11px;font-weight:600;">${lbl}</span>
         </div>
-        <span style="color:var(--am);font-size:11px;font-family:monospace;">${s.label}</span>
+        <span style="color:var(--tx3);font-size:10px;font-family:monospace;">${s.label}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;font-size:11px;">
-        <span style="color:${qualCol};">Quality: ${(s.quality||'').toUpperCase()}</span>
-        <span style="color:var(--tx3);">${confStars}</span>
-        ${rrTxt ? `<span style="color:var(--tx2);">R:R ~${rrTxt}</span>` : ''}
-        <span style="margin-left:auto;color:var(--purple);font-weight:600;font-size:11px;">▶ Start Here</span>
+      <div style="display:flex;align-items:center;gap:10px;font-size:10px;">
+        <span style="color:${qCol};">${(s.quality||'').toUpperCase()}</span>
+        <span style="color:var(--am);letter-spacing:1px;">${stars}</span>
+        <span style="color:var(--tx3);">${rrTxt}</span>
+        <span style="color:var(--tx3);">${price}</span>
+        <span style="margin-left:auto;color:var(--purple);font-weight:700;">▶ Go</span>
       </div>
     </div>`;
   }).join('');
 }
 
-// Launch replay from ~25 bars before the selected setup, enable mentor,
-// and select the matching trading method.
-function launchReplayToSetup(idx) {
-  const setup = _tfSetups[idx];
+// Launch replay to a found setup — scroll chart, set method, start replay 25 bars before.
+function _mfLaunch(idx) {
+  const setup = _mfSetups[idx];
   if (!setup || !curData) return;
 
-  closeTradeFinderPanel();
+  // Close the finder view
+  toggleMentorFinder();
 
-  const PRE_BARS = 25; // bars of context before the setup
+  const PRE_BARS = 25;
   const startBar = Math.max(1, setup.bar - PRE_BARS);
 
-  // Stop any existing replay first
   if (replayMode) stopReplay();
 
-  // Set the trading method to match what was found
-  if (setup.setup) {
-    const methodMap = {
-      breakout: 'breakout', range_breakout: 'breakout',
-      flag_continuation: 'trend', structure_continuation: 'trend',
-      support_bounce: 'support_resistance', resistance_rejection: 'support_resistance',
-      trend_pullback: 'pullback',
-      liquidity_sweep: 'liquidity',
-    };
-    const m = methodMap[setup.setup];
-    if (m) {
-      mentorState.selectedTradingMethod    = m;
-      mentorState.tradingMethodSelected    = true;
-      const sel = document.getElementById('trading-method-select');
-      if (sel) sel.value = m;
-    }
-  }
+  // Map setup type → method and apply
+  const methodMap = {
+    breakout:'breakout', range_breakout:'breakout',
+    flag_continuation:'trend', structure_continuation:'trend',
+    support_bounce:'support_resistance', resistance_rejection:'support_resistance',
+    trend_pullback:'pullback',
+    liquidity_sweep:'liquidity',
+  };
+  const m = methodMap[setup.setup] || mentorState.selectedTradingMethod || 'breakout';
+  mentorState.selectedTradingMethod = m;
+  mentorState.tradingMethodSelected = true;
+  const sel1 = document.getElementById('trading-method-select');
+  if (sel1) sel1.value = m;
 
-  // Enable mentor silently (no popup)
+  // Reset mentor state cleanly
   mentorState.enabled              = true;
   mentorState.lifecycleState       = 'scanning';
   mentorState.currentBar           = -1;
@@ -10179,32 +10335,28 @@ function launchReplayToSetup(idx) {
   mentorState.lockedInsights       = [];
   mentorState.lockedQuestion       = '';
   mentorState.realtimeUpdates      = [];
-  mentorState.currentInsights      = ['🎯 Replay starting from before the setup...'];
-  mentorState.currentQuestion      = 'Watch the price action leading up to the setup. The mentor will pause when it materialises.';
+  mentorState.pendingSetupDetection = null;
+  mentorState.pendingSetupBar      = null;
+  mentorState.upcomingSetup        = null;
+  mentorState.currentInsights      = ['🎯 Navigating to setup...'];
+  mentorState.currentQuestion      = 'Keep an eye on the price action. The mentor will pause when the setup materialises.';
   if (mentorState.setupCache) mentorState.setupCache.clear();
 
-  // Show the mentor panel
+  // Show mentor panel, hide method selection UI
   const mentorPanel = document.getElementById('ai-mentor-panel');
   if (mentorPanel) mentorPanel.style.display = 'block';
+  const methodSel = document.getElementById('trading-method-selection');
+  if (methodSel) methodSel.style.display = 'none';
 
-  // Show method selector value
-  const methodSel = document.getElementById('trading-method-select');
-  if (methodSel) methodSel.value = mentorState.selectedTradingMethod || '';
+  // Scroll chart: show setup with ~30 bars of right-side context
+  rightBarIndex = Math.min(curData.length - 1 + 10, setup.bar + 30);
+  _replayScrollToBar(startBar);
 
-  // Hide method selection UI if shown
-  const methodSelection = document.getElementById('trading-method-selection');
-  if (methodSelection) methodSelection.style.display = 'none';
-
-  // Scroll view to put the setup area visible with context
-  const contextRight = Math.min(30, (curData.length - setup.bar));
-  rightBarIndex = setup.bar + contextRight;
-  rightBarIndex = Math.max(40, Math.min(curData.length - 1 + 10, rightBarIndex));
-
-  // Start replay at startBar (bypass replayPicking)
-  replayMode    = true;
-  replayPicking = false;
-  replayCutoff  = startBar;
-  replayJustStarted = true;
+  // Start replay at startBar without picking phase
+  replayMode         = true;
+  replayPicking      = false;
+  replayCutoff       = startBar;
+  replayJustStarted  = true;
   setTimeout(() => { replayJustStarted = false; }, 500);
 
   const rbtn = document.getElementById('btn-replay');
@@ -10213,18 +10365,20 @@ function launchReplayToSetup(idx) {
   updateReplayStatus();
   draw();
 
-  // Update mentor so it picks up the starting position
   setTimeout(() => {
     updateMentorUI && updateMentorUI();
-    updateMentor && updateMentor();
+    updateMentor   && updateMentor();
   }, 150);
 
-  toast('▶ Replay started — press Space to play or step with →');
+  toast('▶ Replay started — Space to play · → to step');
 }
 
-window.openTradeFinderPanel  = openTradeFinderPanel;
-window.closeTradeFinderPanel = closeTradeFinderPanel;
-window.launchReplayToSetup   = launchReplayToSetup;
+window.toggleMentorFinder    = toggleMentorFinder;
+window.runMentorFinderScan   = runMentorFinderScan;
+window.openTradeFinderPanel  = toggleMentorFinder;   // keep old reference working
+window.closeTradeFinderPanel = toggleMentorFinder;
+window.launchReplayToSetup   = _mfLaunch;
+
 
 
 // ══ PRE-TRADE CHECKLIST ═══════════════════════════════════════════════════════
