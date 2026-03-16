@@ -5043,9 +5043,19 @@ function replayStep(n){
   if(replayCutoff >= curData.length - 1 && n > 0) return;
   if(replayCutoff <= 1 && n < 0) return;
   replayCutoff = Math.max(1, Math.min(curData.length - 1, replayCutoff + n));
-  _replayScrollToBar(replayCutoff);   // keep cutoff line visible as replay advances
+  _replayScrollToBar(replayCutoff);
   updateReplayStatus();
   draw();
+
+  // If in setup_detected state, refresh annotations immediately on any step
+  // (including backwards) so they always reflect what the user can currently see
+  if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+    const _setupBar = mentorState.upcomingSetup.bar;
+    const _barsAway = _setupBar - replayCutoff;
+    if (!mentorState.earlyWarningShown && _barsAway > 5) {
+      _mentorAnnotateSetup(mentorState.upcomingSetup.setup, replayCutoff, _setupBar);
+    }
+  }
   
   // Monitor example trade if active
   if (mentorState.exampleTradeActive) {
@@ -8758,10 +8768,11 @@ function _buildSetupDetectedMessage(currentBar) {
   const direction = mentorState.upcomingSetup.setup.direction || '';
   const barsAway  = setupBar - currentBar;
 
-  // Refresh annotations live every 3 bars so they update as price develops
-  if (!mentorState._lastAnnotateBar || currentBar - mentorState._lastAnnotateBar >= 3) {
+  // Refresh annotations whenever replayCutoff changes (forward OR backward).
+  // Use Math.abs so scrubbing backwards also triggers a redraw.
+  const barDelta = Math.abs(currentBar - (mentorState._lastAnnotateBar || -999));
+  if (barDelta >= 1) {
     mentorState._lastAnnotateBar = currentBar;
-    // Only annotate if we haven't paused yet (early warning not shown)
     if (!mentorState.earlyWarningShown && barsAway > 5) {
       _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
     }
@@ -13652,11 +13663,21 @@ function setupEvents(){
       _replayLineDragging = false;
       mc.style.cursor = 'crosshair';
       _replayScrollToBar(replayCutoff);
-      // Re-scan mentor after drag repositions the bar
       if(mentorState.enabled) {
-        mentorState.lifecycleState = 'scanning';
-        mentorState.setupCache && mentorState.setupCache.clear();
-        setTimeout(() => updateMentor(), 80);
+        // If in setup_detected, just refresh annotations — don't blow away the injected setup
+        if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+          const _sb = mentorState.upcomingSetup.bar;
+          const _ba = _sb - replayCutoff;
+          if (!mentorState.earlyWarningShown && _ba > 5) {
+            _mentorAnnotateSetup(mentorState.upcomingSetup.setup, replayCutoff, _sb);
+          }
+          _buildSetupDetectedMessage(replayCutoff);
+          updateMentorUI();
+        } else {
+          mentorState.lifecycleState = 'scanning';
+          mentorState.setupCache && mentorState.setupCache.clear();
+          setTimeout(() => updateMentor(), 80);
+        }
       }
       updateReplayStatus();
       draw();
