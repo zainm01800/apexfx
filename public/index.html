@@ -12217,8 +12217,10 @@ function hitTest(d, sx, sy){
       const bx = _barX(d.bar);
       const by = _py(d.price);
       const priority = d.priority || 2;
-      // Get canvas height from main-canvas element
-      const canvasHeight = document.getElementById('main-canvas')?.height || 600;
+      // Get canvas dimensions from main-canvas element
+      const canvas = document.getElementById('main-canvas');
+      const canvasWidth = canvas?.width || 800;
+      const canvasHeight = canvas?.height || 600;
       const placementSide = d.placementSide || (by < canvasHeight/2 ? 'above' : 'below');
       const txt = d.text || '';
 
@@ -12266,10 +12268,10 @@ function hitTest(d, sx, sy){
       let boxX, boxY;
       if (placementSide === 'above') {
         boxY = 15 + stackOffset;
-        boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
+        boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, bx - boxW / 2));
       } else {
         boxY = canvasHeight - 15 - boxH - stackOffset;
-        boxX = Math.max(15, Math.min(W - boxW - 15, bx - boxW / 2));
+        boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, bx - boxW / 2));
       }
 
       // Check if point is inside bubble box
