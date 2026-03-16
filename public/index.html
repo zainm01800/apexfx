@@ -1304,6 +1304,16 @@ body.is-dragging { user-select: none; }
                 style="padding:3px 10px;background:var(--bg1);color:var(--tx3);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">No</button>
             </div>
           </div>
+          <!-- Bubble toggle row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--b1);">
+            <span style="color:var(--tx3);font-size:11px;">Show explanation bubbles?</span>
+            <div style="display:flex;gap:6px;">
+              <button id="btn-bubbles-yes" onclick="mentorToggleBubbles(true)"
+                style="padding:3px 10px;background:var(--green);color:white;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;">Yes ✓</button>
+              <button id="btn-bubbles-no" onclick="mentorToggleBubbles(false)"
+                style="padding:3px 10px;background:var(--bg1);color:var(--tx3);border:1px solid var(--b1);border-radius:3px;cursor:pointer;font-size:11px;">No</button>
+            </div>
+          </div>
           <!-- Action buttons -->
           <div style="display:flex;gap:8px;align-items:center;justify-content:center;">
             <button onclick="dismissSetupMessage()" style="padding:5px 10px;background:var(--bg1);color:var(--tx2);border:1px solid var(--b1);border-radius:4px;cursor:pointer;font-size:11px;">Dismiss</button>
@@ -10026,6 +10036,7 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 
 // Annotation preference — default ON, user can toggle via the setup controls
 mentorState.annotationsEnabled = true;
+mentorState.bubblesEnabled = true;
 
 function mentorToggleAnnotations(enable) {
   mentorState.annotationsEnabled = enable;
@@ -10045,6 +10056,39 @@ function mentorToggleAnnotations(enable) {
     // Re-draw annotations if they were disabled then re-enabled
     const tsd = mentorState._tradeSetupData;
     _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+  }
+}
+
+function mentorToggleBubbles(enable) {
+  mentorState.bubblesEnabled = enable;
+  const btnYes = document.getElementById('btn-bubbles-yes');
+  const btnNo  = document.getElementById('btn-bubbles-no');
+  if (btnYes && btnNo) {
+    btnYes.style.background = enable ? 'var(--green)' : 'var(--bg1)';
+    btnYes.style.color      = enable ? 'white' : 'var(--tx3)';
+    btnYes.style.border     = enable ? 'none' : '1px solid var(--b1)';
+    btnNo.style.background  = enable ? 'var(--bg1)' : 'var(--rd)';
+    btnNo.style.color       = enable ? 'var(--tx3)' : 'white';
+    btnNo.style.border      = enable ? '1px solid var(--b1)' : 'none';
+  }
+  if (!enable) {
+    // Hide all bubbles
+    const bubbleDrawings = drawings.filter(d => d.type === 'mentor_bubble' && d.isMentorAnnotation);
+    bubbleDrawings.forEach(d => {
+      const idx = drawings.indexOf(d);
+      if (idx !== -1) {
+        drawings.splice(idx, 1);
+        const idIdx = _mentorAnnotationIds.indexOf(d.id);
+        if (idIdx !== -1) _mentorAnnotationIds.splice(idIdx, 1);
+      }
+    });
+    if (bubbleDrawings.length > 0) {
+      try { saveDrawings(curSym.s, curTF); } catch(e) {}
+      draw();
+      toast('Explanation bubbles hidden');
+    }
+  } else {
+    toast('Explanation bubbles enabled');
   }
 }
 
@@ -10115,6 +10159,27 @@ function mentorShowMeTrade() {
   mentorState._annotationsDrawnForTrade = false; // force re-draw on new trade
 
   drawExampleTrade(exampleTrade);
+
+  // Add educational bubbles for Entry, SL, and TP
+  const atr = calculateATR(entryBar, 14) || (entryPrice * 0.002);
+
+  // Entry bubble - explains the breakout/breakdown signal
+  const entryText = direction === 'long'
+    ? 'Entry: Breakout above resistance signals buyers gaining control.'
+    : 'Entry: Breakdown below support signals sellers in control.';
+  _addMentorBubble(entryBar, entryPrice + atr * 1.5, entryText, 'down', 1);
+
+  // SL bubble - explains the invalidation level
+  const slText = direction === 'long'
+    ? 'Stop loss: Below this swing low — a close here invalidates the bullish structure.'
+    : 'Stop loss: Above this swing high — a close here invalidates the bearish structure.';
+  _addMentorBubble(entryBar, stopLoss - atr * 1.2, slText, 'up', 1);
+
+  // TP bubble - explains the profit target
+  const tpText = direction === 'long'
+    ? 'Take profit: Targets the next major resistance where sellers previously appeared.'
+    : 'Take profit: Targets the next major support where buyers previously appeared.';
+  _addMentorBubble(entryBar, takeProfit + atr * 1.2, tpText, 'down', 1);
 
   // Scroll chart to show both current bar and entry bar
   const mc2 = document.getElementById('main-canvas');
@@ -12147,6 +12212,33 @@ function hitTest(d, sx, sy){
       const lax=_barX(d.bar),lay=_py(d.price);
       return Math.abs(sx-lax)<barWidth*3 && Math.abs(sy-lay)<30;
     }
+    case 'mentor_bubble':{
+      // Simple bounding-box hit test for speech bubble
+      const bx=_barX(d.bar);
+      const by=_py(d.price);
+      const priority=d.priority||2;
+      const tailDir=d.tailDir||'down';
+      const txt=d.text||'';
+
+      // Approximate bubble dimensions (same logic as rendering)
+      const fontSize=10;
+      const maxWidth=220;
+      const padX=10;
+      const padY=8;
+      const tailSize=8;
+
+      // Estimate text dimensions (conservative)
+      const approxCharWidth=6;
+      const approxLines=Math.min(2, Math.ceil(txt.length*approxCharWidth/maxWidth)||1);
+      const approxLineWidth=Math.min(txt.length*approxCharWidth, maxWidth);
+      const boxW=Math.min(approxLineWidth+padX*2, maxWidth);
+      const boxH=approxLines*(fontSize+3)+padY*2;
+
+      const boxX=bx-boxW/2;
+      const boxY=tailDir==='down' ? by-tailSize-boxH : by+tailSize;
+
+      return sx>=boxX-5 && sx<=boxX+boxW+5 && sy>=boxY-5 && sy<=boxY+boxH+5;
+    }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
       const hb=effectiveHalfBars(d);
@@ -12711,6 +12803,47 @@ function _addMentorLabel(bar, price, lines) {
   return id;
 }
 
+// Add a speech bubble with educational explanation near an annotation.
+// Duplicate-suppression: skip if a bubble with the same text exists within 10 bars.
+// Enforces max 4 bubble cap (prunes lowest-priority bubbles when limit exceeded).
+function _addMentorBubble(bar, price, text, tailDir = 'down', priority = 2) {
+  // Only add if bubbles are enabled (default true)
+  if (mentorState.bubblesEnabled === false) return null;
+
+  // Prune: keep only highest-priority bubbles if > 4 total
+  const existing = drawings.filter(d => d.type === 'mentor_bubble' && d.isMentorAnnotation);
+
+  // Duplicate-suppression: skip if same text within 10 bars
+  if (existing.some(b => b.text === text && Math.abs(b.bar - bar) < 10)) return null;
+
+  // Enforce max 4 bubble cap - remove lowest priority
+  while (existing.length >= 4) {
+    const lowest = existing.sort((a, b) => b.priority - a.priority).pop();
+    const idx = drawings.indexOf(lowest);
+    if (idx !== -1) {
+      drawings.splice(idx, 1);
+      const idIdx = _mentorAnnotationIds.indexOf(lowest.id);
+      if (idIdx !== -1) _mentorAnnotationIds.splice(idIdx, 1);
+    }
+  }
+
+  const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const drawing = {
+    type: 'mentor_bubble',
+    bar,
+    price,
+    text,
+    tailDir,
+    priority,
+    isMentorAnnotation: true,
+    id,
+    candleIndex: bar,
+  };
+  drawings.push(drawing);
+  _mentorAnnotationIds.push(id);
+  return id;
+}
+
 // ══ MENTOR ANNOTATION ENGINE ═════════════════════════════════════════════════
 // Universal, clean annotation system.
 // Rules:
@@ -12719,6 +12852,34 @@ function _addMentorLabel(bar, price, lines) {
 //   • All within visible candle range (no off-screen labels)
 //   • Overlap prevention via label stagger
 //   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
+
+// Educational explanations for speech bubbles near annotations
+const BUBBLE_EXPLANATIONS = {
+  'Support zone':         'This area is identified as support because price previously rejected this level multiple times, showing strong buying pressure. Multiple touches confirm strong demand here.',
+  'Resistance zone':      'Sellers stepped in here previously. Multiple tests show strong supply — watch for a wick rejection before entering short.',
+  'Rejection wick':       'A long wick shows strong rejection at this level. Buyers/sellers rejected the price and closed it back, signaling a potential reversal.',
+  'Liquidity pool':        'Stop losses cluster here. Price sweeps this area to trigger those stops and grab liquidity before reversing.',
+  'Breakout level':        'Price must close clearly above this level to confirm a true breakout. A breakout here signals buyers gaining control.',
+  'Breakdown level':       'Price must close clearly below this level to confirm a true breakdown. A breakdown here signals sellers in control.',
+  'Fib 38–62% pullback zone': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
+  'Fib 38-62% pullback zone': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
+  'Pullback zone (38–62%)': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
+  'Pullback zone (38-62%)': 'The Fibonacci golden zone is the most common reversal area in trending markets. Price often pulls back here before continuing the trend.',
+  'Displacement':          'This strong candle shows buyers/sellers took control after the sweep. This displacement is the confirmation signal for entry.',
+  'Stop hunt':             'Price briefly moved above/below the previous swing to trigger stop losses and grab liquidity, then quickly rejected. This often precedes a reversal.',
+  'Consolidation range':   'Price is coiling in a tight range. Compressed energy here often leads to explosive moves when price finally breaks out.',
+  'Trading range':         'Price bounces between two boundaries. Trade near the edges; avoid the middle where direction is uncertain.',
+  'Higher low':            'Each new low is higher than the last — buyers are stepping in earlier. This confirms bullish market structure.',
+  'Lower high':            'Each new high is lower than the last — sellers are stepping in earlier. This confirms bearish market structure.',
+  'Prior test':            'Price has tested this level before — it shows where buyers/sellers previously became active and may react again.',
+  'Swing high — pullback from here': 'This swing high marked where sellers took control. Pullbacks often retest these swing levels before continuing.',
+  'Swing low — pullback from here': 'This swing low marked where buyers took control. Pullbacks often retest these swing levels before continuing.',
+  'Original swing':        'This was the original swing point that created the liquidity pool below/above. These levels often attract price.',
+  'Boundary reaction':     'Price has reacted at this boundary before — a confirmed support/resistance level where traders expect action.',
+  'Entry:':                'Entry point where the setup confirms. The trade is triggered when price validates the pattern.',
+  'Stop loss:':            'Invalidation level — if price closes here, the setup thesis is wrong and the trade should be exited.',
+  'Take profit:':          'Target based on next major support/resistance where opposing pressure previously stopped price.',
+};
 
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
@@ -13072,6 +13233,11 @@ function _commit(ann) {
         return;
       }
       _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
+      // Add educational bubble for zone
+      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
+      if (bubbleText) {
+        _addMentorBubble(a.t, a.price + atr*1.5, bubbleText, 'down', a.pri||2);
+      }
       // Track primary zone for confluence pause
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
@@ -13090,6 +13256,12 @@ function _commit(ann) {
         return;
       }
       _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
+      // Add educational bubble for box
+      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
+      if (bubbleText) {
+        const bubblePrice = a.lo + (a.hi - a.lo) / 2; // center of box
+        _addMentorBubble(a.t, a.hi + atr*1.2, bubbleText, 'down', a.pri||2);
+      }
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
         firstPrimaryBar   = a.t;
@@ -13107,6 +13279,13 @@ function _commit(ann) {
       if (usedPY[pyKey]) price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
       usedPY[pyKey] = true;
       _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight);
+      // Add educational bubble for arrow
+      const bubbleText = BUBBLE_EXPLANATIONS[a.label] || BUBBLE_EXPLANATIONS[a.label.split('—')[0].trim()];
+      if (bubbleText) {
+        const bubblePrice = a.pointing === 'down' ? price - atr*1.5 : price + atr*1.5;
+        const tailDir = a.pointing === 'down' ? 'up' : 'down';
+        _addMentorBubble(a.bar, bubblePrice, bubbleText, tailDir, a.pri||2);
+      }
       if ((a.pri||2) === 1 && a.highlight && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
         firstPrimaryBar   = a.bar;
@@ -13135,19 +13314,22 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   if (mentorState._confluencePauses.has(label)) return;
   mentorState._confluencePauses.add(label);
 
-  // Build the explanation for this confluence type
+  // Build the explanation for this confluence type (rich educational language)
   const explanations = {
-    'Support zone':        'Price has previously bounced from this level. Buyers are defending it — watch for a rejection wick to confirm.',
-    'Resistance zone':     'Price has previously reversed here. Sellers stepped in at this level — watch for a wick rejection before entering short.',
-    'Consolidation range': 'Price is coiling in a tight range. This compression builds energy. A breakout from this range often leads to a strong directional move.',
+    'Support zone':        'Price rejected this level before, attracting buyers. Multiple touches confirm strong demand here.',
+    'Resistance zone':     'Sellers stepped in here previously. Multiple tests show strong supply — watch for a wick rejection before entering short.',
+    'Consolidation range': 'Price is coiling in a tight range. Compressed energy here often leads to explosive moves.',
     'Breakout level':      'This is the key level to break. A candle closing convincingly above/below this line is the trigger to enter.',
     'Breakdown level':     'This is the support line to break. A close below confirms the breakdown and is the entry trigger.',
     'Fib 38–62% pullback zone': 'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
     'Pullback zone (38–62%)':   'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
-    'Liquidity pool':      'Stop losses are clustered here. A wick into this zone sweeps those stops before reversing — the sweep is the entry signal.',
-    'Trading range':       'Price is bouncing between two levels. The strategy is to enter at the boundaries. Avoid trading near the middle of the range.',
+    'Liquidity pool':      'Stop losses are clustered here. Price sweeps this area to trigger those stops before reversing.',
+    'Trading range':       'Price is bouncing between two boundaries. Trade the edges; avoid the middle of the range.',
     'Range support':       'The lower boundary of the range — where buyers have repeatedly defended. Look for a reaction here.',
     'Range resistance':    'The upper boundary of the range — where sellers have repeatedly stepped in. Look for a rejection here.',
+    'Rejection wick':      'A long wick shows strong rejection at this level. Buyers/sellers rejected the price and closed it back.',
+    'Higher low':          'Each new low is higher than the last — buyers are stepping in earlier, confirming uptrend.',
+    'Lower high':          'Each new high is lower than the last — sellers are stepping in earlier, confirming downtrend.',
   };
   const explanation = explanations[label]
     || `${label} — a key area where price has previously reacted. Watch closely as price approaches.`;
@@ -13164,6 +13346,9 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
     const arrowPrice = dir === 'up' ? c.low - atr * 0.5 : c.high + atr * 0.5;
     _addMentorArrow(replayCutoff, arrowPrice,
       `📍 ${label}`, dir === 'up' ? 'up' : 'down', false);
+    // Add educational bubble for the confluence
+    _addMentorBubble(replayCutoff, dir === 'up' ? arrowPrice - atr*1.2 : arrowPrice + atr*1.2,
+      explanation, dir === 'up' ? 'up' : 'down', 1);
   }
 
   // Show explanation in the mentor panel
