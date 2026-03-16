@@ -13503,18 +13503,16 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         // Hide if anchor bar is off screen
         if (ax < -barWidth || ax > W + barWidth) break;
 
-        // Enforce max 4 callout bubbles — skip lower-priority ones
-        if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
-        const tier = d.tier || 'secondary';
-        const isPriTier = tier === 'primary' || d.highlight;
-        if (ctx._mentorBubbleCount >= 4 && !isPriTier) break;
-        if (d.explanation) ctx._mentorBubbleCount++;
-
         const isDown    = d.pointing !== 'up';
         const tier      = d.tier || 'secondary';
         const isPrimary = tier === 'primary';
         const accentCol = d.highlight ? '#f0a500' : isPrimary ? '#00c9a0' : tier === 'secondary' ? '#7c5cbf' : '#4a6080';
         const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.82 : 0.6;
+
+        // Enforce max 4 callout bubbles — skip lower-priority ones beyond limit
+        if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
+        if (ctx._mentorBubbleCount >= 4 && !isPrimary && !d.highlight) break;
+        if (d.explanation) ctx._mentorBubbleCount++;
 
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
