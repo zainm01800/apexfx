@@ -5119,7 +5119,7 @@ let mentorState = {
   currentSetup: null,
   // New quality filtering properties
   lastTradeSuggestionBar: -1000, // Track cooldown
-  cooldownCandles: 80, // Wait 80 candles between suggestions to prevent over-trading
+  cooldownCandles: 0, // No cooldown — strict detection criteria prevent over-trading
   lastMarketStructure: 'unknown',
   confluenceScore: 0,
   setupQuality: 'none', // 'high', 'medium', 'low', 'none'
@@ -5624,7 +5624,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
       entryReasoning = `Entry was placed above the resistance breakout level at ${entryPrice.toFixed(4)} to confirm that buyers had successfully pushed price beyond the consolidation zone at ${swingHigh.toFixed(4)}. The breakout candle closed decisively above this level, indicating strong buying pressure.`;
     } else if (setupType === 'support_bounce') {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} after price successfully defended the support level at ${swingLow.toFixed(4)}. The bounce showed that buyers were active at this structural level, creating a favorable risk/reward opportunity.`;
-    } else if (setupType === 'pullback') {
+    } else if (setupType === 'trend_pullback' || setupType === 'flag_continuation') {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} during a pullback to the moving average support. This higher low formation within the uptrend structure provided a continuation entry with the prevailing trend.`;
     } else {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} following confirmation of bullish momentum. The price action showed buyers gaining control after testing key structural levels.`;
@@ -5634,7 +5634,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
       entryReasoning = `Entry was placed below the support breakout level at ${entryPrice.toFixed(4)} to confirm that sellers had successfully pushed price beneath the consolidation zone at ${swingLow.toFixed(4)}. The breakdown showed sustained selling pressure.`;
     } else if (setupType === 'resistance_rejection') {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} after price clearly rejected the resistance level at ${swingHigh.toFixed(4)}. The rejection candle showed sellers defending this structural high, creating a favorable short opportunity.`;
-    } else if (setupType === 'pullback') {
+    } else if (setupType === 'trend_pullback' || setupType === 'flag_continuation') {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} during a pullback to resistance within the downtrend. This lower high formation provided a continuation entry aligned with the prevailing bearish structure.`;
     } else {
       entryReasoning = `Entry was placed at ${entryPrice.toFixed(4)} following confirmation of bearish momentum. The price action showed sellers gaining control after rejecting key structural levels.`;
@@ -6432,38 +6432,9 @@ function resetMentorStateForStrategyChange() {
 }
 
 function filterSetupByTradingMethod(setupDetection, selectedMethod) {
-  // If no setup detected, return as-is
-  if (setupDetection.setup === 'none') {
-    return setupDetection;
-  }
-  
-  console.log('🎯 Filtering setup by trading method:', selectedMethod);
-  
-  // Define which setup types are allowed for each trading method
-  const methodAllowedSetups = {
-    'breakout': ['breakout', 'range_breakout', 'resistance_break', 'support_breakdown'],
-    'trend': ['trend_pullback', 'ma_pullback', 'continuation_structure', 'higher_lows'],
-    'support_resistance': ['support_bounce', 'resistance_rejection', 'strong_support', 'strong_resistance'],
-    'pullback': ['trend_pullback', 'ma_pullback', 'flag_continuation', 'structure_continuation'],
-    'range': ['range_top', 'range_bottom', 'range_breakout'],
-    'liquidity': ['liquidity_sweep', 'stop_hunt', 'reversal_sweep']
-  };
-  
-  const allowedSetups = methodAllowedSetups[selectedMethod];
-  
-  if (!allowedSetups || allowedSetups.includes(setupDetection.setup)) {
-    // Setup is compatible with selected method
-    console.log('✅ Setup compatible with trading method:', setupDetection.setup);
-    return setupDetection;
-  } else {
-    // Setup is not compatible, reject it
-    console.log('❌ Setup not compatible with trading method:', {
-      setup: setupDetection.setup,
-      method: selectedMethod,
-      allowed: allowedSetups
-    });
-    return { setup: 'none', quality: 'none', confluence: 0 };
-  }
+  // detectStructuredSetups is now method-aware and only returns setups relevant
+  // to the selected method, so no post-filtering is needed here.
+  return setupDetection;
 }
 
 // ══ REPLAY KNOWLEDGE ADVANTAGE ═══════════════════════════════════════════════════════════
@@ -6509,566 +6480,526 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
 // ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
 
 function detectStructuredSetups(data, barIndex) {
-  console.log('🔍 detectStructuredSetups called:', { 
-    dataLength: data.length, 
-    barIndex, 
-    hasData: !!data,
-    currentBar: data && barIndex >= 0 && barIndex < data.length ? data[barIndex] : null
-  });
-  
-  // Check cache first for consistent detection
+  // Check cache first — same bar + same method always returns same result
   const tradingMethod = mentorState.selectedTradingMethod || 'none';
   const cacheKey = `${barIndex}_${tradingMethod}`;
-  
   if (mentorState.cacheEnabled && mentorState.setupCache.has(cacheKey)) {
-    const cachedSetup = mentorState.setupCache.get(cacheKey);
-    console.log('📋 Using cached setup for consistency:', { barIndex, tradingMethod, cachedSetup });
-    return cachedSetup;
+    return mentorState.setupCache.get(cacheKey);
   }
-  
+
+  const NONE = { setup: 'none', quality: 'none', confluence: 0 };
+
   if (!data || data.length < 30 || barIndex < 0 || barIndex >= data.length) {
-    console.log('❌ Insufficient data for setup detection or invalid barIndex');
-    return { setup: 'none', quality: 'none', confluence: 0 };
+    return NONE;
   }
-  
-  const current = data[barIndex];
-  console.log('🔍 Current bar:', current);
-  
-  // Analyze market structure
+
+  const current   = data[barIndex];
   const structure = analyzeMarketStructure(data);
-  console.log('🔍 Market structure:', structure);
-  
-  // Initialize setups array
-  const setups = [];
-  
-  // 1. Breakout Setup
-  const consolidation = detectConsolidation(data);
-  console.log('🔍 Consolidation detection:', consolidation);
-  
-  if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
-    const direction = current.close > consolidation.upper ? 'long' : 'short';
-    const quality = consolidation.quality;
-    const confluence = calculateBreakoutConfluence(current, consolidation, structure);
-    
-    setups.push({
-      type: 'breakout',
-      quality,
-      confluence,
-      direction
-    });
-    console.log('✅ Breakout setup detected!');
-  }
-  
-  // 2. Bull flag or bear flag continuation
-  const flagPattern = detectFlagPattern(data, structure);
-  console.log('🔍 Flag pattern detection:', flagPattern);
-  
-  if (flagPattern.detected) {
-    setups.push({
-      type: 'flag_continuation',
-      quality: flagPattern.quality,
-      confluence: calculateFlagConfluence(flagPattern, structure),
-      direction: flagPattern.direction
-    });
-    console.log('✅ Flag pattern setup detected!');
-  }
-  
-  // 3. Support bounce
-  const supportBounce = detectSupportBounce(data);
-  console.log('🔍 Support bounce detection:', supportBounce);
-  
-  if (supportBounce.detected) {
-    setups.push({
-      type: 'support_bounce',
-      quality: supportBounce.quality,
-      confluence: calculateSupportConfluence(supportBounce, structure),
-      direction: 'long'
-    });
-    console.log('✅ Support bounce setup detected!');
-  }
-  
-  // 4. Resistance rejection
-  const resistanceRejection = detectResistanceRejection(data);
-  console.log('🔍 Resistance rejection detection:', resistanceRejection);
-  
-  if (resistanceRejection.detected) {
-    setups.push({
-      type: 'resistance_rejection',
-      quality: resistanceRejection.quality,
-      confluence: calculateResistanceConfluence(resistanceRejection, structure),
-      direction: 'short'
-    });
-    console.log('✅ Resistance rejection setup detected!');
-  }
-  
-  // 5. Trend pullback
-  const trendPullback = detectTrendPullback(data, structure);
-  console.log('🔍 Trend pullback detection:', trendPullback);
-  
-  if (trendPullback.detected) {
-    setups.push({
-      type: 'trend_pullback',
-      quality: trendPullback.quality,
-      confluence: calculatePullbackConfluence(trendPullback, structure),
-      direction: trendPullback.direction
-    });
-    console.log('✅ Trend pullback setup detected!');
-  }
-  
-  // 6. Structure setup
-  const structureSetup = detectStructureSetup(data, structure);
-  console.log('🔍 Structure setup detection:', structureSetup);
-  
-  if (structureSetup.detected) {
-    setups.push({
-      type: 'structure_setup',
-      quality: structureSetup.quality,
-      confluence: calculateStructureConfluence(structureSetup, structure),
-      direction: structureSetup.direction
-    });
-    console.log('✅ Structure setup detected!');
-  }
-  
-  console.log('🔍 Total setups found:', setups.length);
-  
-  // NO FALLBACK setups - AI only works with validated setups
-  // All setups must pass future data validation before being presented
-  // This ensures AI never shows losing trades
-  
-  // Select best setup
-  if (setups.length > 0) {
-    const bestSetup = setups.reduce((best, current) => 
-      current.confluence > best.confluence ? current : best
-    );
-    
-    console.log('🏆 Best setup selected:', bestSetup);
-    
-    // Cache the result for consistent detection
-    const result = {
-      setup: bestSetup.type,
-      quality: bestSetup.quality,
-      confluence: bestSetup.confluence,
-      direction: bestSetup.direction,
-      details: bestSetup
-    };
-    
-    if (mentorState.cacheEnabled) {
-      mentorState.setupCache.set(cacheKey, result);
-      console.log('💾 Setup cached for consistency:', { cacheKey, result });
+
+  // ── Run ONLY the detectors relevant to the selected method ───────────────
+  // This prevents cross-contamination (e.g. a liquidity sweep being shown
+  // when the user selected Pullback) and avoids unnecessary computation.
+  let candidates = [];
+
+  switch (tradingMethod) {
+
+    case 'breakout': {
+      const consolidation = detectConsolidation(data);
+      if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
+        const direction = current.close > consolidation.upper ? 'long' : 'short';
+        candidates.push({ type: 'breakout', direction,
+          quality: consolidation.quality,
+          confluence: calculateBreakoutConfluence(current, consolidation, structure) });
+      }
+      // Range breakout is also valid under breakout method
+      const rbo = detectRangeBreakout(data, consolidation || { isConsolidating: false });
+      if (rbo.detected) {
+        candidates.push({ type: 'range_breakout', direction: rbo.direction,
+          quality: rbo.quality,
+          confluence: calculateRangeBreakoutConfluence(rbo, structure) });
+      }
+      break;
     }
-    
-    return result;
+
+    case 'trend': {
+      const flag = detectFlagPattern(data, structure);
+      if (flag.detected) {
+        candidates.push({ type: 'flag_continuation', direction: flag.direction,
+          quality: flag.quality,
+          confluence: calculateFlagConfluence(flag, structure) });
+      }
+      const str = detectStructureSetup(data, structure);
+      if (str.detected) {
+        candidates.push({ type: 'structure_continuation', direction: str.direction,
+          quality: str.quality,
+          confluence: calculateStructureConfluence(str, structure) });
+      }
+      break;
+    }
+
+    case 'support_resistance': {
+      const sb = detectSupportBounce(data);
+      if (sb.detected) {
+        candidates.push({ type: 'support_bounce', direction: 'long',
+          quality: sb.quality,
+          confluence: calculateSupportConfluence(sb, structure) });
+      }
+      const rr = detectResistanceRejection(data);
+      if (rr.detected) {
+        candidates.push({ type: 'resistance_rejection', direction: 'short',
+          quality: rr.quality,
+          confluence: calculateResistanceConfluence(rr, structure) });
+      }
+      break;
+    }
+
+    case 'pullback': {
+      const pb = detectTrendPullback(data, structure);
+      if (pb.detected) {
+        candidates.push({ type: 'trend_pullback', direction: pb.direction,
+          quality: pb.quality,
+          confluence: calculatePullbackConfluence(pb, structure) });
+      }
+      // Flag continuation is also a valid pullback entry
+      const flag = detectFlagPattern(data, structure);
+      if (flag.detected) {
+        candidates.push({ type: 'flag_continuation', direction: flag.direction,
+          quality: flag.quality,
+          confluence: calculateFlagConfluence(flag, structure) });
+      }
+      break;
+    }
+
+    case 'range': {
+      // Range boundary touches — reuse support/resistance detectors
+      const sb = detectSupportBounce(data);
+      if (sb.detected) {
+        candidates.push({ type: 'support_bounce', direction: 'long',
+          quality: sb.quality,
+          confluence: calculateSupportConfluence(sb, structure) });
+      }
+      const rr = detectResistanceRejection(data);
+      if (rr.detected) {
+        candidates.push({ type: 'resistance_rejection', direction: 'short',
+          quality: rr.quality,
+          confluence: calculateResistanceConfluence(rr, structure) });
+      }
+      break;
+    }
+
+    case 'liquidity': {
+      const sweep = detectLiquiditySweep(data);
+      if (sweep.detected) {
+        candidates.push({ type: 'liquidity_sweep', direction: sweep.direction,
+          quality: sweep.quality,
+          confluence: calculateLiquiditySweepConfluence(sweep, structure) });
+      }
+      break;
+    }
+
+    default: {
+      // No method selected — run all detectors, pick best
+      const consolidation = detectConsolidation(data);
+      if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
+        const dir = current.close > consolidation.upper ? 'long' : 'short';
+        candidates.push({ type: 'breakout', direction: dir,
+          quality: consolidation.quality,
+          confluence: calculateBreakoutConfluence(current, consolidation, structure) });
+      }
+      const flag = detectFlagPattern(data, structure);
+      if (flag.detected) candidates.push({ type: 'flag_continuation', direction: flag.direction, quality: flag.quality, confluence: calculateFlagConfluence(flag, structure) });
+      const sb = detectSupportBounce(data);
+      if (sb.detected) candidates.push({ type: 'support_bounce', direction: 'long', quality: sb.quality, confluence: calculateSupportConfluence(sb, structure) });
+      const rr = detectResistanceRejection(data);
+      if (rr.detected) candidates.push({ type: 'resistance_rejection', direction: 'short', quality: rr.quality, confluence: calculateResistanceConfluence(rr, structure) });
+      const pb = detectTrendPullback(data, structure);
+      if (pb.detected) candidates.push({ type: 'trend_pullback', direction: pb.direction, quality: pb.quality, confluence: calculatePullbackConfluence(pb, structure) });
+      const sweep = detectLiquiditySweep(data);
+      if (sweep.detected) candidates.push({ type: 'liquidity_sweep', direction: sweep.direction, quality: sweep.quality, confluence: calculateLiquiditySweepConfluence(sweep, structure) });
+      const str = detectStructureSetup(data, structure);
+      if (str.detected) candidates.push({ type: 'structure_continuation', direction: str.direction, quality: str.quality, confluence: calculateStructureConfluence(str, structure) });
+    }
   }
-  
-  // Cache the "none" result as well for consistency
-  const noSetupResult = { setup: 'none', quality: 'none', confluence: 0 };
-  if (mentorState.cacheEnabled) {
-    mentorState.setupCache.set(cacheKey, noSetupResult);
-    console.log('💾 No-setup cached for consistency:', { cacheKey });
+
+  // ── Quality gate: must meet minimum confluence of 2 ──────────────────────
+  // (strict detection already filters most noise; this removes the weakest hits)
+  candidates = candidates.filter(s => s.confluence >= 2);
+
+  if (candidates.length === 0) {
+    if (mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, NONE);
+    return NONE;
   }
-  
-  console.log('❌ No setups found');
-  return noSetupResult;
+
+  // Pick the highest-confluence candidate
+  const best = candidates.reduce((a, b) => b.confluence > a.confluence ? b : a);
+
+  const result = {
+    setup: best.type,
+    quality: best.quality,
+    confluence: best.confluence,
+    direction: best.direction,
+    details: best,
+  };
+
+  if (mentorState.cacheEnabled) mentorState.setupCache.set(cacheKey, result);
+  console.log(`🏆 Setup detected [${tradingMethod}]: ${result.setup} ${result.direction} conf=${result.confluence}`);
+  return result;
 }
 
+// ══ METHODOLOGY-STRICT DETECTION FUNCTIONS ══════════════════════════════════════════════════
+// Each function enforces the real criteria from the trading methodology document.
+// Strict criteria replace the 80-candle cooldown — bad setups are rejected here, not timed out.
+
+// ── Shared helpers ──────────────────────────────────────────────────────────
+function _ema(data, period) {
+  if (data.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = data.slice(0, period).reduce((s,d) => s + d.close, 0) / period;
+  for (let i = period; i < data.length; i++) ema = data[i].close * k + ema * (1 - k);
+  return ema;
+}
+function _sma(data, period) {
+  if (data.length < period) return null;
+  return data.slice(-period).reduce((s,d) => s + d.close, 0) / period;
+}
+function _avgVol(data, period) {
+  if (data.length < period) return 1;
+  return data.slice(-period).reduce((s,d) => s + (d.volume||0), 0) / period;
+}
+function _atrRaw(data, period) {
+  if (data.length < period + 1) return null;
+  let sum = 0;
+  for (let i = data.length - period; i < data.length; i++) {
+    const c = data[i], p = data[i-1];
+    sum += Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+  }
+  return sum / period;
+}
+
+// ── 1. BREAKOUT: consolidation zone + decisive close + volume expansion ──────
 function detectConsolidation(data) {
-  if (data.length < 10) return { isConsolidating: false };
-  
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
-  const avgHigh = highs.reduce((a, b) => a + b) / highs.length;
-  const avgLow = lows.reduce((a, b) => a + b) / lows.length;
-  const range = avgHigh - avgLow;
-  const avgPrice = (avgHigh + avgLow) / 2;
-  const rangePercent = (range / avgPrice) * 100;
-  
-  console.log('🔍 Consolidation analysis:', { rangePercent, avgPrice, range });
-  
-  // More lenient consolidation detection - up to 5% range
-  const isConsolidating = rangePercent < 5;
-  const quality = rangePercent < 2 ? 'high' : rangePercent < 4 ? 'medium' : 'low';
-  
-  return {
-    isConsolidating,
-    quality,
-    upper: avgHigh,
-    lower: avgLow,
-    range: rangePercent
-  };
+  // Need at least 15 bars to confirm a real consolidation zone
+  if (data.length < 15) return { isConsolidating: false };
+  const lookback = data.slice(-20);
+  const highs = lookback.map(d => d.high);
+  const lows  = lookback.map(d => d.low);
+  const hi = Math.max(...highs), lo = Math.min(...lows);
+  const mid = (hi + lo) / 2;
+  const rangePercent = (hi - lo) / mid * 100;
+  // Consolidation: range < 4% and at least 2 clear touches of upper and lower band
+  const upperTouches = lookback.filter(d => d.high >= hi * 0.997).length;
+  const lowerTouches = lookback.filter(d => d.low  <= lo * 1.003).length;
+  const isConsolidating = rangePercent < 4 && upperTouches >= 2 && lowerTouches >= 2;
+  const quality = rangePercent < 2 ? 'high' : rangePercent < 3 ? 'medium' : 'low';
+  const avgVol = _avgVol(data, 20);
+  return { isConsolidating, quality, upper: hi, lower: lo, range: rangePercent,
+           avgVolume: avgVol, upperTouches, lowerTouches };
 }
 
 function isBreakingOut(current, consolidation) {
-  const threshold = consolidation.range * 0.1; // 10% of range as threshold
-  return current.close > consolidation.upper + threshold || 
-         current.close < consolidation.lower - threshold;
+  if (!consolidation.isConsolidating) return false;
+  // Body must close outside the zone (not just a wick)
+  const bodyTop = Math.max(current.open, current.close);
+  const bodyBot = Math.min(current.open, current.close);
+  const bodySize = Math.abs(current.close - current.open);
+  const candleRange = current.high - current.low;
+  // Body must be > 50% of the candle range (strong close)
+  if (candleRange > 0 && bodySize / candleRange < 0.5) return false;
+  // Close must be clearly outside the zone
+  return current.close > consolidation.upper * 1.001 ||
+         current.close < consolidation.lower * 0.999;
 }
-
-function detectFlagPattern(data, structure) {
-  if (data.length < 10 || !structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
-  
-  const recent = data.slice(-8);
-  const isUptrend = structure.trend.includes('up');
-  
-  // Look for flag pattern: strong move followed by consolidation
-  const firstHalf = recent.slice(0, 4);
-  const secondHalf = recent.slice(4);
-  
-  const firstMove = Math.abs(firstHalf[firstHalf.length - 1].close - firstHalf[0].close);
-  const secondMove = Math.abs(secondHalf[secondHalf.length - 1].close - secondHalf[0].close);
-  
-  // Flag: second move is much smaller than first move (consolidation after impulse)
-  if (firstMove > secondMove * 2) {
-    const direction = isUptrend ? 'long' : 'short';
-    const quality = firstMove > secondMove * 3 ? 'high' : 'medium';
-    
-    return {
-      detected: true,
-      direction,
-      quality,
-      pattern: 'flag'
-    };
-  }
-  
-  return { detected: false };
-}
-
-function detectSupportBounce(data, structure) {
-  if (data.length < 10) return { detected: false };
-  
-  const recent = data.slice(-5);
-  const current = data[data.length - 1]; // This is OK since helper functions work on full data
-  
-  // Find recent low
-  const recentLows = recent.map(d => d.low);
-  const lowestLow = Math.min(...recentLows);
-  const lowestIdx = recentLows.indexOf(lowestLow);
-  
-  console.log('🔍 Support bounce analysis:', { lowestLow, currentLow: current.low, lowestIdx });
-  
-  // Check if we bounced from the low - more lenient conditions
-  if (lowestIdx < recent.length - 1) {
-    const afterLow = recent.slice(lowestIdx + 1);
-    const bounced = afterLow.every(d => d.low > lowestLow * 0.99); // More tolerance
-    
-    if (bounced && current.close > lowestLow * 1.005) { // Much more lenient
-      const quality = current.close > lowestLow * 1.01 ? 'high' : 'medium';
-      return {
-        detected: true,
-        quality,
-        supportLevel: lowestLow
-      };
-    }
-  }
-  
-  return { detected: false };
-}
-
-function detectResistanceRejection(data) {
-  if (data.length < 10) return { detected: false };
-  
-  const recent = data.slice(-5);
-  const current = data[data.length - 1];
-  
-  // Find recent high
-  const recentHighs = recent.map(d => d.high);
-  const highestHigh = Math.max(...recentHighs);
-  const highestIdx = recentHighs.indexOf(highestHigh);
-  
-  // Check if we rejected from the high
-  if (highestIdx < recent.length - 1) {
-    const afterHigh = recent.slice(highestIdx + 1);
-    const rejected = afterHigh.every(d => d.high < highestHigh * 1.005); // Small tolerance
-    
-    if (rejected && current.close < highestHigh * 0.99) {
-      const quality = current.close < highestHigh * 0.98 ? 'high' : 'medium';
-      return {
-        detected: true,
-        quality,
-        resistanceLevel: highestHigh
-      };
-    }
-  }
-  
-  return { detected: false };
-}
-
-function detectTrendPullback(data, structure) {
-  if (data.length < 15 || !structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
-  
-  const recent = data.slice(-10);
-  const current = data[data.length - 1];
-  const isUptrend = structure.trend.includes('up');
-  
-  // Calculate SMA for recent data
-  const sma20 = recent.reduce((sum, d) => sum + d.close, 0) / recent.length;
-  
-  if (isUptrend) {
-    // Look for pullback to SMA in uptrend
-    const wasAboveMA = recent.slice(0, 5).every(d => d.close > sma20 * 0.99);
-    const touchedMA = current.close <= sma20 * 1.01 && current.close >= sma20 * 0.99;
-    
-    if (wasAboveMA && touchedMA) {
-      return {
-        detected: true,
-        quality: 'medium',
-        direction: 'long',
-        pullbackLevel: sma20
-      };
-    }
-  } else {
-    // Look for pullback to SMA in downtrend
-    const wasBelowMA = recent.slice(0, 5).every(d => d.close < sma20 * 1.01);
-    const touchedMA = current.close <= sma20 * 1.01 && current.close >= sma20 * 0.99;
-    
-    if (wasBelowMA && touchedMA) {
-      return {
-        detected: true,
-        quality: 'medium',
-        direction: 'short',
-        pullbackLevel: sma20
-      };
-    }
-  }
-  
-  return { detected: false };
-}
-
-function detectRangeBreakout(data, consolidation) {
-  if (!consolidation.isConsolidating) return { detected: false };
-  
-  const current = data[data.length - 1];
-  const previous = data[data.length - 2];
-  
-  // Check for breakout with volume confirmation
-  const volumeIncrease = current.volume > (data.slice(-5).reduce((sum, d) => sum + d.volume, 0) / 5) * 1.5;
-  
-  if (current.close > consolidation.upper && volumeIncrease) {
-    return {
-      detected: true,
-      quality: 'high',
-      direction: 'long',
-      breakoutLevel: consolidation.upper
-    };
-  }
-  
-  if (current.close < consolidation.lower && volumeIncrease) {
-    return {
-      detected: true,
-      quality: 'high',
-      direction: 'short',
-      breakoutLevel: consolidation.lower
-    };
-  }
-  
-  return { detected: false };
-}
-
-function detectLiquiditySweep(data) {
-  if (data.length < 15) return { detected: false };
-  
-  const recent = data.slice(-8);
-  const current = data[data.length - 1];
-  
-  // Look for sweep below recent low followed by reversal
-  const recentLows = recent.slice(0, 6).map(d => d.low);
-  const lowestLow = Math.min(...recentLows);
-  
-  const lastTwo = recent.slice(-2);
-  const swept = lastTwo[0].low < lowestLow * 0.995; // Swept below low
-  const reversing = current.close > lastTwo[0].high; // Reversed above sweep candle
-  
-  if (swept && reversing) {
-    return {
-      detected: true,
-      quality: 'high',
-      direction: 'long',
-      sweepLevel: lowestLow
-    };
-  }
-  
-  // Look for sweep above recent high followed by reversal
-  const recentHighs = recent.slice(0, 6).map(d => d.high);
-  const highestHigh = Math.max(...recentHighs);
-  
-  const sweptHigh = lastTwo[0].high > highestHigh * 1.005; // Swept above high
-  const reversingDown = current.close < lastTwo[0].low; // Reversed below sweep candle
-  
-  if (sweptHigh && reversingDown) {
-    return {
-      detected: true,
-      quality: 'high',
-      direction: 'short',
-      sweepLevel: highestHigh
-    };
-  }
-  
-  return { detected: false };
-}
-
-function detectStructureSetup(data, structure) {
-  if (!structure || !structure.trend || structure.trend === 'neutral') return { detected: false };
-  
-  const recent = data.slice(-10);
-  const isUptrend = structure.trend.includes('up');
-  
-  if (isUptrend) {
-    // Look for higher low
-    const recentLows = recent.map(d => d.low);
-    if (recentLows.length >= 6) {
-      const lastLow = recentLows[recentLows.length - 1];
-      const previousLow = recentLows[recentLows.length - 3];
-      
-      if (lastLow > previousLow) {
-        return {
-          detected: true,
-          quality: 'medium',
-          direction: 'long',
-          setupType: 'higher_low'
-        };
-      }
-    }
-  } else {
-    // Look for lower high
-    const recentHighs = recent.map(d => d.high);
-    if (recentHighs.length >= 6) {
-      const lastHigh = recentHighs[recentHighs.length - 1];
-      const previousHigh = recentHighs[recentHighs.length - 3];
-      
-      if (lastHigh < previousHigh) {
-        return {
-          detected: true,
-          quality: 'medium',
-          direction: 'short',
-          setupType: 'lower_high'
-        };
-      }
-    }
-  }
-  
-  return { detected: false };
-}
-
-// ══ CONFLUENCE CALCULATION FUNCTIONS ═══════════════════════════════════════════════════════════
 
 function calculateBreakoutConfluence(current, consolidation, structure) {
-  let confluence = 1; // Base confluence for breakout
-  
-  // Trend alignment
-  if (structure && structure.trend && structure.trend !== 'neutral') confluence++;
-  
-  // Volume confirmation
-  const avgVolume = consolidation.avgVolume || 1;
-  if (current.volume > avgVolume * 1.5) confluence++;
-  
-  // Strong level
-  if (consolidation.quality === 'high') confluence++;
-  
-  return confluence;
+  let c = 0;
+  // 1. Candle closes outside zone with strong body (> 50% of range)
+  const bodySize = Math.abs(current.close - current.open);
+  const candleRange = current.high - current.low || 1;
+  if (bodySize / candleRange >= 0.5) c++;
+  // 2. Volume above 20-bar average
+  if (current.volume > (consolidation.avgVolume||1) * 1.2) c++;
+  // 3. Zone quality (multiple touches = stronger zone)
+  if (consolidation.upperTouches >= 3 || consolidation.lowerTouches >= 3) c++;
+  // 4. Trend alignment: breakout in direction of HTF trend
+  if (structure && structure.trend && structure.trend !== 'neutral') c++;
+  return Math.min(c, 4);
+}
+
+// ── 2. FLAG/TREND: strong impulse + low-vol pullback + EMA still fanned ─────
+function detectFlagPattern(data, structure) {
+  if (data.length < 20 || !structure || structure.trend === 'neutral') return { detected: false };
+  const isUp = structure.trend.includes('up');
+  // Impulse: prior 10-bar move must be > 2× ATR
+  const atr = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
+  const impulse = data.slice(-15, -5);
+  const consolidation = data.slice(-5);
+  const impulseMagnitude = Math.abs(impulse[impulse.length-1].close - impulse[0].close);
+  if (impulseMagnitude < atr * 2) return { detected: false };
+  // Pullback must be low-volume and orderly (range narrowing)
+  const avgVolImpulse = impulse.reduce((s,d) => s+(d.volume||0), 0) / impulse.length;
+  const avgVolConsolidation = consolidation.reduce((s,d) => s+(d.volume||0), 0) / consolidation.length;
+  if (avgVolConsolidation >= avgVolImpulse) return { detected: false }; // volume not contracting
+  // Price must still be on correct side of 20 EMA
+  const ema20 = _ema(data, 20);
+  const current = data[data.length - 1];
+  if (isUp  && current.close < ema20) return { detected: false };
+  if (!isUp && current.close > ema20) return { detected: false };
+  const quality = impulseMagnitude > atr * 3 ? 'high' : 'medium';
+  return { detected: true, direction: isUp ? 'long' : 'short', quality, pattern: 'flag' };
 }
 
 function calculateFlagConfluence(flag, structure) {
-  let confluence = 1; // Base confluence for flag
-  
-  // Strong trend
-  if (structure && structure.trend && structure.trend !== 'neutral') confluence++;
-  
-  // Clear pattern
-  if (flag.quality === 'high') confluence++;
-  
-  // Volume pattern
-  confluence++; // Assume volume confirmation for now
-  
-  return confluence;
+  let c = 1; // Base: impulse + consolidation confirmed
+  if (structure && structure.trend && structure.trend.includes('strong')) c++;
+  if (flag.quality === 'high') c++;
+  // EMA alignment already validated in detection, add point
+  c++;
+  return Math.min(c, 4);
+}
+
+// ── 3. SUPPORT BOUNCE: level with 2+ prior touches + confirmation candle ─────
+function detectSupportBounce(data) {
+  if (data.length < 30) return { detected: false };
+  const atr = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
+  const lookback = data.slice(-30);
+  const current  = data[data.length - 1];
+  const prev     = data[data.length - 2];
+  // Find significant swing lows in lookback
+  const swingLows = [];
+  for (let i = 2; i < lookback.length - 2; i++) {
+    if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i-2].low &&
+        lookback[i].low < lookback[i+1].low && lookback[i].low < lookback[i+2].low) {
+      swingLows.push(lookback[i].low);
+    }
+  }
+  if (swingLows.length < 1) return { detected: false };
+  // Find a support level that has 2+ tests (within ATR tolerance)
+  for (const level of swingLows) {
+    const tolerance = atr * 0.5;
+    const touches = lookback.filter(d => Math.abs(d.low - level) < tolerance).length;
+    if (touches < 2) continue;
+    // Current bar must be testing the level (low within tolerance)
+    if (Math.abs(current.low - level) > tolerance * 1.5) continue;
+    // Confirmation: bullish rejection candle — close in upper half with rejection wick
+    const bodyBot = Math.min(current.open, current.close);
+    const bodyTop = Math.max(current.open, current.close);
+    const lowerWick = bodyBot - current.low;
+    const bodySize  = bodyTop - bodyBot;
+    const isRejection = lowerWick > bodySize && current.close > prev.close;
+    if (!isRejection) continue;
+    const quality = touches >= 3 ? 'high' : 'medium';
+    return { detected: true, quality, supportLevel: level, touches };
+  }
+  return { detected: false };
 }
 
 function calculateSupportConfluence(support, structure) {
-  let confluence = 1; // Base confluence for support
-  
-  // Trend alignment
-  if (structure && structure.trend && structure.trend.includes('up')) confluence++;
-  
-  // Strong level
-  if (support.quality === 'high') confluence++;
-  
-  // Multiple touches
-  confluence++; // Assume multiple touches for now
-  
-  return confluence;
+  let c = 1;
+  if (support.touches >= 3) c++; // Level tested 3+ times
+  if (structure && structure.trend && structure.trend.includes('up')) c++; // Trend aligned
+  // Check for Fibonacci / round number (simplified: if touches is very high it's a major level)
+  if (support.touches >= 4) c++;
+  return Math.min(c, 4);
+}
+
+// ── 4. RESISTANCE REJECTION: level with 2+ touches + rejection candle ────────
+function detectResistanceRejection(data) {
+  if (data.length < 30) return { detected: false };
+  const atr = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
+  const lookback = data.slice(-30);
+  const current  = data[data.length - 1];
+  const prev     = data[data.length - 2];
+  // Find significant swing highs
+  const swingHighs = [];
+  for (let i = 2; i < lookback.length - 2; i++) {
+    if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i-2].high &&
+        lookback[i].high > lookback[i+1].high && lookback[i].high > lookback[i+2].high) {
+      swingHighs.push(lookback[i].high);
+    }
+  }
+  if (swingHighs.length < 1) return { detected: false };
+  for (const level of swingHighs) {
+    const tolerance = atr * 0.5;
+    const touches = lookback.filter(d => Math.abs(d.high - level) < tolerance).length;
+    if (touches < 2) continue;
+    if (Math.abs(current.high - level) > tolerance * 1.5) continue;
+    // Confirmation: bearish rejection candle — close in lower half with upper wick
+    const bodyBot = Math.min(current.open, current.close);
+    const bodyTop = Math.max(current.open, current.close);
+    const upperWick = current.high - bodyTop;
+    const bodySize  = bodyTop - bodyBot;
+    const isRejection = upperWick > bodySize && current.close < prev.close;
+    if (!isRejection) continue;
+    const quality = touches >= 3 ? 'high' : 'medium';
+    return { detected: true, quality, resistanceLevel: level, touches };
+  }
+  return { detected: false };
 }
 
 function calculateResistanceConfluence(resistance, structure) {
-  let confluence = 1; // Base confluence for resistance
-  
-  // Trend alignment
-  if (structure && structure.trend && structure.trend.includes('down')) confluence++;
-  
-  // Strong level
-  if (resistance.quality === 'high') confluence++;
-  
-  // Multiple touches
-  confluence++; // Assume multiple touches for now
-  
-  return confluence;
+  let c = 1;
+  if (resistance.touches >= 3) c++;
+  if (structure && structure.trend && structure.trend.includes('down')) c++;
+  if (resistance.touches >= 4) c++;
+  return Math.min(c, 4);
+}
+
+// ── 5. TREND PULLBACK: HTF trend intact + retrace to 38–61.8% Fib + EMA ─────
+function detectTrendPullback(data, structure) {
+  if (data.length < 30 || !structure || structure.trend === 'neutral') return { detected: false };
+  const isUp = structure.trend.includes('up');
+  // Identify the prior swing for Fibonacci measurement (last 20 bars)
+  const lookback = data.slice(-25);
+  const highs = lookback.map(d => d.high);
+  const lows  = lookback.map(d => d.low);
+  const swingHigh = Math.max(...highs);
+  const swingLow  = Math.min(...lows);
+  const swingSize = swingHigh - swingLow;
+  if (swingSize === 0) return { detected: false };
+  const current = data[data.length - 1];
+  // Calculate retracement depth
+  let retrace;
+  if (isUp) {
+    retrace = (swingHigh - current.close) / swingSize;
+  } else {
+    retrace = (current.close - swingLow) / swingSize;
+  }
+  // Only accept 38.2%–61.8% retracements (standard to deep pullback zone)
+  if (retrace < 0.30 || retrace > 0.65) return { detected: false };
+  // EMA 20 must be in pullback zone — confirms dynamic support/resistance
+  const ema20 = _ema(data, 20);
+  if (!ema20) return { detected: false };
+  const emaInZone = Math.abs(current.close - ema20) / ema20 < 0.015;
+  if (!emaInZone) return { detected: false };
+  // Volume during pullback should be contracting vs prior impulse
+  const impulseVol = _avgVol(data.slice(0, -10), 10);
+  const pullbackVol = _avgVol(data.slice(-10), 10);
+  const volContracting = pullbackVol < impulseVol;
+  // EMA 50 still pointing in trend direction (no cross)
+  const ema50 = _ema(data, 50);
+  const trendIntact = isUp ? (ema20 > ema50) : (ema20 < ema50);
+  if (!trendIntact) return { detected: false };
+  const quality = (volContracting && retrace >= 0.382 && retrace <= 0.618) ? 'high' : 'medium';
+  return { detected: true, quality, direction: isUp ? 'long' : 'short',
+           pullbackLevel: current.close, retrace, emaInZone, volContracting };
 }
 
 function calculatePullbackConfluence(pullback, structure) {
-  let confluence = 1; // Base confluence for pullback
-  
-  // Strong trend
-  if (structure && structure.trend && structure.trend.includes('strong')) confluence++;
-  
-  // Clear MA touch
-  confluence++;
-  
-  // Volume confirmation
-  confluence++; // Assume volume confirmation for now
-  
-  return confluence;
+  let c = 1;
+  if (structure.trend.includes('strong')) c++;   // Strong trend
+  if (pullback.emaInZone) c++;                    // Price at EMA confluence
+  if (pullback.volContracting) c++;               // Volume contracting = healthy pullback
+  return Math.min(c, 4);
+}
+
+// ── 6. RANGE: 2–3 touches each boundary + range wide enough for 2:1 ─────────
+function detectRangeBreakout(data, consolidation) {
+  if (!consolidation.isConsolidating) return { detected: false };
+  if (data.length < 2) return { detected: false };
+  const current  = data[data.length - 1];
+  const avgVol   = _avgVol(data, 20);
+  const volExpansion = current.volume > avgVol * 1.3;
+  if (current.close > consolidation.upper * 1.001 && volExpansion) {
+    return { detected: true, quality: 'high', direction: 'long', breakoutLevel: consolidation.upper };
+  }
+  if (current.close < consolidation.lower * 0.999 && volExpansion) {
+    return { detected: true, quality: 'high', direction: 'short', breakoutLevel: consolidation.lower };
+  }
+  return { detected: false };
 }
 
 function calculateRangeBreakoutConfluence(breakout, structure) {
-  let confluence = 1; // Base confluence for range breakout
-  
-  // Volume confirmation
-  confluence++;
-  
-  // Clear level
-  if (breakout.quality === 'high') confluence++;
-  
-  // Structure alignment
-  confluence++;
-  
-  return confluence;
+  let c = 2; // Zone validated (multiple touches confirmed in detectConsolidation)
+  if (breakout.quality === 'high') c++;
+  if (structure && structure.trend !== 'neutral') c++;
+  return Math.min(c, 4);
+}
+
+// ── 7. LIQUIDITY SWEEP: wick beyond swing high/low + displacement close ─────
+function detectLiquiditySweep(data) {
+  if (data.length < 20) return { detected: false };
+  const atr = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
+  const lookback = data.slice(-20, -2); // Prior swing reference
+  const sweepCandle = data[data.length - 2]; // The sweep candle
+  const current     = data[data.length - 1]; // Displacement / confirmation candle
+  // Find prior swing lows and highs
+  const priorLow  = Math.min(...lookback.map(d => d.low));
+  const priorHigh = Math.max(...lookback.map(d => d.high));
+  // BULL sweep: wick below prior swing low then close sharply back above
+  const wickBelowLow = sweepCandle.low < priorLow;
+  const displacedUp  = current.close > sweepCandle.high && // displacement close above sweep candle
+                       (current.close - current.open) > atr * 0.5; // strong displacement body
+  if (wickBelowLow && displacedUp) {
+    return { detected: true, quality: 'high', direction: 'long',
+             sweepLevel: priorLow, wickDepth: priorLow - sweepCandle.low };
+  }
+  // BEAR sweep: wick above prior swing high then close sharply back below
+  const wickAboveHigh = sweepCandle.high > priorHigh;
+  const displacedDown = current.close < sweepCandle.low &&
+                        (current.open - current.close) > atr * 0.5;
+  if (wickAboveHigh && displacedDown) {
+    return { detected: true, quality: 'high', direction: 'short',
+             sweepLevel: priorHigh, wickDepth: sweepCandle.high - priorHigh };
+  }
+  return { detected: false };
 }
 
 function calculateLiquiditySweepConfluence(sweep, structure) {
-  let confluence = 1; // Base confluence for liquidity sweep
-  
-  // Clear sweep
-  if (sweep.quality === 'high') confluence++;
-  
-  // Strong reversal
-  confluence++;
-  
-  // Structure context
-  confluence++;
-  
-  return confluence;
+  let c = 1;
+  if (sweep.quality === 'high') c++;
+  // Wick depth relative to ATR — deeper sweep = more stops taken = stronger signal
+  if (sweep.wickDepth && sweep.wickDepth > 0) c++;
+  // Opposite trend structure (sweep reverses against recent momentum)
+  if (structure && structure.trend !== 'neutral') c++;
+  return Math.min(c, 4);
+}
+
+// ── 8. STRUCTURE (higher low / lower high) ───────────────────────────────────
+function detectStructureSetup(data, structure) {
+  if (!structure || structure.trend === 'neutral' || data.length < 20) return { detected: false };
+  const isUp = structure.trend.includes('up');
+  const atr = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
+  const lookback = data.slice(-20);
+  // Find the last 3 swing lows (for uptrend) or swing highs (for downtrend)
+  const pivots = [];
+  for (let i = 2; i < lookback.length - 2; i++) {
+    if (isUp) {
+      if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i+1].low) {
+        pivots.push({ idx: i, price: lookback[i].low });
+      }
+    } else {
+      if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i+1].high) {
+        pivots.push({ idx: i, price: lookback[i].high });
+      }
+    }
+  }
+  if (pivots.length < 2) return { detected: false };
+  const last = pivots[pivots.length - 1];
+  const prev = pivots[pivots.length - 2];
+  // Higher low (uptrend) or lower high (downtrend) — difference must be > 0.3×ATR (meaningful)
+  const isValid = isUp
+    ? (last.price > prev.price + atr * 0.3)
+    : (last.price < prev.price - atr * 0.3);
+  if (!isValid) return { detected: false };
+  // Current bar must be near the pivot (within 1×ATR) — fresh signal
+  const current = data[data.length - 1];
+  const nearPivot = Math.abs(current.close - last.price) < atr;
+  if (!nearPivot) return { detected: false };
+  return { detected: true, quality: pivots.length >= 3 ? 'high' : 'medium',
+           direction: isUp ? 'long' : 'short', setupType: isUp ? 'higher_low' : 'lower_high' };
 }
 
 function calculateStructureConfluence(setup, structure) {
-  let confluence = 1; // Base confluence for structure setup
-  
-  // Clear structure
-  if (structure && structure.trend && structure.trend.includes('strong')) confluence++;
-  
-  // Clear pattern
-  if (setup.quality === 'high') confluence++;
-  
-  // Multiple confirmations
-  confluence++;
-  
-  return confluence;
+  let c = 1;
+  if (structure.trend.includes('strong')) c++;
+  if (setup.quality === 'high') c++; // 3+ pivots confirming structure
+  c++; // near-pivot freshness already validated in detection
+  return Math.min(c, 4);
 }
 
 // Market Analysis Engine (NO future data)
@@ -8538,8 +8469,8 @@ function scanForSetupsInWindow(currentBar) {
         }
       }
       
-      // Track the best setup found — require confluence >= 3 (high-quality only)
-      if (filteredSetup.setup !== 'none' && filteredSetup.confluence >= 3 && filteredSetup.confluence > bestSetup.confluence) {
+      // Track the best setup found — confluence >= 2 matches the quality gate in detectStructuredSetups
+      if (filteredSetup.setup !== 'none' && filteredSetup.confluence >= 2 && filteredSetup.confluence > bestSetup.confluence) {
         bestSetup = filteredSetup;
         bestSetupBar = bar;
       }
@@ -9020,19 +8951,11 @@ function updateMentor() {
       
       // First, check for new manual trade placements during replay
       detectReplayTradePlacement();
-      
-      // Check cooldown period first (but not if we're in setup wait state)
-      const candlesSinceLastSuggestion = currentBar - mentorState.lastTradeSuggestionBar;
-      console.log('🤖 Cooldown check:', { candlesSinceLastSuggestion, cooldownCandles: mentorState.cooldownCandles, lifecycleState: mentorState.lifecycleState });
-      
-      if (candlesSinceLastSuggestion < mentorState.cooldownCandles && mentorState.lifecycleState !== 'setup_wait') {
-        // Still in cooldown, just update analysis but don't suggest trades
-        mentorState.analysis = analyzeMarketData(currentBar);
-        if (mentorState.analysis) {
-          updateMentorUIWithCooldown(candlesSinceLastSuggestion);
-        }
-        return;
-      }
+
+      // NO COOLDOWN — strict methodology detection functions act as the quality gate.
+      // A setup is only shown when it genuinely meets the criteria for the selected
+      // method (correct candle confirmation, volume, level touches, EMA alignment etc).
+      // The old 80-candle timer is removed entirely.
       
       mentorState.analysis = analyzeMarketData(currentBar);
       console.log('🤖 Analysis result:', mentorState.analysis);
@@ -9174,7 +9097,7 @@ function updateMentorUIWithCooldown(candlesRemaining) {
   }
   
   // Cooldown message
-  insights.push(`⏱️ Cooling down... ${mentorState.cooldownCandles - candlesRemaining} candles remaining`);
+  insights.push(`🔍 Scanning for ${mentorState.selectedTradingMethod || 'setup'} criteria...`);
   
   insightsEl.textContent = insights.join('. ');
   questionEl.textContent = '';
