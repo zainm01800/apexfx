@@ -12234,9 +12234,12 @@ function hitTest(d, sx, sy){
         xOffset = (index % 3) * minSpacing - minSpacing;
       }
       
-      // Box position with stored randomness (match rendering)
-      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset + (d.randomValues?.boxOffset || 0)));
-      const boxY = calloutAbove ? 15 + (d.randomValues?.boxYOffset || 0) : canvasHeight - 15 - boxH + (d.randomValues?.boxYOffset || 0);
+      // Box position closer to anchor point (match rendering)
+      const naturalDistance = 80 + (d.randomValues?.boxYOffset || 5); // Approximate distance
+      const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + (d.randomValues?.boxOffset || 0)));
+      const boxY = calloutAbove 
+        ? Math.max(15, ay - naturalDistance + (d.randomValues?.boxYOffset || 0))
+        : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + (d.randomValues?.boxYOffset || 0));
       
       // Check if point is in box
       if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
@@ -13851,19 +13854,22 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         // Store random values for consistent positioning and hit testing
         if (!d.randomValues) {
           d.randomValues = {
-            boxOffset: (Math.random() - 0.5) * 20,
-            boxYOffset: Math.random() * 10,
-            anchorXOffset: (Math.random() - 0.5) * 8,
-            anchorYOffset: (Math.random() - 0.5) * 4,
-            elbowXOffset: (Math.random() - 0.5) * 40,
-            elbowYOffset: (Math.random() - 0.5) * 10,
+            boxOffset: (Math.random() - 0.5) * 12, // Reduced from 20
+            boxYOffset: Math.random() * 6, // Reduced from 10
+            anchorXOffset: (Math.random() - 0.5) * 4, // Reduced from 8
+            anchorYOffset: (Math.random() - 0.5) * 2, // Reduced from 4
+            elbowXOffset: (Math.random() - 0.5) * 20, // Reduced from 40
+            elbowYOffset: (Math.random() - 0.5) * 6, // Reduced from 10
             pathType: Math.floor(Math.random() * 3)
           };
         }
         
-        // Box position with stored randomness
-        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax - boxW / 2 + xOffset + d.randomValues.boxOffset));
-        const boxY = calloutAbove ? 15 + d.randomValues.boxYOffset : canvasHeight - 15 - boxH + d.randomValues.boxYOffset;
+        // Box position closer to anchor point for natural annotation
+        const naturalDistance = 80 + Math.random() * 40; // 80-120px from anchor
+        const boxX = Math.max(15, Math.min(canvasWidth - boxW - 15, ax + xOffset + d.randomValues.boxOffset));
+        const boxY = calloutAbove 
+          ? Math.max(15, ay - naturalDistance + d.randomValues.boxYOffset)
+          : Math.min(canvasHeight - boxH - 15, ay + naturalDistance + d.randomValues.boxYOffset);
         
         // Smooth fade-in animation
         const creationTime = d.creationTime || Date.now();
