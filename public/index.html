@@ -12197,8 +12197,18 @@ function hitTest(d, sx, sy){
       return sx>x-4&&sx<x+w&&sy>y-16&&sy<y+4;
     }
     case 'mentor_arrow':{
+      // First check if this arrow is in the top 4 visible arrows
+      const mentorArrows = drawings.filter(d => d.type === 'mentor_arrow');
+      const tierPriority = { primary: 3, secondary: 2, tertiary: 1 };
+      const topMentorArrows = mentorArrows
+        .sort((a, b) => (tierPriority[b.tier || 'secondary'] || 2) - (tierPriority[a.tier || 'secondary'] || 2))
+        .slice(0, 4);
+      
+      if (!topMentorArrows.includes(d)) {
+        return false; // This arrow is not visible due to clutter limit
+      }
+      
       const ax = _barX(d.bar), ay = _py(d.price);
-      const isDown = d.pointing !== 'up';
       
       // Get canvas dimensions
       const canvas = document.getElementById('main-canvas');
@@ -12206,52 +12216,61 @@ function hitTest(d, sx, sy){
       const canvasHeight = canvas?.height || 600;
       const midY = canvasHeight / 2;
       
-      // Smart positioning logic (same as rendering)
-      const arrowsOnBottom = drawings.filter(other => 
-        other.type === 'mentor_arrow' && 
-        other.id !== d.id &&
-        _py(other.price) <= midY
-      ).length;
+      // Determine box placement (same as rendering)
+      const placeAbove = ay <= midY;
       
-      const arrowsOnTop = drawings.filter(other => 
-        other.type === 'mentor_arrow' && 
-        other.id !== d.id &&
-        _py(other.price) > midY
-      ).length;
-      
-      const placeOnTop = arrowsOnBottom > arrowsOnTop || (arrowsOnBottom === arrowsOnTop && ay <= midY);
-      
-      // Calculate box dimensions
+      // Calculate text dimensions (same as rendering)
       const fontSize = 11;
-      const padX = 12;
-      const maxWidth = 200;
-      const label = d.label || '';
-      const textWidth = Math.min(label.length * fontSize * 0.55 + padX * 2, maxWidth);
-      const boxW = textWidth;
-      const boxH = fontSize + 10;
+      const maxBoxWidth = 250;
+      const padding = 12;
+      const lineHeight = fontSize + 4;
       
-      // Position callout box (same as rendering)
+      // Approximate text wrapping for hit test
+      const avgCharWidth = fontSize * 0.55;
+      const words = (d.label || '').split(' ');
+      const lines = [];
+      let currentLine = '';
+      
+      for (const word of words) {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        const testWidth = testLine.length * avgCharWidth;
+        
+        if (testWidth > maxBoxWidth - padding * 2 && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      if (currentLine) lines.push(currentLine);
+      if (lines.length === 0) lines.push('');
+      
+      const boxWidth = Math.min(maxBoxWidth, Math.max(...lines.map(line => line.length * avgCharWidth)) + padding * 2);
+      const boxHeight = lines.length * lineHeight + padding * 2;
+      
+      // Position box (same as rendering)
       const margin = 20;
-      const boxX = Math.max(margin, Math.min(canvasWidth - boxW - margin, ax - boxW / 2));
-      const boxY = placeOnTop ? margin : canvasHeight - margin - boxH;
+      const boxX = Math.max(margin, Math.min(canvasWidth - boxWidth - margin, ax - boxWidth / 2));
+      const boxY = placeAbove ? margin : canvasHeight - margin - boxHeight;
       
-      // Only allow selection when clicking on anchor or box, not the line
-      // This allows panning when clicking on the line area
-      
-      // Check if point is in box (allow selection)
-      if (sx >= boxX && sx <= boxX + boxW && sy >= boxY && sy <= boxY + boxH) {
+      // Check if point is in explanation box
+      if (sx >= boxX && sx <= boxX + boxWidth && sy >= boxY && sy <= boxY + boxHeight) {
         return true;
       }
       
-      // Check if point is near anchor (allow selection)
-      const anchorX = ax;
-      const anchorY = ay + (isDown ? -4 : 4);
-      if (Math.abs(sx - anchorX) < 12 && Math.abs(sy - anchorY) < 12) {
+      // Check if point is near anchor
+      if (Math.abs(sx - ax) < 12 && Math.abs(sy - ay) < 12) {
         return true;
       }
       
-      // Do NOT hit test the line - this allows panning when clicking on the line
       return false;
+    }
+    case 'mentor_box':{
+      const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
+      const by1=_py(d.priceHigh),by2=_py(d.priceLow);
+      return sx>=Math.min(bx1,bx2)-barWidth && sx<=Math.max(bx1,bx2)+barWidth &&
+             sy>=Math.min(by1,by2)-10 && sy<=Math.max(by1,by2)+10;
     }
     case 'mentor_label':{
       const lax=_barX(d.bar),lay=_py(d.price);
@@ -12808,68 +12827,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Animation loop for smooth fade-in effects
-let _animationRaf = null;
-let _lastAnimationTime = 0;
-
-function _startAnimationLoop() {
-  if (_animationRaf) return;
-  
-  const animate = (timestamp) => {
-    // Check if any mentor arrows need animation
-    const hasAnimatingArrows = drawings.some(d => 
-      d.type === 'mentor_arrow' && 
-      d.creationTime && 
-      (Date.now() - d.creationTime) < 400
-    );
-    
-    if (hasAnimatingArrows) {
-      _animationRaf = requestAnimationFrame(animate);
-      // Trigger redraw for animation
-      draw();
-    } else {
-      _animationRaf = null;
-    }
-  };
-  
-  _animationRaf = requestAnimationFrame(animate);
-}
-
-// Trigger animation when mentor arrows are added
-const originalAddMentorArrow = _addMentorArrow;
-_addMentorArrow = function(...args) {
-  const result = originalAddMentorArrow.apply(this, args);
-  _startAnimationLoop();
-  return result;
-};
-
-// Test function for natural mentor arrows
-function testNaturalMentorArrows() {
-  // Clear existing mentor annotations
-  clearMentorAnnotations();
-  
-  // Add multiple arrows to show natural variation
-  const arrows = [
-    { bar: 10, price: 150, label: "Natural Arrow 1 - Simple Elbow", direction: "down" },
-    { bar: 15, price: 160, label: "Natural Arrow 2 - Curved Path", direction: "down" },
-    { bar: 20, price: 140, label: "Natural Arrow 3 - Angled Path", direction: "up" },
-    { bar: 25, price: 155, label: "Natural Arrow 4 - Random Offset", direction: "down" },
-    { bar: 30, price: 145, label: "Natural Arrow 5 - Varied Paths", direction: "up" }
-  ];
-  
-  arrows.forEach((arrow, index) => {
-    setTimeout(() => {
-      _addMentorArrow(arrow.bar, arrow.price, arrow.label, arrow.direction, index === 0);
-    }, index * 200); // Stagger creation for animation effect
-  });
-  
-  console.log("Natural mentor arrows test - arrows should have varied paths:");
-  console.log("- Different elbow positions and angles");
-  console.log("- Random anchor point offsets");
-  console.log("- Varied callout box positions");
-  console.log("- Three path types: simple elbow, curved, angled");
-}
-
 // ── Mentor Annotation System ─────────────────────────────────────────────
 // Draws arrows, highlight boxes, and label callouts on the chart at key
 // setup moments. All annotations are full drawings — selectable and deletable
@@ -12909,7 +12866,6 @@ function _addMentorArrow(bar, price, label, direction = 'down', highlight = fals
     highlight,
     id,
     isMentorAnnotation: true,
-    creationTime: Date.now(), // For fade-in animation
   };
   drawings.push(drawing);
   _mentorAnnotationIds.push(id);
@@ -13530,6 +13486,32 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
 }
 
 
+// Helper function to wrap text into multiple lines
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine + (currentLine ? ' ' : '') + word;
+    const metrics = ctx.measureText(testLine);
+    
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  return lines.length > 0 ? lines : [''];
+}
+
+
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
@@ -13570,7 +13552,20 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     }
   }
 
-  all.forEach(d=>{
+  // Filter mentor arrows to limit clutter - show only top 4 by priority
+  const mentorArrows = all.filter(d => d.type === 'mentor_arrow');
+  const otherDrawings = all.filter(d => d.type !== 'mentor_arrow');
+  
+  // Sort mentor arrows by tier priority and take top 4
+  const tierPriority = { primary: 3, secondary: 2, tertiary: 1 };
+  const topMentorArrows = mentorArrows
+    .sort((a, b) => (tierPriority[b.tier || 'secondary'] || 2) - (tierPriority[a.tier || 'secondary'] || 2))
+    .slice(0, 4);
+  
+  // Combine filtered mentor arrows with other drawings
+  const filteredDrawings = [...otherDrawings, ...topMentorArrows];
+
+  filteredDrawings.forEach(d=>{
     ctx.save();
     const isSel = d===selectedDrawing;
     const isWIP = d===drawingWIP;
@@ -13793,117 +13788,119 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       case 'mentor_arrow': {
         const ax      = barXfn(d.bar);
         const ay      = pyfn(d.price);
-        const isDown  = d.pointing !== 'up';
         const tier    = d.tier || 'secondary';
         const alpha   = tier === 'primary' ? 1.0 : tier === 'secondary' ? 0.75 : 0.5;
         const accentCol = d.highlight ? '#f0a500' : tier === 'primary' ? '#00c9a0' : '#7c5cbf';
         const tipSize   = tier === 'primary' ? 6 : 5;
-        const stemLen   = tier === 'primary' ? 22 : 16;
-
-        // Smart positioning: count arrows on top vs bottom
+        
+        // Get canvas dimensions
         const canvas = document.getElementById('main-canvas');
+        const canvasWidth = canvas?.width || 800;
         const canvasHeight = canvas?.height || 600;
         const midY = canvasHeight / 2;
         
-        const arrowsOnBottom = drawings.filter(other => 
-          other.type === 'mentor_arrow' && 
-          other.id !== d.id &&
-          pyfn(other.price) <= midY
-        ).length;
+        // Determine box placement based on anchor position
+        const placeAbove = ay <= midY;
         
-        const arrowsOnTop = drawings.filter(other => 
-          other.type === 'mentor_arrow' && 
-          other.id !== d.id &&
-          pyfn(other.price) > midY
-        ).length;
-        
-        // Smart positioning logic: place on top if bottom is crowded
-        const placeOnTop = arrowsOnBottom > arrowsOnTop || (arrowsOnBottom === arrowsOnTop && ay <= midY);
-        
-        // Calculate callout box position
+        // Calculate text dimensions with wrapping
         const fontSize = 11;
-        const padX = 12;
-        const maxWidth = 200;
-        const label = d.label || '';
-        const textWidth = Math.min(label.length * fontSize * 0.55 + padX * 2, maxWidth);
-        const boxW = textWidth;
-        const boxH = fontSize + 10;
+        const maxBoxWidth = 250;
+        const padding = 12;
+        const lineHeight = fontSize + 4;
         
-        // Position callout box on top or bottom based on smart logic
+        ctx.font = `${fontSize}px sans-serif`;
+        const lines = wrapText(ctx, d.label || '', maxBoxWidth - padding * 2);
+        const boxWidth = Math.min(maxBoxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)) + padding * 2);
+        const boxHeight = lines.length * lineHeight + padding * 2;
+        
+        // Position explanation box outside chart area
         const margin = 20;
-        const boxX = Math.max(margin, Math.min(canvas.width - boxW - margin, ax - boxW / 2));
-        const boxY = placeOnTop ? margin : canvasHeight - margin - boxH;
+        let boxX, boxY;
         
-        // Smooth fade-in animation
-        const creationTime = d.creationTime || Date.now();
-        const age = Date.now() - creationTime;
-        const fadeInDuration = 400; // ms
-        const animProgress = Math.min(1, age / fadeInDuration);
-        const easeOut = 1 - Math.pow(1 - animProgress, 3); // ease-out cubic
+        // Horizontal positioning - avoid edges
+        boxX = Math.max(margin, Math.min(canvasWidth - boxWidth - margin, ax - boxWidth / 2));
         
+        // Vertical positioning based on anchor location
+        if (placeAbove) {
+          boxY = margin; // Place at top
+        } else {
+          boxY = canvasHeight - margin - boxHeight; // Place at bottom
+        }
+        
+        // Calculate connection points
+        const anchorX = ax;
+        const anchorY = ay;
+        const boxConnectX = boxX + boxWidth / 2;
+        const boxConnectY = placeAbove ? boxY + boxHeight : boxY;
+        
+        // Draw angled connector line
         ctx.save();
-        ctx.globalAlpha = alpha * easeOut;
-
-        // Draw straight line from anchor to callout box
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
         ctx.strokeStyle = accentCol;
         ctx.lineWidth = isSel ? 2 : 1.5;
         ctx.setLineDash([]);
         ctx.beginPath();
         
-        // Line from anchor point to box
-        const anchorX = ax;
-        const anchorY = ay + (isDown ? -4 : 4);
-        const boxConnectX = boxX + boxW / 2;
-        const boxConnectY = placeOnTop ? boxY + boxH : boxY;
+        // Create angled connection
+        if (placeAbove) {
+          // Arrow pointing upward
+          ctx.moveTo(anchorX, anchorY);
+          
+          // Create a nice angled path
+          const midY = anchorY - (anchorY - boxConnectY) * 0.6;
+          const midX = anchorX + (boxConnectX - anchorX) * 0.3;
+          
+          ctx.lineTo(midX, midY);
+          ctx.lineTo(boxConnectX, boxConnectY);
+        } else {
+          // Arrow pointing downward
+          ctx.moveTo(anchorX, anchorY);
+          
+          // Create a nice angled path
+          const midY = anchorY + (boxConnectY - anchorY) * 0.6;
+          const midX = anchorX + (boxConnectX - anchorX) * 0.3;
+          
+          ctx.lineTo(midX, midY);
+          ctx.lineTo(boxConnectX, boxConnectY);
+        }
         
-        ctx.moveTo(anchorX, anchorY);
-        ctx.lineTo(boxConnectX, boxConnectY);
         ctx.stroke();
-
-        // Triangle arrowhead at anchor
+        
+        // Draw anchor point on chart
         ctx.fillStyle = accentCol;
         ctx.beginPath();
-        if (isDown) {
-          ctx.moveTo(anchorX,            anchorY);
-          ctx.lineTo(anchorX - tipSize,  anchorY + tipSize * 1.8);
-          ctx.lineTo(anchorX + tipSize,  anchorY + tipSize * 1.8);
-        } else {
-          ctx.moveTo(anchorX,            anchorY);
-          ctx.lineTo(anchorX - tipSize,  anchorY - tipSize * 1.8);
-          ctx.lineTo(anchorX + tipSize,  anchorY - tipSize * 1.8);
-        }
-        ctx.closePath();
+        ctx.arc(anchorX, anchorY, 4, 0, Math.PI * 2);
         ctx.fill();
-
-        // Callout box
+        
+        // Draw explanation box
         ctx.fillStyle = 'rgba(12,14,22,0.92)';
         ctx.strokeStyle = accentCol;
         ctx.lineWidth = isSel ? 2 : 1;
-        roundRect(ctx, boxX, boxY, boxW, boxH, 4);
+        roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 4);
         ctx.fill();
         ctx.stroke();
-
-        // Label text
-        if (d.label) {
-          const firstLine = d.label.split(' - ')[0].trim().slice(0, 32);
-          ctx.font = `${tier === 'primary' ? 'bold ' : ''}${fontSize}px sans-serif`;
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(firstLine, boxX + boxW / 2, boxY + boxH / 2);
-        }
-
-        // Selection ring
+        
+        // Draw wrapped text
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        
+        lines.forEach((line, index) => {
+          const textY = boxY + padding + index * lineHeight;
+          ctx.fillText(line, boxX + padding, textY);
+        });
+        
+        // Selection indicator
         if (isSel) {
           ctx.strokeStyle = accentCol;
           ctx.lineWidth = 1.5;
           ctx.setLineDash([2, 2]);
           ctx.beginPath();
-          ctx.arc(anchorX, anchorY, tipSize + 4, 0, Math.PI * 2);
+          ctx.arc(anchorX, anchorY, tipSize + 6, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
-
+        
         ctx.restore();
         break;
       }
