@@ -12748,23 +12748,32 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // Annotation collector — max 5, committed at end
   // priority 1=primary, 2=secondary, 3=tertiary
   const ann = [];
+  // candleIndex: the replay bar when this annotation becomes visible.
+  // Stage 1 = now (context), Stage 2 = when showLevels triggered, Stage 3 = when showConf triggered.
+  const stageCandle = showConf ? visibleUpTo      // stage 3 annotations visible now
+                    : showLevels ? visibleUpTo     // stage 2 annotations visible now
+                    : visibleUpTo;                 // stage 1 always visible from current bar
+
   function addZone(f, t, price, label, pri) {
-    if (ann.filter(a=>a.type!=='context').length >= 5 || !inRange(price)) return;
+    const preEntryMax = showConf ? 4 : 3;
+    if (ann.filter(a=>a.type!=='context').length >= preEntryMax || !inRange(price)) return;
     const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
     if (!isVis(fb) || fb >= tb) return;
-    ann.push({ type:'zone', f:fb, t:tb, price, label, pri:pri||2 });
+    ann.push({ type:'zone', f:fb, t:tb, price, label, pri:pri||2, candleIndex:stageCandle });
   }
   function addBox(f, t, lo, hi, label, pri) {
-    if (ann.filter(a=>a.type!=='context').length >= 5) return;
+    const preEntryMax = showConf ? 4 : 3;
+    if (ann.filter(a=>a.type!=='context').length >= preEntryMax) return;
     const fb = Math.max(0,f), tb = Math.min(visibleUpTo+5,t);
     const cl = Math.max(lo, rangeLow - atr*0.3);
     const ch = Math.min(hi, rangeHigh + atr*0.3);
     if (!isVis(fb) || fb >= tb || cl >= ch) return;
-    ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2 });
+    ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2, candleIndex:stageCandle });
   }
   function addArrow(bar, price, label, pointing, highlight, pri) {
-    if (ann.filter(a=>a.type!=='context').length >= 5 || !isVis(bar) || !inRange(price)) return;
-    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2 });
+    const preEntryMax = showConf ? 4 : 3;
+    if (ann.filter(a=>a.type!=='context').length >= preEntryMax || !isVis(bar) || !inRange(price)) return;
+    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:stageCandle });
   }
 
   // Find real swing points anchored to actual candle OHLC
@@ -13025,30 +13034,70 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
 
 // ── Commit: draw annotations with visual hierarchy + overlap prevention ──────
+// Each annotation stores candleIndex (the replay bar when it was created).
+// Only annotations with candleIndex <= replayCutoff are rendered — this gives
+// time-aware visibility so annotations appear/disappear correctly when scrubbing.
 function _commit(ann) {
   if (!ann?.length) return;
 
   const atr = calculateATR(Math.min(replayCutoff, curData.length-1), 14) || 1;
+  const now  = replayCutoff; // current replay position
 
   // Sort primary→secondary→tertiary so important items render on top
   ann.sort((a,b) => (a.pri||2)-(b.pri||2));
 
-  const usedAt = {}; // track arrow positions per bar for staggering
+  const usedAt = {};   // track arrow bar positions for stagger
+  const usedPY = {};   // track y-positions for label overlap prevention
 
   ann.forEach(a => {
+    // Time-aware: skip annotations that haven't been "discovered" yet
+    // candleIndex is set per annotation; defaults to visibleUpTo
+    const ci = a.candleIndex ?? now;
+    if (ci > now) return;
+
     if (a.type==='zone') {
+      // Merge check: if another zone exists within 1×ATR, merge labels
+      const existing = drawings.find(d =>
+        d.isMentorAnnotation && d.type==='mentor_box' &&
+        d.priceHigh && d.priceLow &&
+        Math.abs(((d.priceHigh+d.priceLow)/2) - a.price) < atr*1.5);
+      if (existing) {
+        // Merge by appending to label, don't draw a duplicate zone
+        if (!existing.label.includes(a.label))
+          existing.label += ' + ' + a.label;
+        return;
+      }
       _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
 
     } else if (a.type==='box') {
+      // Merge: if another box overlaps this one significantly, combine labels
+      const existing = drawings.find(d =>
+        d.isMentorAnnotation && d.type==='mentor_box' &&
+        d.priceLow && d.priceHigh &&
+        d.priceLow < a.hi + atr && d.priceHigh > a.lo - atr);
+      if (existing) {
+        if (!existing.label.includes(a.label))
+          existing.label += ' + ' + a.label;
+        return;
+      }
       _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
 
     } else if (a.type==='arrow') {
-      // Stagger arrows at the same bar to prevent overlap
+      // Stagger arrows at same bar to prevent overlap
       const key   = `${a.bar}_${a.pointing}`;
       const used  = usedAt[key]||0;
       const off   = used * atr * 0.55 * (a.pointing==='down'?1:-1);
       usedAt[key] = used+1;
-      _addMentorArrow(a.bar, a.price+off, a.label, a.pointing, a.highlight);
+
+      // Vertical overlap with existing labels: shift if too close
+      let price = a.price + off;
+      const pyKey = Math.round(price / (atr*0.4));
+      if (usedPY[pyKey]) {
+        price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
+      }
+      usedPY[pyKey] = true;
+
+      _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight);
     }
   });
 
@@ -13533,7 +13582,12 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const isLong=d.type==='long';
         const ex=barXfn(d.bar), ey=pyfn(d.price);
         const sly=pyfn(d.sl), tpy=pyfn(d.tp);
-        const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
+        const hb=effectiveHalfBars(d);
+        // For mentor example trades: box starts at entry bar (right-only extent)
+        // so pre-entry candles don't appear inside the trade box.
+        // For user drawings: normal symmetric behaviour.
+        const bx = d.isMentorExample ? ex : ex-hb*barWidth;
+        const w  = d.isMentorExample ? hb*barWidth : hb*2*barWidth;
         const entryCol=isLong?'#00c9a0':'#f03060';
         const tpCol='#00c9a0', slCol='#f03060';
 
