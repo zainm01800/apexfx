@@ -5957,39 +5957,42 @@ function handleTradeCompletion(outcome, currentBar) {
     replayTimer = null;
   }
   
-  // Generate structured trade review
   const trade = mentorState.exampleTrade;
-  const review = generateStructuredTradeReview(trade, outcome, currentBar, trade && trade.isUserGuided);
-  
-  if (!review) {
-    console.error('❌ Failed to generate trade review');
-    return;
-  }
-  
-  // Build insights from review sections
-  const outcomeMessage = review.isWin 
-    ? '🎉 TRADE COMPLETED: Take Profit Reached ✅'
-    : (outcome === 'stop_loss' ? '⛔ TRADE COMPLETED: Stop Loss Hit' : '⏱️ TRADE COMPLETED');
-  
-  const outcomeInsights = review.sections.map(section => 
-    `${section.title}\n${section.content}`
-  );
-  
-  // Update mentor with structured review
-  mentorState.lockedMessage = 'trade_completed';
-  mentorState.lockedInsights = [outcomeMessage, ...outcomeInsights];
-  mentorState.lockedQuestion = review.isWin 
-    ? '🎓 Excellent trade execution! Ready to find another setup?'
-    : '🎓 Important learning opportunity! Ready to continue scanning?';
-  mentorState.lifecycleState = 'trade_completed';
-  
-  // Clear trade monitoring updates
+  const isWin = outcome === 'take_profit';
+  const outcomeHeader = isWin
+    ? '🎉 TAKE PROFIT REACHED ✅'
+    : outcome === 'stop_loss' ? '⛔ STOP LOSS HIT' : '⏱️ TRADE EXPIRED';
+
+  // Immediate placeholder while AI debrief loads
+  mentorState.lockedMessage  = 'trade_completed';
+  mentorState.lockedInsights = [outcomeHeader, 'AI is preparing your debrief...'];
+  mentorState.lockedQuestion = isWin
+    ? '🎓 Great result! Reviewing what made this setup work...'
+    : '🎓 Learning opportunity — reviewing what happened...';
+  mentorState.lifecycleState         = 'trade_completed';
   mentorState.tradeMonitoringUpdates = [];
-  
-  // Update UI
   updateLockedMentorUI();
-  
-  console.log('🏁 Trade completed with structured review:', outcome);
+
+  // Fetch AI post-trade debrief
+  _mentorAIPostTradeDebrief(trade, outcome, currentBar).then(debrief => {
+    if (mentorState.lifecycleState !== 'trade_completed') return;
+    if (debrief) {
+      mentorState.lockedInsights = [outcomeHeader, ...debrief.split('\n').filter(l => l.trim())];
+    } else {
+      // Fallback
+      const fallbackReview = generateStructuredTradeReview(trade, outcome, currentBar, trade?.isUserGuided);
+      if (fallbackReview) {
+        mentorState.lockedInsights = [outcomeHeader,
+          ...fallbackReview.sections.map(s => `${s.title}: ${s.content}`)];
+      }
+    }
+    mentorState.lockedQuestion = isWin
+      ? '🎓 Ready to find another setup? Hit "Continue Replay".'
+      : '🎓 Every loss is data. Hit "Continue Replay" to keep going.';
+    updateLockedMentorUI();
+  });
+
+  console.log('🏁 Trade completed:', outcome);
 }
 
 function continueReplayAfterTradeCompletion() {
@@ -8575,21 +8578,36 @@ function handleSetupDetectedState(currentBar) {
     mentorState.pendingSetupDetection = setupData;
     mentorState.pendingSetupBar       = setupBar;
 
-    // Lock the panel message with setup insights
-    generateHighQualityTradeInsights(setupData);
-    lockSetupMessage(setupData);
-
+    // Show immediate placeholder while AI analysis loads
     const dir       = setupData.direction || 'long';
     const dirEmoji  = dir === 'long' ? '📈' : '📉';
     const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
-    mentorState.lockedQuestion =
-      `${dirEmoji} A ${setupName} setup is forming. ` +
-      `Press "Show Me The Trade" to draw the AI's levels now and watch the candle arrive — ` +
-      `or press "Let Me Try It" to place your own trade as it develops.`;
+    mentorState.lockedInsights  = [`${dirEmoji} ${setupName.toUpperCase()} setup detected — analysing...`];
+    mentorState.lockedQuestion  = 'AI is preparing your briefing...';
+    mentorState.messageLocked   = true;
+    mentorState.lockedMessage   = 'setup';
+    mentorState._proximityHintCache = null; // clear for fresh hint
 
-    // Pause replay so the user has time to read and decide
     if (replayMode) pauseReplayForSetup();
     updateLockedMentorUI();
+
+    // Fetch AI analysis asynchronously — update panel when ready
+    _mentorAISetupAnalysis(setupData, currentBar).then(analysis => {
+      if (!mentorState.messageLocked) return; // user dismissed while loading
+      if (analysis) {
+        mentorState.lockedInsights = analysis.split('\n').filter(l => l.trim());
+      } else {
+        // Fallback to structured text if API unavailable
+        mentorState.lockedInsights = [
+          `${dirEmoji} ${setupName.toUpperCase()} setup detected`,
+          `Confluence: ${setupData.confluence}/4 | Quality: ${(setupData.quality||'').toUpperCase()}`,
+          `Direction: ${dir === 'long' ? 'Looking for LONG entry' : 'Looking for SHORT entry'}`,
+        ];
+      }
+      mentorState.lockedQuestion =
+        `Press "Show Me The Trade" to place AI levels and watch it play out — or "Let Me Try It" to place your own.`;
+      updateLockedMentorUI();
+    });
     return;
   }
 
@@ -8672,35 +8690,39 @@ function _buildSetupDetectedMessage(currentBar) {
     pullback: 'pullback', range: 'range', liquidity: 'liquidity sweep'
   }[mentorState.selectedTradingMethod] || setupType.replace(/_/g, ' ');
 
-  // Deliberately vague proximity descriptions
   let proximity, urgency;
-  if      (barsAway <= 5)   { proximity = 'imminent — within the next few candles'; urgency = '🟠'; }
-  else if (barsAway <= 15)  { proximity = 'close — roughly 5–20 candles away';      urgency = '🟡'; }
-  else if (barsAway <= 40)  { proximity = 'approaching — somewhere in the next 15–50 candles'; urgency = '🟢'; }
-  else if (barsAway <= 100) { proximity = 'forming — estimated 40–120 candles ahead'; urgency = '🔵'; }
-  else                      { proximity = 'developing further ahead in the session';  urgency = '⚪'; }
+  if      (barsAway <= 5)   { proximity = 'imminent'; urgency = '🟠'; }
+  else if (barsAway <= 15)  { proximity = 'close';    urgency = '🟡'; }
+  else if (barsAway <= 40)  { proximity = 'approaching'; urgency = '🟢'; }
+  else if (barsAway <= 100) { proximity = 'forming ahead'; urgency = '🔵'; }
+  else                      { proximity = 'developing';  urgency = '⚪'; }
 
-  const dirHint = direction === 'long'  ? '📈 Watch for a potential long opportunity.' :
-                  direction === 'short' ? '📉 Watch for a potential short opportunity.' : '';
+  const dirHint = direction === 'long' ? '📈 Potential long opportunity.' :
+                  direction === 'short' ? '📉 Potential short opportunity.' : '';
 
-  // What to look for while waiting — method-specific
-  const watchFor = {
-    breakout:           'Watch for price coiling into a tighter range and volume drying up — the breakout candle will show a strong body close beyond the zone.',
-    trend:              'Monitor the EMA structure. Look for the pullback losing momentum and volume contracting as price approaches the moving average.',
-    support_resistance: 'Identify the key horizontal levels on the left. Watch how price approaches them — a sharp impulse into the level suggests a strong reaction.',
-    pullback:           'Note the prior swing high/low. Track how deep the current retracement is — the 38–62% Fibonacci zone is where the setup will materialise.',
-    range:              'Mark the range boundaries on the chart. Watch for price to reach one of the boundaries with a rejection candle and contracting range.',
-    liquidity:          'Watch for a wick beyond a recent swing high or low. The reversal candle after the wick is the entry signal — not the wick itself.',
-  }[mentorState.selectedTradingMethod] || 'Keep the replay running and observe how price action develops.';
-
+  // Base message immediately visible
   mentorState.currentInsights = [
-    `${urgency} A ${methodLabel} setup is ${proximity}.`,
+    `${urgency} ${methodLabel.toUpperCase()} setup is ${proximity} — ${barsAway} candles away`,
     dirHint,
-    watchFor,
+    '💬 AI hint loading...',
   ].filter(Boolean);
+  mentorState.currentQuestion = 'Study the price action. The mentor will pause when the setup materialises.';
 
-  mentorState.currentQuestion =
-    'The mentor will pause automatically when the setup materialises. Study the price action now so you are ready.';
+  // Fetch AI proximity hint (cached per setup so only one API call)
+  const upcomingSetup = mentorState.upcomingSetup;
+  if (upcomingSetup && barsAway <= 40) {
+    _mentorAIProximityHint(upcomingSetup.setup, upcomingSetup.bar, currentBar).then(hint => {
+      if (!mentorState.upcomingSetup) return; // setup resolved while loading
+      if (hint) {
+        mentorState.currentInsights = [
+          `${urgency} ${methodLabel.toUpperCase()} setup ${proximity}`,
+          dirHint,
+          `💬 ${hint.trim()}`,
+        ].filter(Boolean);
+        updateMentorUI();
+      }
+    });
+  }
 }
 
 function enterNoSetupState(currentBar) {
@@ -9256,6 +9278,194 @@ function generateTradeResultEvaluation(tradeResult) {
   mentorState.currentQuestion = "Trade completed. Returning to market scanning...";
 }
 
+// ══ AI-POWERED MENTOR ENGINE ═════════════════════════════════════════════════
+// Replaces hardcoded string analysis with real Groq AI responses.
+// Three phases:  (1) Setup analysis  (2) Live trade narration  (3) Post-trade debrief
+// The client-side detection still decides WHEN to pause — Groq decides WHAT to say.
+
+// Build a compact market snapshot (last N bars of OHLCV + key indicators) to send to Groq.
+// Kept small so it fits in the model's context without wasting tokens.
+function _buildMentorContext(barIndex, numBars = 20) {
+  if (!curData || barIndex < 0) return null;
+  const from    = Math.max(0, barIndex - numBars + 1);
+  const bars    = curData.slice(from, barIndex + 1);
+  const data    = curData.slice(0, barIndex + 1);
+  const atr     = calculateATR(barIndex, 14) || 0;
+  const rsiArr  = calcRSI(data);
+  const sma20arr = calcSMA(data, 20);
+  const sma50arr = calcSMA(data, 50);
+  const ema9arr  = calcEMA(data, 9);
+  const ema21arr = calcEMA(data, 21);
+  const n       = data.length - 1;
+  const rsi     = rsiArr[n]?.toFixed(1)  || 'N/A';
+  const sma20   = sma20arr[n]?.toFixed(4) || 'N/A';
+  const sma50   = sma50arr[n]?.toFixed(4) || 'N/A';
+  const ema9    = ema9arr[n]?.toFixed(4)  || 'N/A';
+  const ema21   = ema21arr[n]?.toFixed(4) || 'N/A';
+  const isCrypto = _isCrypto();
+  const ohlcvStr = bars.map(b =>
+    `${new Date(b.time*1000).toLocaleDateString('en',{month:'short',day:'numeric'})} O:${b.open.toFixed(4)} H:${b.high.toFixed(4)} L:${b.low.toFixed(4)} C:${b.close.toFixed(4)} V:${Math.round(b.volume||0)}`
+  ).join('\n');
+
+  return {
+    sym: curSym?.s || '?',
+    tf: curTF || '?',
+    assetType: curSym?.t || 'Unknown',
+    isCrypto,
+    price: curData[barIndex].close.toFixed(4),
+    atr: atr.toFixed(4),
+    rsi, sma20, sma50, ema9, ema21,
+    ohlcvStr,
+    method: mentorState.selectedTradingMethod || 'general',
+  };
+}
+
+// Phase 1 — Setup analysis: called when the mentor pauses 15 bars before a setup.
+// Returns a short AI-written breakdown of why this setup qualifies.
+async function _mentorAISetupAnalysis(setupDetection, barIndex) {
+  const ctx = _buildMentorContext(barIndex, 25);
+  if (!ctx) return null;
+
+  const methodDescriptions = {
+    breakout:           'breakout from consolidation — body close beyond zone, volume > 20-bar avg, measured-move target',
+    trend:              'trend continuation (flag/pullback) — impulse > 2×ATR, low-vol pullback, EMA still fanned',
+    support_resistance: 'S&R reaction — 2+ tested level, rejection wick > body, confirmation candle required',
+    pullback:           'pullback to 38–62% Fib zone with EMA confluence, volume contracting, trigger candle needed',
+    range:              'range boundary reaction — 3+ boundary touches, midpoint avoidance, coiling before breakout',
+    liquidity:          'liquidity sweep — wick beyond swing H/L, displacement candle after sweep, target opposing pool',
+  };
+  const methodDesc = methodDescriptions[ctx.method] || ctx.method;
+  const cryptoNote = ctx.isCrypto
+    ? 'NOTE: This is a crypto asset — liquidity sweeps are more deliberate, false breakouts more common, round numbers act as major S&R, and funding rates affect trend continuation probability.'
+    : '';
+
+  const prompt = `You are a professional trading mentor giving a concise setup briefing. Be direct and specific.
+
+ASSET: ${ctx.sym} | TIMEFRAME: ${ctx.tf} | TYPE: ${ctx.assetType}
+STRATEGY: ${ctx.method.toUpperCase()} — ${methodDesc}
+${cryptoNote}
+
+RECENT PRICE ACTION (last 25 bars):
+${ctx.ohlcvStr}
+
+KEY INDICATORS at bar ${barIndex}:
+Price: ${ctx.price} | ATR(14): ${ctx.atr}
+RSI(14): ${ctx.rsi} | EMA9: ${ctx.ema9} | EMA21: ${ctx.ema21}
+SMA20: ${ctx.sma20} | SMA50: ${ctx.sma50}
+
+DETECTED SETUP: ${setupDetection.setup?.replace(/_/g,' ')} | Direction: ${setupDetection.direction} | Confluence: ${setupDetection.confluence}/4 | Quality: ${setupDetection.quality}
+
+Write a SHORT mentor briefing (3-4 bullet points, max 120 words total) that:
+1. States what the setup is and which specific criteria are met
+2. Names the key level and WHY it matters (prior tested level, structure, etc.)
+3. What to watch for as the setup develops (confirmation signal needed)
+4. ONE risk factor the trader should be aware of
+${ctx.isCrypto ? '5. One crypto-specific consideration (liquidity, funding, round number, session)' : ''}
+
+Format: bullet points starting with an emoji. No preamble. No "In conclusion". Be a mentor, not a textbook.`;
+
+  try {
+    return await groqFetch(prompt);
+  } catch(e) {
+    return null;
+  }
+}
+
+// Phase 2 — Trade placement briefing: called when AI places the trade levels.
+// Returns a short AI explanation of the specific entry, SL and TP chosen.
+async function _mentorAITradePlacement(trade, barIndex) {
+  const ctx = _buildMentorContext(barIndex, 15);
+  if (!ctx) return null;
+
+  const prompt = `You are a trading mentor explaining a specific trade placement. Be concise and educational.
+
+ASSET: ${ctx.sym} | TF: ${ctx.tf} | STRATEGY: ${ctx.method}
+
+TRADE:
+Direction: ${trade.direction.toUpperCase()}
+Entry: ${trade.entry.toFixed(4)} (next bar open after setup confirmation)
+Stop Loss: ${trade.stopLoss.toFixed(4)}
+Take Profit: ${trade.takeProfit.toFixed(4)}
+R:R Ratio: ${trade.riskReward.toFixed(2)}:1
+ATR(14): ${ctx.atr}
+
+RECENT PRICE ACTION (last 15 bars):
+${ctx.ohlcvStr}
+
+Write exactly 3 bullet points (max 80 words total):
+• Entry — why this specific price makes sense structurally
+• Stop Loss — what structural level it is below/above and why that invalidates the thesis  
+• Take Profit — what the target represents (resistance level, measured move, etc.)
+
+Be specific to these actual numbers. No preamble.`;
+
+  try {
+    return await groqFetch(prompt);
+  } catch(e) {
+    return null;
+  }
+}
+
+// Phase 3 — Post-trade debrief: called when trade hits TP or SL.
+// Returns educational commentary on what worked or what failed.
+async function _mentorAIPostTradeDebrief(trade, outcome, currentBar) {
+  const ctx = _buildMentorContext(currentBar, 30);
+  if (!ctx) return null;
+  const isWin = outcome === 'take_profit';
+
+  const prompt = `You are a trading mentor delivering a post-trade debrief. Be honest and educational.
+
+ASSET: ${ctx.sym} | TF: ${ctx.tf} | STRATEGY: ${ctx.method}
+
+TRADE RESULT: ${isWin ? '✅ TAKE PROFIT HIT' : '❌ STOP LOSS HIT'}
+Direction: ${trade.direction.toUpperCase()}
+Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)}
+R:R: ${trade.riskReward.toFixed(2)}:1
+
+PRICE ACTION DURING TRADE (last 30 bars):
+${ctx.ohlcvStr}
+
+Write a debrief in exactly 4 bullet points (max 150 words total):
+• What the setup was and whether the entry thesis was correct
+• ${isWin ? 'What drove price to the target — which criteria confirmed momentum' : 'What caused the stop to be hit — which criterion failed or was absent'}
+• One specific thing the trader should look for NEXT TIME on this setup type
+• Whether the risk management (SL/TP placement) was appropriate given the ATR
+
+${isWin ? 'Tone: positive reinforcement, note what was done right.' : 'Tone: constructive, not discouraging. Frame it as a learning trade.'}
+No preamble. Start with the first bullet point.`;
+
+  try {
+    return await groqFetch(prompt);
+  } catch(e) {
+    return null;
+  }
+}
+
+// Phase 0 — Proximity message: short AI hint while approaching the setup.
+// Cached per setup so it's only fetched once.
+async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
+  if (mentorState._proximityHintCache) return mentorState._proximityHintCache;
+  const ctx = _buildMentorContext(currentBar, 10);
+  if (!ctx) return null;
+  const barsAway = setupBar - currentBar;
+  const setupName = (setupDetection.setup || 'setup').replace(/_/g,' ');
+
+  const prompt = `You are a trading mentor giving a 1-sentence hint while a ${ctx.method} setup approaches (${barsAway} bars away) on ${ctx.sym} ${ctx.tf}.
+
+Price: ${ctx.price} | RSI: ${ctx.rsi} | EMA9: ${ctx.ema9} | EMA21: ${ctx.ema21}
+Setup type: ${setupName} | Direction: ${setupDetection.direction}
+
+Write ONE sentence (max 25 words) telling the trader what specific price action to watch for RIGHT NOW as the setup approaches. Be concrete. No preamble.`;
+
+  try {
+    const hint = await groqFetch(prompt);
+    mentorState._proximityHintCache = hint;
+    return hint;
+  } catch(e) {
+    return null;
+  }
+}
+
 function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
@@ -9727,28 +9937,23 @@ function mentorShowMeTrade() {
   mentorState.pendingSetupDetection  = null;
   mentorState.pendingSetupBar        = null;
 
-  // ── Panel: educational commentary instead of a raw level dump ─────────────
-  const dirLabel   = direction === 'long' ? 'LONG' : 'SHORT';
-  const dirEmoji   = direction === 'long' ? '📈' : '📉';
-  const rrLabel    = rr.toFixed(1);
-  const setupName  = (setupData.setup || 'trading').replace(/_/g, ' ');
+  // ── Show immediate placeholder, fetch AI explanation async ─────────────────
+  const dirLabel  = direction === 'long' ? 'LONG' : 'SHORT';
+  const dirEmoji  = direction === 'long' ? '📈' : '📉';
+  const rrLabel   = rr.toFixed(1);
+  const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
 
-  // Insights: explain each level clearly
   mentorState.lockedInsights = [
-    `${dirEmoji} AI is placing a ${dirLabel} trade on a ${setupName} setup`,
-    `🎯 Entry: ${entryPrice.toFixed(4)} — entering on the open of the next bar after setup confirmation`,
-    `🛡️ Stop Loss: ${stopLoss.toFixed(4)} — placed below the recent structural low to invalidate the setup`,
-    `🏆 Take Profit: ${takeProfit.toFixed(4)} — targeting ${rrLabel}:1 risk-to-reward`,
-    `📊 Watch the candles approach the entry line. The trade becomes active when price reaches ${entryPrice.toFixed(4)}.`,
+    `${dirEmoji} AI placing ${dirLabel} trade on ${setupName} setup...`,
+    `🎯 Entry: ${entryPrice.toFixed(4)} | 🛡️ SL: ${stopLoss.toFixed(4)} | 🏆 TP: ${takeProfit.toFixed(4)}`,
+    `📊 R:R ${rrLabel}:1 — Watch the candle arrive at the entry line`,
   ];
-  mentorState.lockedQuestion = '▶ Playing replay — watch the trade unfold live...';
-  mentorState.messageLocked  = true;
-  mentorState.lockedMessage  = 'ai_trade_pending';
+  mentorState.lockedQuestion  = '▶ Replay running — analysis loading...';
+  mentorState.messageLocked   = true;
+  mentorState.lockedMessage   = 'ai_trade_pending';
 
   const ctrl = document.getElementById('setup-message-controls');
   if (ctrl) ctrl.style.display = 'none';
-
-  // Show trade-completion controls only after trade resolves
   const complCtrl = document.getElementById('trade-completion-controls');
   if (complCtrl) complCtrl.style.display = 'none';
 
@@ -9757,8 +9962,28 @@ function mentorShowMeTrade() {
 
   updateLockedMentorUI();
 
-  // ── Auto-play immediately — user watches the whole thing live ─────────────
+  // Auto-play immediately
   resumeReplayAfterSetup(true);
+
+  // Fetch AI trade placement explanation — update panel when ready
+  _mentorAITradePlacement(exampleTrade, entryBar).then(analysis => {
+    if (!mentorState.exampleTradeActive) return;
+    if (analysis) {
+      mentorState.lockedInsights = [
+        `${dirEmoji} ${dirLabel} — Entry: ${entryPrice.toFixed(4)} | SL: ${stopLoss.toFixed(4)} | TP: ${takeProfit.toFixed(4)} (${rrLabel}:1)`,
+        ...analysis.split('\n').filter(l => l.trim()),
+      ];
+    } else {
+      mentorState.lockedInsights = [
+        `${dirEmoji} ${dirLabel} entry @ ${entryPrice.toFixed(4)}`,
+        `🛡️ Stop Loss @ ${stopLoss.toFixed(4)} — structural invalidation level`,
+        `🏆 Take Profit @ ${takeProfit.toFixed(4)} — ${rrLabel}:1 R:R target`,
+        `📊 Watch the candle arrive at the entry line`,
+      ];
+    }
+    mentorState.lockedQuestion = '▶ Trade is live — watching for TP or SL...';
+    updateLockedMentorUI();
+  });
 }
 
 function mentorLetMeTry() {
@@ -10090,6 +10315,20 @@ function provideDecisionFeedback(decision) {
 
 function mentorHint() {
   const method = mentorState.selectedTradingMethod || 'breakout';
+  // If in replay mode with data, fetch a real AI hint for current chart state
+  if (replayMode && curData && replayCutoff > 0) {
+    const ctx = _buildMentorContext(replayCutoff, 10);
+    if (ctx) {
+      toast('💬 Asking AI for a hint...');
+      const isCrypto = _isCrypto();
+      const cryptoLine = isCrypto ? ' This is a crypto asset — consider liquidity, round numbers, and 24/7 session dynamics.' : '';
+      const prompt = `You are a trading mentor. Give ONE specific, actionable hint (max 20 words) about what to watch on ${ctx.sym} ${ctx.tf} right now for a ${method} setup. Price: ${ctx.price}, RSI: ${ctx.rsi}, EMA9: ${ctx.ema9}.${cryptoLine} No preamble.`;
+      groqFetch(prompt).then(hint => {
+        if (hint) toast(`💡 ${hint.trim()}`);
+      }).catch(() => {});
+      return;
+    }
+  }
 
   const isCrypto = _isCrypto();
   const hintsByMethod = {
