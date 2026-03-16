@@ -8288,7 +8288,9 @@ function handleSetupDetectedState(currentBar) {
     // CRITICAL: Lock the message so controls show and state is consistent
     lockSetupMessage(mentorState.upcomingSetup.setup);
     
-    mentorState.lockedQuestion = `⚠️ A setup is forming in approximately ${barsUntilSetup} candles. Press "Show Me The Trade" to see the AI's entry, or "Let Me Try It" to place your own trade.`;
+    // Keep the hint vague — don't reveal the exact bar count
+    const urgencyHint = barsUntilSetup <= 3 ? 'imminent' : 'very close';
+    mentorState.lockedQuestion = `⚠️ The setup is ${urgencyHint}. Press "Show Me The Trade" to see the AI's entry, or "Let Me Try It" to place your own trade.`;
     
     // Pause replay so user can read the message
     if (replayMode) {
@@ -8361,61 +8363,145 @@ function handleWaitingState(currentBar) {
 
 function enterSetupDetectedState(windowScan) {
   console.log('🎯 Setup detected but location hidden - entering setup_detected state');
-  
+
   mentorState.lifecycleState = 'setup_detected';
   mentorState.upcomingSetup = {
     setup: windowScan.setup,
-    bar: windowScan.bar,
+    bar:   windowScan.bar,
     windowSize: windowScan.windowSize
   };
-  
-  // Generate message that hides exact location
-  const setupType = windowScan.setup.setup;
-  const setupMessages = {
-    'breakout': 'A valid breakout setup has been identified ahead in the replay session. Continue the replay to observe the setup forming.',
-    'trend': 'A qualifying trend-following setup is approaching based on the selected trading strategy. Keep replay running to watch the pattern develop.',
-    'support_resistance': 'A support and resistance setup has been detected in the upcoming price action. Continue replay to see the setup materialize.',
-    'pullback': 'A pullback trading setup is forming in the near future. Keep the replay running to observe the retracement pattern.',
-    'range': 'A range trading setup has been identified ahead. Continue replay to watch the price action develop within the range.',
-    'liquidity': 'A liquidity sweep setup is approaching in the replay session. Continue to observe the price action unfold.'
-  };
-  
-  const defaultMessage = `A qualifying ${setupType} setup is approaching based on the selected trading strategy. Keep replay running to watch the pattern develop.`;
-  
-  mentorState.currentInsights = [setupMessages[setupType] || defaultMessage];
-  mentorState.currentQuestion = 'Continue the replay to observe the setup forming. The mentor will pause automatically when the setup begins to materialize.';
-  
-  // Ensure replay continues (don't pause)
-  if (replayMode && !replayTimer) {
-    // Resume replay if it was paused
-    resumeReplay();
-  }
-  
+
+  _buildSetupDetectedMessage(replayCutoff);
   updateMentorUI();
 }
 
+// Builds (and rebuilds on each bar) the vague proximity hint for setup_detected state.
+function _buildSetupDetectedMessage(currentBar) {
+  if (!mentorState.upcomingSetup) return;
+
+  const setupBar  = mentorState.upcomingSetup.bar;
+  const setupType = mentorState.upcomingSetup.setup.setup || '';
+  const direction = mentorState.upcomingSetup.setup.direction || '';
+  const barsAway  = setupBar - currentBar;
+
+  const methodLabel = {
+    breakout: 'breakout', trend: 'trend', support_resistance: 'support/resistance',
+    pullback: 'pullback', range: 'range', liquidity: 'liquidity sweep'
+  }[mentorState.selectedTradingMethod] || setupType.replace(/_/g, ' ');
+
+  // Deliberately vague proximity descriptions
+  let proximity, urgency;
+  if      (barsAway <= 5)   { proximity = 'imminent — within the next few candles'; urgency = '🟠'; }
+  else if (barsAway <= 15)  { proximity = 'close — roughly 5–20 candles away';      urgency = '🟡'; }
+  else if (barsAway <= 40)  { proximity = 'approaching — somewhere in the next 15–50 candles'; urgency = '🟢'; }
+  else if (barsAway <= 100) { proximity = 'forming — estimated 40–120 candles ahead'; urgency = '🔵'; }
+  else                      { proximity = 'developing further ahead in the session';  urgency = '⚪'; }
+
+  const dirHint = direction === 'long'  ? '📈 Watch for a potential long opportunity.' :
+                  direction === 'short' ? '📉 Watch for a potential short opportunity.' : '';
+
+  // What to look for while waiting — method-specific
+  const watchFor = {
+    breakout:           'Watch for price coiling into a tighter range and volume drying up — the breakout candle will show a strong body close beyond the zone.',
+    trend:              'Monitor the EMA structure. Look for the pullback losing momentum and volume contracting as price approaches the moving average.',
+    support_resistance: 'Identify the key horizontal levels on the left. Watch how price approaches them — a sharp impulse into the level suggests a strong reaction.',
+    pullback:           'Note the prior swing high/low. Track how deep the current retracement is — the 38–62% Fibonacci zone is where the setup will materialise.',
+    range:              'Mark the range boundaries on the chart. Watch for price to reach one of the boundaries with a rejection candle and contracting range.',
+    liquidity:          'Watch for a wick beyond a recent swing high or low. The reversal candle after the wick is the entry signal — not the wick itself.',
+  }[mentorState.selectedTradingMethod] || 'Keep the replay running and observe how price action develops.';
+
+  mentorState.currentInsights = [
+    `${urgency} A ${methodLabel} setup is ${proximity}.`,
+    dirHint,
+    watchFor,
+  ].filter(Boolean);
+
+  mentorState.currentQuestion =
+    'The mentor will pause automatically when the setup materialises. Study the price action now so you are ready.';
+}
+
 function enterNoSetupState(currentBar) {
-  console.log('🚫 Entering no-setup state: No valid setups found in adaptive window');
-  
+  console.log('🔍 No setup at current bar — scanning further ahead...');
+
+  // Instead of giving up, scan a larger lookahead window (up to 500 bars ahead)
+  // to find where the next setup will appear and give the user a vague hint.
+  const method = mentorState.selectedTradingMethod || 'none';
+  let foundBar = -1;
+  const maxLook = Math.min(currentBar + 500, (curData ? curData.length - 1 : currentBar));
+
+  for (let bar = currentBar + 1; bar <= maxLook; bar++) {
+    try {
+      const sd = detectStructuredSetups(curData.slice(0, bar + 1), bar);
+      if (sd.setup !== 'none' && sd.confluence >= 2) {
+        const futureCandles = curData.slice(bar + 1, Math.min(bar + 51, curData.length));
+        if (futureCandles.length >= 5) {
+          const entryPrice = curData[bar].close;
+          const direction = sd.direction || 'long';
+          const levels = computeMentorTradeLevels(direction, entryPrice, bar, futureCandles);
+          if (levels) { foundBar = bar; break; }
+        }
+      }
+    } catch(e) { continue; }
+  }
+
   mentorState.lifecycleState = 'no_setup_found';
   mentorState.waitingStateStart = currentBar;
-  mentorState.upcomingSetup = null; // Clear any upcoming setup
-  
-  // Clear any existing insights and set clear guidance message
-  const windowSize = getAdaptiveScanWindow();
-  mentorState.currentInsights = [
-    `No valid setups were found within ±${windowSize} candles of the current replay position for the selected trading method (${mentorState.selectedTradingMethod || 'none'}).`,
-    'To continue training with this strategy, please move the replay start to an earlier date so the AI Mentor can scan a new range.'
-  ];
-  
-  mentorState.currentQuestion = 'You can move the replay start to an earlier point in time or choose a different trading strategy to continue the training session.';
-  
-  // Ensure replay is paused
-  if (replayMode && replayTimer) {
-    pauseReplayForSetup();
-  }
-  
+  mentorState.upcomingSetup = null;
+
+  // Store the approximate distance so the live-update can reference it
+  mentorState._noSetupFoundBar = foundBar;
+  mentorState._noSetupStartBar = currentBar;
+
+  _buildNoSetupMessage(currentBar, foundBar, method);
   updateMentorUI();
+}
+
+// Builds the live-updating "setup is roughly X candles ahead" message.
+function _buildNoSetupMessage(currentBar, foundBar, method) {
+  const methodLabel = {
+    breakout: 'Breakout', trend: 'Trend Following',
+    support_resistance: 'Support & Resistance', pullback: 'Pullback',
+    range: 'Range', liquidity: 'Liquidity Sweep'
+  }[method] || method;
+
+  if (foundBar < 0) {
+    // Nothing found even in 500-bar lookahead — suggest restarting earlier
+    mentorState.currentInsights = [
+      `🔍 Scanning for a ${methodLabel} setup...`,
+      'No qualifying setup found within the remaining replay data.'
+    ];
+    mentorState.currentQuestion =
+      'Try moving the replay start to an earlier date, or switch to a different strategy that suits the current market conditions.';
+    return;
+  }
+
+  const barsAway = foundBar - currentBar;
+
+  // Give a deliberately vague hint — ranges, not exact numbers
+  let proximity;
+  if      (barsAway <= 10)  proximity = 'very close — within the next 5–15 candles';
+  else if (barsAway <= 30)  proximity = 'approaching — roughly 15–40 candles ahead';
+  else if (barsAway <= 80)  proximity = 'forming — somewhere in the next 30–100 candles';
+  else if (barsAway <= 200) proximity = 'developing — estimated 80–250 candles ahead';
+  else                      proximity = 'distant — well ahead in the replay session';
+
+  const directionHint = (() => {
+    try {
+      const sd = detectStructuredSetups(curData.slice(0, foundBar + 1), foundBar);
+      if (sd.direction === 'long')  return '📈 Potential long opportunity forming.';
+      if (sd.direction === 'short') return '📉 Potential short opportunity forming.';
+    } catch(e) {}
+    return '';
+  })();
+
+  mentorState.currentInsights = [
+    `🔍 Scanning for ${methodLabel} criteria...`,
+    `A qualifying setup is ${proximity}.`,
+    directionHint,
+  ].filter(Boolean);
+
+  mentorState.currentQuestion =
+    'Keep the replay running — the mentor will pause automatically when the setup begins to materialise.';
 }
 
 function getAdaptiveScanWindow() {
@@ -8917,11 +9003,30 @@ function updateMentor() {
     handleWaitingState(currentBar);
     return;
   } else if (mentorState.lifecycleState === 'no_setup_found') {
-    // In no-setup state - just update UI, no automatic re-scanning
+    // Rebuild live proximity message on every bar; re-scan if we have moved far from start
+    const barsSinceNoSetup = currentBar - (mentorState._noSetupStartBar || currentBar);
+    if (barsSinceNoSetup > 0 && mentorState._noSetupFoundBar > 0) {
+      // Update the message with the current bar so distance counts down live
+      _buildNoSetupMessage(currentBar, mentorState._noSetupFoundBar, mentorState.selectedTradingMethod || 'none');
+      // Once we reach within 5 bars of the found setup, transition to setup_detected
+      if (currentBar >= mentorState._noSetupFoundBar - 5) {
+        const sd = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
+        if (sd.setup !== 'none') {
+          mentorState._noSetupFoundBar = -1;
+          enterSetupDetectedState({ setup: sd, bar: currentBar, windowSize: 0 });
+          return;
+        }
+      }
+    } else if (barsSinceNoSetup > 20) {
+      // Re-scan every 20 bars in case new setups have come into range
+      triggerReplayRescan();
+      return;
+    }
     updateMentorUI();
     return;
   } else if (mentorState.lifecycleState === 'setup_detected') {
-    // In setup_detected state - check if we've reached the setup bar
+    // Rebuild proximity message live on every bar, then check if setup bar reached
+    _buildSetupDetectedMessage(currentBar);
     handleSetupDetectedState(currentBar);
     return;
   } else if (mentorState.lifecycleState === 'setup_wait') {
