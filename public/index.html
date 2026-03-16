@@ -5686,13 +5686,19 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
     tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
   }
   
-  // Add method-specific context
-  if (method === 'ict') {
-    tpReasoning += ` Following ICT methodology, this target aligns with the next internal range liquidity or order block level where price is likely to react.`;
-  } else if (method === 'supply_demand') {
-    tpReasoning += ` Based on supply/demand analysis, this target reaches the next significant zone where the opposing force is expected to step in.`;
+  // Add method-specific TP context
+  if (method === 'breakout') {
+    tpReasoning += ` For breakout trading, this target was calculated using the measured-move technique: the height of the consolidation pattern is projected from the breakout point.`;
+  } else if (method === 'trend') {
+    tpReasoning += ` For trend trading, the initial target is the prior swing high (minimum), with the measured-move extension as the optimal target if momentum continues.`;
   } else if (method === 'support_resistance') {
-    tpReasoning += ` This target respects classic support/resistance principles, aiming for the next tested level where price has historically reversed.`;
+    tpReasoning += ` For S&R trading, the target is the next significant tested level where price has historically reversed — the reward must justify the risk before entry.`;
+  } else if (method === 'pullback') {
+    tpReasoning += ` For pullback trading, the minimum target is the prior swing high (for longs). A measured-move extension is the optimal target if the trend is still early-to-mid stage.`;
+  } else if (method === 'range') {
+    tpReasoning += ` For range trading, the target is the opposing boundary of the range. Avoid holding through the midpoint if price stalls there — it often acts as a temporary magnet.`;
+  } else if (method === 'liquidity') {
+    tpReasoning += ` For liquidity trading, the target is the opposing liquidity pool. If sell-side liquidity (SSL) was swept, the next target is buy-side liquidity (BSL) above the recent equal highs.`;
   }
   
   review.sections.push({
@@ -5765,13 +5771,19 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
     }
   }
   
-  // Add method-specific lesson
-  if (method === 'ict') {
-    learningTakeaway += ` For ICT traders, remember that liquidity sweeps and smart money concepts require patience - wait for the manipulation phase to complete before entering.`;
-  } else if (method === 'supply_demand') {
-    learningTakeaway += ` For supply/demand traders, focus on fresh zones with strong imbalance - the best setups occur at zones that haven't been tested recently.`;
+  // Add method-specific lesson from methodology
+  if (method === 'breakout') {
+    learningTakeaway += ` Breakout key lesson: the best breakouts come from tight, well-formed consolidation zones with decreasing volatility. Volume expansion at the breakout candle is the single most important confirmation signal.`;
+  } else if (method === 'trend') {
+    learningTakeaway += ` Trend key lesson: identify the trend phase (early/middle/late) before sizing your position. Early-trend pullbacks offer the best entries; late-trend entries near extended structure carry the most reversal risk.`;
   } else if (method === 'support_resistance') {
-    learningTakeaway += ` For support/resistance traders, remember that the third touch is often the strongest - look for multiple tests of a level before trading the breakout or rejection.`;
+    learningTakeaway += ` S&R key lesson: a level gains strength with each reaction but weakens with repeated testing. The confirmation candle (rejection wick, engulfing, reclaim) is non-negotiable — never pre-empt the reaction.`;
+  } else if (method === 'pullback') {
+    learningTakeaway += ` Pullback key lesson: the HTF trend must be intact before trading pullbacks. A complex (ABC) pullback is still valid — patience at the confluence zone, combined with a clear trigger candle, is the edge.`;
+  } else if (method === 'range') {
+    learningTakeaway += ` Range key lesson: ranges resolve into breakouts. Watch for coiling action (LH/HL inside the range) near the boundaries — when volume expands and price closes outside, the breakout framework takes over.`;
+  } else if (method === 'liquidity') {
+    learningTakeaway += ` Liquidity key lesson: the sequence is Accumulation → Manipulation (sweep) → Distribution. Never enter during the manipulation phase — wait for the displacement candle after the sweep that confirms the reversal direction.`;
   }
   
   review.sections.push({
@@ -7980,13 +7992,19 @@ function generateTradeExplanation(trade, evaluation, analysis) {
     takeaway = `🎓 **Key Takeaway:** This trade has significant issues. Focus on: (1) Waiting for clear confirmation before entry, (2) Placing stops at true structural levels, (3) Only trading when R:R is at least 1.5:1, (4) Trading with the trend, not against it.`;
   }
   
-  // Add method-specific guidance
-  if (method === 'ict') {
-    takeaway += ` For ICT concepts, remember that displacement and order blocks provide the highest probability entries.`;
-  } else if (method === 'supply_demand') {
-    takeaway += ` For supply/demand trading, fresh untested zones offer the best risk-to-reward opportunities.`;
+  // Add method-specific guidance from methodology
+  if (method === 'breakout') {
+    takeaway += ` Breakout focus: check the breakout candle body size, wick ratio, and close position relative to the broken level. A close in the upper third of the candle (for longs) shows strong conviction.`;
+  } else if (method === 'trend') {
+    takeaway += ` Trend focus: verify the EMA sequence (20/50/200) is fanned in the trade direction and that the most recent swing low (uptrend) or swing high (downtrend) is still intact as your structural anchor.`;
   } else if (method === 'support_resistance') {
-    takeaway += ` For support/resistance trading, wait for multiple tests of a level before trading the breakout or rejection.`;
+    takeaway += ` S&R focus: count the number of prior reactions at this level and check for Fibonacci confluence (38.2%, 50%, 61.8%). More confluence = higher quality. The confirmation candle is your entry trigger.`;
+  } else if (method === 'pullback') {
+    takeaway += ` Pullback focus: categorise pullback depth (shallow 20–38%, standard 38–50%, deep 50–61.8%) and check volume is contracting during the pullback. Volume expansion on the resumption candle is your green light.`;
+  } else if (method === 'range') {
+    takeaway += ` Range focus: ensure you have at least 2–3 boundary touches on both sides before trading the range. The midpoint is a no-trade zone. If price breaks outside on volume, abandon the range thesis immediately.`;
+  } else if (method === 'liquidity') {
+    takeaway += ` Liquidity focus: mark the Order Block (last opposite-colour candle before the impulse) and any Fair Value Gaps on your chart. These are the institutional footprints that confirm the sweep was intentional.`;
   }
   sections.push(`🎓 **LEARNING TAKEAWAY**`);
   sections.push(takeaway);
@@ -9164,96 +9182,108 @@ function updateMentorUIWithCooldown(candlesRemaining) {
 
 function generateHighQualityTradeInsights(setupDetection) {
   const analysis = mentorState.analysis;
+  const dir = setupDetection.direction || 'long';
+  const method = mentorState.selectedTradingMethod || 'breakout';
+  const conf = setupDetection.confluence || 0;
+  const quality = (setupDetection.quality || 'medium').toUpperCase();
+  const trend = analysis?.structure?.trend?.replace(/_/g,' ') || 'unknown';
   let insights = [];
   let question = '';
-  let shouldPromptDecision = false;
-  
-  // Market Structure Insights
-  if (analysis.structure && analysis.structure.trend) {
-    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
-  } else {
-    insights.push(`Market structure: analyzing...`);
+
+  // ── Common header ─────────────────────────────────────────────────────────
+  insights.push(`Market structure: ${trend} 🚀`);
+
+  // ── Method-specific analysis panel text ───────────────────────────────────
+  switch (method) {
+    case 'breakout': {
+      const setupLabel = setupDetection.setup === 'breakout' ? 'breakout' :
+                         setupDetection.setup === 'range_breakout' ? 'range breakout' : 'breakout';
+      insights.push(`🔥 High-quality ${dir} ${setupLabel} detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `BREAKOUT SETUP — Consolidation zone has been identified preceding this ${dir} move. ` +
+        `Confirm: (1) Is the breakout candle closing decisively above/below the level? ` +
+        `(2) Is volume expanding vs the 20-bar average? ` +
+        `(3) Is there a clear measured-move target? ` +
+        `Watch for a false breakout — look for a retest of the broken level as confirmation before committing.`;
+      break;
+    }
+    case 'trend': {
+      insights.push(`📈 High-quality ${dir} trend setup detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `TREND SETUP — ${trend} trend structure identified. ` +
+        `Check: (1) Are EMAs fanned in trend direction (20 > 50 > 200 for uptrend)? ` +
+        `(2) Is price making Higher Highs / Higher Lows (uptrend) or LH/LL (downtrend)? ` +
+        `(3) Is this an early, middle, or late-stage trend? ` +
+        `Only trade pullback entries in the HTF trend direction — avoid counter-trend trades unless a confirmed reversal exists.`;
+      break;
+    }
+    case 'support_resistance': {
+      const srType = dir === 'long' ? 'support bounce' : 'resistance rejection';
+      insights.push(`🎯 High-quality ${srType} detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `S&R SETUP — Key ${dir === 'long' ? 'support' : 'resistance'} level identified. ` +
+        `Check: (1) How many times has price reacted at this level? (more = stronger) ` +
+        `(2) Is there Fibonacci confluence (38.2%, 50%, or 61.8%)? ` +
+        `(3) Look for a confirmation candle — rejection wick, engulfing, or reclaim of the level. ` +
+        `Stop goes on a confirmed CLOSE beyond the level — a wick alone does not invalidate.`;
+      break;
+    }
+    case 'pullback': {
+      insights.push(`↩️ High-quality ${dir} pullback entry detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `PULLBACK SETUP — Retracement into trend identified. ` +
+        `Check: (1) Is the HTF trend intact? Only enter pullbacks in the trend direction. ` +
+        `(2) What type is this — shallow (20–38%), standard (38–50%), or deep (50–61.8%)? ` +
+        `(3) Is pullback volume decreasing (healthy) or impulsive wide-range candles (reversal warning)? ` +
+        `Look for a trigger candle at the pullback zone: pinbar, engulfing, or inside bar break.`;
+      break;
+    }
+    case 'range': {
+      const rangeEdge = dir === 'long' ? 'support boundary' : 'resistance boundary';
+      insights.push(`📊 High-quality range ${dir === 'long' ? 'long' : 'short'} setup at ${rangeEdge}`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `RANGE SETUP — Price is at the ${rangeEdge} of a defined range. ` +
+        `Check: (1) Are there 2–3 clear touches on both boundaries confirming the range? ` +
+        `(2) Avoid entering at the range midpoint — wait for boundary reactions. ` +
+        `(3) Look for coiling action (LH/HL inside range) which precedes a breakout. ` +
+        `If price closes outside the range on volume, switch to a breakout framework.`;
+      break;
+    }
+    case 'liquidity': {
+      insights.push(`💧 Liquidity sweep + reversal setup detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `LIQUIDITY SWEEP SETUP — Institutional stop-hunt pattern identified. ` +
+        `Check: (1) Did price wick beyond a key swing high/low to grab stops, then sharply reverse? ` +
+        `(2) Is there an Order Block (last bearish candle before bullish impulse, or vice versa) nearby? ` +
+        `(3) Is there a Fair Value Gap (FVG) — 3-candle sequence where wick 1 and wick 3 don't overlap? ` +
+        `Entry: after confirmed displacement candle away from the swept level. Target: opposing liquidity pool.`;
+      break;
+    }
+    default: {
+      insights.push(`🚀 High-quality ${dir} setup detected`);
+      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Setup quality: ${quality}`);
+      question = `Setup detected in ${trend} market. Confirm structure, key levels, and volume before acting.`;
+    }
   }
-  
-  // Trend Analysis
-  if (analysis.trend !== 'neutral') {
-    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
-  }
-  
-  // Setup-specific alerts (NOT trade prompts)
-  switch (setupDetection.setup) {
-    case 'breakout':
-      insights.push(`🚀 High-quality ${setupDetection.direction} breakout detected`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Potential ${setupDetection.direction} breakout setup forming. If price continues above current levels, a ${setupDetection.direction} trade could be considered. Use the drawing tools to manually place your trade if you agree with this setup.`;
-      shouldPromptDecision = false; // No automatic prompts
-      break;
-      
-    case 'flag_continuation':
-      insights.push(`🏁 Bull/bear flag continuation pattern`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Flag pattern in ${analysis.trend} trend detected. This could be a continuation setup for ${setupDetection.direction} trades. Use the Long/Short drawing tools to place your trade if you see confirmation.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'support_bounce':
-      insights.push(`💪 Support bounce confirmed`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Strong support bounce with ${setupDetection.confluence} confirming factors. If price holds above this support level, long trades could be considered. Use the drawing tools to place your trade manually.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'resistance_rejection':
-      insights.push(`🛑 Resistance rejection confirmed`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Clear resistance rejection with ${setupDetection.confluence} factors. If price continues below this resistance, short trades could be considered. Use the drawing tools to place your trade manually.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'trend_pullback':
-      insights.push(`📈 Trend pullback to moving average`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Pullback to moving average in ${analysis.trend}. This could be a good entry zone for ${setupDetection.direction} trades. Use the drawing tools to place your trade if you see confirmation at this level.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'range_breakout':
-      insights.push(`📊 Range breakout with volume confirmation`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Range breakout with ${setupDetection.confluence} confirmations. If the breakout holds, ${setupDetection.direction} trades could be considered. Use the drawing tools to place your trade manually.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'liquidity_sweep':
-      insights.push(`🔄 Liquidity sweep followed by reversal`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Liquidity sweep reversal detected. This could be a reversal setup for ${setupDetection.direction} trades. Use the drawing tools to place your trade if the reversal pattern confirms.`;
-      shouldPromptDecision = false;
-      break;
-      
-    case 'structure_continuation':
-      insights.push(`🏗️ Structure continuation (${setupDetection.direction === 'long' ? 'higher low' : 'lower high'})`);
-      insights.push(`Confluence score: ${setupDetection.confluence}/4`);
-      question = `Structure continuation pattern with ${setupDetection.confluence} confirmations. This suggests the ${analysis.trend} may continue. Use drawing tools to place ${setupDetection.direction} trades if you agree.`;
-      shouldPromptDecision = false;
-      break;
-  }
-  
-  // Quality indicator
-  insights.push(`⭐ Setup quality: ${setupDetection.quality.toUpperCase()}`);
-  
+
   mentorState.lastInsight = insights.join('. ');
-  mentorState.pendingDecision = false; // Never auto-prompt
-  mentorState.waitingForTrade = false; // Never wait for auto-trade
+  mentorState.pendingDecision = false;
+  mentorState.waitingForTrade = false;
   mentorState.currentSetup = {
     type: setupDetection.setup,
-    direction: setupDetection.direction,
+    direction: dir,
     confidence: setupDetection.quality,
-    confluence: setupDetection.confluence,
-    alertOnly: true // This is just an alert, not a trade prompt
+    confluence: conf,
+    alertOnly: true
   };
-  
-  // Store for UI updates
+
   mentorState.currentInsights = insights;
   mentorState.currentQuestion = question;
 }
@@ -9726,18 +9756,56 @@ function provideDecisionFeedback(decision) {
 }
 
 function mentorHint() {
-  if (!mentorState.analysis) return;
-  
-  const hints = [
-    "Always consider the overall market context before entering a trade.",
-    "Risk management should be your top priority - never risk more than 1-2% per trade.",
-    "Look for confluence: multiple factors supporting your trade decision.",
-    "The trend is your friend - don't fight it unless you have strong reasons.",
-    "Volume confirms price action - look for volume on breakouts."
-  ];
-  
-  const randomHint = hints[Math.floor(Math.random() * hints.length)];
-  toast(`💡 ${randomHint}`);
+  const method = mentorState.selectedTradingMethod || 'breakout';
+
+  const hintsByMethod = {
+    breakout: [
+      "💡 Breakout: confirm the candle CLOSES beyond the level — a wick alone is not a breakout.",
+      "💡 Breakout: volume should be above the 20-bar average at the breakout candle for conviction.",
+      "💡 Breakout: measure the height of the base/pattern and project it from the breakout point for your target.",
+      "💡 Breakout: a retest of the broken level as new support/resistance is often the safest entry.",
+      "💡 Breakout: if price immediately reverses back inside the range, it's a false breakout — exit quickly.",
+    ],
+    trend: [
+      "💡 Trend: only trade in the HTF trend direction — fighting the trend reduces your win rate significantly.",
+      "💡 Trend: in an uptrend, look for Higher Highs and Higher Lows; a break of the last HL signals weakness.",
+      "💡 Trend: EMAs fanned in order (20 > 50 > 200) confirm a healthy uptrend. Compressed EMAs = no trend.",
+      "💡 Trend: late-stage trends show narrowing swings and shrinking momentum — reduce size as the trend ages.",
+      "💡 Trend: pullbacks to the 20 EMA in a strong trend are often the highest probability entries.",
+    ],
+    support_resistance: [
+      "💡 S&R: the more times a level has been tested, the stronger it is — but repeated tests also weaken it.",
+      "💡 S&R: a confirmed close BEYOND a level is invalidation — a wick through it is not.",
+      "💡 S&R: look for level flips — former resistance becoming support after a breakout is a high-quality setup.",
+      "💡 S&R: Fibonacci levels (38.2%, 50%, 61.8%) aligning with S&R create powerful confluence zones.",
+      "💡 S&R: check the distance to the next level — if reward-to-risk is less than 1.5:1, skip the trade.",
+    ],
+    pullback: [
+      "💡 Pullback: always confirm the HTF trend is intact before entering a pullback trade.",
+      "💡 Pullback: a healthy pullback has decreasing volume — wide impulsive candles during the pullback suggest reversal.",
+      "💡 Pullback: the 38.2%–61.8% Fibonacci zone combined with the 20 EMA is the highest probability entry area.",
+      "💡 Pullback: wait for a trigger candle (pinbar, engulfing, inside bar break) before entering the pullback.",
+      "💡 Pullback: a complex pullback (double pullback / ABC) is still valid — don't chase a shallow retracement.",
+    ],
+    range: [
+      "💡 Range: never enter at the midpoint of a range — wait for a boundary reaction.",
+      "💡 Range: the older and more established the range, the higher the probability of a boundary reaction.",
+      "💡 Range: if price starts coiling (LH/HL inside the range), a breakout is approaching — watch volume.",
+      "💡 Range: if price closes outside the range on above-average volume, switch to a breakout framework.",
+      "💡 Range: volume nodes (HVNs) inside the range act as magnets — price often stalls at these levels.",
+    ],
+    liquidity: [
+      "💡 Liquidity: equal highs and equal lows are engineered liquidity targets — institutions will hunt them.",
+      "💡 Liquidity: a liquidity sweep wicks beyond a key level, grabs stops, then sharply reverses — this is the entry signal.",
+      "💡 Liquidity: Order Blocks are the last opposite-colour candle before a strong impulse — price returns to fill orders there.",
+      "💡 Liquidity: a Fair Value Gap (3-candle imbalance) is where price was never traded — it is drawn back to fill it.",
+      "💡 Liquidity: the sequence is Accumulation → Manipulation (sweep) → Distribution. Enter after the sweep, not before.",
+    ],
+  };
+
+  const hints = hintsByMethod[method] || hintsByMethod.breakout;
+  const hint = hints[Math.floor(Math.random() * hints.length)];
+  toast(hint);
 }
 
 // Integration with Replay System
