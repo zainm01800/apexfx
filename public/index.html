@@ -8590,6 +8590,9 @@ function handleSetupDetectedState(currentBar) {
   const barsUntilSetup  = setupBar - currentBar;
   const setupData       = mentorState.upcomingSetup.setup;
 
+  // TRACE every call so we can see exactly when and what fires
+  console.log(`📍 handleSetupDetectedState: currentBar=${currentBar} setupBar=${setupBar} barsUntilSetup=${barsUntilSetup} earlyWarningShown=${mentorState.earlyWarningShown} replayCutoff=${replayCutoff}`);
+
   // ── Early question: pause ~25 bars before the setup bar ─────────────────
   // 25 bars gives enough space to:
   //   1. Show the full setup context in history via annotations
