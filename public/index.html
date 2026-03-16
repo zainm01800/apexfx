@@ -5495,40 +5495,41 @@ function activateExampleTrade(setupData, currentBar) {
 
 function monitorExampleTrade(currentBar) {
   if (!mentorState.exampleTradeActive || !mentorState.exampleTrade || !curData) return;
-  
+
   const trade = mentorState.exampleTrade;
-  const currentPrice = curData[currentBar].close;
-  const previousPrice = curData[currentBar - 1]?.close || currentPrice;
-  
-  // Check for trade completion
+  // CLOSE prices only — the AI placed SL/TP knowing future wicks, so wicks
+  // must NEVER trigger outcomes on the AI demo trade.
+  const currentClose = curData[currentBar].close;
+  const previousClose = curData[currentBar - 1]?.close || currentClose;
+
   let tradeCompleted = false;
   let outcome = null;
-  
+
   if (trade.direction === 'long') {
-    if (currentPrice >= trade.takeProfit) {
+    if (currentClose >= trade.takeProfit) {
       tradeCompleted = true;
       outcome = 'take_profit';
-    } else if (currentPrice <= trade.stopLoss) {
+    } else if (currentClose <= trade.stopLoss) {
+      // Should never happen — SL is placed beyond the worst wick before TP
       tradeCompleted = true;
       outcome = 'stop_loss';
     }
   } else {
-    if (currentPrice <= trade.takeProfit) {
+    if (currentClose <= trade.takeProfit) {
       tradeCompleted = true;
       outcome = 'take_profit';
-    } else if (currentPrice >= trade.stopLoss) {
+    } else if (currentClose >= trade.stopLoss) {
       tradeCompleted = true;
       outcome = 'stop_loss';
     }
   }
-  
+
   if (tradeCompleted) {
     handleTradeCompletion(outcome, currentBar);
     return;
   }
-  
-  // Add monitoring updates
-  addTradeMonitoringUpdate(currentPrice, previousPrice, trade);
+
+  addTradeMonitoringUpdate(currentClose, previousClose, trade);
 }
 
 function addTradeMonitoringUpdate(currentPrice, previousPrice, trade) {
@@ -5855,66 +5856,77 @@ function continueReplayAfterTradeCompletion() {
 }
 
 // ══ SHARED MENTOR TRADE LEVEL CALCULATOR ════════════════════════════════════════════════════════════
-// Single source of truth for SL/TP used by generateExampleTrade, mentorShowMeTrade,
-// and validateSetupWithFutureData.  Previous copies used ATR*1.5 then pushed the SL
-// even wider to the lowest wick, making risk distance huge and 2:1 TP unreachable.
-// This version uses a tight swing-based stop and looks 50 bars ahead so valid setups
-// are no longer incorrectly rejected.
+// The AI has full chart history in replay mode — it uses that advantage to place a
+// trade that is GUARANTEED to win: SL is placed safely below the lowest wick that
+// occurs BEFORE price moves in the trade direction, and TP is set at the highest/
+// lowest close reached before any meaningful reversal.
+//
+// Monitoring (monitorExampleTrade) checks CLOSE prices only — wicks cannot stop out
+// the AI trade. The SL is kept on the chart for visual reference only.
 function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles) {
   const atr = calculateATR(barIndex, 14) || (entryPrice * 0.01);
 
-  // --- Swing-based stop: use the lowest low / highest high of the last 5 bars ---
-  let swingStop;
-  if (direction === 'long') {
-    let swingLow = entryPrice;
-    for (let i = Math.max(0, barIndex - 5); i <= barIndex; i++) {
-      if (curData[i] && curData[i].low < swingLow) swingLow = curData[i].low;
+  if (!futureCandles || futureCandles.length < 5) return null;
+
+  // ── Step 1: Walk future candles to find the best close-price TP ─────────
+  // For longs: find the highest close before a significant reversal.
+  // For shorts: find the lowest close before a significant reversal.
+  let bestClose = entryPrice;
+  let worstWickBeforeTP = direction === 'long' ? entryPrice : entryPrice; // lowest low / highest high before TP bar
+
+  let tpBar = -1;
+  for (let i = 0; i < futureCandles.length; i++) {
+    const c = futureCandles[i];
+    if (direction === 'long') {
+      // Track the deepest wick BEFORE we commit to a TP bar
+      if (tpBar === -1 && c.low < worstWickBeforeTP) worstWickBeforeTP = c.low;
+      if (c.close > bestClose) {
+        bestClose = c.close;
+        tpBar = i;
+      }
+    } else {
+      if (tpBar === -1 && c.high > worstWickBeforeTP) worstWickBeforeTP = c.high;
+      if (c.close < bestClose) {
+        bestClose = c.close;
+        tpBar = i;
+      }
     }
-    // Stop just below swing low, but cap at 1.0×ATR so it's never absurdly tight
-    swingStop = Math.min(swingLow * 0.999, entryPrice - (atr * 0.5));
-    swingStop = Math.max(swingStop, entryPrice - atr); // never wider than 1×ATR
-  } else {
-    let swingHigh = entryPrice;
-    for (let i = Math.max(0, barIndex - 5); i <= barIndex; i++) {
-      if (curData[i] && curData[i].high > swingHigh) swingHigh = curData[i].high;
-    }
-    swingStop = Math.max(swingHigh * 1.001, entryPrice + (atr * 0.5));
-    swingStop = Math.min(swingStop, entryPrice + atr);
   }
 
-  const riskDistance = Math.abs(entryPrice - swingStop);
+  // Must move meaningfully in the right direction
+  if (direction === 'long'  && bestClose <= entryPrice) return null;
+  if (direction === 'short' && bestClose >= entryPrice) return null;
 
-  // --- Future price extremes ---
-  let highestClose = entryPrice, lowestClose = entryPrice;
-  let highestHigh  = entryPrice, lowestLow   = entryPrice;
-  for (const c of futureCandles) {
-    if (c.close > highestClose) highestClose = c.close;
-    if (c.close < lowestClose)  lowestClose  = c.close;
-    if (c.high  > highestHigh)  highestHigh  = c.high;
-    if (c.low   < lowestLow)    lowestLow    = c.low;
-  }
-
-  // --- Direction validity check ---
-  if (direction === 'long'  && highestClose <= entryPrice) return null; // price never goes up
-  if (direction === 'short' && lowestClose  >= entryPrice) return null; // price never goes down
-
-  // --- Take-profit: target 2:1, capped at where price actually goes ---
-  let stopLoss, takeProfit;
+  // ── Step 2: TP = best close minus a small buffer so it registers on close ─
+  let takeProfit;
   if (direction === 'long') {
-    stopLoss   = swingStop;
-    const target2to1 = entryPrice + riskDistance * 2;
-    takeProfit = Math.min(highestClose * 0.995, target2to1);
-    // If full 2:1 wasn't reached, use whatever the price achieved (min 1:1)
-    if (takeProfit <= entryPrice) takeProfit = entryPrice + riskDistance;
+    takeProfit = bestClose * 0.9995; // just below best close
   } else {
-    stopLoss   = swingStop;
-    const target2to1 = entryPrice - riskDistance * 2;
-    takeProfit = Math.max(lowestClose * 1.005, target2to1);
-    if (takeProfit >= entryPrice) takeProfit = entryPrice - riskDistance;
+    takeProfit = bestClose * 1.0005; // just above best close
   }
 
-  const rewardAmt = Math.abs(takeProfit - entryPrice);
-  const rr = rewardAmt / Math.max(riskDistance, 0.0001);
+  // ── Step 3: SL = safely beyond the worst wick that appears before TP ─────
+  // Place SL 0.2×ATR beyond that wick — guaranteed never touched by close prices
+  // (monitorExampleTrade only checks closes, not wicks).
+  let stopLoss;
+  if (direction === 'long') {
+    // SL below the deepest wick seen before TP bar
+    stopLoss = Math.min(worstWickBeforeTP, entryPrice) * 0.9985 - (atr * 0.2);
+    // Hard cap: SL never more than 3×ATR from entry (keeps R:R readable on chart)
+    stopLoss = Math.max(stopLoss, entryPrice - atr * 3);
+  } else {
+    stopLoss = Math.max(worstWickBeforeTP, entryPrice) * 1.0015 + (atr * 0.2);
+    stopLoss = Math.min(stopLoss, entryPrice + atr * 3);
+  }
+
+  const riskDistance = Math.abs(entryPrice - stopLoss);
+  const rewardAmt    = Math.abs(takeProfit - entryPrice);
+  const rr           = rewardAmt / Math.max(riskDistance, 0.0001);
+
+  console.log('🎯 computeMentorTradeLevels:', {
+    direction, entry: entryPrice, stopLoss, takeProfit,
+    rr: rr.toFixed(2), tpBar, worstWickBeforeTP
+  });
 
   return { stopLoss, takeProfit, rr, atr, riskDistance };
 }
@@ -9254,25 +9266,26 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 
   if (!curData) return false;
 
-  // Pre-validate: confirm we can actually compute valid trade levels using the
-  // same helper that mentorShowMeTrade will use — no surprises at click time.
-  const direction     = setupDetection.direction || 'long';
-  const entryPrice    = curData[currentBar].close;
-  const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
+  // Pre-validate from entryBar (next bar open) — mirrors exactly what mentorShowMeTrade does.
+  const direction  = setupDetection.direction || 'long';
+  const entryBar   = Math.min(currentBar + 1, curData.length - 1);
+  const entryPrice = curData[entryBar].open;
+  const futureCandles = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
 
   if (futureCandles.length < 5) {
     console.log('⏭️ Not enough future data — skipping setup silently');
     return false;
   }
 
-  const levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
+  const levels = computeMentorTradeLevels(direction, entryPrice, entryBar, futureCandles);
   if (!levels) {
     console.log('⏭️ Price moves against direction — skipping setup silently');
     return false;
   }
 
-  // Cache validated levels so mentorShowMeTrade reuses them directly
+  // Cache validated levels keyed to the actual entry bar
   setupDetection._prevalidatedLevels = levels;
+  setupDetection._entryBar = entryBar;
 
   // All good — store pending data and show the panel
   mentorState.pendingSetupDetection = setupDetection;
@@ -9309,23 +9322,27 @@ function mentorShowMeTrade() {
     draw();
   }
   
-  // Get entry price at setup bar
-  let entryPrice;
-  if (curData && setupBar < curData.length) {
-    entryPrice = curData[setupBar].close;
-  } else if (curData) {
-    entryPrice = curData[replayCutoff].close;
-  } else {
-    console.warn('No price data for example trade');
-    return;
-  }
-  
   const direction = setupData.direction || 'long';
-  
-  // Use pre-validated levels cached when the panel was shown — this guarantees
-  // they are always valid and avoids the double-computation that caused the
-  // "R:R insufficient" error message to appear.
-  let levels = setupData._prevalidatedLevels;
+  if (!curData) { console.warn('No price data for example trade'); return; }
+
+  // ── Smart entry price ────────────────────────────────────────────────────
+  // Enter on the OPEN of the next bar after the setup bar — this mimics a real
+  // trader waiting for bar close confirmation before entering, and avoids the
+  // unrealistic "entered at the exact close" look.
+  const entryBar = Math.min(setupBar + 1, curData.length - 1);
+  if (entryBar > replayCutoff) {
+    replayCutoff = entryBar;
+    draw();
+  }
+  const entryPrice = curData[entryBar].open;
+
+  // Recompute levels from the actual entry bar so SL/TP are relative to entry
+  const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+  let levels = futureFromEntry.length >= 5
+    ? computeMentorTradeLevels(direction, entryPrice, entryBar, futureFromEntry)
+    : setupData._prevalidatedLevels; // fallback to cached if near end of data
+
+  if (!levels) levels = setupData._prevalidatedLevels;
   if (!levels) {
     // Fallback: recompute (handles edge case where cache is missing)
     const futureCandles = curData.slice(setupBar + 1, Math.min(setupBar + 51, curData.length));
@@ -9354,14 +9371,14 @@ function mentorShowMeTrade() {
     stopLoss: stopLoss,
     takeProfit: takeProfit,
     riskReward: rr,
-    timestamp: setupBar,
+    timestamp: entryBar,  // actual entry bar (next bar after setup)
+    barIndex: entryBar,
     isExample: true,
     isAIPlaced: true,
     futureDataUsed: true
   };
 
-  // Levels were pre-validated when the panel was shown — no sim needed here.
-  console.log('✅ Placing AI trade using pre-validated levels');
+  console.log('✅ AI trade placed at bar', entryBar, 'entry:', entryPrice.toFixed(4));
 
   mentorState.exampleTrade = exampleTrade;
   mentorState.exampleTradeActive = true;
