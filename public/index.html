@@ -1330,8 +1330,9 @@ body.is-dragging { user-select: none; }
         </div>
       </div>
       
-      <div style="padding:8px;background:var(--bg3);border-top:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;">
-        <span id="mentor-candle-info" style="color:var(--tx3);font-size:11px;"></span>
+      <div style="padding:8px;background:var(--bg3);border-top:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;gap:6px;">
+        <span id="mentor-candle-info" style="color:var(--tx3);font-size:11px;flex:1;"></span>
+        <button onclick="clearMentorAnnotations()" title="Clear chart markers" style="padding:4px 7px;background:var(--bg1);border:1px solid var(--b1);color:var(--tx3);border-radius:3px;cursor:pointer;font-size:10px;">🗑 Markers</button>
         <button onclick="mentorHint()" style="padding:4px 8px;background:var(--bg1);border:1px solid var(--b1);color:var(--tx2);border-radius:3px;cursor:pointer;font-size:11px;">💡 Hint</button>
       </div>
 
@@ -5293,7 +5294,10 @@ function dismissSetupMessage() {
   mentorState.lifecycleState = 'scanning';
   mentorState.setupWaitStart = null;
   mentorState.setupWaitData = null;
-  
+
+  // Clear chart annotations when setup is dismissed
+  clearMentorAnnotations();
+
   resumeReplayAfterSetup();
   
   mentorState.currentInsights = ['📊 Resuming market scanning...'];
@@ -6006,6 +6010,7 @@ function handleTradeCompletion(outcome, currentBar) {
 }
 
 function continueReplayAfterTradeCompletion() {
+  clearMentorAnnotations(); // clear setup annotations from the chart
   // Reset trade state
   mentorState.exampleTrade = null;
   mentorState.exampleTradeActive = false;
@@ -6551,6 +6556,7 @@ function changeTradingMethod(newMethod) {
   updateMentorUI();
 
   // ── Reset all mentor state for the new method ─────────────────────────────
+  clearMentorAnnotations(); // remove any setup markers from the previous strategy
   resetMentorStateForStrategyChange();
   mentorState.selectedTradingMethod = newMethod;
   mentorState.tradingMethodSelected = true;
@@ -8614,6 +8620,10 @@ function handleSetupDetectedState(currentBar) {
     mentorState._proximityHintCache = null; // clear for fresh hint
 
     if (replayMode) pauseReplayForSetup();
+
+    // ── Draw chart annotations to show the user what to look at ─────────────
+    setTimeout(() => _mentorAnnotateSetup(setupData, setupBar, currentBar), 80);
+
     updateLockedMentorUI();
 
     // Fetch AI analysis asynchronously — update panel when ready
@@ -10772,6 +10782,7 @@ function _mfLaunch(idx) {
   toast('▶ Replay started — play the candles and watch for the setup');
 }
 
+window.clearMentorAnnotations = clearMentorAnnotations;
 window.toggleMentorFinder    = toggleMentorFinder;
 window.runMentorFinderScan   = runMentorFinderScan;
 window.openTradeFinderPanel  = toggleMentorFinder;   // keep old reference working
@@ -11947,6 +11958,22 @@ function hitTest(d, sx, sy){
       const w = (d.text||'').length*7+16;
       return sx>x-4&&sx<x+w&&sy>y-16&&sy<y+4;
     }
+    case 'mentor_arrow':{
+      const ax=_barX(d.bar), ay=_py(d.price);
+      const arrLen=40, isDown=d.pointing!=='up';
+      const tipY=ay+(isDown?-8:8), tailY=tipY+(isDown?-arrLen:arrLen);
+      return Math.abs(sx-ax)<12 && sy>=Math.min(tipY,tailY)-5 && sy<=Math.max(tipY,tailY)+5;
+    }
+    case 'mentor_box':{
+      const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
+      const by1=_py(d.priceHigh),by2=_py(d.priceLow);
+      return sx>=Math.min(bx1,bx2)-barWidth && sx<=Math.max(bx1,bx2)+barWidth &&
+             sy>=Math.min(by1,by2)-10 && sy<=Math.max(by1,by2)+10;
+    }
+    case 'mentor_label':{
+      const lax=_barX(d.bar),lay=_py(d.price);
+      return Math.abs(sx-lax)<barWidth*3 && Math.abs(sy-lay)<30;
+    }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
       const hb=effectiveHalfBars(d); const bx=ex-hb*barWidth, w=hb*2*barWidth;
@@ -12292,6 +12319,12 @@ function handleDrawMousemove(sx, sy){
       case 'hline': case 'hray': d.price=price; break;
       case 'vline': d.bar=bar; break;
       case 'text': d.bar=bar; d.price=price; break;
+      case 'mentor_arrow': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
+      case 'mentor_label': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
+      case 'mentor_box':
+        d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
+        d.priceHigh=s.priceHigh+dPrice; d.priceLow=s.priceLow+dPrice;
+        break;
       case 'long': case 'short':
         if(resizeHandle==='entry'){
           d.bar=s.bar+dBar;
@@ -12413,6 +12446,231 @@ function handleDrawMouseup(sx, sy){
 }
 
 // ── Render all drawings onto the chart ───────────────────────────────────────
+// ── roundRect helper (polyfill for older browsers) ───────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+// ── Mentor Annotation System ─────────────────────────────────────────────
+// Draws arrows, highlight boxes, and label callouts on the chart at key
+// setup moments. All annotations are full drawings — selectable and deletable
+// by the user. Cleared per-session via clearMentorAnnotations().
+
+let _mentorAnnotationIds = []; // track IDs so we can clear them
+
+function clearMentorAnnotations() {
+  drawings = drawings.filter(d => !d.isMentorAnnotation);
+  _mentorAnnotationIds = [];
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
+// Add an arrow pointing at a specific bar/price.
+// direction: 'down' (arrow points down toward candle from above) or 'up'
+function _addMentorArrow(bar, price, label, direction = 'down', highlight = false) {
+  const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  // Offset the arrow tip slightly above/below the candle body
+  const atr = calculateATR(bar, 14) || (price * 0.002);
+  const offsetPrice = direction === 'down'
+    ? price + atr * 0.6   // arrow comes from above
+    : price - atr * 0.6;  // arrow comes from below
+  const drawing = {
+    type: 'mentor_arrow',
+    bar, price: offsetPrice,
+    pointing: direction === 'up' ? 'up' : 'down',
+    label: label || '',
+    highlight,
+    id,
+    isMentorAnnotation: true,
+  };
+  drawings.push(drawing);
+  _mentorAnnotationIds.push(id);
+  return id;
+}
+
+// Add a highlight box around a range of bars and price levels.
+function _addMentorBox(bar1, bar2, priceLow, priceHigh, label, color) {
+  const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const drawing = {
+    type: 'mentor_box',
+    bar1, bar2,
+    priceLow, priceHigh,
+    label: label || '',
+    color: color || '#8a2be2',
+    id,
+    isMentorAnnotation: true,
+  };
+  drawings.push(drawing);
+  _mentorAnnotationIds.push(id);
+  return id;
+}
+
+// Add a floating label callout next to a bar.
+// lines: array of strings, joined with | for rendering
+function _addMentorLabel(bar, price, lines) {
+  const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const drawing = {
+    type: 'mentor_label',
+    bar, price,
+    label: Array.isArray(lines) ? lines.join(' | ') : lines,
+    id,
+    isMentorAnnotation: true,
+  };
+  drawings.push(drawing);
+  _mentorAnnotationIds.push(id);
+  return id;
+}
+
+// ── Annotate key setup moments ────────────────────────────────────────────
+// Called when the early-warning pause fires. Reads the setup type and places
+// relevant annotations on the chart to show the user WHAT to look at.
+function _mentorAnnotateSetup(setupDetection, setupBar, currentBar) {
+  if (!curData || setupBar >= curData.length) return;
+  clearMentorAnnotations(); // remove any previous annotations first
+
+  const method   = mentorState.selectedTradingMethod || 'breakout';
+  const dir      = setupDetection.direction || 'long';
+  const bar      = setupBar;
+  const c        = curData[bar];
+  if (!c) return;
+
+  const atr = calculateATR(bar, 14) || (c.close * 0.01);
+  const lookback = curData.slice(Math.max(0, bar - 15), bar + 1);
+
+  switch (method) {
+
+    case 'breakout':
+    case 'range_breakout': {
+      // Box the consolidation zone, arrow on breakout candle
+      const consoHigh = Math.max(...lookback.map(b => b.high));
+      const consoLow  = Math.min(...lookback.map(b => b.low));
+      const consoStart = Math.max(0, bar - 12);
+      _addMentorBox(consoStart, bar - 1, consoLow, consoHigh, 'Consolidation zone');
+      _addMentorArrow(bar, dir === 'long' ? c.high : c.low,
+        dir === 'long' ? 'Breakout candle' : 'Breakdown candle',
+        dir === 'long' ? 'down' : 'up', true);
+      _addMentorLabel(bar, dir === 'long' ? consoHigh : consoLow, [
+        dir === 'long' ? `Resistance broken: ${fP(consoHigh)}` : `Support broken: ${fP(consoLow)}`,
+        'Watch for retest',
+      ]);
+      break;
+    }
+
+    case 'trend':
+    case 'flag_continuation': {
+      // Box the flag/pullback, arrow at the resumption candle
+      const impulseStart = Math.max(0, bar - 14);
+      const impulseEnd   = Math.max(0, bar - 6);
+      const pullStart    = impulseEnd;
+      const impulseHigh  = Math.max(...curData.slice(impulseStart, impulseEnd).map(b => b.high));
+      const impulseLow   = Math.min(...curData.slice(impulseStart, impulseEnd).map(b => b.low));
+      _addMentorBox(impulseStart, impulseEnd - 1, impulseLow, impulseHigh, 'Impulse move');
+      _addMentorBox(pullStart, bar, Math.min(...lookback.slice(-6).map(b => b.low)),
+        Math.max(...lookback.slice(-6).map(b => b.high)), 'Flag / pullback (low vol)');
+      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+        'Entry zone', dir === 'long' ? 'up' : 'down', true);
+      break;
+    }
+
+    case 'support_resistance': {
+      // Mark the level, arrow on the reaction candle
+      const swings = lookback.filter((b, i, arr) => {
+        if (i < 2 || i > arr.length - 3) return false;
+        return dir === 'long'
+          ? b.low < arr[i-1].low && b.low < arr[i+1].low
+          : b.high > arr[i-1].high && b.high > arr[i+1].high;
+      });
+      const level = swings.length
+        ? (dir === 'long' ? Math.min(...swings.map(b => b.low)) : Math.max(...swings.map(b => b.high)))
+        : (dir === 'long' ? c.low : c.high);
+      _addMentorBox(Math.max(0, bar - 15), bar, level - atr * 0.3, level + atr * 0.3,
+        dir === 'long' ? `Support zone: ${fP(level)}` : `Resistance zone: ${fP(level)}`);
+      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+        dir === 'long' ? 'Rejection wick' : 'Shooting star', dir === 'long' ? 'up' : 'down', true);
+      _addMentorLabel(bar, c.close, [
+        dir === 'long' ? `Bounce at ${fP(level)}` : `Rejection at ${fP(level)}`,
+        `Wick > body = confirmation`,
+      ]);
+      break;
+    }
+
+    case 'pullback': {
+      // Mark Fib zone, arrow at the pullback low
+      const swingHigh = Math.max(...lookback.map(b => b.high));
+      const swingLow  = Math.min(...lookback.map(b => b.low));
+      const fib382    = dir === 'long' ? swingHigh - (swingHigh - swingLow) * 0.382 : swingLow + (swingHigh - swingLow) * 0.382;
+      const fib618    = dir === 'long' ? swingHigh - (swingHigh - swingLow) * 0.618 : swingLow + (swingHigh - swingLow) * 0.618;
+      _addMentorBox(Math.max(0, bar - 8), bar, Math.min(fib382, fib618), Math.max(fib382, fib618),
+        `38–62% Fib zone`);
+      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+        'Pullback entry zone', dir === 'long' ? 'up' : 'down', true);
+      _addMentorLabel(bar, c.close, [
+        `Fib 38.2%: ${fP(fib382)}`,
+        `Fib 61.8%: ${fP(fib618)}`,
+        `Wait for trigger candle`,
+      ]);
+      break;
+    }
+
+    case 'range': {
+      const rangeHigh = Math.max(...lookback.map(b => b.high));
+      const rangeLow  = Math.min(...lookback.map(b => b.low));
+      const rangeStart = Math.max(0, bar - 15);
+      _addMentorBox(rangeStart, bar, rangeLow, rangeHigh, 'Trading range');
+      const levelPrice = dir === 'long' ? rangeLow : rangeHigh;
+      _addMentorArrow(bar, levelPrice,
+        dir === 'long' ? 'Range support' : 'Range resistance',
+        dir === 'long' ? 'up' : 'down', true);
+      _addMentorLabel(bar, c.close, [
+        `Range H: ${fP(rangeHigh)} | L: ${fP(rangeLow)}`,
+        dir === 'long' ? 'Buy boundary reaction' : 'Sell boundary reaction',
+      ]);
+      break;
+    }
+
+    case 'liquidity': {
+      // Mark the sweep wick, the displacement candle, and the original level
+      const priorCandles  = curData.slice(Math.max(0, bar - 8), bar - 1);
+      const priorSwingLow  = priorCandles.length ? Math.min(...priorCandles.map(b => b.low))  : c.low;
+      const priorSwingHigh = priorCandles.length ? Math.max(...priorCandles.map(b => b.high)) : c.high;
+      const sweepCandle   = curData[bar - 1] || c;
+      // Box the swept level
+      if (dir === 'long') {
+        _addMentorBox(Math.max(0, bar - 8), bar - 1,
+          priorSwingLow - atr * 0.5, priorSwingLow + atr * 0.5, `SSL swept: ${fP(priorSwingLow)}`);
+        _addMentorArrow(bar - 1, sweepCandle.low, 'Stop hunt wick', 'up', false);
+        _addMentorArrow(bar, c.close, 'Displacement ↑', 'down', true);
+      } else {
+        _addMentorBox(Math.max(0, bar - 8), bar - 1,
+          priorSwingHigh - atr * 0.5, priorSwingHigh + atr * 0.5, `BSL swept: ${fP(priorSwingHigh)}`);
+        _addMentorArrow(bar - 1, sweepCandle.high, 'Stop hunt wick', 'down', false);
+        _addMentorArrow(bar, c.close, 'Displacement ↓', 'up', true);
+      }
+      _addMentorLabel(bar, c.close, [
+        'Accumulate → Manipulate → Distribute',
+        'Enter after displacement, not during wick',
+      ]);
+      break;
+    }
+
+    default: {
+      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+        'Setup detected', dir === 'long' ? 'up' : 'down', true);
+      break;
+    }
+  }
+
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
@@ -12653,6 +12911,151 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.fillRect(x-3,y-14,tw+10,17);
         if(isSel){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-3,y-14,tw+10,17); }
         ctx.fillStyle=col; ctx.fillText(d.text||'',x+2,y-1);
+        break;
+      }
+
+      // ── MENTOR ANNOTATION TYPES ────────────────────────────────────────────
+      // mentor_arrow: downward/upward arrow pointing at a specific candle
+      // mentor_box:   highlight box around a candle range
+      // mentor_label: floating callout with explanation text
+      // All are selectable and deletable. Marked with isMentorAnnotation=true.
+
+      case 'mentor_arrow': {
+        const ax = barXfn(d.bar);
+        const ay = pyfn(d.price);
+        const isDown = d.pointing !== 'up';
+        const arrLen = 40;
+        const tipY   = ay + (isDown ? -8 : 8);
+        const tailY  = tipY + (isDown ? -arrLen : arrLen);
+        const purple = '#8a2be2';
+        const pulseCol = d.highlight ? '#ffcc00' : purple;
+
+        // Shadow glow
+        ctx.save();
+        ctx.shadowColor = pulseCol;
+        ctx.shadowBlur  = isSel ? 14 : 8;
+
+        // Arrow shaft
+        ctx.strokeStyle = pulseCol;
+        ctx.lineWidth   = isSel ? 3 : 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(ax, tailY);
+        ctx.lineTo(ax, tipY);
+        ctx.stroke();
+
+        // Arrowhead
+        ctx.fillStyle = pulseCol;
+        ctx.beginPath();
+        if (isDown) {
+          ctx.moveTo(ax,       tipY);
+          ctx.lineTo(ax - 7,   tipY + 12);
+          ctx.lineTo(ax + 7,   tipY + 12);
+        } else {
+          ctx.moveTo(ax,       tipY);
+          ctx.lineTo(ax - 7,   tipY - 12);
+          ctx.lineTo(ax + 7,   tipY - 12);
+        }
+        ctx.fill();
+        ctx.restore();
+
+        // Label box above/below the arrow tail
+        if (d.label) {
+          ctx.font = 'bold 10px sans-serif';
+          const tw  = Math.min(ctx.measureText(d.label).width, 180);
+          const lx  = ax - tw / 2 - 6;
+          const ly  = isDown ? tailY - 22 : tailY + 6;
+          ctx.fillStyle = isSel ? 'rgba(138,43,226,0.35)' : 'rgba(138,43,226,0.22)';
+          roundRect(ctx, lx, ly, tw + 12, 18, 4);
+          ctx.fill();
+          if (isSel) { ctx.strokeStyle = pulseCol; ctx.lineWidth = 1; roundRect(ctx, lx, ly, tw + 12, 18, 4); ctx.stroke(); }
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.fillText(d.label.slice(0, 30), ax, ly + 13);
+          ctx.textAlign = 'left';
+        }
+        break;
+      }
+
+      case 'mentor_box': {
+        const bx1 = barXfn(d.bar1);
+        const bx2 = barXfn(d.bar2);
+        const by1 = pyfn(d.priceHigh);
+        const by2 = pyfn(d.priceLow);
+        const bxL = Math.min(bx1, bx2) - barWidth * 0.5;
+        const bxR = Math.max(bx1, bx2) + barWidth * 0.5;
+        const byT = Math.min(by1, by2) - 4;
+        const byB = Math.max(by1, by2) + 4;
+        const purple = d.color || '#8a2be2';
+
+        ctx.save();
+        ctx.shadowColor = purple;
+        ctx.shadowBlur  = isSel ? 12 : 6;
+        ctx.fillStyle   = isSel ? 'rgba(138,43,226,0.18)' : 'rgba(138,43,226,0.10)';
+        ctx.fillRect(bxL, byT, bxR - bxL, byB - byT);
+        ctx.strokeStyle = purple;
+        ctx.lineWidth   = isSel ? 2 : 1.5;
+        ctx.setLineDash(isSel ? [] : [4, 3]);
+        ctx.strokeRect(bxL, byT, bxR - bxL, byB - byT);
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        if (d.label) {
+          ctx.font = 'bold 10px sans-serif';
+          const tw  = Math.min(ctx.measureText(d.label).width, 200);
+          const lx  = bxL;
+          const ly  = byT - 22;
+          ctx.fillStyle = 'rgba(138,43,226,0.28)';
+          roundRect(ctx, lx, ly, tw + 12, 18, 4);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'left';
+          ctx.fillText(d.label.slice(0, 35), lx + 6, ly + 13);
+        }
+        break;
+      }
+
+      case 'mentor_label': {
+        const lax = barXfn(d.bar);
+        const lay = pyfn(d.price);
+        const txt = d.label || '';
+        ctx.font = '11px sans-serif';
+        const lines = txt.split('|').map(s => s.trim()).filter(Boolean);
+        const maxW  = Math.max(...lines.map(l => ctx.measureText(l).width), 60);
+        const padX  = 10, padY = 6, lineH = 15;
+        const boxW  = maxW + padX * 2;
+        const boxH  = lines.length * lineH + padY * 2;
+        // Position box to the right of the bar, shift up
+        const bxOff = barWidth * 1.5;
+        const lbx = lax + bxOff;
+        const lby = lay - boxH / 2;
+
+        // Connector line from bar to box
+        ctx.strokeStyle = 'rgba(138,43,226,0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(lax, lay);
+        ctx.lineTo(lbx, lay);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Box
+        ctx.fillStyle = isSel ? 'rgba(138,43,226,0.3)' : 'rgba(15,17,28,0.92)';
+        roundRect(ctx, lbx, lby, boxW, boxH, 5);
+        ctx.fill();
+        ctx.strokeStyle = isSel ? '#8a2be2' : 'rgba(138,43,226,0.6)';
+        ctx.lineWidth = isSel ? 2 : 1;
+        roundRect(ctx, lbx, lby, boxW, boxH, 5);
+        ctx.stroke();
+
+        // Text lines
+        ctx.fillStyle = '#e8ecf8';
+        ctx.textAlign = 'left';
+        lines.forEach((line, li) => {
+          ctx.fillText(line, lbx + padX, lby + padY + lineH * (li + 1) - 3);
+        });
+        ctx.textAlign = 'left';
         break;
       }
 
