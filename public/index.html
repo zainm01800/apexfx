@@ -8553,14 +8553,13 @@ function handleSetupDetectedState(currentBar) {
     const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
     const entryPrice = curData[entryBar]?.open;
 
-    function futureFromEntryOk(eb) { return curData && curData.length > eb + 5; }
-    let prelevels = setupData._prevalidatedLevels || null;
-    if (!prelevels && futureFromEntryOk(entryBar)) {
-      const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
-      prelevels = (futureFromEntry.length >= 5 && entryPrice)
-        ? computeMentorTradeLevels(setupData.direction || 'long', entryPrice, entryBar, futureFromEntry)
-        : null;
-    }
+    // Always recompute levels fresh at question-time using the current wick-based
+    // validation logic — never reuse scanner-cached levels which may have been
+    // computed with old close-only logic and could produce invalid trades.
+    const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+    const prelevels = (futureFromEntry.length >= 5 && entryPrice)
+      ? computeMentorTradeLevels(setupData.direction || 'long', entryPrice, entryBar, futureFromEntry)
+      : null;
 
     if (!prelevels) {
       // Can't place a valid trade here — skip silently and keep scanning
@@ -9647,8 +9646,8 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
     return false;
   }
 
-  // Cache validated levels keyed to the actual entry bar
-  setupDetection._prevalidatedLevels = levels;
+  // Store entryBar for reference — do NOT cache _prevalidatedLevels here since
+  // mentorShowMeTrade always recomputes fresh to avoid stale data issues.
   setupDetection._entryBar = entryBar;
 
   // All good — store pending data and show the panel
@@ -9687,12 +9686,11 @@ function mentorShowMeTrade() {
     return;
   }
 
-  let levels = setupData._prevalidatedLevels;
-  if (!levels) {
-    // Recompute as fallback
-    const fut = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
-    levels = fut.length >= 5 ? computeMentorTradeLevels(direction, entryPrice, entryBar, fut) : null;
-  }
+  // Always compute fresh — never use cached levels from an earlier scan
+  const futFresh = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
+  const levels = futFresh.length >= 5
+    ? computeMentorTradeLevels(direction, entryPrice, entryBar, futFresh)
+    : null;
   if (!levels) {
     mentorState.lockedQuestion = '⚠️ Setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
     updateLockedMentorUI();
@@ -10467,13 +10465,13 @@ function _mfLaunch(idx) {
   // scanning entirely. When replayCutoff reaches within 15 bars of setup.bar,
   // handleSetupDetectedState fires the early question automatically.
   // Build a minimal setup detection object from what the scanner found.
+  // Do NOT pre-cache levels from the scanner — they may have been computed with
+  // old logic. handleSetupDetectedState will always recompute fresh at question time.
   const injectedSetup = {
     setup:     setup.setup,
     direction: setup.direction,
     quality:   setup.quality,
     confluence: setup.confluence,
-    // Pre-cache the validated levels so no re-computation needed at question time
-    _prevalidatedLevels: setup.levels,
     _entryBar: Math.min(setup.bar + 1, curData.length - 1),
   };
 
