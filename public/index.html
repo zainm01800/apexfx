@@ -5069,9 +5069,16 @@ function replayStep(n){
     }
   } else if ((_lc === 'trade_monitoring' || _lc === 'trade_completed' || _lc === 'trade_result')
              && mentorState._tradeSetupData) {
-    // During and after the trade — keep the setup annotations visible and updating
+    // During trade — annotations are frozen at detectionBar level, no need to refresh
+    // every single step. Only refresh when scrubbing backwards past the detection bar.
     const tsd = mentorState._tradeSetupData;
-    _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+    const _detBar = Math.min(tsd.setupBar, curData.length - 1);
+    // Only re-annotate if user scrubbed back (replayCutoff < detectionBar) 
+    // or if annotations haven't been drawn yet for this trade
+    if (replayCutoff <= _detBar || !mentorState._annotationsDrawnForTrade) {
+      mentorState._annotationsDrawnForTrade = true;
+      _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+    }
   }
   
   // Monitor example trade if active
@@ -5653,16 +5660,9 @@ function monitorExampleTrade(currentBar) {
     return;
   }
 
-  // ── Entry bar reached — NOW draw the trade tool ─────────────────────────
+  // ── Entry bar reached ────────────────────────────────────────────────────
   if (trade.pendingEntry) {
     trade.pendingEntry = false;
-
-    // Draw the Long/Short tool at the actual entry moment — not before
-    // This keeps the chart clean until price actually arrives at the entry
-    if (!mentorState.exampleTradeDrawingId) {
-      drawExampleTrade(trade);
-    }
-
     const dirLabel = trade.direction === 'long' ? 'LONG' : 'SHORT';
     mentorState.tradeMonitoringUpdates = [
       `✅ Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
@@ -6051,6 +6051,7 @@ function continueReplayAfterTradeCompletion() {
   // Clear stored setup data so NEXT trade starts fresh (annotations stay until user deletes)
   mentorState._tradeSetupData = null;
   mentorState._lastAnnotateBar = null;
+  mentorState._annotationsDrawnForTrade = false;
   // Reset trade state
   mentorState.exampleTrade = null;
   mentorState.exampleTradeActive = false;
@@ -10085,21 +10086,27 @@ function mentorShowMeTrade() {
     pendingEntry: replayCutoff < entryBar,
   };
 
-  // ── Store trade data but don't draw the tool yet ────────────────────────────
-  // The Long/Short tool will only appear when price actually reaches the entry bar.
-  // Until then, only the setup annotations are visible — no cluttered future tool.
+  // ── Draw the trade tool immediately ─────────────────────────────────────────
+  // Show it now so the user can see where entry/SL/TP are on the chart.
+  // The tool's halfBars is extended to cover from current position to well past entry.
   mentorState._freezeScrollForPreview = false;
-  mentorState.exampleTrade       = exampleTrade;
-  mentorState.exampleTradeActive = true;
-  mentorState.tradeMonitoringUpdates = [];
-  mentorState.pendingSetupDetection  = null;
-  mentorState.pendingSetupBar        = null;
+  const barsToEntry = Math.max(0, entryBar - replayCutoff);
+  exampleTrade.halfBars = barsToEntry + 25; // extends left past current bar, right past entry
+  exampleTrade.halfDuration = halfBarsToSecs(exampleTrade.halfBars, curTF);
 
-  // Draw immediately only if we're already AT or PAST the entry bar
-  if (replayCutoff >= entryBar) {
-    drawExampleTrade(exampleTrade);
-  }
-  // Otherwise it will be drawn by monitorExampleTrade when entryBar is reached
+  mentorState.exampleTrade              = exampleTrade;
+  mentorState.exampleTradeActive        = true;
+  mentorState.tradeMonitoringUpdates    = [];
+  mentorState.pendingSetupDetection     = null;
+  mentorState.pendingSetupBar           = null;
+  mentorState._annotationsDrawnForTrade = false; // force re-draw on new trade
+
+  drawExampleTrade(exampleTrade);
+
+  // Scroll chart to show both current bar and entry bar
+  const mc2 = document.getElementById('main-canvas');
+  const vis2 = mc2 ? mc2.width / barWidth : 80;
+  rightBarIndex = Math.round(entryBar + vis2 * 0.25);
 
   // ── Show immediate placeholder, fetch AI explanation async ─────────────────
   const dirLabel  = direction === 'long' ? 'LONG' : 'SHORT';
