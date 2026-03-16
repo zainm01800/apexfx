@@ -9657,11 +9657,15 @@ function updateMentor() {
       // First, check for new manual trade placements during replay
       detectReplayTradePlacement();
 
-      // NO COOLDOWN — strict methodology detection functions act as the quality gate.
-      // A setup is only shown when it genuinely meets the criteria for the selected
-      // method (correct candle confirmation, volume, level touches, EMA alignment etc).
-      // The old 80-candle timer is removed entirely.
-      
+      // Cooldown: minimum 30 bars between setup suggestions to prevent spam.
+      // The detection functions are still the quality gate — this just stops the same
+      // area being re-shown immediately after a dismiss or failed validation.
+      const barsSinceLast = currentBar - (mentorState.lastTradeSuggestionBar || -999);
+      if (barsSinceLast < 30) {
+        updateMentorUI();
+        return;
+      }
+
       mentorState.analysis = analyzeMarketData(currentBar);
       console.log('🤖 Analysis result:', mentorState.analysis);
       
@@ -12640,7 +12644,6 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const dir    = setupDetection.direction || 'long';
 
   const detectionBar = Math.min(setupBar, curData.length - 1);
-  // visibleUpTo = the furthest bar the user has seen — never draw beyond this
   const visibleUpTo  = Math.min(anchorBar, replayCutoff, detectionBar, curData.length - 1);
   const data         = curData.slice(0, detectionBar + 1);
   const structure    = analyzeMarketStructure(data);
@@ -12648,13 +12651,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
   function isVisible(b) { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
 
-  // Level band: LEFT edge anchored at firstBar, RIGHT edge = visibleUpTo.
-  // Only draws once the anchor bar is visible AND at least one bar has passed since.
-  // This prevents the band appearing before the candle it references.
+  // Horizontal level band — left anchored at firstBar, right grows with visibleUpTo
   function levelBand(price, label, firstBar) {
     const f = Math.max(0, Math.floor(firstBar));
     const t = visibleUpTo + 2;
-    // Don't draw if the anchor bar hasn't been seen yet, or nothing to extend right into
     if (f >= visibleUpTo || !isVisible(f) || t <= f) return;
     _addMentorBox(f, t, price - atr * 0.10, price + atr * 0.10, label);
   }
@@ -12663,37 +12663,42 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
     case 'breakout':
     case 'range_breakout': {
-      const conso   = detectConsolidation(data);
-      const c       = curData[visibleUpTo];
+      const conso = detectConsolidation(data);
+      const c     = curData[visibleUpTo];
       if (!c || !conso.isConsolidating) break;
 
       const consoFrom  = Math.max(0, detectionBar - 16);
-      if (!isVisible(consoFrom)) break;
+      if (consoFrom >= visibleUpTo || !isVisible(consoFrom)) break;
 
       const breakLevel = dir === 'long' ? conso.upper : conso.lower;
+      const rng = Math.round((conso.upper - conso.lower) / atr * 10) / 10;
 
-      // Consolidation box: only draw once the consolidation zone is visible
-      if (consoFrom >= visibleUpTo) break;
+      // Consolidation zone — explains the coiling
       _addMentorBox(consoFrom, visibleUpTo, conso.lower, conso.upper,
-        `📦 Consolidation — ${Math.round((conso.upper - conso.lower) / atr * 10) / 10}× ATR`);
+        `📦 Price coiling in a tight range (${rng}× ATR) — energy building for a breakout`);
 
-      // Broken level: always starts at consoFrom
+      // The level being broken
       levelBand(breakLevel,
-        dir === 'long' ? `🔑 Resistance: ${fP(breakLevel)}` : `🔑 Support: ${fP(breakLevel)}`,
+        dir === 'long'
+          ? `🔑 ${fP(breakLevel)} — resistance that price kept failing at. Now it's breaking above it.`
+          : `🔑 ${fP(breakLevel)} — support that price kept holding at. Now it's breaking below it.`,
         consoFrom);
 
-      // Breakout arrow only on the candle where it happened (detectionBar)
+      // Breakout candle
       if (isVisible(detectionBar)) {
         const bc = curData[detectionBar];
+        const bodyPct = Math.round(Math.abs(bc.close - bc.open) / (bc.high - bc.low) * 100);
         _addMentorArrow(detectionBar, dir === 'long' ? bc.high : bc.low,
-          dir === 'long' ? `🚀 Breakout` : `📉 Breakdown`,
+          dir === 'long'
+            ? `🚀 Breakout candle — body (${bodyPct}% of range) closed above the resistance`
+            : `📉 Breakdown candle — body (${bodyPct}% of range) closed below the support`,
           dir === 'long' ? 'down' : 'up', true);
       }
       break;
     }
 
     case 'support_resistance': {
-      const sb  = dir === 'long' ? detectSupportBounce(data)      : { detected: false };
+      const sb  = dir === 'long' ? detectSupportBounce(data) : { detected: false };
       const rr  = dir === 'short' ? detectResistanceRejection(data) : { detected: false };
       const det = dir === 'long' ? sb : rr;
       const c   = curData[visibleUpTo];
@@ -12703,9 +12708,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         ? (det.supportLevel || det.resistanceLevel)
         : (curData[detectionBar + 1]?.open || c.close);
 
-      // Find the FIRST bar where price touched this level — anchor the box there
+      // Find the first visible touch to anchor the band
       const searchFrom = Math.max(0, detectionBar - 45);
-      let firstTouchBar = visibleUpTo; // fallback
+      let firstTouchBar = visibleUpTo;
       for (let i = searchFrom; i <= visibleUpTo; i++) {
         const candle = curData[i];
         if (!candle) continue;
@@ -12713,14 +12718,15 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (dist < atr * 0.7) { firstTouchBar = i; break; }
       }
 
-      // Level band: only draw once a touch is actually visible on screen
       if (firstTouchBar < visibleUpTo) {
         levelBand(level,
-          dir === 'long' ? `🟢 Support: ${fP(level)}` : `🔴 Resistance: ${fP(level)}`,
+          dir === 'long'
+            ? `🟢 Support zone at ${fP(level)} — price has bounced here multiple times. The more times it holds, the stronger the level.`
+            : `🔴 Resistance zone at ${fP(level)} — price has reversed here multiple times. Sellers keep stepping in at this price.`,
           firstTouchBar);
       }
 
-      // Scan for ALL touches between firstTouchBar and visibleUpTo
+      // Mark each touch — numbered and explained
       const allTests = [];
       for (let i = firstTouchBar; i <= visibleUpTo; i++) {
         const candle = curData[i];
@@ -12728,41 +12734,45 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const dist = dir === 'long' ? Math.abs(candle.low - level) : Math.abs(candle.high - level);
         if (dist < atr * 0.65) allTests.push(i);
       }
-
-      // Cluster to max 4 (5-bar window dedup)
       const clusters = [];
       for (const tb of allTests) {
         const last = clusters[clusters.length - 1];
         if (!last || tb - last > 5) clusters.push(tb);
       }
 
-      const testLabels = ['1st test', '2nd test', '3rd test', 'Latest'];
+      const testDesc = [
+        dir === 'long' ? 'First time price tested this support' : 'First time price tested this resistance',
+        dir === 'long' ? 'Second test — level held again, confirming it' : 'Second test — level rejected again',
+        dir === 'long' ? 'Third test — strong confluencing, buyers defending' : 'Third test — sellers defending hard',
+        dir === 'long' ? 'Latest test — look for a wick rejection to enter' : 'Latest test — look for a wick rejection to enter',
+      ];
       clusters.slice(-4).forEach((tb, idx) => {
         if (!isVisible(tb)) return;
         const candle   = curData[tb];
-        const isLatest = (idx === clusters.slice(-4).length - 1);
+        const isLatest = idx === clusters.slice(-4).length - 1;
         _addMentorArrow(tb, dir === 'long' ? candle.low : candle.high,
           isLatest
-            ? (dir === 'long' ? `✅ Bounce — enter` : `✅ Rejection — enter`)
-            : testLabels[idx] || `Test ${idx + 1}`,
+            ? (dir === 'long' ? `✅ Bounce — wick confirms buyers at ${fP(level)}` : `✅ Rejection — wick confirms sellers at ${fP(level)}`)
+            : testDesc[idx] || `Test ${idx + 1}`,
           dir === 'long' ? 'up' : 'down', isLatest);
       });
 
-      // Wick quality on the most recent visible reaction candle
+      // Wick quality explanation
       const wickSize = dir === 'long'
         ? Math.max(0, Math.min(c.open, c.close) - c.low)
         : Math.max(0, c.high - Math.max(c.open, c.close));
       const bodySize = Math.abs(c.close - c.open) || 0.001;
       const ratio    = wickSize / bodySize;
       if (wickSize > atr * 0.05) {
+        const trendCtx = (structure.trend?.includes('up') && dir === 'long') ? '✅ Trend is up — bounce is with the trend (higher probability)'
+          : (structure.trend?.includes('down') && dir === 'short') ? '✅ Trend is down — rejection is with the trend (higher probability)'
+          : '⚠️ This is a counter-trend trade — smaller position size recommended';
         _addMentorLabel(visibleUpTo,
           dir === 'long' ? c.high + atr * 0.5 : c.low - atr * 0.5, [
             ratio >= 1.0
-              ? `✅ Wick ${ratio.toFixed(1)}× body — strong signal`
-              : `⚠️ Wick ${ratio.toFixed(1)}× body — weak`,
-            structure.trend?.includes('up') && dir === 'long' ? '✅ With uptrend'
-            : structure.trend?.includes('down') && dir === 'short' ? '✅ With downtrend'
-            : '⚠️ Counter-trend',
+              ? `✅ Rejection wick is ${ratio.toFixed(1)}× the candle body — strong signal that price was pushed back from ${fP(level)}`
+              : `⚠️ Wick is only ${ratio.toFixed(1)}× the body — weak rejection, wait for a stronger candle before entering`,
+            trendCtx,
           ]);
       }
       break;
@@ -12778,19 +12788,22 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       const ema50arr = calcEMA(data, 50);
       const ema20    = ema20arr[ema20arr.length - 1];
       const ema50    = ema50arr[ema50arr.length - 1];
-
-      // EMAs: anchor at a fixed point in history, extend right to visibleUpTo
       const emaAnchor = Math.max(0, visibleUpTo - 20);
-      if (ema20) levelBand(ema20, `📊 EMA20: ${fP(ema20)}`, emaAnchor);
-      if (ema50 && Math.abs(ema50 - (ema20||0)) < atr * 8)
-        levelBand(ema50, `📊 EMA50: ${fP(ema50)}`, emaAnchor);
 
-      // Impulse + pullback: only draw the portion that's visible
-      const look   = data.slice(-30);
-      const lkHi   = Math.max(...look.map(b => b.high));
-      const lkLo   = Math.min(...look.map(b => b.low));
-      const lkHiI  = detectionBar - 29 + look.findIndex(b => b.high === lkHi);
-      const lkLoI  = detectionBar - 29 + look.findIndex(b => b.low === lkLo);
+      if (ema20) levelBand(ema20,
+        `📊 EMA20 at ${fP(ema20)} — price is pulling back to the 20-bar average. This is the trend's "heartbeat" — bounces from here continue the trend.`,
+        emaAnchor);
+      if (ema50 && Math.abs(ema50 - (ema20||0)) < atr * 8)
+        levelBand(ema50,
+          `📊 EMA50 at ${fP(ema50)} — the longer-term trend average. EMAs stacked (8>21>50) = strong uptrend.`,
+          emaAnchor);
+
+      // Impulse + pullback
+      const look  = data.slice(-30);
+      const lkHi  = Math.max(...look.map(b => b.high));
+      const lkLo  = Math.min(...look.map(b => b.low));
+      const lkHiI = detectionBar - 29 + look.findIndex(b => b.high === lkHi);
+      const lkLoI = detectionBar - 29 + look.findIndex(b => b.low === lkLo);
       const ipkBar = dir === 'long' ? lkHiI : lkLoI;
       const istBar = dir === 'long' ? lkLoI : lkHiI;
 
@@ -12799,17 +12812,22 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (visEnd > istBar) {
           const impH = Math.max(...curData.slice(istBar, visEnd + 1).map(b => b.high));
           const impL = Math.min(...curData.slice(istBar, visEnd + 1).map(b => b.low));
-          _addMentorBox(istBar, visEnd, impL, impH, '⚡ Impulse leg');
+          _addMentorBox(istBar, visEnd, impL, impH,
+            `⚡ Impulse leg — a strong directional move that ${dir === 'long' ? 'pushed price up fast' : 'pushed price down fast'}. This shows buyers/sellers are in control.`);
         }
         if (isVisible(ipkBar) && visibleUpTo > ipkBar) {
           const pbH = Math.max(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.high));
           const pbL = Math.min(...curData.slice(ipkBar, visibleUpTo + 1).map(b => b.low));
-          _addMentorBox(ipkBar, visibleUpTo, pbL, pbH, '🏴 Pullback');
+          _addMentorBox(ipkBar, visibleUpTo, pbL, pbH,
+            `🏴 Pullback — price retracing on lower volume. This is normal — we want to enter as the trend resumes from here.`);
         }
       }
 
       _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
-        '📍 Entry zone — trend resuming', dir === 'long' ? 'up' : 'down', true);
+        dir === 'long'
+          ? `📍 Entry zone — trend resuming. Look for a strong candle closing up near the EMA.`
+          : `📍 Entry zone — trend resuming. Look for a strong candle closing down near the EMA.`,
+        dir === 'long' ? 'up' : 'down', true);
       break;
     }
 
@@ -12820,43 +12838,52 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
       const ema20arr = calcEMA(data, 20);
       const ema20    = ema20arr[ema20arr.length - 1];
-      if (ema20) levelBand(ema20, `✅ EMA20: ${fP(ema20)} — pullback target`,
+      if (ema20) levelBand(ema20,
+        `✅ EMA20 at ${fP(ema20)} — the pullback is returning to the moving average. Entries near the EMA with the trend have the best probability.`,
         Math.max(0, visibleUpTo - 20));
 
-      const look    = data.slice(-25);
-      const swHigh  = Math.max(...look.map(b => b.high));
-      const swLow   = Math.min(...look.map(b => b.low));
+      const look   = data.slice(-25);
+      const swHigh = Math.max(...look.map(b => b.high));
+      const swLow  = Math.min(...look.map(b => b.low));
       const swRange = swHigh - swLow;
       const fib382  = dir === 'long' ? swHigh - swRange * 0.382 : swLow + swRange * 0.382;
       const fib618  = dir === 'long' ? swHigh - swRange * 0.618 : swLow + swRange * 0.618;
       const retrace = swRange > 0 ? (dir === 'long' ? (swHigh - c.close) / swRange : (c.close - swLow) / swRange) : 0;
 
-      // Fib zone: anchored at the swing high/low bar
-      const swHiI = detectionBar - 24 + look.findIndex(b => b.high === swHigh);
-      const swLoI = detectionBar - 24 + look.findIndex(b => b.low === swLow);
+      const swHiI     = detectionBar - 24 + look.findIndex(b => b.high === swHigh);
+      const swLoI     = detectionBar - 24 + look.findIndex(b => b.low  === swLow);
       const fibAnchor = Math.max(0, dir === 'long' ? swHiI : swLoI);
 
       if (isVisible(fibAnchor) && fibAnchor < visibleUpTo) {
         _addMentorBox(fibAnchor, visibleUpTo + 8,
-          Math.min(fib382, fib618), Math.max(fib382, fib618), `📐 38–62% Fib zone`);
+          Math.min(fib382, fib618), Math.max(fib382, fib618),
+          `📐 38–62% Fibonacci zone — the "golden zone" where pullbacks typically end and the trend resumes. Price is at ${(retrace * 100).toFixed(0)}% retracement.`);
 
-        // Anchor arrow at swing high/low — only if visible
         if (dir === 'long' && isVisible(swHiI) && swHiI >= 0)
-          _addMentorArrow(swHiI, swHigh, `Swing high: ${fP(swHigh)}`, 'down', false);
+          _addMentorArrow(swHiI, swHigh,
+            `Swing high: ${fP(swHigh)} — the Fib is measured FROM this high. The 38–62% zone sits below it.`,
+            'down', false);
         else if (dir === 'short' && isVisible(swLoI) && swLoI >= 0)
-          _addMentorArrow(swLoI, swLow, `Swing low: ${fP(swLow)}`, 'up', false);
+          _addMentorArrow(swLoI, swLow,
+            `Swing low: ${fP(swLow)} — the Fib is measured FROM this low. The 38–62% zone sits above it.`,
+            'up', false);
       }
 
       _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
         pb.detected && pb.volContracting
-          ? `✅ ${(retrace * 100).toFixed(0)}% pullback, vol contracting`
-          : `📍 ${(retrace * 100).toFixed(0)}% into Fib zone`,
+          ? `✅ Price is ${(retrace * 100).toFixed(0)}% into the pullback AND volume is contracting — textbook entry signal`
+          : `📍 Price at ${(retrace * 100).toFixed(0)}% pullback — waiting for volume to contract before entry`,
         dir === 'long' ? 'up' : 'down', true);
 
-      _addMentorLabel(visibleUpTo, dir === 'long' ? c.high + atr * 0.5 : c.low - atr * 0.5, [
-        `38.2%: ${fP(fib382)}  |  61.8%: ${fP(fib618)}`,
-        pb.detected && pb.volContracting ? '✅ Volume contracting' : '⚠️ Watch for vol to contract',
-      ]);
+      if (isVisible(fibAnchor) && fibAnchor < visibleUpTo) {
+        _addMentorLabel(visibleUpTo,
+          dir === 'long' ? c.high + atr * 0.5 : c.low - atr * 0.5, [
+            `Fib 38.2% = ${fP(fib382)}  |  61.8% = ${fP(fib618)}`,
+            pb.detected && pb.volContracting
+              ? '✅ Volume contracting = sellers losing momentum, reversal likely'
+              : '⚠️ Volume not yet contracting — hold off until it does',
+          ]);
+      }
       break;
     }
 
@@ -12870,10 +12897,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
       const mid = (conso.upper + conso.lower) / 2;
       _addMentorBox(rangeAnchor, visibleUpTo + 4, conso.lower, conso.upper,
-        `📦 Range: ${fP(conso.lower)} – ${fP(conso.upper)}`);
-      levelBand(mid, `Mid: ${fP(mid)}`, rangeAnchor);
+        `📦 Trading range: ${fP(conso.lower)} to ${fP(conso.upper)} — price bouncing between two levels. Buy the bottom, sell the top.`);
+      levelBand(mid,
+        `Mid-range: ${fP(mid)} — price that crosses through here on the way to the boundary. Avoid entering near the middle.`,
+        rangeAnchor);
       _addMentorArrow(visibleUpTo, dir === 'long' ? c.low : c.high,
-        dir === 'long' ? '🟢 Range bottom' : '🔴 Range top',
+        dir === 'long'
+          ? `🟢 Range bottom at ${fP(conso.lower)} — this is where buyers step in. Look for a rejection wick.`
+          : `🔴 Range top at ${fP(conso.upper)} — this is where sellers step in. Look for a rejection wick.`,
         dir === 'long' ? 'up' : 'down', true);
       break;
     }
@@ -12884,35 +12915,40 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       if (!c) break;
 
       if (sweep.detected) {
-        // Swept level band: anchored far left, extends right
         const sweepAnchor = Math.max(0, detectionBar - 30);
         levelBand(sweep.sweepLevel,
-          dir === 'long' ? `💧 Stop cluster: ${fP(sweep.sweepLevel)}` : `💧 Stop cluster: ${fP(sweep.sweepLevel)}`,
+          dir === 'long'
+            ? `💧 Stop loss cluster at ${fP(sweep.sweepLevel)} — retail traders' stops were sitting here below this low. Smart money swept them.`
+            : `💧 Stop loss cluster at ${fP(sweep.sweepLevel)} — retail stops above this high. Smart money swept them.`,
           sweepAnchor);
 
-        // Sweep candle arrow — only when visible
         const sweepCandleBar = detectionBar - 1;
         if (isVisible(sweepCandleBar)) {
           const sc = curData[sweepCandleBar];
           _addMentorArrow(sweepCandleBar, dir === 'long' ? sc.low : sc.high,
-            `2️⃣ Stop hunt wick`, dir === 'long' ? 'up' : 'down', false);
+            `2️⃣ The wick that swept the stops — price briefly broke ${fP(sweep.sweepLevel)} to grab liquidity, then reversed. The longer the wick, the more stops were hit.`,
+            dir === 'long' ? 'up' : 'down', false);
         }
 
-        // Displacement arrow — only when visible
         if (isVisible(detectionBar)) {
-          _addMentorArrow(detectionBar, dir === 'long' ? curData[detectionBar].high : curData[detectionBar].low,
-            `3️⃣ Displacement — enter next`, dir === 'long' ? 'down' : 'up', true);
-          _addMentorLabel(detectionBar, dir === 'long' ? curData[detectionBar].high + atr : curData[detectionBar].low - atr, [
-            `1️⃣ Stops at ${fP(sweep.sweepLevel)} were swept`,
-            `3️⃣ Strong close = institutional entry`,
-          ]);
+          const dc = curData[detectionBar];
+          _addMentorArrow(detectionBar, dir === 'long' ? dc.high : dc.low,
+            `3️⃣ Displacement candle — after sweeping stops, price exploded ${dir === 'long' ? 'up' : 'down'}. This big body candle is institutional buying/selling.`,
+            dir === 'long' ? 'down' : 'up', true);
+          _addMentorLabel(detectionBar,
+            dir === 'long' ? dc.high + atr : dc.low - atr, [
+              `1️⃣ Stops clustered below ${fP(sweep.sweepLevel)} — easy liquidity target`,
+              `2️⃣ Sweep wick grabbed those stops, filled institutional orders`,
+              `3️⃣ Entry: open of next candle — ride with the smart money`,
+            ]);
         }
       }
       break;
     }
 
     default:
-      _addMentorArrow(visibleUpTo, curData[visibleUpTo]?.close || 0, 'Setup detected', 'down', true);
+      _addMentorArrow(visibleUpTo, curData[visibleUpTo]?.close || 0,
+        'Setup detected — watch for confirmation', 'down', true);
   }
 
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
