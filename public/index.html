@@ -8588,11 +8588,12 @@ function handleSetupDetectedState(currentBar) {
   const barsUntilSetup  = setupBar - currentBar;
   const setupData       = mentorState.upcomingSetup.setup;
 
-  // ── Early question: pause ~15 bars before the setup bar ─────────────────
-  // Give the user a chance to decide BEFORE the candle arrives, so if they
-  // choose "Show Me The Trade" the levels appear on the chart ahead of time
-  // and they watch the candle actually reach the entry live.
-  if (barsUntilSetup <= 15 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
+  // ── Early question: pause ~25 bars before the setup bar ─────────────────
+  // 25 bars gives enough space to:
+  //   1. Show the full setup context in history via annotations
+  //   2. Draw the trade tool at the FUTURE entry bar (visible but not reached)
+  //   3. Give the user time to read the briefing before the candle arrives
+  if (barsUntilSetup <= 25 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
     mentorState.earlyWarningShown = true;
 
     // Use pre-cached levels if available (injected by _mfLaunch), otherwise compute.
@@ -8633,12 +8634,39 @@ function handleSetupDetectedState(currentBar) {
 
     if (replayMode) pauseReplayForSetup();
 
-    // ── Draw chart annotations showing the setup criteria visible RIGHT NOW ────
-    // Annotate currentBar (what the user can see now), not setupBar (future/hidden).
-    // After annotations are added, call draw() immediately so they appear.
+    // ── Draw trade tool at FUTURE entry bar + annotate historical setup context ──
+    // The trade tool shows WHERE the entry will be (it's in the future, not reached).
+    // The annotations look BACK into the chart showing WHY the setup is valid.
     setTimeout(() => {
-      _mentorAnnotateSetup(setupData, currentBar, currentBar);
-      if (typeof draw === 'function') draw();
+      // Step 1: draw the Long/Short tool at the future entry bar so user can see
+      // the planned levels before the candle arrives
+      const prevTradeId = mentorState.exampleTradeDrawingId;
+      if (prevTradeId) {
+        drawings = drawings.filter(d => d.id !== prevTradeId);
+        mentorState.exampleTradeDrawingId = null;
+      }
+      const previewTrade = {
+        type:        setupData.setup,
+        direction:   setupData.direction || 'long',
+        entry:       entryPrice,
+        stopLoss:    prelevels.stopLoss,
+        takeProfit:  prelevels.takeProfit,
+        riskReward:  prelevels.rr,
+        timestamp:   entryBar,
+        barIndex:    entryBar,
+        isExample:   true,
+        isAIPlaced:  true,
+        futureDataUsed: true,
+        pendingEntry: true,
+      };
+      // Store preview so monitoring doesn't activate until entry bar is reached
+      mentorState._previewTrade = previewTrade;
+      drawExampleTrade(previewTrade);
+
+      // Step 2: annotate the HISTORY — look back from currentBar to show the
+      // setup criteria that have already formed on the chart
+      _mentorAnnotateSetup(setupData, currentBar, setupBar);
+      draw();
     }, 80);
 
     updateLockedMentorUI();
@@ -9962,21 +9990,14 @@ function mentorShowMeTrade() {
     pendingEntry: replayCutoff < entryBar,
   };
 
-  // ── Draw levels on the chart RIGHT NOW even though the candle hasn't arrived ─
+  // ── The trade tool was already drawn as a preview during the early warning ──
+  // If the preview drawing exists, remove it and redraw with the finalised levels.
+  // The historical setup annotations are KEPT — don't clear them.
+  if (mentorState.exampleTradeDrawingId) {
+    drawings = drawings.filter(d => d.id !== mentorState.exampleTradeDrawingId);
+    mentorState.exampleTradeDrawingId = null;
+  }
   drawExampleTrade(exampleTrade);
-
-  // Add an arrow annotation at the entry bar pointing to the entry level
-  // This visually confirms WHERE the trade will be entered on the chart
-  _clearMentorAnnotationsSilent();
-  const entryDir = direction === 'long' ? 'up' : 'down';
-  _addMentorArrow(entryBar, entryPrice,
-    direction === 'long' ? '▶ LONG entry' : '▶ SHORT entry',
-    entryDir, true);
-  // Mark the stop loss level
-  _addMentorBox(entryBar - 3, entryBar + 10,
-    direction === 'long' ? stopLoss : entryPrice,
-    direction === 'long' ? entryPrice : stopLoss,
-    `SL zone: ${fP(stopLoss)}`);
 
   mentorState.exampleTrade       = exampleTrade;
   mentorState.exampleTradeActive = true;   // monitoring runs every step
@@ -10044,15 +10065,20 @@ function mentorLetMeTry() {
   }
   
   const setupBar = mentorState.pendingSetupBar;
-  
-  // If setup bar is in the future, advance replay to that bar first
+
+  // Remove the preview trade tool (don't want to give it away)
+  // but KEEP the setup annotations — they help the user understand the trade
+  if (mentorState.exampleTradeDrawingId) {
+    drawings = drawings.filter(d => d.id !== mentorState.exampleTradeDrawingId);
+    mentorState.exampleTradeDrawingId = null;
+  }
+
+  // Advance replay to the setup bar so user can place their trade
   if (setupBar > replayCutoff) {
-    console.log('⏭️ Setup bar is in future (' + setupBar + ' > ' + replayCutoff + '), advancing replay...');
     replayCutoff = setupBar;
     draw();
   }
-  
-  // Tell the mentor we are waiting for a user trade interception
+
   mentorState.waitingForUserTrade = true;
   mentorState.activeTrainingMode = 'user_guided';
   
@@ -12567,148 +12593,284 @@ function _addMentorLabel(bar, price, lines) {
 // ── Annotate key setup moments ────────────────────────────────────────────
 // Called when the early-warning pause fires. Reads the setup type and places
 // relevant annotations on the chart to show the user WHAT to look at.
-function _mentorAnnotateSetup(setupDetection, anchorBar, currentBar) {
-  // anchorBar is the last VISIBLE bar — we annotate what's already on screen
+function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
+  // anchorBar = last visible bar (currentBar at pause time)
+  // setupBar  = future setup bar (for reference only — NOT annotated directly)
   if (!curData || anchorBar < 0 || anchorBar >= curData.length) return;
   _clearMentorAnnotationsSilent();
 
-  const method   = mentorState.selectedTradingMethod || 'breakout';
-  const dir      = setupDetection.direction || 'long';
-  const bar      = Math.min(anchorBar, curData.length - 1);
-  const c        = curData[bar];
+  const method  = mentorState.selectedTradingMethod || 'breakout';
+  const dir     = setupDetection.direction || 'long';
+  const bar     = Math.min(anchorBar, curData.length - 1);
+  const c       = curData[bar];
   if (!c) return;
 
-  console.log('🎨 _mentorAnnotateSetup:', { method, dir, bar, price: c.close });
+  console.log('🎨 Annotating setup context — method:', method, 'dir:', dir, 'bar:', bar);
 
-  const atr = calculateATR(bar, 14) || (c.close * 0.01);
-  const lookback = curData.slice(Math.max(0, bar - 15), bar + 1);
+  const atr      = calculateATR(bar, 14) || (c.close * 0.005);
+  // Look back 30 bars from anchorBar to find historical context
+  const lookbackN = 30;
+  const fromBar   = Math.max(0, bar - lookbackN);
+  const history   = curData.slice(fromBar, bar + 1);
+  const highs     = history.map(b => b.high);
+  const lows      = history.map(b => b.low);
+  const closes    = history.map(b => b.close);
+
+  const histHigh  = Math.max(...highs);
+  const histLow   = Math.min(...lows);
+  const histHighBar = fromBar + highs.indexOf(histHigh);
+  const histLowBar  = fromBar + lows.indexOf(histLow);
+
+  // Helper: find swing highs/lows in a slice
+  function findSwings(bars, startBar, type = 'high', strength = 2) {
+    const result = [];
+    for (let i = strength; i < bars.length - strength; i++) {
+      const val = type === 'high' ? bars[i].high : bars[i].low;
+      let isSwing = true;
+      for (let j = 1; j <= strength; j++) {
+        if (type === 'high') {
+          if (bars[i-j].high >= val || bars[i+j].high >= val) { isSwing = false; break; }
+        } else {
+          if (bars[i-j].low <= val || bars[i+j].low <= val) { isSwing = false; break; }
+        }
+      }
+      if (isSwing) result.push({ bar: startBar + i, price: val });
+    }
+    return result;
+  }
+
+  const swingHighs = findSwings(history, fromBar, 'high', 2);
+  const swingLows  = findSwings(history, fromBar, 'low',  2);
 
   switch (method) {
 
     case 'breakout':
     case 'range_breakout': {
-      // Box the consolidation zone, arrow on breakout candle
-      const consoHigh = Math.max(...lookback.map(b => b.high));
-      const consoLow  = Math.min(...lookback.map(b => b.low));
-      const consoStart = Math.max(0, bar - 12);
-      _addMentorBox(consoStart, bar - 1, consoLow, consoHigh, 'Consolidation zone');
+      // Find consolidation: bars where range is tightest
+      const consoEnd   = Math.max(0, bar - 2);
+      const consoStart = Math.max(0, consoEnd - 14);
+      const consoSlice = curData.slice(consoStart, consoEnd + 1);
+      const consoHigh  = Math.max(...consoSlice.map(b => b.high));
+      const consoLow   = Math.min(...consoSlice.map(b => b.low));
+      const breakLevel = dir === 'long' ? consoHigh : consoLow;
+
+      // 1. Box the consolidation zone
+      _addMentorBox(consoStart, consoEnd, consoLow, consoHigh, 'Consolidation zone — price coiling');
+
+      // 2. Arrow on the current (breakout) candle
       _addMentorArrow(bar, dir === 'long' ? c.high : c.low,
-        dir === 'long' ? 'Breakout candle' : 'Breakdown candle',
+        dir === 'long' ? '🔼 Breakout candle' : '🔽 Breakdown candle',
         dir === 'long' ? 'down' : 'up', true);
-      _addMentorLabel(bar, dir === 'long' ? consoHigh : consoLow, [
-        dir === 'long' ? `Resistance broken: ${fP(consoHigh)}` : `Support broken: ${fP(consoLow)}`,
-        'Watch for retest',
-      ]);
+
+      // 3. Mark the broken level
+      _addMentorBox(consoStart, bar + 5, breakLevel - atr * 0.15, breakLevel + atr * 0.15,
+        dir === 'long' ? `🔑 Resistance broken: ${fP(breakLevel)}` : `🔑 Support broken: ${fP(breakLevel)}`);
+
+      // 4. Show the prior swing that defined the zone
+      if (dir === 'long' && swingHighs.length) {
+        const nearestResistance = swingHighs.reduce((a, b) =>
+          Math.abs(a.price - breakLevel) < Math.abs(b.price - breakLevel) ? a : b);
+        _addMentorArrow(nearestResistance.bar, nearestResistance.price,
+          `Prior resistance: ${fP(nearestResistance.price)}`, 'down', false);
+      } else if (dir === 'short' && swingLows.length) {
+        const nearestSupport = swingLows.reduce((a, b) =>
+          Math.abs(a.price - breakLevel) < Math.abs(b.price - breakLevel) ? a : b);
+        _addMentorArrow(nearestSupport.bar, nearestSupport.price,
+          `Prior support: ${fP(nearestSupport.price)}`, 'up', false);
+      }
       break;
     }
 
     case 'trend':
-    case 'flag_continuation': {
-      // Box the flag/pullback, arrow at the resumption candle
-      const impulseStart = Math.max(0, bar - 14);
-      const impulseEnd   = Math.max(0, bar - 6);
-      const pullStart    = impulseEnd;
-      const impulseHigh  = Math.max(...curData.slice(impulseStart, impulseEnd).map(b => b.high));
-      const impulseLow   = Math.min(...curData.slice(impulseStart, impulseEnd).map(b => b.low));
-      _addMentorBox(impulseStart, impulseEnd - 1, impulseLow, impulseHigh, 'Impulse move');
-      _addMentorBox(pullStart, bar, Math.min(...lookback.slice(-6).map(b => b.low)),
-        Math.max(...lookback.slice(-6).map(b => b.high)), 'Flag / pullback (low vol)');
+    case 'flag_continuation':
+    case 'structure_continuation': {
+      // Show the impulse leg, the pullback, and the entry point
+      // Find the highest high (for longs) or lowest low (for shorts) in history
+      const impulseBar   = dir === 'long' ? histHighBar : histLowBar;
+      const impulsePrice = dir === 'long' ? histHigh    : histLow;
+
+      // Impulse start: lowest before the impulse high (for longs)
+      const impulseBefore = history.slice(0, impulseBar - fromBar);
+      const impulseStart  = dir === 'long'
+        ? fromBar + lows.slice(0, impulseBar - fromBar).indexOf(Math.min(...lows.slice(0, impulseBar - fromBar)))
+        : fromBar + highs.slice(0, impulseBar - fromBar).indexOf(Math.max(...highs.slice(0, impulseBar - fromBar)));
+
+      // 1. Box the impulse move
+      if (impulseBar > impulseStart) {
+        const impHigh = Math.max(...curData.slice(impulseStart, impulseBar + 1).map(b => b.high));
+        const impLow  = Math.min(...curData.slice(impulseStart, impulseBar + 1).map(b => b.low));
+        _addMentorBox(impulseStart, impulseBar, impLow, impHigh, '⚡ Impulse leg');
+      }
+
+      // 2. Box the pullback/flag (from impulse peak to currentBar)
+      const pbHigh = Math.max(...curData.slice(impulseBar, bar + 1).map(b => b.high));
+      const pbLow  = Math.min(...curData.slice(impulseBar, bar + 1).map(b => b.low));
+      _addMentorBox(impulseBar, bar, pbLow, pbHigh, '🏴 Flag / pullback — vol contracting');
+
+      // 3. Arrow at current bar (entry signal)
       _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        'Entry zone', dir === 'long' ? 'up' : 'down', true);
+        '📍 Entry zone — trend resuming', dir === 'long' ? 'up' : 'down', true);
+
+      // 4. Mark the EMA (trend structure)
+      const ema21arr = calcEMA(curData.slice(0, bar + 1), 21);
+      const ema21    = ema21arr[ema21arr.length - 1];
+      if (ema21) {
+        _addMentorBox(Math.max(0, bar - 3), bar, ema21 - atr * 0.3, ema21 + atr * 0.3,
+          `📊 EMA21: ${fP(ema21)} — trend support`);
+      }
       break;
     }
 
     case 'support_resistance': {
-      // Mark the level, arrow on the reaction candle
-      const swings = lookback.filter((b, i, arr) => {
-        if (i < 2 || i > arr.length - 3) return false;
-        return dir === 'long'
-          ? b.low < arr[i-1].low && b.low < arr[i+1].low
-          : b.high > arr[i-1].high && b.high > arr[i+1].high;
-      });
-      const level = swings.length
-        ? (dir === 'long' ? Math.min(...swings.map(b => b.low)) : Math.max(...swings.map(b => b.high)))
-        : (dir === 'long' ? c.low : c.high);
-      _addMentorBox(Math.max(0, bar - 15), bar, level - atr * 0.3, level + atr * 0.3,
-        dir === 'long' ? `Support zone: ${fP(level)}` : `Resistance zone: ${fP(level)}`);
+      // Find the key level: the most-tested price in history
+      const level = dir === 'long'
+        ? (swingLows.length ? swingLows.reduce((a, b) => a.price < b.price ? a : b).price : histLow)
+        : (swingHighs.length ? swingHighs.reduce((a, b) => a.price > b.price ? a : b).price : histHigh);
+
+      // 1. Wide level zone box across all history showing repeated tests
+      _addMentorBox(fromBar, bar + 5, level - atr * 0.4, level + atr * 0.4,
+        dir === 'long' ? `🟢 Support zone: ${fP(level)}` : `🔴 Resistance zone: ${fP(level)}`);
+
+      // 2. Arrow on each swing that tested this level
+      const tests = dir === 'long' ? swingLows : swingHighs;
+      tests.filter(s => Math.abs(s.price - level) < atr * 1.5)
+           .slice(-3)
+           .forEach((s, i) => {
+             _addMentorArrow(s.bar, s.price,
+               i === 0 ? `1st test: ${fP(s.price)}` : `Test ${i + 1}`,
+               dir === 'long' ? 'up' : 'down', i === tests.length - 1);
+           });
+
+      // 3. Arrow on current reaction candle (the wick)
       _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        dir === 'long' ? 'Rejection wick' : 'Shooting star', dir === 'long' ? 'up' : 'down', true);
+        dir === 'long' ? '🟢 Bounce — wick confirms support' : '🔴 Rejection — wick confirms resistance',
+        dir === 'long' ? 'up' : 'down', true);
+
+      // 4. Label showing wick vs body ratio
+      const wickSize = dir === 'long'
+        ? Math.abs(c.low - Math.min(c.open, c.close))
+        : Math.abs(c.high - Math.max(c.open, c.close));
+      const bodySize = Math.abs(c.close - c.open) || 0.0001;
       _addMentorLabel(bar, c.close, [
-        dir === 'long' ? `Bounce at ${fP(level)}` : `Rejection at ${fP(level)}`,
-        `Wick > body = confirmation`,
+        `Wick: ${(wickSize / atr * 100).toFixed(0)}% of ATR`,
+        `Wick/Body ratio: ${(wickSize / bodySize).toFixed(1)}x`,
+        wickSize > bodySize ? '✅ Wick > body = strong rejection' : '⚠️ Weak wick — wait for confirmation',
       ]);
       break;
     }
 
     case 'pullback': {
-      // Mark Fib zone, arrow at the pullback low
-      const swingHigh = Math.max(...lookback.map(b => b.high));
-      const swingLow  = Math.min(...lookback.map(b => b.low));
-      const fib382    = dir === 'long' ? swingHigh - (swingHigh - swingLow) * 0.382 : swingLow + (swingHigh - swingLow) * 0.382;
-      const fib618    = dir === 'long' ? swingHigh - (swingHigh - swingLow) * 0.618 : swingLow + (swingHigh - swingLow) * 0.618;
-      _addMentorBox(Math.max(0, bar - 8), bar, Math.min(fib382, fib618), Math.max(fib382, fib618),
-        `38–62% Fib zone`);
+      // Show the trend structure, Fib zone, and entry candle
+      const trendHigh = histHigh;
+      const trendLow  = histLow;
+      const range     = trendHigh - trendLow;
+      const fib236    = dir === 'long' ? trendHigh - range * 0.236 : trendLow + range * 0.236;
+      const fib382    = dir === 'long' ? trendHigh - range * 0.382 : trendLow + range * 0.382;
+      const fib618    = dir === 'long' ? trendHigh - range * 0.618 : trendLow + range * 0.618;
+
+      // 1. Mark the swing high and swing low that define the Fib
+      _addMentorArrow(histHighBar, histHigh,
+        dir === 'long' ? `Swing high: ${fP(histHigh)}` : `Swing high: ${fP(histHigh)}`,
+        'down', false);
+      _addMentorArrow(histLowBar, histLow,
+        dir === 'long' ? `Swing low: ${fP(histLow)}` : `Swing low: ${fP(histLow)}`,
+        'up', false);
+
+      // 2. Box the 38–62% Fib zone
+      _addMentorBox(fromBar, bar + 8,
+        Math.min(fib382, fib618), Math.max(fib382, fib618),
+        `📐 38–62% Fib retracement zone`);
+
+      // 3. Arrow at current bar (pullback reaching the zone)
       _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        'Pullback entry zone', dir === 'long' ? 'up' : 'down', true);
+        `📍 Pullback entering zone`, dir === 'long' ? 'up' : 'down', true);
+
+      // 4. Fib levels label
       _addMentorLabel(bar, c.close, [
-        `Fib 38.2%: ${fP(fib382)}`,
-        `Fib 61.8%: ${fP(fib618)}`,
-        `Wait for trigger candle`,
+        `38.2%: ${fP(fib382)}`,
+        `61.8%: ${fP(fib618)}`,
+        `Current: ${fP(c.close)}`,
+        '⏳ Wait for trigger candle',
       ]);
       break;
     }
 
     case 'range': {
-      const rangeHigh = Math.max(...lookback.map(b => b.high));
-      const rangeLow  = Math.min(...lookback.map(b => b.low));
-      const rangeStart = Math.max(0, bar - 15);
-      _addMentorBox(rangeStart, bar, rangeLow, rangeHigh, 'Trading range');
-      const levelPrice = dir === 'long' ? rangeLow : rangeHigh;
-      _addMentorArrow(bar, levelPrice,
-        dir === 'long' ? 'Range support' : 'Range resistance',
+      // Box the full range, mark boundaries, show current location
+      const rangeHigh = histHigh;
+      const rangeLow  = histLow;
+      const midpoint  = (rangeHigh + rangeLow) / 2;
+
+      // 1. Full range box
+      _addMentorBox(fromBar, bar + 8, rangeLow, rangeHigh, `📦 Trading range: ${fP(rangeLow)} – ${fP(rangeHigh)}`);
+
+      // 2. Midpoint reference box (thin)
+      _addMentorBox(fromBar, bar + 8, midpoint - atr * 0.1, midpoint + atr * 0.1,
+        `Midpoint: ${fP(midpoint)}`);
+
+      // 3. Arrows at prior boundary tests
+      (dir === 'long' ? swingLows : swingHighs)
+        .filter(s => Math.abs(s.price - (dir === 'long' ? rangeLow : rangeHigh)) < atr * 2)
+        .slice(-3)
+        .forEach((s, i) => _addMentorArrow(s.bar, s.price,
+          `Boundary test ${i + 1}`, dir === 'long' ? 'up' : 'down', i === 0));
+
+      // 4. Current bar arrow
+      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+        dir === 'long' ? '🟢 Support boundary' : '🔴 Resistance boundary',
         dir === 'long' ? 'up' : 'down', true);
-      _addMentorLabel(bar, c.close, [
-        `Range H: ${fP(rangeHigh)} | L: ${fP(rangeLow)}`,
-        dir === 'long' ? 'Buy boundary reaction' : 'Sell boundary reaction',
-      ]);
       break;
     }
 
     case 'liquidity': {
-      // Mark the sweep wick, the displacement candle, and the original level
-      const priorCandles  = curData.slice(Math.max(0, bar - 8), bar - 1);
-      const priorSwingLow  = priorCandles.length ? Math.min(...priorCandles.map(b => b.low))  : c.low;
-      const priorSwingHigh = priorCandles.length ? Math.max(...priorCandles.map(b => b.high)) : c.high;
-      const sweepCandle   = curData[bar - 1] || c;
-      // Box the swept level
-      if (dir === 'long') {
-        _addMentorBox(Math.max(0, bar - 8), bar - 1,
-          priorSwingLow - atr * 0.5, priorSwingLow + atr * 0.5, `SSL swept: ${fP(priorSwingLow)}`);
-        _addMentorArrow(bar - 1, sweepCandle.low, 'Stop hunt wick', 'up', false);
-        _addMentorArrow(bar, c.close, 'Displacement ↑', 'down', true);
-      } else {
-        _addMentorBox(Math.max(0, bar - 8), bar - 1,
-          priorSwingHigh - atr * 0.5, priorSwingHigh + atr * 0.5, `BSL swept: ${fP(priorSwingHigh)}`);
-        _addMentorArrow(bar - 1, sweepCandle.high, 'Stop hunt wick', 'down', false);
-        _addMentorArrow(bar, c.close, 'Displacement ↓', 'up', true);
+      // Show the old swing that was hunted, the sweep wick, and the displacement
+      const huntedLevel = dir === 'long' ? histLow : histHigh;
+      const huntedBar   = dir === 'long' ? histLowBar : histHighBar;
+
+      // Find the sweep candle — the one that wicked past the hunted level
+      let sweepBar = bar - 1;
+      for (let i = bar; i >= fromBar; i--) {
+        if (dir === 'long' && curData[i].low <= huntedLevel) { sweepBar = i; break; }
+        if (dir === 'short' && curData[i].high >= huntedLevel) { sweepBar = i; break; }
       }
+      const sweepC = curData[sweepBar] || c;
+
+      // 1. Mark the liquidity pool that was swept
+      _addMentorBox(fromBar, sweepBar,
+        dir === 'long' ? huntedLevel - atr * 0.5 : huntedLevel - atr * 0.2,
+        dir === 'long' ? huntedLevel + atr * 0.2 : huntedLevel + atr * 0.5,
+        dir === 'long' ? `💧 Buy-side liquidity pool: ${fP(huntedLevel)}` : `💧 Sell-side liquidity pool: ${fP(huntedLevel)}`);
+
+      // 2. Arrow at the original swing that built the liquidity
+      _addMentorArrow(huntedBar, huntedLevel,
+        dir === 'long' ? `Old swing low — stops below here` : `Old swing high — stops above here`,
+        dir === 'long' ? 'up' : 'down', false);
+
+      // 3. Arrow on the sweep wick candle
+      _addMentorArrow(sweepBar, dir === 'long' ? sweepC.low : sweepC.high,
+        '🪤 Stop hunt wick — liquidity swept', dir === 'long' ? 'up' : 'down', false);
+
+      // 4. Arrow on current displacement candle
+      _addMentorArrow(bar, dir === 'long' ? c.close : c.close,
+        '⚡ Displacement — enter after this candle', dir === 'long' ? 'down' : 'up', true);
+
+      // 5. Label explaining the sequence
       _addMentorLabel(bar, c.close, [
-        'Accumulate → Manipulate → Distribute',
-        'Enter after displacement, not during wick',
+        '1️⃣ Old swing built liquidity pool',
+        '2️⃣ Price swept stops below/above it',
+        '3️⃣ Strong displacement = institutional entry',
+        '📍 Entry: next bar open',
       ]);
       break;
     }
 
     default: {
       _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        'Setup detected', dir === 'long' ? 'up' : 'down', true);
-      break;
+        'Setup detected here', dir === 'long' ? 'up' : 'down', true);
     }
   }
-
-  saveDrawings(curSym.s, curTF);
-  draw();
 }
+
 
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   const C = {
