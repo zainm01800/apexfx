@@ -13653,6 +13653,132 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         break;
       }
 
+      case 'mentor_bubble': {
+        // Speech bubble callout with tail pointer - educational explanations
+        const bx = barXfn(d.bar);
+        const by = pyfn(d.price);
+        const priority = d.priority || 2;
+        const tailDir = d.tailDir || 'down';
+        const txt = d.text || '';
+
+        // Styling based on priority
+        const isCritical = priority === 1;
+        const isKey = priority === 2;
+        const accentCol = isCritical ? '#00c9a0' : isKey ? '#f0a500' : '#7c5cbf'; // teal / amber / purple
+        const bgCol = 'rgba(10,12,20,0.92)';
+        const fontSize = 10;
+        const maxWidth = 220;
+        const padX = 10;
+        const padY = 8;
+        const tailSize = 8;
+        const cornerRadius = 6;
+
+        ctx.save();
+        ctx.font = `${fontSize}px sans-serif`;
+
+        // Word wrap text to max 2 lines
+        const words = txt.split(' ');
+        const lines = [];
+        let currentLine = '';
+        for (let i = 0; i < words.length; i++) {
+          const testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
+          const testWidth = ctx.measureText(testLine).width;
+          if (testWidth > maxWidth - padX * 2 && currentLine) {
+            lines.push(currentLine);
+            currentLine = words[i];
+            if (lines.length >= 2) break;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine && lines.length < 2) lines.push(currentLine);
+
+        const lineH = fontSize + 3;
+        const boxW = Math.min(Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2, maxWidth);
+        const boxH = lines.length * lineH + padY * 2;
+
+        // Position bubble above or below anchor point based on tailDir
+        const tailY = tailDir === 'down' ? by - tailSize : by + tailSize;
+        const boxY = tailDir === 'down' ? tailY - boxH : tailY;
+        const boxX = bx - boxW / 2;
+
+        // Clip to canvas bounds
+        if (boxX < 5 || boxX + boxW > W - 5 || boxY < 5 || boxY + boxH > H - 5) {
+          ctx.restore();
+          break;
+        }
+
+        // Draw shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        roundRect(ctx, boxX + 2, boxY + 2, boxW, boxH, cornerRadius);
+        ctx.fill();
+
+        // Draw bubble background
+        ctx.fillStyle = bgCol;
+        ctx.beginPath();
+        roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
+        ctx.fill();
+
+        // Draw tail (triangle pointing toward anchor)
+        ctx.fillStyle = bgCol;
+        ctx.beginPath();
+        if (tailDir === 'down') {
+          ctx.moveTo(bx, by);
+          ctx.lineTo(bx - tailSize, boxY + boxH);
+          ctx.lineTo(bx + tailSize, boxY + boxH);
+        } else {
+          ctx.moveTo(bx, by);
+          ctx.lineTo(bx - tailSize, boxY);
+          ctx.lineTo(bx + tailSize, boxY);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw border
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth = isCritical ? 2 : 1.5;
+        ctx.beginPath();
+        roundRect(ctx, boxX, boxY, boxW, boxH, cornerRadius);
+        ctx.stroke();
+
+        // Draw tail border accent
+        ctx.strokeStyle = accentCol;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (tailDir === 'down') {
+          ctx.moveTo(bx - tailSize, boxY + boxH);
+          ctx.lineTo(bx, by);
+          ctx.lineTo(bx + tailSize, boxY + boxH);
+        } else {
+          ctx.moveTo(bx - tailSize, boxY);
+          ctx.lineTo(bx, by);
+          ctx.lineTo(bx + tailSize, boxY);
+        }
+        ctx.stroke();
+
+        // Draw text
+        ctx.textAlign = 'left';
+        ctx.fillStyle = isCritical ? '#e8f4f0' : isKey ? '#f5e6c8' : '#c8d0e4';
+        lines.forEach((line, i) => {
+          ctx.fillText(line, boxX + padX, boxY + padY + lineH * (i + 1) - 2);
+        });
+
+        // Selection highlight
+        if (isSel) {
+          ctx.strokeStyle = accentCol;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([3, 2]);
+          ctx.beginPath();
+          roundRect(ctx, boxX - 3, boxY - 3, boxW + 6, boxH + 6, cornerRadius + 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        ctx.restore();
+        break;
+      }
+
       case 'long': case 'short':{
         const isLong=d.type==='long';
         const ex=barXfn(d.bar), ey=pyfn(d.price);
