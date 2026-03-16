@@ -4925,9 +4925,6 @@ function triggerReplayRescan() {
 }
 
 function startReplay(){
-  // Debug: Check current data state
-  console.log('startReplay called - curData length:', curData ? curData.length : 'null');
-  
   if(!curData || curData.length <= 1) {
     toast('⚠ No data available for replay - load a symbol first');
     return;
@@ -4955,18 +4952,14 @@ function startReplay(){
 }
 
 function stopReplay(){
-  console.log('stopReplay called - replayJustStarted:', replayJustStarted);
   
   // Don't stop if we just started (prevents immediate stopping)
   if(replayJustStarted) {
-    console.log('Ignoring stopReplay call - just started');
     return;
   }
   
-  console.log('Proceeding with stopReplay - clearing timer and resetting state');
   
   if(replayTimer){ 
-    console.log('Clearing replay timer');
     clearInterval(replayTimer); 
     replayTimer = null; 
   }
@@ -5069,16 +5062,10 @@ function replayStep(n){
     }
   } else if ((_lc === 'trade_monitoring' || _lc === 'trade_completed' || _lc === 'trade_result')
              && mentorState._tradeSetupData) {
-    // During trade — annotations are frozen at detectionBar level, no need to refresh
-    // every single step. Only refresh when scrubbing backwards past the detection bar.
+    // State-key guard inside _mentorAnnotateSetup prevents needless redraws.
+    // This call is now cheap when nothing has changed.
     const tsd = mentorState._tradeSetupData;
-    const _detBar = Math.min(tsd.setupBar, curData.length - 1);
-    // Only re-annotate if user scrubbed back (replayCutoff < detectionBar) 
-    // or if annotations haven't been drawn yet for this trade
-    if (replayCutoff <= _detBar || !mentorState._annotationsDrawnForTrade) {
-      mentorState._annotationsDrawnForTrade = true;
-      _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
-    }
+    _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
   }
   
   // Monitor example trade if active
@@ -5086,12 +5073,18 @@ function replayStep(n){
     monitorExampleTrade(replayCutoff);
   }
   
-  // Update AI Mentor after stepping (with throttling)
+  // Update AI Mentor — bar-based throttle is more deterministic than time-based.
+  // Run every 3 bars during active states (fast feedback), every 8 bars when scanning
+  // (expensive path — scan window runs here).
   if (mentorState.enabled) {
-    const now = Date.now();
-    if (now - lastMentorUpdate >= mentorUpdateInterval) {
+    const lc = mentorState.lifecycleState;
+    const activeState = lc === 'setup_detected' || lc === 'setup_wait' ||
+                        lc === 'trade_monitoring' || lc === 'trade_result';
+    const throttle = activeState ? 3 : 8;
+    const barsSinceUpdate = Math.abs(replayCutoff - (mentorState._lastMentorUpdateBar || -99));
+    if (barsSinceUpdate >= throttle) {
+      mentorState._lastMentorUpdateBar = replayCutoff;
       updateMentor();
-      lastMentorUpdate = now;
     }
   }
 }
@@ -5116,53 +5109,24 @@ function replayTogglePlay(){
     }
     replayTimer = setInterval(()=>{
       try {
-        console.log('🔄 Replay timer tick:', { 
-          replayMode, 
-          replayPicking, 
-          dataLength: curData ? curData.length : 'null',
-          replayCutoff,
-          maxIndex: curData ? curData.length - 1 : 'null'
-        });
-        
-        // Double-check conditions to prevent race conditions
         if(!replayMode || replayPicking || !curData || curData.length <= 1) {
-          console.log('❌ Replay timer stopping - invalid conditions:', { 
-            replayMode, 
-            replayPicking, 
-            hasData: !!curData, 
-            dataLength: curData ? curData.length : 'null' 
-          });
           clearInterval(replayTimer); replayTimer = null;
           return;
         }
         if(replayCutoff >= curData.length - 1){
-          console.log('✅ Replay complete - reached end');
-          clearInterval(replayTimer); replayTimer = null;
+          clearInterval(replayTimer); replayTimer = null
           updateReplayStatus(); draw(); // Ensure final state is rendered
           toast('⏹ Replay complete — Esc to exit');
           return;
         }
         replayStep(1);
       } catch(e) {
-        console.error('Replay timer error:', e);
-        console.error('Error stack:', e.stack);
-        
-        // Only stop replay on critical errors, not on setup detection issues
+        // Log unexpected errors but keep replay running
+        console.error('Replay step error:', e.message);
         if (e.message && (
-          e.message.includes('Cannot read properties of undefined') ||
-          e.message.includes('undefined is not an object') ||
-          e.message.includes('Cannot access property') ||
-          e.message.includes('setup') ||
-          e.message.includes('mentor') ||
-          e.message.includes('currentBar is not defined') ||
-          e.message.includes('Assignment to constant variable') ||
-          e.message.includes('enterWaitingState') ||
-          e.message.includes('handleWaitingState')
+          e.message.includes('Cannot read properties of null') ||
+          e.message.includes('Maximum call stack')
         )) {
-          console.warn('⚠ Setup detection or mentor error - continuing replay');
-          // Don't stop replay, just continue to next step
-          return;
-        } else {
           // Stop on critical errors
           console.error('🚨 Critical replay error - stopping replay');
           clearInterval(replayTimer); replayTimer = null;
@@ -5226,6 +5190,10 @@ function replayHoverBar(){
 
 let mentorState = {
   enabled: false,
+  _aiGeneration: 0,        // incremented on each new setup to invalidate stale AI responses
+  _lastMentorUpdateBar: -99, // bar-based throttle for updateMentor() calls
+  _lastAnnStateKey: null,    // annotation state key — skip redraw if nothing changed
+  _analysisCache: null,      // cached analyzeMarketData result
   currentBar: -1,
   analysis: null,
   activeTrade: null,
@@ -5291,6 +5259,50 @@ let mentorState = {
   cacheEnabled: true, // Enable setup caching for consistency
 };
 
+// ── Centralised state transition helper ──────────────────────────────────────
+// Using this instead of direct `mentorState.lifecycleState = x` ensures that
+// dependent fields are always synced and invalid transitions are caught early.
+const VALID_TRANSITIONS = {
+  method_selection: ['scanning'],
+  scanning:         ['setup_detected', 'no_setup_found', 'waiting', 'method_selection'],
+  no_setup_found:   ['setup_detected', 'scanning'],
+  waiting:          ['scanning', 'setup_detected'],
+  setup_detected:   ['setup_wait', 'scanning'],
+  setup_wait:       ['trade_monitoring', 'scanning'],
+  trade_monitoring: ['trade_result', 'scanning'],
+  trade_result:     ['trade_completed', 'scanning'],
+  trade_completed:  ['scanning'],
+};
+
+function setMentorState(newState, reason) {
+  const cur = mentorState.lifecycleState;
+  if (cur === newState) return; // no-op
+
+  const allowed = VALID_TRANSITIONS[cur];
+  if (allowed && !allowed.includes(newState)) {
+    // Invalid transition — log for debugging but allow it rather than breaking
+    if (typeof console !== 'undefined')
+      console.warn(`[Mentor] Invalid state transition: ${cur} → ${newState} (${reason||''})`);
+  }
+
+  mentorState.lifecycleState = newState;
+
+  // Sync dependent fields on state transitions
+  if (newState === 'scanning') {
+    mentorState._lastAnnStateKey = null;
+    if (typeof _scanCache !== 'undefined')
+      _scanCache = { bar: -1, result: null, method: null };
+  }
+  // On any transition away from trade states, clear analysis cache so
+  // the new position gets a fresh analysis
+  if (['scanning', 'setup_detected'].includes(newState)) {
+    mentorState._analysisCache = null;
+    mentorState._lastMentorUpdateBar = -99; // allow immediate update after state change
+  }
+}
+
+
+
 // ══ MENTOR REPLAY CONTROL ═══════════════════════════════════════════════════════════
 
 function pauseReplayForSetup() {
@@ -5350,7 +5362,6 @@ function lockSetupMessage(setupDetection) {
   mentorState.lockedQuestion = mentorState.currentQuestion;
   mentorState.realtimeUpdates = [];
   
-  console.log('🔒 Setup message locked:', setupDetection.setup);
 }
 
 function addRealtimeUpdate(currentBar) {
@@ -5411,81 +5422,6 @@ function addRealtimeUpdate(currentBar) {
   }
 }
 
-function updateMentorUI() {
-  const panel = document.getElementById('ai-mentor-panel');
-  const insightsEl = document.getElementById('mentor-insights');
-  const questionEl = document.getElementById('mentor-question');
-  
-  if (!panel || !insightsEl || !questionEl) return;
-  
-  // Check if we should update UI (prevent rapid refreshing)
-  const barsSinceLastUpdate = currentBar - mentorState.lastUIUpdate;
-  const shouldUpdateUI = barsSinceLastUpdate >= mentorState.uiUpdateCooldown || 
-                        mentorState.lifecycleState !== mentorState.lastLifecycleState ||
-                        mentorState.messageLocked ||
-                        mentorState.lifecycleState === 'waiting';
-  
-  if (!shouldUpdateUI && mentorState.lastUIUpdate > 0) {
-    // Skip UI update to prevent rapid refreshing
-    return;
-  }
-  
-  // Update the last update tracking
-  mentorState.lastUIUpdate = currentBar;
-  mentorState.lastLifecycleState = mentorState.lifecycleState;
-  
-  // Build insights HTML
-  let insightsHTML = '';
-  if (mentorState.currentInsights && mentorState.currentInsights.length > 0) {
-    insightsHTML = mentorState.currentInsights.map(insight => {
-      if (!insight || !insight.trim()) return '<div style="height:6px;"></div>';
-      const escaped = insight.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const formatted = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      return `<div style="margin-bottom:8px;line-height:1.45;color:var(--tx2);font-size:11px;">${formatted}</div>`;
-    }).join('');
-  }
-  
-  // Add real-time updates if in setup wait state
-  if (mentorState.lifecycleState === 'setup_wait' && mentorState.realtimeUpdates.length > 0) {
-    insightsHTML += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);">';
-    insightsHTML += '<div style="color:var(--cyan);font-size:11px;margin-bottom:4px;">📊 Live Updates:</div>';
-    mentorState.realtimeUpdates.slice(-3).forEach(update => {
-      insightsHTML += `<div style="color:var(--tx3);font-size:11px;margin-bottom:2px;">• ${update}</div>`;
-    });
-    insightsHTML += '</div>';
-  }
-  
-  // Add trade monitoring updates if in trade monitoring state
-  if (mentorState.lifecycleState === 'trade_monitoring' && mentorState.tradeMonitoringUpdates.length > 0) {
-    insightsHTML += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);">';
-    insightsHTML += '<div style="color:var(--amber);font-size:11px;margin-bottom:4px;">📈 Trade Progress:</div>';
-    mentorState.tradeMonitoringUpdates.slice(-3).forEach(update => {
-      insightsHTML += `<div style="color:var(--tx3);font-size:11px;margin-bottom:2px;">• ${update}</div>`;
-    });
-    insightsHTML += '</div>';
-  }
-  
-  insightsEl.innerHTML = insightsHTML;
-  questionEl.innerHTML = mentorState.currentQuestion || '';
-  
-  // Show/hide setup message controls
-  const setupControls = document.getElementById('setup-message-controls');
-  if (setupControls) {
-    setupControls.style.display = mentorState.messageLocked && mentorState.lockedMessage === 'setup' ? 'block' : 'none';
-  }
-  
-  // Show/hide trade completion controls
-  const completionControls = document.getElementById('trade-completion-controls');
-  if (completionControls) {
-    completionControls.style.display = mentorState.lifecycleState === 'trade_result' && mentorState.resultExplained ? 'block' : 'none';
-  }
-  
-  // Update trading method selector
-  const methodSelector = document.getElementById('trading-method-select');
-  if (methodSelector) {
-    methodSelector.value = mentorState.selectedTradingMethod || '';
-  }
-}
 
 function updateLockedMentorUI() {
   const insightsEl = document.getElementById('mentor-insights');
@@ -6055,6 +5991,7 @@ function continueReplayAfterTradeCompletion() {
   mentorState._lastAnnotateBar      = null;
   mentorState._lastAnnotateStage    = 0;
   mentorState._annotationsDrawnForTrade = false;
+  if (typeof _scanCache !== 'undefined') _scanCache = { bar: -1, result: null, method: null };
   // Reset trade state
   mentorState.exampleTrade = null;
   mentorState.exampleTradeActive = false;
@@ -6603,9 +6540,13 @@ function changeTradingMethod(newMethod) {
   updateMentorUI();
 
   // ── Reset all mentor state for the new method ─────────────────────────────
-  mentorState._tradeSetupData = null;
-  mentorState._lastAnnotateBar = null;
-  clearMentorAnnotations(); // remove any setup markers from the previous strategy
+  mentorState._tradeSetupData    = null;
+  mentorState._lastAnnotateBar   = null;
+  mentorState._lastAnnStateKey         = null;
+  mentorState.lastTradeSuggestionBar   = -999; // reset cooldown for new strategy
+  mentorState._lastMentorUpdateBar     = -99;
+  if (typeof _scanCache !== 'undefined') _scanCache = { bar: -1, result: null, method: null };
+  clearMentorAnnotations();
   resetMentorStateForStrategyChange();
   mentorState.selectedTradingMethod = newMethod;
   mentorState.tradingMethodSelected = true;
@@ -8639,36 +8580,37 @@ function makeMentorDraggable() {
 // ══ TRADE LIFECYCLE STATE HANDLERS ═══════════════════════════════════════════════════════════
 
 function handleSetupWaitState(currentBar) {
-  console.log('⏳ Handle setup wait state:', { 
+  // If the message is locked or a trade is already active, preserve the state.
+  // The user is reading the setup panel — never auto-invalidate while it's shown.
+  if (mentorState.messageLocked || mentorState.exampleTradeActive) {
+    addRealtimeUpdate(currentBar);
+    updateLockedMentorUI();
+    return;
+  }
+
     currentBar, 
     setupStart: mentorState.setupWaitStart,
     setupData: mentorState.setupWaitData,
     messageLocked: mentorState.messageLocked
   });
   
-  // Check for user trade placement
   detectReplayTradePlacement();
   
-  // Check if setup is still valid
   const setupStillValid = isSetupStillValid(currentBar);
   const priceMovedSignificantly = hasPriceMovedSignificantly(currentBar);
   const userPlacedTrade = mentorState.monitoredTrade !== null;
   
   if (userPlacedTrade) {
-    // User placed a trade - switch to trade monitoring
-    console.log('🎯 User placed trade, switching to trade monitoring');
     mentorState.lifecycleState = 'trade_monitoring';
-    mentorState.messageLocked = false; // Unlock message
+    mentorState.messageLocked = false;
     return;
   } else if (!setupStillValid || priceMovedSignificantly) {
-    // Setup became invalid - return to scanning
-    console.log('❌ Setup no longer valid, returning to scanning');
-    mentorState.lifecycleState = 'scanning';
+    setMentorState('scanning', 'setup invalid');
     mentorState.setupWaitStart = null;
     mentorState.setupWaitData = null;
-    mentorState.messageLocked = false; // Unlock message
+    mentorState.messageLocked = false;
     mentorState.currentInsights = ['❌ Setup no longer valid'];
-    mentorState.currentQuestion = 'Resuming market scanning for new opportunities...';
+    mentorState.currentQuestion = 'Resuming market scanning...';
     updateMentorUI();
     return;
   }
@@ -8679,14 +8621,12 @@ function handleSetupWaitState(currentBar) {
 }
 
 function handleTradeMonitoringState(currentBar) {
-  console.log('📊 Handle trade monitoring state:', { 
     currentBar, 
     monitoredTrade: mentorState.monitoredTrade 
   });
   
   if (!mentorState.monitoredTrade) {
-    console.log('❌ No monitored trade, returning to scanning');
-    mentorState.lifecycleState = 'scanning';
+    setMentorState('scanning', 'no monitored trade');
     return;
   }
   
@@ -8695,7 +8635,6 @@ function handleTradeMonitoringState(currentBar) {
   
   if (tradeResult) {
     // Trade completed - switch to result state
-    console.log('🏁 Trade completed:', tradeResult);
     mentorState.lifecycleState = 'trade_result';
     mentorState.tradeResultData = tradeResult;
     generateTradeResultEvaluation(tradeResult);
@@ -8714,6 +8653,39 @@ function handleSetupDetectedState(currentBar) {
   const setupBar        = mentorState.upcomingSetup.bar;
   const barsUntilSetup  = setupBar - currentBar;
   const setupData       = mentorState.upcomingSetup.setup;
+
+  // ── Guard: user manually stepped/dragged PAST the setup bar ─────────────
+  // If barsUntilSetup <= 0 but earlyWarning never fired (user jumped ahead),
+  // trigger the early warning immediately so they still see the trade popup.
+  if (barsUntilSetup <= 0 && !mentorState.earlyWarningShown) {
+    // Jump directly into the early warning flow — treat currentBar as the entry moment
+    // by overwriting barsUntilSetup so the block below fires
+    // We set the "bar" to currentBar+1 so the early warning triggers on next call
+    mentorState.upcomingSetup.bar = currentBar + 1;
+    // Fire early warning on next tick, guarded by generation to avoid stale callbacks
+    const _guardGen17 = mentorState._aiGeneration;
+    setTimeout(() => {
+      if (mentorState.lifecycleState === 'setup_detected' &&
+          mentorState.upcomingSetup &&
+          mentorState._aiGeneration === _guardGen17) {
+        handleSetupDetectedState(currentBar);
+      }
+    }, 0);
+    return;
+  }
+
+  // ── Guard: user stepped FAR past the setup without resolving it ──────────
+  if (barsUntilSetup < -10 && mentorState.earlyWarningShown) {
+    // Setup is long past — if no trade was placed, go back to scanning
+    if (!mentorState.exampleTradeActive && !mentorState.messageLocked) {
+      mentorState.lifecycleState    = 'scanning';
+      mentorState.upcomingSetup     = null;
+      mentorState.earlyWarningShown = false;
+      mentorState.setupCache && mentorState.setupCache.clear();
+      setTimeout(() => updateMentor(), 50);
+    }
+    return;
+  }
 
 
 
@@ -8794,8 +8766,11 @@ function handleSetupDetectedState(currentBar) {
     updateLockedMentorUI();
 
     // Fetch AI analysis asynchronously — update panel when ready
+    const _genAtCall = mentorState._aiGeneration;
     _mentorAISetupAnalysis(setupData, currentBar).then(analysis => {
-      if (!mentorState.messageLocked) return; // user dismissed while loading
+      // Discard if setup changed or user dismissed while AI was loading
+      if (!mentorState.messageLocked) return;
+      if (mentorState._aiGeneration !== _genAtCall) return; // stale — new setup started
       if (analysis) {
         mentorState.lockedInsights = analysis.split('\n').filter(l => l.trim());
       } else {
@@ -8874,10 +8849,12 @@ function enterSetupDetectedState(windowScan) {
   }
 
   console.log('🎯 Setup detected — entering setup_detected state at bar', windowScan.bar);
-  mentorState.lifecycleState    = 'setup_detected';
+  setMentorState('setup_detected', 'setup found');
   mentorState._confluencePauses  = new Set();
   mentorState._lastAnnotateBar   = null;
-  mentorState._lastAnnotateStage = 0; // reset stage tracker for new setup
+  mentorState._lastAnnotateStage = 0;
+  mentorState._aiGeneration      = (mentorState._aiGeneration || 0) + 1;
+  mentorState._lastAnnStateKey   = null; // force annotation redraw on new setup
   mentorState.upcomingSetup = {
     setup: windowScan.setup,
     bar:   windowScan.bar,
@@ -9082,60 +9059,55 @@ function getAdaptiveScanWindow() {
   return Math.floor((window.min + window.max) / 2); // Use average
 }
 
+// Cache for last window scan — avoids re-running 4000 detection calls every bar
+let _scanCache = { bar: -1, result: null, method: null };
+
 function scanForSetupsInWindow(currentBar) {
-  console.log('🔍 Scanning adaptive window for valid setups...');
-  
-  // Calculate adaptive window based on timeframe
   const windowSizeBars = getAdaptiveScanWindow();
-  // Only scan FORWARD — past bars are already visible to the user and
-  // injecting them as "upcoming" causes barsUntilSetup to be negative.
-  const windowStart = currentBar + 1;
-  const windowEnd = Math.min(curData.length - 1, currentBar + windowSizeBars);
-  
-  console.log(`📊 Scanning window: bars ${windowStart} to ${windowEnd} (±${windowSizeBars} candles for ${curTF} timeframe)`);
-  
-  let bestSetup = { setup: 'none', quality: 'none', confluence: 0 };
-  let bestSetupBar = -1;
-  
-  // Scan the entire window for setups
-  for (let bar = windowStart; bar <= windowEnd; bar++) {
-    try {
-      // Pass method override so the detector uses the correct method and avoids
-      // polluting the global cache with wrong-method results.
-      const activeMethod = mentorState.tradingMethodSelected && mentorState.selectedTradingMethod
-        ? mentorState.selectedTradingMethod : undefined;
-      const setupDetection = detectStructuredSetups(curData.slice(0, bar + 1), bar, activeMethod);
-      let filteredSetup = setupDetection; // filterSetupByTradingMethod is now a passthrough
-      
-      // Apply replay validation if in replay mode
-      if (replayMode && filteredSetup.setup !== 'none') {
-        const validation = validateSetupWithFutureData(filteredSetup, bar, curData);
-        if (!validation.valid) {
-          filteredSetup = { setup: 'none', quality: 'none', confluence: 0 };
-        }
-      }
-      
-      // Track the best setup found — confluence >= 2 matches the quality gate in detectStructuredSetups
-      if (filteredSetup.setup !== 'none' && filteredSetup.confluence >= 2 && filteredSetup.confluence > bestSetup.confluence) {
-        bestSetup = filteredSetup;
-        bestSetupBar = bar;
-      }
-    } catch (error) {
-      console.warn(`⚠ Error scanning bar ${bar}:`, error);
-      continue;
-    }
+  const windowStart    = currentBar + 1;
+  const windowEnd      = Math.min(curData.length - 1, currentBar + windowSizeBars);
+  const activeMethod   = (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod)
+                         ? mentorState.selectedTradingMethod : 'none';
+
+  // Return cached result if bar/method/data haven't changed meaningfully.
+  // Include curData.length so symbol changes or new candles always bust the cache.
+  const _dataLen = curData ? curData.length : 0;
+  if (_scanCache.result && _scanCache.method === activeMethod &&
+      _scanCache.dataLen === _dataLen &&
+      Math.abs(_scanCache.bar - currentBar) < 5) {
+    return _scanCache.result;
   }
-  
-  console.log(`🎯 Best setup found in window:`, bestSetup, `at bar ${bestSetupBar}`);
-  
-  return {
-    setup: bestSetup,
-    bar: bestSetupBar,
-    windowStart,
-    windowEnd,
-    windowSize: windowSizeBars
-  };
+
+  let bestSetup    = { setup: 'none', quality: 'none', confluence: 0 };
+  let bestSetupBar = -1;
+
+  // Step every 2 bars — detection functions look back 20-50 bars so nothing meaningful
+  // can form and disappear within 2 bars. This halves the scan cost immediately.
+  // Exit early when a high-confluence (3+) setup is found — scanning further only
+  // finds marginally different setups, not worthwhile at O(n) cost.
+  for (let bar = windowStart; bar <= windowEnd; bar += 2) {
+    try {
+      const sd = detectStructuredSetups(curData.slice(0, bar + 1), bar, activeMethod);
+      if (sd.setup === 'none' || sd.confluence < 2) continue;
+
+      if (replayMode) {
+        const v = validateSetupWithFutureData(sd, bar, curData);
+        if (!v.valid) continue;
+      }
+
+      if (sd.confluence > bestSetup.confluence) {
+        bestSetup    = sd;
+        bestSetupBar = bar;
+        if (bestSetup.confluence >= 3) break; // good enough — stop scanning
+      }
+    } catch (e) { /* skip bad bar */ }
+  }
+
+  const result = { setup: bestSetup, bar: bestSetupBar, windowStart, windowEnd, windowSize: windowSizeBars };
+  _scanCache = { bar: currentBar, result, method: activeMethod, dataLen: _dataLen };
+  return result;
 }
+
 
 function handleTradeResultState(currentBar) {
   console.log('📋 Handle trade result state');
@@ -9708,7 +9680,6 @@ function updateMentor() {
   if (!mentorState.enabled || !replayMode || replayPicking) return;
   
   const currentBar = replayCutoff;
-  console.log('🤖 updateMentor called:', { 
     currentBar, 
     enabled: mentorState.enabled, 
     replayMode, 
@@ -9719,7 +9690,6 @@ function updateMentor() {
   
   // Check if we have data to analyze
   if (!curData || curData.length === 0) {
-    console.log('🚫 No curData available, skipping analysis');
     if (mentorState.currentInsights) {
       mentorState.currentInsights = ['🔄 Loading market data...'];
       mentorState.currentQuestion = 'Waiting for data to become available...';
@@ -9792,25 +9762,22 @@ function updateMentor() {
     
     // Check if we have enough data for analysis
     if (currentBar >= 50) {
-      console.log('📊 Sufficient data for analysis, proceeding...');
       
       // First, check for new manual trade placements during replay
       detectReplayTradePlacement();
 
-      // Cooldown: minimum 30 bars between setup suggestions to prevent spam.
-      // The detection functions are still the quality gate — this just stops the same
-      // area being re-shown immediately after a dismiss or failed validation.
+      // Cooldown: minimum 30 bars between setup suggestions.
+      // Return immediately — no DOM work, no scan.
       const barsSinceLast = currentBar - (mentorState.lastTradeSuggestionBar || -999);
-      if (barsSinceLast < 30) {
-        updateMentorUI();
-        return;
-      }
+      if (barsSinceLast < 30) return;
 
-      mentorState.analysis = analyzeMarketData(currentBar);
-      console.log('🤖 Analysis result:', mentorState.analysis);
+      // analyzeMarketData runs EMAs, SMAs, RSI, MACD — cache it by bar
+      if (!mentorState._analysisCache || mentorState._analysisCache.bar !== currentBar) {
+        mentorState._analysisCache = { bar: currentBar, data: analyzeMarketData(currentBar) };
+      }
+      mentorState.analysis = mentorState._analysisCache.data;
       
       if (!mentorState.analysis) {
-        console.log('❌ Analysis failed, using fallback');
         mentorState.currentInsights = ['⚠️ Analysis temporarily unavailable'];
         mentorState.currentQuestion = 'Please try advancing a few more candles...';
         updateMentorUI();
@@ -9824,26 +9791,21 @@ function updateMentor() {
       let setupDetection;
       try {
         setupDetection = detectStructuredSetups(curData.slice(0, currentBar + 1), currentBar);
-        console.log('🤖 Setup detection result:', setupDetection);
         
         // Apply trading method filtering if a method is selected
         if (mentorState.tradingMethodSelected && mentorState.selectedTradingMethod) {
           setupDetection = filterSetupByTradingMethod(setupDetection, mentorState.selectedTradingMethod);
-          console.log('🎯 Setup filtered by trading method:', mentorState.selectedTradingMethod, setupDetection);
         }
         
         // Apply replay knowledge advantage validation
         if (setupDetection.setup !== 'none') {
           const validation = validateSetupWithFutureData(setupDetection, currentBar, curData);
-          console.log('🔮 Setup validation result:', validation);
           
           if (!validation.valid) {
-            console.log('❌ Setup rejected by future data validation:', validation.reason);
             setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
           } else {
             // Add validation info to setup detection
             setupDetection.validation = validation;
-            console.log('✅ Setup validated by future data:', validation.reason);
           }
         }
         
@@ -9854,32 +9816,25 @@ function updateMentor() {
         setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
       }
       
-      mentorState.setupQuality = setupDetection.quality;
-      mentorState.confluenceScore = setupDetection.confluence;
       
       if (setupDetection.setup !== 'none') {
         // High-quality setup detected - scan adaptive window to find best setup
-        console.log('🤖 High-quality setup detected, scanning adaptive window for best setup');
         const windowScan = scanForSetupsInWindow(currentBar);
         
         if (windowScan.setup.setup !== 'none' && windowScan.bar > currentBar) {
           // Found a better setup ahead - enter setup_detected state (hide location)
-          console.log('🎯 Found setup ahead, entering setup_detected state');
           enterSetupDetectedState(windowScan);
           return;
         } else {
           // Setup is at current bar — pre-validate before committing to setup_wait.
           // generateSetupMessageWithExampleTrade returns false if trade levels are
           // not achievable; in that case we silently skip and keep scanning.
-          console.log('🤖 Setup at current bar, pre-validating before showing panel');
 
           const shown = generateSetupMessageWithExampleTrade(setupDetection, currentBar);
 
           if (!shown) {
             // Trade levels not achievable — treat as no setup, keep scanning
-            console.log('⏭️ Setup pre-validation failed — continuing scan silently');
-            mentorState.lastTradeSuggestionBar = currentBar; // apply cooldown to avoid tight loop
-            updateMentorUI();
+            mentorState.lastTradeSuggestionBar = currentBar;
             return;
           }
 
@@ -9898,7 +9853,6 @@ function updateMentor() {
           return;
         }
       } else {
-        console.log('🤖 No quality setup found at current position, scanning adaptive window');
         
         // Scan the adaptive window for any valid setups
         const windowScan = scanForSetupsInWindow(currentBar);
@@ -9908,7 +9862,6 @@ function updateMentor() {
           enterNoSetupState(currentBar);
         } else {
           // Found a setup AHEAD — hide location and enter setup_detected state
-          console.log('🎯 Found setups in adaptive window, entering setup_detected state');
           enterSetupDetectedState(windowScan);
         }
       }
@@ -9917,7 +9870,6 @@ function updateMentor() {
     } else {
       // Not enough data yet
       const neededBars = 50 - currentBar;
-      console.log(`📈 Need ${neededBars} more bars for analysis`);
       mentorState.currentInsights = [`📊 Building analysis data... ${neededBars} more bars needed`];
       mentorState.currentQuestion = 'Waiting for sufficient data for accurate analysis...';
       updateMentorUI();
@@ -10082,7 +10034,6 @@ function generateHighQualityTradeInsights(setupDetection) {
 // Pre-validates that trade levels are achievable before showing anything to the user.
 // This prevents the "R:R insufficient" error panel from ever appearing.
 function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
-  console.log('🤖 generateSetupMessageWithExampleTrade called:', setupDetection);
 
   if (!curData) return false;
 
@@ -10093,13 +10044,11 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
   const futureCandles = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
 
   if (futureCandles.length < 5) {
-    console.log('⏭️ Not enough future data — skipping setup silently');
     return false;
   }
 
   const levels = computeMentorTradeLevels(direction, entryPrice, entryBar, futureCandles);
   if (!levels) {
-    console.log('⏭️ Price moves against direction — skipping setup silently');
     return false;
   }
 
@@ -10718,16 +10667,17 @@ function integrateMentorWithReplay() {
   const originalStopReplay = stopReplay;
   stopReplay = function() {
     originalStopReplay();
-    closeMentorPopup(); // Close popup if it's still open
-    document.getElementById('ai-mentor-panel').style.display = 'none';
+    // Only hide mentor panel if we're fully exiting replay (not symbol change)
+    // replayMode will have been set to false by originalStopReplay if truly exiting
+    if (!replayMode) {
+      closeMentorPopup();
+      const panel = document.getElementById('ai-mentor-panel');
+      if (panel) panel.style.display = 'none';
+    }
   };
   
-  // Update mentor on each replay step
-  const originalReplayStep = replayStep;
-  replayStep = function(n) {
-    originalReplayStep(n);
-    setTimeout(updateMentor, 100); // Small delay to ensure bar is updated
-  };
+  // replayStep already calls updateMentor via its bar-based throttle.
+  // No monkey-patch needed — avoids double-firing and setTimeout accumulation.
 }
 
 // Initialize mentor integration and draggable functionality
@@ -10736,8 +10686,15 @@ function initializeMentor() {
   makeMentorDraggable();
 }
 
-// Initialize when page loads
-setTimeout(initializeMentor, 1000);
+// Initialize mentor when page loads.
+// Use requestIdleCallback if available (fires when browser is idle, not just after 1s),
+// falling back to 1000ms timeout. Either way, initializeMentor is safe to call multiple
+// times since integrateMentorWithReplay guards against double monkey-patching.
+if (typeof requestIdleCallback !== 'undefined') {
+  requestIdleCallback(() => initializeMentor(), { timeout: 2000 });
+} else {
+  setTimeout(initializeMentor, 1000);
+}
 
 // Make mentor functions globally accessible
 window.toggleMentor = toggleMentor;
@@ -11036,6 +10993,11 @@ function _mfLaunch(idx) {
   replayPicking     = false;
   replayCutoff      = startBar;
   replayJustStarted = true;
+  // Reset mentor throttle counters so the very first bar gets a full scan
+  mentorState._lastMentorUpdateBar = -99;
+  mentorState._lastAnnStateKey     = null;
+  if (typeof _scanCache !== 'undefined')
+    _scanCache = { bar: -1, result: null, method: null };
   setTimeout(() => { replayJustStarted = false; }, 500);
 
   const rbtn = document.getElementById('btn-replay');
@@ -11239,12 +11201,14 @@ const GROQ_KEYS = [
 let groqKeyIndex = 0;
 
 async function groqFetch(prompt){
-  // Try each key in order, rotate on rate-limit (429) or auth error (401)
+  // 12-second hard timeout per request — prevents hung connections blocking the UI
+  const TIMEOUT_MS = 12000;
   for(let attempt=0; attempt<GROQ_KEYS.length; attempt++){
     const key = GROQ_KEYS[(groqKeyIndex + attempt) % GROQ_KEYS.length];
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify({
           model: 'llama-3.1-8b-instant',
@@ -11253,20 +11217,34 @@ async function groqFetch(prompt){
           messages: [{ role: 'user', content: prompt }]
         })
       });
+
       if(res.status === 429 || res.status === 401){
-        // This key is rate-limited or invalid — try the next one
         groqKeyIndex = (groqKeyIndex + attempt + 1) % GROQ_KEYS.length;
-        continue;
+        continue; // try next key
       }
+      if(!res.ok){
+        // Server error (5xx etc.) — don't rotate key, just fail fast
+        throw new Error(`HTTP ${res.status}`);
+      }
+
       const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || '';
+      const text = data.choices?.[0]?.message?.content?.trim() || '';
       if(!text) throw new Error('empty response');
-      // Successful — keep this key as primary going forward
       groqKeyIndex = (groqKeyIndex + attempt) % GROQ_KEYS.length;
       return text;
-    } catch(e){ continue; }
+
+    } catch(e){
+      if(e.name === 'TimeoutError' || e.name === 'AbortError'){
+        // Request timed out — try next key
+        continue;
+      }
+      if(e.message && e.message.startsWith('HTTP ')){
+        throw e; // non-recoverable server error
+      }
+      continue; // network error — try next key
+    }
   }
-  throw new Error('all keys exhausted');
+  throw new Error('All Groq API keys exhausted or unavailable');
 }
 
 function buildInfo(){
@@ -12821,6 +12799,19 @@ function _addMentorLabel(bar, price, lines) {
 
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
+
+  // Skip full redraw if the visible state hasn't changed.
+  // Key = anchorBar (drives visibleUpTo) + setupBar + barsAway bucket.
+  // This prevents clearing+redrawing annotations on every single replay step
+  // when nothing new would be shown.
+  const detBar     = Math.min(setupBar, curData.length - 1);
+  const visUp      = Math.min(anchorBar, replayCutoff, detBar);
+  const barsAway   = setupBar - visUp;
+  const stageBucket = barsAway > 25 ? 1 : barsAway > 12 ? 2 : 3;
+  const stateKey   = `${visUp}_${setupBar}_${stageBucket}`;
+  if (mentorState._lastAnnStateKey === stateKey) return; // nothing new to draw
+  mentorState._lastAnnStateKey = stateKey;
+
   _clearMentorAnnotationsSilent();
 
   const method       = mentorState.selectedTradingMethod || 'breakout';
@@ -13312,8 +13303,11 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
 
   // Only fire once per unique label — avoid re-pausing on every redraw
   if (!mentorState._confluencePauses) mentorState._confluencePauses = new Set();
-  if (mentorState._confluencePauses.has(label)) return;
-  mentorState._confluencePauses.add(label);
+  // Normalise label: strip merged suffixes like " + EMA confluence" so the
+  // base level name is stable across redraws
+  const baseLabel = label.split(' + ')[0].trim();
+  if (mentorState._confluencePauses.has(baseLabel)) return;
+  mentorState._confluencePauses.add(baseLabel);
 
   // Build the explanation for this confluence type
   const explanations = {
@@ -13355,11 +13349,54 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   ];
   mentorState.currentQuestion = 'Study this level before the trade forms.';
   updateMentorUI();
-  draw();
+  scheduleDraw();
 
   toast(`⏸ Confluence: ${label}`);
 }
 
+
+// ── Mentor annotation helpers — defined at module scope (not inside render loop) ──
+function _mentorWrapText(ctx, text, font, maxW) {
+  ctx.font = font;
+  const words = text.split(' ');
+  const lines = []; let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function _mentorBubbleOverlaps(r1x, r1y, r1w, r1h, r2x, r2y, r2w, r2h) {
+  return r1x < r2x+r2w+4 && r1x+r1w+4 > r2x && r1y < r2y+r2h+4 && r1y+r1h+4 > r2y;
+}
+
+function _mentorTryBand(ctx, ax, bubbleW, bubbleH, inBottom, H, W) {
+  const marginH = Math.max(bubbleH + 10, H * 0.18);
+  const bandTop = inBottom ? H - marginH : 4;
+  const bandBot = inBottom ? H - 4 : marginH;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const bY = bandTop + attempt * (bubbleH + 6);
+    if (bY + bubbleH > bandBot) break;
+    const bX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
+    if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
+      return { bX, bY, inBottom };
+  }
+  return null;
+}
+
+// Batched draw — coalesces multiple draw() calls in the same JS task into one rAF
+let _pendingDraw = false;
+function scheduleDraw() {
+  if (_pendingDraw) return;
+  _pendingDraw = true;
+  requestAnimationFrame(() => {
+    _pendingDraw = false;
+    if (typeof draw === 'function') draw();
+  });
+}
 
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   ctx._mentorBubbleCount = 0;   // reset per-frame bubble count
@@ -13636,36 +13673,28 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const alpha     = isPrimary ? 1.0 : tier === 'secondary' ? 0.85 : 0.65;
 
         if (!d.label && !d.explanation) {
-          ctx.save();
-          ctx.fillStyle = accentCol; ctx.globalAlpha = alpha;
+          ctx.save(); ctx.fillStyle = accentCol; ctx.globalAlpha = alpha;
           ctx.beginPath(); ctx.arc(ax, ay, 3, 0, Math.PI*2); ctx.fill();
-          ctx.restore();
-          break;
+          ctx.restore(); break;
         }
 
         // ── Text measurement ─────────────────────────────────────────────────
         const explanation = d.explanation || '';
         const fontSize    = isPrimary ? 11 : 10;
         const padX = 10, padY = 7;
-        const maxBubbleW  = Math.min(200, W * 0.26);
-        const innerW      = maxBubbleW - padX * 2 - 4;
+        // Bubble must stay LEFT of the price scale panel
+        const chartRight  = W - R_PANEL_OFFSET - 8;
+        const chartBottom = H - X_AXIS_H - 4;   // above time axis
+        const chartTop    = 36;                  // below toolbar (toolbar ~32px)
+        const chartLeft   = 4;
 
-        function wrapText(text, font, maxW) {
-          ctx.font = font;
-          const words = text.split(' ');
-          const lines = []; let line = '';
-          for (const w of words) {
-            const test = line ? line + ' ' + w : w;
-            if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
-            else line = test;
-          }
-          if (line) lines.push(line);
-          return lines;
-        }
+        const maxBubbleW = Math.min(200, (chartRight - chartLeft) * 0.4);
+        const innerW     = maxBubbleW - padX * 2 - 4;
+
         const titleFont  = `${isPrimary ? 'bold ' : ''}${fontSize}px sans-serif`;
         const explFont   = `${fontSize - 1}px sans-serif`;
-        const titleLines = wrapText(d.label || '', titleFont, innerW);
-        const explLines  = explanation ? wrapText(explanation, explFont, innerW) : [];
+        const titleLines = _mentorWrapText(ctx, d.label || '', titleFont, innerW);
+        const explLines  = explanation ? _mentorWrapText(ctx, explanation, explFont, innerW) : [];
 
         let actualMaxW = 80;
         [...titleLines, ...explLines].forEach((ln, i) => {
@@ -13677,56 +13706,49 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const bubbleH = padY * 2 + lineH * titleLines.length +
                         (explLines.length ? lineH * explLines.length + 5 : 0);
 
-        // ── Placement: bubbles live in the chart margins, never over candles ─
-        // Top band = top 18% of canvas height
-        // Bottom band = bottom 18% of canvas height
-        // Anchor is always somewhere in the middle (price area).
-        // Connector is long enough to bridge the gap.
+        // ── Placement: bubbles in top or bottom band, never over candles ─────
+        // Safe chart area: chartTop → chartBottom, chartLeft → chartRight
+        // Band height is whichever is larger: bubble height + margin, or 16% of chart height
         if (!ctx._placedBubbles) ctx._placedBubbles = [];
         if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
         if (ctx._mentorBubbleCount >= 4 && !isPrimary && !d.highlight) break;
         if (explanation) ctx._mentorBubbleCount++;
 
-        const marginH    = Math.max(bubbleH + 10, H * 0.18); // height of top/bottom band
-        const topBandY   = 4;                                 // bubbles in top band start here
-        const botBandY   = H - marginH;                       // bubbles in bottom band start here
+        const chartH     = chartBottom - chartTop;
+        const bandH      = Math.max(bubbleH + 12, chartH * 0.22);
+        const topBandTop = chartTop;
+        const topBandBot = chartTop + bandH;
+        const botBandTop = chartBottom - bandH;
+        const botBandBot = chartBottom;
 
-        // Decide top vs bottom based on which has more space away from anchor
-        // (anchor closer to top → use bottom band, and vice versa)
-        const anchorInUpper = ay < H * 0.5;
-        const preferBottom  = anchorInUpper;  // anchor near top → bubble goes bottom
+        // Anchor in upper half → use bottom band; lower half → use top band
+        const anchorInUpper = ay < chartTop + chartH * 0.5;
+        const preferBottom  = anchorInUpper;
 
-        function overlaps(r1x, r1y, r1w, r1h, r2x, r2y, r2w, r2h) {
-          return r1x < r2x+r2w+4 && r1x+r1w+4 > r2x && r1y < r2y+r2h+4 && r1y+r1h+4 > r2y;
-        }
-
-        function tryPlace(inBottom) {
-          const bandTop = inBottom ? botBandY : topBandY;
-          const bandBot = inBottom ? H - 4 : marginH;
-          // Stack bubbles within the band from the top/bottom
-          let bY = inBottom ? botBandY : topBandY;
-          // Find first Y in band that doesn't collide
-          for (let attempt = 0; attempt < 8; attempt++) {
-            const bYcand = bY + attempt * (bubbleH + 6);
-            if (bYcand + bubbleH > bandBot) break;
-            // X: centred on anchor, clamped
-            const bX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
-            if (!ctx._placedBubbles.some(b => overlaps(bX, bYcand, bubbleW, bubbleH, b.x, b.y, b.w, b.h))) {
-              return { bX, bY: bYcand, inBottom };
-            }
+        function tryBand(useBottom) {
+          const bandTop2 = useBottom ? botBandTop : topBandTop;
+          const bandBot2 = useBottom ? botBandBot : topBandBot;
+          if (bandBot2 - bandTop2 < bubbleH) return null;
+          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
+          const startY = useBottom ? bandTop2 : bandBot2 - bubbleH;
+          const step   = useBottom ? bubbleH + 5 : -(bubbleH + 5);
+          for (let attempt = 0; attempt < 6; attempt++) {
+            const bY = startY + step * attempt;
+            if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
+            if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
+              return { bX, bY, useBottom };
           }
           return null;
         }
 
-        let placement = tryPlace(preferBottom) || tryPlace(!preferBottom);
-        if (!placement) {
-          // Absolute fallback: stack at bottom
-          const bX = Math.max(4, Math.min(W - bubbleW - 4, ax - bubbleW / 2));
-          const bY = Math.min(H - bubbleH - 4, botBandY + ctx._placedBubbles.length * (bubbleH + 6));
-          placement = { bX, bY, inBottom: true };
+        let pl = tryBand(preferBottom) || tryBand(!preferBottom);
+        if (!pl) {
+          // Absolute fallback: clamp to bottom band, stack
+          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
+          const bY = Math.min(botBandBot - bubbleH, botBandTop + ctx._placedBubbles.length * (bubbleH + 5));
+          pl = { bX, bY, useBottom: true };
         }
-
-        const { bX: bubbleX, bY: bubbleY, inBottom } = placement;
+        const { bX: bubbleX, bY: bubbleY, useBottom } = pl;
         ctx._placedBubbles.push({ x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH });
 
         // ── Draw ─────────────────────────────────────────────────────────────
@@ -13739,53 +13761,47 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.beginPath(); ctx.arc(ax, ay, 1.3, 0, Math.PI*2); ctx.fill();
 
-        // The connector goes from the anchor to the bubble edge —
-        // bubbleConnY = the edge of the bubble closest to the anchor
-        const bubbleConnY = inBottom ? bubbleY : bubbleY + bubbleH;
-        // Connector X clamped inside bubble horizontally
-        const connBX = Math.max(bubbleX + 12, Math.min(bubbleX + bubbleW - 12, ax));
-
-        // Draw long connector line (dashed)
+        // Connector: anchor → bubble edge (long dashed line)
+        const bubbleEdgeY  = useBottom ? bubbleY : bubbleY + bubbleH;
+        const connX        = Math.max(bubbleX + 12, Math.min(bubbleX + bubbleW - 12, ax));
         ctx.strokeStyle = accentCol;
         ctx.lineWidth   = isPrimary ? 1.5 : 1;
         ctx.setLineDash([3, 4]);
-        ctx.globalAlpha = alpha * 0.55 * (isWIP ? 0.7 : 1);
+        ctx.globalAlpha = alpha * 0.5 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
         ctx.moveTo(ax, ay);
-        if (Math.abs(connBX - ax) < 5) {
-          ctx.lineTo(ax, bubbleConnY);           // straight vertical
+        if (Math.abs(connX - ax) < 6) {
+          ctx.lineTo(ax, bubbleEdgeY);
         } else {
-          const midY = ay + (bubbleConnY - ay) * 0.5;
+          const midY = ay + (bubbleEdgeY - ay) * 0.5;
           ctx.lineTo(ax, midY);
-          ctx.lineTo(connBX, bubbleConnY);
+          ctx.lineTo(connX, bubbleEdgeY);
         }
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // Small arrowhead pointing toward the anchor (at the bubble-edge end of connector)
+        // Arrowhead at bubble edge
         const ahSz = 3;
         ctx.fillStyle = accentCol;
+        ctx.globalAlpha = alpha * 0.8 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
-        if (inBottom) {
-          // Arrow points UP (toward anchor above)
-          ctx.moveTo(connBX, bubbleConnY);
-          ctx.lineTo(connBX - ahSz, bubbleConnY + ahSz * 2.2);
-          ctx.lineTo(connBX + ahSz, bubbleConnY + ahSz * 2.2);
+        if (useBottom) {
+          ctx.moveTo(connX, bubbleEdgeY);
+          ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2.2);
+          ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2.2);
         } else {
-          // Arrow points DOWN (toward anchor below)
-          ctx.moveTo(connBX, bubbleConnY);
-          ctx.lineTo(connBX - ahSz, bubbleConnY - ahSz * 2.2);
-          ctx.lineTo(connBX + ahSz, bubbleConnY - ahSz * 2.2);
+          ctx.moveTo(connX, bubbleEdgeY);
+          ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2.2);
+          ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2.2);
         }
         ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // ── Bubble ───────────────────────────────────────────────────────────
+        // Bubble background
         ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
         ctx.fillStyle   = 'rgba(8, 11, 22, 0.97)';
         roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6); ctx.fill();
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-
         ctx.strokeStyle = accentCol; ctx.lineWidth = isPrimary ? 1.5 : 1;
         roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 6); ctx.stroke();
 
@@ -13794,7 +13810,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         roundRect(ctx, bubbleX, bubbleY + 5, 2.5, bubbleH - 10, 1); ctx.fill();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // ── Text ─────────────────────────────────────────────────────────────
+        // Text
         const textX = bubbleX + padX + 5;
         let textY   = bubbleY + padY + fontSize;
         ctx.textAlign = 'left';
@@ -14378,17 +14394,49 @@ function setupEvents(){
       _replayLineDragging = false;
       mc.style.cursor = 'crosshair';
       _replayScrollToBar(replayCutoff);
+
       if(mentorState.enabled) {
-        // If in setup_detected, just refresh annotations — don't blow away the injected setup
-        if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+        const lc = mentorState.lifecycleState;
+
+        if (lc === 'setup_detected' && mentorState.upcomingSetup) {
+          // Approaching a setup — refresh annotations for new position, preserve setup
           const _sb = mentorState.upcomingSetup.bar;
           const _ba = _sb - replayCutoff;
-          if (!mentorState.earlyWarningShown && _ba > 5) {
-            _mentorAnnotateSetup(mentorState.upcomingSetup.setup, replayCutoff, _sb);
+          // If user dragged PAST the setup bar, reset to scanning
+          if (replayCutoff >= _sb) {
+            mentorState.lifecycleState = 'scanning';
+            mentorState.upcomingSetup  = null;
+            mentorState._lastAnnotateStage = 0;
+            mentorState._lastAnnotateBar   = null;
+            mentorState.setupCache && mentorState.setupCache.clear();
+            setTimeout(() => updateMentor(), 80);
+          } else {
+            // Still before the setup — refresh annotations and message
+            mentorState._lastAnnotateStage = 0; // force redraw from stage 1
+            mentorState._lastAnnotateBar   = null;
+            if (!mentorState.earlyWarningShown && _ba > 5) {
+              _mentorAnnotateSetup(mentorState.upcomingSetup.setup, replayCutoff, _sb);
+            }
+            _buildSetupDetectedMessage(replayCutoff);
+            updateMentorUI();
           }
-          _buildSetupDetectedMessage(replayCutoff);
+
+        } else if (lc === 'setup_wait' || lc === 'trade_monitoring' ||
+                   lc === 'trade_result' || lc === 'trade_completed') {
+          // Trade is active or was completed — preserve everything, just update UI
+          // The trade tool, annotations, and panel all stay intact
+          if (mentorState._tradeSetupData) {
+            const tsd = mentorState._tradeSetupData;
+            _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+          }
+          // Re-run the monitoring step in case user scrubbed during a trade
+          if (lc === 'trade_monitoring' && mentorState.exampleTradeActive) {
+            monitorExampleTrade(replayCutoff);
+          }
           updateMentorUI();
+
         } else {
+          // scanning / no_setup_found / method_selection — safe to reset and re-scan
           mentorState.lifecycleState = 'scanning';
           mentorState.setupCache && mentorState.setupCache.clear();
           setTimeout(() => updateMentor(), 80);
