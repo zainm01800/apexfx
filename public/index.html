@@ -9478,22 +9478,25 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar) {
   if (!ctx) return null;
   const isWin = outcome === 'take_profit';
 
-  const prompt = `You are a trading mentor. Give a quick post-trade debrief — honest, human, like a coach reviewing a play.
+  // Build confluence list from the setup detection for context
+  const setupType   = trade.type?.replace(/_/g, ' ') || ctx.method;
 
-${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN — TP hit' : '❌ LOSS — SL hit'} | ${ctx.method} strategy
-Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1
+  const prompt = `You are a trading mentor. Give a post-trade debrief that explains the CONFLUENCES that made up this setup — what each one meant, and whether they played out.
+
+${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN' : '❌ LOSS'} | ${setupType} setup | ${ctx.method} strategy
+Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1 | ATR ${ctx.atr}
 
 Price action (last 30 bars):
 ${ctx.ohlcvStr}
 
-Write EXACTLY 4 lines. Each starts with a different emoji. Each is ONE sentence, max 20 words. Put a blank line between each.
+Write EXACTLY 4 lines. Each starts with a different emoji. Each is ONE sentence, max 22 words. Blank line between each.
 
-Line 1 (${isWin ? '✅' : '❌'}): Was the entry thesis correct? One sentence on what the setup showed
-Line 2 (📊): ${isWin ? 'What drove price to target — which factor gave momentum' : 'What went wrong — which criterion was weak or missing'}
-Line 3 (💡): The one thing to look for next time on this setup type (be specific)
-Line 4 (⚖️): Was the SL/TP sizing appropriate for ATR ${ctx.atr}? One honest sentence
+Line 1 (${isWin ? '✅' : '❌'}): Did the core ${setupType} thesis play out — what specifically confirmed or failed?
+Line 2 (📊): Name the strongest confluence that was present, and whether it mattered to the outcome
+Line 3 (💡): What EXACT thing to check next time before entering a ${setupType} trade (one specific criterion)
+Line 4 (⚖️): Was the SL at ${trade.stopLoss.toFixed(4)} the right structural level, or should it have been different?
 
-${isWin ? 'Tone: positive but not sycophantic.' : 'Tone: constructive. No blame. Frame it as useful data.'}
+${isWin ? 'Tone: reinforce what worked, one thing to improve.' : 'Tone: constructive. Identify the weakest confluence and why it failed.'}
 No intro. Start with line 1.`;
 
   try {
@@ -12600,288 +12603,259 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const method = mentorState.selectedTradingMethod || 'breakout';
   const dir    = setupDetection.direction || 'long';
   const bar    = Math.min(anchorBar, curData.length - 1);
-  const c      = curData[bar];
-  if (!c) return;
+  const atr    = calculateATR(bar, 14) || (curData[bar].close * 0.005);
 
-  const atr = calculateATR(bar, 14) || (c.close * 0.005);
+  // Re-run the EXACT detection function used to find this setup.
+  // This gives us the precise values (supportLevel, retrace, emaInZone etc.)
+  // so annotations are anchored to real computed levels, not re-derived guesses.
+  const data      = curData.slice(0, bar + 1);
+  const structure = analyzeMarketStructure(data);
 
-  // Use the pre-validated entry price as the anchor for all annotations.
-  // This ensures annotations are near the actual trade, not random historical swings.
-  const levels     = setupDetection._prevalidatedLevels;
-  const entryPrice = levels ? levels.stopLoss + Math.abs(levels.stopLoss - (curData[setupBar + 1]?.open || c.close)) : c.close;
-  const entryBar   = setupDetection._entryBar || (setupBar + 1);
-  const actualEntry = curData[entryBar]?.open || c.close;
-
-  // Build history window centred on the ENTRY price area, not just from anchorBar.
-  // Look back far enough to find the swing that defines the setup.
-  const lookbackN = 40;
-  const fromBar   = Math.max(0, bar - lookbackN);
-  const history   = curData.slice(fromBar, bar + 1);
-
-  // Find swing highs/lows with configurable strength
-  function findSwings(bars, startBar, type = 'high', strength = 3) {
-    const result = [];
-    for (let i = strength; i < bars.length - strength; i++) {
-      const val = type === 'high' ? bars[i].high : bars[i].low;
-      let isSwing = true;
-      for (let j = 1; j <= strength; j++) {
-        if (type === 'high' ? (bars[i-j].high >= val || bars[i+j].high >= val)
-                            : (bars[i-j].low <= val || bars[i+j].low <= val)) {
-          isSwing = false; break;
-        }
-      }
-      if (isSwing) result.push({ bar: startBar + i, price: val });
-    }
-    return result;
+  // ── Helper: add a horizontal level line as a mentor_box ─────────────────
+  function levelBox(price, label, extendBars = 10) {
+    _addMentorBox(Math.max(0, bar - 20), bar + extendBars,
+      price - atr * 0.12, price + atr * 0.12, label);
   }
-
-  // Find the swing NEAREST to the actual entry price — not the extreme of the whole window
-  function nearestSwing(swings, targetPrice) {
-    if (!swings.length) return null;
-    return swings.reduce((a, b) =>
-      Math.abs(a.price - targetPrice) < Math.abs(b.price - targetPrice) ? a : b);
-  }
-
-  const swingHighs = findSwings(history, fromBar, 'high', 3);
-  const swingLows  = findSwings(history, fromBar, 'low',  3);
 
   switch (method) {
 
     case 'breakout':
     case 'range_breakout': {
-      // Find consolidation zone nearest to the entry price
-      const consoEnd   = Math.max(0, bar - 1);
-      const consoStart = Math.max(0, consoEnd - 15);
-      const consoSlice = curData.slice(consoStart, consoEnd + 1);
-      const consoHigh  = Math.max(...consoSlice.map(b => b.high));
-      const consoLow   = Math.min(...consoSlice.map(b => b.low));
-      const breakLevel = dir === 'long' ? consoHigh : consoLow;
+      const conso = detectConsolidation(data);
+      if (!conso.isConsolidating) { _addMentorArrow(bar, curData[bar].close, 'Breakout setup', dir === 'long' ? 'down' : 'up', true); break; }
 
-      // Consolidation box
-      _addMentorBox(consoStart, consoEnd, consoLow, consoHigh,
-        `📦 Consolidation — ${Math.round((consoHigh - consoLow) / atr * 10) / 10}× ATR tight`);
+      const breakLevel = dir === 'long' ? conso.upper : conso.lower;
 
-      // Broken level line
-      _addMentorBox(consoStart, bar + 8, breakLevel - atr * 0.1, breakLevel + atr * 0.1,
-        dir === 'long' ? `🔑 Broken resistance: ${fP(breakLevel)}` : `🔑 Broken support: ${fP(breakLevel)}`);
+      // 1. Consolidation zone box
+      _addMentorBox(Math.max(0, bar - 15), bar, conso.lower, conso.upper,
+        `📦 Consolidation zone (${Math.round((conso.upper - conso.lower) / atr * 10) / 10}× ATR tight)`);
 
-      // Arrow on the breakout candle
+      // 2. Broken level line
+      levelBox(breakLevel, dir === 'long'
+        ? `🔑 Resistance: ${fP(breakLevel)} — now broken`
+        : `🔑 Support: ${fP(breakLevel)} — now broken`, 15);
+
+      // 3. Arrow on breakout candle
+      const c = curData[bar];
       _addMentorArrow(bar, dir === 'long' ? c.high : c.low,
-        dir === 'long' ? `🚀 Breakout — body close above ${fP(breakLevel)}` : `📉 Breakdown — body close below ${fP(breakLevel)}`,
+        dir === 'long' ? `🚀 Body closed above — breakout confirmed` : `📉 Body closed below — breakdown confirmed`,
         dir === 'long' ? 'down' : 'up', true);
+
+      // 4. Volume confluence if available
+      if (conso.volume && conso.avgVolume && conso.volume > conso.avgVolume * 1.2) {
+        _addMentorLabel(bar, c.close + (dir === 'long' ? atr : -atr), [
+          `✅ Volume expanding: ${Math.round(conso.volume / conso.avgVolume * 10) / 10}× avg`,
+          'Volume confirms the breakout',
+        ]);
+      }
       break;
     }
 
     case 'trend':
     case 'flag_continuation':
     case 'structure_continuation': {
-      // Find the impulse: the most recent strong directional move toward the trend
-      // Look for the swing that started the current move
-      const trendSwing = dir === 'long'
-        ? nearestSwing(swingLows, actualEntry)   // pullback low near entry
-        : nearestSwing(swingHighs, actualEntry);  // pullback high near entry
+      const flag = detectFlagPattern(data, structure);
+      const str  = detectStructureSetup(data, structure);
+      const src  = flag.detected ? flag : str;
 
-      const impulseOrigin = trendSwing || { bar: fromBar, price: dir === 'long' ? Math.min(...history.map(b => b.low)) : Math.max(...history.map(b => b.high)) };
+      // 1. Trend direction from structure
+      const trendLabel = structure.trend?.includes('up') ? '📈 Uptrend intact' : '📉 Downtrend intact';
+      const ema20val   = calcEMA(data, 20);
+      const ema50val   = calcEMA(data, 50);
+      const ema20      = ema20val[ema20val.length - 1];
+      const ema50      = ema50val[ema50val.length - 1];
 
-      // The impulse peak (furthest point in trend direction before pullback)
-      const peakSwing = dir === 'long'
-        ? swingHighs.filter(s => s.bar > impulseOrigin.bar).slice(-1)[0]
-        : swingLows.filter(s => s.bar > impulseOrigin.bar).slice(-1)[0];
-
-      if (peakSwing) {
-        // Box the impulse move (origin → peak)
-        const impHigh = dir === 'long' ? peakSwing.price : impulseOrigin.price;
-        const impLow  = dir === 'long' ? impulseOrigin.price : peakSwing.price;
-        _addMentorBox(impulseOrigin.bar, peakSwing.bar, impLow, impHigh, '⚡ Impulse leg — trend direction');
-
-        // Box the pullback (peak → current bar)
-        const pbHigh = Math.max(...curData.slice(peakSwing.bar, bar + 1).map(b => b.high));
-        const pbLow  = Math.min(...curData.slice(peakSwing.bar, bar + 1).map(b => b.low));
-        _addMentorBox(peakSwing.bar, bar, pbLow, pbHigh, '🏴 Pullback — lower volume, against trend');
-
-        // Arrow at peak (where trend was at its strongest)
-        _addMentorArrow(peakSwing.bar, peakSwing.price,
-          dir === 'long' ? `Trend high: ${fP(peakSwing.price)}` : `Trend low: ${fP(peakSwing.price)}`,
-          dir === 'long' ? 'down' : 'up', false);
+      if (ema20 && ema50) {
+        levelBox(ema20, `📊 EMA20: ${fP(ema20)} — ${trendLabel}`, 12);
+        if (Math.abs(ema20 - ema50) < atr * 4) {
+          levelBox(ema50, `📊 EMA50: ${fP(ema50)}`, 12);
+        }
       }
 
-      // EMA21 as trend support
-      const ema21arr = calcEMA(curData.slice(0, bar + 1), 21);
-      const ema21    = ema21arr[ema21arr.length - 1];
-      if (ema21 && Math.abs(ema21 - c.close) < atr * 3) {
-        _addMentorBox(Math.max(0, bar - 5), bar + 3, ema21 - atr * 0.25, ema21 + atr * 0.25,
-          `📊 EMA21: ${fP(ema21)}`);
+      // 2. Flag pole + flag body if detected
+      if (flag.detected && flag.poleHigh !== undefined && flag.poleLow !== undefined) {
+        _addMentorBox(Math.max(0, bar - 12), bar - 5, flag.poleLow, flag.poleHigh, '⚡ Impulse leg');
+        _addMentorBox(Math.max(0, bar - 6), bar, Math.min(curData[bar].low, flag.poleLow), flag.poleHigh, '🏴 Flag — low-vol pullback');
       }
 
-      // Arrow at current bar — the pullback entry point
-      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        '📍 Entry here — trend resuming', dir === 'long' ? 'up' : 'down', true);
+      // 3. Entry arrow
+      _addMentorArrow(bar, dir === 'long' ? curData[bar].low : curData[bar].high,
+        '📍 Trend resuming — entry here', dir === 'long' ? 'up' : 'down', true);
       break;
     }
 
     case 'support_resistance': {
-      // Find the swing NEAREST to the current close — not the extreme
-      const nearestLevel = dir === 'long'
-        ? nearestSwing(swingLows.filter(s => Math.abs(s.price - c.close) < atr * 8), c.close)
-        : nearestSwing(swingHighs.filter(s => Math.abs(s.price - c.close) < atr * 8), c.close);
+      const sb = detectSupportBounce(data);
+      const rr = detectResistanceRejection(data);
+      const det = dir === 'long' ? sb : rr;
 
-      const level = nearestLevel?.price || c.close;
-      const levelBar = nearestLevel?.bar || bar;
+      if (det.detected) {
+        const level = dir === 'long' ? det.supportLevel : det.resistanceLevel;
+        const touches = det.touches || 2;
 
-      // Find ALL tests of this level (within 1.5×ATR)
-      const allTests = (dir === 'long' ? swingLows : swingHighs)
-        .filter(s => Math.abs(s.price - level) < atr * 1.5)
-        .sort((a, b) => a.bar - b.bar);
+        // 1. Level zone — the actual support/resistance price the detector found
+        _addMentorBox(Math.max(0, bar - 40), bar + 8,
+          level - atr * 0.35, level + atr * 0.35,
+          dir === 'long'
+            ? `🟢 Support: ${fP(level)} (${touches}× tested)`
+            : `🔴 Resistance: ${fP(level)} (${touches}× tested)`);
 
-      // Draw the level zone
-      _addMentorBox(fromBar, bar + 6, level - atr * 0.35, level + atr * 0.35,
-        dir === 'long' ? `🟢 Support: ${fP(level)} (${allTests.length}× tested)` : `🔴 Resistance: ${fP(level)} (${allTests.length}× tested)`);
+        // 2. Find each historical touch of this level and mark it
+        const fullHistory = curData.slice(Math.max(0, bar - 40), bar + 1);
+        let testCount = 0;
+        fullHistory.forEach((candle, i) => {
+          const actualBar = Math.max(0, bar - 40) + i;
+          if (actualBar >= bar) return; // skip current bar
+          const touchDist = dir === 'long'
+            ? Math.abs(candle.low - level)
+            : Math.abs(candle.high - level);
+          if (touchDist < atr * 0.6) {
+            testCount++;
+            _addMentorArrow(actualBar, dir === 'long' ? candle.low : candle.high,
+              `Test ${testCount}`, dir === 'long' ? 'up' : 'down', false);
+          }
+        });
 
-      // Arrow on each test — numbered so user understands the history
-      allTests.slice(-4).forEach((s, i) => {
-        const isLatest = i === allTests.slice(-4).length - 1;
-        _addMentorArrow(s.bar, s.price,
-          isLatest
-            ? (dir === 'long' ? `✅ Bounce here — enter` : `✅ Rejection — enter`)
-            : `Test ${i + 1}`,
-          dir === 'long' ? 'up' : 'down', isLatest);
-      });
+        // 3. Current candle reaction arrow
+        const c = curData[bar];
+        const wickSize = dir === 'long'
+          ? Math.max(0, Math.min(c.open, c.close) - c.low)
+          : Math.max(0, c.high - Math.max(c.open, c.close));
+        const bodySize = Math.abs(c.close - c.open) || 0.001;
 
-      // Wick quality label only if the wick is meaningful
-      const wickSize = dir === 'long'
-        ? c.low < Math.min(c.open, c.close) ? Math.min(c.open, c.close) - c.low : 0
-        : c.high > Math.max(c.open, c.close) ? c.high - Math.max(c.open, c.close) : 0;
-      const bodySize = Math.abs(c.close - c.open) || 0.001;
-      if (wickSize > 0) {
-        _addMentorLabel(bar, dir === 'long' ? c.high + atr * 0.5 : c.low - atr * 0.5, [
-          `Rejection wick: ${(wickSize / atr * 100).toFixed(0)}% of ATR`,
-          wickSize > bodySize ? `✅ Strong wick (${(wickSize / bodySize).toFixed(1)}×body) — good signal` : `⚠️ Weak wick — consider waiting`,
-        ]);
+        _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
+          wickSize > bodySize
+            ? (dir === 'long' ? '✅ Strong wick — rejection confirmed' : '✅ Strong wick — rejection confirmed')
+            : '📍 Reaction candle — wait for close confirmation',
+          dir === 'long' ? 'up' : 'down', true);
+
+        // 4. Wick quality label
+        if (wickSize > 0) {
+          _addMentorLabel(bar, dir === 'long' ? c.high + atr * 0.6 : c.low - atr * 0.6, [
+            `Wick size: ${(wickSize / atr * 100).toFixed(0)}% of ATR`,
+            wickSize > bodySize
+              ? `✅ Wick ${(wickSize / bodySize).toFixed(1)}× body — strong signal`
+              : `⚠️ Wick ${(wickSize / bodySize).toFixed(1)}× body — weak, wait`,
+          ]);
+        }
+      } else {
+        _addMentorArrow(bar, curData[bar].close, `${dir === 'long' ? 'Support' : 'Resistance'} reaction`, 'down', true);
       }
       break;
     }
 
     case 'pullback': {
-      // Fib is measured from the most recent significant swing HIGH to LOW (for longs)
-      // that is NEAR the entry price — not the extreme of the whole window
-      const relevantHighs = swingHighs.filter(s => s.price > actualEntry - atr * 5);
-      const relevantLows  = swingLows.filter(s => s.price < actualEntry + atr * 5);
+      const pb = detectTrendPullback(data, structure);
 
-      const fibTop = dir === 'long'
-        ? (relevantHighs.length ? relevantHighs.reduce((a, b) => b.bar > a.bar ? b : a) : { bar: fromBar, price: Math.max(...history.map(h => h.high)) })
-        : (relevantLows.length  ? relevantLows.reduce((a, b)  => b.bar > a.bar ? b : a) : { bar: fromBar, price: Math.min(...history.map(h => h.low)) });
+      if (pb.detected) {
+        // 1. EMA20 — the pullback target the detector actually checked
+        const ema20arr = calcEMA(data, 20);
+        const ema20    = ema20arr[ema20arr.length - 1];
+        const ema50arr = calcEMA(data, 50);
+        const ema50    = ema50arr[ema50arr.length - 1];
 
-      const fibBottom = dir === 'long'
-        ? (relevantLows.length  ? relevantLows.reduce((a, b)  => b.bar > a.bar ? b : a) : { bar: bar, price: c.low })
-        : (relevantHighs.length ? relevantHighs.reduce((a, b) => b.bar > a.bar ? b : a) : { bar: bar, price: c.high });
+        if (ema20) {
+          levelBox(ema20, `✅ EMA20: ${fP(ema20)} — price pulled back here`, 12);
+        }
+        if (ema50 && Math.abs(ema50 - ema20) < atr * 5) {
+          levelBox(ema50, `📊 EMA50: ${fP(ema50)} — trend anchor`, 12);
+        }
 
-      const fibRange = Math.abs(fibTop.price - fibBottom.price);
+        // 2. Retracement level the detector measured
+        const retraceLabel = `${(pb.retrace * 100).toFixed(0)}% retracement`;
+        const lookback     = data.slice(-25);
+        const swingHigh    = Math.max(...lookback.map(d => d.high));
+        const swingLow     = Math.min(...lookback.map(d => d.low));
+        const swingRange   = swingHigh - swingLow;
+        const fib382       = dir === 'long' ? swingHigh - swingRange * 0.382 : swingLow + swingRange * 0.382;
+        const fib618       = dir === 'long' ? swingHigh - swingRange * 0.618 : swingLow + swingRange * 0.618;
 
-      if (fibRange > atr * 0.5) {
-        const fib382 = dir === 'long' ? fibTop.price - fibRange * 0.382 : fibBottom.price + fibRange * 0.382;
-        const fib618 = dir === 'long' ? fibTop.price - fibRange * 0.618 : fibBottom.price + fibRange * 0.618;
+        // Fib zone box
+        _addMentorBox(Math.max(0, bar - 10), bar + 8,
+          Math.min(fib382, fib618), Math.max(fib382, fib618),
+          `📐 38–62% Fib zone (current: ${retraceLabel})`);
 
-        // Arrow at the swing high/low that defines the Fib
-        _addMentorArrow(fibTop.bar, fibTop.price,
-          dir === 'long' ? `📐 Swing high: ${fP(fibTop.price)}` : `📐 Swing low: ${fP(fibTop.price)}`,
+        // Mark the swing high/low that defines the Fib
+        const swingHighBar = data.slice(-25).reduce((best, d, i) => d.high === swingHigh ? i : best, 0);
+        const swingLowBar  = data.slice(-25).reduce((best, d, i) => d.low === swingLow ? i : best, 0);
+        const fibAnchorBar = Math.max(0, bar - 24) + (dir === 'long' ? swingHighBar : swingLowBar);
+
+        _addMentorArrow(fibAnchorBar,
+          dir === 'long' ? swingHigh : swingLow,
+          dir === 'long' ? `Swing high: ${fP(swingHigh)}` : `Swing low: ${fP(swingLow)}`,
           dir === 'long' ? 'down' : 'up', false);
 
-        // Box ONLY the 38–62% zone — keep it tight and readable
-        _addMentorBox(fibBottom.bar, bar + 8,
-          Math.min(fib382, fib618), Math.max(fib382, fib618),
-          `📐 38–62% Fib zone`);
-
-        // Arrow at the current bar showing price is in the zone
-        const inZone = dir === 'long'
-          ? (c.close >= Math.min(fib382, fib618) && c.close <= Math.max(fib382, fib618))
-          : (c.close >= Math.min(fib382, fib618) && c.close <= Math.max(fib382, fib618));
-
-        _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-          inZone ? `✅ Price in Fib zone — entry here` : `📍 Pullback approaching Fib zone`,
+        // 3. Volume confluence
+        _addMentorArrow(bar, dir === 'long' ? curData[bar].low : curData[bar].high,
+          pb.volContracting
+            ? `✅ Vol contracting — healthy pullback (${retraceLabel})`
+            : `📍 Pullback (${retraceLabel}) — vol not yet contracting`,
           dir === 'long' ? 'up' : 'down', true);
 
-        // Compact label with just the key Fib levels
-        _addMentorLabel(bar, dir === 'long' ? c.high + atr * 0.8 : c.low - atr * 0.8, [
-          `38.2% → ${fP(fib382)}`,
-          `61.8% → ${fP(fib618)}`,
-          inZone ? '✅ In the zone' : '⏳ Not yet in zone',
-        ]);
       } else {
-        _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-          '📍 Pullback entry zone', dir === 'long' ? 'up' : 'down', true);
+        _addMentorArrow(bar, curData[bar].close, 'Pullback zone', 'down', true);
       }
       break;
     }
 
     case 'range': {
-      // Use only swings within 5×ATR of current price to avoid irrelevant extremes
-      const nearHighs = swingHighs.filter(s => Math.abs(s.price - c.close) < atr * 8);
-      const nearLows  = swingLows.filter(s => Math.abs(s.price - c.close) < atr * 8);
-      const rangeHigh = nearHighs.length ? Math.max(...nearHighs.map(s => s.price)) : c.close + atr * 3;
-      const rangeLow  = nearLows.length  ? Math.min(...nearLows.map(s => s.price))  : c.close - atr * 3;
-      const midpoint  = (rangeHigh + rangeLow) / 2;
+      const conso = detectConsolidation(data);
+      if (conso.isConsolidating) {
+        const rangeHigh = conso.upper;
+        const rangeLow  = conso.lower;
+        const mid       = (rangeHigh + rangeLow) / 2;
 
-      _addMentorBox(fromBar, bar + 8, rangeLow, rangeHigh,
-        `📦 Range: ${fP(rangeLow)} – ${fP(rangeHigh)}`);
-      _addMentorBox(fromBar, bar + 8, midpoint - atr * 0.08, midpoint + atr * 0.08,
-        `Mid: ${fP(midpoint)}`);
+        _addMentorBox(Math.max(0, bar - 20), bar + 8, rangeLow, rangeHigh,
+          `📦 Range: ${fP(rangeLow)} – ${fP(rangeHigh)}`);
+        levelBox(mid, `Mid: ${fP(mid)}`, 8);
 
-      // Arrows on prior boundary tests near current price
-      const boundaryLevel = dir === 'long' ? rangeLow : rangeHigh;
-      const boundaryTests = (dir === 'long' ? nearLows : nearHighs)
-        .filter(s => Math.abs(s.price - boundaryLevel) < atr * 2).slice(-3);
-      boundaryTests.forEach((s, i) =>
-        _addMentorArrow(s.bar, s.price, `Test ${i + 1}`, dir === 'long' ? 'up' : 'down', i === boundaryTests.length - 1));
+        const boundary = dir === 'long' ? rangeLow : rangeHigh;
+        levelBox(boundary,
+          dir === 'long' ? `🟢 Range bottom: ${fP(boundary)}` : `🔴 Range top: ${fP(boundary)}`, 8);
 
-      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        dir === 'long' ? '🟢 Range bottom — buy zone' : '🔴 Range top — sell zone',
-        dir === 'long' ? 'up' : 'down', true);
+        _addMentorArrow(bar, dir === 'long' ? curData[bar].low : curData[bar].high,
+          dir === 'long' ? '📍 At range bottom — buy zone' : '📍 At range top — sell zone',
+          dir === 'long' ? 'up' : 'down', true);
+      }
       break;
     }
 
     case 'liquidity': {
-      // All liquidity annotations must be near the current price
-      const huntedLevel = dir === 'long'
-        ? (swingLows.filter(s => s.price < c.close).slice(-1)[0]?.price || c.close - atr * 3)
-        : (swingHighs.filter(s => s.price > c.close).slice(-1)[0]?.price || c.close + atr * 3);
-      const huntedBar = dir === 'long'
-        ? (swingLows.filter(s => s.price < c.close).slice(-1)[0]?.bar || fromBar)
-        : (swingHighs.filter(s => s.price > c.close).slice(-1)[0]?.bar || fromBar);
+      const sweep = detectLiquiditySweep(data);
+      if (sweep.detected) {
+        // 1. The level that was swept (actual computed value)
+        levelBox(sweep.sweepLevel,
+          dir === 'long'
+            ? `💧 Prior low swept: ${fP(sweep.sweepLevel)}`
+            : `💧 Prior high swept: ${fP(sweep.sweepLevel)}`, 8);
 
-      let sweepBar = bar;
-      for (let i = bar; i >= fromBar; i--) {
-        if (dir === 'long' && curData[i]?.low <= huntedLevel + atr * 0.3) { sweepBar = i; break; }
-        if (dir === 'short' && curData[i]?.high >= huntedLevel - atr * 0.3) { sweepBar = i; break; }
+        // 2. Sweep wick candle (2nd to last bar)
+        const sweepCandleBar = bar - 1;
+        if (sweepCandleBar >= 0) {
+          const sc = curData[sweepCandleBar];
+          _addMentorArrow(sweepCandleBar, dir === 'long' ? sc.low : sc.high,
+            `2️⃣ Stop hunt wick (${fP(dir === 'long' ? sc.low : sc.high)})`,
+            dir === 'long' ? 'up' : 'down', false);
+        }
+
+        // 3. Displacement candle (current bar)
+        _addMentorArrow(bar, curData[bar].close,
+          `3️⃣ Displacement — enter next open`,
+          dir === 'long' ? 'down' : 'up', true);
+
+        _addMentorLabel(bar, dir === 'long' ? curData[bar].high + atr : curData[bar].low - atr, [
+          `1️⃣ Stops sat below ${fP(sweep.sweepLevel)}`,
+          `2️⃣ Wick swept them (${fP(sweep.wickDepth?.toFixed(2) || 0)} deep)`,
+          `3️⃣ Strong close = institutional entry`,
+        ]);
       }
-      const sweepC = curData[sweepBar] || c;
-
-      _addMentorBox(huntedBar, sweepBar,
-        huntedLevel - atr * 0.3, huntedLevel + atr * 0.3,
-        dir === 'long' ? `💧 Stop cluster: ${fP(huntedLevel)}` : `💧 Stop cluster: ${fP(huntedLevel)}`);
-
-      _addMentorArrow(huntedBar, huntedLevel,
-        `1️⃣ Stops sitting here`, dir === 'long' ? 'up' : 'down', false);
-
-      _addMentorArrow(sweepBar, dir === 'long' ? sweepC.low : sweepC.high,
-        `2️⃣ Wick swept the stops`, dir === 'long' ? 'up' : 'down', false);
-
-      _addMentorArrow(bar, c.close,
-        `3️⃣ Displacement — now enter`, dir === 'long' ? 'down' : 'up', true);
-
-      _addMentorLabel(bar, dir === 'long' ? c.high + atr : c.low - atr, [
-        'Stops swept → smart money entered',
-        '📍 Entry: open of next candle',
-      ]);
       break;
     }
 
-    default: {
-      _addMentorArrow(bar, dir === 'long' ? c.low : c.high,
-        'Setup detected here', dir === 'long' ? 'up' : 'down', true);
-    }
+    default:
+      _addMentorArrow(bar, curData[bar].close, 'Setup here', 'down', true);
   }
 }
-
 function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
