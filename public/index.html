@@ -5653,9 +5653,16 @@ function monitorExampleTrade(currentBar) {
     return;
   }
 
-  // ── Entry bar reached ────────────────────────────────────────────────────
+  // ── Entry bar reached — NOW draw the trade tool ─────────────────────────
   if (trade.pendingEntry) {
     trade.pendingEntry = false;
+
+    // Draw the Long/Short tool at the actual entry moment — not before
+    // This keeps the chart clean until price actually arrives at the entry
+    if (!mentorState.exampleTradeDrawingId) {
+      drawExampleTrade(trade);
+    }
+
     const dirLabel = trade.direction === 'long' ? 'LONG' : 'SHORT';
     mentorState.tradeMonitoringUpdates = [
       `✅ Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
@@ -10078,17 +10085,21 @@ function mentorShowMeTrade() {
     pendingEntry: replayCutoff < entryBar,
   };
 
-  // ── Draw the trade tool NOW — this is the first time it appears on the chart ──
-  // Historical setup annotations are already showing (placed at pause time).
-  // Clear scroll freeze so the chart can reposition around the trade.
+  // ── Store trade data but don't draw the tool yet ────────────────────────────
+  // The Long/Short tool will only appear when price actually reaches the entry bar.
+  // Until then, only the setup annotations are visible — no cluttered future tool.
   mentorState._freezeScrollForPreview = false;
-  drawExampleTrade(exampleTrade);
-
   mentorState.exampleTrade       = exampleTrade;
-  mentorState.exampleTradeActive = true;   // monitoring runs every step
+  mentorState.exampleTradeActive = true;
   mentorState.tradeMonitoringUpdates = [];
   mentorState.pendingSetupDetection  = null;
   mentorState.pendingSetupBar        = null;
+
+  // Draw immediately only if we're already AT or PAST the entry bar
+  if (replayCutoff >= entryBar) {
+    drawExampleTrade(exampleTrade);
+  }
+  // Otherwise it will be drawn by monitorExampleTrade when entryBar is reached
 
   // ── Show immediate placeholder, fetch AI explanation async ─────────────────
   const dirLabel  = direction === 'long' ? 'LONG' : 'SHORT';
@@ -10097,12 +10108,12 @@ function mentorShowMeTrade() {
   const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
 
   mentorState.lockedInsights = [
-    `${dirEmoji} AI has drawn the ${dirLabel} trade levels on the chart`,
-    `🎯 Entry: ${entryPrice.toFixed(4)} | 🛡️ SL: ${stopLoss.toFixed(4)} | 🏆 TP: ${takeProfit.toFixed(4)}`,
-    `📊 R:R ${rrLabel}:1`,
-    `👀 Look at the chart — the entry line is ahead of the current bar`,
+    `${dirEmoji} ${dirLabel} setup confirmed — trade will enter at ${fP(entryPrice)}`,
+    `📊 R:R ${rrLabel}:1 | 🛡️ SL: ${fP(stopLoss)} | 🏆 TP: ${fP(takeProfit)}`,
+    `⏳ The Long/Short tool will appear on the chart the moment price reaches the entry candle`,
+    `👀 Watch the annotations — they show exactly why this trade is valid`,
   ];
-  mentorState.lockedQuestion  = '▶ Press Space or the Play button to watch the candles approach the entry';
+  mentorState.lockedQuestion  = '▶ Press Space to play — the trade tool appears when price arrives at the entry';
   mentorState.messageLocked   = true;
   mentorState.lockedMessage   = 'ai_trade_pending';
 
