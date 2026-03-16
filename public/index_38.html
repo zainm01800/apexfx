@@ -8638,51 +8638,19 @@ function handleSetupDetectedState(currentBar) {
 
     if (replayMode) pauseReplayForSetup();
 
-    // ── Draw trade tool at FUTURE entry bar + annotate historical setup context ──
-    // The trade tool shows WHERE the entry will be (it's in the future, not reached).
-    // The annotations look BACK into the chart showing WHY the setup is valid.
+    // ── Annotate historical setup context only — NO trade tool yet ──────────
+    // The trade tool is drawn when the user clicks "Show Me The Trade".
+    // Here we only show the chart annotations explaining WHY the setup is valid.
     setTimeout(() => {
-      // Step 1: draw the Long/Short tool at the future entry bar so user can see
-      // the planned levels before the candle arrives
-      const prevTradeId = mentorState.exampleTradeDrawingId;
-      if (prevTradeId) {
-        drawings = drawings.filter(d => d.id !== prevTradeId);
-        mentorState.exampleTradeDrawingId = null;
-      }
-      // halfBars controls how wide the trade box is drawn.
-      // We want it to visually extend from roughly the current bar to well past the entry,
-      // so the user clearly sees it's in the future. Use barsUntilSetup + 20.
-      const previewHalfBars = barsUntilSetup + 20;
-
-      const previewTrade = {
-        type:        setupData.setup,
-        direction:   setupData.direction || 'long',
-        entry:       entryPrice,
-        stopLoss:    prelevels.stopLoss,
-        takeProfit:  prelevels.takeProfit,
-        riskReward:  prelevels.rr,
-        timestamp:   entryBar,
-        barIndex:    entryBar,
-        isExample:   true,
-        isAIPlaced:  true,
-        futureDataUsed: true,
-        pendingEntry: true,
-        halfBars:    previewHalfBars,
-        halfDuration: halfBarsToSecs(previewHalfBars, curTF),
-      };
-      mentorState._previewTrade = previewTrade;
-      drawExampleTrade(previewTrade);
-
-      // Step 2: Freeze scroll so _replayScrollToBar can't override our view,
-      // then scroll to show: [history context] ... [current bar] ... [entry bar] ... [space]
+      // Freeze scroll so the view stays stable while user reads the briefing
       mentorState._freezeScrollForPreview = true;
       const mc = document.getElementById('main-canvas');
       const visibleBars = mc ? mc.width / barWidth : 100;
-      // Put the entry bar at ~70% across the screen so there's history on the left
-      // and visible space on the right to see the trade box
+      // Position so the entry bar is visible to the right — user can see where
+      // price is heading without the trade tool being placed yet
       rightBarIndex = Math.round(entryBar + visibleBars * 0.30);
 
-      // Step 3: annotate history
+      // Annotate the historical setup context (why the setup is valid)
       _mentorAnnotateSetup(setupData, currentBar, setupBar);
       draw();
     }, 80);
@@ -10022,13 +9990,10 @@ function mentorShowMeTrade() {
     pendingEntry: replayCutoff < entryBar,
   };
 
-  // ── The trade tool was already drawn as a preview during the early warning ──
-  // If the preview drawing exists, remove it and redraw with the finalised levels.
-  // The historical setup annotations are KEPT — don't clear them.
-  if (mentorState.exampleTradeDrawingId) {
-    drawings = drawings.filter(d => d.id !== mentorState.exampleTradeDrawingId);
-    mentorState.exampleTradeDrawingId = null;
-  }
+  // ── Draw the trade tool NOW — this is the first time it appears on the chart ──
+  // Historical setup annotations are already showing (placed at pause time).
+  // Clear scroll freeze so the chart can reposition around the trade.
+  mentorState._freezeScrollForPreview = false;
   drawExampleTrade(exampleTrade);
 
   mentorState.exampleTrade       = exampleTrade;
@@ -10100,12 +10065,9 @@ function mentorLetMeTry() {
   
   const setupBar = mentorState.pendingSetupBar;
 
-  // Remove the preview trade tool (don't want to give it away)
-  // but KEEP the setup annotations — they help the user understand the trade
-  if (mentorState.exampleTradeDrawingId) {
-    drawings = drawings.filter(d => d.id !== mentorState.exampleTradeDrawingId);
-    mentorState.exampleTradeDrawingId = null;
-  }
+  // No preview trade to remove (it's never drawn until "Show Me The Trade" is clicked).
+  // Setup annotations stay on screen to help user understand the setup context.
+  mentorState._freezeScrollForPreview = false;
 
   // Advance replay to the setup bar so user can place their trade
   if (setupBar > replayCutoff) {
