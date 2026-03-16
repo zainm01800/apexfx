@@ -12705,6 +12705,16 @@ function _mentorPriorityScore(d) {
   return s;
 }
 
+function _mentorLabelKeyForMerge(d, win) {
+  if (!d || !win) return null;
+  const price = d.price != null ? d.price : (d.priceLow + d.priceHigh) / 2;
+  if (!Number.isFinite(price)) return null;
+  const band = (win.visHi - win.visLo) || (Math.abs(price) * 0.01) || 1;
+  const step = band / 120;
+  const bucket = Math.round(price / step) * step;
+  return bucket.toFixed(4);
+}
+
 function _mentorDrawingInVisibleWindow(d, win) {
   if (!d || !win) return false;
   const barIn = b => Number.isFinite(b) && b >= win.firstBar && b <= win.lastBar;
@@ -12761,7 +12771,10 @@ function _mentorEstimateLabelRect(d, win) {
   const boxW = Math.min(260, longest * 6.2 + 20); // rough text width
   const boxH = Math.min(160, lines.length * 15 + 12);
   const bxOff = barWidth * 1.5;
-  const lbx = x + bxOff;
+  let lbx = x + bxOff;
+  // Prefer labels in the gutter next to the price scale so they don't cover candles.
+  const gutterLeft = win.W - (typeof R_PANEL_OFFSET === 'number' ? R_PANEL_OFFSET : 0) - boxW - 6;
+  if (lbx < gutterLeft) lbx = gutterLeft;
   const lby = y - boxH / 2;
   return { x: lbx, y: lby, w: boxW, h: boxH };
 }
@@ -12775,30 +12788,27 @@ function _mentorResolveLabelOverlaps(mentorDrawings, win) {
   const labels = mentorDrawings.filter(d => d.type === 'mentor_label');
   if (labels.length < 2) return;
 
-  // Keep labels close to their anchor; shift a few bars left/right if needed.
+  // Keep labels close to their anchor; shift vertically for stacking and
+  // a few bars left/right if needed.
   const maxShiftBars = 6;
   const placed = [];
+  const margin = 6; // minimum spacing between label boxes
 
-  // Place higher-priority labels first, so lower-priority ones move.
+  // Place higher-priority labels first, so higher-importance labels move less.
   labels.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
 
   for (const d of labels) {
     _mentorClampToVisiblePrice(d, win);
     let rect = _mentorEstimateLabelRect(d, win);
     if (!rect) continue;
+    // Inflate rect slightly for min-spacing rule.
+    rect = { x: rect.x - margin, y: rect.y - margin, w: rect.w + margin * 2, h: rect.h + margin * 2 };
 
-    // If label box goes off the right edge, shift anchor left.
-    const chartRight = win.W - (typeof R_PANEL_OFFSET === 'number' ? R_PANEL_OFFSET : 0);
-    if (rect.x + rect.w > chartRight - 6) {
-      const barsLeft = Math.ceil((rect.x + rect.w - (chartRight - 6)) / Math.max(1, barWidth));
-      d.bar = Math.max(win.firstBar, d.bar - barsLeft);
-      rect = _mentorEstimateLabelRect(d, win);
-    }
-
-    // If label box goes off the top/bottom, clamp price.
+    // If label box goes off the top/bottom, clamp price slightly inside and re-evaluate.
     if (rect.y < 6 || rect.y + rect.h > win.H - 6) {
       d.price = Math.max(win.visLo, Math.min(win.visHi, d.price));
-      rect = _mentorEstimateLabelRect(d, win);
+      const r2 = _mentorEstimateLabelRect(d, win);
+      if (r2) rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
     }
 
     let ok = true;
@@ -12807,16 +12817,35 @@ function _mentorResolveLabelOverlaps(mentorDrawings, win) {
     }
     if (ok) { placed.push({ d, rect }); continue; }
 
-    // Try bar shifts alternating left/right.
+    // Smart stacking: if labels share the same price bucket, nudge vertically.
+    const key = _mentorLabelKeyForMerge(d, win);
+    if (!ok && key != null) {
+      const siblings = placed.filter(p => _mentorLabelKeyForMerge(p.d, win) === key);
+      if (siblings.length) {
+        const stackIndex = siblings.length;
+        const step = (win.visHi - win.visLo) * 0.012;
+        d.price += step * (stackIndex % 2 === 0 ? stackIndex : -stackIndex);
+        const r2 = _mentorEstimateLabelRect(d, win);
+        if (r2) {
+          rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
+          ok = true;
+          for (const p of placed) {
+            if (_rectsOverlap(rect, p.rect)) { ok = false; break; }
+          }
+        }
+      }
+    }
+
+    // Try bar shifts alternating left/right as a last resort.
     const baseBar = d.bar;
     for (let s = 1; s <= maxShiftBars; s++) {
       for (const sign of [-1, 1]) {
         const nb = Math.max(win.firstBar, Math.min(win.lastBar, baseBar + sign * s));
         if (nb === d.bar) continue;
         d.bar = nb;
-        rect = _mentorEstimateLabelRect(d, win);
-        if (!rect) continue;
-        if (rect.x + rect.w > chartRight - 6) continue;
+        const r2 = _mentorEstimateLabelRect(d, win);
+        if (!r2) continue;
+        rect = { x: r2.x - margin, y: r2.y - margin, w: r2.w + margin * 2, h: r2.h + margin * 2 };
         let hit = false;
         for (const p of placed) {
           if (_rectsOverlap(rect, p.rect)) { hit = true; break; }
@@ -12837,14 +12866,93 @@ function _mentorPostProcessAnnotations({ maxPerSetup = 5 } = {}) {
   let mentorDrawings = drawings.filter(d => d && d.isMentorAnnotation);
   if (!mentorDrawings.length) return;
 
+  // ── Zone cleanup: merge overlapping mentor_box zones into a single clean zone.
+  const boxes = mentorDrawings.filter(d => d.type === 'mentor_box');
+  const others = mentorDrawings.filter(d => d.type !== 'mentor_box');
+  const mergedBoxes = [];
+  for (const box of boxes) {
+    let merged = { ...box };
+    for (let i = 0; i < mergedBoxes.length; i++) {
+      const b = mergedBoxes[i];
+      const b1a = Math.min(b.bar1, b.bar2), b2a = Math.max(b.bar1, b.bar2);
+      const b1b = Math.min(merged.bar1, merged.bar2), b2b = Math.max(merged.bar1, merged.bar2);
+      const barOverlap = b2a >= b1b && b2b >= b1a;
+      const lowA = Math.min(b.priceLow, b.priceHigh);
+      const highA = Math.max(b.priceLow, b.priceHigh);
+      const lowB = Math.min(merged.priceLow, merged.priceHigh);
+      const highB = Math.max(merged.priceLow, merged.priceHigh);
+      const priceOverlap = highA >= lowB && highB >= lowA;
+      if (barOverlap && priceOverlap) {
+        const newBar1 = Math.min(b1a, b1b);
+        const newBar2 = Math.max(b2a, b2b);
+        const newLow = Math.min(lowA, lowB);
+        const newHigh = Math.max(highA, highB);
+        const labelA = String(b.label || '').trim();
+        const labelB = String(merged.label || '').trim();
+        const mergedLabel = labelA && labelB && labelA !== labelB
+          ? `${labelA} + ${labelB}`
+          : (labelA || labelB);
+        merged = {
+          ...merged,
+          bar1: newBar1,
+          bar2: newBar2,
+          priceLow: newLow,
+          priceHigh: newHigh,
+          label: mergedLabel,
+        };
+        mergedBoxes.splice(i, 1);
+        i = -1;
+      }
+    }
+    mergedBoxes.push(merged);
+  }
+  mentorDrawings = [...others, ...mergedBoxes];
+
   // Drop anything not anchored to visible chart data / outside visible price range.
   mentorDrawings = mentorDrawings
     .filter(d => _mentorDrawingInVisibleWindow(d, win))
     .map(d => _mentorClampToVisiblePrice(d, win));
 
-  // Enforce clutter limit using universal hierarchy scoring.
+  // ── Merge related labels at the same price level (e.g. "Key Level" + "EMA Confluence").
+  const labels = mentorDrawings.filter(d => d.type === 'mentor_label');
+  const nonLabels = mentorDrawings.filter(d => d.type !== 'mentor_label');
+  const labelBuckets = new Map();
+  labels.forEach(d => {
+    const key = _mentorLabelKeyForMerge(d, win);
+    if (key == null) return;
+    if (!labelBuckets.has(key)) labelBuckets.set(key, []);
+    labelBuckets.get(key).push(d);
+  });
+  const mergedLabels = [];
+  for (const group of labelBuckets.values()) {
+    if (!group.length) continue;
+    group.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
+    const base = { ...group[0] };
+    const pieces = [];
+    group.forEach(g => {
+      const txt = String(g.label || '').trim();
+      if (!txt) return;
+      if (!pieces.includes(txt)) pieces.push(txt);
+    });
+    base.label = pieces.join(' + ');
+    mergedLabels.push(base);
+  }
+  mentorDrawings = [...nonLabels, ...mergedLabels];
+
+  // Enforce clutter limit using universal hierarchy scoring (max visible labels).
   mentorDrawings.sort((a, b) => _mentorPriorityScore(b) - _mentorPriorityScore(a));
-  mentorDrawings = mentorDrawings.slice(0, Math.max(0, maxPerSetup));
+  const kept = [];
+  let labelCount = 0;
+  for (const d of mentorDrawings) {
+    if (d.type === 'mentor_label') {
+      if (labelCount >= maxPerSetup) continue;
+      labelCount++;
+      kept.push(d);
+    } else {
+      kept.push(d);
+    }
+  }
+  mentorDrawings = kept;
 
   // Avoid overlaps for explanatory callouts.
   _mentorResolveLabelOverlaps(mentorDrawings, win);
