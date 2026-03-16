@@ -5077,6 +5077,8 @@ function replayTogglePlay(){
     replayTimer = null;
     updateReplayStatus(); draw(); toast('⏸ Paused');
   } else {
+    // Clear freeze so scroll follows replay naturally once user presses play
+    mentorState._freezeScrollForPreview = false;
     // Check if already at the end
     if(replayCutoff >= curData.length - 1) {
       toast('⏹ Already at end — Esc to exit');
@@ -5469,23 +5471,24 @@ function updateLockedMentorUI() {
     displayContent.push(...mentorState.realtimeUpdates);
   }
   
-  // Add trade monitoring updates if example trade is active
-  if (mentorState.exampleTradeActive && mentorState.tradeMonitoringUpdates.length > 0) {
-    displayContent.push('');
-    displayContent.push('Trade Monitoring:');
-    displayContent.push(...mentorState.tradeMonitoringUpdates);
-  }
-  
-  // Render each line as its own block with spacing — AI responses use blank
-  // lines as separators between bullet points, which need visual gaps not just \n
+  // Render main insights
   insightsEl.innerHTML = displayContent
     .map(line => {
       if (!line || !line.trim()) return '<div style="height:6px;"></div>';
-      // Detect monitoring update lines (start with • or ⏳ etc)
-      const isUpdate = /^[•⏳🔔⚡🎯✅⚠️🔴📈📉]/.test(line.trim());
-      return `<div style="margin-bottom:${isUpdate ? '4' : '8'}px;line-height:1.45;color:${isUpdate ? 'var(--tx3)' : 'var(--tx2)'};font-size:11px;">${line.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+      return `<div style="margin-bottom:8px;line-height:1.5;color:var(--tx2);font-size:11px;">${line.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
     })
     .join('');
+
+  // Append live trade monitoring updates in a distinct section
+  if (mentorState.exampleTradeActive && mentorState.tradeMonitoringUpdates.length > 0) {
+    insightsEl.innerHTML += `
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1);">
+        <div style="color:var(--amber);font-size:10px;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;">📊 LIVE TRADE</div>
+        ${mentorState.tradeMonitoringUpdates.map(u =>
+          `<div style="margin-bottom:5px;line-height:1.4;color:var(--tx3);font-size:11px;">${u.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+        ).join('')}
+      </div>`;
+  }
   questionEl.textContent = mentorState.lockedQuestion;
   
   // Show appropriate controls based on state
@@ -10029,11 +10032,12 @@ function mentorShowMeTrade() {
   const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
 
   mentorState.lockedInsights = [
-    `${dirEmoji} AI placing ${dirLabel} trade on ${setupName} setup...`,
+    `${dirEmoji} AI has drawn the ${dirLabel} trade levels on the chart`,
     `🎯 Entry: ${entryPrice.toFixed(4)} | 🛡️ SL: ${stopLoss.toFixed(4)} | 🏆 TP: ${takeProfit.toFixed(4)}`,
-    `📊 R:R ${rrLabel}:1 — Watch the candle arrive at the entry line`,
+    `📊 R:R ${rrLabel}:1`,
+    `👀 Look at the chart — the entry line is ahead of the current bar`,
   ];
-  mentorState.lockedQuestion  = '▶ Replay running — analysis loading...';
+  mentorState.lockedQuestion  = '▶ Press Space or the Play button to watch the candles approach the entry';
   mentorState.messageLocked   = true;
   mentorState.lockedMessage   = 'ai_trade_pending';
 
@@ -10043,12 +10047,13 @@ function mentorShowMeTrade() {
   if (complCtrl) complCtrl.style.display = 'none';
 
   mentorState.lifecycleState    = 'trade_monitoring';
-  mentorState.setupPausedReplay = false;
+  mentorState.setupPausedReplay = true; // keep paused — user presses Space to watch
 
   updateLockedMentorUI();
 
-  // Auto-play immediately
-  resumeReplayAfterSetup(true);
+  // Don't auto-play — leave replay paused so user can see the trade levels drawn
+  // on the chart before the candles arrive. They press Space/Play to continue.
+  toast('▶ Trade levels drawn — press Space to watch the entry play out');
 
   // Fetch AI trade placement explanation — update panel when ready
   _mentorAITradePlacement(exampleTrade, entryBar).then(analysis => {
