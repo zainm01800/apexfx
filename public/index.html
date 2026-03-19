@@ -707,6 +707,26 @@
 
     <!-- AI tab -->
     <div class="rp-body on" id="rp-ai">
+      <div class="sec-title">LIVE AI COPILOT</div>
+      <div style="margin:4px 6px 8px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--b1);">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--tx);">Chart-aware market briefing</div>
+            <div id="ai-copilot-status" style="font-size:10px;color:var(--tx3);margin-top:3px;">Reading the current chart…</div>
+          </div>
+          <button id="ai-copilot-refresh" onclick="refreshLiveCopilot(true)" style="padding:4px 10px;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.22);color:var(--bl);font-size:10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Refresh</button>
+        </div>
+        <div id="ai-copilot-brief" style="padding:12px;font-size:11px;color:var(--tx2);line-height:1.65;"></div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-changes" style="display:grid;gap:8px;"></div>
+        </div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-actions" style="display:grid;gap:8px;"></div>
+        </div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-ai" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;font-size:11px;color:var(--tx2);line-height:1.65;">Generating deeper chart explanation…</div>
+        </div>
+      </div>
       <div class="sec-title">PATTERN RECOGNITION</div>
       <div id="ai-patterns"></div>
       <div class="sec-title" style="margin-top:4px;">SUPPORT / RESISTANCE</div>
