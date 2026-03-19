@@ -4258,7 +4258,8 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
 
   // ── Step 1: Structural SL from the last 10 bars of history ───────────────
   // Find the nearest significant swing low (for longs) or swing high (for shorts)
-  // within the last 10 bars. Cap at 1.5×ATR so the stop is never absurdly wide.
+  // within the last 10 bars. Cap at 2.0×ATR — wide enough to respect real structure
+  // (the validator's 2.5×ATR upper limit provides the outer bound).
   let structuralStop = null;
   const lookback = Math.min(10, barIndex);
   if (curData && barIndex >= lookback) {
@@ -4267,10 +4268,10 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
       for (let k = barIndex - lookback; k <= barIndex; k++) {
         if (curData[k] && curData[k].low < swingLow) swingLow = curData[k].low;
       }
-      // SL just below the swing low — but cap at 1.5×ATR from entry
+      // SL just below the swing low — cap at 2.0×ATR to stay practical
       structuralStop = swingLow * 0.999;
-      if (entryPrice - structuralStop > atr * 1.5) {
-        structuralStop = entryPrice - atr * 1.5;
+      if (entryPrice - structuralStop > atr * 2.0) {
+        structuralStop = entryPrice - atr * 2.0;
       }
     } else {
       let swingHigh = entryPrice;
@@ -4278,8 +4279,8 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
         if (curData[k] && curData[k].high > swingHigh) swingHigh = curData[k].high;
       }
       structuralStop = swingHigh * 1.001;
-      if (structuralStop - entryPrice > atr * 1.5) {
-        structuralStop = entryPrice + atr * 1.5;
+      if (structuralStop - entryPrice > atr * 2.0) {
+        structuralStop = entryPrice + atr * 2.0;
       }
     }
   }
@@ -4294,10 +4295,11 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
   const riskDistance = Math.abs(entryPrice - stopLoss);
   if (riskDistance < 0.0001) return null;
 
-  // ── Step 2: TP = first future close that hits ≥1.5:1 R:R ─────────────────
+  // ── Step 2: TP = first future close that hits ≥2.5:1 R:R ─────────────────
   // Walk future candles and find the first close that achieves the target.
-  // If 1.5:1 is never reached, try 1.2:1, then 1:1 as absolute minimum.
-  const minRRLevels = [1.5, 1.2, 1.0];
+  // Aim for 2.5:1, fall back to 2:1, then 1.5:1 as the absolute minimum.
+  // Anything below 1.5:1 is rejected — fees + spread make it unprofitable.
+  const minRRLevels = [2.5, 2.0, 1.5];
   let takeProfit = null;
 
   for (const minRR of minRRLevels) {
@@ -4878,6 +4880,20 @@ function mentorNormalizeTrade(setupDetection, barIndex, fullData) {
     );
   }
 
+  // freshnessScore input: how far price has already run in setup direction over last 5 bars
+  let priceRunup = 0;
+  if (entryPrice && atr > 0 && fullData && barIndex >= 5) {
+    const lookback = fullData.slice(Math.max(0, barIndex - 5), barIndex);
+    const dir = setupDetection.direction || 'long';
+    if (dir === 'long') {
+      const recentLow = Math.min(...lookback.map(b => b.low));
+      priceRunup = (entryPrice - recentLow) / atr;
+    } else {
+      const recentHigh = Math.max(...lookback.map(b => b.high));
+      priceRunup = (recentHigh - entryPrice) / atr;
+    }
+  }
+
   return {
     direction:     setupDetection.direction || 'long',
     setup:         setupDetection.setup     || 'none',
@@ -4892,6 +4908,7 @@ function mentorNormalizeTrade(setupDetection, barIndex, fullData) {
     rr:            levels ? levels.rr           : null,
     riskDistance:  levels ? levels.riskDistance : null,
     levels,
+    priceRunup,
     method: mentorState.selectedTradingMethod || 'none',
   };
 }
@@ -4959,7 +4976,7 @@ function mentorValidateTrade(trade) {
 }
 
 function mentorScoreTrade(trade) {
-  const { rr, confluence, quality, riskDistance, atr } = trade;
+  const { rr, confluence, quality, riskDistance, atr, priceRunup } = trade;
 
   // rrScore: 0 at <1:1, scales to 100 at 4:1+
   let rrScore = 0;
@@ -4988,11 +5005,22 @@ function mentorScoreTrade(trade) {
     else                            timingScore = 25;
   }
 
+  // freshnessScore: penalises entries where price already ran far before setup bar
+  // priceRunup = ATR-normalised move in setup direction over last 5 bars
+  let freshnessScore = 75; // neutral default when data unavailable
+  if (priceRunup !== undefined && atr > 0) {
+    if      (priceRunup <  0.5) freshnessScore = 100; // very fresh entry
+    else if (priceRunup <  1.0) freshnessScore = 75;  // acceptable
+    else if (priceRunup <  1.5) freshnessScore = 50;  // slightly late
+    else                        freshnessScore = 0;   // chased
+  }
+
   const qualityScore = Math.round(
-    rrScore         * 0.35 +
-    confluenceScore * 0.30 +
+    rrScore         * 0.30 +
+    confluenceScore * 0.25 +
     structureScore  * 0.20 +
-    timingScore     * 0.15
+    timingScore     * 0.20 +
+    freshnessScore  * 0.05
   );
 
   return {
@@ -5001,6 +5029,7 @@ function mentorScoreTrade(trade) {
     confluenceScore: Math.round(confluenceScore),
     structureScore:  Math.round(structureScore),
     timingScore:     Math.round(timingScore),
+    freshnessScore:  Math.round(freshnessScore),
   };
 }
 
@@ -5064,7 +5093,7 @@ function runMentorValidatorPass1(setupDetection, barIndex, fullData) {
   const trade      = mentorNormalizeTrade(setupDetection, barIndex, fullData);
   const mode       = mentorDetectMode(trade);
   const validation = mentorValidateTrade(trade);
-  const scores     = validation.valid ? mentorScoreTrade(trade) : { qualityScore: 0, rrScore: 0, confluenceScore: 0, structureScore: 0, timingScore: 0 };
+  const scores     = validation.valid ? mentorScoreTrade(trade) : { qualityScore: 0, rrScore: 0, confluenceScore: 0, structureScore: 0, timingScore: 0, freshnessScore: 0 };
   const verdict    = mentorGenerateVerdict(trade, validation, scores);
 
   return {
@@ -5775,6 +5804,19 @@ function _isCrypto() {
   return !!(curSym && curSym.t === 'Crypto');
 }
 
+// Price-relative round number check.
+// Instead of fixed modulo ($1000, $100, $10) which fails at all price scales,
+// we compute the nearest "significant round" as a % of price magnitude.
+// e.g. BTC $70k → nearest $5k multiple; ETH $3k → nearest $250; DOGE $0.12 → nearest $0.05
+function _isPriceRelativeRound(price) {
+  if (!price || price <= 0) return false;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(price)));
+  // Test multiples of 0.5×, 1×, 2×, 5× the magnitude
+  const candidates = [magnitude * 0.5, magnitude, magnitude * 2, magnitude * 5];
+  // A level is "round" if it's within 0.5% of any candidate round number
+  return candidates.some(round => round > 0 && Math.abs(price - Math.round(price / round) * round) / price < 0.005);
+}
+
 // ══ METHODOLOGY-STRICT DETECTION FUNCTIONS ══════════════════════════════════════════════════
 // Each function enforces the real criteria from the trading methodology document.
 // Strict criteria replace the 80-candle cooldown — bad setups are rejected here, not timed out.
@@ -5995,9 +6037,10 @@ function calculateSupportConfluence(support, structure) {
   let c = 1;
   if (support.touches >= 3) c++;
   if (structure && structure.trend && structure.trend.includes('up')) c++;
-  // Crypto: extra confluence for round-number proximity (very significant in crypto)
+  // Crypto: extra confluence for round-number proximity.
+  // Threshold scales with price so $70k BTC uses the same logic as $0.50 altcoins.
   const level = support.supportLevel || 0;
-  const isRoundNumber = level > 0 && (level % 1000 < 50 || level % 100 < 5 || level % 10 < 1);
+  const isRoundNumber = level > 0 && _isPriceRelativeRound(level);
   if (crypto && isRoundNumber) c++;
   else if (support.touches >= 4) c++;
   return Math.min(c, 4);
@@ -6062,7 +6105,7 @@ function calculateResistanceConfluence(resistance, structure) {
   if (resistance.touches >= 3) c++;
   if (structure && structure.trend && structure.trend.includes('down')) c++;
   const level = resistance.resistanceLevel || 0;
-  const isRoundNumber = level > 0 && (level % 1000 < 50 || level % 100 < 5 || level % 10 < 1);
+  const isRoundNumber = level > 0 && _isPriceRelativeRound(level);
   if (crypto && isRoundNumber) c++;
   else if (resistance.touches >= 4) c++;
   return Math.min(c, 4);
@@ -6090,13 +6133,16 @@ function detectTrendPullback(data, structure) {
   const minRetrace = crypto ? 0.25 : 0.30;
   if (retrace < minRetrace || retrace > 0.65) return { detected: false };
 
+  const atr  = _atrRaw(data, 14);
+  if (!atr) return { detected: false };
   const ema20 = _ema(data, 20);
   if (!ema20) return { detected: false };
 
-  // EMA zone: price must be touching or slightly past the EMA (within 1.2% not 2.5%)
-  // 2.5% was too loose — bars miles away from EMA were qualifying
-  const emaZoneTol = crypto ? 0.015 : 0.010;
-  const emaInZone  = Math.abs(current.close - ema20) / ema20 < emaZoneTol;
+  // EMA zone: ATR-based tolerance adapts to current volatility rather than % of price.
+  // When the market is quiet (low ATR), the zone is tighter — catches only real EMA tests.
+  // When volatile (high ATR), the zone widens naturally so valid pullbacks aren't missed.
+  const emaZoneTol = crypto ? atr * 0.5 : atr * 0.4;
+  const emaInZone  = Math.abs(current.close - ema20) < emaZoneTol;
   // Also accept if price wicked through EMA (low < ema20 < close for longs)
   const wickedThroughEMA = isUp
     ? (current.low <= ema20 && current.close >= ema20 * 0.998)
@@ -6138,14 +6184,28 @@ function calculatePullbackConfluence(pullback, structure) {
 function detectRangeBreakout(data, consolidation) {
   if (!consolidation.isConsolidating) return { detected: false };
   if (data.length < 2) return { detected: false };
+  const crypto   = _isCrypto();
+  const atr      = _atrRaw(data, 14);
   const current  = data[data.length - 1];
   const avgVol   = _avgVol(data, 20);
-  const volExpansion = current.volume > avgVol * 1.3;
-  if (current.close > consolidation.upper * 1.001 && volExpansion) {
-    return { detected: true, quality: 'high', direction: 'long', breakoutLevel: consolidation.upper };
+  // Crypto needs stronger volume surge to confirm a real breakout (24/7 market has more noise)
+  const volMultiplier  = crypto ? 1.5 : 1.3;
+  const volExpansion   = current.volume > avgVol * volMultiplier;
+  // Require a meaningful body — not just a wick poking out
+  const body           = Math.abs(current.close - current.open);
+  const bodyRatio      = atr ? body / atr : 0;
+  const minBodyRatio   = crypto ? 0.35 : 0.3;
+  const hasBody        = bodyRatio >= minBodyRatio;
+  // Close margin beyond zone
+  const closeMargin    = crypto ? 0.002 : 0.001;
+
+  if (current.close > consolidation.upper * (1 + closeMargin) && volExpansion && hasBody) {
+    const quality = volExpansion && bodyRatio >= (crypto ? 0.5 : 0.4) ? 'high' : 'medium';
+    return { detected: true, quality, direction: 'long', breakoutLevel: consolidation.upper };
   }
-  if (current.close < consolidation.lower * 0.999 && volExpansion) {
-    return { detected: true, quality: 'high', direction: 'short', breakoutLevel: consolidation.lower };
+  if (current.close < consolidation.lower * (1 - closeMargin) && volExpansion && hasBody) {
+    const quality = volExpansion && bodyRatio >= (crypto ? 0.5 : 0.4) ? 'high' : 'medium';
+    return { detected: true, quality, direction: 'short', breakoutLevel: consolidation.lower };
   }
   return { detected: false };
 }
@@ -6180,7 +6240,9 @@ function detectLiquiditySweep(data) {
   const highTests = lookback.filter(d => Math.abs(d.high - priorHigh) < levelTolerance).length;
   if (lowTests < 2 && highTests < 2) return { detected: false }; // not a significant level
 
-  const minDisplacementBody = crypto ? atr * 0.4 : atr * 0.5; // raised crypto threshold
+  // Displacement candle needs a real body — 0.6×ATR minimum ensures it's genuine
+  // institutional flow, not a small bounce that quickly reverses
+  const minDisplacementBody = atr * 0.6;
 
   // BULL sweep: wick below prior low + displacement up
   const wickBelowLow = sweepCandle.low < priorLow;
@@ -6229,13 +6291,16 @@ function calculateLiquiditySweepConfluence(sweep, structure) {
 // ── 8. STRUCTURE (higher low / lower high) ───────────────────────────────────
 function detectStructureSetup(data, structure) {
   if (!structure || structure.trend === 'neutral' || data.length < 20) return { detected: false };
-  const isUp = structure.trend.includes('up');
-  const atr = _atrRaw(data, 14);
+  const crypto = _isCrypto();
+  const isUp   = structure.trend.includes('up');
+  const atr    = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  const lookback = data.slice(-20);
+  // Crypto: look back 25 bars — more price history needed to confirm structure on volatile assets
+  const lookbackSize = crypto ? 25 : 20;
+  const lookback = data.slice(-lookbackSize);
   // Find the last 3 swing lows (for uptrend) or swing highs (for downtrend)
   const pivots = [];
-  // Require 2 bars each side for pivot confirmation (was 1 — too noisy)
+  // Require 2 bars each side for pivot confirmation
   for (let i = 2; i < lookback.length - 2; i++) {
     if (isUp) {
       if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i-2]?.low &&
@@ -6252,14 +6317,17 @@ function detectStructureSetup(data, structure) {
   if (pivots.length < 2) return { detected: false };
   const last = pivots[pivots.length - 1];
   const prev = pivots[pivots.length - 2];
-  // Structural shift must be meaningful (> 0.5×ATR, raised from 0.3×ATR)
+  // Structural shift must be meaningful — crypto needs slightly looser minimum
+  // because ATR itself is larger, but we don't want to reject real crypto structures
+  const minShift = crypto ? atr * 0.4 : atr * 0.5;
   const isValid = isUp
-    ? (last.price > prev.price + atr * 0.5)
-    : (last.price < prev.price - atr * 0.5);
+    ? (last.price > prev.price + minShift)
+    : (last.price < prev.price - minShift);
   if (!isValid) return { detected: false };
-  // Current bar must be CLOSE to the pivot — within 0.5×ATR, not 1×ATR
-  const current = data[data.length - 1];
-  const nearPivot = Math.abs(current.close - last.price) < atr * 0.5;
+  // Current bar must be close to the pivot — crypto gets wider tolerance (more volatile wicks)
+  const nearTolerance = crypto ? atr * 0.7 : atr * 0.5;
+  const current   = data[data.length - 1];
+  const nearPivot = Math.abs(current.close - last.price) < nearTolerance;
   if (!nearPivot) return { detected: false };
   return { detected: true, quality: pivots.length >= 3 ? 'high' : 'medium',
            direction: isUp ? 'long' : 'short', setupType: isUp ? 'higher_low' : 'lower_high' };
@@ -8376,8 +8444,19 @@ function _buildMentorContext(barIndex, numBars = 20) {
   const ema9    = ema9arr[n]?.toFixed(4)  || 'N/A';
   const ema21   = ema21arr[n]?.toFixed(4) || 'N/A';
   const isCrypto = _isCrypto();
-  const ohlcvStr = bars.map(b =>
-    `${new Date(b.time*1000).toLocaleDateString('en',{month:'short',day:'numeric'})} O:${b.open.toFixed(4)} H:${b.high.toFixed(4)} L:${b.low.toFixed(4)} C:${b.close.toFixed(4)} V:${Math.round(b.volume||0)}`
+
+  // ── Volatility regime: compare recent 5-bar ATR to 20-bar ATR ────────────
+  // Tells the AI whether stops need extra room and whether breakouts are genuine
+  let volRegime = 'stable';
+  if (data.length >= 20) {
+    const atr5  = _atrRaw(data.slice(-5),  Math.min(5,  data.length - 1)) || atr;
+    const atr20 = _atrRaw(data.slice(-20), Math.min(14, data.length - 1)) || atr;
+    if (atr5 > atr20 * 1.2) volRegime = 'expanding';
+    else if (atr5 < atr20 * 0.8) volRegime = 'contracting';
+  }
+
+  const ohlcvStr = bars.map((b, i) =>
+    `Bar ${i+1} (${new Date(b.time*1000).toLocaleDateString('en',{month:'short',day:'numeric'})}) O:${b.open.toFixed(4)} H:${b.high.toFixed(4)} L:${b.low.toFixed(4)} C:${b.close.toFixed(4)} V:${Math.round(b.volume||0)}`
   ).join('\n');
 
   return {
@@ -8388,6 +8467,7 @@ function _buildMentorContext(barIndex, numBars = 20) {
     price: curData[barIndex].close.toFixed(4),
     atr: atr.toFixed(4),
     rsi, sma20, sma50, ema9, ema21,
+    volRegime,
     ohlcvStr,
     method: mentorState.selectedTradingMethod || 'general',
   };
@@ -8409,7 +8489,13 @@ async function _mentorAISetupAnalysis(setupDetection, barIndex) {
   };
   const methodDesc = methodDescriptions[ctx.method] || ctx.method;
   const cryptoNote = ctx.isCrypto
-    ? 'NOTE: This is a crypto asset — liquidity sweeps are more deliberate, false breakouts more common, round numbers act as major S&R, and funding rates affect trend continuation probability.'
+    ? 'Asset type: CRYPTO — liquidity sweeps are deliberate stop hunts, false breakouts common, round numbers are key S&R, funding rates affect trend continuation.'
+    : '';
+
+  const volNote = ctx.volRegime === 'expanding'
+    ? 'VOLATILITY NOTE: ATR is expanding — stops need more room and breakouts can overshoot before reversing.'
+    : ctx.volRegime === 'contracting'
+    ? 'VOLATILITY NOTE: ATR is contracting — price is coiling, a sharp move could come from either direction.'
     : '';
 
   // Pass 1 verdict context — LLM narrates the decision, not makes it
@@ -8420,31 +8506,42 @@ WEAKNESSES: ${v.weaknesses.join('; ') || 'none noted'}` : '';
 
   // Historical context from similar past setups
   const historicalContext = buildHistoricalContext(mentorState._historySimilarCases || []);
+  const histNote = historicalContext
+    ? `HISTORICAL CONTEXT:\n${historicalContext}\nFactor the historical win rate into your tone — if past similar setups performed well, reflect that confidence.`
+    : '';
 
-  const prompt = `You are a trading mentor. Write a SHORT setup briefing — like a quick message from a senior trader to a student. Conversational, human, easy to read.
+  // Verdict-specific voice — each verdict has a genuinely different personality
+  const toneInstruction = !v ? '' :
+    v.verdict === 'Strong'  ? `VOICE: You're confident. This is a clean setup. Be direct — tell the student exactly what to look for and why it's high-probability. Don't hedge unnecessarily.` :
+    v.verdict === 'Decent'  ? `VOICE: Cautiously optimistic. The setup is valid but not perfect. Name the one thing holding it back, then explain why it's still worth watching.` :
+    v.verdict === 'Weak'    ? `VOICE: Honest mentor. The setup is borderline. Don't sugarcoat — the student deserves to know this is marginal. Explain what's missing and what would make it better.` :
+                              `VOICE: Straightforward. Tell the student to pass on this one and exactly why.`;
 
-CONTEXT: ${ctx.sym} ${ctx.tf} | ${ctx.assetType} | Strategy: ${ctx.method}
+  const prompt = `You are a senior trading mentor briefing a student in real time. Sound like a real person — direct, specific, zero waffle.
+
+${ctx.sym} | ${ctx.tf} | ${ctx.assetType} | Method: ${ctx.method} (${methodDesc})
 ${cryptoNote}
+${volNote}
 
-PRICE DATA (last 25 bars):
+PRICE DATA — last 25 bars (Bar 1 = oldest, Bar 25 = now):
 ${ctx.ohlcvStr}
 
 INDICATORS: Price ${ctx.price} | ATR ${ctx.atr} | RSI ${ctx.rsi} | EMA9 ${ctx.ema9} | EMA21 ${ctx.ema21} | SMA20 ${ctx.sma20} | SMA50 ${ctx.sma50}
 
 SETUP: ${setupDetection.setup?.replace(/_/g,' ')} ${setupDetection.direction?.toUpperCase()} | Confluence ${setupDetection.confluence}/4 | ${(setupDetection.quality||'').toUpperCase()}
 ${verdictLine}
-${historicalContext ? '\n' + historicalContext : ''}
+${histNote}
 
-Write EXACTLY 4 SHORT lines. Each line starts with a different emoji. Each line is ONE sentence, max 18 words. Put a blank line between each.
+${toneInstruction}
 
-Line 1 (🔍): What the setup is and the one key criterion that triggered it
-Line 2 (📍): The specific price level that matters and why (name the actual number)
-Line 3 (👀): The one thing to watch for as confirmation before price moves
-Line 4 (⚠️): The main risk — what would invalidate this${ctx.isCrypto ? ' (crypto-specific is fine)' : ''}
+Write 4 lines. Each starts with a different emoji. Each is one punchy sentence (max 20 words). Blank line between each.
 
-${v && v.verdict === 'Strong' ? 'Tone: confident but measured.' : v && v.verdict === 'Decent' ? 'Tone: cautiously positive, note the one key gap.' : v && v.verdict === 'Weak' ? 'Tone: honest and cautionary — the student should know this is borderline.' : ''}
+🔍 What triggered this setup — name the specific price action or pattern you saw
+📍 The exact level that matters and why it's significant (use the actual price number)
+👀 What needs to happen next to confirm the move is real
+⚠️ The one thing that would kill this trade — be specific about the price or condition
 
-Do not use sub-bullets. Do not write more than 4 lines. No intro sentence. Start straight with line 1.`;
+No intro sentence. No summary line. Start with 🔍.`;
 
   try {
     return await groqFetch(prompt);
@@ -8470,28 +8567,39 @@ ${p1.verdict.strengths.length  ? `STRENGTHS: ${p1.verdict.strengths.join('; ')}`
 ${p1.verdict.weaknesses.length ? `WATCH OUT: ${p1.verdict.weaknesses.join('; ')}` : ''}`
     : '';
 
-  const toneNote = p1?.verdict?.verdict === 'Strong'  ? 'Tone: confident and clear.'
-    : p1?.verdict?.verdict === 'Decent'               ? 'Tone: positive but flag the one key gap.'
-    : p1?.verdict?.verdict === 'Weak'                 ? 'Tone: honest — student should know this is borderline.'
+  const volNote2 = ctx.volRegime === 'expanding'
+    ? 'VOLATILITY: ATR expanding — the stop placement at ' + trade.stopLoss.toFixed(4) + ' needs to account for wider wicks than usual.'
+    : ctx.volRegime === 'contracting'
+    ? 'VOLATILITY: ATR contracting — price is tight, which makes this entry cleaner but watch for a false start.'
     : '';
 
-  const prompt = `You are a trading mentor. Explain this trade in plain English — like you're quickly walking a student through it. Keep it tight and human.
+  const toneNote = p1?.verdict?.verdict === 'Strong'
+    ? 'VOICE: Confident. Walk the student through this like it\'s a textbook trade. Name what\'s working.'
+    : p1?.verdict?.verdict === 'Decent'
+    ? 'VOICE: Measured. The trade is on — but flag the one gap or risk without making the student second-guess the whole thing.'
+    : p1?.verdict?.verdict === 'Weak'
+    ? 'VOICE: Honest. Explain the trade levels clearly, but make sure the student understands this is borderline and why.'
+    : 'VOICE: Clear and factual.';
+
+  const prompt = `You are a senior trading mentor. The student just clicked "show me the trade." Walk them through it like a real person — tight, specific, no fluff.
 
 ${ctx.sym} ${ctx.tf} | ${trade.direction.toUpperCase()} | ${ctx.method} strategy
 Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)} | R:R: ${trade.riskReward.toFixed(2)}:1 | ATR: ${ctx.atr}
 ${verdictLine}
+${volNote2}
 
 Recent bars:
 ${ctx.ohlcvStr}
 
-Write EXACTLY 3 lines. Each line starts with a different emoji. Each line is ONE sentence, max 20 words. Put a blank line between each.
-
-Line 1 (🎯): Why we entered at ${trade.entry.toFixed(4)} — what structure or signal confirmed it
-Line 2 (🛡️): Why the stop is at ${trade.stopLoss.toFixed(4)} — what level makes this trade wrong
-Line 3 (🏆): What ${trade.takeProfit.toFixed(4)} represents — resistance, measured move, liquidity
-
 ${toneNote}
-No intro. No summary. Start straight with line 1.`;
+
+Write 3 lines. Each starts with a different emoji. One sentence each (max 20 words). Blank line between each.
+
+🎯 Why this entry at ${trade.entry.toFixed(4)} — what price structure or signal put us here
+🛡️ Why the stop is at ${trade.stopLoss.toFixed(4)} — what level structurally breaks the trade idea
+🏆 What ${trade.takeProfit.toFixed(4)} represents — name the structure, measured move, or liquidity level
+
+No intro. Start with 🎯.`;
 
   try {
     return await groqFetch(prompt);
@@ -8524,30 +8632,45 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall)
     ? `PRE-TRADE WEAKNESSES FLAGGED: ${p1.verdict.weaknesses.join('; ')}`
     : '';
 
-  const prompt = `You are a trading mentor. Give a post-trade debrief that explains the CONFLUENCES that made up this setup — what each one meant, and whether they played out.
+  const barRefInstruction = !isWin
+    ? `IMPORTANT: Reference specific bars from the price data above by number (e.g. "Bar 22 showed a long wick rejecting the level" or "look at Bar 18 — that's where momentum stalled"). This makes the debrief concrete and actionable.`
+    : '';
+
+  const volNote3 = ctx.volRegime === 'expanding'
+    ? `Volatility was expanding during this trade (ATR ${ctx.atr}) — factor that into your SL assessment.`
+    : ctx.volRegime === 'contracting'
+    ? `Volatility was contracting during this trade — tight price action meant signals were cleaner.`
+    : '';
+
+  const toneInstruction3 = isWin
+    ? `VOICE: Positive reinforcement. Celebrate what worked — name the specific confluences that delivered. Then give one thing to sharpen for next time. Be a coach, not just a commentator.`
+    : weaknessLine
+    ? `VOICE: Honest and constructive. The pre-trade analysis already flagged weaknesses. If they contributed to the loss, say so directly — don't soften it. Frame it as: "we knew this risk going in, here's what it looked like in the bars." Every losing trade is data.`
+    : `VOICE: Constructive mentor. Don't catastrophise, but don't sugarcoat either. Find the specific moment in the price data where the trade broke down and name it. Give one actionable rule to take away.`;
+
+  const prompt = `You are a senior trading mentor. The student just finished a trade. Debrief them like a real coach — specific, honest, grounded in what the price actually did.
 
 ${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN' : '❌ LOSS'} | ${setupType} setup | ${ctx.method} strategy
 Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1 | ATR ${ctx.atr}
 ${scoreLine}
 ${verdictLine}
 ${weaknessLine}
+${volNote3}
 
-Price action (last 30 bars):
+Price action — last 30 bars (Bar 1 = oldest, Bar 30 = most recent):
 ${ctx.ohlcvStr}
 
-Write EXACTLY 4 lines. Each starts with a different emoji. Each is ONE sentence, max 22 words. Blank line between each.
+${toneInstruction3}
+${barRefInstruction}
 
-Line 1 (${isWin ? '✅' : '❌'}): Did the core ${setupType} thesis play out — what specifically confirmed or failed?
-Line 2 (📊): Name the strongest confluence that was present, and whether it mattered to the outcome
-Line 3 (💡): Key lesson — one specific, actionable thing the trader should do differently or look for next time
-Line 4 (⚖️): Was the SL at ${trade.stopLoss.toFixed(4)} the right structural level, or should it have been tighter/wider?
+Write 4 lines. Each starts with a different emoji. One punchy sentence each (max 22 words). Blank line between each.
 
-${isWin
-  ? 'Tone: positive reinforcement — say what worked and one thing to sharpen.'
-  : weaknessLine
-    ? `Tone: constructive. The pre-trade analysis flagged issues — acknowledge if they contributed to the loss.`
-    : 'Tone: constructive. Frame it as useful data. Every losing trade teaches something.'}
-No intro. Start with line 1.`;
+${isWin ? '✅' : '❌'} Did the core ${setupType} thesis play out — what specifically confirmed or broke it?
+📊 Name the strongest confluence in this trade and whether it actually mattered to the outcome
+💡 One specific, actionable rule the student should take away from this trade
+⚖️ Was the stop at ${trade.stopLoss.toFixed(4)} structurally correct — or should it have been placed differently?
+
+No intro. Start with ${isWin ? '✅' : '❌'}.`;
 
   try {
     return await groqFetch(prompt);
