@@ -1504,6 +1504,9 @@ function drawMonthHeatmap(){
 const ANALYTICS_WIDGETS = [
   ['coach',   'AI Coach'],
   ['edge',    'Edge Profiler'],
+  ['profile', 'Trader Memory'],
+  ['thesis',  'Thesis Tracker'],
+  ['replaylab','Replay Lab'],
   ['session', 'Session Summary'],
   ['weekly',  'Weekly Report'],
   ['psych',   'Psychology'],
@@ -1592,6 +1595,9 @@ function setupFilter(btn, mode){
 
 function buildAnalytics(){
   applyAnalyticsVisibility();
+  renderTraderProfileWidget();
+  renderThesisTrackerWidget();
+  renderReplayLabWidget();
   buildPsychChart();
   buildSetupChart();
   buildTODHeatmap();
@@ -1603,6 +1609,286 @@ function buildAnalytics(){
   buildDrawdownCurve();
   buildRRDist();
   buildMonthlyPL();
+}
+
+let traderProfileCache = null;
+let traderProfileCacheHash = '';
+let thesisStore = {};
+let replayScorecards = [];
+
+function getClosedJournalTrades(){
+  return journal.filter(e => !e.archived && (e.outcome === 'win' || e.outcome === 'loss'));
+}
+function _groupWinRate(trades, keyFn){
+  const map = new Map();
+  trades.forEach(t => {
+    const key = keyFn(t);
+    if(!key) return;
+    if(!map.has(key)) map.set(key, { total:0, wins:0 });
+    const cur = map.get(key);
+    cur.total++;
+    if(t.outcome === 'win') cur.wins++;
+  });
+  return [...map.entries()].map(([key, val]) => ({
+    key,
+    total: val.total,
+    winRate: val.total ? Math.round(val.wins / val.total * 100) : 0,
+  }));
+}
+function _sessionBucketFromTime(ts){
+  if(!ts) return 'Unknown';
+  const h = new Date(ts).getUTCHours();
+  if(h >= 22 || h < 6) return 'Asia';
+  if(h >= 7 && h < 12) return 'London';
+  if(h >= 12 && h < 17) return 'New York';
+  return 'Overlap / Other';
+}
+function _findBestGroup(groups, minTrades){
+  return groups
+    .filter(g => g.total >= minTrades)
+    .sort((a,b) => (b.winRate - a.winRate) || (b.total - a.total))[0] || null;
+}
+function _avg(nums){
+  return nums.length ? nums.reduce((a,b)=>a+b,0) / nums.length : null;
+}
+function _clampScore(v){
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+function _fmtAgo(ts){
+  if(!ts) return 'n/a';
+  const diff = Math.max(0, Date.now() - ts);
+  const mins = Math.round(diff / 60000);
+  if(mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if(hrs < 48) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+function _thesisStatus(thesis, price){
+  if(!thesis) return { label:'No thesis', color:'var(--tx3)' };
+  const confirm = Number(thesis.confirmation);
+  const invalid = Number(thesis.invalidation);
+  const dir = thesis.direction || 'bullish';
+  if(!isFinite(price)) return { label:'Pending', color:'var(--tx2)' };
+  if(dir === 'bullish'){
+    if(isFinite(invalid) && price <= invalid) return { label:'Invalidated', color:'var(--rd)' };
+    if(isFinite(confirm) && price >= confirm) return { label:'Confirmed', color:'var(--tl)' };
+  } else {
+    if(isFinite(invalid) && price >= invalid) return { label:'Invalidated', color:'var(--rd)' };
+    if(isFinite(confirm) && price <= confirm) return { label:'Confirmed', color:'var(--tl)' };
+  }
+  return { label:'Active', color:'var(--am)' };
+}
+function loadReplayScorecards(){
+  try{ replayScorecards = JSON.parse(_lsGet('replay-scorecards') || '[]') || []; }catch(e){ replayScorecards = []; }
+}
+function saveReplayScorecards(){
+  try{ _lsSet('replay-scorecards', JSON.stringify(replayScorecards.slice(-40))); }catch(e){}
+}
+function loadThesisStore(){
+  try{ thesisStore = JSON.parse(_lsGet('thesis-store') || '{}') || {}; }catch(e){ thesisStore = {}; }
+}
+function saveThesisStore(){
+  try{ _lsSet('thesis-store', JSON.stringify(thesisStore)); }catch(e){}
+}
+function hydratePersonalizationCaches(){
+  traderProfileCache = null;
+  traderProfileCacheHash = '';
+  loadReplayScorecards();
+  loadThesisStore();
+}
+function computeTraderProfile(){
+  const closed = getClosedJournalTrades();
+  const wins = closed.filter(t => t.outcome === 'win');
+  const losses = closed.filter(t => t.outcome === 'loss');
+  const total = closed.length;
+  const winRate = total ? Math.round(wins.length / total * 100) : null;
+  const avgRR = _avg(closed.filter(t => t.rr != null).map(t => Number(t.rr)));
+  const recent = closed.slice(0, 8);
+  const recentLosses = recent.filter(t => t.outcome === 'loss').length;
+  const bestSymbol = _findBestGroup(_groupWinRate(closed, t => t.sym), 2);
+  const bestTf = _findBestGroup(_groupWinRate(closed, t => t.tf), 2);
+  const bestSetup = _findBestGroup(_groupWinRate(closed, t => t.setup), 2);
+  const bestSession = _findBestGroup(_groupWinRate(closed, t => _sessionBucketFromTime(t.time)), 2);
+  const strengths = [];
+  const weaknesses = [];
+  if(bestSymbol) strengths.push(`Best results have come on ${bestSymbol.key} (${bestSymbol.winRate}% win rate across ${bestSymbol.total} trades).`);
+  if(bestTf) strengths.push(`${bestTf.key} has been your strongest timeframe so far (${bestTf.winRate}% win rate).`);
+  if(bestSetup) strengths.push(`Your best repeating pattern is ${bestSetup.key} (${bestSetup.winRate}% win rate).`);
+  if(bestSession) strengths.push(`${bestSession.key} has been your strongest session window.`);
+  if(avgRR != null && avgRR >= 1.8) strengths.push(`When you let winners breathe, your average planned R:R is ${avgRR.toFixed(2)}.`);
+  if(recentLosses >= 4) weaknesses.push(`Recent form is shaky: ${recentLosses} of your last ${recent.length} closed trades were losses.`);
+  if(avgRR != null && avgRR < 1.5) weaknesses.push(`Your planned R:R is averaging only ${avgRR.toFixed(2)}. Better asymmetric setups would help.`);
+  if(total >= 6){
+    const sessionGroups = _groupWinRate(closed, t => _sessionBucketFromTime(t.time)).sort((a,b)=>a.winRate-b.winRate || b.total-a.total);
+    const weakSession = sessionGroups.find(g => g.total >= 2);
+    if(weakSession && bestSession && weakSession.key !== bestSession.key && weakSession.winRate + 15 < bestSession.winRate){
+      weaknesses.push(`${weakSession.key} is materially weaker than your best session. Be stricter there.`);
+    }
+  }
+  if(!strengths.length) strengths.push('You need more closed trades before the app can identify a reliable edge.');
+  if(!weaknesses.length) weaknesses.push('No major leak stands out yet, but keep logging outcomes and screenshots for a clearer read.');
+  const checklist = [
+    bestTf ? `Prefer ${bestTf.key} setups unless the chart quality is clearly better elsewhere.` : 'Stick to one timeframe family instead of chasing every market.',
+    bestSession ? `Prioritize ${bestSession.key} session setups first.` : 'Trade when volatility is cleanest, not just when you feel bored.',
+    avgRR != null && avgRR < 1.5 ? 'Reject trades that do not restore at least 1.5:1 R:R.' : 'Keep protecting reward-to-risk before entering.',
+    recentLosses >= 3 ? 'Slow down after a losing streak and wait for cleaner confirmation.' : 'Stay selective and avoid forcing average setups.',
+  ];
+  return {
+    total,
+    winRate,
+    avgRR,
+    bestSymbol,
+    bestTf,
+    bestSetup,
+    bestSession,
+    recentLosses,
+    strengths,
+    weaknesses,
+    checklist,
+    updatedAt: Date.now(),
+  };
+}
+function saveTraderProfileSnapshot(force){
+  const hash = journalHash();
+  if(!force && hash === traderProfileCacheHash && traderProfileCache) return traderProfileCache;
+  traderProfileCacheHash = hash;
+  traderProfileCache = computeTraderProfile();
+  try{ _lsSet('trader-profile', JSON.stringify(traderProfileCache)); }catch(e){}
+  return traderProfileCache;
+}
+function getTraderProfile(force){
+  if(force) return saveTraderProfileSnapshot(true);
+  if(!traderProfileCache){
+    try{ traderProfileCache = JSON.parse(_lsGet('trader-profile') || 'null'); }catch(e){ traderProfileCache = null; }
+  }
+  return saveTraderProfileSnapshot(false);
+}
+function getCurrentThesis(sym){
+  const key = sym || curSym?.s;
+  return key ? thesisStore[key] || null : null;
+}
+function buildTradeThesisFromDrawing(d){
+  if(!d || (d.type !== 'long' && d.type !== 'short')) return null;
+  const isLong = d.type === 'long';
+  return {
+    sym: curSym?.s || '',
+    tf: d.tf || curTF,
+    direction: isLong ? 'bullish' : 'bearish',
+    statement: isLong
+      ? `Bullish only if price can hold above ${fP(d.sl)} and reclaim ${fP(d.price)} toward ${fP(d.tp)}.`
+      : `Bearish only if price stays below ${fP(d.sl)} and rejects ${fP(d.price)} toward ${fP(d.tp)}.`,
+    focus: isLong
+      ? `Wait for buyers to defend structure before assuming continuation.`
+      : `Wait for sellers to keep control before pressing the short thesis.`,
+    confirmation: d.price,
+    invalidation: d.sl,
+    target: d.tp,
+    source: 'trade-analysis',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+function setCurrentThesis(thesis){
+  if(!thesis?.sym) return;
+  thesisStore[thesis.sym] = { ...thesis, updatedAt: Date.now() };
+  saveThesisStore();
+  renderThesisTrackerWidget();
+  if(document.getElementById('tap-context-out')) tapRenderDecisionContext(_tapDrawing);
+}
+function clearCurrentThesis(sym){
+  const key = sym || curSym?.s;
+  if(!key || !thesisStore[key]) return;
+  delete thesisStore[key];
+  saveThesisStore();
+  renderThesisTrackerWidget();
+  if(document.getElementById('tap-context-out')) tapRenderDecisionContext(_tapDrawing);
+}
+function renderTraderProfileWidget(){
+  const el = document.getElementById('trader-profile-card');
+  if(!el) return;
+  const p = getTraderProfile();
+  if(!p?.total){
+    el.innerHTML = '<div style="font-size:11px;color:var(--tx3);line-height:1.6;">Log a few closed trades and this panel will start building your trader memory automatically.</div>';
+    return;
+  }
+  const chips = [
+    p.bestSymbol ? `Best Symbol: ${p.bestSymbol.key}` : '',
+    p.bestTf ? `Best TF: ${p.bestTf.key}` : '',
+    p.bestSession ? `Best Session: ${p.bestSession.key}` : '',
+    p.bestSetup ? `Best Setup: ${p.bestSetup.key}` : '',
+  ].filter(Boolean).map(t => `<span style="padding:3px 8px;border-radius:10px;background:var(--bg3);border:1px solid var(--b1);font-size:10px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;">${t}</span>`).join('');
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;">
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Closed Trades</div><div style="font-size:18px;color:var(--tx);font-weight:700;">${p.total}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Win Rate</div><div style="font-size:18px;color:${p.winRate >= 50 ? 'var(--tl)' : 'var(--am)'};font-weight:700;">${p.winRate}%</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '—'}</div></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${chips}</div>
+    <div style="padding:8px;background:rgba(0,201,160,.06);border:1px solid rgba(0,201,160,.16);border-radius:6px;margin-bottom:8px;">
+      <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What is working</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${p.strengths.slice(0,2).join(' ')}</div>
+    </div>
+    <div style="padding:8px;background:rgba(255,77,106,.05);border:1px solid rgba(255,77,106,.14);border-radius:6px;margin-bottom:8px;">
+      <div style="font-size:10px;color:var(--rd);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What to watch</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${p.weaknesses.slice(0,2).join(' ')}</div>
+    </div>
+    <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
+      <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Before your next trade</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `• ${x}`).join('<br>')}</div>
+    </div>`;
+}
+function renderThesisTrackerWidget(){
+  const el = document.getElementById('thesis-tracker-card');
+  if(!el) return;
+  const thesis = getCurrentThesis();
+  if(!thesis){
+    el.innerHTML = '<div style="font-size:11px;color:var(--tx3);line-height:1.6;">No active thesis pinned for this symbol. Use Trade Analysis to pin a thesis from any long or short setup.</div>';
+    return;
+  }
+  const lastPrice = curData?.length ? curData[curData.length-1].close : NaN;
+  const st = _thesisStatus(thesis, lastPrice);
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} · ${thesis.tf || curTF}</div>
+      <div style="padding:3px 8px;border-radius:999px;border:1px solid var(--b1);background:var(--bg3);font-size:10px;color:${st.color};font-family:ui-monospace,'SF Mono',monospace;">${st.label}</div>
+    </div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px;">${thesis.statement || 'No thesis statement saved.'}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;">
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '—'}</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;">Focus: ${thesis.focus || 'No follow-through note saved.'}</div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="tapUseSavedThesis()" style="padding:4px 10px;background:rgba(0,201,160,.08);border:1px solid rgba(0,201,160,.25);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Use On Chart</button>
+      <button onclick="clearCurrentThesis('${thesis.sym}')" style="padding:4px 10px;background:transparent;border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Clear</button>
+    </div>`;
+}
+function renderReplayLabWidget(){
+  const el = document.getElementById('replay-lab-card');
+  if(!el) return;
+  if(!replayScorecards.length){
+    el.innerHTML = '<div style="font-size:11px;color:var(--tx3);line-height:1.6;">Finish a few replay trades and this panel will grade your training sessions automatically.</div>';
+    return;
+  }
+  const recent = replayScorecards.slice(-5).reverse();
+  const avg = Math.round(replayScorecards.reduce((sum, s) => sum + (s.overall || 0), 0) / replayScorecards.length);
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-size:11px;color:var(--tx2);">Average Replay Score</div>
+      <div style="font-size:20px;color:${avg >= 75 ? 'var(--tl)' : avg >= 60 ? 'var(--am)' : 'var(--rd)'};font-weight:700;font-family:ui-monospace,'SF Mono',monospace;">${avg}/100</div>
+    </div>
+    <div style="display:grid;gap:6px;">
+      ${recent.map(s => `
+        <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
+            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} · ${s.method || 'Replay'}</span>
+            <span style="font-size:11px;color:${s.overall >= 75 ? 'var(--tl)' : s.overall >= 60 ? 'var(--am)' : 'var(--rd)'};font-family:ui-monospace,'SF Mono',monospace;">${s.overall}/100</span>
+          </div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} · ${_fmtAgo(s.createdAt)}</div>
+          <div style="font-size:11px;color:var(--tx2);line-height:1.5;">${(s.notes || []).slice(0,2).join(' ')}</div>
+        </div>`).join('')}
+    </div>`;
 }
 
 
@@ -2723,6 +3009,9 @@ async function runDynamicPretradeAI(){
   const recentLosses = closed.slice(0,3).filter(e=>e.outcome==='loss').length;
   const avgWinRR = closed.filter(e=>e.rr&&e.outcome==='win').map(e=>e.rr);
   const minRR = avgWinRR.length ? (avgWinRR.reduce((a,b)=>a+b,0)/avgWinRR.length).toFixed(2) : 1.5;
+  const profile = getTraderProfile();
+  const chartCtx = buildDrawingsContext(null, data);
+  const thesisCtx = buildThesisPromptContext(sym);
 
   const rr = (entry&&sl&&tp) ? (Math.abs(tp-entry)/Math.abs(entry-sl)).toFixed(2) : null;
   // Extra indicators for richer institutional analysis
@@ -2774,6 +3063,12 @@ Trader Historical Edge:
 - ${setupWR!=null?'Win rate with "'+setup+'" setup: '+setupWR+'% ('+bySetup.length+' trades)':'No specific data for this setup'}
 - Avg winning R:R historically: 1:${minRR}
 - Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — possible tilt risk':''}
+ - Trader memory: ${formatTraderProfileForAI(profile)}
+
+Chart Intent Context:
+- ${thesisCtx}
+- Nearby drawn levels: ${chartCtx.nearbyLevels.length ? chartCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none marked near price'}
+- Notes on chart: ${chartCtx.notes.length ? chartCtx.notes.join(' | ') : 'none'}
 
 YOUR ROLE:
 Act as an interactive trade tutorial assistant. Explain this specific setup step-by-step, directly tied to the chart context above. Use short sections with bullet points (no giant paragraphs). Follow this exact structure and headings:
@@ -2992,6 +3287,8 @@ function toggleSessions(){
   // Sync topbar indicator button
   const btn = document.getElementById('btn-sessions');
   if(btn) btn.classList.toggle('on', showSessions);
+  renderTopbarInds();
+  saveSettingsToStorage();
   draw();
   toast(showSessions ? '🌍 Sessions ON — London · NY · Asia' : '🌍 Sessions OFF');
 }
@@ -4128,6 +4425,48 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   return review;
 }
 
+function buildReplayScorecard(trade, outcome, currentBar){
+  if(!trade) return null;
+  const entry = Number(trade.entry);
+  const stop = Number(trade.stopLoss);
+  const target = Number(trade.takeProfit);
+  const rr = Math.abs(target - entry) / Math.max(Math.abs(entry - stop), 0.0001);
+  const atr = curData?.length ? (calcATR(curData)[Math.min(currentBar, curData.length - 1)] || (entry * 0.01)) : (entry * 0.01);
+  const stopAtr = atr ? Math.abs(entry - stop) / atr : 1;
+  const structure = _clampScore(rr >= 2 ? 84 : rr >= 1.5 ? 70 : 56);
+  const patience = _clampScore(stopAtr >= 0.8 && stopAtr <= 2.5 ? 78 : stopAtr < 0.8 ? 58 : 66);
+  const execution = outcome === 'take_profit' ? 92 : outcome === 'stop_loss' ? 38 : 60;
+  const methodFit = mentorState.selectedTradingMethod ? 78 : 65;
+  const overall = _clampScore((structure + patience + execution + methodFit) / 4);
+  const notes = [];
+  notes.push(rr >= 2 ? `Reward-to-risk was healthy at ${rr.toFixed(2)}.` : `R:R was only ${rr.toFixed(2)}; this is one of the first places to tighten.`);
+  notes.push(stopAtr < 0.8 ? 'Stop sat inside normal noise and likely needed more structure room.' : stopAtr > 2.5 ? 'Stop was very wide relative to ATR, so execution quality depended on a big move.' : 'Stop distance was reasonably aligned with ATR noise.');
+  notes.push(outcome === 'take_profit' ? 'Execution held together through the replay and the thesis paid out.' : outcome === 'stop_loss' ? 'Replay exposed where the idea broke and why invalidation mattered.' : 'The setup neither fully worked nor clearly failed before expiring.');
+  return {
+    sym: curSym?.s || '',
+    tf: curTF,
+    method: mentorState.selectedTradingMethod || 'replay',
+    outcome,
+    overall,
+    structure,
+    patience,
+    execution,
+    methodFit,
+    rr: Number(rr.toFixed(2)),
+    createdAt: Date.now(),
+    notes,
+  };
+}
+function mentorRecordReplayScorecard(trade, outcome, currentBar){
+  const card = buildReplayScorecard(trade, outcome, currentBar);
+  if(!card) return null;
+  replayScorecards.push(card);
+  replayScorecards = replayScorecards.slice(-40);
+  saveReplayScorecards();
+  renderReplayLabWidget();
+  return card;
+}
+
 function handleTradeCompletion(outcome, currentBar) {
   mentorState.exampleTradeActive = false;
   mentorState.exampleTradeOutcome = outcome;
@@ -4140,13 +4479,18 @@ function handleTradeCompletion(outcome, currentBar) {
   
   const trade = mentorState.exampleTrade;
   const isWin = outcome === 'take_profit';
+  const replayScorecard = mentorRecordReplayScorecard(trade, outcome, currentBar);
   const outcomeHeader = isWin
     ? '🎉 TAKE PROFIT REACHED ✅'
     : outcome === 'stop_loss' ? '⛔ STOP LOSS HIT' : '⏱️ TRADE EXPIRED';
 
   // Immediate placeholder while AI debrief loads
   mentorState.lockedMessage  = 'trade_completed';
-  mentorState.lockedInsights = [outcomeHeader, 'AI is preparing your debrief...'];
+  mentorState.lockedInsights = [
+    outcomeHeader,
+    replayScorecard ? `Replay scorecard: ${replayScorecard.overall}/100 — Structure ${replayScorecard.structure}, Patience ${replayScorecard.patience}, Execution ${replayScorecard.execution}.` : 'Replay scorecard unavailable.',
+    'AI is preparing your debrief...'
+  ];
   mentorState.lockedQuestion = isWin
     ? '🎓 Great result! Reviewing what made this setup work...'
     : '🎓 Learning opportunity — reviewing what happened...';
@@ -4171,6 +4515,10 @@ function handleTradeCompletion(outcome, currentBar) {
         mentorState.lockedInsights = [outcomeHeader,
           ...fallbackReview.sections.map(s => `${s.title}: ${s.content}`)];
       }
+    }
+    if (replayScorecard) {
+      const rest = mentorState.lockedInsights.filter((line, idx) => !(idx === 0 && line === outcomeHeader));
+      mentorState.lockedInsights = [outcomeHeader, `Replay scorecard: ${replayScorecard.overall}/100 — ${replayScorecard.notes[0]}`, ...rest];
     }
     mentorState.lockedQuestion = isWin
       ? '🎓 Ready to find another setup? Hit "Continue Replay".'
@@ -13884,7 +14232,7 @@ async function loadSym(sym){
   // Restore indicator on/off state from persisted indActive (not from topbarInds)
   applyIndActive();
   renderTopbarInds(); sizeCanvases(); updateTopbar(); draw();
-  buildWL(); buildAIPanel(); buildInfo(); buildJournal(); buildAlertsPanel();
+  buildWL(); buildAIPanel(); buildInfo(); buildJournal(); buildAlertsPanel(); renderThesisTrackerWidget();
   tapSyncToSymbol();
   setSrcStatus('⟳ fetching…','var(--tx3)');
 
@@ -14030,6 +14378,8 @@ function toggleInd(name){
   // Update button active state
   const btn = document.getElementById('btn-'+name);
   if(btn) btn.classList.toggle('on', nowOn);
+  renderTopbarInds();
+  saveSettingsToStorage();
   invalidateIndCache();
   if(needsResize) sizeCanvases();
   draw();
@@ -14065,6 +14415,7 @@ function renderTopbarInds(){
   if(!container) return;
   container.innerHTML = '';
   topbarInds.forEach(id => {
+    if(!getIndState(id)) return;
     const ind = BUILTIN_INDS.find(i=>i.id===id);
     const label = ind ? ind.name : id.toUpperCase();
     const on = getIndState(id);
@@ -15131,6 +15482,7 @@ function resetColors(){
 }
 
 function syncIndicator(name, on){
+  if(name in indActive) indActive[name] = !!on;
   if(name==='sma') showSMA=on;
   if(name==='bb')  showBB=on;
   if(name==='ema') showEMA=on;
@@ -15620,6 +15972,8 @@ function doLogin(username, displayName){
   try{ const ah = JSON.parse(_lsGet('analytics-hidden')||'[]'); analyticsHidden = new Set(ah); }catch(e){}
 
   loadJournal();
+  hydratePersonalizationCaches();
+  saveTraderProfileSnapshot(true);
   loadSettingsFromStorage();
   renderTopbarInds();
   buildWL();
@@ -15725,7 +16079,9 @@ function saveJournal(){
     journal.filter(j=>j.screenshot).slice(0,20).forEach(j=>snaps[j.id]=j.screenshot);
     _lsSet('journal-snaps', JSON.stringify(snaps));
   }catch(e){}
+  saveTraderProfileSnapshot(true);
   invalidateAIReports();
+  renderTraderProfileWidget();
 }
 
 // Patch loadJournal
@@ -15743,6 +16099,8 @@ function saveSettingsToStorage(){
     theme: document.getElementById('sc-theme')?.value||'dark',
     candleBull: candleBullColor, candleBear: candleBearColor,
     smaCols: smaCols, barWidth: barWidth,
+    indActive,
+    showSessions,
     showSMA,showBB,showEMA,showVWAP,showVol,showRSI,showMACD,showStoch,
     scGrid:      _el('sc-grid')?.checked,
     scCross:     _el('sc-crosshair')?.checked,
@@ -15787,18 +16145,24 @@ function loadSettingsFromStorage(){
   if(s.barWidth){ barWidth=s.barWidth; const bw=document.getElementById('sc-barwidth'); if(bw){ bw.value=s.barWidth; document.getElementById('sc-barwidth-v').textContent=s.barWidth+'px'; } }
   if(s.uiScale){ applyUIScale(s.uiScale); const fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=s.uiScale; document.getElementById('sc-fontsize-v').textContent=s.uiScale+'%'; } }
   if(s.newsCacheDuration){ newsCacheDuration=s.newsCacheDuration; const nc=document.getElementById('sc-newscache'); if(nc) nc.value=s.newsCacheDuration; }
+  if(s.indActive){
+    indActive = {...DEFAULT_IND_ACTIVE, ...s.indActive};
+    applyIndActive();
+  }
+  if(s.showSessions != null){
+    showSessions = !!s.showSessions;
+  }
   const toggleMap={scGrid:'sc-grid',scCross:'sc-crosshair',scHiLo:'sc-highlow',scDayBnd:'sc-dayboundary',scHollow:'sc-hollow',scOhlc:'sc-ohlc',scWater:'sc-watermark',scSidebar:'sc-sidebar',scRpanel:'sc-rpanel',scScanner:'sc-scanner',scDrawtb:'sc-drawtb',scStatusbar:'sc-statusbar',scWicks:'sc-wicks',scPriceScale:'sc-pricescale',scXAxisLbl:'sc-xaxislabel'};
   Object.entries(toggleMap).forEach(([k,id])=>{ if(s[k]!=null){ const el=document.getElementById(id); if(el) el.checked=s[k]; } });
   const pmap={sidebar:'sc-sidebar',rpanel:'sc-rpanel','scanner-wrap':'sc-scanner','draw-toolbar':'sc-drawtb',statusbar:'sc-statusbar'};
   Object.entries(pmap).forEach(([pid,cid])=>{ const chk=document.getElementById(cid); const pan=document.getElementById(pid); if(chk&&pan) pan.style.display=chk.checked?'':'none'; });
   ['sma','bb','ema','vwap','vol','rsi','macd','stoch'].forEach(n=>{
-    const key='show'+n[0].toUpperCase()+n.slice(1).replace('ma','MA').replace('wap','WAP').replace('ch','ch');
-    // map name → variable
     const map={sma:'showSMA',bb:'showBB',ema:'showEMA',vwap:'showVWAP',vol:'showVol',rsi:'showRSI',macd:'showMACD',stoch:'showStoch'};
-    if(s[map[n]]!=null) syncIndicator(n, s[map[n]]);
+    if(!s.indActive && s[map[n]]!=null) syncIndicator(n, s[map[n]]);
   });
+  saveIndActive();
+  renderTopbarInds();
 }
-
 // ══ INIT ══════════════════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
   sizeCanvases();
@@ -17295,6 +17659,120 @@ function tapBuildComparison(setupMeta, metrics){
   return { scanScore, tradeScore, scannerSaw, confirmed, changed, better };
 }
 
+function buildDrawingsContext(d, data){
+  const refPrice = d?.price ?? data?.[data.length-1]?.close;
+  const atrVals = data?.length ? calcATR(data) : [];
+  const atr = atrVals?.[atrVals.length-1] || (refPrice ? refPrice * 0.01 : 0);
+  const nearby = drawings.filter(x => x !== d && !x.isMentorAnnotation).map(x => {
+    const level = x.price ?? x.price1 ?? null;
+    return { type:x.type, level, text:x.text || '' };
+  });
+  const nearbyLevels = nearby.filter(x => isFinite(x.level) && atr && Math.abs(x.level - refPrice) <= atr * 3).slice(0,4);
+  const notes = nearby.filter(x => x.type === 'text' && x.text).slice(0,3).map(x => x.text.trim()).filter(Boolean);
+  const structureCounts = {
+    hlines: drawings.filter(x => x.type === 'hline').length,
+    trendlines: drawings.filter(x => x.type === 'line' || x.type === 'ray' || x.type === 'hray').length,
+    zones: drawings.filter(x => x.type === 'rect').length,
+    fibs: drawings.filter(x => x.type === 'fib').length,
+  };
+  return { nearbyLevels, notes, structureCounts };
+}
+function formatTraderProfileForAI(profile){
+  if(!profile?.total) return 'Trader memory: not enough closed trades yet to build a reliable profile.';
+  return [
+    `Trader memory snapshot: ${profile.total} closed trades, ${profile.winRate}% win rate, average planned R:R ${profile.avgRR != null ? profile.avgRR.toFixed(2) : 'n/a'}.`,
+    profile.bestSymbol ? `Best symbol: ${profile.bestSymbol.key} (${profile.bestSymbol.winRate}% win rate).` : '',
+    profile.bestTf ? `Best timeframe: ${profile.bestTf.key}.` : '',
+    profile.bestSession ? `Best session: ${profile.bestSession.key}.` : '',
+    profile.bestSetup ? `Best repeating setup: ${profile.bestSetup.key}.` : '',
+    profile.weaknesses?.[0] ? `Main caution: ${profile.weaknesses[0]}` : '',
+  ].filter(Boolean).join(' ');
+}
+function buildThesisPromptContext(sym){
+  const thesis = getCurrentThesis(sym);
+  if(!thesis) return 'Active thesis: none pinned.';
+  return `Active thesis: ${thesis.statement} Confirmation level: ${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : 'n/a'}. Invalidation level: ${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : 'n/a'}. Focus: ${thesis.focus || 'n/a'}.`;
+}
+function tapRenderDecisionContext(d){
+  const wrap = document.getElementById('tap-context-section');
+  const out = document.getElementById('tap-context-out');
+  const pinBtn = document.getElementById('tap-thesis-btn');
+  if(!wrap || !out) return;
+  const analysisData = ((d?.tf || curTF) === curTF) ? curData : (dataCache[curSym.s+'_'+(d?.tf || curTF)] || curData);
+  const profile = getTraderProfile();
+  const thesis = getCurrentThesis(curSym.s);
+  const drawCtx = buildDrawingsContext(d, analysisData);
+  const status = _thesisStatus(thesis, analysisData?.length ? analysisData[analysisData.length-1].close : NaN);
+  wrap.style.display = 'block';
+  out.innerHTML = `
+    <div style="display:grid;gap:8px;">
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Trader memory</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${profile?.total ? formatTraderProfileForAI(profile) : 'Build more history and this section will start personalising the analysis.'}</div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+          <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;">Current thesis</div>
+          <div style="font-size:10px;color:${status.color};font-family:ui-monospace,'SF Mono',monospace;">${thesis ? status.label : 'None pinned'}</div>
+        </div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${thesis ? thesis.statement : 'No thesis is pinned for this symbol yet. Save one from this trade if you want AI to monitor it later.'}</div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What is drawn on your chart</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.7;">
+          ${drawCtx.nearbyLevels.length ? `Nearby marked levels: ${drawCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ')}.<br>` : ''}
+          ${drawCtx.notes.length ? `Notes on chart: ${drawCtx.notes.join(' | ')}.<br>` : ''}
+          Structure objects: ${drawCtx.structureCounts.hlines} horizontal lines, ${drawCtx.structureCounts.trendlines} trend lines, ${drawCtx.structureCounts.zones} zones, ${drawCtx.structureCounts.fibs} fib tools.
+        </div>
+      </div>
+    </div>`;
+  if(pinBtn){
+    pinBtn.textContent = thesis ? 'Clear Thesis' : 'Pin Thesis';
+    pinBtn.style.color = thesis ? 'var(--rd)' : 'var(--tl)';
+    pinBtn.style.borderColor = thesis ? 'rgba(255,77,106,.35)' : 'rgba(0,201,160,.35)';
+  }
+}
+function tapPinCurrentTradeAsThesis(){
+  if(!_tapDrawing) return;
+  const existing = getCurrentThesis(curSym.s);
+  if(existing){
+    clearCurrentThesis(curSym.s);
+    return;
+  }
+  const thesis = buildTradeThesisFromDrawing(_tapDrawing);
+  if(!thesis) return;
+  setCurrentThesis(thesis);
+  toast('Thesis pinned for this symbol');
+}
+function tapUseSavedThesis(){
+  const thesis = getCurrentThesis(curSym.s);
+  if(!thesis) return;
+  const type = thesis.direction === 'bearish' ? 'short' : 'long';
+  const entry = Number(thesis.confirmation);
+  const sl = Number(thesis.invalidation);
+  const tp = Number(thesis.target);
+  if(!isFinite(entry) || !isFinite(sl) || !isFinite(tp) || !curData?.length) return;
+  const bar = curData.length - 1;
+  const drawing = {
+    type,
+    bar,
+    price: entry,
+    sl,
+    tp,
+    halfBars: 8,
+    halfDuration: tfSecs(curTF) * 8,
+    tf: curTF,
+    id: 'thesis-' + Date.now(),
+    _thesisPlaced: true,
+  };
+  drawings.push(drawing);
+  saveDrawings(curSym.s, curTF);
+  _tapDrawing = drawing;
+  showTradeAnalysisPopup(drawing, true);
+  draw();
+  toast('Saved thesis placed on chart');
+}
+
 function tapRenderSetupBridge(d, analysisText=''){
   const wrap = document.getElementById('tap-setup-bridge');
   const out = document.getElementById('tap-setup-bridge-out');
@@ -17916,6 +18394,7 @@ async function openFullTradeAnalysis(){
   tapRenderHistorical(d);
   tapRenderJournalHistory();
   tapRenderSetupBridge(d);
+  tapRenderDecisionContext(d);
 
   // Capture chart screenshot for sharing
   _tapScreenshotDataUrl = null;
@@ -17938,6 +18417,7 @@ async function openFullTradeAnalysis(){
     aiOutEl.textContent = tapDisplayAnalysisText(cached.aiResult);
     tapRenderVerdictBanner(cached.aiResult);
     tapRenderSetupBridge(d, cached.aiResult);
+    tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
 
     // Prominent "cached result" notice + 1-analysis-per-trade rule explanation
@@ -17977,6 +18457,7 @@ async function openFullTradeAnalysis(){
       _tapAnchorFill(d);
       tapRenderVerdictBanner(text);
       tapRenderSetupBridge(d, text);
+      tapRenderDecisionContext(d);
     } catch(e) {
       const msg = e.message || 'unknown error';
       aiOutEl.innerHTML =
@@ -18594,6 +19075,9 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
                        tradeStatus?.includes('Open')   ? 'ACTIVE / OPEN' :
                        isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
+  const traderProfile = getTraderProfile();
+  const drawingCtx = buildDrawingsContext(d, analysisData);
+  const thesisCtx = buildThesisPromptContext(curSym.s);
 
   const setupMeta    = tapGetSetupContext(d);
   const setupCtx     = setupMeta ? `
@@ -18605,6 +19089,18 @@ Originating Setup Context:
   Scanner Summary: ${(setupMeta.idea || `${setupMeta.patLabel || 'Setup'} found on ${setupMeta.tf || drawingTF}.`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
+  const traderCtx = `
+Trader Memory:
+  ${formatTraderProfileForAI(traderProfile)}
+  Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ')}
+`;
+  const drawingStateCtx = `
+Chart Intent Context:
+  ${thesisCtx}
+  Nearby user-marked levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'}
+  User notes on chart: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'}
+  Structure objects drawn: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools
+`;
 
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
@@ -18640,6 +19136,8 @@ Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
 Patterns: ${allPatsStr}
 Trader's historical win rate on ${curSym.s}: ${symWR}
+${traderCtx}
+${drawingStateCtx}
 ${setupCtx}
 -----------------------------
 TRADE VALIDATION PROCESS
@@ -19502,6 +20000,9 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
+
+
 
 
 
