@@ -3379,14 +3379,14 @@ function toggleReplay(){
 function triggerReplayRescan() {
   // CRITICAL: Never interrupt setup_detected or later states — the injected
   // upcomingSetup from _mfLaunch must survive until the early warning fires.
-  const protectedStates = ['setup_detected', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'];
+  const protectedStates = ['setup_detected', 'preview', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'];
   if (protectedStates.includes(mentorState.lifecycleState)) {
     console.log('🔄 triggerReplayRescan skipped — protected state:', mentorState.lifecycleState);
     return;
   }
 
   console.log('🔄 Triggering immediate replay rescan...');
-  mentorState.lifecycleState = 'scanning';
+  setMentorState('scanning', 'manual replay rescan');
   mentorState.waitingStateStart = null;
   mentorState.waitingStateMessage = null;
   mentorState.upcomingSetup = null;
@@ -3743,15 +3743,65 @@ let mentorState = {
 // dependent fields are always synced and invalid transitions are caught early.
 const VALID_TRANSITIONS = {
   method_selection: ['scanning'],
-  scanning:         ['setup_detected', 'no_setup_found', 'waiting', 'method_selection'],
-  no_setup_found:   ['setup_detected', 'scanning'],
-  waiting:          ['scanning', 'setup_detected'],
-  setup_detected:   ['setup_wait', 'scanning'],
+  scanning:         ['setup_detected', 'preview', 'no_setup_found', 'waiting', 'method_selection'],
+  no_setup_found:   ['setup_detected', 'preview', 'scanning'],
+  waiting:          ['scanning', 'setup_detected', 'preview'],
+  setup_detected:   ['preview', 'setup_wait', 'scanning'],
+  preview:          ['setup_wait', 'trade_monitoring', 'scanning'],
   setup_wait:       ['trade_monitoring', 'scanning'],
   trade_monitoring: ['trade_result', 'scanning'],
   trade_result:     ['trade_completed', 'scanning'],
   trade_completed:  ['scanning'],
 };
+
+function mentorPhaseMeta(){
+  const state = mentorState.lifecycleState || 'scanning';
+  const map = {
+    method_selection: { pill:'SETUP', status:'Choose a strategy', note:'Pick the style you want to practice so the mentor can teach one clear playbook at a time.', color:'var(--pu)' },
+    scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:'The mentor is quietly checking structure, confluence, and timing for the next good teaching example.', color:'var(--bl)' },
+    no_setup_found:   { pill:'WAITING', status:'No clean setup yet', note:'Nothing worth forcing right now. That is part of the lesson too.', color:'var(--tx2)' },
+    waiting:          { pill:'WAITING', status:'Letting the chart develop', note:'The mentor is waiting for clearer price action before stepping in.', color:'var(--am)' },
+    setup_detected:   { pill:'HEADS UP', status:'A setup is approaching', note:'An opportunity is ahead. Watch how the context builds before the trade is ready.', color:'var(--bl)' },
+    preview:          { pill:'PREVIEW', status:'Study this setup', note:'The replay is paused so you can understand what is forming, what confirms it, and what would break it.', color:'var(--green)' },
+    setup_wait:       { pill:'READY', status:'Waiting for confirmation', note:'The setup is now at decision point. Stay patient and act only if the chart confirms the idea.', color:'var(--green)' },
+    trade_monitoring: { pill:'LIVE', status:'Trade is unfolding', note:'Now the lesson is about management: hold your plan, respect invalidation, and observe how price behaves.', color:'var(--am)' },
+    trade_result:     { pill:'REVIEW', status:'Explaining the result', note:'The mentor is turning the outcome into something useful for your next trade.', color:'var(--pu)' },
+    trade_completed:  { pill:'DEBRIEF', status:'Lesson complete', note:'Review the grade, keep the key takeaway, then continue when you are ready.', color:'var(--pu)' },
+  };
+  return map[state] || map.scanning;
+}
+function mentorRefreshHeader(){
+  const meta = mentorPhaseMeta();
+  const label = document.getElementById('mentor-status-label');
+  const banner = document.getElementById('mentor-phase-banner');
+  const pill = document.getElementById('mentor-phase-pill');
+  const note = document.getElementById('mentor-phase-note');
+  if(label){
+    label.textContent = meta.status;
+    label.style.color = meta.color;
+  }
+  if(banner) banner.style.display = 'block';
+  if(pill){
+    pill.textContent = meta.pill;
+    pill.style.color = meta.color;
+    pill.style.borderColor = meta.color === 'var(--tx2)' ? 'rgba(255,255,255,0.08)' : 'rgba(0,201,160,0.18)';
+  }
+  if(note) note.textContent = meta.note;
+}
+function mentorRecoverMissingSetup(actionLabel){
+  mentorState.pendingSetupDetection = null;
+  mentorState.pendingSetupBar = null;
+  mentorState._freezeScrollForPreview = false;
+  clearMentorAnnotations();
+  setMentorState('scanning', `${actionLabel || 'setup action'} expired`);
+  mentorState.messageLocked = false;
+  mentorState.lockedMessage = null;
+  mentorState.lockedInsights = [];
+  mentorState.lockedQuestion = '';
+  mentorState.currentInsights = ['The earlier setup is no longer available. That can happen if price moved on while you were reviewing it.'];
+  mentorState.currentQuestion = 'No problem — the mentor is rescanning for the next clean teaching example.';
+  updateMentorUI();
+}
 
 function setMentorState(newState, reason) {
   const cur = mentorState.lifecycleState;
@@ -3778,6 +3828,10 @@ function setMentorState(newState, reason) {
     mentorState._analysisCache = null;
     mentorState._lastMentorUpdateBar = -99; // allow immediate update after state change
   }
+  if (newState === 'preview') {
+    mentorState.setupPausedReplay = true;
+  }
+  mentorRefreshHeader();
 }
 
 
@@ -3820,7 +3874,7 @@ function dismissSetupMessage() {
   mentorState.lockedInsights = [];
   mentorState.lockedQuestion = '';
   mentorState.realtimeUpdates = [];
-  mentorState.lifecycleState = 'scanning';
+  setMentorState('scanning', 'user skipped preview');
   mentorState.setupWaitStart = null;
   mentorState.setupWaitData = null;
   mentorState._freezeScrollForPreview = false;
@@ -3913,6 +3967,7 @@ function updateLockedMentorUI() {
   const completionControlsEl = document.getElementById('trade-completion-controls');
   
   if (!insightsEl || !questionEl || !setupControlsEl || !completionControlsEl) return;
+  mentorRefreshHeader();
   
   // Display locked message with real-time updates
   let displayContent = [...mentorState.lockedInsights];
@@ -3956,8 +4011,11 @@ function updateLockedMentorUI() {
   } else if (mentorState.activeTrainingMode || mentorState.exampleTradeActive) {
     setupControlsEl.style.display = 'none';
     completionControlsEl.style.display = 'none';
-  } else {
+  } else if (mentorState.lockedMessage === 'setup_preview' || mentorState.lockedMessage === 'setup') {
     setupControlsEl.style.display = 'block';
+    completionControlsEl.style.display = 'none';
+  } else {
+    setupControlsEl.style.display = 'none';
     completionControlsEl.style.display = 'none';
   }
 }
@@ -4494,7 +4552,7 @@ function handleTradeCompletion(outcome, currentBar) {
   mentorState.lockedQuestion = isWin
     ? '🎓 Great result! Reviewing what made this setup work...'
     : '🎓 Learning opportunity — reviewing what happened...';
-  mentorState.lifecycleState         = 'trade_completed';
+  setMentorState('trade_completed', 'trade finished');
   mentorState.tradeMonitoringUpdates = [];
   updateLockedMentorUI();
 
@@ -4738,7 +4796,7 @@ function detectReplayTradePlacement() {
       // User placed trade during setup wait - switch to trade monitoring
       console.log('🎯 Trade placed during setup wait, switching to trade monitoring');
       mentorState.monitoredTrade = currentDrawing;
-      mentorState.lifecycleState = 'trade_monitoring';
+      setMentorState('trade_monitoring', 'user trade detected during setup wait');
       
       // Generate initial trade monitoring commentary
       generateTradeMonitoringCommentary(replayCutoff);
@@ -5114,7 +5172,7 @@ function changeTradingMethod(newMethod) {
   resetMentorStateForStrategyChange();
   mentorState.selectedTradingMethod = newMethod;
   mentorState.tradingMethodSelected = true;
-  mentorState.lifecycleState        = 'scanning';
+  setMentorState('scanning', 'strategy changed');
   mentorState._proximityHintCache   = null; // clear AI hint cache
 
   // Sync finder dropdown if open
@@ -6940,6 +6998,7 @@ function toggleMentor() {
       btn.style.background = 'linear-gradient(135deg, rgba(138,43,226,.6), rgba(138,43,226,.4))';
       btn.style.boxShadow = '0 4px 8px rgba(138,43,226,.4)';
     }
+    mentorRefreshHeader();
     updateMentor();
   } else {
     panel.style.display = 'none';
@@ -6999,7 +7058,7 @@ function enableMentorFromPopup() {
     mentorState.enabled = true;
     mentorState.currentBar = -1; // Reset to force re-analysis
     mentorState.lastTradeSuggestionBar = -1000; // Reset cooldown
-    mentorState.lifecycleState = 'method_selection'; // Start with method selection
+    setMentorState('method_selection', 'mentor enabled'); // Start with method selection
     mentorState.setupWaitStart = null;
     mentorState.setupWaitData = null;
     mentorState.monitoredTrade = null;
@@ -7031,7 +7090,7 @@ function enableMentorFromPopup() {
 function selectTradingMethod(method) {
   mentorState.selectedTradingMethod = method;
   mentorState.tradingMethodSelected = true;
-  mentorState.lifecycleState = 'scanning';
+  setMentorState('scanning', 'strategy selected');
 
   // Test annotation: place a visible marker at the current bar so user knows
   // the annotation system is working. Clears when setup is found.
@@ -7914,7 +7973,7 @@ function handleSetupWaitState(currentBar) {
   const userPlacedTrade = mentorState.monitoredTrade !== null;
   
   if (userPlacedTrade) {
-    mentorState.lifecycleState = 'trade_monitoring';
+    setMentorState('trade_monitoring', 'user placed replay trade');
     mentorState.messageLocked = false;
     return;
   } else if (!setupStillValid || priceMovedSignificantly) {
@@ -7944,7 +8003,7 @@ function handleTradeMonitoringState(currentBar) {
   
   if (tradeResult) {
     // Trade completed - switch to result state
-    mentorState.lifecycleState = 'trade_result';
+    setMentorState('trade_result', 'trade result reached');
     mentorState.tradeResultData = tradeResult;
     generateTradeResultEvaluation(tradeResult);
     updateMentorUI();
@@ -7987,7 +8046,7 @@ function handleSetupDetectedState(currentBar) {
   if (barsUntilSetup < -10 && mentorState.earlyWarningShown) {
     // Setup is long past — if no trade was placed, go back to scanning
     if (!mentorState.exampleTradeActive && !mentorState.messageLocked) {
-      mentorState.lifecycleState    = 'scanning';
+      setMentorState('scanning', 'setup passed without action');
       mentorState.upcomingSetup     = null;
       mentorState.earlyWarningShown = false;
       mentorState.setupCache && mentorState.setupCache.clear();
@@ -8005,6 +8064,7 @@ function handleSetupDetectedState(currentBar) {
   //   3. Give the user time to read the briefing before the candle arrives
   if (barsUntilSetup <= 25 && barsUntilSetup > 0 && !mentorState.earlyWarningShown) {
     mentorState.earlyWarningShown = true;
+    setMentorState('preview', 'setup preview ready');
 
     // Use pre-cached levels if available (injected by _mfLaunch), otherwise compute.
     const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
@@ -8022,7 +8082,7 @@ function handleSetupDetectedState(currentBar) {
       // Can't place a valid trade here — skip silently and keep scanning
       mentorState.earlyWarningShown = false;
       mentorState.upcomingSetup = null;
-      mentorState.lifecycleState = 'scanning';
+      setMentorState('scanning', 'preview levels invalid');
       return;
     }
 
@@ -8038,10 +8098,14 @@ function handleSetupDetectedState(currentBar) {
     const dir       = setupData.direction || 'long';
     const dirEmoji  = dir === 'long' ? '📈' : '📉';
     const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
-    mentorState.lockedInsights  = [`${dirEmoji} ${setupName.toUpperCase()} setup detected — analysing...`];
-    mentorState.lockedQuestion  = 'AI is preparing your briefing...';
+    mentorState.lockedInsights  = [
+      `${dirEmoji} Previewing a ${setupName.replace(/_/g,' ')} setup`,
+      `This pause is here to teach the chart clearly before the decision candle arrives.`,
+      `The mentor is preparing a short explanation of what is forming, what confirms it, and what would break it.`
+    ];
+    mentorState.lockedQuestion  = 'Read the setup first, then choose whether you want a guided demo or to place the trade yourself.';
     mentorState.messageLocked   = true;
-    mentorState.lockedMessage   = 'setup';
+    mentorState.lockedMessage   = 'setup_preview';
     mentorState._proximityHintCache = null; // clear for fresh hint
     mentorState.annotationsEnabled = true;  // default ON for each new setup
     mentorState._confluencePauses = new Set(); // reset per-setup pause tracking
@@ -8091,7 +8155,7 @@ function handleSetupDetectedState(currentBar) {
         ];
       }
       mentorState.lockedQuestion =
-        `A potential ${setupName} setup based on your ${ctx?.method || method} strategy is forming. Would you like the mentor to guide you through it?`;
+        `A potential ${setupName} setup is forming. Choose “Watch Demo” for a guided walkthrough or “Let Me Try” to place the idea yourself.`;
       updateLockedMentorUI();
     });
     return;
@@ -8109,13 +8173,13 @@ function handleSetupDetectedState(currentBar) {
 
     const shown = generateSetupMessageWithExampleTrade(setupData, currentBar);
     if (!shown) {
-      mentorState.lifecycleState = 'scanning';
+      setMentorState('scanning', 'setup preview expired before live confirmation');
       mentorState.lastTradeSuggestionBar = currentBar;
       updateMentorUI();
       return;
     }
 
-    mentorState.lifecycleState    = 'setup_wait';
+    setMentorState('setup_wait', 'setup reached live decision zone');
     mentorState.setupWaitStart    = currentBar;
     mentorState.setupWaitData     = setupData;
     mentorState.setupPausedReplay = true;
@@ -8152,7 +8216,7 @@ function enterSetupDetectedState(windowScan) {
   // Don't overwrite an already-injected setup (e.g. from _mfLaunch).
   // The injected setup has a known future bar and must not be replaced by a
   // scan that might find a different bar closer to currentBar.
-  if (mentorState.lifecycleState === 'setup_detected' && mentorState.upcomingSetup) {
+  if ((mentorState.lifecycleState === 'setup_detected' || mentorState.lifecycleState === 'preview') && mentorState.upcomingSetup) {
     console.log('🔒 enterSetupDetectedState: existing setup preserved, skipping override');
     return;
   }
@@ -8216,27 +8280,27 @@ function _buildSetupDetectedMessage(currentBar) {
   const stepMessages = {
     1: {
       insights: [
-        '🔍 Step 1 of 3: Identifying market context...',
-        'The mentor is assessing the overall market structure — trend direction, key swing points and market condition.',
+        'Step 1 of 3: reading the broader context.',
+        'Start with the market structure first. The mentor is checking trend direction, swing behaviour, and whether conditions are clean enough to teach from.',
         dirHint,
       ],
-      question: 'Look at the EMA lines and recent swing highs/lows marked on the chart.',
+      question: 'Look at the marked swing points first. Is price trending cleanly, ranging, or transitioning?',
     },
     2: {
       insights: [
-        '📍 Step 2 of 3: Marking key areas of interest...',
-        'A potential setup area has been identified. The mentor is highlighting the key levels and zones that matter for this trade.',
+        'Step 2 of 3: marking the decision area.',
+        'The mentor is highlighting the price zones that matter most so you can see where reaction is expected.',
         dirHint,
       ],
-      question: 'Focus on the highlighted zones — these are where the trade will be based.',
+      question: 'Focus on the highlighted zone. Ask yourself why price would react there instead of somewhere random.',
     },
     3: {
       insights: [
-        '🔗 Step 3 of 3: Identifying confluences...',
-        `Setup forming in ~${barsAway} candles. Multiple confirming factors are building. The mentor will pause the replay when the trade is ready.`,
+        'Step 3 of 3: stacking the reasons.',
+        `The setup is forming in roughly ${barsAway} candles. Confluence is building, and the mentor will pause before the decision point so you can review it calmly.`,
         dirHint,
       ],
-      question: 'Watch how each annotation builds the case for this trade. The mentor will pause soon.',
+      question: 'Notice how the reasons for the trade are stacking together. One reason is never enough on its own.',
     },
   };
 
@@ -8288,7 +8352,7 @@ function enterNoSetupState(currentBar) {
     } catch(e) { continue; }
   }
 
-  mentorState.lifecycleState = 'no_setup_found';
+  setMentorState('no_setup_found', 'no setup found in forward scan');
   mentorState.waitingStateStart = currentBar;
   mentorState.upcomingSetup = null;
 
@@ -9105,10 +9169,17 @@ function updateMentor() {
     }
     updateMentorUI();
     return;
+  } else if (mentorState.lifecycleState === 'preview') {
+    if (!mentorState.pendingSetupDetection) {
+      mentorRecoverMissingSetup('preview');
+      return;
+    }
+    updateLockedMentorUI();
+    return;
   } else if (mentorState.lifecycleState === 'setup_detected') {
     // Guard: if upcomingSetup was cleared somehow, go back to scanning
     if (!mentorState.upcomingSetup) {
-      mentorState.lifecycleState = 'scanning';
+      setMentorState('scanning', 'upcoming setup missing');
       updateMentorUI();
       return;
     }
@@ -9216,7 +9287,7 @@ function updateMentor() {
           }
 
           // Panel shown — now lock state and pause replay
-          mentorState.lifecycleState = 'setup_wait';
+          setMentorState('setup_wait', 'live setup detected at current bar');
           mentorState.setupWaitStart = currentBar;
           mentorState.setupWaitData = setupDetection;
           mentorState.lastTradeSuggestionBar = currentBar;
@@ -9486,7 +9557,7 @@ function mentorToggleAnnotations(enable) {
 
 function mentorShowMeTrade() {
   if (!mentorState.pendingSetupDetection) {
-    console.error('❌ mentorShowMeTrade: no pendingSetupDetection');
+    mentorRecoverMissingSetup('watch demo');
     return;
   }
   if (!curData) { console.warn('No price data'); return; }
@@ -9500,8 +9571,7 @@ function mentorShowMeTrade() {
   const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
   const entryPrice = curData[entryBar]?.open;
   if (!entryPrice) {
-    mentorState.lockedQuestion = '⚠️ Price data unavailable for this setup.';
-    updateLockedMentorUI();
+    mentorRecoverMissingSetup('watch demo');
     return;
   }
 
@@ -9511,8 +9581,7 @@ function mentorShowMeTrade() {
     ? computeMentorTradeLevels(direction, entryPrice, entryBar, futFresh)
     : null;
   if (!levels) {
-    mentorState.lockedQuestion = '⚠️ Setup is no longer valid — price moved against the direction. Dismiss to continue scanning.';
-    updateLockedMentorUI();
+    mentorRecoverMissingSetup('watch demo');
     return;
   }
 
@@ -9570,12 +9639,12 @@ function mentorShowMeTrade() {
     : null;
 
   mentorState.lockedInsights = [
-    verdictBadge || `${dirEmoji} ${dirLabel} setup confirmed — trade will enter at ${fP(entryPrice)}`,
-    `📊 R:R ${rrLabel}:1 | 🛡️ SL: ${fP(stopLoss)} | 🏆 TP: ${fP(takeProfit)}`,
-    `⏳ The Long/Short tool will appear on the chart the moment price reaches the entry candle`,
-    `👀 Watch the annotations — they show exactly why this trade is valid`,
+    verdictBadge || `${dirEmoji} ${dirLabel} setup confirmed`,
+    `Entry: ${fP(entryPrice)} | Stop: ${fP(stopLoss)} | Target: ${fP(takeProfit)} | Planned R:R ${rrLabel}:1`,
+    `The mentor is placing a demonstration trade so you can focus on the logic instead of the mechanics.`,
+    `Watch how price behaves around the annotated levels. That behaviour is the real lesson, not just the outcome.`,
   ];
-  mentorState.lockedQuestion  = '▶ Press Space to play — the trade tool appears when price arrives at the entry';
+  mentorState.lockedQuestion  = 'Press Space when you are ready to let the replay play through the example trade.';
   mentorState.messageLocked   = true;
   mentorState.lockedMessage   = 'ai_trade_pending';
 
@@ -9584,7 +9653,7 @@ function mentorShowMeTrade() {
   const complCtrl = document.getElementById('trade-completion-controls');
   if (complCtrl) complCtrl.style.display = 'none';
 
-  mentorState.lifecycleState    = 'trade_monitoring';
+  setMentorState('trade_monitoring', 'mentor demo trade started');
   mentorState.setupPausedReplay = true; // keep paused — user presses Space to watch
 
   updateLockedMentorUI();
@@ -9617,12 +9686,8 @@ function mentorShowMeTrade() {
 }
 
 function mentorLetMeTry() {
-  console.log('🎯 mentorLetMeTry called - pendingSetupDetection:', mentorState.pendingSetupDetection);
-  console.log('🎯 mentorLetMeTry - pendingSetupBar:', mentorState.pendingSetupBar);
-  console.log('🎯 mentorLetMeTry - lifecycleState:', mentorState.lifecycleState);
-  
   if (!mentorState.pendingSetupDetection) {
-    console.error('❌ mentorLetMeTry: pendingSetupDetection is null/undefined!');
+    mentorRecoverMissingSetup('let me try');
     return;
   }
   
@@ -9642,14 +9707,21 @@ function mentorLetMeTry() {
   mentorState.activeTrainingMode = 'user_guided';
   
   // Reset message to prompt user
-  mentorState.lockedQuestion = "Place your trade using the Long/Short drawing tool. The AI will evaluate your placement once it resolves.";
-  document.getElementById('setup-message-controls').style.display = 'none';
+  mentorState.lockedInsights = [
+    'Your turn.',
+    'Place the trade the way you think it should be structured.',
+    'Use the long or short tool, then let the replay continue so the mentor can review your placement.'
+  ];
+  mentorState.lockedQuestion = 'Place your trade using the Long/Short tool. The mentor will judge the structure, risk, and timing once it resolves.';
+  const setupControls = document.getElementById('setup-message-controls');
+  if (setupControls) setupControls.style.display = 'none';
   
   // Clear the pending state
   mentorState.pendingSetupDetection = null;
   mentorState.pendingSetupBar = null;
   
   resumeReplayAfterSetup();
+  updateLockedMentorUI();
 }
 
 function generateNoSetupMessage() {
@@ -9821,6 +9893,7 @@ function updateMentorUI() {
   const candleInfoEl = document.getElementById('mentor-candle-info');
   const setupControlsEl = document.getElementById('setup-message-controls');
   const completionControlsEl = document.getElementById('trade-completion-controls');
+  mentorRefreshHeader();
   
   // Hide all controls when not locked
   if (setupControlsEl) {
@@ -9839,12 +9912,14 @@ function updateMentorUI() {
   // Update insights - handle both array and string
   if (insightsEl && mentorState.currentInsights) {
     if (Array.isArray(mentorState.currentInsights)) {
-      insightsEl.innerHTML = mentorState.currentInsights.join('. ');
+      insightsEl.innerHTML = mentorState.currentInsights
+        .map(line => `<div style="margin-bottom:8px;line-height:1.55;color:var(--tx2);font-size:11px;">${String(line).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)
+        .join('');
     } else {
       insightsEl.innerHTML = mentorState.currentInsights;
     }
   } else if (insightsEl) {
-    insightsEl.innerHTML = '🤖 AI Mentor is analyzing market data...';
+    insightsEl.innerHTML = '<div style="line-height:1.55;color:var(--tx2);font-size:11px;">The mentor is analyzing market data...</div>';
   }
   
   // Update question
@@ -10347,7 +10422,7 @@ function _mfLaunch(idx) {
     _entryBar: Math.min(setup.bar + 1, curData.length - 1),
   };
 
-  mentorState.lifecycleState = 'setup_detected';
+  setMentorState('setup_detected', 'finder launched preview');
   mentorState.upcomingSetup  = {
     setup:      injectedSetup,
     bar:        setup.bar,
@@ -14001,13 +14076,13 @@ function setupEvents(){
       if(mentorState.enabled) {
         const lc = mentorState.lifecycleState;
 
-        if (lc === 'setup_detected' && mentorState.upcomingSetup) {
+        if ((lc === 'setup_detected' || lc === 'preview') && mentorState.upcomingSetup) {
           // Approaching a setup — refresh annotations for new position, preserve setup
           const _sb = mentorState.upcomingSetup.bar;
           const _ba = _sb - replayCutoff;
           // If user dragged PAST the setup bar, reset to scanning
           if (replayCutoff >= _sb) {
-            mentorState.lifecycleState = 'scanning';
+            setMentorState('scanning', 'scrubbed past pending setup');
             mentorState.upcomingSetup  = null;
             mentorState._lastAnnotateStage = 0;
             mentorState._lastAnnotateBar   = null;
@@ -14040,7 +14115,7 @@ function setupEvents(){
 
         } else {
           // scanning / no_setup_found / method_selection — safe to reset and re-scan
-          mentorState.lifecycleState = 'scanning';
+          setMentorState('scanning', 'scrub reset');
           mentorState.setupCache && mentorState.setupCache.clear();
           setTimeout(() => updateMentor(), 80);
         }
