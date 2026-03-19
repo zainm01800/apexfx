@@ -10243,6 +10243,7 @@ async function aiComplete(prompt, {
   temperature = 0,
   timeoutMs = 30000,
 } = {}){
+  const CLIENT_GROQ_KEY = 'gsk_PLACEHOLDER';
   let res;
   try {
     res = await fetch('/api/ai', {
@@ -10252,7 +10253,32 @@ async function aiComplete(prompt, {
       body: JSON.stringify({ prompt, model, max_tokens, temperature })
     });
   } catch(networkErr) {
-    throw new Error(`AI network error: ${networkErr.message}`);
+    res = null;
+  }
+
+  if ((!res || res.status === 404) && CLIENT_GROQ_KEY) {
+    try {
+      res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CLIENT_GROQ_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens,
+          temperature,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+    } catch (networkErr) {
+      throw new Error(`AI network error: ${networkErr.message}`);
+    }
+  }
+
+  if (!res) {
+    throw new Error('AI service unavailable');
   }
 
   let data = null;
@@ -10267,7 +10293,7 @@ async function aiComplete(prompt, {
     throw new Error(`AI: ${msg}`);
   }
 
-  const text = data?.text?.trim() || '';
+  const text = data?.text?.trim() || data?.choices?.[0]?.message?.content?.trim() || '';
   if(!text) throw new Error('AI returned empty response');
   return text;
 }
@@ -16251,7 +16277,8 @@ function buildSymbolPane(a) {
     const biasClass = t.bias;
     const biasArrow = t.bias === 'bull' ? '▲' : t.bias === 'bear' ? '▼' : '●';
     const rsiCol = parseFloat(t.rsi) > 70 ? 'var(--rd)' : parseFloat(t.rsi) < 30 ? 'var(--tl)' : 'var(--tx3)';
-    const patShort = t.topPat ? t.topPat.name.replace('Bullish ','').replace('Bearish ','').replace(' Cross','×').substring(0,12) : '';
+    const patName = t.topPat?.name || '';
+    const patShort = patName ? patName.replace('Bullish ','').replace('Bearish ','').replace(' Cross','×').substring(0,12) : '';
     const cellBorder = t.bias === 'bull' ? 'border-color:rgba(0,201,160,.3)' : t.bias === 'bear' ? 'border-color:rgba(240,48,96,.3)' : '';
     return `<div class="pmb-tf-cell" style="${cellBorder}">
       <div class="pmb-tf-label">${PMB_TF_LABELS[tf]}</div>
@@ -16969,7 +16996,8 @@ function aisCardHTML(s, rank){
   const rsiNote  = s.rsi?(s.rsi>70?'⚠ Overbought':s.rsi<30?'⚡ Oversold':`RSI ${s.rsi}`):'';
   const rrNum    = parseFloat(s.rr);
   const rrCol    = rrNum>=3?'var(--tl)':rrNum>=2?'var(--am)':'var(--tx2)';
-  const tags     = [s.exchange, s.tfAgree>=2?'TF Aligned':'', rsiNote, s.patLabel.split(' ').slice(0,2).join(' ')].filter(Boolean);
+  const patternTag = (s.patLabel || 'Structure').split(' ').slice(0,2).join(' ');
+  const tags     = [s.exchange, s.tfAgree>=2?'TF Aligned':'', rsiNote, patternTag].filter(Boolean);
   const entryLbl = s.dir==='bull'?'ENTRY':'SHORT ENTRY';
   const tgtLbl   = s.dir==='bull'?'TARGET':'COVER';
   const entryCol = s.dir==='bull'?'var(--tl)':'var(--rd)';
@@ -19232,6 +19260,7 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
 
 
 
