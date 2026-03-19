@@ -11687,13 +11687,10 @@ function _clearMentorAnnotationsSilent() {
 // direction: 'down' (arrow points down toward candle from above) or 'up'
 function _addMentorArrow(bar, price, label, direction = 'down', highlight = false, explanation = '') {
   const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  const atr = calculateATR(bar, 14) || (price * 0.002);
-  const offsetPrice = direction === 'down'
-    ? price + atr * 0.6
-    : price - atr * 0.6;
+  // Anchor at the actual structural price — no ATR offset so dots sit ON the structure
   const drawing = {
     type: 'mentor_arrow',
-    bar, price: offsetPrice,
+    bar, price: price,
     pointing: direction === 'up' ? 'up' : 'down',
     label: label || '',
     explanation: explanation || '',  // full explanation shown in bubble
@@ -11833,10 +11830,16 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
     if (!isVis(fb) || fb >= tb || cl >= ch) return;
     ann.push({ type:'box', f:fb, t:tb, lo:cl, hi:ch, label, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
   }
-  function addArrow(bar, price, label, pointing, highlight, pri, explanation) {
-    const max = showConf ? 4 : 3;
-    if (ann.filter(a=>a.type!=='context').length >= max || !isVis(bar) || !inRange(price)) return;
-    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:stageCandle, explanation:explanation||'' });
+  // historical=true: uses bar as its own candleIndex (appears when replay reaches that bar)
+  // and doesn't count against the structural annotation limit.
+  function addArrow(bar, price, label, pointing, highlight, pri, explanation, historical = false) {
+    if (!isVis(bar) || !inRange(price)) return;
+    if (!historical) {
+      const max = showConf ? 4 : 3;
+      if (ann.filter(a=>a.type!=='context').length >= max) return;
+    }
+    const ci = historical ? bar : stageCandle;
+    ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:ci, explanation:explanation||'' });
   }
 
   // ── Find significant swing points ─────────────────────────────────────────
@@ -11880,7 +11883,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // and S&R methods show their own structural context in Stage 2.
   // ══════════════════════════════════════════════════════════════════════════
   const _methodNeedsSwingContext = method === 'trend' || method === 'pullback' ||
-    method === 'flag_continuation' || method === 'structure_continuation';
+    method === 'flag_continuation' || method === 'structure_continuation' ||
+    method === 'support_resistance';
   if (_methodNeedsSwingContext) {
     const tUp = structure.trend?.includes('up');
     const tDn = structure.trend?.includes('down');
@@ -11954,7 +11958,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
               : `This level was picked because price reversed here ${touchClusters.length} time${touchClusters.length>1?'s':''}. Each rejection confirms real sellers at this price.`);
         }
 
-        // Mark each prior touch with a numbered arrow — shows the history
+        // Mark each prior touch as it happened — revealed progressively as replay reaches each bar.
         const labels = ['1st test', '2nd test', '3rd test'];
         touchClusters.slice(0, -1).forEach((tb, idx) => {
           if (!isVis(tb)) return;
@@ -11966,7 +11970,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             dir==='long'?'up':'down', false, 2,
             idx === 0
               ? `First time price reached ${fP(level)} — and held. This established the level as significant.`
-              : `Test ${idx+1} — level held again. Repeated tests that hold confirm strong interest at this price.`);
+              : `Test ${idx+1} — level held again. Repeated tests that hold confirm strong interest at this price.`,
+            true); // historical=true: appears when replay reaches this bar, not counted in structural limit
         });
         break;
       }
@@ -12198,9 +12203,12 @@ function _commit(ann) {
       // Store explanation on the box itself — rendered as tooltip on hover, NOT as a
       // separate floating arrow (which caused duplicate bubbles on top of each other).
       const zoneDrawingId = _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
-      if (a.explanation && zoneDrawingId) {
+      if (zoneDrawingId) {
         const zd = drawings.find(d => d.id === zoneDrawingId);
-        if (zd) zd.explanation = a.explanation;
+        if (zd) {
+          if (a.explanation) zd.explanation = a.explanation;
+          zd.isLine = true; // render as a single dashed line, not a filled zone box
+        }
       }
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
@@ -12231,26 +12239,14 @@ function _commit(ann) {
       }
 
     } else if (a.type==='arrow') {
-      // Spatial deconfliction: find any already-placed arrow within ±4 bars
-      // at a similar price level and bump this one away from it.
+      // Anchor arrows at their actual structural price — bubble placement handles visual spacing.
+      // Only apply a tiny nudge when two annotations land on exactly the same bar+direction.
       let price = a.price;
-      const nearby = drawings.filter(d =>
-        d.isMentorAnnotation && d.type === 'mentor_arrow' &&
-        Math.abs(d.bar - a.bar) <= 4);
-      for (const nb of nearby) {
-        if (Math.abs(nb.price - price) < atr * 1.2) {
-          price += atr * 1.4 * (a.pointing === 'down' ? 1 : -1);
-        }
-      }
-      // Also deconflict against same-bar same-direction arrows (original logic)
       const key   = `${a.bar}_${a.pointing}`;
       const used  = usedAt[key]||0;
-      const off   = used * atr * 0.55 * (a.pointing==='down'?1:-1);
+      const off   = used * atr * 0.3 * (a.pointing==='down'?1:-1);
       usedAt[key] = used+1;
       price += off;
-      const pyKey = Math.round(price / (atr*0.4));
-      if (usedPY[pyKey]) price += atr * 0.5 * (a.pointing==='down' ? 1 : -1);
-      usedPY[pyKey] = true;
       _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight, a.explanation||'');
       if ((a.pri||2) === 1 && a.highlight && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
@@ -12713,27 +12709,36 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const anchorInUpper = ay < chartTop + chartH * 0.5;
         const preferBottom  = anchorInUpper;
 
+        // Clamp anchor Y so the dot always stays inside the visible chart area
+        const aySafe = Math.max(chartTop + 4, Math.min(chartBottom - 4, ay));
+
         function tryBand(useBottom) {
           const bandTop2 = useBottom ? botBandTop : topBandTop;
           const bandBot2 = useBottom ? botBandBot : topBandBot;
           if (bandBot2 - bandTop2 < bubbleH) return null;
-          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
           const startY = useBottom ? bandTop2 : bandBot2 - bubbleH;
           const step   = useBottom ? bubbleH + 5 : -(bubbleH + 5);
-          for (let attempt = 0; attempt < 6; attempt++) {
-            const bY = startY + step * attempt;
-            if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
-            if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
-              return { bX, bY, useBottom };
+          // Try multiple X positions so bubbles spread horizontally, not just vertically
+          const xShifts = [0, -(bubbleW + 10), bubbleW + 10, -(bubbleW * 2 + 20), bubbleW * 2 + 20];
+          for (const xShift of xShifts) {
+            const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + xShift));
+            for (let attempt = 0; attempt < 4; attempt++) {
+              const bY = startY + step * attempt;
+              if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
+              if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
+                return { bX, bY, useBottom };
+            }
           }
           return null;
         }
 
         let pl = tryBand(preferBottom) || tryBand(!preferBottom);
         if (!pl) {
-          // Absolute fallback: clamp to bottom band, stack
-          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
-          const bY = Math.min(botBandBot - bubbleH, botBandTop + ctx._placedBubbles.length * (bubbleH + 5));
+          // Grid fallback: spread across columns then rows
+          const col = ctx._placedBubbles.length % 3;
+          const row = Math.floor(ctx._placedBubbles.length / 3);
+          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + (col - 1) * (bubbleW + 10)));
+          const bY = Math.min(botBandBot - bubbleH, botBandTop + row * (bubbleH + 5));
           pl = { bX, bY, useBottom: true };
         }
         const { bX: bubbleX, bY: bubbleY, useBottom } = pl;
@@ -12743,44 +12748,46 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-        // Anchor dot at price level
+        // Anchor dot at actual structural price level
         ctx.fillStyle = accentCol;
-        ctx.beginPath(); ctx.arc(ax, ay, isPrimary ? 3.5 : 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ax, aySafe, isPrimary ? 3.5 : 2.5, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.beginPath(); ctx.arc(ax, ay, 1.3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ax, aySafe, 1.3, 0, Math.PI*2); ctx.fill();
 
         // Connector: anchor → bubble edge (long dashed line)
         const bubbleEdgeY  = useBottom ? bubbleY : bubbleY + bubbleH;
         const connX        = Math.max(bubbleX + 12, Math.min(bubbleX + bubbleW - 12, ax));
         ctx.strokeStyle = accentCol;
-        ctx.lineWidth   = isPrimary ? 1.5 : 1;
+        ctx.lineWidth   = isPrimary ? 1.8 : 1.4;
         ctx.setLineDash([3, 4]);
-        ctx.globalAlpha = alpha * 0.5 * (isWIP ? 0.7 : 1);
+        ctx.globalAlpha = alpha * 0.75 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
-        ctx.moveTo(ax, ay);
+        ctx.moveTo(ax, aySafe);
         if (Math.abs(connX - ax) < 6) {
           ctx.lineTo(ax, bubbleEdgeY);
         } else {
-          const midY = ay + (bubbleEdgeY - ay) * 0.5;
+          const midY = aySafe + (bubbleEdgeY - aySafe) * 0.5;
           ctx.lineTo(ax, midY);
           ctx.lineTo(connX, bubbleEdgeY);
         }
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Arrowhead at bubble edge
-        const ahSz = 3;
+        // Arrowhead pointing TOWARD the structure (at the anchor end of the connector)
+        const ahSz = 3.5;
         ctx.fillStyle = accentCol;
-        ctx.globalAlpha = alpha * 0.8 * (isWIP ? 0.7 : 1);
+        ctx.globalAlpha = alpha * 0.9 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
         if (useBottom) {
+          // Bubble is below anchor — arrowhead points UP toward the anchor
           ctx.moveTo(connX, bubbleEdgeY);
-          ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2.2);
-          ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2.2);
+          ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2);
+          ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2);
         } else {
+          // Bubble is above anchor — arrowhead points DOWN toward the anchor
           ctx.moveTo(connX, bubbleEdgeY);
-          ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2.2);
-          ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2.2);
+          ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2);
+          ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2);
         }
         ctx.closePath(); ctx.fill();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
@@ -12850,22 +12857,35 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const strAlpha  = (isSel ? 1.0  : 0.55) * alpha;
 
         ctx.save();
-        // ── Zone fill on chart ──────────────────────────────────────────────
-        ctx.globalAlpha = fillAlpha * (isWIP ? 0.7 : 1);
-        ctx.fillStyle = fillCol + '1)';
-        ctx.fillRect(bxL, byT, bW, bHt);
-        // Edge lines
-        ctx.strokeStyle = strokeCol;
-        ctx.globalAlpha = strAlpha * (isWIP ? 0.7 : 1);
-        ctx.lineWidth   = tier === 'primary' ? 1.5 : 1;
-        ctx.setLineDash([]);
-        ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxR, byT); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bxL, byB); ctx.lineTo(bxR, byB); ctx.stroke();
-        ctx.globalAlpha = strAlpha * 0.3 * (isWIP ? 0.7 : 1);
-        ctx.setLineDash([2, 4]);
-        ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxL, byB); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bxR, byT); ctx.lineTo(bxR, byB); ctx.stroke();
-        ctx.setLineDash([]);
+        if (d.isLine) {
+          // ── Level line (for zone-type: S&R, liquidity levels) ──────────────
+          // Draw as a single dashed line at the midpoint — the callout bubble
+          // carries the full information, so we don't show a filled rectangle.
+          const midY = (byT + byB) / 2;
+          ctx.strokeStyle = strokeCol;
+          ctx.lineWidth   = tier === 'primary' ? 1.5 : 1.2;
+          ctx.globalAlpha = strAlpha * 0.85 * (isWIP ? 0.7 : 1);
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath(); ctx.moveTo(bxL, midY); ctx.lineTo(bxR, midY); ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          // ── Zone fill on chart (for range/consolidation boxes) ──────────────
+          ctx.globalAlpha = fillAlpha * (isWIP ? 0.7 : 1);
+          ctx.fillStyle = fillCol + '1)';
+          ctx.fillRect(bxL, byT, bW, bHt);
+          // Edge lines
+          ctx.strokeStyle = strokeCol;
+          ctx.globalAlpha = strAlpha * (isWIP ? 0.7 : 1);
+          ctx.lineWidth   = tier === 'primary' ? 1.5 : 1;
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxR, byT); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(bxL, byB); ctx.lineTo(bxR, byB); ctx.stroke();
+          ctx.globalAlpha = strAlpha * 0.3 * (isWIP ? 0.7 : 1);
+          ctx.setLineDash([2, 4]);
+          ctx.beginPath(); ctx.moveTo(bxL, byT); ctx.lineTo(bxL, byB); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(bxR, byT); ctx.lineTo(bxR, byB); ctx.stroke();
+          ctx.setLineDash([]);
+        }
         ctx.restore();
 
         // ── Floating callout bubble with arrow pointing to zone centre ──────
@@ -12922,22 +12942,28 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
             const bandTop2 = useBottom ? botBandTop : topBandTop;
             const bandBot2 = useBottom ? botBandBot : topBandBot;
             if (bandBot2 - bandTop2 < bubbleH) return null;
-            const bXb = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
             const startY = useBottom ? bandTop2 : bandBot2 - bubbleH;
             const step   = useBottom ? bubbleH + 5 : -(bubbleH + 5);
-            for (let attempt = 0; attempt < 6; attempt++) {
-              const bY = startY + step * attempt;
-              if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
-              if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bXb, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
-                return { bXb, bY, useBottom };
+            // Try multiple X positions so boxes spread horizontally, not just vertically
+            const xShifts = [0, -(bubbleW + 10), bubbleW + 10, -(bubbleW * 2 + 20), bubbleW * 2 + 20];
+            for (const xShift of xShifts) {
+              const bXb = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + xShift));
+              for (let attempt = 0; attempt < 4; attempt++) {
+                const bY = startY + step * attempt;
+                if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
+                if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bXb, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
+                  return { bXb, bY, useBottom };
+              }
             }
             return null;
           }
 
           let pl = tryBandBox(preferBottom) || tryBandBox(!preferBottom);
           if (!pl) {
-            const bXb = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2));
-            const bY  = Math.min(botBandBot - bubbleH, botBandTop + ctx._placedBubbles.length * (bubbleH + 5));
+            const col = ctx._placedBubbles.length % 3;
+            const row = Math.floor(ctx._placedBubbles.length / 3);
+            const bXb = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + (col - 1) * (bubbleW + 10)));
+            const bY  = Math.min(botBandBot - bubbleH, botBandTop + row * (bubbleH + 5));
             pl = { bXb, bY, useBottom: true };
           }
           const { bXb: bubbleX, bY: bubbleY, useBottom } = pl;
@@ -12946,11 +12972,12 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.save();
           ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
-          // Anchor dot at zone centre
+          // Anchor dot at zone centre (clamped to chart bounds)
+          const aySafeBox = Math.max(chartTop + 4, Math.min(chartBottom - 4, ay));
           ctx.fillStyle = strokeCol;
-          ctx.beginPath(); ctx.arc(ax, ay, isPrimary ? 3.5 : 2.5, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(ax, aySafeBox, isPrimary ? 3.5 : 2.5, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.beginPath(); ctx.arc(ax, ay, 1.3, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(ax, aySafeBox, 1.3, 0, Math.PI*2); ctx.fill();
 
           // Connector line from zone centre to bubble edge
           const bubbleEdgeY = useBottom ? bubbleY : bubbleY + bubbleH;
@@ -12958,32 +12985,34 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.strokeStyle = strokeCol;
           ctx.lineWidth   = isPrimary ? 1.5 : 1;
           ctx.setLineDash([3, 4]);
-          ctx.globalAlpha = alpha * 0.5 * (isWIP ? 0.7 : 1);
+          ctx.globalAlpha = alpha * 0.65 * (isWIP ? 0.7 : 1);
           ctx.beginPath();
-          ctx.moveTo(ax, ay);
+          ctx.moveTo(ax, aySafeBox);
           if (Math.abs(connX - ax) < 6) {
             ctx.lineTo(ax, bubbleEdgeY);
           } else {
-            const midY = ay + (bubbleEdgeY - ay) * 0.5;
+            const midY = aySafeBox + (bubbleEdgeY - aySafeBox) * 0.5;
             ctx.lineTo(ax, midY);
             ctx.lineTo(connX, bubbleEdgeY);
           }
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // Arrowhead at bubble edge
-          const ahSz = 3;
+          // Arrowhead pointing TOWARD the structure
+          const ahSz = 3.5;
           ctx.fillStyle = strokeCol;
-          ctx.globalAlpha = alpha * 0.8 * (isWIP ? 0.7 : 1);
+          ctx.globalAlpha = alpha * 0.9 * (isWIP ? 0.7 : 1);
           ctx.beginPath();
           if (useBottom) {
+            // Bubble below anchor — arrowhead points UP toward the structure
             ctx.moveTo(connX, bubbleEdgeY);
-            ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2.2);
-            ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2.2);
+            ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2);
+            ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2);
           } else {
+            // Bubble above anchor — arrowhead points DOWN toward the structure
             ctx.moveTo(connX, bubbleEdgeY);
-            ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2.2);
-            ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2.2);
+            ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2);
+            ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2);
           }
           ctx.closePath(); ctx.fill();
           ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
