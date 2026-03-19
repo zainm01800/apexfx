@@ -10237,91 +10237,49 @@ let newsCache = {};
 // Order: all Groq keys first (fastest), then Gemini Flash as fallback.
 // Add more Groq keys by creating additional free accounts at console.groq.com.
 // Get a Gemini key free at aistudio.google.com (15 RPM, 1M tokens/day).
-const GROQ_KEYS = [
-  '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',
-  // Add more Groq keys here (one per free account):
-  // 'gsk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-];
-const GEMINI_KEY = ''; // paste your Google AI Studio key here e.g. 'AIzaSy...'
-let groqKeyIndex = 0;
-
-// ── Gemini 1.5 Flash fallback ─────────────────────────────────────────────────
-async function geminiFetch(prompt) {
-  if (!GEMINI_KEY) throw new Error('No Gemini key configured');
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-    {
+async function aiComplete(prompt, {
+  model = 'llama-3.1-8b-instant',
+  max_tokens = 1000,
+  temperature = 0,
+  timeoutMs = 30000,
+} = {}){
+  let res;
+  try {
+    res = await fetch('/api/ai', {
       method: 'POST',
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 1000 },
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-  if (!text) throw new Error('Gemini empty response');
+      body: JSON.stringify({ prompt, model, max_tokens, temperature })
+    });
+  } catch(networkErr) {
+    throw new Error(`AI network error: ${networkErr.message}`);
+  }
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch(parseErr) {
+    throw new Error(`AI HTTP ${res.status} - invalid response`);
+  }
+
+  if(!res.ok){
+    const msg = data?.error || `HTTP ${res.status}`;
+    throw new Error(`AI: ${msg}`);
+  }
+
+  const text = data?.text?.trim() || '';
+  if(!text) throw new Error('AI returned empty response');
   return text;
 }
 
-// ── Main AI fetch — tries Groq keys in order, then falls back to Gemini ───────
-async function groqFetch(prompt){
-  const TIMEOUT_MS = 12000;
-
-  // 1. Try all Groq keys
-  for(let attempt=0; attempt<GROQ_KEYS.length; attempt++){
-    const key = GROQ_KEYS[(groqKeyIndex + attempt) % GROQ_KEYS.length];
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          max_tokens: 1000,
-          temperature: 0,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-
-      if(res.status === 429){
-        groqKeyIndex = (groqKeyIndex + attempt + 1) % GROQ_KEYS.length;
-        continue; // rate limited — try next key
-      }
-      if(res.status === 401){
-        groqKeyIndex = (groqKeyIndex + attempt + 1) % GROQ_KEYS.length;
-        continue; // invalid key — try next
-      }
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content?.trim() || '';
-      if(!text) throw new Error('empty response');
-      groqKeyIndex = (groqKeyIndex + attempt) % GROQ_KEYS.length;
-      return text;
-
-    } catch(e){
-      if(e.name === 'TimeoutError' || e.name === 'AbortError') continue;
-      if(e.message?.startsWith('HTTP ')) throw e;
-      continue;
-    }
-  }
-
-  // 2. All Groq keys exhausted — try Gemini Flash
-  if(GEMINI_KEY){
-    try {
-      return await geminiFetch(prompt);
-    } catch(e) {
-      throw new Error('429 rate limited'); // surface as rate-limit so UI handles it
-    }
-  }
-
-  throw new Error('429 rate limited');
+async function groqFetch(prompt, options = {}){
+  return await aiComplete(prompt, {
+    model: options.model || 'llama-3.1-8b-instant',
+    max_tokens: options.max_tokens ?? 1000,
+    temperature: options.temperature ?? 0,
+    timeoutMs: options.timeoutMs ?? 30000,
+  });
 }
-
 function buildInfo(){
   if(!curData.length) return;
   const last=curData[curData.length-1], prev=curData[curData.length-2]||last;
@@ -16070,96 +16028,93 @@ async function generatePremarket() {
   document.getElementById('pmb-idle').style.display = 'none';
   pmbSetProgress(2, 'Gathering watchlist…');
 
-  const wlSyms = SYMS.filter(s => watchlist.has(s.s));
-  const symsToAnalyse = wlSyms.length >= 1 ? wlSyms : SYMS.slice(0, 6);
-  const total = symsToAnalyse.length * PMB_TFS.length;
-  let done = 0;
+  try {
+    const wlSyms = SYMS.filter(s => watchlist.has(s.s));
+    const symsToAnalyse = wlSyms.length >= 1 ? wlSyms : SYMS.slice(0, 6);
+    const total = symsToAnalyse.length * PMB_TFS.length;
+    let done = 0;
 
-  pmbAnalyses = {};
+    pmbAnalyses = {};
+    buildPMBNav(symsToAnalyse, true);
 
-  // Build nav items immediately (as loading placeholders)
-  buildPMBNav(symsToAnalyse, true);
-
-  // Analyse each symbol across all TFs — fetch real Binance data first
-  for (const sym of symsToAnalyse) {
-    const tfData = {};
-    for (const tf of PMB_TFS) {
-      pmbSetProgress(Math.round(done / total * 80) + 2, `Fetching ${sym.s} ${PMB_TF_LABELS[tf]} data…`);
-      await new Promise(r => setTimeout(r, 0));
-      // Fetch real Binance candles for crypto
-      let realData = null;
-      if(sym.t === 'Crypto'){
-        try{
-          realData = await fetchBinanceCandles(sym.s, tf);
-        }catch(e){ realData = null; }
+    for (const sym of symsToAnalyse) {
+      const tfData = {};
+      for (const tf of PMB_TFS) {
+        pmbSetProgress(Math.round(done / total * 80) + 2, `Fetching ${sym.s} ${PMB_TF_LABELS[tf]} data…`);
+        await new Promise(r => setTimeout(r, 0));
+        let realData = null;
+        if(sym.t === 'Crypto'){
+          try {
+            realData = await fetchBinanceCandles(sym.s, tf);
+          } catch(e) {
+            realData = null;
+          }
+        }
+        tfData[tf] = analyseTF(sym.s, tf, realData);
+        done++;
       }
-      tfData[tf] = analyseTF(sym.s, tf, realData);
-      done++;
+      const confluence = computeConfluence(tfData);
+      const daily = tfData['1d'];
+      const realPrice = daily?.price || (SYMS.find(s => s.s === sym.s)?.p) || 0;
+      pmbAnalyses[sym.s] = {
+        sym: sym.s, name: sym.n, type: sym.t, exchange: sym.e,
+        tfData, confluence,
+        price: realPrice,
+        movePct: daily?.movePct || 0,
+        dailyBias: daily?.bias || 'neut',
+        dailyRSI: daily?.rsi || '—'
+      };
+      updatePMBNavItem(sym.s, pmbAnalyses[sym.s]);
     }
-    const confluence = computeConfluence(tfData);
-    // Daily data for price/move display
-    const daily = tfData['1d'];
-    // Use the real price from the actual data (daily TF last bar)
-    const realPrice = daily?.price || (SYMS.find(s=>s.s===sym.s)?.p) || 0;
-    pmbAnalyses[sym.s] = {
-      sym: sym.s, name: sym.n, type: sym.t, exchange: sym.e,
-      tfData, confluence,
-      price: realPrice,
-      movePct: daily?.movePct || 0,
-      dailyBias: daily?.bias || 'neut',
-      dailyRSI: daily?.rsi || '—'
-    };
-    // Update nav item as it completes
-    updatePMBNavItem(sym.s, pmbAnalyses[sym.s]);
-  }
 
-  pmbSetProgress(82, 'Building overview…');
-  await new Promise(r => setTimeout(r, 0));
+    const analyses = symsToAnalyse.map(s => pmbAnalyses[s.s]).filter(Boolean);
 
-  // Build overview pane
-  buildPMBOverview(symsToAnalyse.map(s => pmbAnalyses[s.s]));
-  buildPMBChecklist();
-
-  pmbSetProgress(88, 'Building per-symbol detail pages…');
-  await new Promise(r => setTimeout(r, 0));
-
-  // Build per-symbol detail panes
-  buildAllSymbolPanes(symsToAnalyse.map(s => pmbAnalyses[s.s]));
-
-  pmbSetProgress(92, 'Generating AI narratives…');
-
-  // Generate AI narratives for each symbol (sequentially to avoid rate limits)
-  for (const sym of symsToAnalyse) {
-    const a = pmbAnalyses[sym.s];
-    if (!a) continue;
-    pmbSetProgress(92, `AI narrative: ${sym.s}…`);
+    pmbSetProgress(82, 'Building overview…');
     await new Promise(r => setTimeout(r, 0));
-    try {
-      const text = await generateSymbolNarrative(a);
-      const el = document.getElementById(`pmb-narrative-${sym.s}`);
-      if (el) el.textContent = text;
-      const loadEl = document.getElementById(`pmb-narr-load-${sym.s}`);
-      if (loadEl) loadEl.style.display = 'none';
-    } catch(e) {
-      const el = document.getElementById(`pmb-narrative-${sym.s}`);
-      if (el) el.textContent = 'AI narrative unavailable.';
+    buildPMBOverview(analyses);
+    buildPMBChecklist();
+
+    pmbSetProgress(88, 'Building per-symbol detail pages…');
+    await new Promise(r => setTimeout(r, 0));
+    buildAllSymbolPanes(analyses);
+
+    pmbSetProgress(92, 'Generating AI narratives…');
+    for (const sym of symsToAnalyse) {
+      const a = pmbAnalyses[sym.s];
+      if (!a) continue;
+      pmbSetProgress(92, `AI narrative: ${sym.s}…`);
+      await new Promise(r => setTimeout(r, 0));
+      try {
+        const text = await generateSymbolNarrative(a);
+        const el = document.getElementById(`pmb-narrative-${sym.s}`);
+        if (el) el.textContent = text;
+      } catch(e) {
+        const el = document.getElementById(`pmb-narrative-${sym.s}`);
+        if (el) el.textContent = 'AI narrative unavailable.';
+      } finally {
+        const loadEl = document.getElementById(`pmb-narr-load-${sym.s}`);
+        if (loadEl) loadEl.style.display = 'none';
+      }
     }
+
+    pmbSetProgress(98, 'Fetching news…');
+    await fetchPMBNews(symsToAnalyse.slice(0,3).map(s => s.s));
+
+    pmbSetProgress(100, `Complete — ${symsToAnalyse.length} symbols analysed across ${PMB_TFS.length} timeframes`);
+    document.getElementById('pmb-generated-at').textContent =
+      `Generated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${symsToAnalyse.length} symbols · ${PMB_TFS.length} TFs each`;
+
+    pmbShowPane('overview');
+  } catch (err) {
+    console.error('Premarket brief failed:', err);
+    pmbSetProgress(100, 'Pre-market brief failed');
+    document.getElementById('pmb-generated-at').textContent =
+      `Could not finish brief: ${err.message || 'unexpected error'}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Generate Brief';
   }
-
-  pmbSetProgress(98, 'Fetching news…');
-  await fetchPMBNews(symsToAnalyse.slice(0,3).map(s => s.s));
-
-  pmbSetProgress(100, `Complete — ${symsToAnalyse.length} symbols analysed across ${PMB_TFS.length} timeframes`);
-  document.getElementById('pmb-generated-at').textContent =
-    `Generated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${symsToAnalyse.length} symbols · ${PMB_TFS.length} TFs each`;
-
-  // Auto-show overview
-  pmbShowPane('overview');
-
-  btn.disabled = false;
-  btn.textContent = '⚡ Generate Brief';
 }
-
 function buildPMBNav(syms, loading = false) {
   const navEl = document.getElementById('pnav-items');
   navEl.innerHTML = syms.map(sym => {
@@ -16269,7 +16224,20 @@ function buildPMBChecklist() {
 
 function buildAllSymbolPanes(analyses) {
   const container = document.getElementById('pmb-sym-panes');
-  container.innerHTML = analyses.map(a => buildSymbolPane(a)).join('');
+  container.innerHTML = analyses.map(a => {
+    try {
+      return buildSymbolPane(a);
+    } catch (err) {
+      console.error('Failed to build premarket pane for', a?.sym, err);
+      return `<div class="pmb-sym-detail" data-sym="${a?.sym || 'unknown'}">
+        <div class="pmb-section">
+          <div style="font-size:12px;color:var(--rd);font-family:ui-monospace,'SF Mono',monospace;">
+            Failed to render ${a?.sym || 'symbol'} details.
+          </div>
+        </div>
+      </div>`;
+    }
+  }).join('');
 }
 
 function buildSymbolPane(a) {
@@ -16874,79 +16842,80 @@ async function runAISetupScan(){
   document.getElementById('ais-idle').style.display       = 'none';
   aisSetups = [];
 
-  // Sync scan set from current filter selection
-  aisTFScan = new Set(aisTFFilter);
-  const selectedTFs = [...aisTFScan];
-  const total = SYMS.length * selectedTFs.length;
-  let done = 0;
-  for(const sym of SYMS){
-    for(const tf of selectedTFs){
-      aisSetProgress(Math.round((done/total)*55)+2, `Fetching ${sym.s} · ${tf}…`);
-      await new Promise(r=>setTimeout(r,0));
-      // Fetch real Binance data — use cache if available
-      let realData = dataCache[sym.s+'_'+tf] || null;
-      if(!realData && sym.t==='Crypto'){
-        try{ realData = await fetchBinanceCandles(sym.s, tf); if(realData.length) dataCache[sym.s+'_'+tf]=realData; }catch(e){ realData=null; }
+  try {
+    aisTFScan = new Set(aisTFFilter);
+    const selectedTFs = [...aisTFScan];
+    const total = SYMS.length * selectedTFs.length;
+    let done = 0;
+    for(const sym of SYMS){
+      for(const tf of selectedTFs){
+        aisSetProgress(Math.round((done/total)*55)+2, `Fetching ${sym.s} · ${tf}…`);
+        await new Promise(r=>setTimeout(r,0));
+        let realData = dataCache[sym.s+'_'+tf] || null;
+        if(!realData && sym.t==='Crypto'){
+          try{ realData = await fetchBinanceCandles(sym.s, tf); if(realData.length) dataCache[sym.s+'_'+tf]=realData; }catch(e){ realData=null; }
+        }
+        const TF_ORDER=['1m','5m','15m','1h','4h','1d','1w','1M'];
+        const htf = TF_ORDER[TF_ORDER.indexOf(tf)+1]||null;
+        let higherReal = htf ? (dataCache[sym.s+'_'+htf]||null) : null;
+        if(!higherReal && htf && sym.t==='Crypto'){
+          try{ higherReal = await fetchBinanceCandles(sym.s, htf); if(higherReal.length) dataCache[sym.s+'_'+htf]=higherReal; }catch(e){ higherReal=null; }
+        }
+        aisSetups.push(aisAnalyseSymbol(sym, tf, realData, higherReal));
+        done++;
       }
-      // Also fetch higher TF for confluence
-      const TF_ORDER=['1m','5m','15m','1h','4h','1d','1w','1M'];
-      const htf = TF_ORDER[TF_ORDER.indexOf(tf)+1]||null;
-      let higherReal = htf ? (dataCache[sym.s+'_'+htf]||null) : null;
-      if(!higherReal && htf && sym.t==='Crypto'){
-        try{ higherReal = await fetchBinanceCandles(sym.s, htf); if(higherReal.length) dataCache[sym.s+'_'+htf]=higherReal; }catch(e){ higherReal=null; }
-      }
-      aisSetups.push(aisAnalyseSymbol(sym, tf, realData, higherReal));
-      done++;
     }
-  }
 
-  aisSetups.sort((a,b)=>b.score-a.score);
-  aisUpdateSummary();
-  aisSetProgress(60,'Rendering cards…');
-  await new Promise(r=>setTimeout(r,0));
-  aisRenderCards();
-
-  const top6 = aisSetups.slice(0,6);
-  // Show loading skeletons for top-6 cards while AI generates
-  top6.forEach(s => {
-    const el = document.getElementById(`ais-idea-${s.sym}-${s.tf}`);
-    if(el) el.innerHTML = `<div class="ais-skel" style="width:95%"></div><div class="ais-skel" style="width:80%;margin-top:5px"></div><div class="ais-skel" style="width:70%;margin-top:5px"></div>`;
-  });
-
-  // Track whether Groq is rate-limited so we fail fast on subsequent cards
-  // instead of waiting 12s per card for timeouts.
-  let groqRateLimited = false;
-  for(let i=0;i<top6.length;i++){
-    const s=top6[i], cid=`${s.sym}-${s.tf}`;
-    aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}…`);
+    aisSetups.sort((a,b)=>b.score-a.score);
+    aisUpdateSummary();
+    aisSetProgress(60,'Rendering cards…');
     await new Promise(r=>setTimeout(r,0));
-    const el = document.getElementById(`ais-idea-${cid}`);
-    if(groqRateLimited){
-      if(el) el.textContent = 'AI rate limited — rescan to retry.';
-      continue;
-    }
-    try{
-      const text = await aisGenerateIdea(s);
-      if(el){el.innerHTML='';el.textContent=text;}
-    }catch(e){
-      const msg = e?.message || '';
-      if(msg.includes('exhausted') || msg.includes('429') || msg.includes('401')){
-        groqRateLimited = true;
-        if(el) el.textContent = 'AI rate limited — rescan in a moment.';
-      } else {
-        if(el) el.textContent = 'AI idea unavailable.';
+    aisRenderCards();
+
+    const top6 = aisSetups.slice(0,6);
+    top6.forEach(s => {
+      const el = document.getElementById(`ais-idea-${s.sym}-${s.tf}`);
+      if(el) el.innerHTML = `<div class="ais-skel" style="width:95%"></div><div class="ais-skel" style="width:80%;margin-top:5px"></div><div class="ais-skel" style="width:70%;margin-top:5px"></div>`;
+    });
+
+    let groqRateLimited = false;
+    for(let i=0;i<top6.length;i++){
+      const s=top6[i], cid=`${s.sym}-${s.tf}`;
+      aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}…`);
+      await new Promise(r=>setTimeout(r,0));
+      const el = document.getElementById(`ais-idea-${cid}`);
+      if(groqRateLimited){
+        if(el) el.textContent = 'AI rate limited — rescan to retry.';
+        continue;
+      }
+      try{
+        const text = await aisGenerateIdea(s);
+        if(el){el.innerHTML='';el.textContent=text;}
+      }catch(e){
+        const msg = e?.message || '';
+        if(msg.includes('exhausted') || msg.includes('429') || msg.includes('401')){
+          groqRateLimited = true;
+          if(el) el.textContent = 'AI rate limited — rescan in a moment.';
+        } else {
+          if(el) el.textContent = 'AI idea unavailable.';
+        }
       }
     }
+
+    const tfLabel = selectedTFs.length === ALL_TFS.length ? 'all TFs' : selectedTFs.join(', ');
+    aisSetProgress(100,`Done — ${SYMS.length} symbols × ${selectedTFs.length} TF${selectedTFs.length>1?'s':''}`);
+    document.getElementById('ais-footer-info').textContent =
+      `Scanned ${SYMS.length} instruments across ${tfLabel} · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · Ideas only — always verify before trading`;
+  } catch (err) {
+    console.error('AI setup scan failed:', err);
+    aisSetProgress(100, 'Scan failed');
+    document.getElementById('ais-footer-info').textContent =
+      `Scan failed: ${err.message || 'unexpected error'}`;
+  } finally {
+    btn.disabled=false; btn.textContent='⚡ Scan Markets';
+    document.getElementById('ais-rescan-btn').style.display='inline-block';
   }
-
-  const tfLabel = selectedTFs.length === ALL_TFS.length ? 'all TFs' : selectedTFs.join(', ');
-  aisSetProgress(100,`Done — ${SYMS.length} symbols × ${selectedTFs.length} TF${selectedTFs.length>1?'s':''}`);
-  document.getElementById('ais-footer-info').textContent =
-    `Scanned ${SYMS.length} instruments across ${tfLabel} · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · Ideas only — always verify before trading`;
-  btn.disabled=false; btn.textContent='⚡ Scan Markets';
-  document.getElementById('ais-rescan-btn').style.display='inline-block';
 }
-
 function aisUpdateSummary(){
   const bulls=aisSetups.filter(s=>s.dir==='bull').length;
   const bears=aisSetups.filter(s=>s.dir==='bear').length;
@@ -18451,41 +18420,13 @@ One sentence of reasoning. Be decisive.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
-  const key = GROQ_KEYS[groqKeyIndex % GROQ_KEYS.length];
-  let res, data;
-
-  try {
-    res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 900,
-        temperature: 0.3,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-  } catch(networkErr) {
-    throw new Error(`Network error: ${networkErr.message}`);
-  }
-
-  try { data = await res.json(); }
-  catch(e) { throw new Error(`HTTP ${res.status} — could not parse response`); }
-
-  // Surface the real Groq error (rate limit, auth, model not found, context too long, etc.)
-  if(!res.ok){
-    const groqMsg = data?.error?.message || data?.error?.code || `HTTP ${res.status}`;
-    throw new Error(`Groq: ${groqMsg}`);
-  }
-
-  const text = data.choices?.[0]?.message?.content || '';
-  if(!text){
-    const reason = data.choices?.[0]?.finish_reason || 'unknown';
-    throw new Error(`Model returned empty response (finish_reason: ${reason})`);
-  }
-  return text;
+  return await aiComplete(prompt, {
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: 900,
+    temperature: 0.3,
+    timeoutMs: 45000,
+  });
 }
-
 
 
 
@@ -19291,4 +19232,6 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
+
 
