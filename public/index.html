@@ -790,6 +790,24 @@
           <div class="aw-div"></div>
         </div>
 
+        <div data-widget="profile" style="padding:8px 8px 0;">
+          <div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.8px;margin-bottom:6px;">🧠 TRADER MEMORY</div>
+          <div id="trader-profile-card" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <div class="aw-div"></div>
+        </div>
+
+        <div data-widget="thesis" style="padding:8px 8px 0;">
+          <div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.8px;margin-bottom:6px;">📌 THESIS TRACKER</div>
+          <div id="thesis-tracker-card" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <div class="aw-div"></div>
+        </div>
+
+        <div data-widget="replaylab" style="padding:8px 8px 0;">
+          <div style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.8px;margin-bottom:6px;">🎓 REPLAY LAB</div>
+          <div id="replay-lab-card" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <div class="aw-div"></div>
+        </div>
+
         <div data-widget="session" style="padding:8px 8px 0;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
             <div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.8px;">📋 SESSION SUMMARY</div>
@@ -2256,6 +2274,15 @@
           <span class="tap-sec-title" style="color:var(--green);">AI SETUP HANDOFF</span>
         </div>
         <div id="tap-setup-bridge-out"></div>
+      </div>
+
+      <div class="tap-section" id="tap-context-section" style="display:none;">
+        <div class="tap-sec-hdr">
+          <span class="tap-sec-icon">🧠</span>
+          <span class="tap-sec-title" style="color:var(--bl);">TRADER MEMORY & THESIS</span>
+          <button id="tap-thesis-btn" onclick="tapPinCurrentTradeAsThesis()" style="margin-left:auto;padding:3px 10px;background:transparent;border:1px solid rgba(0,201,160,.35);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Pin Thesis</button>
+        </div>
+        <div id="tap-context-out"></div>
       </div>
 
       <!-- Chart context -->
