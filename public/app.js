@@ -1838,6 +1838,7 @@ function setupFilter(btn, mode){
 
 function buildAnalytics(){
   applyAnalyticsVisibility();
+  renderAnalyticsHero();
   renderTraderProfileWidget();
   renderThesisTrackerWidget();
   renderReplayLabWidget();
@@ -1858,6 +1859,43 @@ let traderProfileCache = null;
 let traderProfileCacheHash = '';
 let thesisStore = {};
 let replayScorecards = [];
+
+function renderAnalyticsHero(){
+  const el = document.getElementById('analytics-hero-card');
+  if(!el) return;
+  const p = getTraderProfile();
+  const thesis = getCurrentThesis();
+  const lastPrice = curData?.length ? curData[curData.length - 1].close : NaN;
+  const thesisState = _thesisStatus(thesis, lastPrice);
+  const focus = thesis?.focus
+    || p?.checklist?.[0]
+    || 'Keep the chart clean, wait for confirmation, and only analyse trades that have a clear invalidation.';
+  const strength = p?.strengths?.[0]
+    || 'The platform will start surfacing your strongest pattern once more closed trades are logged.';
+  const stats = [
+    { label:'Closed Trades', value: p?.total || 0, color:'var(--tx)' },
+    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '—', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
+    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '—', color:'var(--am)' },
+    { label:'Thesis', value: thesis ? thesisState.label : 'None', color: thesis ? thesisState.color : 'var(--tx3)' },
+  ];
+  el.innerHTML = `
+    <div class="analytics-snapshot-grid">
+      ${stats.map(s => `
+        <div class="analytics-snapshot-cell">
+          <div class="analytics-snapshot-label">${s.label}</div>
+          <div class="analytics-snapshot-value" style="color:${s.color};">${s.value}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="analytics-strength-card">
+      <div class="analytics-card-label">What is working</div>
+      <div class="analytics-card-copy">${strength}</div>
+    </div>
+    <div class="analytics-focus-card">
+      <div class="analytics-card-label">Current focus</div>
+      <div class="analytics-card-copy">${focus}</div>
+    </div>`;
+}
 
 function getClosedJournalTrades(){
   return journal.filter(e => !e.archived && (e.outcome === 'win' || e.outcome === 'loss'));
