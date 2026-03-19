@@ -17198,8 +17198,39 @@ function tapExtractSection(text, title){
   return out.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+function tapParseStructuredAnalysis(text){
+  const raw = String(text || '');
+  const match = raw.match(/SCORECARD_JSON:\s*(\{[^\n]*\})/i);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch (e) {
+    return null;
+  }
+}
+
+function tapDisplayAnalysisText(text){
+  return String(text || '')
+    .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}\s*$/i, '')
+    .trim();
+}
+
 function tapExtractTradeMetrics(text){
   const source = String(text || '');
+  const structured = tapParseStructuredAnalysis(source);
+  if (structured) {
+    return {
+      entryQuality: structured.entry_quality ?? null,
+      stopPlacement: structured.stop_placement ?? null,
+      riskReward: structured.risk_reward_logic ?? null,
+      confluence: structured.technical_confluence ?? null,
+      combined: structured.combined_score ?? null,
+      probability: structured.probability ?? null,
+      weaknesses: tapExtractSection(source, '7. CRITICAL WEAKNESSES'),
+      improvements: tapExtractSection(source, '8. SUGGESTED IMPROVEMENTS'),
+      verdict: structured.verdict || '',
+    };
+  }
   const scoringIdx = source.toUpperCase().indexOf('TRADE QUALITY SCORING');
   const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
   const getScore = (label) => {
@@ -17217,6 +17248,7 @@ function tapExtractTradeMetrics(text){
     probability: probability ? Math.min(100, Math.max(0, parseInt(probability[1]))) : null,
     weaknesses: tapExtractSection(source, '7. CRITICAL WEAKNESSES'),
     improvements: tapExtractSection(source, '8. SUGGESTED IMPROVEMENTS'),
+    verdict: '',
   };
 }
 
@@ -17903,7 +17935,7 @@ async function openFullTradeAnalysis(){
 
   if(cached && cached.aiResult){
     // ── Showing cached result — make it crystal clear this is the saved analysis
-    aiOutEl.textContent = cached.aiResult;
+    aiOutEl.textContent = tapDisplayAnalysisText(cached.aiResult);
     tapRenderVerdictBanner(cached.aiResult);
     tapRenderSetupBridge(d, cached.aiResult);
     aiLoadingEl.style.display = 'none';
@@ -17938,7 +17970,7 @@ async function openFullTradeAnalysis(){
     aiLoadingEl.style.display = 'inline';
     try {
       const text = await tapGenerateAI(d, rr, status);
-      aiOutEl.textContent = text;
+      aiOutEl.textContent = tapDisplayAnalysisText(text);
       // Lock permanently — save to memory cache and localStorage
       if(cached) cached.aiResult = text;
       tapSaveLock(curSym.s, text, d);
@@ -18397,6 +18429,8 @@ function tapRenderVerdictBanner(text){
   const barEl    = document.getElementById('tap-verdict-bar');
   if(!banner) return;
 
+  const structured = tapParseStructuredAnalysis(text);
+
   // Only search verdict keywords in the FINAL VERDICT section at the end of the response
   // Prevents false positives from status words like "INVALID Placement" at the top
   const verdictIdx = text.toUpperCase().lastIndexOf('FINAL VERDICT');
@@ -18408,21 +18442,22 @@ function tapRenderVerdictBanner(text){
   const scoringZone = scoringIdx >= 0 ? text.slice(scoringIdx, scoringIdx+600) : '';
   const scoreRaw = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
-  const parsedScore = scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null;
+  const parsedScore = structured?.combined_score ?? (scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null);
 
   let verdict='', verdictColor='#8899b0', bg='rgba(136,153,176,0.08)', border='rgba(136,153,176,0.2)';
   let scoreVal = parsedScore, likelihood='', barPct=50;
+  const structuredVerdict = String(structured?.verdict || '').toUpperCase();
 
-  if(zone.includes('STRONG SETUP')){
+  if(structuredVerdict.includes('STRONG SETUP') || zone.includes('STRONG SETUP')){
     verdict='STRONG SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
     scoreVal = scoreVal ?? 88; likelihood='High likelihood of success'; barPct=scoreVal;
-  } else if(zone.includes('ACCEPTABLE SETUP') || zone.includes('ACCEPTABLE')){
+  } else if(structuredVerdict.includes('ACCEPTABLE SETUP') || structuredVerdict === 'ACCEPTABLE' || zone.includes('ACCEPTABLE SETUP') || zone.includes('ACCEPTABLE')){
     verdict='ACCEPTABLE SETUP'; verdictColor='#3d8eff'; bg='rgba(61,142,255,0.1)'; border='rgba(61,142,255,0.35)';
     scoreVal = scoreVal ?? 68; likelihood='Moderate likelihood of success'; barPct=scoreVal;
-  } else if(zone.includes('RISKY SETUP') || zone.includes('RISKY')){
+  } else if(structuredVerdict.includes('RISKY SETUP') || structuredVerdict === 'RISKY' || zone.includes('RISKY SETUP') || zone.includes('RISKY')){
     verdict='RISKY SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
     scoreVal = scoreVal ?? 42; likelihood='Lower likelihood — proceed with caution'; barPct=scoreVal;
-  } else if(zone.includes('AVOID TRADE') || zone.includes('AVOID')){
+  } else if(structuredVerdict.includes('AVOID TRADE') || structuredVerdict === 'AVOID' || zone.includes('AVOID TRADE') || zone.includes('AVOID')){
     verdict='AVOID TRADE'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
     scoreVal = scoreVal ?? 18; likelihood='Do not trade this setup'; barPct=scoreVal;
   } else if(zone.includes('A+ SETUP')){
@@ -18445,7 +18480,7 @@ function tapRenderVerdictBanner(text){
   if(!verdict) return;
 
   const probMatch = text.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
-  const probPct = probMatch ? parseInt(probMatch[1]) : null;
+  const probPct = structured?.probability ?? (probMatch ? parseInt(probMatch[1]) : null);
   barPct = Math.min(100, Math.max(0, barPct ?? 50));
 
   banner.style.display     = 'block';
@@ -18647,6 +18682,11 @@ Give a specific percentage probability of hitting take profit before stop loss, 
 10. FINAL VERDICT
 Classify as one of: Strong Setup / Acceptable Setup / Risky Setup / Avoid Trade
 One sentence of reasoning. Be decisive.
+
+11. SCORECARD_JSON
+On a single final line, output exactly:
+SCORECARD_JSON: {"entry_quality":<0-25 integer>,"stop_placement":<0-25 integer>,"risk_reward_logic":<0-25 integer>,"technical_confluence":<0-25 integer>,"combined_score":<0-100 integer>,"probability":<0-100 integer>,"verdict":"<exact final verdict label>"}
+Do not wrap it in markdown. Do not add any extra text after it.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
