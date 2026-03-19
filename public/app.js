@@ -10110,17 +10110,45 @@ function buildAlertsPanel(){
 let newsCache = {};
 
 // ── Groq key rotation ─────────────────────────────────────────────────────────
+// ── AI provider keys ─────────────────────────────────────────────────────────
+// Order: all Groq keys first (fastest), then Gemini Flash as fallback.
+// Add more Groq keys by creating additional free accounts at console.groq.com.
+// Get a Gemini key free at aistudio.google.com (15 RPM, 1M tokens/day).
 const GROQ_KEYS = [
   'gsk_PLACEHOLDER',
-  // Add more keys here:
-  // 'gsk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+  // Add more Groq keys here (one per free account):
   // 'gsk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
 ];
+const GEMINI_KEY = ''; // paste your Google AI Studio key here e.g. 'AIzaSy...'
 let groqKeyIndex = 0;
 
+// ── Gemini 1.5 Flash fallback ─────────────────────────────────────────────────
+async function geminiFetch(prompt) {
+  if (!GEMINI_KEY) throw new Error('No Gemini key configured');
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(15000),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 1000 },
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  if (!text) throw new Error('Gemini empty response');
+  return text;
+}
+
+// ── Main AI fetch — tries Groq keys in order, then falls back to Gemini ───────
 async function groqFetch(prompt){
-  // 12-second hard timeout per request — prevents hung connections blocking the UI
   const TIMEOUT_MS = 12000;
+
+  // 1. Try all Groq keys
   for(let attempt=0; attempt<GROQ_KEYS.length; attempt++){
     const key = GROQ_KEYS[(groqKeyIndex + attempt) % GROQ_KEYS.length];
     try {
@@ -10136,14 +10164,15 @@ async function groqFetch(prompt){
         })
       });
 
-      if(res.status === 429 || res.status === 401){
+      if(res.status === 429){
         groqKeyIndex = (groqKeyIndex + attempt + 1) % GROQ_KEYS.length;
-        continue; // try next key
+        continue; // rate limited — try next key
       }
-      if(!res.ok){
-        // Server error (5xx etc.) — don't rotate key, just fail fast
-        throw new Error(`HTTP ${res.status}`);
+      if(res.status === 401){
+        groqKeyIndex = (groqKeyIndex + attempt + 1) % GROQ_KEYS.length;
+        continue; // invalid key — try next
       }
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content?.trim() || '';
@@ -10152,17 +10181,22 @@ async function groqFetch(prompt){
       return text;
 
     } catch(e){
-      if(e.name === 'TimeoutError' || e.name === 'AbortError'){
-        // Request timed out — try next key
-        continue;
-      }
-      if(e.message && e.message.startsWith('HTTP ')){
-        throw e; // non-recoverable server error
-      }
-      continue; // network error — try next key
+      if(e.name === 'TimeoutError' || e.name === 'AbortError') continue;
+      if(e.message?.startsWith('HTTP ')) throw e;
+      continue;
     }
   }
-  throw new Error('All Groq API keys exhausted or unavailable');
+
+  // 2. All Groq keys exhausted — try Gemini Flash
+  if(GEMINI_KEY){
+    try {
+      return await geminiFetch(prompt);
+    } catch(e) {
+      throw new Error('429 rate limited'); // surface as rate-limit so UI handles it
+    }
+  }
+
+  throw new Error('429 rate limited');
 }
 
 function buildInfo(){
@@ -16726,17 +16760,30 @@ async function runAISetupScan(){
     const el = document.getElementById(`ais-idea-${s.sym}-${s.tf}`);
     if(el) el.innerHTML = `<div class="ais-skel" style="width:95%"></div><div class="ais-skel" style="width:80%;margin-top:5px"></div><div class="ais-skel" style="width:70%;margin-top:5px"></div>`;
   });
+
+  // Track whether Groq is rate-limited so we fail fast on subsequent cards
+  // instead of waiting 12s per card for timeouts.
+  let groqRateLimited = false;
   for(let i=0;i<top6.length;i++){
     const s=top6[i], cid=`${s.sym}-${s.tf}`;
     aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}…`);
     await new Promise(r=>setTimeout(r,0));
+    const el = document.getElementById(`ais-idea-${cid}`);
+    if(groqRateLimited){
+      if(el) el.textContent = 'AI rate limited — rescan to retry.';
+      continue;
+    }
     try{
       const text = await aisGenerateIdea(s);
-      const el = document.getElementById(`ais-idea-${cid}`);
       if(el){el.innerHTML='';el.textContent=text;}
     }catch(e){
-      const el = document.getElementById(`ais-idea-${cid}`);
-      if(el) el.textContent='AI idea unavailable.';
+      const msg = e?.message || '';
+      if(msg.includes('exhausted') || msg.includes('429') || msg.includes('401')){
+        groqRateLimited = true;
+        if(el) el.textContent = 'AI rate limited — rescan in a moment.';
+      } else {
+        if(el) el.textContent = 'AI idea unavailable.';
+      }
     }
   }
 
