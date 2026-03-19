@@ -16702,6 +16702,7 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
 
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
+  const setupRef = aisSetups.find(x => x.sym === sym && x.tf === (tf || curTF));
 
   const doPlace = () => {
     // Use real Binance data if available in cache, otherwise use curData
@@ -16737,6 +16738,19 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
       halfBars: 16,
       halfDuration: halfBarsToSecs(16, tf || curTF),
       _aisPlaced: true,
+      _aisMeta: setupRef ? {
+        source: 'ai-setups',
+        sym: setupRef.sym,
+        tf: setupRef.tf,
+        dir: setupRef.dir,
+        score: setupRef.score,
+        conf: setupRef.conf,
+        rr: setupRef.rr,
+        patLabel: setupRef.patLabel || 'Structure',
+        movePct: setupRef.movePct,
+        tfAgree: setupRef.tfAgree,
+        idea: setupRef.aiIdea || '',
+      } : null,
     };
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
@@ -16917,7 +16931,8 @@ async function runAISetupScan(){
       }
       try{
         const text = await aisGenerateIdea(s);
-        if(el){el.innerHTML='';el.textContent=text;}
+        s.aiIdea = text;
+        if(el){el.innerHTML = formatAISIdea(text);}
       }catch(e){
         const msg = e?.message || '';
         if(msg.includes('exhausted') || msg.includes('429') || msg.includes('401')){
@@ -17027,7 +17042,7 @@ function aisCardHTML(s, rank){
       <div class="ais-lvl"><div class="ais-lvl-val" style="color:${tgtCol};margin-top:2px">${fP(s.target)}</div><div class="ais-lvl-lbl">${tgtLbl}</div></div>
     </div>
     <div class="ais-idea">
-      <div class="ais-idea-lbl">💡 AI TRADE IDEA</div>
+      <div class="ais-idea-lbl">💡 AI SETUP SUMMARY</div>
       <div id="ais-idea-${cid}" style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;padding:2px 0;">
         AI idea generated for top 6 setups only.
       </div>
@@ -17096,9 +17111,9 @@ async function aisGenerateIdea(s){
   const keyS = s.keyLevel && s.dir === 'bull' ? fP(s.keyLevel) : 'N/A';
   const keyR = s.keyLevel && s.dir === 'bear' ? fP(s.keyLevel) : 'N/A';
 
-  const prompt = `You are a professional quantitative market scanner. Your sole job is to identify whether a compelling technical setup is forming on this asset right now. You are NOT evaluating a trade — you are discovering an opportunity that a trader should investigate further.
+  const prompt = `You are a professional quantitative market scanner. Your job is to explain a possible setup in plain English for a normal trader. You are NOT evaluating a trade — you are describing what is forming and what to watch.
 
-Do not evaluate entry/SL/TP quality. Do not give a trading recommendation. Just explain what is forming and why it matters.
+Do not evaluate entry/SL/TP quality. Do not give a trading recommendation. Do not use markdown, bold text, numbering, or headings.
 
 SCANNED ASSET DATA:
 Asset: ${s.sym} (${s.name})
@@ -17116,23 +17131,186 @@ Volume: ${volStatus}
 Timeframe Confluence: ${s.tfAgree >= 2 ? 'Higher TF confirms direction' : 'Higher TF conflicting or neutral'}
 Scan Confidence: ${s.conf}/100
 --------------------------------
-SCANNER OUTPUT — respond with exactly these 4 sections:
-
-1. WHAT IS FORMING
-In 2–3 sentences, describe the specific technical setup detected. Name it precisely (e.g. bull flag, support bounce, breakout attempt, liquidity sweep). Explain what makes this worth watching using the data above.
-
-2. WHY IT MATTERS
-In 2 sentences, explain the confluence factors that make this setup significant. Reference specific price levels and indicator readings from the data.
-
-3. KEY LEVELS TO WATCH
-List exactly 2–3 price levels a trader should monitor. For each, state whether it is a trigger level (entry confirmation), support, or resistance. Use exact prices.
-
-4. WHAT TO WAIT FOR
-In 1–2 sentences, state the specific confirmation signal a trader should wait for before considering this setup. Do NOT recommend an entry. Just describe what would confirm or invalidate the setup.
+Return exactly 4 short lines in this format and nothing else:
+Setup: one short plain-English sentence explaining what is forming.
+Why: one short sentence explaining why it matters.
+Levels: one short sentence with 2-3 price levels to watch and what they mean.
+Wait: one short sentence explaining the confirmation or invalidation to wait for.
 
 This is a discovery output only. The trader will use Trade Analysis to evaluate any specific trade they decide to place.`;
   const res = await groqFetch(prompt);
   return res;
+}
+
+function formatAISIdea(text){
+  const escapeHtml = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const cleaned = String(text || '')
+    .replace(/\*\*/g, '')
+    .replace(/SCANNER OUTPUT[:\s-]*/gi, '')
+    .replace(/\r/g, '')
+    .trim();
+
+  const lines = cleaned
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => line.replace(/^\d+\.\s*/, ''))
+    .slice(0, 4);
+
+  if (!lines.length) {
+    return '<div style="color:var(--tx3);">AI summary unavailable.</div>';
+  }
+
+  return lines.map(line => {
+    const match = line.match(/^(Setup|Why|Levels|Wait)\s*:\s*(.+)$/i);
+    if (!match) {
+      return `<div style="margin-bottom:6px;color:var(--tx2);">${escapeHtml(line)}</div>`;
+    }
+    const label = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+    const body = match[2];
+    return `<div style="margin-bottom:6px;"><span style="color:var(--tx);font-weight:700;">${label}:</span> <span style="color:var(--tx2);">${escapeHtml(body)}</span></div>`;
+  }).join('');
+}
+
+function tapGetSetupContext(d){
+  if (d?._aisMeta) return d._aisMeta;
+  const cached = tapAnalysisCache[curSym.s];
+  if (cached?.setupMeta) return cached.setupMeta;
+  const lock = tapLoadLock(curSym.s);
+  return lock?.setupMeta || null;
+}
+
+function tapExtractSection(text, title){
+  const upper = String(text || '').toUpperCase();
+  const start = upper.indexOf(title.toUpperCase());
+  if (start < 0) return '';
+  const tail = String(text).slice(start);
+  const lines = tail.split('\n').slice(1);
+  const out = [];
+  for (const line of lines) {
+    if (/^\d+\./.test(line.trim())) break;
+    out.push(line);
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function tapExtractTradeMetrics(text){
+  const source = String(text || '');
+  const scoringIdx = source.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
+  const getScore = (label) => {
+    const match = scoringZone.match(new RegExp(label + String.raw`\s*\(0.?25\)\s*:\s*(\d{1,2})`, 'i'));
+    return match ? parseInt(match[1]) : null;
+  };
+  const combined = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i) || source.match(/(\d{1,3})\s*\/\s*100/);
+  const probability = source.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
+  return {
+    entryQuality: getScore('Entry Quality'),
+    stopPlacement: getScore('Stop Placement'),
+    riskReward: getScore('Risk/Reward Logic'),
+    confluence: getScore('Technical Confluence'),
+    combined: combined ? Math.min(100, Math.max(0, parseInt(combined[1]))) : null,
+    probability: probability ? Math.min(100, Math.max(0, parseInt(probability[1]))) : null,
+    weaknesses: tapExtractSection(source, '7. CRITICAL WEAKNESSES'),
+    improvements: tapExtractSection(source, '8. SUGGESTED IMPROVEMENTS'),
+  };
+}
+
+function tapBuildComparison(setupMeta, metrics){
+  if (!setupMeta) return null;
+  const scanScore = setupMeta.score ?? setupMeta.conf ?? null;
+  const tradeScore = metrics?.combined ?? null;
+  const entryScore = metrics?.entryQuality ?? null;
+  const rrScore = metrics?.riskReward ?? null;
+  const scannerSaw = setupMeta.idea
+    ? String(setupMeta.idea).replace(/\s+/g, ' ').trim()
+    : `${setupMeta.patLabel || 'Setup'} on ${setupMeta.tf || curTF} with ${setupMeta.conf ?? setupMeta.score ?? 'n/a'} confidence.`;
+
+  let confirmed = 'Trade analysis did not have enough context to compare this setup yet.';
+  if (tradeScore !== null && tradeScore >= 75) {
+    confirmed = 'Trade analysis agrees the market idea is strong and the current execution is mostly solid.';
+  } else if (tradeScore !== null && tradeScore >= 55) {
+    confirmed = 'Trade analysis sees a real opportunity here, but the exact trade placement still has some weaknesses.';
+  } else if (tradeScore !== null) {
+    confirmed = 'Trade analysis thinks the idea may exist, but this exact trade is weak as placed right now.';
+  }
+
+  let changed = 'The scanner found the opportunity; Trade Analysis is now checking the exact entry, stop, and target.';
+  if (tradeScore !== null && scanScore !== null) {
+    if (tradeScore + 12 < scanScore) {
+      changed = 'The market idea looked better than the execution. The setup may be valid, but the current entry or risk plan is dragging it down.';
+    } else if (tradeScore > scanScore + 10) {
+      changed = 'Trade Analysis likes the execution even more than the original scan did. The placed levels improved the idea.';
+    } else {
+      changed = 'The discovery score and execution score are fairly aligned, so the setup quality and trade quality broadly agree.';
+    }
+  }
+  if (entryScore !== null && entryScore < 12) {
+    changed = 'The main downgrade is entry timing. The setup may still be good, but the current entry looks late, early, or badly positioned.';
+  } else if (rrScore !== null && rrScore < 12) {
+    changed = 'The main downgrade is the risk/reward profile. The setup idea may be fine, but the target and stop do not justify the trade cleanly.';
+  }
+
+  let better = metrics?.improvements || '';
+  if (!better && tradeScore !== null && tradeScore < 60) {
+    better = 'Look for a cleaner entry closer to support/resistance, a stop placed beyond structure, and a target that restores a stronger reward-to-risk balance.';
+  }
+
+  return { scanScore, tradeScore, scannerSaw, confirmed, changed, better };
+}
+
+function tapRenderSetupBridge(d, analysisText=''){
+  const wrap = document.getElementById('tap-setup-bridge');
+  const out = document.getElementById('tap-setup-bridge-out');
+  if (!wrap || !out) return;
+
+  const setupMeta = tapGetSetupContext(d);
+  if (!setupMeta) {
+    wrap.style.display = 'none';
+    out.innerHTML = '';
+    return;
+  }
+
+  const metrics = analysisText ? tapExtractTradeMetrics(analysisText) : {};
+  const comp = tapBuildComparison(setupMeta, metrics);
+  const scanScore = comp?.scanScore;
+  const tradeScore = comp?.tradeScore;
+  const scorePill = (label, value, color) => `
+    <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
+      <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
+      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '—'}</div>
+    </div>`;
+  const betterLabel = tradeScore !== null && tradeScore < 60 ? 'Better version' : 'Next refinement';
+
+  wrap.style.display = 'block';
+  out.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      ${scorePill('Scan Score', scanScore !== null ? `${scanScore}/100` : '—', 'var(--green)')}
+      ${scorePill('Trade Score', tradeScore !== null ? `${tradeScore}/100` : 'Pending', tradeScore !== null ? (tradeScore >= 75 ? 'var(--tl)' : tradeScore >= 55 ? 'var(--am)' : 'var(--rd)') : 'var(--tx2)')}
+      ${scorePill('Setup Type', (setupMeta.patLabel || 'Structure').split(' ').slice(0,3).join(' '), 'var(--tx)')}
+    </div>
+    <div style="display:grid;gap:8px;">
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What AI Setups saw</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.scannerSaw}</div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What Trade Analysis confirmed</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.confirmed}</div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What changed</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.changed}</div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
+        <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">${betterLabel}</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
+      </div>
+    </div>`;
 }
 
 
@@ -17153,13 +17331,14 @@ function tapSaveLock(sym, result, d){
       aiResult: result,
       ts: Date.now(),
       entry: d?.price, sl: d?.sl, tp: d?.tp,
-      tf: d?.tf || curTF
+      tf: d?.tf || curTF,
+      setupMeta: d?._aisMeta || null
     });
     // Save per-drawing lock (primary) and symbol-level lock (fallback)
     if(d?.id) _lsSet('tap-lock-draw-'+d.id, payload);
     _lsSet('tap-lock-'+sym, payload);
     // Also cache in memory per drawing
-    if(d?.id) tapAnalysisCache['tap-lock-draw-'+d.id] = { aiResult: result };
+    if(d?.id) tapAnalysisCache['tap-lock-draw-'+d.id] = { aiResult: result, setupMeta: d?._aisMeta || null };
   }catch(e){}
 }
 function tapLoadLock(sym){
@@ -17176,7 +17355,7 @@ function tapHasLock(sym){
     if(tapAnalysisCache[drawKey]?.aiResult) return true;
     const drawLock = tapLoadLock(drawKey);
     if(drawLock?.aiResult){
-      tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult };
+      tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult, setupMeta: drawLock.setupMeta || null };
       return true;
     }
   }
@@ -17184,8 +17363,9 @@ function tapHasLock(sym){
   if(tapAnalysisCache[sym]?.aiResult) return true;
   const lock = tapLoadLock(sym);
   if(lock?.aiResult){
-    tapAnalysisCache[sym] = tapAnalysisCache[sym] || { sym, aiResult: null };
+    tapAnalysisCache[sym] = tapAnalysisCache[sym] || { sym, aiResult: null, setupMeta: null };
     tapAnalysisCache[sym].aiResult = lock.aiResult;
+    if(lock.setupMeta) tapAnalysisCache[sym].setupMeta = lock.setupMeta;
     return true;
   }
   return false;
@@ -17381,10 +17561,11 @@ function showTradeAnalysisPopup(d, freshPlacement=false){
   }
   // Always create/update symbol-level cache entry
   if(!tapAnalysisCache[curSym.s]){
-    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: d.tf||curTF, aiResult: null };
+    tapAnalysisCache[curSym.s] = { drawing: d, sym: curSym.s, tf: d.tf||curTF, aiResult: null, setupMeta: d._aisMeta || null };
   } else {
     tapAnalysisCache[curSym.s].drawing = d;
     tapAnalysisCache[curSym.s].tf = d.tf || curTF;
+    if(d._aisMeta) tapAnalysisCache[curSym.s].setupMeta = d._aisMeta;
   }
 
   if(freshPlacement){
@@ -17397,14 +17578,17 @@ function showTradeAnalysisPopup(d, freshPlacement=false){
     if(drawKey && !tapAnalysisCache[drawKey]?.aiResult){
       const drawLock = tapLoadLock(drawKey);
       if(drawLock?.aiResult){
-        tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult };
+        tapAnalysisCache[drawKey] = { aiResult: drawLock.aiResult, setupMeta: drawLock.setupMeta || null };
         tapAnalysisCache[curSym.s].aiResult = drawLock.aiResult;
+        if(drawLock.setupMeta && !tapAnalysisCache[curSym.s].setupMeta) tapAnalysisCache[curSym.s].setupMeta = drawLock.setupMeta;
       }
     } else if(drawKey && tapAnalysisCache[drawKey]?.aiResult){
       tapAnalysisCache[curSym.s].aiResult = tapAnalysisCache[drawKey].aiResult;
+      if(tapAnalysisCache[drawKey].setupMeta && !tapAnalysisCache[curSym.s].setupMeta) tapAnalysisCache[curSym.s].setupMeta = tapAnalysisCache[drawKey].setupMeta;
     } else if(!tapAnalysisCache[curSym.s].aiResult){
       const lock = tapLoadLock(curSym.s);
       if(lock?.aiResult) tapAnalysisCache[curSym.s].aiResult = lock.aiResult;
+      if(lock?.setupMeta && !tapAnalysisCache[curSym.s].setupMeta) tapAnalysisCache[curSym.s].setupMeta = lock.setupMeta;
     }
   }
   const oldNotice = document.getElementById('tap-cached-notice');
@@ -17699,6 +17883,7 @@ async function openFullTradeAnalysis(){
   tapRenderRisk(d, rr);
   tapRenderHistorical(d);
   tapRenderJournalHistory();
+  tapRenderSetupBridge(d);
 
   // Capture chart screenshot for sharing
   _tapScreenshotDataUrl = null;
@@ -17720,6 +17905,7 @@ async function openFullTradeAnalysis(){
     // ── Showing cached result — make it crystal clear this is the saved analysis
     aiOutEl.textContent = cached.aiResult;
     tapRenderVerdictBanner(cached.aiResult);
+    tapRenderSetupBridge(d, cached.aiResult);
     aiLoadingEl.style.display = 'none';
 
     // Prominent "cached result" notice + 1-analysis-per-trade rule explanation
@@ -17758,6 +17944,7 @@ async function openFullTradeAnalysis(){
       tapSaveLock(curSym.s, text, d);
       _tapAnchorFill(d);
       tapRenderVerdictBanner(text);
+      tapRenderSetupBridge(d, text);
     } catch(e) {
       const msg = e.message || 'unknown error';
       aiOutEl.innerHTML =
@@ -18373,6 +18560,17 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
                        isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
 
+  const setupMeta    = tapGetSetupContext(d);
+  const setupCtx     = setupMeta ? `
+Originating Setup Context:
+  Source: AI Best Setups scanner
+  Discovery Score: ${setupMeta.score ?? 'n/a'}/100
+  Scan Confidence: ${setupMeta.conf ?? 'n/a'}/100
+  Setup Type: ${setupMeta.patLabel || 'Structure'}
+  Scanner Summary: ${(setupMeta.idea || `${setupMeta.patLabel || 'Setup'} found on ${setupMeta.tf || drawingTF}.`).replace(/\s+/g, ' ').trim()}
+  Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
+` : '';
+
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
 Be forensic, objective, and blunt. The trader does not need encouragement — they need an honest assessment.
@@ -18407,8 +18605,12 @@ Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
 Patterns: ${allPatsStr}
 Trader's historical win rate on ${curSym.s}: ${symWR}
+${setupCtx}
 -----------------------------
 TRADE VALIDATION PROCESS
+
+0. DISCOVERY VS EXECUTION
+First decide whether the market idea itself is valid, then decide whether these exact levels are good enough to trade. Keep those two judgments clearly separated throughout the answer.
 
 1. ENTRY QUALITY
 Is the entry price logical? Is it near a key level (support/resistance/breakout)? Is it entering into strength or chasing? Is entry timing premature or well-positioned? Be specific.
@@ -18423,7 +18625,7 @@ Is the take profit level realistic? Does it align with the next major resistance
 State whether 1:${rr.toFixed(2)} is acceptable, poor, or excellent for this setup and market conditions. Compare to the trader's historical average.
 
 5. CONFLUENCE ANALYSIS
-List the factors that support this trade (confluent) and those that work against it (conflicting). Be specific with indicator readings and price levels.
+List the factors that support this trade (confluent) and those that work against it (conflicting). Be specific with indicator readings and price levels. Explicitly state whether the idea is good but the execution is weak, or whether both are strong.
 
 6. TRADE QUALITY SCORE
 Score from 0–100 across:
@@ -18437,7 +18639,7 @@ Score from 0–100 across:
 What are the 2–3 most important reasons this trade could fail? Be direct.
 
 8. SUGGESTED IMPROVEMENTS
-If the trade has weaknesses, suggest specific improved levels with reasoning. If it is strong, confirm the levels are appropriate.
+If the trade has weaknesses, suggest a better version of the same setup with improved entry, stop, and target logic. If it is strong, confirm the levels are appropriate.
 
 9. PROBABILITY ESTIMATE
 Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Explain your reasoning in one sentence.
@@ -19260,6 +19462,9 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
+
+
 
 
 
