@@ -727,18 +727,34 @@
           <div id="ai-copilot-ai" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;font-size:11px;color:var(--tx2);line-height:1.65;">Generating deeper chart explanation…</div>
         </div>
       </div>
-      <div class="sec-title">PATTERN RECOGNITION</div>
-      <div id="ai-patterns"></div>
-      <div class="sec-title" style="margin-top:4px;">SUPPORT / RESISTANCE</div>
-      <div id="ai-sr"></div>
-      <div class="sec-title" style="margin-top:4px;">AI SIGNAL</div>
-      <div id="ai-signal" style="margin:4px 6px 8px;padding:10px;background:var(--bg3);border-radius:var(--r);font-size:10px;line-height:1.55;color:var(--tx2);border-left:3px solid var(--amber);"></div>
-      <div class="sec-title" style="margin-top:4px;">TREND STRENGTH</div>
-      <div id="ai-trend" style="margin:4px 6px 8px;"></div>
-      <div class="sec-title" style="margin-top:4px;">VOLATILITY & RANGE</div>
-      <div id="ai-stats" style="margin:4px 6px 8px;"></div>
-      <div class="sec-title" style="margin-top:4px;">NEAREST LEVELS</div>
-      <div id="ai-levels" style="margin:4px 6px 8px;"></div>
+      <div class="sec-title">Decision View</div>
+      <div class="ai-decision-grid">
+        <div class="ai-panel-card ai-panel-card-accent">
+          <div class="ai-panel-label">AI Signal</div>
+          <div id="ai-signal" class="ai-panel-body" style="margin:0;padding:0;background:none;border-radius:0;font-size:10px;line-height:1.55;color:var(--tx2);border-left:none;"></div>
+        </div>
+        <div class="ai-panel-card">
+          <div class="ai-panel-label">Trend Strength</div>
+          <div id="ai-trend" class="ai-panel-body" style="margin:0;"></div>
+        </div>
+        <div class="ai-panel-card">
+          <div class="ai-panel-label">Support / Resistance</div>
+          <div id="ai-sr" class="ai-panel-body"></div>
+        </div>
+        <div class="ai-panel-card">
+          <div class="ai-panel-label">Nearest Levels</div>
+          <div id="ai-levels" class="ai-panel-body" style="margin:0;"></div>
+        </div>
+      </div>
+      <div class="sec-title">Deep Detail</div>
+      <div class="ai-detail-card">
+        <div class="ai-panel-label">Pattern Recognition</div>
+        <div id="ai-patterns"></div>
+      </div>
+      <div class="ai-detail-card" style="margin-top:8px;">
+        <div class="ai-panel-label">Volatility & Range</div>
+        <div id="ai-stats" class="ai-panel-body" style="margin:0;"></div>
+      </div>
     </div>
 
     <!-- Journal tab -->
@@ -788,6 +804,14 @@
       </div>
       <div id="analytics-customise-panel" style="display:none;padding:8px;background:var(--bg3);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:5px;flex-shrink:0;"></div>
       <div id="analytics-widgets" style="display:flex;flex-direction:column;">
+        <div class="analytics-stage analytics-stage-hero">
+          <div class="sec-title" style="padding-top:12px;">Performance Snapshot</div>
+          <div id="analytics-hero-card" class="analytics-hero-card"></div>
+        </div>
+
+        <div class="analytics-stage">
+          <div class="sec-title">Trader Dashboard</div>
+        </div>
 
         <div data-widget="coach" style="padding:8px 8px 0;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
@@ -836,6 +860,10 @@
           <div class="aw-div"></div>
         </div>
 
+        <div class="analytics-stage">
+          <div class="sec-title">AI Reviews</div>
+        </div>
+
         <div data-widget="session" style="padding:8px 8px 0;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
             <div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.8px;">📋 SESSION SUMMARY</div>
@@ -868,6 +896,10 @@
             <div id="weekly-out" style="padding:10px;background:var(--bg);border-radius:var(--r);border-left:3px solid var(--green);font-size:10px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;max-height:300px;overflow-y:auto;"></div>
           </div>
           <div class="aw-div"></div>
+        </div>
+
+        <div class="analytics-stage">
+          <div class="sec-title">Deep Statistics</div>
         </div>
 
         <div data-widget="psych" style="padding:8px 8px 4px;">
