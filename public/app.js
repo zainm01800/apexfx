@@ -8421,16 +8421,20 @@ function handleSetupDetectedState(currentBar) {
 
     updateLockedMentorUI();
 
-    // Fetch AI analysis asynchronously — update panel when ready
+    // Fetch AI analysis asynchronously — gated by a 30s wall-clock cooldown so
+    // rapid setup transitions during fast replay don't stack up Groq calls.
     const _genAtCall = mentorState._aiGeneration;
-    _mentorAISetupAnalysis(setupData, currentBar).then(analysis => {
-      // Discard if setup changed or user dismissed while AI was loading
+    const _phase1Now = Date.now();
+    const _phase1Elapsed = _phase1Now - (mentorState._lastPhase1CallAt || 0);
+    const _phase1Ready = _phase1Elapsed >= 30_000;
+
+    const _applyPhase1Analysis = (analysis) => {
       if (!mentorState.messageLocked) return;
       if (mentorState._aiGeneration !== _genAtCall) return; // stale — new setup started
       if (analysis) {
         mentorState.lockedInsights = analysis.split('\n').filter(l => l.trim());
       } else {
-        // Fallback to structured text if API unavailable
+        // Fallback to structured text if API unavailable or cooldown active
         mentorState.lockedInsights = [
           `${dirEmoji} ${setupName.toUpperCase()} setup detected`,
           `Confluence: ${setupData.confluence}/4 | Quality: ${(setupData.quality||'').toUpperCase()}`,
@@ -8440,7 +8444,15 @@ function handleSetupDetectedState(currentBar) {
       mentorState.lockedQuestion =
         `A potential ${setupName} setup is forming. Choose “Watch Demo” for a guided walkthrough or “Let Me Try” to place the idea yourself.`;
       updateLockedMentorUI();
-    });
+    };
+
+    if (_phase1Ready) {
+      mentorState._lastPhase1CallAt = _phase1Now;
+      _mentorAISetupAnalysis(setupData, currentBar).then(_applyPhase1Analysis);
+    } else {
+      // Cooldown active — use structured fallback immediately (no API call)
+      _applyPhase1Analysis(null);
+    }
     return;
   }
 
@@ -11066,22 +11078,19 @@ async function fetchNewsFromAPI(sym, type) {
   } catch(e) { return null; }
 }
 
-async function scoreWithGroq(headlines, sym, name){
-  const list = headlines.map((h,i)=>`${i+1}. "${h.title}"`).join('\n');
-  const prompt = `You are a financial sentiment analyst. Score each headline as BULLISH, BEARISH, or NEUTRAL for ${name} (${sym}).
+function scoreWithGroq(headlines, sym, name){
+  // Client-side keyword sentiment scoring — no API call.
+  // Covers the vast majority of financial headline sentiment accurately.
+  const BULLISH_RE = /\b(surge|surged|surging|rally|rallied|rallying|soar|soared|soaring|beat|beats|beats? expectations?|gain|gained|gaining|gains|rise|risen|rising|rose|high|higher|record|upgrade|upgraded|outperform|strong|stronger|strength|bull|bullish|growth|grew|grow|profit|profits|revenue|revenues|beat estimates|above estimates|above expectations|positive|boost|boosted|buy|buyback|dividend|approval|approved|launch|launched|partnership|deal|expansion|expansion|recovery|recover|recovered|rebound|rebounded|momentum|breakout|breakthrough|contract|contracts|win|wins|winning|award|awarded|milestone)\b/i;
+  const BEARISH_RE = /\b(crash|crashed|crashing|drop|dropped|dropping|fall|fell|falling|decline|declined|declining|plunge|plunged|plunging|miss|missed|misses|below estimates|below expectations|loss|losses|losing|warn|warning|warned|downgrade|downgraded|underperform|weak|weaker|weakness|bear|bearish|cut|cuts|layoff|layoffs|fired|bankrupt|bankruptcy|debt|default|recall|investigation|probe|fine|fined|penalty|lawsuit|sue|sued|fraud|scandal|concern|concerns|risk|risks|sell|selloff|sell-off|pressure|pressured|headwind|headwinds|deficit|downside|disappoints|disappointed|disappointing|halt|halted|suspended|suspension|violation|regulatory|charges|charged|cost|costs|missed estimates)\b/i;
 
-Headlines:
-${list}
-
-Return ONLY a JSON array with one object per headline in the same order. No other text.
-[{"sentiment":"BULLISH"},{"sentiment":"BEARISH"},...]
-
-sentiment must be exactly "BULLISH", "BEARISH", or "NEUTRAL".`;
-
-  const text = await groqFetch(prompt);
-  const clean = text.replace(/```json|```/g,'').trim();
-  const scores = JSON.parse(clean);
-  return headlines.map((h,i)=>({...h, sentiment: scores[i]?.sentiment || 'NEUTRAL'}));
+  return Promise.resolve(headlines.map(h => {
+    const text = `${h.title} ${h.summary || ''}`;
+    const bullScore = (text.match(BULLISH_RE) || []).length;
+    const bearScore = (text.match(BEARISH_RE) || []).length;
+    const sentiment = bullScore > bearScore ? 'BULLISH' : bearScore > bullScore ? 'BEARISH' : 'NEUTRAL';
+    return { ...h, sentiment };
+  }));
 }
 
 async function fetchNews(sym, name){
@@ -11106,18 +11115,17 @@ async function fetchNews(sym, name){
     return;
   }
 
-  // Show headlines immediately with neutral sentiment while Groq scores in background
-  const provisional = headlines.map(h => ({...h, sentiment:'NEUTRAL'}));
-  newsCache[sym] = {ts: Date.now(), items: provisional};
-  renderNews(provisional, sym);
-
-  // Score sentiment with Groq in background then re-render
+  // Score sentiment immediately with client-side keyword matching (no API call),
+  // then render once with real sentiments already applied.
   try {
     const scored = await scoreWithGroq(headlines, sym, name || sym);
     newsCache[sym] = {ts: Date.now(), items: scored};
     if(curSym.s === sym) renderNews(scored, sym);
   } catch(e){
-    // Keep provisional neutral — fine
+    // Fallback to neutral if scoring somehow fails
+    const provisional = headlines.map(h => ({...h, sentiment:'NEUTRAL'}));
+    newsCache[sym] = {ts: Date.now(), items: provisional};
+    renderNews(provisional, sym);
   }
 }
 
@@ -18041,46 +18049,80 @@ function aisDrawMiniChart(s){
   ctx.fillText(fP(data[n-1].close), W-3, toY(data[n-1].close)-3);
 }
 
-async function aisGenerateIdea(s){
-  const dir = s.dir === 'bull' ? 'Bullish' : 'Bearish';
-  const opp = s.dir === 'bull' ? 'Bearish' : 'Bullish';
+function aisGenerateIdea(s){
+  // Client-side deterministic template — no API call needed.
+  // All 4 lines (Setup / Why / Levels / Wait) are built from scanned data already available.
+  const dir     = s.dir === 'bull' ? 'bullish' : 'bearish';
+  const dirCap  = s.dir === 'bull' ? 'Bullish' : 'Bearish';
+  const opp     = s.dir === 'bull' ? 'bearish' : 'bullish';
+  const price   = fP(s.price);
+  const keyLvl  = s.keyLevel ? fP(s.keyLevel) : null;
+  const atr     = s.atr ? fP(s.atr) : null;
 
-  // Gather richer context from the scanned data
-  const rsiLabel = s.rsi ? (s.rsi > 70 ? `${s.rsi} (Overbought)` : s.rsi < 30 ? `${s.rsi} (Oversold)` : `${s.rsi} (Neutral)`) : 'N/A';
-  const momentum = s.movePct > 1 ? 'Strong positive momentum' : s.movePct < -1 ? 'Strong negative momentum' : 'Neutral momentum';
-  const volStatus = s.movePct > 0.5 ? 'Above average — conviction move' : 'Normal — watch for volume expansion';
-  const keyS = s.keyLevel && s.dir === 'bull' ? fP(s.keyLevel) : 'N/A';
-  const keyR = s.keyLevel && s.dir === 'bear' ? fP(s.keyLevel) : 'N/A';
+  // RSI context
+  const rsiCtx = !s.rsi ? '' :
+    s.rsi > 70 ? `, RSI at ${s.rsi} is pushing into overbought territory` :
+    s.rsi < 30 ? `, RSI at ${s.rsi} is in oversold territory` :
+    s.rsi > 55 ? `, RSI at ${s.rsi} shows building momentum` :
+    s.rsi < 45 ? `, RSI at ${s.rsi} shows weakening momentum` : '';
 
-  const prompt = `You are a professional quantitative market scanner. Your job is to explain a possible setup in plain English for a normal trader. You are NOT evaluating a trade — you are describing what is forming and what to watch.
+  // Confluence / TF alignment context
+  const tfCtx = s.tfAgree >= 2
+    ? 'Higher timeframe is aligned in the same direction, adding confluence.'
+    : 'Higher timeframe is mixed — treat this as a lower-confluence read.';
 
-Do not evaluate entry/SL/TP quality. Do not give a trading recommendation. Do not use markdown, bold text, numbering, or headings.
+  // Pattern-specific setup line
+  const setupTemplates = {
+    'Bull Flag':        `A bull flag is forming on ${s.sym} — a tight consolidation after a strong impulse move up, coiling before a potential continuation.`,
+    'Bear Flag':        `A bear flag is forming on ${s.sym} — a tight consolidation after a sharp drop, coiling before a potential continuation lower.`,
+    'Double Bottom':    `${s.sym} is printing a double bottom — two lows at similar levels suggesting buyers are defending this area.`,
+    'Double Top':       `${s.sym} is printing a double top — two highs at similar levels suggesting sellers are capping price here.`,
+    'Breakout':         `${s.sym} is breaking out of a consolidation range to the ${dir} side at ${price}.`,
+    'Breakdown':        `${s.sym} is breaking down from a consolidation range, with price losing a key floor at ${keyLvl || price}.`,
+    'Inside Bar':       `${s.sym} is compressing into an inside bar — a volatility squeeze that often precedes a sharp directional move.`,
+    'Engulfing':        `A ${dir} engulfing candle has formed on ${s.sym}, with buyers fully absorbing the prior candle.`,
+    'Hammer':           `A hammer candle on ${s.sym} suggests sellers pushed price down but buyers stepped in and reclaimed the level.`,
+    'Shooting Star':    `A shooting star on ${s.sym} shows buyers pushed to a high but were rejected, leaving a long upper wick.`,
+    'Triangle':         `${s.sym} is compressing into a triangle pattern, with narrowing price action ahead of a potential breakout.`,
+    'Wedge':            `${s.sym} is forming a wedge — converging highs and lows suggesting the current trend is losing momentum.`,
+  };
+  const setupLine = setupTemplates[s.patLabel] ||
+    `A ${dir} ${s.patLabel || 'pattern'} is forming on ${s.sym} at ${price}${rsiCtx}.`;
 
-SCANNED ASSET DATA:
-Asset: ${s.sym} (${s.name})
-Timeframe: ${s.tf}
-Current Price: ${fP(s.price)}
-Recent 5-bar Move: ${s.movePct >= 0 ? '+' : ''}${s.movePct}%
-Market Bias (patterns): ${dir}
-Pattern Detected: ${s.patLabel}
-RSI(14): ${rsiLabel}
-EMA Alignment: ${s.tfAgree >= 2 ? 'Aligned across timeframes' : 'Mixed — lower confluence'}
-Key Support: ${keyS}
-Key Resistance: ${keyR}
-ATR: ${s.atr ? fP(s.atr) : 'N/A'}
-Volume: ${volStatus}
-Timeframe Confluence: ${s.tfAgree >= 2 ? 'Higher TF confirms direction' : 'Higher TF conflicting or neutral'}
-Scan Confidence: ${s.conf}/100
---------------------------------
-Return exactly 4 short lines in this format and nothing else:
-Setup: one short plain-English sentence explaining what is forming.
-Why: one short sentence explaining why it matters.
-Levels: one short sentence with 2-3 price levels to watch and what they mean.
-Wait: one short sentence explaining the confirmation or invalidation to wait for.
+  // Why it matters
+  const whyLine = s.tfAgree >= 2
+    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 — this is not just noise on one chart.`
+    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} — worth watching but treat it with appropriate caution given mixed higher-TF context.`;
 
-This is a discovery output only. The trader will use Trade Analysis to evaluate any specific trade they decide to place.`;
-  const res = await groqFetch(prompt);
-  return res;
+  // Levels line
+  let levelsLine;
+  if (keyLvl && atr) {
+    const above = fP(s.price + s.atr);
+    const below = fP(s.price - s.atr);
+    levelsLine = s.dir === 'bull'
+      ? `Key level to watch: ${keyLvl} as support, resistance near ${above} (approx 1 ATR above), with ${below} as a reference if price retreats.`
+      : `Key level to watch: ${keyLvl} as resistance, support near ${below} (approx 1 ATR below), with ${above} as a reference if price bounces.`;
+  } else if (keyLvl) {
+    levelsLine = `Key level identified at ${keyLvl} — watch how price reacts at this zone before drawing conclusions.`;
+  } else {
+    levelsLine = `Current price is ${price} on the ${s.tf} timeframe — no standout key level identified by the scan, so use your own drawn levels.`;
+  }
+
+  // Wait / confirmation line
+  const waitTemplates = {
+    bull: `Wait for a candle close above the recent swing high or a reclaim of ${keyLvl || price} on volume before treating this as confirmed. A reversal close back inside the range would invalidate it.`,
+    bear: `Wait for a candle close below the recent swing low or a rejection from ${keyLvl || price} before treating this as confirmed. A strong close back above the breakdown point would invalidate it.`,
+  };
+  const waitLine = waitTemplates[s.dir] ||
+    `Confirmation is needed before acting — watch for a decisive candle close in the ${dir} direction.`;
+
+  // Return in the same format the rest of the code expects (Setup: / Why: / Levels: / Wait:)
+  return Promise.resolve([
+    `Setup: ${setupLine}`,
+    `Why: ${whyLine}`,
+    `Levels: ${levelsLine}`,
+    `Wait: ${waitLine}`,
+  ].join('\n'));
 }
 
 function formatAISIdea(text){
