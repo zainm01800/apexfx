@@ -168,6 +168,10 @@ let _autoSaveInterval = null;
 const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
 let _cloudSyncState = { status:'offline', message:'Local only', lastOkAt:0 };
+// Circuit breaker: after 3 consecutive RLS/permission failures, stop hammering Supabase.
+// Reset on next successful write or on login/logout.
+let _supaRLSBlocked = false;
+let _supaRLSFailCount = 0;
 
 function updateCloudSyncBadge(state = {}){
   _cloudSyncState = { ..._cloudSyncState, ...state };
@@ -619,7 +623,9 @@ function buildAIPanel(force=false){
   const top   = [...pats].sort((a,b)=>b.conf-a.conf)[0];
 
   const result = {pats, sr, bulls, bears, bias, top};
-  aiCache[key] = result;
+  // Only cache when we have enough real bars — placeholder / thin data must not
+  // poison the cache and block fresh pattern detection after real data loads.
+  if(data.length >= 50) aiCache[key] = result;
   renderAIPanel(result);
   renderLiveCopilot(result, force);
 }
@@ -678,8 +684,14 @@ function aiCopilotBuildState(r){
   const thesisStatus = _thesisStatus(thesis, last.close);
   const drawCtx = buildDrawingsContext(null, data);
   const profile = getTraderProfile();
-  const support = r.sr?.support?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
-  const resistance = r.sr?.resistance?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
+  // Filter to levels that are actually below price for support, above for resistance.
+  // Sorting by absolute distance was incorrectly labelling resistance as support.
+  const support = r.sr?.support
+    ?.filter(s => s < last.close)
+    .sort((a, b) => b - a)[0]; // highest level below price = nearest support
+  const resistance = r.sr?.resistance
+    ?.filter(rv => rv > last.close)
+    .sort((a, b) => a - b)[0]; // lowest level above price = nearest resistance
   const movePct = prev?.close ? ((last.close-prev.close)/prev.close*100) : 0;
   const rrHint = support && resistance ? Math.abs(resistance-last.close) / Math.max(Math.abs(last.close-support), 0.000001) : null;
   return {
@@ -821,8 +833,15 @@ Do not give financial advice. Do not use markdown. Keep the tone calm, clear, an
     outEl.innerHTML = aiCopilotRenderAIText(text);
     statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
   }catch(e){
-    outEl.innerHTML = 'Deeper AI explanation is unavailable right now. The live copilot briefing above is still using the current chart state.';
-    statusEl.textContent = 'Live briefing ready · deeper AI explanation unavailable';
+    outEl.innerHTML = `Deeper AI explanation unavailable right now. The live briefing above is still current.&nbsp;
+      <button onclick="refreshLiveCopilot(true)"
+        style="margin-top:8px;padding:4px 10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);
+               color:#a5b4fc;font-size:10px;border-radius:4px;cursor:pointer;font-family:inherit;"
+        onmouseover="this.style.background='rgba(99,102,241,.22)'"
+        onmouseout="this.style.background='rgba(99,102,241,.12)'">
+        ↺ Retry
+      </button>`;
+    statusEl.textContent = 'Live briefing ready · deeper explanation unavailable';
   } finally {
     delete aiCopilotInFlight[cacheKey];
   }
@@ -14785,7 +14804,8 @@ async function loadSym(sym){
     rightBarIndex = curData.length+5;
     // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, curTF);
-    updateTopbar(); draw(); buildAIPanel();
+    // force=true: overwrite any stale placeholder-data cache entry
+    updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
     return;
@@ -14808,7 +14828,8 @@ async function loadSym(sym){
       rightBarIndex = curData.length+5;
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, curTF);
-      updateTopbar(); draw(); buildAIPanel(); buildInfo();
+      // force=true: overwrite any stale placeholder-data cache entry
+      updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
     } else {
@@ -16329,6 +16350,9 @@ function _lsSet(key, val){
 
 async function _flushWriteQueue(force){
   if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
+  // Circuit breaker: stop retrying after repeated RLS/permission failures.
+  // This prevents a 1-per-second error storm hammering Supabase quota.
+  if(_supaRLSBlocked) return;
   const uid = _currentUserId;
   const snapshot = { ..._writeQueue };
   const entries = Object.entries(snapshot).map(([key, value]) => ({
@@ -16340,19 +16364,37 @@ async function _flushWriteQueue(force){
   try{
     const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
     if(error) throw error;
+    // Success — reset failure count and clear queue entries that haven't changed
+    _supaRLSFailCount = 0;
     Object.keys(snapshot).forEach(k => {
       if(_writeQueue[k] === snapshot[k]) delete _writeQueue[k];
     });
     updateCloudSyncBadge({ status:'ok', message:'Workspace saved to cloud', lastOkAt: Date.now() });
   }catch(e){
-    console.warn('Supabase write error:', e.message);
-    Object.entries(snapshot).forEach(([key, value]) => {
-      if(!(_writeQueue[key] && _writeQueue[key] !== value)) _writeQueue[key] = value;
-    });
     const hardFailure = /row-level security|policy|permission/i.test(e.message || '');
+    if(hardFailure){
+      _supaRLSFailCount++;
+      if(_supaRLSFailCount >= 3){
+        // Trip the circuit breaker — stop all further write attempts until re-login
+        _supaRLSBlocked = true;
+        // Discard the queue so live-tick saves don't keep re-populating it
+        Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
+        console.warn('Supabase cloud sync disabled: repeated RLS policy failures. Data is saved locally.');
+        updateCloudSyncBadge({ status:'offline', message:'Cloud sync unavailable — data is saved locally' });
+        return;
+      }
+    } else {
+      console.warn('Supabase write error:', e.message);
+    }
+    // Re-queue entries on non-hard failures only
+    if(!hardFailure){
+      Object.entries(snapshot).forEach(([key, value]) => {
+        if(!(_writeQueue[key] && _writeQueue[key] !== value)) _writeQueue[key] = value;
+      });
+    }
     updateCloudSyncBadge({
       status: hardFailure ? 'offline' : 'error',
-      message: hardFailure ? 'Cloud save is unavailable for this account right now. Changes are staying local.' : `Cloud sync failed: ${e.message}`
+      message: hardFailure ? 'Cloud save unavailable for this account. Changes are staying local.' : `Cloud sync failed: ${e.message}`
     });
     if(!hardFailure && !_writeFlushTimer){
       _writeFlushTimer = setTimeout(_flushWriteQueue, force ? 2500 : 4000);
@@ -16565,6 +16607,9 @@ function doLogin(username, displayName){
 
   // Update topbar user badge
   updateUserBadge(displayName || username);
+  // Reset Supabase circuit breaker on fresh login
+  _supaRLSBlocked = false;
+  _supaRLSFailCount = 0;
   // Start periodic auto-save
   _startAutoSave();
 }
@@ -16596,6 +16641,9 @@ async function doLogout(){
   _clearSession();
   _currentUser   = null;
   _currentUserId = null;
+  // Reset Supabase circuit breaker so next login gets a fresh attempt
+  _supaRLSBlocked = false;
+  _supaRLSFailCount = 0;
   updateCloudSyncBadge({ status:'offline', message:'Local only', lastOkAt:0 });
   _supa.auth.signOut().catch(()=>{});
 
@@ -16697,8 +16745,9 @@ function saveSettingsToStorage(){
     },{})
   };
   _lsSet('settings', JSON.stringify(settings));
-  if(_currentUser) toast(`Settings saved for ${_currentUser}`);
-  else toast('Settings saved');
+  // Update the sync badge silently — no toast on background/auto saves.
+  // Toast only shown when user explicitly opens and closes the Settings panel.
+  updateCloudSyncBadge({ status: _cloudSyncState.status, message: _cloudSyncState.message });
 }
 
 function loadSettingsFromStorage(){
@@ -16828,6 +16877,7 @@ const PMB_TF_BARS = { '1h':200, '4h':200, '1d':200, '1w':120, '1M':60 };
 
 let pmbAnalyses = {}; // sym → { tfData:{tf→analysis}, confluence, ... }
 let pmbCurrentPane = 'overview';
+let _pmbInFlight = false; // guard: prevents double-generate on rapid clicks
 
 function openPremarket(){
   document.getElementById('pmb-bg').classList.add('open');
@@ -16982,6 +17032,8 @@ function computeConfluence(tfResults) {
 }
 
 async function generatePremarket() {
+  if (_pmbInFlight) return; // prevent double-trigger on rapid clicks
+  _pmbInFlight = true;
   const btn = document.getElementById('pmb-gen-btn');
   btn.disabled = true;
   btn.textContent = '⟳ Analysing…';
@@ -17074,6 +17126,7 @@ async function generatePremarket() {
   } finally {
     btn.disabled = false;
     btn.textContent = '⚡ Generate Brief';
+    _pmbInFlight = false;
   }
 }
 function buildPMBNav(syms, loading = false) {
