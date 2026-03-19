@@ -36,7 +36,7 @@ export default async function handler(req) {
 
   const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0 } = body;
 
-  if (!prompt || typeof prompt !== 'string' || prompt.length > 8000) {
+  if (!prompt || typeof prompt !== 'string' || prompt.length > 40000) {
     return new Response(JSON.stringify({ error: 'Invalid prompt' }), { status: 400, headers: corsHeaders });
   }
 
@@ -70,3 +70,4 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
   }
 }
+

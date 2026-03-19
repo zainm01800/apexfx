@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where npx:*)",
+      "Bash(where vercel:*)",
+      "Bash(node -e \"require\\(''child_process''\\).execSync\\(''npx.cmd vercel --version'', {stdio:''inherit''}\\)\")",
+      "Bash(node -e \"const {execSync} = require\\(''child_process''\\); console.log\\(execSync\\(''npm root -g''\\).toString\\(\\).trim\\(\\)\\)\")",
+      "Bash(node -e \"console.log\\(require.resolve\\(''npm/bin/npx-cli.js''\\)\\)\")",
+      "Bash(node -e \"const {execSync}=require\\(''child_process''\\); console.log\\(execSync\\(''npm config get prefix''\\).toString\\(\\).trim\\(\\)\\)\")",
+      "Bash(node -e \"console.log\\(process.execPath\\)\")",
+      "Bash(gh pr:*)"
+    ]
+  }
+}
