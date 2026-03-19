@@ -739,6 +739,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   display:none;
 }
+.sync-badge{
+  display:none;
+  font-family:var(--font-mono);
+  font-size:9px;
+  padding:3px 7px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--tx3);
+  background:rgba(255,255,255,.03);
+  white-space:nowrap;
+}
+.sync-badge.show{display:inline-flex;align-items:center;}
+.sync-badge.ok{color:var(--green);border-color:rgba(0,212,160,.25);background:rgba(0,212,160,.08);}
+.sync-badge.syncing{color:var(--amber);border-color:rgba(245,166,35,.25);background:rgba(245,166,35,.08);}
+.sync-badge.offline{color:var(--tx3);border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.03);}
+.sync-badge.error{color:var(--red);border-color:rgba(255,77,106,.25);background:rgba(255,77,106,.08);}
 #btn-logout,#btn-change-pass{
   font-family:var(--font-mono);font-size:10px;padding:3px 8px;
   background:transparent;border:none;color:var(--tx3);border-radius:var(--r);
