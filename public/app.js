@@ -603,7 +603,9 @@ let aiCache = {}; // key: sym+tf → {pats, sr, bias, top}
 function buildAIPanel(force=false){
   const key = curSym.s + '_' + curTF;
   if(!force && aiCache[key]){
-    renderAIPanel(aiCache[key]); return;
+    renderAIPanel(aiCache[key]);
+    renderLiveCopilot(aiCache[key], force);
+    return;
   }
   // Always use raw curData (not heikin — that's just a display mode)
   const data = curData;
@@ -619,6 +621,225 @@ function buildAIPanel(force=false){
   const result = {pats, sr, bulls, bears, bias, top};
   aiCache[key] = result;
   renderAIPanel(result);
+  renderLiveCopilot(result, force);
+}
+
+const aiCopilotCache = {};
+const aiCopilotInFlight = {};
+const aiCopilotStateHistory = {};
+
+function refreshLiveCopilot(force=false){
+  buildAIPanel(!!force);
+}
+
+function aiCopilotEscape(value){
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function aiCopilotCard(title, body, accent='var(--bl)'){
+  return `<div style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;">
+    <div style="font-size:10px;color:${accent};font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">${aiCopilotEscape(title)}</div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${body}</div>
+  </div>`;
+}
+
+function aiCopilotTrendState(data){
+  const n = data.length;
+  if(n < 50){
+    return { label:'Building context', tone:'var(--tx2)', aligned:'mixed', position:50, ema21:NaN };
+  }
+  const ema8  = calcEMA(data, 8);
+  const ema21 = calcEMA(data, 21);
+  const ema50 = calcEMA(data, 50);
+  const last  = data[n-1];
+  const e8=ema8[n-1], e21=ema21[n-1], e50=ema50[n-1];
+  const aligned = e8>e21&&e21>e50 ? 'bull' : e8<e21&&e21<e50 ? 'bear' : 'mixed';
+  const hi20 = Math.max(...data.slice(-20).map(d=>d.high));
+  const lo20 = Math.min(...data.slice(-20).map(d=>d.low));
+  const position = Math.max(0, Math.min(100, ((last.close - lo20)/Math.max(hi20-lo20, 0.000001))*100));
+  return {
+    label: aligned==='bull' ? 'Trend aligned up' : aligned==='bear' ? 'Trend aligned down' : 'Trend mixed',
+    tone: aligned==='bull' ? 'var(--tl)' : aligned==='bear' ? 'var(--rd)' : 'var(--am)',
+    aligned,
+    position,
+    ema21: e21
+  };
+}
+
+function aiCopilotBuildState(r){
+  const data = curData || [];
+  const last = data[data.length-1] || {};
+  const prev = data[data.length-2] || last;
+  const trend = aiCopilotTrendState(data);
+  const thesis = getCurrentThesis(curSym.s);
+  const thesisStatus = _thesisStatus(thesis, last.close);
+  const drawCtx = buildDrawingsContext(null, data);
+  const profile = getTraderProfile();
+  const support = r.sr?.support?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
+  const resistance = r.sr?.resistance?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
+  const movePct = prev?.close ? ((last.close-prev.close)/prev.close*100) : 0;
+  const rrHint = support && resistance ? Math.abs(resistance-last.close) / Math.max(Math.abs(last.close-support), 0.000001) : null;
+  return {
+    key: `${curSym.s}_${curTF}`,
+    sym: curSym.s,
+    tf: curTF,
+    bias: r.bias,
+    topPattern: r.top?.name || 'None',
+    topConf: r.top ? Math.round(r.top.conf*100) : null,
+    price: last.close,
+    movePct,
+    support,
+    resistance,
+    thesis,
+    thesisStatus,
+    drawCtx,
+    profile,
+    trend,
+    rrHint,
+    timestamp: last.time || Date.now()
+  };
+}
+
+function aiCopilotChanges(state){
+  const prev = aiCopilotStateHistory[state.key];
+  const changes = [];
+  if(!prev){
+    changes.push(aiCopilotCard('What changed', `First read on ${state.sym} ${state.tf}. The copilot is now tracking bias, thesis health, and your chart context from this point forward.`, 'var(--bl)'));
+  } else {
+    if(prev.bias !== state.bias){
+      changes.push(aiCopilotCard('Bias shift', `Bias changed from ${prev.bias.toLowerCase()} to ${state.bias.toLowerCase()}. That usually means either pattern balance changed or trend structure no longer points the same way.`, state.bias==='BULLISH'?'var(--tl)':state.bias==='BEARISH'?'var(--rd)':'var(--am)'));
+    }
+    if(prev.topPattern !== state.topPattern){
+      changes.push(aiCopilotCard('Top pattern changed', `The strongest live pattern switched from ${prev.topPattern} to ${state.topPattern}. That means the chart is telling a slightly different story than it was on the previous refresh.`, 'var(--pu)'));
+    }
+    if(prev.thesisStatus?.label !== state.thesisStatus?.label && state.thesis){
+      changes.push(aiCopilotCard('Thesis update', `Your pinned thesis is now ${state.thesisStatus.label.toLowerCase()}. The copilot is watching whether price is moving closer to confirmation or invalidation.`, state.thesisStatus.color || 'var(--am)'));
+    }
+    if(Math.sign(prev.movePct || 0) !== Math.sign(state.movePct || 0) && Math.abs(state.movePct) > 0.05){
+      changes.push(aiCopilotCard('Momentum turn', `The most recent candle-to-candle move flipped direction. Short-term momentum has shifted to ${state.movePct >= 0 ? 'buyers' : 'sellers'} for now.`, state.movePct >= 0 ? 'var(--tl)' : 'var(--rd)'));
+    }
+  }
+  if(!changes.length){
+    changes.push(aiCopilotCard('What changed', 'No major structural change since the last refresh. The current bias, thesis state, and top pattern are broadly unchanged, so patience may be more useful than forcing a new read.', 'var(--tx3)'));
+  }
+  aiCopilotStateHistory[state.key] = {
+    bias: state.bias,
+    topPattern: state.topPattern,
+    thesisStatus: state.thesisStatus,
+    movePct: state.movePct
+  };
+  return changes.join('');
+}
+
+function aiCopilotActions(state){
+  const actions = [];
+  const supportTxt = isFinite(state.support) ? fP(state.support) : 'n/a';
+  const resistanceTxt = isFinite(state.resistance) ? fP(state.resistance) : 'n/a';
+  const profileNote = state.profile?.weaknesses?.[0]
+    ? `Trader memory caution: ${state.profile.weaknesses[0]}`
+    : 'Trader memory is still building. More journaled trades will make this advice more personal.';
+  actions.push(aiCopilotCard('Thesis watch', state.thesis
+    ? `${state.thesis.statement} Current status: ${state.thesisStatus.label}. Confirmation sits near ${isFinite(state.thesis.confirmation) ? fP(state.thesis.confirmation) : 'n/a'} and invalidation near ${isFinite(state.thesis.invalidation) ? fP(state.thesis.invalidation) : 'n/a'}.`
+    : `No thesis is pinned for ${state.sym}. If you already have an idea, pin one from Trade Analysis so the copilot can monitor it instead of giving only generic market context.`, state.thesis ? (state.thesisStatus.color || 'var(--green)') : 'var(--tx3)'));
+  actions.push(aiCopilotCard('Your chart context', state.drawCtx.nearbyLevels.length || state.drawCtx.notes.length
+    ? `${state.drawCtx.nearbyLevels.length ? `Nearby marked levels: ${state.drawCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ')}. ` : ''}${state.drawCtx.notes.length ? `Chart notes: ${state.drawCtx.notes.join(' | ')}. ` : ''}Nearest machine-detected support/resistance: ${supportTxt} / ${resistanceTxt}.`
+    : `You do not have much marked on the chart yet. The copilot can be more specific when you draw levels, zones, or notes. Nearest machine-detected support/resistance: ${supportTxt} / ${resistanceTxt}.`, 'var(--am)'));
+  actions.push(aiCopilotCard('Best next step', state.bias === 'BULLISH'
+    ? `Bullish bias is leading, but the next clean decision should still come from reaction at support or a decisive break above resistance. Avoid chasing in the middle if price is stretched away from ${supportTxt}.`
+    : state.bias === 'BEARISH'
+      ? `Bearish bias is leading, but the next clean decision should still come from reaction at resistance or a decisive break below support. Avoid forcing shorts directly into support at ${supportTxt}.`
+      : `Bias is mixed, so the cleanest next step is patience. Let price either reject a clear level or break structure before treating this as a high-quality idea.`, state.bias === 'BULLISH' ? 'var(--tl)' : state.bias === 'BEARISH' ? 'var(--rd)' : 'var(--am)'));
+  actions.push(aiCopilotCard('Personal lens', profileNote, 'var(--pu)'));
+  return actions.join('');
+}
+
+function aiCopilotBrief(state){
+  const price = isFinite(state.price) ? fP(state.price) : 'n/a';
+  const move = `${state.movePct >= 0 ? '+' : ''}${state.movePct.toFixed(2)}%`;
+  const topPattern = state.topPattern !== 'None' ? `${state.topPattern}${state.topConf ? ` (${state.topConf}% conf)` : ''}` : 'no dominant pattern';
+  const supportTxt = isFinite(state.support) ? fP(state.support) : 'n/a';
+  const resistanceTxt = isFinite(state.resistance) ? fP(state.resistance) : 'n/a';
+  return `${state.sym} on ${state.tf} is currently reading as ${state.bias.toLowerCase()} with ${topPattern}. Price is ${price} (${move} on the latest bar), trend state is ${state.trend.label.toLowerCase()}, nearest support is ${supportTxt}, and nearest resistance is ${resistanceTxt}. ${state.thesis ? `Your thesis is ${state.thesisStatus.label.toLowerCase()}, so the live read should be judged against that plan rather than in isolation.` : 'No thesis is pinned yet, so this is a general market read rather than a plan-aware one.'}`;
+}
+
+function aiCopilotRenderAIText(text){
+  const cleaned = String(text || '').replace(/\r/g, '').trim();
+  if(!cleaned) return 'The copilot could not generate a deeper explanation just now.';
+  return cleaned.split('\n').filter(Boolean).map(line => `<div style="margin-bottom:6px;">${aiCopilotEscape(line)}</div>`).join('');
+}
+
+async function aiCopilotFetchExplanation(state, force=false){
+  const statusEl = document.getElementById('ai-copilot-status');
+  const outEl = document.getElementById('ai-copilot-ai');
+  if(!statusEl || !outEl) return;
+  const drawSig = [
+    state.drawCtx.nearbyLevels.map(x => `${x.type}:${Number(x.level).toFixed(2)}`).join('|'),
+    state.drawCtx.notes.join('|'),
+    state.thesis?.updatedAt || 0,
+    state.topPattern,
+    Math.round((state.price || 0) * 100) / 100
+  ].join('::');
+  const cacheKey = `${state.key}::${drawSig}`;
+  if(!force && aiCopilotCache[cacheKey]){
+    outEl.innerHTML = aiCopilotRenderAIText(aiCopilotCache[cacheKey].text);
+    statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    return;
+  }
+  if(aiCopilotInFlight[cacheKey]) return;
+  aiCopilotInFlight[cacheKey] = true;
+  statusEl.textContent = 'Generating deeper AI explanation…';
+  outEl.innerHTML = 'Generating deeper chart explanation…';
+  try{
+    const prompt = `You are the live AI copilot inside a trading platform. Explain the current chart in plain English for the trader who is looking at it right now.
+
+Return exactly 4 short lines:
+Market: one line on what the chart is doing now.
+Why: one line on why that read makes sense.
+Risk: one line on what could weaken or invalidate the current read.
+Next: one line on the best thing to wait for or watch next.
+
+Current symbol: ${state.sym}
+Current timeframe: ${state.tf}
+Bias: ${state.bias}
+Top pattern: ${state.topPattern}
+Price: ${isFinite(state.price) ? fP(state.price) : 'n/a'}
+Trend state: ${state.trend.label}
+Nearest support: ${isFinite(state.support) ? fP(state.support) : 'n/a'}
+Nearest resistance: ${isFinite(state.resistance) ? fP(state.resistance) : 'n/a'}
+Thesis: ${state.thesis ? state.thesis.statement : 'none pinned'}
+Thesis status: ${state.thesis ? state.thesisStatus.label : 'no thesis'}
+Drawn chart context: ${state.drawCtx.nearbyLevels.length ? state.drawCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'no nearby drawn levels'}
+Chart notes: ${state.drawCtx.notes.length ? state.drawCtx.notes.join(' | ') : 'none'}
+Trader memory: ${state.profile?.total ? formatTraderProfileForAI(state.profile) : 'not enough data yet'}
+
+Do not give financial advice. Do not use markdown. Keep the tone calm, clear, and practical.`;
+    const text = await groqFetch(prompt, { max_tokens: 220, temperature: 0.2, timeoutMs: 20000 });
+    aiCopilotCache[cacheKey] = { text, ts: Date.now() };
+    outEl.innerHTML = aiCopilotRenderAIText(text);
+    statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+  }catch(e){
+    outEl.innerHTML = 'Deeper AI explanation is unavailable right now. The live copilot briefing above is still using the current chart state.';
+    statusEl.textContent = 'Live briefing ready · deeper AI explanation unavailable';
+  } finally {
+    delete aiCopilotInFlight[cacheKey];
+  }
+}
+
+function renderLiveCopilot(r, force=false){
+  const briefEl = document.getElementById('ai-copilot-brief');
+  const changesEl = document.getElementById('ai-copilot-changes');
+  const actionsEl = document.getElementById('ai-copilot-actions');
+  const statusEl = document.getElementById('ai-copilot-status');
+  if(!briefEl || !changesEl || !actionsEl || !statusEl || !curData?.length) return;
+  const state = aiCopilotBuildState(r);
+  briefEl.innerHTML = aiCopilotBrief(state);
+  changesEl.innerHTML = aiCopilotChanges(state);
+  actionsEl.innerHTML = aiCopilotActions(state);
+  statusEl.textContent = 'Reading the current chart, your thesis, and your marked levels…';
+  aiCopilotFetchExplanation(state, force);
 }
 
 function renderAIPanel(r){
@@ -1816,6 +2037,7 @@ function setCurrentThesis(thesis){
   saveThesisStore();
   renderThesisTrackerWidget();
   if(document.getElementById('tap-context-out')) tapRenderDecisionContext(_tapDrawing);
+  if(curSym?.s === thesis.sym) buildAIPanel(true);
 }
 function clearCurrentThesis(sym){
   const key = sym || curSym?.s;
@@ -1824,6 +2046,7 @@ function clearCurrentThesis(sym){
   saveThesisStore();
   renderThesisTrackerWidget();
   if(document.getElementById('tap-context-out')) tapRenderDecisionContext(_tapDrawing);
+  if(curSym?.s === key) buildAIPanel(true);
 }
 function renderTraderProfileWidget(){
   const el = document.getElementById('trader-profile-card');
@@ -11569,6 +11792,7 @@ function saveDrawings(sym,tf){
     const portable = drawings.map(drawingToTime);
     _lsSet(_drawKey(sym,tf), JSON.stringify(portable));
   }catch(e){}
+  if(curSym?.s === sym && curTF === tf) buildAIPanel(true);
 }
 function loadDrawings(sym,tf){
   try{
