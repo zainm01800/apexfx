@@ -33,6 +33,16 @@ function toYahooTicker(sym, type) {
   return sym;
 }
 
+function isAllowedOrigin(origin, host) {
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    if (url.host === host) return true;
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+  } catch {}
+  return false;
+}
+
 function aggregateTo4h(bars) {
   const agg = [];
   for (let i = 0; i < bars.length; i += 4) {
@@ -81,12 +91,15 @@ async function fetchYahooChunk(ticker, interval, from, to, dp) {
 
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
+  const url = new URL(req.url);
+  const origin = req.headers.get('origin');
   const sym  = searchParams.get('sym')  || 'AAPL';
   const type = searchParams.get('type') || 'Stock';
   const tf   = searchParams.get('tf')   || '1d';
+  const allowedOrigin = isAllowedOrigin(origin, url.host) ? (origin || url.origin) : url.origin;
 
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Content-Type': 'application/json',
     // Short-TF data is fresher — cache aggressively for daily+, briefly for intraday
     'Cache-Control': tf === '1m' ? 's-maxage=30, stale-while-revalidate=60'
@@ -94,6 +107,10 @@ export default async function handler(req) {
                    : ['15m','30m','1h'].includes(tf) ? 's-maxage=120, stale-while-revalidate=300'
                    : 's-maxage=300, stale-while-revalidate=600',
   };
+
+  if (origin && !isAllowedOrigin(origin, url.host)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), { status: 403, headers: corsHeaders });
+  }
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -123,7 +140,7 @@ export default async function handler(req) {
       // Break into chunks — no cap on count, fetch all available history
       const chunks = [];
       let chunkTo = reqTo;
-      while (chunkTo > reqFrom && chunks.length < 30) {
+      while (chunkTo > reqFrom) {
         const chunkFrom = Math.max(reqFrom, chunkTo - maxChunk);
         chunks.push({ from: chunkFrom, to: chunkTo });
         chunkTo = chunkFrom - 1;
