@@ -167,6 +167,28 @@ let _autoSaveInterval = null;
 // ══ WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
 const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
+let _cloudSyncState = { status:'offline', message:'Local only', lastOkAt:0 };
+
+function updateCloudSyncBadge(state = {}){
+  _cloudSyncState = { ..._cloudSyncState, ...state };
+  const badge = document.getElementById('cloud-sync-badge');
+  if(!badge) return;
+  const status = _cloudSyncState.status || 'offline';
+  badge.className = `sync-badge show ${status}`;
+  if(status === 'syncing'){
+    badge.textContent = 'Syncing';
+  } else if(status === 'ok'){
+    badge.textContent = _cloudSyncState.lastOkAt ? 'Cloud saved' : 'Cloud ready';
+  } else if(status === 'error'){
+    badge.textContent = 'Sync issue';
+  } else {
+    badge.textContent = _currentUser ? 'Local only' : '';
+  }
+  badge.title = _cloudSyncState.message || badge.textContent || 'Cloud sync status';
+  if(!_currentUser || !badge.textContent){
+    badge.classList.remove('show');
+  }
+}
 
 // ══ DRAWING VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
 let drawings = []; // completed drawings
@@ -2684,7 +2706,7 @@ Write a trade autopsy with these 4 sections (keep each to 2-3 lines):
     out.dataset.loaded = '1';
     btn.textContent = '🔼 Hide Autopsy';
   } catch(err) {
-    out.textContent = '⚠ AI unavailable — check Groq API key in settings.';
+        out.textContent = 'AI unavailable right now. Please try again in a moment.';
     btn.textContent = '🔬 AI Autopsy';
   }
   btn.disabled = false;
@@ -3168,7 +3190,7 @@ FORMATTING RULES:
     btn.textContent = '🔄 Re-check';
   } catch(err) {
     const textEl = document.getElementById('pretrade-ai-text');
-    if(textEl) textEl.textContent = '⚠ AI unavailable — check Groq API key in settings.';
+if(textEl) textEl.textContent = 'AI unavailable right now. Please try again in a moment.';
     out.style.display = 'block';
     btn.textContent = '⚡ Deep Check';
   }
@@ -10666,7 +10688,6 @@ async function aiComplete(prompt, {
   temperature = 0,
   timeoutMs = 30000,
 } = {}){
-  const CLIENT_GROQ_KEY = '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';
   let res;
   try {
     res = await fetch('/api/ai', {
@@ -10679,29 +10700,8 @@ async function aiComplete(prompt, {
     res = null;
   }
 
-  if ((!res || res.status === 404) && CLIENT_GROQ_KEY) {
-    try {
-      res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        signal: AbortSignal.timeout(timeoutMs),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${CLIENT_GROQ_KEY}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens,
-          temperature,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-    } catch (networkErr) {
-      throw new Error(`AI network error: ${networkErr.message}`);
-    }
-  }
-
   if (!res) {
-    throw new Error('AI service unavailable');
+    throw new Error('AI service unavailable. Please check your connection and try again.');
   }
 
   let data = null;
@@ -16052,6 +16052,7 @@ function _lsSet(key, val){
   if(_currentUserId){
     _writeQueue[key] = val; // queue it, deduplicate by key
     if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
+    updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
     _writeFlushTimer = setTimeout(_flushWriteQueue, 2000); // batch writes every 2s
   }
 }
@@ -16059,17 +16060,34 @@ function _lsSet(key, val){
 async function _flushWriteQueue(force){
   if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
   const uid = _currentUserId;
-  const entries = Object.entries(_writeQueue).map(([key, value]) => ({
+  const snapshot = { ..._writeQueue };
+  const entries = Object.entries(snapshot).map(([key, value]) => ({
     user_id: uid, key, value, updated_at: new Date().toISOString()
   }));
-  // Clear queue before await so new changes queue up cleanly
-  Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
   clearTimeout(_writeFlushTimer);
   _writeFlushTimer = null;
+  updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
   try{
     const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
-    if(error) console.warn('Supabase batch write:', error.message);
-  }catch(e){ console.warn('Supabase write error:', e.message); }
+    if(error) throw error;
+    Object.keys(snapshot).forEach(k => {
+      if(_writeQueue[k] === snapshot[k]) delete _writeQueue[k];
+    });
+    updateCloudSyncBadge({ status:'ok', message:'Workspace saved to cloud', lastOkAt: Date.now() });
+  }catch(e){
+    console.warn('Supabase write error:', e.message);
+    Object.entries(snapshot).forEach(([key, value]) => {
+      if(!(_writeQueue[key] && _writeQueue[key] !== value)) _writeQueue[key] = value;
+    });
+    const hardFailure = /row-level security|policy|permission/i.test(e.message || '');
+    updateCloudSyncBadge({
+      status: hardFailure ? 'offline' : 'error',
+      message: hardFailure ? 'Cloud save is unavailable for this account right now. Changes are staying local.' : `Cloud sync failed: ${e.message}`
+    });
+    if(!hardFailure && !_writeFlushTimer){
+      _writeFlushTimer = setTimeout(_flushWriteQueue, force ? 2500 : 4000);
+    }
+  }
 }
 
 function _lsRem(key){
@@ -16087,10 +16105,12 @@ async function _syncFromCloud(){
   
   if(!_currentUserId) {
     console.log('❌ No currentUserId, skipping sync');
+    updateCloudSyncBadge({ status:'offline', message:'Using local workspace only' });
     return;
   }
   
   try{
+    updateCloudSyncBadge({ status:'syncing', message:'Loading your cloud workspace…' });
     console.log('📡 Fetching data from Supabase...');
     const { data, error } = await _supa.from('user_data')
       .select('key,value')
@@ -16111,9 +16131,11 @@ async function _syncFromCloud(){
     });
     
     console.log('✅ _syncFromCloud completed successfully');
+    updateCloudSyncBadge({ status:'ok', message:'Cloud workspace loaded', lastOkAt: Date.now() });
   }catch(e){ 
     console.error('❌ Supabase sync error:', e);
     console.warn('Supabase sync:', e.message); 
+    updateCloudSyncBadge({ status:'error', message:`Cloud sync failed: ${e.message}` });
   }
 }
 
@@ -16219,10 +16241,14 @@ function authRegister(username, password, displayName){ return { ok:false, err:'
 function doLogin(username, displayName){
   _currentUser = username;
   _saveSession(username);
+  updateCloudSyncBadge({ status:'syncing', message:'Preparing your cloud workspace…' });
   // Grab userId from active Supabase session if not already set
   if(!_currentUserId){
     _supa.auth.getSession().then(({data}) => {
-      if(data?.session?.user?.id) _currentUserId = data.session.user.id;
+      if(data?.session?.user?.id) {
+        _currentUserId = data.session.user.id;
+        updateCloudSyncBadge({ status:'syncing', message:'Cloud session ready' });
+      }
     });
   }
 
@@ -16300,6 +16326,7 @@ async function doLogout(){
   _clearSession();
   _currentUser   = null;
   _currentUserId = null;
+  updateCloudSyncBadge({ status:'offline', message:'Local only', lastOkAt:0 });
   _supa.auth.signOut().catch(()=>{});
 
   // Clear runtime state
@@ -16322,8 +16349,12 @@ function updateUserBadge(displayName){
     badge.textContent = displayName.slice(0,16);
     badge.title = `Logged in as ${_currentUser}`;
     badge.style.display = '';
+    updateCloudSyncBadge(_currentUserId
+      ? { status:_cloudSyncState.status || 'syncing', message:_cloudSyncState.message || 'Cloud sync ready' }
+      : { status:'offline', message:'Using local storage until cloud session is ready' });
   } else {
     badge.style.display = 'none';
+    updateCloudSyncBadge({ status:'offline', message:'Local only' });
   }
 }
 
@@ -17634,6 +17665,17 @@ function aisRenderCards(){
   aisApplyFilter();
 }
 
+function aisBuildSelectionReason(s){
+  const reasons = [];
+  if (s.tfAgree >= 2) reasons.push('higher timeframe alignment');
+  if (s.conf >= 70) reasons.push('strong scan confidence');
+  if (s.rsi && s.rsi >= 35 && s.rsi <= 65) reasons.push('balanced RSI');
+  else if (s.rsi && (s.rsi < 30 || s.rsi > 70)) reasons.push('RSI extreme');
+  if (Math.abs(s.movePct) >= 0.8) reasons.push('active momentum');
+  if (s.patLabel) reasons.push(s.patLabel.toLowerCase());
+  return reasons.length ? reasons.slice(0, 3).join(' · ') : 'pattern, structure, and momentum context';
+}
+
 function aisCardHTML(s, rank){
   const cid      = `${s.sym}-${s.tf}`;
   const rankCls  = rank===0?'r1':rank===1?'r2':rank===2?'r3':'rn';
@@ -17679,6 +17721,9 @@ function aisCardHTML(s, rank){
       <div class="ais-idea-lbl">💡 AI SETUP SUMMARY</div>
       <div id="ais-idea-${cid}" style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;padding:2px 0;">
         AI idea generated for top 6 setups only.
+      </div>
+      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;margin-top:6px;">
+        Selected because ${aisBuildSelectionReason(s)}.
       </div>
     </div>
     <div class="ais-tags">${tags.map(t=>`<span class="ais-tag">${t}</span>`).join('')}</div>
@@ -18077,6 +18122,7 @@ function tapRenderSetupBridge(d, analysisText=''){
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
         <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What AI Setups saw</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.scannerSaw}</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Discovery step only — use the trade score for execution quality.</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
         <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What Trade Analysis confirmed</div>
@@ -19194,6 +19240,7 @@ function tapRenderVerdictBanner(text){
   const scoreRaw = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
   const parsedScore = structured?.combined_score ?? (scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null);
+  const scoreSource = structured ? 'Structured AI score' : (parsedScore !== null ? 'Parsed from AI analysis' : 'Verdict fallback');
 
   let verdict='', verdictColor='#8899b0', bg='rgba(136,153,176,0.08)', border='rgba(136,153,176,0.2)';
   let scoreVal = parsedScore, likelihood='', barPct=50;
@@ -19243,7 +19290,7 @@ function tapRenderVerdictBanner(text){
   scoreEl.style.color      = verdictColor;
   subEl.textContent        = likelihood;
   subEl.style.color        = verdictColor;
-  probEl.textContent       = probPct ? probPct + '% probability of success' : 'See full analysis below';
+  probEl.textContent       = probPct ? `${probPct}% probability of success · ${scoreSource}` : `See full analysis below · ${scoreSource}`;
   probEl.style.color       = verdictColor;
   barEl.style.background   = verdictColor;
   setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);

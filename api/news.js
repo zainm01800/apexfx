@@ -9,11 +9,15 @@ export const config = { runtime: 'edge' };
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 const FBASE = 'https://finnhub.io/api/v1';
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-  'Cache-Control': 's-maxage=300, stale-while-revalidate=600',
-};
+function isAllowedOrigin(origin, host) {
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    if (url.host === host) return true;
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+  } catch {}
+  return false;
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -36,6 +40,19 @@ function mapItem(i) {
 }
 
 export default async function handler(req) {
+  const url = new URL(req.url);
+  const origin = req.headers.get('origin');
+  const allowedOrigin = isAllowedOrigin(origin, url.host) ? (origin || url.origin) : url.origin;
+  const cors = {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Content-Type': 'application/json',
+    'Cache-Control': 's-maxage=300, stale-while-revalidate=600',
+  };
+
+  if (origin && !isAllowedOrigin(origin, url.host)) {
+    return new Response(JSON.stringify([]), { status: 403, headers: cors });
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors });
   }

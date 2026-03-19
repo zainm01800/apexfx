@@ -6,13 +6,30 @@ export const config = { runtime: 'edge' };
 
 const GROQ_KEY = process.env.GROQ_API_KEY; // Set in Vercel dashboard → Environment Variables
 
+function isAllowedOrigin(origin, host) {
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    if (url.host === host) return true;
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+  } catch {}
+  return false;
+}
+
 export default async function handler(req) {
+  const url = new URL(req.url);
+  const origin = req.headers.get('origin');
+  const allowedOrigin = isAllowedOrigin(origin, url.host) ? (origin || url.origin) : url.origin;
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
   };
+
+  if (origin && !isAllowedOrigin(origin, url.host)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), { status: 403, headers: corsHeaders });
+  }
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
@@ -35,6 +52,8 @@ export default async function handler(req) {
   }
 
   const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0 } = body;
+  const safeMaxTokens = Math.max(1, Math.min(4000, Number(max_tokens) || 1000));
+  const safeTemperature = Math.max(0, Math.min(1, Number(temperature) || 0));
 
   if (!prompt || typeof prompt !== 'string' || prompt.length > 40000) {
     return new Response(JSON.stringify({ error: 'Invalid prompt' }), { status: 400, headers: corsHeaders });
@@ -49,8 +68,8 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model,
-        max_tokens,
-        temperature,
+        max_tokens: safeMaxTokens,
+        temperature: safeTemperature,
         messages: [{ role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(30000),
