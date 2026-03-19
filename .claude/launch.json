@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vercel-dev",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js", "vercel", "dev", "--listen", "3001", "--yes"],
+      "port": 3001
+    }
+  ]
+}
