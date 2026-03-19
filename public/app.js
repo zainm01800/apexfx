@@ -11593,6 +11593,8 @@ let isResizingDrawing  = false;  // dragging a handle
 let resizeHandle       = null;   // which handle ('p1','p2','sl','tp','price','bar', etc.)
 let dragStartBar       = 0;      // bar coord at drag start
 let dragStartPrice     = 0;      // price coord at drag start
+let dragStartX         = 0;      // screen x at drag start
+let dragStartY         = 0;      // screen y at drag start
 let dragSnapshot       = null;   // deep copy of drawing at drag start
 
 let isMarquee = false;
@@ -11648,6 +11650,123 @@ function screenToDraw(sx, sy){
   return { bar, price, x: sx, y: sy };
 }
 
+function _mentorGetBubbleRect(d){
+  if (!d || !d._bubbleRect) return null;
+  const r = d._bubbleRect;
+  if (!Number.isFinite(r.x) || !Number.isFinite(r.y) || !Number.isFinite(r.w) || !Number.isFinite(r.h)) return null;
+  return r;
+}
+
+function _mentorBubbleHit(d, sx, sy, pad = 6){
+  const r = _mentorGetBubbleRect(d);
+  if (!r) return false;
+  return sx >= r.x - pad && sx <= r.x + r.w + pad && sy >= r.y - pad && sy <= r.y + r.h + pad;
+}
+
+function _mentorConfluenceExplanation(label, method = '', direction = 'long') {
+  const base = (label || '').split(' + ')[0].trim();
+  const isLong = direction !== 'short';
+
+  if (base.startsWith('Support zone')) {
+    return `This is marked as support because price has already reacted here multiple times and held instead of closing cleanly through it. Each successful defense shows buyers are willing to step in around this same price area, so the level becomes more meaningful with every hold. What matters next is whether price rejects this zone again with a wick or strong bullish close rather than drifting through it.`;
+  }
+  if (base.startsWith('Resistance zone')) {
+    return `This is marked as resistance because price has already failed here before and sellers kept capping the move. Repeated failures at nearly the same price tell us supply is sitting in this area. The confirmation is another rejection, bearish response, or failed attempt to break through with conviction.`;
+  }
+  if (base.startsWith('Breakout line') || base.startsWith('Breakdown line')) {
+    return `This line matters because it is the edge of the consolidation that price has been respecting. While price stays inside that box, the market is still balanced. Once a candle closes decisively outside it, that balance breaks and one side has likely taken control. The quality of the break depends on body strength, follow-through, and whether price avoids snapping straight back inside the range.`;
+  }
+  if (base.startsWith('Consolidation')) {
+    return `This is called consolidation because price is compressing into a relatively tight box instead of trending cleanly. That tells us the market is pausing, orders are building, and energy is being stored. The longer this compression holds without breaking, the more important the eventual escape from the box becomes.`;
+  }
+  if (base.startsWith('Pullback zone')) {
+    return `This is the pullback zone because the current retracement sits inside the Fibonacci area where healthy trends often resume. A good pullback is not random weakness; it is price temporarily retracing into value without fully breaking structure. The mentor is watching this area because it offers a better risk-to-reward entry than chasing after the move has already expanded.`;
+  }
+  if (base.startsWith('Liquidity pool')) {
+    return `This is treated as liquidity because traders naturally place stop losses around obvious equal highs, equal lows, prior swing extremes, and clean breakout points. When price pokes into that pocket and quickly reverses, it suggests those stops were harvested first and then the real move began. The clue is not just the level itself, but the sweep and rejection behavior around it.`;
+  }
+  if (base.startsWith('Range bottom') || base.startsWith('Range support')) {
+    return `This is the lower edge of the range because price has repeatedly found demand here instead of breaking down. In a true range, the boundaries matter more than the middle because that is where the market keeps rejecting price. The lesson is to wait for evidence that buyers are defending the edge again rather than entering in the middle of the chop.`;
+  }
+  if (base.startsWith('Range top') || base.startsWith('Range resistance')) {
+    return `This is the upper edge of the range because price has repeatedly stalled here instead of continuing upward. That repeated rejection shows supply is concentrated near this boundary. The better short is not just because price is high, but because it is reacting at a known ceiling where sellers have already proven themselves.`;
+  }
+  if (base.startsWith('Range')) {
+    return `This is classified as a range because price is rotating between a clear ceiling and floor rather than trending in one direction. In a ranging market the edge comes from trading the boundaries, not from assuming continuation in the middle. The mentor highlights this so the user learns where location matters most.`;
+  }
+  if (base.startsWith('Higher low') || base.startsWith('Prior higher low')) {
+    return `This matters because an uptrend is built on higher lows: buyers step in sooner on each pullback and do not allow price to revisit the previous low. That tells us demand is getting more aggressive. The mentor marks these points to show that the bullish idea is supported by real structure, not just by a single candle.`;
+  }
+  if (base.startsWith('Lower high') || base.startsWith('Prior lower high')) {
+    return `This matters because a downtrend is built on lower highs: sellers step in earlier and prevent price from reclaiming the previous swing high. That tells us supply is controlling the market. The mentor marks these points so the user can see that the bearish bias is structural, not random.`;
+  }
+  if (base.startsWith('Rejection wick')) {
+    return `This is called a rejection wick because price traded through the level intrabar but could not stay there by the close. The long wick shows one side tried to continue, then got absorbed and pushed back. That matters because it is evidence of real defense at the level, not just a touch.`;
+  }
+  if (base.startsWith('Reaction candle') || base.startsWith('Level test')) {
+    return `This candle matters because it is the market's immediate response at the level. Even if the rejection is not dramatic yet, the fact that price is pausing and reacting where it should is useful context. The next candle tells us whether this is genuine defense or only a temporary stall.`;
+  }
+  if (base.startsWith('Breakout')) {
+    return `This is labeled a breakout candle because price has not only touched the boundary, it has pushed away from it with a meaningful body. The larger the body relative to the full candle range, the more conviction there is behind the move. What the mentor wants the user to notice is whether this is true expansion or just a weak poke beyond the level.`;
+  }
+  if (base.includes('pullback') || base.startsWith('Trend resuming')) {
+    return `This is the continuation trigger because the retracement appears to be ending and price is trying to rotate back with the trend. A good pullback entry happens after structure stays intact, the retracement reaches a sensible value area, and momentum starts to return in the trend direction. The mentor is teaching patience here: wait for the pullback to prove it is finished.`;
+  }
+  if (base.startsWith('Stop hunt wick')) {
+    return `This wick is important because it shows the sweep itself, not just the reversal after it. Price ran into an obvious stop area, triggered those clustered orders, and then quickly rejected the move. That sequence is what makes it a liquidity event rather than a normal breakout.`;
+  }
+  if (base.startsWith('Displacement')) {
+    return `This is the confirmation candle after the sweep. Displacement matters because it shows price did not simply bounce a little; it left the swept area with urgency and direction. That shift from sweep to expansion is what gives the entry real context.`;
+  }
+  if (base.startsWith('Boundary bounce') || base.startsWith('Boundary rejection')) {
+    return `This is the range trigger because price has reached the edge of the range and visibly reacted away from it. In a range, the strongest trades usually come from seeing the market reject a boundary that has already proven itself. The move becomes more trustworthy when the candle closes back inside the range instead of hovering on the edge.`;
+  }
+
+  if (method === 'liquidity') {
+    return `This confluence matters in the liquidity method because the setup depends on price interacting with an obvious stop area, sweeping it, and then reclaiming the level with intent. The mentor is highlighting the specific clue that makes this a trap-and-reverse pattern rather than a normal continuation.`;
+  }
+  if (method === 'pullback' || method === 'trend' || method === 'flag_continuation' || method === 'structure_continuation') {
+    return `This confluence matters because continuation setups need two things at the same time: trend structure must stay intact, and the pullback must show signs of ending in a sensible value area. The mentor is calling out the feature that helps confirm both.`;
+  }
+  if (method === 'support_resistance') {
+    return `This confluence matters because support and resistance are only useful when the market actually respects them. The mentor is highlighting the clue that shows participants are defending the level rather than letting price drift straight through it.`;
+  }
+  if (method === 'breakout' || method === 'range_breakout') {
+    return `This confluence matters because breakout trades only work well when the market has first compressed, then expanded with real intent. The mentor is showing the feature that suggests the move is escaping balance instead of faking out.`;
+  }
+  if (method === 'range') {
+    return `This confluence matters because range trading is about reacting at proven edges, not guessing in the middle. The mentor is showing the evidence that the current edge is still being respected.`;
+  }
+
+  return `This is a meaningful confluence because it adds evidence to the idea already forming on the chart. The mentor is highlighting it so the user can learn not just where price is, but why that location matters to the trade thesis.`;
+}
+
+function _mentorResolveBubblePlacement(ctx, d, opts){
+  const {
+    anchorX, anchorY, bubbleW, bubbleH, chartLeft, chartRight, chartTop, chartBottom,
+    preferBottom, tryBandFn
+  } = opts;
+
+  if (_mentorGetBubbleRect(d) && Number.isFinite(d.bubbleOffsetX) && Number.isFinite(d.bubbleOffsetY)) {
+    const bubbleX = Math.max(chartLeft, Math.min(chartRight - bubbleW, anchorX + d.bubbleOffsetX));
+    const bubbleY = Math.max(chartTop, Math.min(chartBottom - bubbleH, anchorY + d.bubbleOffsetY));
+    return { bubbleX, bubbleY, useBottom: bubbleY >= anchorY };
+  }
+
+  let pl = tryBandFn(preferBottom) || tryBandFn(!preferBottom);
+  if (!pl) {
+    const col = (ctx._placedBubbles?.length || 0) % 3;
+    const row = Math.floor((ctx._placedBubbles?.length || 0) / 3);
+    const fallbackX = Math.max(chartLeft, Math.min(chartRight - bubbleW, anchorX - bubbleW / 2 + (col - 1) * (bubbleW + 10)));
+    const fallbackY = Math.min(chartBottom - bubbleH, Math.max(chartTop, chartBottom - Math.max(bubbleH + 12, (chartBottom - chartTop) * 0.22) + row * (bubbleH + 5)));
+    pl = { bubbleX: fallbackX, bubbleY: fallbackY, useBottom: true };
+  }
+
+  const bubbleX = pl.bubbleX ?? pl.bX ?? pl.bXb;
+  const bubbleY = pl.bubbleY ?? pl.bY;
+  return { bubbleX, bubbleY, useBottom: !!pl.useBottom };
+}
+
 // ── Drawing hit test ──────────────────────────────────────────────────────────
 function hitTest(d, sx, sy){
   if(!_barX||!_py) return false;
@@ -11690,12 +11809,14 @@ function hitTest(d, sx, sy){
       return sx>x-4&&sx<x+w&&sy>y-16&&sy<y+4;
     }
     case 'mentor_arrow':{
+      if (_mentorBubbleHit(d, sx, sy)) return true;
       const ax=_barX(d.bar), ay=_py(d.price);
       const arrLen=40, isDown=d.pointing!=='up';
       const tipY=ay+(isDown?-8:8), tailY=tipY+(isDown?-arrLen:arrLen);
       return Math.abs(sx-ax)<12 && sy>=Math.min(tipY,tailY)-5 && sy<=Math.max(tipY,tailY)+5;
     }
     case 'mentor_box':{
+      if (_mentorBubbleHit(d, sx, sy)) return true;
       const bx1=_barX(d.bar1),bx2=_barX(d.bar2);
       const by1=_py(d.priceHigh),by2=_py(d.priceLow);
       return sx>=Math.min(bx1,bx2)-barWidth && sx<=Math.max(bx1,bx2)+barWidth &&
@@ -11776,6 +11897,16 @@ function getHandles(d){
     }
     case 'text':
       return [{id:'p1', x:_barX(d.bar), y:_py(d.price), cur:'move'}];
+    case 'mentor_arrow': {
+      const bubble = _mentorGetBubbleRect(d);
+      if (bubble) return [{ id:'bubble', x:bubble.x + bubble.w / 2, y:bubble.y + bubble.h / 2, cur:'move' }];
+      return [{ id:'p1', x:_barX(d.bar), y:_py(d.price), cur:'move' }];
+    }
+    case 'mentor_box': {
+      const bubble = _mentorGetBubbleRect(d);
+      if (bubble) return [{ id:'bubble', x:bubble.x + bubble.w / 2, y:bubble.y + bubble.h / 2, cur:'move' }];
+      return [{ id:'mid', x:(_barX(d.bar1)+_barX(d.bar2))/2, y:(_py(d.priceHigh)+_py(d.priceLow))/2, cur:'move' }];
+    }
     case 'long': case 'short':{
       const ex=_barX(d.bar), ey=_py(d.price);
       const hb=effectiveHalfBars(d);
@@ -11861,6 +11992,8 @@ function handleDrawMousedown(sx, sy, e){
         resizeHandle      = hid;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
+        dragStartX        = sx;
+        dragStartY        = sy;
         dragSnapshot      = JSON.parse(JSON.stringify(selectedDrawing));
         e.preventDefault(); e.stopPropagation();
         return true;
@@ -11870,9 +12003,14 @@ function handleDrawMousedown(sx, sy, e){
     for(let i=drawings.length-1; i>=0; i--){
       if(hitTest(drawings[i], sx, sy)){
         selectedDrawing   = drawings[i];
-        isDraggingDrawing = true;
+        const bubbleDrag = (drawings[i].type==='mentor_arrow' || drawings[i].type==='mentor_box') && _mentorBubbleHit(drawings[i], sx, sy);
+        isDraggingDrawing = !bubbleDrag;
+        isResizingDrawing = bubbleDrag;
+        resizeHandle      = bubbleDrag ? 'bubble' : null;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
+        dragStartX        = sx;
+        dragStartY        = sy;
         dragSnapshot      = JSON.parse(JSON.stringify(selectedDrawing));
         // If user clicks a long/short drawing, make it the active analysis target
         // Skip the popup for AI mentor example drawings
@@ -12033,6 +12171,7 @@ function handleDrawMousemove(sx, sy){
     const d = selectedDrawing;
     const s = dragSnapshot;
     const dBar=bar-dragStartBar, dPrice=price-dragStartPrice;
+    const dX = sx - dragStartX, dY = sy - dragStartY;
     switch(d.type){
       case 'line': case 'ray': case 'fib': case 'measure':
         if(resizeHandle==='p1'){ d.bar1=bar; d.price1=price; }
@@ -12052,11 +12191,23 @@ function handleDrawMousemove(sx, sy){
       case 'hline': case 'hray': d.price=price; break;
       case 'vline': d.bar=bar; break;
       case 'text': d.bar=bar; d.price=price; break;
-      case 'mentor_arrow': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
+      case 'mentor_arrow':
+        if(resizeHandle==='bubble'){
+          d.bubbleOffsetX = (s.bubbleOffsetX || 0) + dX;
+          d.bubbleOffsetY = (s.bubbleOffsetY || 0) + dY;
+        } else {
+          d.bar=s.bar+dBar; d.price=s.price+dPrice;
+        }
+        break;
       case 'mentor_label': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
       case 'mentor_box':
-        d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
-        d.priceHigh=s.priceHigh+dPrice; d.priceLow=s.priceLow+dPrice;
+        if(resizeHandle==='bubble'){
+          d.bubbleOffsetX = (s.bubbleOffsetX || 0) + dX;
+          d.bubbleOffsetY = (s.bubbleOffsetY || 0) + dY;
+        } else {
+          d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
+          d.priceHigh=s.priceHigh+dPrice; d.priceLow=s.priceLow+dPrice;
+        }
         break;
       case 'long': case 'short':
         if(resizeHandle==='entry'){
@@ -12111,6 +12262,23 @@ function handleDrawMousemove(sx, sy){
         d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
         d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; break;
       case 'text': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
+      case 'mentor_arrow':
+        if (_mentorBubbleHit(d, sx, sy)) {
+          d.bubbleOffsetX = (s.bubbleOffsetX || 0) + (sx - dragStartX);
+          d.bubbleOffsetY = (s.bubbleOffsetY || 0) + (sy - dragStartY);
+        } else {
+          d.bar=s.bar+dBar; d.price=s.price+dPrice;
+        }
+        break;
+      case 'mentor_box':
+        if (_mentorBubbleHit(d, sx, sy)) {
+          d.bubbleOffsetX = (s.bubbleOffsetX || 0) + (sx - dragStartX);
+          d.bubbleOffsetY = (s.bubbleOffsetY || 0) + (sy - dragStartY);
+        } else {
+          d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
+          d.priceHigh=s.priceHigh+dPrice; d.priceLow=s.priceLow+dPrice;
+        }
+        break;
       case 'long': case 'short':
         d.bar=s.bar+dBar; d.price=s.price+dPrice;
         d.sl=s.sl+dPrice; d.tp=s.tp+dPrice; break;
@@ -12153,10 +12321,13 @@ function handleDrawMouseup(sx, sy){
 
   // End drag or resize
   if(isDraggingDrawing || isResizingDrawing){
+    try { saveDrawings(curSym.s, curTF); } catch(e) {}
     isDraggingDrawing = false;
     isResizingDrawing = false;
     resizeHandle = null;
     dragSnapshot = null;
+    dragStartX = 0;
+    dragStartY = 0;
     draw();
     return;
   }
@@ -12281,18 +12452,21 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
   const method  = mentorState.selectedTradingMethod || 'breakout';
   const detBar  = Math.min(setupBar, curData.length - 1);
+  const liveBar = replayMode
+    ? Math.max(0, Math.min(replayCutoff, curData.length - 1))
+    : Math.max(0, Math.min(anchorBar ?? detBar, curData.length - 1));
 
   // ── Determine current stage based on proximity to setup ──────────────────
   // Stage 1 (>25 bars away): structural context only
   // Stage 2 (≤25 bars away): + key level / zone
   // Stage 3 (≤12 bars away): + entry signal
-  const barsAway    = Math.max(0, setupBar - replayCutoff);
+  const barsAway    = Math.max(0, setupBar - liveBar);
   const curStage    = barsAway > 25 ? 1 : barsAway > 12 ? 2 : 3;
 
   // ── Cache check: serve cached drawings if stage hasn't advanced ──────────
   // This ensures annotations NEVER disappear when scrolling back.
   // We only recompute when curStage advances beyond what's cached.
-  const cache = mentorState._annCache;
+  const cache = null;
   if (cache && cache.setupBar === setupBar && cache.method === method) {
     if (curStage <= cache.stage) {
       // Stage hasn't advanced — restore cached drawings and return
@@ -12318,13 +12492,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const dir          = setupDetection.direction || 'long';
   const detectionBar = detBar;
   // visibleUpTo anchored to detectionBar so price ranges are stable
-  const visibleUpTo  = detectionBar;
+  const visibleUpTo  = Math.min(detectionBar, liveBar);
 
   if (visibleUpTo < 10) return;
 
-  const data      = curData.slice(0, detectionBar + 1);
+  const data      = curData.slice(0, visibleUpTo + 1);
   const structure = analyzeMarketStructure(data);
-  const atr       = calculateATR(detectionBar, 14) || (curData[detectionBar]?.close * 0.005) || 1;
+  const atr       = calculateATR(visibleUpTo, 14) || (curData[visibleUpTo]?.close * 0.005) || 1;
 
   // Price range bounds for annotation placement
   const visSlice  = curData.slice(Math.max(0, visibleUpTo - 60), visibleUpTo + 1);
@@ -12342,7 +12516,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // max annotations: 2 at stage 1, 3 at stage 2, 4 at stage 3
   const ann = [];
   // stageCandle must be <= replayCutoff so _commit doesn't filter annotations out
-  const stageCandle = Math.min(visibleUpTo, replayCutoff);
+  const stageCandle = visibleUpTo;
 
   function addZone(f, t, price, label, pri, explanation) {
     const max = showConf ? 4 : 3;
@@ -12484,8 +12658,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             dir==='long' ? `Support zone — ${fP(level)}` : `Resistance zone — ${fP(level)}`,
             1,
             dir==='long'
-              ? `This level was picked because price bounced here ${touchClusters.length} time${touchClusters.length>1?'s':''}. Each bounce confirms real buyers at this price. The more tests that hold, the stronger the level becomes.`
-              : `This level was picked because price reversed here ${touchClusters.length} time${touchClusters.length>1?'s':''}. Each rejection confirms real sellers at this price.`);
+              ? `This level was picked because price bounced here ${touchClusters.length} time${touchClusters.length>1?'s':''} without breaking down. That tells us buyers repeatedly accepted value around ${fP(level)} and were strong enough to push price away each time. In other words, this is support because the market has already proven demand lives here, not because the mentor guessed a number. The more separate tests that hold, the stronger that support story becomes.`
+              : `This level was picked because price reversed here ${touchClusters.length} time${touchClusters.length>1?'s':''} instead of continuing higher. That tells us sellers repeatedly defended this area near ${fP(level)} and capped the move. In other words, this is resistance because supply has already shown itself here, not because the mentor guessed a number. The more separate rejections we see, the more trustworthy that ceiling becomes.`);
         }
 
         // Mark each prior touch as it happened — revealed progressively as replay reaches each bar.
@@ -12705,6 +12879,8 @@ function _commit(ann) {
 
   const atr = calculateATR(Math.min(replayCutoff, curData.length-1), 14) || 1;
   const now  = replayCutoff;
+  const methodCtx = mentorState.selectedTradingMethod || 'general';
+  const dirCtx = mentorState.upcomingSetup?.setup?.direction || mentorState.exampleTrade?.direction || 'long';
 
   ann.sort((a,b) => (a.pri||2)-(b.pri||2));
 
@@ -12722,6 +12898,7 @@ function _commit(ann) {
     if (ci > now) return;
 
     if (a.type==='zone') {
+      const enrichedExplanation = [a.explanation, _mentorConfluenceExplanation(a.label, methodCtx, dirCtx)].filter(Boolean).join(' ');
       const existing = drawings.find(d =>
         d.isMentorAnnotation && d.type==='mentor_box' &&
         d.priceHigh && d.priceLow &&
@@ -12736,7 +12913,7 @@ function _commit(ann) {
       if (zoneDrawingId) {
         const zd = drawings.find(d => d.id === zoneDrawingId);
         if (zd) {
-          if (a.explanation) zd.explanation = a.explanation;
+          if (enrichedExplanation) zd.explanation = enrichedExplanation;
           zd.isLine = true; // render as a single dashed line, not a filled zone box
         }
       }
@@ -12748,6 +12925,7 @@ function _commit(ann) {
       }
 
     } else if (a.type==='box') {
+      const enrichedExplanation = [a.explanation, _mentorConfluenceExplanation(a.label, methodCtx, dirCtx)].filter(Boolean).join(' ');
       const existing = drawings.find(d =>
         d.isMentorAnnotation && d.type==='mentor_box' &&
         d.priceLow && d.priceHigh &&
@@ -12757,9 +12935,9 @@ function _commit(ann) {
         return;
       }
       const boxDrawingId = _addMentorBox(a.f, a.t, a.lo, a.hi, a.label);
-      if (a.explanation && boxDrawingId) {
+      if (enrichedExplanation && boxDrawingId) {
         const bd = drawings.find(d => d.id === boxDrawingId);
-        if (bd) bd.explanation = a.explanation;
+        if (bd) bd.explanation = enrichedExplanation;
       }
       if ((a.pri||2) === 1 && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
@@ -12769,6 +12947,7 @@ function _commit(ann) {
       }
 
     } else if (a.type==='arrow') {
+      const enrichedExplanation = [a.explanation, _mentorConfluenceExplanation(a.label, methodCtx, dirCtx)].filter(Boolean).join(' ');
       // Anchor arrows at their actual structural price — bubble placement handles visual spacing.
       // Only apply a tiny nudge when two annotations land on exactly the same bar+direction.
       let price = a.price;
@@ -12777,7 +12956,7 @@ function _commit(ann) {
       const off   = used * atr * 0.3 * (a.pointing==='down'?1:-1);
       usedAt[key] = used+1;
       price += off;
-      _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight, a.explanation||'');
+      _addMentorArrow(a.bar, price, a.label, a.pointing, a.highlight, enrichedExplanation || '');
       if ((a.pri||2) === 1 && a.highlight && !firstPrimaryLabel) {
         firstPrimaryLabel = a.label;
         firstPrimaryBar   = a.bar;
@@ -12837,8 +13016,11 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
     'Range support':       'The lower boundary of the range — where buyers have repeatedly defended. Look for a reaction here.',
     'Range resistance':    'The upper boundary of the range — where sellers have repeatedly stepped in. Look for a rejection here.',
   };
-  const explanation = explanations[label]
-    || `${label} — a key area where price has previously reacted. Watch closely as price approaches.`;
+  const explanation = _mentorConfluenceExplanation(
+    baseLabel,
+    mentorState.selectedTradingMethod || 'general',
+    mentorState.upcomingSetup?.setup?.direction || 'long'
+  );
 
   // Pause replay
   clearInterval(replayTimer);
@@ -13255,23 +13437,26 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
             for (let attempt = 0; attempt < 4; attempt++) {
               const bY = startY + step * attempt;
               if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
-              if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
-                return { bX, bY, useBottom };
+                if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bX, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
+                  return { bubbleX: bX, bubbleY: bY, useBottom };
             }
           }
           return null;
         }
 
-        let pl = tryBand(preferBottom) || tryBand(!preferBottom);
-        if (!pl) {
-          // Grid fallback: spread across columns then rows
-          const col = ctx._placedBubbles.length % 3;
-          const row = Math.floor(ctx._placedBubbles.length / 3);
-          const bX = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + (col - 1) * (bubbleW + 10)));
-          const bY = Math.min(botBandBot - bubbleH, botBandTop + row * (bubbleH + 5));
-          pl = { bX, bY, useBottom: true };
-        }
-        const { bX: bubbleX, bY: bubbleY, useBottom } = pl;
+        const { bubbleX, bubbleY, useBottom } = _mentorResolveBubblePlacement(ctx, d, {
+          anchorX: ax,
+          anchorY: aySafe,
+          bubbleW,
+          bubbleH,
+          chartLeft,
+          chartRight,
+          chartTop,
+          chartBottom,
+          preferBottom,
+          tryBandFn: tryBand
+        });
+        d._bubbleRect = { x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH, anchorX: ax, anchorY: aySafe };
         ctx._placedBubbles.push({ x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH });
 
         // ── Draw ─────────────────────────────────────────────────────────────
@@ -13361,6 +13546,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         if (isSel) {
           ctx.strokeStyle = accentCol; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
           ctx.beginPath(); ctx.arc(ax, ay, 9, 0, Math.PI*2); ctx.stroke();
+          roundRect(ctx, bubbleX - 4, bubbleY - 4, bubbleW + 8, bubbleH + 8, 8); ctx.stroke();
           ctx.setLineDash([]);
         }
         ctx.restore();
@@ -13482,21 +13668,25 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
                 const bY = startY + step * attempt;
                 if (bY < bandTop2 || bY + bubbleH > bandBot2) break;
                 if (!ctx._placedBubbles.some(b => _mentorBubbleOverlaps(bXb, bY, bubbleW, bubbleH, b.x, b.y, b.w, b.h)))
-                  return { bXb, bY, useBottom };
+                  return { bubbleX: bXb, bubbleY: bY, useBottom };
               }
             }
             return null;
           }
 
-          let pl = tryBandBox(preferBottom) || tryBandBox(!preferBottom);
-          if (!pl) {
-            const col = ctx._placedBubbles.length % 3;
-            const row = Math.floor(ctx._placedBubbles.length / 3);
-            const bXb = Math.max(chartLeft, Math.min(chartRight - bubbleW, ax - bubbleW / 2 + (col - 1) * (bubbleW + 10)));
-            const bY  = Math.min(botBandBot - bubbleH, botBandTop + row * (bubbleH + 5));
-            pl = { bXb, bY, useBottom: true };
-          }
-          const { bXb: bubbleX, bY: bubbleY, useBottom } = pl;
+          const { bubbleX, bubbleY, useBottom } = _mentorResolveBubblePlacement(ctx, d, {
+            anchorX: ax,
+            anchorY: ay,
+            bubbleW,
+            bubbleH,
+            chartLeft,
+            chartRight,
+            chartTop,
+            chartBottom,
+            preferBottom,
+            tryBandFn: tryBandBox
+          });
+          d._bubbleRect = { x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH, anchorX: ax, anchorY: ay };
           ctx._placedBubbles.push({ x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH });
 
           ctx.save();
@@ -13581,6 +13771,11 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
               ctx.font = explFont; ctx.fillStyle = '#6880a0';
               ctx.fillText(ln, textX, textY); textY += lineH;
             });
+          }
+          if (isSel) {
+            ctx.strokeStyle = strokeCol; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
+            roundRect(ctx, bubbleX - 4, bubbleY - 4, bubbleW + 8, bubbleH + 8, 8); ctx.stroke();
+            ctx.setLineDash([]);
           }
           ctx.restore();
         }
@@ -20075,6 +20270,7 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
+
 
 
 
