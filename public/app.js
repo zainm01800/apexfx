@@ -4058,7 +4058,9 @@ const VALID_TRANSITIONS = {
 };
 
 function mentorPhaseMeta(){
-  const state = mentorState.lifecycleState || 'scanning';
+  let state = mentorState.lifecycleState || 'scanning';
+  // If a trade is active but we somehow entered no_setup_found, show LIVE pill instead of WAITING
+  if (mentorState.exampleTradeActive && state === 'no_setup_found') state = 'trade_monitoring';
   const map = {
     method_selection: { pill:'SETUP', status:'Choose a strategy', note:'Pick the style you want to practice so the mentor can teach one clear playbook at a time.', color:'var(--pu)' },
     scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:'The mentor is quietly checking structure, confluence, and timing for the next good teaching example.', color:'var(--bl)' },
@@ -4545,9 +4547,14 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
     }
   }
 
-  // Only add if meaningfully different from the last update
+  // Replace same-type updates (same leading emoji) instead of stacking them
   const last = mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1];
-  if (update !== last) {
+  const lastEmoji = last ? (last.match(/^[\S]+/)?.[0] || '') : '';
+  const newEmoji  = update.match(/^[\S]+/)?.[0] || '';
+  if (lastEmoji && newEmoji && lastEmoji === newEmoji) {
+    // Same category — replace the last entry so we don't stack e.g. three "🏆 Almost there!" lines
+    mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1] = update;
+  } else if (update !== last) {
     mentorState.tradeMonitoringUpdates.push(update);
     if (mentorState.tradeMonitoringUpdates.length > 3) {
       mentorState.tradeMonitoringUpdates.shift();
@@ -4659,17 +4666,17 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   let tpReasoning = '';
   if (direction === 'long') {
     const nextResistance = takeProfit;
-    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical resistance area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical resistance area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} ${_mentorPriceUnit()} of risk for ${rewardAmount.toFixed(2)} ${_mentorPriceUnit()} of potential reward.`;
   } else {
     const nextSupport = takeProfit;
-    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} ${_mentorPriceUnit()} of risk for ${rewardAmount.toFixed(2)} ${_mentorPriceUnit()} of potential reward.`;
   }
   
   // Add method-specific TP context
   if (method === 'breakout') {
     tpReasoning += ` For breakout trading, this target was calculated using the measured-move technique: the height of the consolidation pattern is projected from the breakout point.`;
   } else if (method === 'trend') {
-    tpReasoning += ` For trend trading, the initial target is the prior swing high (minimum), with the measured-move extension as the optimal target if momentum continues.`;
+    tpReasoning += ` For trend trading, the initial target is the prior ${direction === 'long' ? 'swing high' : 'swing low'} (minimum), with the measured-move extension as the optimal target if momentum continues.`;
   } else if (method === 'support_resistance') {
     tpReasoning += ` For S&R trading, the target is the next significant tested level where price has historically reversed — the reward must justify the risk before entry.`;
   } else if (method === 'pullback') {
@@ -5205,7 +5212,7 @@ function generateTradeReview(tradeData, marketAnalysis, data) {
     review.structureAlignment = 'Trade in neutral market structure';
     review.weaknesses.push('Consider waiting for clearer trend direction');
   } else {
-    review.structureAlignment = `Trade against ${marketAnalysis.trend} trend`;
+    review.structureAlignment = `Trade against ${marketAnalysis.trend.replace(/_/g,' ')} trend`;
     review.weaknesses.push(review.structureAlignment);
   }
   
@@ -5344,6 +5351,8 @@ function generateTrainingSuggestions(review, tradeData, analysis) {
 }
 
 function displayTradeReview(review, tradeData) {
+  // Only display during DEBRIEF phase — suppress during live trade to avoid confusing self-contradicting AI review
+  if (mentorState.lifecycleState !== 'trade_completed') return;
   let reviewHTML = `
     <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:8px;padding:16px;margin:12px 0;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
@@ -6501,6 +6510,15 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
   return result;
 }
 
+// ── Asset-aware price unit helper ────────────────────────────────────────────
+// Returns 'pts' for crypto/indices, 'pips' for forex, so debrief text is accurate.
+function _mentorPriceUnit() {
+  if (_isCrypto()) return 'pts';
+  const sym = (curSym || '').toUpperCase();
+  // Indices and metals by convention use "points"
+  if (/^(SPX|NAS|DOW|DAX|FTSE|NIKKEI|GOLD|SILVER|XAU|XAG)/.test(sym)) return 'pts';
+  return 'pips'; // default for forex
+}
 // ── Crypto-awareness helper ──────────────────────────────────────────────────
 // Returns true when the loaded symbol is a crypto asset. Used throughout the
 // detection functions to apply crypto-specific adjustments:
@@ -7391,6 +7409,10 @@ function enableMentorFromPopup() {
 }
 
 function selectTradingMethod(method) {
+  if (mentorState.exampleTradeActive) {
+    showToast('Strategy locked — finish this lesson first, then change strategy.', 'info');
+    return;
+  }
   mentorState.selectedTradingMethod = method;
   mentorState.tradingMethodSelected = true;
   setMentorState('scanning', 'strategy selected');
@@ -8688,13 +8710,17 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   }[method] || method;
 
   if (foundBar < 0) {
-    // Nothing found even in 500-bar lookahead — suggest restarting earlier
-    mentorState.currentInsights = [
-      `🔍 Scanning for a ${methodLabel} setup...`,
-      'No qualifying setup found within the remaining replay data.'
-    ];
-    mentorState.currentQuestion =
-      'Try moving the replay start to an earlier date, or switch to a different strategy that suits the current market conditions.';
+    // Nothing found even in 500-bar lookahead — show restart button (use raw HTML string so the button renders)
+    mentorState.currentInsights = `
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">🔍 Scanning for a <strong>${methodLabel}</strong> setup...</div>
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:12px;">No qualifying setup found within the remaining replay data.</div>
+      <button onclick="startReplayPicking()" style="padding:6px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:#a5b4fc;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;margin-right:8px;"
+        onmouseover="this.style.background='rgba(99,102,241,.22)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">
+        ← Pick Earlier Bar
+      </button>
+      <span style="font-size:10px;color:var(--tx3);">or try a different strategy</span>
+    `;
+    mentorState.currentQuestion = '';
     return;
   }
 
@@ -8862,13 +8888,13 @@ function generateTradeSuccessExplanation() {
   if (result.outcome === 'win') {
     insights.push('🎉 **TRADE COMPLETED SUCCESSFULLY**');
     insights.push(`✅ Take profit reached at ${result.takeProfit.toFixed(4)}`);
-    insights.push(`📈 Profit: ${result.profit.toFixed(2)} pips`);
+    insights.push(`📈 Profit: ${result.profit.toFixed(2)} ${_mentorPriceUnit()}`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
   } else if (result.outcome === 'loss') {
     insights.push('📊 **TRADE COMPLETED WITH LOSS**');
     insights.push(`❌ Stop loss hit at ${result.stopLoss.toFixed(4)}`);
-    insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} pips`);
+    insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} ${_mentorPriceUnit()}`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
   } else {
@@ -10274,7 +10300,7 @@ function updateMentorUI() {
   // Update candle info
   if (candleInfoEl && mentorState.analysis) {
     const bar = curData[mentorState.currentBar];
-    const date = new Date(bar.time);
+    const date = new Date(bar.time * 1000);
     candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} • ${date.toLocaleDateString()}`;
   }
 }
@@ -12738,6 +12764,89 @@ function _addMentorLabel(bar, price, lines) {
 //   • Overlap prevention via label stagger
 //   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
 
+// ── Confluence factor label builder ──────────────────────────────────────────
+// Returns an array of {name, explanation} objects for each confluence factor
+// that was counted when the setup was scored. Used to annotate each factor
+// on the chart so the user can see WHY the setup qualified.
+function _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method) {
+  const factors = [];
+  const type = setupDetection.setup || setupDetection.type || method;
+  const crypto = _isCrypto();
+  const trend = structure?.trend || '';
+
+  if (type === 'breakout' || type === 'range_breakout') {
+    const current = data[data.length - 1];
+    const bodySize = Math.abs(current.close - current.open);
+    const candleRange = (current.high - current.low) || 1;
+    const minBody = crypto ? 0.60 : 0.50;
+    if (bodySize / candleRange >= minBody)
+      factors.push({ name: 'Strong body close', explanation: `The breakout candle closed with ${Math.round(bodySize/candleRange*100)}% of its range as body — showing conviction that buyers/sellers committed to the new level, not just a temporary spike.` });
+    const conso = detectConsolidation(data);
+    if (current.volume > (conso?.avgVolume || 1) * (crypto ? 1.5 : 1.2))
+      factors.push({ name: 'Volume spike', explanation: `Volume on the breakout candle was ${Math.round(current.volume/(conso?.avgVolume||1)*10)/10}× the consolidation average — confirming real participation, not a low-conviction false breakout.` });
+    if (conso?.upperTouches >= (crypto?4:3) || conso?.lowerTouches >= (crypto?4:3))
+      factors.push({ name: 'Well-tested zone', explanation: `The breakout level had ${Math.max(conso?.upperTouches||0,conso?.lowerTouches||0)} prior touches — the more times a level is tested and holds, the stronger the eventual breakout when it finally gives way.` });
+    if (trend && trend !== 'neutral')
+      factors.push({ name: 'Trend aligned', explanation: `The breakout is in the direction of the ${trend.replace(/_/g,' ')} — trading with the trend increases the probability that the breakout will follow through rather than snap back.` });
+
+  } else if (type === 'flag_continuation' || type === 'structure_continuation') {
+    factors.push({ name: 'Impulse + pullback', explanation: `A strong directional impulse followed by a low-volume pullback — the classic flag pattern. The impulse shows institutional conviction; the pullback is retail taking profits, creating the entry opportunity.` });
+    if (trend.includes('strong'))
+      factors.push({ name: 'Strong trend', explanation: `The higher-timeframe trend is ${trend.replace(/_/g,' ')} — strong trends produce the cleanest flag patterns because momentum is high and counter-moves are corrective, not reversal.` });
+    const flag = detectFlagPattern(data, structure);
+    if (flag?.quality === 'high')
+      factors.push({ name: 'High-quality flag', explanation: `The pullback retraced ${Math.round((flag.retrace||0)*100)}% of the impulse — in the ideal 38–62% zone. A shallower pullback means weak follow-through; deeper means potential reversal. This depth is optimal.` });
+    factors.push({ name: 'EMA alignment', explanation: `Price is on the correct side of the 20 EMA — a basic filter that removes counter-trend setups. When price is above EMA20 in an uptrend, the path of least resistance is up.` });
+
+  } else if (type === 'support_bounce') {
+    factors.push({ name: 'Support bounce', explanation: `Price reached an established support level and showed rejection — the foundation of S&R trading. This level has proven it attracts buyers.` });
+    const sb = detectSupportBounce(data);
+    if (sb?.touches >= 3)
+      factors.push({ name: `${sb.touches}× tested support`, explanation: `This support level has been tested ${sb.touches} times without breaking. Each successful test strengthens the level — sellers keep trying and failing, which brings more buyers to defend it.` });
+    if (trend.includes('up'))
+      factors.push({ name: 'Uptrend confluence', explanation: `The larger trend is up, so bouncing from support aligns with the trend direction. Trading with the trend + from support = double confluence for a long entry.` });
+    const level = sb?.supportLevel || 0;
+    if (crypto && level > 0 && _isPriceRelativeRound(level))
+      factors.push({ name: 'Round-number level', explanation: `Support sits near a round-number price ($${Math.round(level/1000)*1000 || level.toFixed(0)}). Round numbers attract cluster stops and pending orders from retail traders — this concentrates liquidity and reinforces the support zone.` });
+    else if (sb?.touches >= 4)
+      factors.push({ name: 'Highly tested level', explanation: `Four or more distinct tests that held — this is an unusually strong level. When a level holds this many times, large orders are likely protecting it.` });
+
+  } else if (type === 'resistance_rejection') {
+    factors.push({ name: 'Resistance rejection', explanation: `Price reached an established resistance level and showed clear rejection — the hallmark of an S&R short setup. This level has proven sellers defend it.` });
+    const rr = detectResistanceRejection(data);
+    if (rr?.touches >= 3)
+      factors.push({ name: `${rr.touches}× tested resistance`, explanation: `This resistance level has held ${rr.touches} separate times. Each failed breakout attempt adds to the evidence that supply is heavy at this level.` });
+    if (trend.includes('down'))
+      factors.push({ name: 'Downtrend confluence', explanation: `The larger trend is down, so fading resistance aligns with the dominant direction. Selling into resistance in a downtrend is the highest-probability S&R setup.` });
+    if (rr?.touches >= 4)
+      factors.push({ name: 'Highly tested level', explanation: `Four or more tests of this resistance that held — an unusually strong ceiling. This many failures to break higher signals significant sell-side pressure.` });
+
+  } else if (type === 'trend_pullback') {
+    const pb = detectTrendPullback(data, structure);
+    factors.push({ name: 'Trend resuming', explanation: `Price pulled back against the ${trend.replace(/_/g,' ')} trend and is now showing signs of resuming. Pullbacks in trends are buy/sell opportunities because the underlying momentum hasn't changed.` });
+    if (pb?.retrace) {
+      const pct = Math.round(pb.retrace * 100);
+      factors.push({ name: `${pct}% Fibonacci retracement`, explanation: `The pullback retraced ${pct}% of the prior impulse. Fibonacci levels at 38%, 50%, and 62% are where trend pullbacks most often end — this hit the optimal zone, increasing the probability the trend resumes from here.` });
+    }
+    if (pb?.volContracting)
+      factors.push({ name: 'Volume contracting', explanation: `Volume dried up during the pullback — a healthy sign. Low-volume pullbacks mean sellers aren't committed; they're just profit-taking. When volume contracts on the counter-move, the dominant buyers/sellers are still in control.` });
+    if (trend.includes('strong'))
+      factors.push({ name: 'Strong trend', explanation: `The underlying trend is ${trend.replace(/_/g,' ')} — strong trends produce shallower pullbacks and faster resumptions. More momentum = higher probability that the pullback is corrective, not reversal.` });
+
+  } else if (type === 'liquidity_sweep') {
+    const sw = detectLiquiditySweep(data);
+    factors.push({ name: 'Stop hunt detected', explanation: `Price swept below/above a cluster of stops before reversing sharply — a liquidity sweep. Smart money engineers these moves to fill large orders at retail traders' expense.` });
+    if (sw?.wickToBodyRatio > 2)
+      factors.push({ name: `${Math.round(sw.wickToBodyRatio)}× rejection wick`, explanation: `The sweep candle has a wick ${Math.round(sw.wickToBodyRatio)}× its body — a textbook liquidity grab fingerprint. The larger the wick, the more stops were triggered and the more decisively price reversed.` });
+    if (sw?.volumeSpike)
+      factors.push({ name: 'Volume spike on sweep', explanation: `Volume spiked when the sweep wick formed — confirming real institutional order flow, not just a thin-book spike. Volume on the sweep + immediate reversal = strong evidence of smart money activity.` });
+    if (trend && trend !== 'neutral')
+      factors.push({ name: 'Trend aligned reversal', explanation: `The sweep reversal points back in the direction of the ${trend.replace(/_/g,' ')} — sweeps that reverse WITH the trend have the highest follow-through rate.` });
+  }
+
+  return factors.slice(0, 4); // cap at 4 factors to avoid annotation clutter
+}
+
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
 
@@ -13158,6 +13267,39 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             dir==='long' ? `Peak — pullback started` : `Trough — pullback started`,
             dir==='long'?'down':'up', false, 2,
             `The trend ${dir==='long'?'peaked':'bottomed'} here before the current pullback. The Fibonacci retracement zone is measured from this point.`);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONFLUENCE FACTOR ANNOTATIONS
+  // Show each confluence factor as a named label so the user can see WHY
+  // this setup qualified. Appears in all stages so context is always visible.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    const cfFactors = _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method);
+    if (cfFactors.length) {
+      // Draw a stacked label at the setup bar listing all confluence factors
+      const labelBar = Math.min(detectionBar, visibleUpTo);
+      const labelPrice = dir === 'long'
+        ? Math.max(...(curData.slice(Math.max(0,labelBar-5), labelBar+1).map(b=>b.high||0))) + atr * 0.5
+        : Math.min(...(curData.slice(Math.max(0,labelBar-5), labelBar+1).map(b=>b.low||Infinity))) - atr * 0.5;
+      if (isVis(labelBar) && inRange(labelPrice + (dir==='long'?0:atr))) {
+        // One arrow per factor so each has its own explanation bubble on hover
+        cfFactors.forEach((f, i) => {
+          ann.push({
+            type: 'arrow',
+            bar: labelBar,
+            price: dir === 'long' ? labelPrice + atr * i * 0.35 : labelPrice - atr * i * 0.35,
+            label: `✦ ${f.name}`,
+            pointing: dir === 'long' ? 'down' : 'up',
+            highlight: false,
+            pri: 4,   // lowest priority — doesn't block structural annotations
+            candleIndex: stageCandle,
+            explanation: f.explanation,
+            isConfluenceFactor: true,
+          });
+        });
       }
     }
   }
