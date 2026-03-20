@@ -887,6 +887,8 @@ function renderLiveCopilot(r, force=false){
 
 function renderAIPanel(r){
   const {pats, sr, bulls, bears, bias, top} = r;
+  const data = curData;
+  const n = data ? data.length : 0;
 
   const el = document.getElementById('ai-patterns');
   if(!pats.length){
@@ -926,8 +928,6 @@ function renderAIPanel(r){
   if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`🤖 ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
 
   // ── TREND STRENGTH ──────────────────────────────────────────────────────────
-  const data = curData;
-  const n = data.length;
   if(n >= 50){
     const ema8  = calcEMA(data, 8);
     const ema21 = calcEMA(data, 21);
@@ -7314,27 +7314,6 @@ function analyzeVolume(data) {
   if (current > avgVolume * 1.5) return 'high';
   if (current < avgVolume * 0.5) return 'low';
   return 'normal';
-}
-
-function detectPatterns(data) {
-  const patterns = [];
-  const last3 = data.slice(-3);
-  if (last3.length < 3) return patterns;
-  
-  // Detect potential reversal patterns
-  const [bar1, bar2, bar3] = last3;
-  
-  // Hammer pattern
-  if (bar3.low < bar3.open * 0.98 && bar3.close > bar3.open && bar3.volume > 0) {
-    patterns.push('hammer');
-  }
-  
-  // Engulfing pattern
-  if (bar2.close < bar2.open && bar3.close > bar3.open && bar3.close > bar2.open && bar3.open < bar2.close) {
-    patterns.push('bullish_engulfing');
-  }
-  
-  return patterns;
 }
 
 function analyzeMarketStructure(data) {
