@@ -3763,6 +3763,15 @@ function triggerReplayRescan() {
   setTimeout(() => { updateMentor(); }, 100);
 }
 
+/** Called by the "Pick Earlier Bar" mentor button — restarts replay in bar-picking mode */
+function startReplayPicking(){
+  // Reset mentor to method-selection so the user can pick a fresh start bar
+  setMentorState('method_selection', 'pick-earlier-bar restart');
+  mentorState.upcomingSetup      = null;
+  mentorState.exampleTradeActive = false;
+  startReplay();
+}
+
 function startReplay(){
   if(!curData || curData.length <= 1) {
     toast('⚠ No data available for replay - load a symbol first');
