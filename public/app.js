@@ -542,8 +542,9 @@ function detectSR(data){
   const cluster=(levels,thr=0.005)=>{
     const out=[];
     levels.sort((a,b)=>a-b);
+    // Keep ALL distinct clusters — callers filter by price side to find nearest
     levels.forEach(l=>{if(!out.find(x=>Math.abs(x-l)/l<thr))out.push(l);});
-    return out.slice(-5);
+    return out;
   };
   return{support:cluster(support),resistance:cluster(resistance)};
 }
@@ -11025,8 +11026,9 @@ function buildInfo(){
   if(!curData.length) return;
   const last=curData[curData.length-1], prev=curData[curData.length-2]||last;
   const pct=((last.close-prev.close)/prev.close*100).toFixed(2);
-  const hi=fP(Math.max(...curData.map(d=>d.high)));
-  const lo=fP(Math.min(...curData.map(d=>d.low)));
+  // Use current bar's high/low (matches the topbar OHLC readout)
+  const hi=fP(last.high);
+  const lo=fP(last.low);
   const avgVol=fV(Math.round(curData.slice(-20).reduce((s,d)=>s+d.volume,0)/20));
   document.getElementById('rp-stats').innerHTML=`
     <div class="cell"><div class="clbl">LAST</div><div class="cval">${fP(last.close)}</div></div>
@@ -16341,6 +16343,9 @@ function _lsDel(key){
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
   if(_currentUserId){
+    // If the circuit breaker has tripped, only write locally — don't queue
+    // cloud writes or override the "offline" badge with "syncing".
+    if(_supaRLSBlocked) return;
     _writeQueue[key] = val; // queue it, deduplicate by key
     if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
     updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
@@ -16973,9 +16978,10 @@ function analyseTF(sym, tf, realData) {
   score = Math.max(0, Math.min(100, score));
 
   const topPat = [...pats].sort((a,b) => b.conf - a.conf)[0] || null;
-  const nearestS = sr.support[sr.support.length - 1] || null;
-  const nearestR = sr.resistance[0] || null;
   const price = (data[n-1].high + data[n-1].low + data[n-1].close) / 3;  // typical price
+  // Filter by side of price so "nearest support" is always below and "nearest resistance" above
+  const nearestS = sr.support.filter(s => s < price).sort((a,b) => b-a)[0] || null;
+  const nearestR = sr.resistance.filter(r => r > price).sort((a,b) => a-b)[0] || null;
 
   // % change vs 5 bars ago using typical price — includes wick momentum
   const tp5ago  = n >= 6 ? (data[n-6].high + data[n-6].low + data[n-6].close) / 3 : price;
@@ -17805,8 +17811,9 @@ function aisAnalyseSymbol(sym, tf, realData, higherRealData){
     const bias  = bulls>bears?'bull':bears>bulls?'bear':'neut';
     const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0]||null;
     const price  = (data[n-1].high+data[n-1].low+data[n-1].close)/3;
-    const nearestS = sr.support[sr.support.length-1]||price*0.975;
-    const nearestR = sr.resistance[0]||price*1.025;
+    // Filter by side of price so nearest support is below and nearest resistance is above
+    const nearestS = sr.support.filter(s=>s<price).sort((a,b)=>b-a)[0]||price*0.975;
+    const nearestR = sr.resistance.filter(r=>r>price).sort((a,b)=>a-b)[0]||price*1.025;
     const tp5ago   = n>=6?(data[n-6].high+data[n-6].low+data[n-6].close)/3:price;
     const movePct  = n>=6?(price-tp5ago)/tp5ago*100:0;
     const emaAligned = ema9[n-1]&&ema21[n-1]?(ema9[n-1]>ema21[n-1]?'bull':'bear'):'neut';
@@ -19247,8 +19254,9 @@ function tapRenderChartStats(d){
   const pats = detectPatterns(curData);
   const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0];
   const sr   = detectSR(curData);
-  const nearS = sr.support[sr.support.length-1];
-  const nearR = sr.resistance[0];
+  // Filter by side of price so nearest support is always below and resistance above
+  const nearS = sr.support.filter(s => s < last.close).sort((a,b) => b-a)[0];
+  const nearR = sr.resistance.filter(r => r > last.close).sort((a,b) => a-b)[0];
 
   const stat = (lbl, val, col) =>
     `<span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;padding:3px 9px;background:var(--bg3);border:1px solid var(--b1);border-radius:3px;color:${col||'var(--tx2)'};white-space:nowrap;">
@@ -19302,14 +19310,20 @@ function tapRenderRisk(d, rr){
 
   // S/R proximity
   if(isLong && sr.support.length){
-    const nearS = sr.support[sr.support.length-1];
-    const distToS = Math.abs(d.price - nearS) / d.price * 100;
-    if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below — natural floor for the trade`, col:'var(--tl)' }); }
+    // Nearest support is the highest level BELOW entry price
+    const nearS = sr.support.filter(s => s < d.price).sort((a,b) => b-a)[0];
+    if(nearS){
+      const distToS = Math.abs(d.price - nearS) / d.price * 100;
+      if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below — natural floor for the trade`, col:'var(--tl)' }); }
+    }
   }
   if(!isLong && sr.resistance.length){
-    const nearR = sr.resistance[0];
-    const distToR = Math.abs(nearR - d.price) / d.price * 100;
-    if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above — natural ceiling confirms short`, col:'var(--tl)' }); }
+    // Nearest resistance is the lowest level ABOVE entry price
+    const nearR = sr.resistance.filter(r => r > d.price).sort((a,b) => a-b)[0];
+    if(nearR){
+      const distToR = Math.abs(nearR - d.price) / d.price * 100;
+      if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above — natural ceiling confirms short`, col:'var(--tl)' }); }
+    }
   }
 
   riskScore = Math.max(10, Math.min(90, riskScore));
