@@ -599,6 +599,29 @@ function detectPatterns(data){
   if(nearS.length)pats.push({name:'At Support',conf:.72,dir:'bull',desc:`Bar range touching support at ${fP(nearS[0])} — wick confirmation. High R/R long if it holds.`});
   if(nearR.length)pats.push({name:'At Resistance',conf:.70,dir:'bear',desc:`Bar range touching resistance at ${fP(nearR[0])} — wick rejection possible. Watch for bearish follow-through.`});
 
+  // ── EMA trend alignment ──────────────────────────────────────────────────
+  // Add a trend pattern so the AI Signal reflects the actual directional bias
+  // even when no individual candle pattern fires.
+  const ema8v  = calcEMA(data, 8);
+  const ema21v = calcEMA(data, 21);
+  const ema50v = calcSMA(data, 50);
+  if(ema8v[n-1] && ema21v[n-1] && ema50v[n-1]){
+    if(ema8v[n-1]>ema21v[n-1] && ema21v[n-1]>ema50v[n-1]){
+      pats.push({name:'Uptrend',conf:.75,dir:'bull',desc:'EMAs fanned bullish (8>21>50) — price is trending up with momentum alignment. Favour long setups at support.'});
+    } else if(ema8v[n-1]<ema21v[n-1] && ema21v[n-1]<ema50v[n-1]){
+      pats.push({name:'Downtrend',conf:.75,dir:'bear',desc:'EMAs fanned bearish (8<21<50) — price is in a confirmed downtrend. Favour short setups at resistance or wait for structural reversal.'});
+    }
+  }
+  // ── Consecutive candle run ─────────────────────────────────────────────────
+  // 4+ consecutive same-direction candles = momentum signature
+  if(n>=5){
+    const last5=data.slice(-5);
+    const allGreen=last5.every(d=>d.close>d.open);
+    const allRed  =last5.every(d=>d.close<d.open);
+    if(allGreen) pats.push({name:'5-Bar Bull Run',conf:.66,dir:'bull',desc:'5 consecutive green candles — sustained buying pressure. Watch for exhaustion or continuation from support.'});
+    if(allRed)   pats.push({name:'5-Bar Bear Run',conf:.66,dir:'bear',desc:'5 consecutive red candles — sustained selling pressure. Watch for climax candle or continuation from resistance.'});
+  }
+
   return pats;
 }
 
@@ -881,16 +904,24 @@ function renderAIPanel(r){
       </div>`).join('');
   }
 
-  document.getElementById('ai-sr').innerHTML=`<div style="padding:2px 8px 6px;">
-    ${sr.resistance.slice().reverse().map(r=>`<div style="display:flex;justify-content:space-between;padding:3px 0;font-family:monospace;font-size:10px;border-bottom:1px solid var(--b1);"><span style="color:var(--rd);">R</span><span>${fP(r)}</span></div>`).join('')}
-    ${sr.support.slice().reverse().map(s=>`<div style="display:flex;justify-content:space-between;padding:3px 0;font-family:monospace;font-size:10px;border-bottom:1px solid var(--b1);"><span style="color:var(--tl);">S</span><span>${fP(s)}</span></div>`).join('')}
-  </div>`;
+  {
+    const _srPrice = data.length ? (data[data.length-1].high + data[data.length-1].low + data[data.length-1].close) / 3 : 0;
+    const _above = sr.resistance.filter(r=>r>_srPrice).sort((a,b)=>a-b).slice(0,3);
+    const _below = sr.support.filter(s=>s<_srPrice).sort((a,b)=>b-a).slice(0,3);
+    const _srRows = [..._above.map(v=>({v,type:'R'})), ..._below.map(v=>({v,type:'S'}))].sort((a,b)=>b.v-a.v);
+    document.getElementById('ai-sr').innerHTML=`<div style="padding:2px 8px 6px;">
+      ${_srRows.length ? _srRows.map(l=>`<div style="display:flex;justify-content:space-between;padding:3px 0;font-family:monospace;font-size:10px;border-bottom:1px solid var(--b1);"><span style="color:${l.type==='R'?'var(--rd)':'var(--tl)'};">${l.type}</span><span>${fP(l.v)}</span></div>`).join('') : '<div style="font-size:10px;color:var(--tx3);padding:4px 0;text-align:center;">No nearby levels</div>'}
+    </div>`;
+  }
 
   const col = bias==='BULLISH'?'var(--tl)':bias==='BEARISH'?'var(--rd)':'var(--am)';
+  const biasEmoji = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
   document.getElementById('ai-signal').innerHTML=`
-    <div style="font-weight:700;font-size:12px;color:${col};margin-bottom:5px;">${bias} BIAS</div>
-    <div>${pats.length} pattern${pats.length!==1?'s':''} detected · ${bulls} bullish / ${bears} bearish</div>
-    ${top?`<div style="color:var(--tx3);margin-top:3px;">Top signal: <span style="color:var(--tx2);">${top.name}</span> (${(top.conf*100).toFixed(0)}%)</div>`:''}`;
+    <div style="background:${bias==='BULLISH'?'rgba(0,201,160,.08)':bias==='BEARISH'?'rgba(240,48,96,.08)':'rgba(245,166,35,.08)'};border-radius:6px;padding:8px 10px;border-left:3px solid ${col};margin-bottom:4px;">
+      <div style="font-weight:800;font-size:14px;color:${col};letter-spacing:.5px;">${biasEmoji} ${bias}</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} · ${bulls} bull / ${bears} bear</div>
+    </div>
+    ${top?`<div style="font-size:10px;color:var(--tx3);padding:2px 0;">Top: <span style="color:var(--tx2);">${top.name}</span> <span style="color:${col};">${(top.conf*100).toFixed(0)}%</span></div>`:''}`;
 
   if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`🤖 ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
 
@@ -1002,6 +1033,23 @@ function renderAIPanel(r){
         ${below.map(l=>row(l,false)).join('')}
         ${above.length===0&&below.length===0?'<div style="color:var(--tx3);font-size:11px;text-align:center;padding:6px 0;">No nearby levels detected</div>':''}
       </div>`;
+  }
+
+  // ── Update bias hero strip at top of AI tab ─────────────────────────────
+  const _hero = document.getElementById('ai-bias-hero');
+  const _heroLabel = document.getElementById('ai-bias-hero-label');
+  const _heroSub   = document.getElementById('ai-bias-hero-sub');
+  const _heroIcon  = document.getElementById('ai-bias-hero-icon');
+  if(_hero && _heroLabel){
+    const _hCol = bias==='BULLISH'?'var(--tl)':bias==='BEARISH'?'var(--rd)':'var(--am)';
+    _hero.style.display = 'block';
+    _hero.style.borderColor = bias==='BULLISH'?'rgba(0,201,160,.25)':bias==='BEARISH'?'rgba(240,48,96,.25)':'rgba(245,166,35,.25)';
+    _hero.style.background = bias==='BULLISH'?'rgba(0,201,160,.05)':bias==='BEARISH'?'rgba(240,48,96,.05)':'rgba(245,166,35,.05)';
+    _heroLabel.textContent = bias + ' BIAS';
+    _heroLabel.style.color = _hCol;
+    _heroSub.textContent = top ? `Top signal: ${top.name} · ${(top.conf*100).toFixed(0)}% conf · ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
+    if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
+    if(_heroIcon) _heroIcon.style.color = _hCol;
   }
 }
 
@@ -1887,9 +1935,10 @@ function renderAnalyticsHero(){
   const thesis = getCurrentThesis();
   const lastPrice = curData?.length ? curData[curData.length - 1].close : NaN;
   const thesisState = _thesisStatus(thesis, lastPrice);
-  const focus = thesis?.focus
-    || p?.checklist?.[0]
-    || 'Keep the chart clean, wait for confirmation, and only analyse trades that have a clear invalidation.';
+  const _closedCount = p?.total || 0;
+  const focus = _closedCount > 0
+    ? (thesis?.focus || p?.checklist?.[0] || 'Keep the chart clean, wait for confirmation, and only analyse trades that have a clear invalidation.')
+    : 'Log your first trade to unlock personalised focus recommendations.';
   const strength = p?.strengths?.[0]
     || 'The platform will start surfacing your strongest pattern once more closed trades are logged.';
   const stats = [
@@ -3480,6 +3529,7 @@ if(textEl) textEl.textContent = 'AI unavailable right now. Please try again in a
 
 function openPSC(){
   const el=document.getElementById('psc-bg');
+  if(!el){ console.warn('PSC modal not found in DOM'); return; }
   el.style.display='flex';
   setTimeout(_syncAllDockedBtns, 10);
   // Pre-fill entry with current price
@@ -3697,8 +3747,18 @@ function triggerReplayRescan() {
   mentorState.lockedMessage = '';
   mentorState.lockedInsights = [];
   mentorState.lockedQuestion = '';
-  mentorState.currentInsights = ['🔍 Scanning for trading setups...'];
-  mentorState.currentQuestion = 'Analyzing market data for valid setups...';
+  (() => {
+    const _scanMethod = mentorState.selectedTradingMethod || 'setups';
+    const _methodName = {breakout:'Breakout',trend:'Trend Following',support_resistance:'S&R',pullback:'Pullback',range:'Range',liquidity:'Liquidity Sweep'}[_scanMethod]||_scanMethod;
+    const _scanAnalysis = mentorState.analysis;
+    const _trendLabel = _scanAnalysis?.structure?.trend?.replace(/_/g,' ') || null;
+    mentorState.currentInsights = [
+      `🔍 Scanning for ${_methodName} setups...`,
+      _trendLabel ? `Current market structure: ${_trendLabel}.` : 'Reading market structure...',
+      'The mentor will pause the replay the moment a qualifying setup appears.'
+    ];
+    mentorState.currentQuestion = 'Keep advancing bars — the mentor will highlight the next opportunity when conditions align.';
+  })();
   updateMentorUI();
   setTimeout(() => { updateMentor(); }, 100);
 }
@@ -11156,7 +11216,7 @@ async function fetchNews(sym, name){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
       <div style="font-size:18px;margin-bottom:6px;">📡</div>
       <div style="color:var(--tx2);">No news found for ${sym}</div>
-      <div style="font-size:11px;margin-top:4px;color:var(--tx3);">Check your FINNHUB_API_KEY is set in Vercel environment variables</div>
+      <div style="font-size:11px;margin-top:4px;color:var(--tx3);">News is temporarily unavailable — check back shortly</div>
       <div style="margin-top:8px;"><button onclick="delete newsCache[curSym.s]; buildInfo();" style="background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;">↻ Retry</button></div>
     </div>`;
     return;
@@ -17251,7 +17311,19 @@ async function generatePremarket() {
         if (el) el.textContent = text;
       } catch(e) {
         const el = document.getElementById(`pmb-narrative-${sym.s}`);
-        if (el) el.textContent = 'AI narrative unavailable.';
+        if (el) {
+          // Generate a local narrative from the pre-computed analysis data
+          const _a = pmbAnalyses[sym.s];
+          if (_a && _a.daily) {
+            const _bias = _a.daily.htfBias || _a.daily.bias || 'mixed';
+            const _rsi  = _a.daily.rsi ? ` RSI is at ${_a.daily.rsi.toFixed(0)}.` : '';
+            const _sup  = _a.daily.nearestSupport ? ` Nearest support: ${fP(_a.daily.nearestSupport)}.` : '';
+            const _res  = _a.daily.nearestResistance ? ` Nearest resistance: ${fP(_a.daily.nearestResistance)}.` : '';
+            el.textContent = `${sym.s} is showing a ${_bias} bias on the daily.${_rsi}${_sup}${_res} Watch for a reaction at key levels before entering.`;
+          } else {
+            el.textContent = 'Technical analysis complete — see timeframe breakdown above for details.';
+          }
+        }
       } finally {
         const loadEl = document.getElementById(`pmb-narr-load-${sym.s}`);
         if (loadEl) loadEl.style.display = 'none';
@@ -17970,7 +18042,7 @@ function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const biasVotes = {bull:0,bear:0};
   if(primary.bias!=='neut') biasVotes[primary.bias]+=2;
   if(higher?.bias&&higher.bias!=='neut') biasVotes[higher.bias]+=1;
-  const dir = biasVotes.bull>=biasVotes.bear?'bull':'bear';
+  const dir = biasVotes.bull>biasVotes.bear?'bull':biasVotes.bear>biasVotes.bull?'bear':(primary.movePct<-0.3?'bear':'bull');
 
   const tfAgree = (!higher||higher.bias===dir||higher.bias==='neut')?2:0;
   let conf = 40;
