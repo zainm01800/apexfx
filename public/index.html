@@ -707,6 +707,16 @@
 
     <!-- AI tab -->
     <div class="rp-body on" id="rp-ai">
+      <!-- Bias hero strip — updated by renderAIPanel every time data refreshes -->
+      <div id="ai-bias-hero" style="display:none;margin:6px 6px 2px;padding:10px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);cursor:default;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div id="ai-bias-hero-label" style="font-size:15px;font-weight:800;letter-spacing:.4px;"></div>
+            <div id="ai-bias-hero-sub" style="font-size:10px;color:var(--tx3);margin-top:2px;"></div>
+          </div>
+          <div id="ai-bias-hero-icon" style="font-size:22px;opacity:.7;"></div>
+        </div>
+      </div>
       <div class="sec-title">LIVE AI COPILOT</div>
       <div style="margin:4px 6px 8px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;overflow:hidden;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--b1);">
@@ -738,7 +748,7 @@
           <div id="ai-trend" class="ai-panel-body" style="margin:0;"></div>
         </div>
         <div class="ai-panel-card">
-          <div class="ai-panel-label">Support / Resistance</div>
+          <div class="ai-panel-label">Key Levels</div>
           <div id="ai-sr" class="ai-panel-body"></div>
         </div>
         <div class="ai-panel-card">
