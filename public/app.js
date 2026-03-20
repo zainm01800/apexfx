@@ -168,6 +168,10 @@ let _autoSaveInterval = null;
 const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
 let _cloudSyncState = { status:'offline', message:'Local only', lastOkAt:0 };
+// Circuit breaker: after 3 consecutive RLS/permission failures, stop hammering Supabase.
+// Reset on next successful write or on login/logout.
+let _supaRLSBlocked = false;
+let _supaRLSFailCount = 0;
 
 function updateCloudSyncBadge(state = {}){
   _cloudSyncState = { ..._cloudSyncState, ...state };
@@ -538,8 +542,9 @@ function detectSR(data){
   const cluster=(levels,thr=0.005)=>{
     const out=[];
     levels.sort((a,b)=>a-b);
+    // Keep ALL distinct clusters — callers filter by price side to find nearest
     levels.forEach(l=>{if(!out.find(x=>Math.abs(x-l)/l<thr))out.push(l);});
-    return out.slice(-5);
+    return out;
   };
   return{support:cluster(support),resistance:cluster(resistance)};
 }
@@ -619,7 +624,9 @@ function buildAIPanel(force=false){
   const top   = [...pats].sort((a,b)=>b.conf-a.conf)[0];
 
   const result = {pats, sr, bulls, bears, bias, top};
-  aiCache[key] = result;
+  // Only cache when we have enough real bars — placeholder / thin data must not
+  // poison the cache and block fresh pattern detection after real data loads.
+  if(data.length >= 50) aiCache[key] = result;
   renderAIPanel(result);
   renderLiveCopilot(result, force);
 }
@@ -678,8 +685,14 @@ function aiCopilotBuildState(r){
   const thesisStatus = _thesisStatus(thesis, last.close);
   const drawCtx = buildDrawingsContext(null, data);
   const profile = getTraderProfile();
-  const support = r.sr?.support?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
-  const resistance = r.sr?.resistance?.slice().sort((a,b)=>Math.abs(a-last.close)-Math.abs(b-last.close))[0];
+  // Filter to levels that are actually below price for support, above for resistance.
+  // Sorting by absolute distance was incorrectly labelling resistance as support.
+  const support = r.sr?.support
+    ?.filter(s => s < last.close)
+    .sort((a, b) => b - a)[0]; // highest level below price = nearest support
+  const resistance = r.sr?.resistance
+    ?.filter(rv => rv > last.close)
+    .sort((a, b) => a - b)[0]; // lowest level above price = nearest resistance
   const movePct = prev?.close ? ((last.close-prev.close)/prev.close*100) : 0;
   const rrHint = support && resistance ? Math.abs(resistance-last.close) / Math.max(Math.abs(last.close-support), 0.000001) : null;
   return {
@@ -821,8 +834,15 @@ Do not give financial advice. Do not use markdown. Keep the tone calm, clear, an
     outEl.innerHTML = aiCopilotRenderAIText(text);
     statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
   }catch(e){
-    outEl.innerHTML = 'Deeper AI explanation is unavailable right now. The live copilot briefing above is still using the current chart state.';
-    statusEl.textContent = 'Live briefing ready · deeper AI explanation unavailable';
+    outEl.innerHTML = `Deeper AI explanation unavailable right now. The live briefing above is still current.&nbsp;
+      <button onclick="refreshLiveCopilot(true)"
+        style="margin-top:8px;padding:4px 10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);
+               color:#a5b4fc;font-size:10px;border-radius:4px;cursor:pointer;font-family:inherit;"
+        onmouseover="this.style.background='rgba(99,102,241,.22)'"
+        onmouseout="this.style.background='rgba(99,102,241,.12)'">
+        ↺ Retry
+      </button>`;
+    statusEl.textContent = 'Live briefing ready · deeper explanation unavailable';
   } finally {
     delete aiCopilotInFlight[cacheKey];
   }
@@ -4038,7 +4058,9 @@ const VALID_TRANSITIONS = {
 };
 
 function mentorPhaseMeta(){
-  const state = mentorState.lifecycleState || 'scanning';
+  let state = mentorState.lifecycleState || 'scanning';
+  // If a trade is active but we somehow entered no_setup_found, show LIVE pill instead of WAITING
+  if (mentorState.exampleTradeActive && state === 'no_setup_found') state = 'trade_monitoring';
   const map = {
     method_selection: { pill:'SETUP', status:'Choose a strategy', note:'Pick the style you want to practice so the mentor can teach one clear playbook at a time.', color:'var(--pu)' },
     scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:'The mentor is quietly checking structure, confluence, and timing for the next good teaching example.', color:'var(--bl)' },
@@ -4525,9 +4547,14 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
     }
   }
 
-  // Only add if meaningfully different from the last update
+  // Replace same-type updates (same leading emoji) instead of stacking them
   const last = mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1];
-  if (update !== last) {
+  const lastEmoji = last ? (last.match(/^[\S]+/)?.[0] || '') : '';
+  const newEmoji  = update.match(/^[\S]+/)?.[0] || '';
+  if (lastEmoji && newEmoji && lastEmoji === newEmoji) {
+    // Same category — replace the last entry so we don't stack e.g. three "🏆 Almost there!" lines
+    mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1] = update;
+  } else if (update !== last) {
     mentorState.tradeMonitoringUpdates.push(update);
     if (mentorState.tradeMonitoringUpdates.length > 3) {
       mentorState.tradeMonitoringUpdates.shift();
@@ -4639,17 +4666,17 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   let tpReasoning = '';
   if (direction === 'long') {
     const nextResistance = takeProfit;
-    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical resistance area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical resistance area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} ${_mentorPriceUnit()} of risk for ${rewardAmount.toFixed(2)} ${_mentorPriceUnit()} of potential reward.`;
   } else {
     const nextSupport = takeProfit;
-    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} pips of risk for ${rewardAmount.toFixed(2)} pips of potential reward.`;
+    tpReasoning = `The take profit at ${takeProfit.toFixed(4)} was set near the next logical support area. This target represented a ${rrFormatted}:1 risk-to-reward ratio, requiring ${riskAmount.toFixed(2)} ${_mentorPriceUnit()} of risk for ${rewardAmount.toFixed(2)} ${_mentorPriceUnit()} of potential reward.`;
   }
   
   // Add method-specific TP context
   if (method === 'breakout') {
     tpReasoning += ` For breakout trading, this target was calculated using the measured-move technique: the height of the consolidation pattern is projected from the breakout point.`;
   } else if (method === 'trend') {
-    tpReasoning += ` For trend trading, the initial target is the prior swing high (minimum), with the measured-move extension as the optimal target if momentum continues.`;
+    tpReasoning += ` For trend trading, the initial target is the prior ${direction === 'long' ? 'swing high' : 'swing low'} (minimum), with the measured-move extension as the optimal target if momentum continues.`;
   } else if (method === 'support_resistance') {
     tpReasoning += ` For S&R trading, the target is the next significant tested level where price has historically reversed — the reward must justify the risk before entry.`;
   } else if (method === 'pullback') {
@@ -5185,7 +5212,7 @@ function generateTradeReview(tradeData, marketAnalysis, data) {
     review.structureAlignment = 'Trade in neutral market structure';
     review.weaknesses.push('Consider waiting for clearer trend direction');
   } else {
-    review.structureAlignment = `Trade against ${marketAnalysis.trend} trend`;
+    review.structureAlignment = `Trade against ${marketAnalysis.trend.replace(/_/g,' ')} trend`;
     review.weaknesses.push(review.structureAlignment);
   }
   
@@ -5324,6 +5351,8 @@ function generateTrainingSuggestions(review, tradeData, analysis) {
 }
 
 function displayTradeReview(review, tradeData) {
+  // Only display during DEBRIEF phase — suppress during live trade to avoid confusing self-contradicting AI review
+  if (mentorState.lifecycleState !== 'trade_completed') return;
   let reviewHTML = `
     <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:8px;padding:16px;margin:12px 0;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
@@ -6481,6 +6510,15 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
   return result;
 }
 
+// ── Asset-aware price unit helper ────────────────────────────────────────────
+// Returns 'pts' for crypto/indices, 'pips' for forex, so debrief text is accurate.
+function _mentorPriceUnit() {
+  if (_isCrypto()) return 'pts';
+  const sym = (curSym || '').toUpperCase();
+  // Indices and metals by convention use "points"
+  if (/^(SPX|NAS|DOW|DAX|FTSE|NIKKEI|GOLD|SILVER|XAU|XAG)/.test(sym)) return 'pts';
+  return 'pips'; // default for forex
+}
 // ── Crypto-awareness helper ──────────────────────────────────────────────────
 // Returns true when the loaded symbol is a crypto asset. Used throughout the
 // detection functions to apply crypto-specific adjustments:
@@ -7371,6 +7409,10 @@ function enableMentorFromPopup() {
 }
 
 function selectTradingMethod(method) {
+  if (mentorState.exampleTradeActive) {
+    showToast('Strategy locked — finish this lesson first, then change strategy.', 'info');
+    return;
+  }
   mentorState.selectedTradingMethod = method;
   mentorState.tradingMethodSelected = true;
   setMentorState('scanning', 'strategy selected');
@@ -8421,16 +8463,20 @@ function handleSetupDetectedState(currentBar) {
 
     updateLockedMentorUI();
 
-    // Fetch AI analysis asynchronously — update panel when ready
+    // Fetch AI analysis asynchronously — gated by a 30s wall-clock cooldown so
+    // rapid setup transitions during fast replay don't stack up Groq calls.
     const _genAtCall = mentorState._aiGeneration;
-    _mentorAISetupAnalysis(setupData, currentBar).then(analysis => {
-      // Discard if setup changed or user dismissed while AI was loading
+    const _phase1Now = Date.now();
+    const _phase1Elapsed = _phase1Now - (mentorState._lastPhase1CallAt || 0);
+    const _phase1Ready = _phase1Elapsed >= 30_000;
+
+    const _applyPhase1Analysis = (analysis) => {
       if (!mentorState.messageLocked) return;
       if (mentorState._aiGeneration !== _genAtCall) return; // stale — new setup started
       if (analysis) {
         mentorState.lockedInsights = analysis.split('\n').filter(l => l.trim());
       } else {
-        // Fallback to structured text if API unavailable
+        // Fallback to structured text if API unavailable or cooldown active
         mentorState.lockedInsights = [
           `${dirEmoji} ${setupName.toUpperCase()} setup detected`,
           `Confluence: ${setupData.confluence}/4 | Quality: ${(setupData.quality||'').toUpperCase()}`,
@@ -8440,7 +8486,15 @@ function handleSetupDetectedState(currentBar) {
       mentorState.lockedQuestion =
         `A potential ${setupName} setup is forming. Choose “Watch Demo” for a guided walkthrough or “Let Me Try” to place the idea yourself.`;
       updateLockedMentorUI();
-    });
+    };
+
+    if (_phase1Ready) {
+      mentorState._lastPhase1CallAt = _phase1Now;
+      _mentorAISetupAnalysis(setupData, currentBar).then(_applyPhase1Analysis);
+    } else {
+      // Cooldown active — use structured fallback immediately (no API call)
+      _applyPhase1Analysis(null);
+    }
     return;
   }
 
@@ -8656,13 +8710,17 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   }[method] || method;
 
   if (foundBar < 0) {
-    // Nothing found even in 500-bar lookahead — suggest restarting earlier
-    mentorState.currentInsights = [
-      `🔍 Scanning for a ${methodLabel} setup...`,
-      'No qualifying setup found within the remaining replay data.'
-    ];
-    mentorState.currentQuestion =
-      'Try moving the replay start to an earlier date, or switch to a different strategy that suits the current market conditions.';
+    // Nothing found even in 500-bar lookahead — show restart button (use raw HTML string so the button renders)
+    mentorState.currentInsights = `
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">🔍 Scanning for a <strong>${methodLabel}</strong> setup...</div>
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:12px;">No qualifying setup found within the remaining replay data.</div>
+      <button onclick="startReplayPicking()" style="padding:6px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:#a5b4fc;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;margin-right:8px;"
+        onmouseover="this.style.background='rgba(99,102,241,.22)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">
+        ← Pick Earlier Bar
+      </button>
+      <span style="font-size:10px;color:var(--tx3);">or try a different strategy</span>
+    `;
+    mentorState.currentQuestion = '';
     return;
   }
 
@@ -8830,13 +8888,13 @@ function generateTradeSuccessExplanation() {
   if (result.outcome === 'win') {
     insights.push('🎉 **TRADE COMPLETED SUCCESSFULLY**');
     insights.push(`✅ Take profit reached at ${result.takeProfit.toFixed(4)}`);
-    insights.push(`📈 Profit: ${result.profit.toFixed(2)} pips`);
+    insights.push(`📈 Profit: ${result.profit.toFixed(2)} ${_mentorPriceUnit()}`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
   } else if (result.outcome === 'loss') {
     insights.push('📊 **TRADE COMPLETED WITH LOSS**');
     insights.push(`❌ Stop loss hit at ${result.stopLoss.toFixed(4)}`);
-    insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} pips`);
+    insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} ${_mentorPriceUnit()}`);
     insights.push(`⏱️ Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
   } else {
@@ -10242,7 +10300,7 @@ function updateMentorUI() {
   // Update candle info
   if (candleInfoEl && mentorState.analysis) {
     const bar = curData[mentorState.currentBar];
-    const date = new Date(bar.time);
+    const date = new Date(bar.time * 1000);
     candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} • ${date.toLocaleDateString()}`;
   }
 }
@@ -10994,8 +11052,9 @@ function buildInfo(){
   if(!curData.length) return;
   const last=curData[curData.length-1], prev=curData[curData.length-2]||last;
   const pct=((last.close-prev.close)/prev.close*100).toFixed(2);
-  const hi=fP(Math.max(...curData.map(d=>d.high)));
-  const lo=fP(Math.min(...curData.map(d=>d.low)));
+  // Use current bar's high/low (matches the topbar OHLC readout)
+  const hi=fP(last.high);
+  const lo=fP(last.low);
   const avgVol=fV(Math.round(curData.slice(-20).reduce((s,d)=>s+d.volume,0)/20));
   document.getElementById('rp-stats').innerHTML=`
     <div class="cell"><div class="clbl">LAST</div><div class="cval">${fP(last.close)}</div></div>
@@ -11066,22 +11125,19 @@ async function fetchNewsFromAPI(sym, type) {
   } catch(e) { return null; }
 }
 
-async function scoreWithGroq(headlines, sym, name){
-  const list = headlines.map((h,i)=>`${i+1}. "${h.title}"`).join('\n');
-  const prompt = `You are a financial sentiment analyst. Score each headline as BULLISH, BEARISH, or NEUTRAL for ${name} (${sym}).
+function scoreWithGroq(headlines, sym, name){
+  // Client-side keyword sentiment scoring — no API call.
+  // Covers the vast majority of financial headline sentiment accurately.
+  const BULLISH_RE = /\b(surge|surged|surging|rally|rallied|rallying|soar|soared|soaring|beat|beats|beats? expectations?|gain|gained|gaining|gains|rise|risen|rising|rose|high|higher|record|upgrade|upgraded|outperform|strong|stronger|strength|bull|bullish|growth|grew|grow|profit|profits|revenue|revenues|beat estimates|above estimates|above expectations|positive|boost|boosted|buy|buyback|dividend|approval|approved|launch|launched|partnership|deal|expansion|expansion|recovery|recover|recovered|rebound|rebounded|momentum|breakout|breakthrough|contract|contracts|win|wins|winning|award|awarded|milestone)\b/i;
+  const BEARISH_RE = /\b(crash|crashed|crashing|drop|dropped|dropping|fall|fell|falling|decline|declined|declining|plunge|plunged|plunging|miss|missed|misses|below estimates|below expectations|loss|losses|losing|warn|warning|warned|downgrade|downgraded|underperform|weak|weaker|weakness|bear|bearish|cut|cuts|layoff|layoffs|fired|bankrupt|bankruptcy|debt|default|recall|investigation|probe|fine|fined|penalty|lawsuit|sue|sued|fraud|scandal|concern|concerns|risk|risks|sell|selloff|sell-off|pressure|pressured|headwind|headwinds|deficit|downside|disappoints|disappointed|disappointing|halt|halted|suspended|suspension|violation|regulatory|charges|charged|cost|costs|missed estimates)\b/i;
 
-Headlines:
-${list}
-
-Return ONLY a JSON array with one object per headline in the same order. No other text.
-[{"sentiment":"BULLISH"},{"sentiment":"BEARISH"},...]
-
-sentiment must be exactly "BULLISH", "BEARISH", or "NEUTRAL".`;
-
-  const text = await groqFetch(prompt);
-  const clean = text.replace(/```json|```/g,'').trim();
-  const scores = JSON.parse(clean);
-  return headlines.map((h,i)=>({...h, sentiment: scores[i]?.sentiment || 'NEUTRAL'}));
+  return Promise.resolve(headlines.map(h => {
+    const text = `${h.title} ${h.summary || ''}`;
+    const bullScore = (text.match(BULLISH_RE) || []).length;
+    const bearScore = (text.match(BEARISH_RE) || []).length;
+    const sentiment = bullScore > bearScore ? 'BULLISH' : bearScore > bullScore ? 'BEARISH' : 'NEUTRAL';
+    return { ...h, sentiment };
+  }));
 }
 
 async function fetchNews(sym, name){
@@ -11106,18 +11162,17 @@ async function fetchNews(sym, name){
     return;
   }
 
-  // Show headlines immediately with neutral sentiment while Groq scores in background
-  const provisional = headlines.map(h => ({...h, sentiment:'NEUTRAL'}));
-  newsCache[sym] = {ts: Date.now(), items: provisional};
-  renderNews(provisional, sym);
-
-  // Score sentiment with Groq in background then re-render
+  // Score sentiment immediately with client-side keyword matching (no API call),
+  // then render once with real sentiments already applied.
   try {
     const scored = await scoreWithGroq(headlines, sym, name || sym);
     newsCache[sym] = {ts: Date.now(), items: scored};
     if(curSym.s === sym) renderNews(scored, sym);
   } catch(e){
-    // Keep provisional neutral — fine
+    // Fallback to neutral if scoring somehow fails
+    const provisional = headlines.map(h => ({...h, sentiment:'NEUTRAL'}));
+    newsCache[sym] = {ts: Date.now(), items: provisional};
+    renderNews(provisional, sym);
   }
 }
 
@@ -12709,6 +12764,89 @@ function _addMentorLabel(bar, price, lines) {
 //   • Overlap prevention via label stagger
 //   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
 
+// ── Confluence factor label builder ──────────────────────────────────────────
+// Returns an array of {name, explanation} objects for each confluence factor
+// that was counted when the setup was scored. Used to annotate each factor
+// on the chart so the user can see WHY the setup qualified.
+function _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method) {
+  const factors = [];
+  const type = setupDetection.setup || setupDetection.type || method;
+  const crypto = _isCrypto();
+  const trend = structure?.trend || '';
+
+  if (type === 'breakout' || type === 'range_breakout') {
+    const current = data[data.length - 1];
+    const bodySize = Math.abs(current.close - current.open);
+    const candleRange = (current.high - current.low) || 1;
+    const minBody = crypto ? 0.60 : 0.50;
+    if (bodySize / candleRange >= minBody)
+      factors.push({ name: 'Strong body close', explanation: `The breakout candle closed with ${Math.round(bodySize/candleRange*100)}% of its range as body — showing conviction that buyers/sellers committed to the new level, not just a temporary spike.` });
+    const conso = detectConsolidation(data);
+    if (current.volume > (conso?.avgVolume || 1) * (crypto ? 1.5 : 1.2))
+      factors.push({ name: 'Volume spike', explanation: `Volume on the breakout candle was ${Math.round(current.volume/(conso?.avgVolume||1)*10)/10}× the consolidation average — confirming real participation, not a low-conviction false breakout.` });
+    if (conso?.upperTouches >= (crypto?4:3) || conso?.lowerTouches >= (crypto?4:3))
+      factors.push({ name: 'Well-tested zone', explanation: `The breakout level had ${Math.max(conso?.upperTouches||0,conso?.lowerTouches||0)} prior touches — the more times a level is tested and holds, the stronger the eventual breakout when it finally gives way.` });
+    if (trend && trend !== 'neutral')
+      factors.push({ name: 'Trend aligned', explanation: `The breakout is in the direction of the ${trend.replace(/_/g,' ')} — trading with the trend increases the probability that the breakout will follow through rather than snap back.` });
+
+  } else if (type === 'flag_continuation' || type === 'structure_continuation') {
+    factors.push({ name: 'Impulse + pullback', explanation: `A strong directional impulse followed by a low-volume pullback — the classic flag pattern. The impulse shows institutional conviction; the pullback is retail taking profits, creating the entry opportunity.` });
+    if (trend.includes('strong'))
+      factors.push({ name: 'Strong trend', explanation: `The higher-timeframe trend is ${trend.replace(/_/g,' ')} — strong trends produce the cleanest flag patterns because momentum is high and counter-moves are corrective, not reversal.` });
+    const flag = detectFlagPattern(data, structure);
+    if (flag?.quality === 'high')
+      factors.push({ name: 'High-quality flag', explanation: `The pullback retraced ${Math.round((flag.retrace||0)*100)}% of the impulse — in the ideal 38–62% zone. A shallower pullback means weak follow-through; deeper means potential reversal. This depth is optimal.` });
+    factors.push({ name: 'EMA alignment', explanation: `Price is on the correct side of the 20 EMA — a basic filter that removes counter-trend setups. When price is above EMA20 in an uptrend, the path of least resistance is up.` });
+
+  } else if (type === 'support_bounce') {
+    factors.push({ name: 'Support bounce', explanation: `Price reached an established support level and showed rejection — the foundation of S&R trading. This level has proven it attracts buyers.` });
+    const sb = detectSupportBounce(data);
+    if (sb?.touches >= 3)
+      factors.push({ name: `${sb.touches}× tested support`, explanation: `This support level has been tested ${sb.touches} times without breaking. Each successful test strengthens the level — sellers keep trying and failing, which brings more buyers to defend it.` });
+    if (trend.includes('up'))
+      factors.push({ name: 'Uptrend confluence', explanation: `The larger trend is up, so bouncing from support aligns with the trend direction. Trading with the trend + from support = double confluence for a long entry.` });
+    const level = sb?.supportLevel || 0;
+    if (crypto && level > 0 && _isPriceRelativeRound(level))
+      factors.push({ name: 'Round-number level', explanation: `Support sits near a round-number price ($${Math.round(level/1000)*1000 || level.toFixed(0)}). Round numbers attract cluster stops and pending orders from retail traders — this concentrates liquidity and reinforces the support zone.` });
+    else if (sb?.touches >= 4)
+      factors.push({ name: 'Highly tested level', explanation: `Four or more distinct tests that held — this is an unusually strong level. When a level holds this many times, large orders are likely protecting it.` });
+
+  } else if (type === 'resistance_rejection') {
+    factors.push({ name: 'Resistance rejection', explanation: `Price reached an established resistance level and showed clear rejection — the hallmark of an S&R short setup. This level has proven sellers defend it.` });
+    const rr = detectResistanceRejection(data);
+    if (rr?.touches >= 3)
+      factors.push({ name: `${rr.touches}× tested resistance`, explanation: `This resistance level has held ${rr.touches} separate times. Each failed breakout attempt adds to the evidence that supply is heavy at this level.` });
+    if (trend.includes('down'))
+      factors.push({ name: 'Downtrend confluence', explanation: `The larger trend is down, so fading resistance aligns with the dominant direction. Selling into resistance in a downtrend is the highest-probability S&R setup.` });
+    if (rr?.touches >= 4)
+      factors.push({ name: 'Highly tested level', explanation: `Four or more tests of this resistance that held — an unusually strong ceiling. This many failures to break higher signals significant sell-side pressure.` });
+
+  } else if (type === 'trend_pullback') {
+    const pb = detectTrendPullback(data, structure);
+    factors.push({ name: 'Trend resuming', explanation: `Price pulled back against the ${trend.replace(/_/g,' ')} trend and is now showing signs of resuming. Pullbacks in trends are buy/sell opportunities because the underlying momentum hasn't changed.` });
+    if (pb?.retrace) {
+      const pct = Math.round(pb.retrace * 100);
+      factors.push({ name: `${pct}% Fibonacci retracement`, explanation: `The pullback retraced ${pct}% of the prior impulse. Fibonacci levels at 38%, 50%, and 62% are where trend pullbacks most often end — this hit the optimal zone, increasing the probability the trend resumes from here.` });
+    }
+    if (pb?.volContracting)
+      factors.push({ name: 'Volume contracting', explanation: `Volume dried up during the pullback — a healthy sign. Low-volume pullbacks mean sellers aren't committed; they're just profit-taking. When volume contracts on the counter-move, the dominant buyers/sellers are still in control.` });
+    if (trend.includes('strong'))
+      factors.push({ name: 'Strong trend', explanation: `The underlying trend is ${trend.replace(/_/g,' ')} — strong trends produce shallower pullbacks and faster resumptions. More momentum = higher probability that the pullback is corrective, not reversal.` });
+
+  } else if (type === 'liquidity_sweep') {
+    const sw = detectLiquiditySweep(data);
+    factors.push({ name: 'Stop hunt detected', explanation: `Price swept below/above a cluster of stops before reversing sharply — a liquidity sweep. Smart money engineers these moves to fill large orders at retail traders' expense.` });
+    if (sw?.wickToBodyRatio > 2)
+      factors.push({ name: `${Math.round(sw.wickToBodyRatio)}× rejection wick`, explanation: `The sweep candle has a wick ${Math.round(sw.wickToBodyRatio)}× its body — a textbook liquidity grab fingerprint. The larger the wick, the more stops were triggered and the more decisively price reversed.` });
+    if (sw?.volumeSpike)
+      factors.push({ name: 'Volume spike on sweep', explanation: `Volume spiked when the sweep wick formed — confirming real institutional order flow, not just a thin-book spike. Volume on the sweep + immediate reversal = strong evidence of smart money activity.` });
+    if (trend && trend !== 'neutral')
+      factors.push({ name: 'Trend aligned reversal', explanation: `The sweep reversal points back in the direction of the ${trend.replace(/_/g,' ')} — sweeps that reverse WITH the trend have the highest follow-through rate.` });
+  }
+
+  return factors.slice(0, 4); // cap at 4 factors to avoid annotation clutter
+}
+
 function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   if (!curData || mentorState.annotationsEnabled === false) return;
 
@@ -13129,6 +13267,39 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             dir==='long' ? `Peak — pullback started` : `Trough — pullback started`,
             dir==='long'?'down':'up', false, 2,
             `The trend ${dir==='long'?'peaked':'bottomed'} here before the current pullback. The Fibonacci retracement zone is measured from this point.`);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONFLUENCE FACTOR ANNOTATIONS
+  // Show each confluence factor as a named label so the user can see WHY
+  // this setup qualified. Appears in all stages so context is always visible.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    const cfFactors = _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method);
+    if (cfFactors.length) {
+      // Draw a stacked label at the setup bar listing all confluence factors
+      const labelBar = Math.min(detectionBar, visibleUpTo);
+      const labelPrice = dir === 'long'
+        ? Math.max(...(curData.slice(Math.max(0,labelBar-5), labelBar+1).map(b=>b.high||0))) + atr * 0.5
+        : Math.min(...(curData.slice(Math.max(0,labelBar-5), labelBar+1).map(b=>b.low||Infinity))) - atr * 0.5;
+      if (isVis(labelBar) && inRange(labelPrice + (dir==='long'?0:atr))) {
+        // One arrow per factor so each has its own explanation bubble on hover
+        cfFactors.forEach((f, i) => {
+          ann.push({
+            type: 'arrow',
+            bar: labelBar,
+            price: dir === 'long' ? labelPrice + atr * i * 0.35 : labelPrice - atr * i * 0.35,
+            label: `✦ ${f.name}`,
+            pointing: dir === 'long' ? 'down' : 'up',
+            highlight: false,
+            pri: 4,   // lowest priority — doesn't block structural annotations
+            candleIndex: stageCandle,
+            explanation: f.explanation,
+            isConfluenceFactor: true,
+          });
+        });
       }
     }
   }
@@ -14777,7 +14948,8 @@ async function loadSym(sym){
     rightBarIndex = curData.length+5;
     // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, curTF);
-    updateTopbar(); draw(); buildAIPanel();
+    // force=true: overwrite any stale placeholder-data cache entry
+    updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
     return;
@@ -14800,7 +14972,8 @@ async function loadSym(sym){
       rightBarIndex = curData.length+5;
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, curTF);
-      updateTopbar(); draw(); buildAIPanel(); buildInfo();
+      // force=true: overwrite any stale placeholder-data cache entry
+      updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
     } else {
@@ -16312,6 +16485,9 @@ function _lsDel(key){
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
   if(_currentUserId){
+    // If the circuit breaker has tripped, only write locally — don't queue
+    // cloud writes or override the "offline" badge with "syncing".
+    if(_supaRLSBlocked) return;
     _writeQueue[key] = val; // queue it, deduplicate by key
     if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
     updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
@@ -16321,6 +16497,9 @@ function _lsSet(key, val){
 
 async function _flushWriteQueue(force){
   if(!_currentUserId || Object.keys(_writeQueue).length === 0) return;
+  // Circuit breaker: stop retrying after repeated RLS/permission failures.
+  // This prevents a 1-per-second error storm hammering Supabase quota.
+  if(_supaRLSBlocked) return;
   const uid = _currentUserId;
   const snapshot = { ..._writeQueue };
   const entries = Object.entries(snapshot).map(([key, value]) => ({
@@ -16332,19 +16511,37 @@ async function _flushWriteQueue(force){
   try{
     const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
     if(error) throw error;
+    // Success — reset failure count and clear queue entries that haven't changed
+    _supaRLSFailCount = 0;
     Object.keys(snapshot).forEach(k => {
       if(_writeQueue[k] === snapshot[k]) delete _writeQueue[k];
     });
     updateCloudSyncBadge({ status:'ok', message:'Workspace saved to cloud', lastOkAt: Date.now() });
   }catch(e){
-    console.warn('Supabase write error:', e.message);
-    Object.entries(snapshot).forEach(([key, value]) => {
-      if(!(_writeQueue[key] && _writeQueue[key] !== value)) _writeQueue[key] = value;
-    });
     const hardFailure = /row-level security|policy|permission/i.test(e.message || '');
+    if(hardFailure){
+      _supaRLSFailCount++;
+      if(_supaRLSFailCount >= 3){
+        // Trip the circuit breaker — stop all further write attempts until re-login
+        _supaRLSBlocked = true;
+        // Discard the queue so live-tick saves don't keep re-populating it
+        Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
+        console.warn('Supabase cloud sync disabled: repeated RLS policy failures. Data is saved locally.');
+        updateCloudSyncBadge({ status:'offline', message:'Cloud sync unavailable — data is saved locally' });
+        return;
+      }
+    } else {
+      console.warn('Supabase write error:', e.message);
+    }
+    // Re-queue entries on non-hard failures only
+    if(!hardFailure){
+      Object.entries(snapshot).forEach(([key, value]) => {
+        if(!(_writeQueue[key] && _writeQueue[key] !== value)) _writeQueue[key] = value;
+      });
+    }
     updateCloudSyncBadge({
       status: hardFailure ? 'offline' : 'error',
-      message: hardFailure ? 'Cloud save is unavailable for this account right now. Changes are staying local.' : `Cloud sync failed: ${e.message}`
+      message: hardFailure ? 'Cloud save unavailable for this account. Changes are staying local.' : `Cloud sync failed: ${e.message}`
     });
     if(!hardFailure && !_writeFlushTimer){
       _writeFlushTimer = setTimeout(_flushWriteQueue, force ? 2500 : 4000);
@@ -16557,6 +16754,9 @@ function doLogin(username, displayName){
 
   // Update topbar user badge
   updateUserBadge(displayName || username);
+  // Reset Supabase circuit breaker on fresh login
+  _supaRLSBlocked = false;
+  _supaRLSFailCount = 0;
   // Start periodic auto-save
   _startAutoSave();
 }
@@ -16588,6 +16788,9 @@ async function doLogout(){
   _clearSession();
   _currentUser   = null;
   _currentUserId = null;
+  // Reset Supabase circuit breaker so next login gets a fresh attempt
+  _supaRLSBlocked = false;
+  _supaRLSFailCount = 0;
   updateCloudSyncBadge({ status:'offline', message:'Local only', lastOkAt:0 });
   _supa.auth.signOut().catch(()=>{});
 
@@ -16689,8 +16892,9 @@ function saveSettingsToStorage(){
     },{})
   };
   _lsSet('settings', JSON.stringify(settings));
-  if(_currentUser) toast(`Settings saved for ${_currentUser}`);
-  else toast('Settings saved');
+  // Update the sync badge silently — no toast on background/auto saves.
+  // Toast only shown when user explicitly opens and closes the Settings panel.
+  updateCloudSyncBadge({ status: _cloudSyncState.status, message: _cloudSyncState.message });
 }
 
 function loadSettingsFromStorage(){
@@ -16820,6 +17024,7 @@ const PMB_TF_BARS = { '1h':200, '4h':200, '1d':200, '1w':120, '1M':60 };
 
 let pmbAnalyses = {}; // sym → { tfData:{tf→analysis}, confluence, ... }
 let pmbCurrentPane = 'overview';
+let _pmbInFlight = false; // guard: prevents double-generate on rapid clicks
 
 function openPremarket(){
   document.getElementById('pmb-bg').classList.add('open');
@@ -16915,9 +17120,10 @@ function analyseTF(sym, tf, realData) {
   score = Math.max(0, Math.min(100, score));
 
   const topPat = [...pats].sort((a,b) => b.conf - a.conf)[0] || null;
-  const nearestS = sr.support[sr.support.length - 1] || null;
-  const nearestR = sr.resistance[0] || null;
   const price = (data[n-1].high + data[n-1].low + data[n-1].close) / 3;  // typical price
+  // Filter by side of price so "nearest support" is always below and "nearest resistance" above
+  const nearestS = sr.support.filter(s => s < price).sort((a,b) => b-a)[0] || null;
+  const nearestR = sr.resistance.filter(r => r > price).sort((a,b) => a-b)[0] || null;
 
   // % change vs 5 bars ago using typical price — includes wick momentum
   const tp5ago  = n >= 6 ? (data[n-6].high + data[n-6].low + data[n-6].close) / 3 : price;
@@ -16974,6 +17180,8 @@ function computeConfluence(tfResults) {
 }
 
 async function generatePremarket() {
+  if (_pmbInFlight) return; // prevent double-trigger on rapid clicks
+  _pmbInFlight = true;
   const btn = document.getElementById('pmb-gen-btn');
   btn.disabled = true;
   btn.textContent = '⟳ Analysing…';
@@ -17066,6 +17274,7 @@ async function generatePremarket() {
   } finally {
     btn.disabled = false;
     btn.textContent = '⚡ Generate Brief';
+    _pmbInFlight = false;
   }
 }
 function buildPMBNav(syms, loading = false) {
@@ -17744,8 +17953,9 @@ function aisAnalyseSymbol(sym, tf, realData, higherRealData){
     const bias  = bulls>bears?'bull':bears>bulls?'bear':'neut';
     const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0]||null;
     const price  = (data[n-1].high+data[n-1].low+data[n-1].close)/3;
-    const nearestS = sr.support[sr.support.length-1]||price*0.975;
-    const nearestR = sr.resistance[0]||price*1.025;
+    // Filter by side of price so nearest support is below and nearest resistance is above
+    const nearestS = sr.support.filter(s=>s<price).sort((a,b)=>b-a)[0]||price*0.975;
+    const nearestR = sr.resistance.filter(r=>r>price).sort((a,b)=>a-b)[0]||price*1.025;
     const tp5ago   = n>=6?(data[n-6].high+data[n-6].low+data[n-6].close)/3:price;
     const movePct  = n>=6?(price-tp5ago)/tp5ago*100:0;
     const emaAligned = ema9[n-1]&&ema21[n-1]?(ema9[n-1]>ema21[n-1]?'bull':'bear'):'neut';
@@ -18041,46 +18251,80 @@ function aisDrawMiniChart(s){
   ctx.fillText(fP(data[n-1].close), W-3, toY(data[n-1].close)-3);
 }
 
-async function aisGenerateIdea(s){
-  const dir = s.dir === 'bull' ? 'Bullish' : 'Bearish';
-  const opp = s.dir === 'bull' ? 'Bearish' : 'Bullish';
+function aisGenerateIdea(s){
+  // Client-side deterministic template — no API call needed.
+  // All 4 lines (Setup / Why / Levels / Wait) are built from scanned data already available.
+  const dir     = s.dir === 'bull' ? 'bullish' : 'bearish';
+  const dirCap  = s.dir === 'bull' ? 'Bullish' : 'Bearish';
+  const opp     = s.dir === 'bull' ? 'bearish' : 'bullish';
+  const price   = fP(s.price);
+  const keyLvl  = s.keyLevel ? fP(s.keyLevel) : null;
+  const atr     = s.atr ? fP(s.atr) : null;
 
-  // Gather richer context from the scanned data
-  const rsiLabel = s.rsi ? (s.rsi > 70 ? `${s.rsi} (Overbought)` : s.rsi < 30 ? `${s.rsi} (Oversold)` : `${s.rsi} (Neutral)`) : 'N/A';
-  const momentum = s.movePct > 1 ? 'Strong positive momentum' : s.movePct < -1 ? 'Strong negative momentum' : 'Neutral momentum';
-  const volStatus = s.movePct > 0.5 ? 'Above average — conviction move' : 'Normal — watch for volume expansion';
-  const keyS = s.keyLevel && s.dir === 'bull' ? fP(s.keyLevel) : 'N/A';
-  const keyR = s.keyLevel && s.dir === 'bear' ? fP(s.keyLevel) : 'N/A';
+  // RSI context
+  const rsiCtx = !s.rsi ? '' :
+    s.rsi > 70 ? `, RSI at ${s.rsi} is pushing into overbought territory` :
+    s.rsi < 30 ? `, RSI at ${s.rsi} is in oversold territory` :
+    s.rsi > 55 ? `, RSI at ${s.rsi} shows building momentum` :
+    s.rsi < 45 ? `, RSI at ${s.rsi} shows weakening momentum` : '';
 
-  const prompt = `You are a professional quantitative market scanner. Your job is to explain a possible setup in plain English for a normal trader. You are NOT evaluating a trade — you are describing what is forming and what to watch.
+  // Confluence / TF alignment context
+  const tfCtx = s.tfAgree >= 2
+    ? 'Higher timeframe is aligned in the same direction, adding confluence.'
+    : 'Higher timeframe is mixed — treat this as a lower-confluence read.';
 
-Do not evaluate entry/SL/TP quality. Do not give a trading recommendation. Do not use markdown, bold text, numbering, or headings.
+  // Pattern-specific setup line
+  const setupTemplates = {
+    'Bull Flag':        `A bull flag is forming on ${s.sym} — a tight consolidation after a strong impulse move up, coiling before a potential continuation.`,
+    'Bear Flag':        `A bear flag is forming on ${s.sym} — a tight consolidation after a sharp drop, coiling before a potential continuation lower.`,
+    'Double Bottom':    `${s.sym} is printing a double bottom — two lows at similar levels suggesting buyers are defending this area.`,
+    'Double Top':       `${s.sym} is printing a double top — two highs at similar levels suggesting sellers are capping price here.`,
+    'Breakout':         `${s.sym} is breaking out of a consolidation range to the ${dir} side at ${price}.`,
+    'Breakdown':        `${s.sym} is breaking down from a consolidation range, with price losing a key floor at ${keyLvl || price}.`,
+    'Inside Bar':       `${s.sym} is compressing into an inside bar — a volatility squeeze that often precedes a sharp directional move.`,
+    'Engulfing':        `A ${dir} engulfing candle has formed on ${s.sym}, with buyers fully absorbing the prior candle.`,
+    'Hammer':           `A hammer candle on ${s.sym} suggests sellers pushed price down but buyers stepped in and reclaimed the level.`,
+    'Shooting Star':    `A shooting star on ${s.sym} shows buyers pushed to a high but were rejected, leaving a long upper wick.`,
+    'Triangle':         `${s.sym} is compressing into a triangle pattern, with narrowing price action ahead of a potential breakout.`,
+    'Wedge':            `${s.sym} is forming a wedge — converging highs and lows suggesting the current trend is losing momentum.`,
+  };
+  const setupLine = setupTemplates[s.patLabel] ||
+    `A ${dir} ${s.patLabel || 'pattern'} is forming on ${s.sym} at ${price}${rsiCtx}.`;
 
-SCANNED ASSET DATA:
-Asset: ${s.sym} (${s.name})
-Timeframe: ${s.tf}
-Current Price: ${fP(s.price)}
-Recent 5-bar Move: ${s.movePct >= 0 ? '+' : ''}${s.movePct}%
-Market Bias (patterns): ${dir}
-Pattern Detected: ${s.patLabel}
-RSI(14): ${rsiLabel}
-EMA Alignment: ${s.tfAgree >= 2 ? 'Aligned across timeframes' : 'Mixed — lower confluence'}
-Key Support: ${keyS}
-Key Resistance: ${keyR}
-ATR: ${s.atr ? fP(s.atr) : 'N/A'}
-Volume: ${volStatus}
-Timeframe Confluence: ${s.tfAgree >= 2 ? 'Higher TF confirms direction' : 'Higher TF conflicting or neutral'}
-Scan Confidence: ${s.conf}/100
---------------------------------
-Return exactly 4 short lines in this format and nothing else:
-Setup: one short plain-English sentence explaining what is forming.
-Why: one short sentence explaining why it matters.
-Levels: one short sentence with 2-3 price levels to watch and what they mean.
-Wait: one short sentence explaining the confirmation or invalidation to wait for.
+  // Why it matters
+  const whyLine = s.tfAgree >= 2
+    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 — this is not just noise on one chart.`
+    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} — worth watching but treat it with appropriate caution given mixed higher-TF context.`;
 
-This is a discovery output only. The trader will use Trade Analysis to evaluate any specific trade they decide to place.`;
-  const res = await groqFetch(prompt);
-  return res;
+  // Levels line
+  let levelsLine;
+  if (keyLvl && atr) {
+    const above = fP(s.price + s.atr);
+    const below = fP(s.price - s.atr);
+    levelsLine = s.dir === 'bull'
+      ? `Key level to watch: ${keyLvl} as support, resistance near ${above} (approx 1 ATR above), with ${below} as a reference if price retreats.`
+      : `Key level to watch: ${keyLvl} as resistance, support near ${below} (approx 1 ATR below), with ${above} as a reference if price bounces.`;
+  } else if (keyLvl) {
+    levelsLine = `Key level identified at ${keyLvl} — watch how price reacts at this zone before drawing conclusions.`;
+  } else {
+    levelsLine = `Current price is ${price} on the ${s.tf} timeframe — no standout key level identified by the scan, so use your own drawn levels.`;
+  }
+
+  // Wait / confirmation line
+  const waitTemplates = {
+    bull: `Wait for a candle close above the recent swing high or a reclaim of ${keyLvl || price} on volume before treating this as confirmed. A reversal close back inside the range would invalidate it.`,
+    bear: `Wait for a candle close below the recent swing low or a rejection from ${keyLvl || price} before treating this as confirmed. A strong close back above the breakdown point would invalidate it.`,
+  };
+  const waitLine = waitTemplates[s.dir] ||
+    `Confirmation is needed before acting — watch for a decisive candle close in the ${dir} direction.`;
+
+  // Return in the same format the rest of the code expects (Setup: / Why: / Levels: / Wait:)
+  return Promise.resolve([
+    `Setup: ${setupLine}`,
+    `Why: ${whyLine}`,
+    `Levels: ${levelsLine}`,
+    `Wait: ${waitLine}`,
+  ].join('\n'));
 }
 
 function formatAISIdea(text){
@@ -19152,8 +19396,9 @@ function tapRenderChartStats(d){
   const pats = detectPatterns(curData);
   const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0];
   const sr   = detectSR(curData);
-  const nearS = sr.support[sr.support.length-1];
-  const nearR = sr.resistance[0];
+  // Filter by side of price so nearest support is always below and resistance above
+  const nearS = sr.support.filter(s => s < last.close).sort((a,b) => b-a)[0];
+  const nearR = sr.resistance.filter(r => r > last.close).sort((a,b) => a-b)[0];
 
   const stat = (lbl, val, col) =>
     `<span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;padding:3px 9px;background:var(--bg3);border:1px solid var(--b1);border-radius:3px;color:${col||'var(--tx2)'};white-space:nowrap;">
@@ -19207,14 +19452,20 @@ function tapRenderRisk(d, rr){
 
   // S/R proximity
   if(isLong && sr.support.length){
-    const nearS = sr.support[sr.support.length-1];
-    const distToS = Math.abs(d.price - nearS) / d.price * 100;
-    if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below — natural floor for the trade`, col:'var(--tl)' }); }
+    // Nearest support is the highest level BELOW entry price
+    const nearS = sr.support.filter(s => s < d.price).sort((a,b) => b-a)[0];
+    if(nearS){
+      const distToS = Math.abs(d.price - nearS) / d.price * 100;
+      if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below — natural floor for the trade`, col:'var(--tl)' }); }
+    }
   }
   if(!isLong && sr.resistance.length){
-    const nearR = sr.resistance[0];
-    const distToR = Math.abs(nearR - d.price) / d.price * 100;
-    if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above — natural ceiling confirms short`, col:'var(--tl)' }); }
+    // Nearest resistance is the lowest level ABOVE entry price
+    const nearR = sr.resistance.filter(r => r > d.price).sort((a,b) => a-b)[0];
+    if(nearR){
+      const distToR = Math.abs(nearR - d.price) / d.price * 100;
+      if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above — natural ceiling confirms short`, col:'var(--tl)' }); }
+    }
   }
 
   riskScore = Math.max(10, Math.min(90, riskScore));
