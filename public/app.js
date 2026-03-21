@@ -14119,41 +14119,35 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.beginPath(); ctx.arc(ax, aySafe, 1.3, 0, Math.PI*2); ctx.fill();
 
-        // Connector: anchor → bubble edge (long dashed line)
-        const bubbleEdgeY  = useBottom ? bubbleY : bubbleY + bubbleH;
-        const connX        = Math.max(bubbleX + 12, Math.min(bubbleX + bubbleW - 12, ax));
+        // Connector: straight single line from bubble edge → anchor point.
+        // Straight line (no dogleg) so each annotation has its own visually
+        // distinct connector — avoids the shared-vertical-segment "web" effect
+        // when many bubbles anchor near the same bar.
+        const bubbleEdgeY = useBottom ? bubbleY : bubbleY + bubbleH;
+        // Attach to the bubble edge at the horizontal midpoint of the bubble,
+        // clamped so it never overshoots the bubble width.
+        const connX = Math.max(bubbleX + 10, Math.min(bubbleX + bubbleW - 10, ax));
         ctx.strokeStyle = accentCol;
         ctx.lineWidth   = isPrimary ? 1.8 : 1.4;
-        ctx.setLineDash([3, 4]);
-        ctx.globalAlpha = alpha * 0.75 * (isWIP ? 0.7 : 1);
+        ctx.setLineDash([4, 5]);
+        ctx.globalAlpha = alpha * 0.7 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
-        ctx.moveTo(ax, aySafe);
-        if (Math.abs(connX - ax) < 6) {
-          ctx.lineTo(ax, bubbleEdgeY);
-        } else {
-          const midY = aySafe + (bubbleEdgeY - aySafe) * 0.5;
-          ctx.lineTo(ax, midY);
-          ctx.lineTo(connX, bubbleEdgeY);
-        }
+        ctx.moveTo(connX, bubbleEdgeY);   // start at bubble edge
+        ctx.lineTo(ax, aySafe);           // go straight to anchor on chart
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Arrowhead pointing TOWARD the structure (at the anchor end of the connector)
+        // Arrowhead at the ANCHOR end, pointing away from the bubble
         const ahSz = 3.5;
+        const angle = Math.atan2(aySafe - bubbleEdgeY, ax - connX);
         ctx.fillStyle = accentCol;
         ctx.globalAlpha = alpha * 0.9 * (isWIP ? 0.7 : 1);
         ctx.beginPath();
-        if (useBottom) {
-          // Bubble is below anchor — arrowhead points UP toward the anchor
-          ctx.moveTo(connX, bubbleEdgeY);
-          ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2);
-          ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2);
-        } else {
-          // Bubble is above anchor — arrowhead points DOWN toward the anchor
-          ctx.moveTo(connX, bubbleEdgeY);
-          ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2);
-          ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2);
-        }
+        ctx.moveTo(ax, aySafe);
+        ctx.lineTo(ax - Math.cos(angle - 0.45) * ahSz * 2.2,
+                   aySafe - Math.sin(angle - 0.45) * ahSz * 2.2);
+        ctx.lineTo(ax - Math.cos(angle + 0.45) * ahSz * 2.2,
+                   aySafe - Math.sin(angle + 0.45) * ahSz * 2.2);
         ctx.closePath(); ctx.fill();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
