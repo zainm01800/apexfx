@@ -11878,6 +11878,9 @@ function _drawImmediate(){
 
 // ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
 let activeTool = 'cursor';
+let drawingColor = '#f0a500';
+let drawingLineStyle = 'solid';
+let drawingLineWidth = 1;
 
 // ── Per-symbol drawing persistence ───────────────────────────────────────────
 // ── Drawing coordinate helpers ──────────────────────────────────────────────
@@ -11934,6 +11937,7 @@ function loadDrawings(sym,tf){
 let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
+let channelStage = 0;        // channel needs 3 clicks
 
 // Effective half-width in bars — uses stored duration if available for TF-independence
 function effectiveHalfBars(d){ 
@@ -11955,11 +11959,26 @@ let isMarquee = false;
 let marqueeX0=0, marqueeY0=0, marqueeX1=0, marqueeY1=0;
 let selectedDrawings = [];
 
-const TOOL_BTNS = ['cursor','long','short','line','hline','hray','vline','ray','rect','fib','pitchfork','text','measure','eraser'];
+const TOOL_BTNS = ['cursor','long','short','line','extline','channel','hline','hray','vline','ray','rect','pricerange','fib','fibext','pitchfork','text','arrow','measure','eraser'];
 
+function _btApplyLineStyle(ctx, style){
+  if(style==='dashed') ctx.setLineDash([6,4]);
+  else if(style==='dotted') ctx.setLineDash([2,3]);
+  else ctx.setLineDash([]);
+}
+function _dtSetColor(btn){
+  document.querySelectorAll('.dt-color').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  draw();
+}
+function _dtSetStyle(btn, style){
+  document.querySelectorAll('.dt-style-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  drawingLineStyle = style;
+}
 function setTool(t){
   activeTool = t;
-  drawingWIP = null; pitchforkStage = 0;
+  drawingWIP = null; pitchforkStage = 0; channelStage = 0;
   TOOL_BTNS.forEach(id=>{
     const b = document.getElementById('dt-'+id);
     if(b) b.classList.toggle('on', id===t);
@@ -11975,9 +11994,9 @@ function setTool(t){
 // Keyboard shortcuts for tools
 document.addEventListener('keydown', e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  const map = {v:'cursor',l:'long',s:'short',t:'line',h:'hline',r:'rect',f:'fib',e:'eraser',x:'text'};
+  const map = {v:'cursor',l:'long',s:'short',t:'line',h:'hline',r:'rect',f:'fib',e:'eraser',x:'text',a:'arrow',c:'channel',p:'pricerange'};
   if(map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
-  if(e.key==='Escape'){ setTool('cursor'); drawingWIP=null; pitchforkStage=0; draw(); }
+  if(e.key==='Escape'){ setTool('cursor'); drawingWIP=null; pitchforkStage=0; channelStage=0; draw(); }
   if((e.key==='Delete'||e.key==='Backspace') && (selectedDrawing||selectedDrawings.length)){
     const toDelete = selectedDrawings.length ? new Set(selectedDrawings) : new Set([selectedDrawing]);
     drawings = drawings.filter(d=>!toDelete.has(d));
@@ -12205,6 +12224,39 @@ function hitTest(d, sx, sy){
       const minY=Math.min(y1,y2)-TOL,maxY=Math.max(y1,y2)+TOL;
       return sx>minX&&sx<maxX&&sy>minY&&sy<maxY;
     }
+    case 'extline':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      return ptSegDist(sx,sy,x1,y1,x2,y2) < TOL;
+    }
+    case 'channel':{
+      if(!d.bar2||!d.price3) return false;
+      const x1=_barX(d.bar1),y1=_py(d.price1);
+      const x2=_barX(d.bar2),y2=_py(d.price2);
+      const y3=_py(d.price3);
+      const offsetY=y3-y1;
+      // hit top line, parallel line, or inside fill
+      const onLine1=ptSegDist(sx,sy,x1,y1,x2,y2)<TOL;
+      const onLine2=ptSegDist(sx,sy,x1,y1+offsetY,x2,y2+offsetY)<TOL;
+      const minY=Math.min(y1,y1+offsetY)-TOL, maxY=Math.max(y1,y1+offsetY)+TOL;
+      const inFill=sx>=Math.min(x1,x2)-TOL&&sx<=Math.max(x1,x2)+TOL&&sy>=minY&&sy<=maxY;
+      return onLine1||onLine2||inFill;
+    }
+    case 'pricerange':{
+      const y1=_py(d.price1), y2=_py(d.price2);
+      return sy>=Math.min(y1,y2)-TOL && sy<=Math.max(y1,y2)+TOL;
+    }
+    case 'fibext':{
+      const x1=_barX(d.bar1),x2=_barX(d.bar2);
+      const range=d.price1-d.price2;
+      const inX = sx>=Math.min(x1,x2)-TOL && sx<=Math.max(x1,x2)+TOL;
+      return inX && [0,0.236,0.382,0.5,0.618,0.786,1,1.272,1.414,1.618,2,2.618].some(lv=>
+        Math.abs(sy-_py(d.price2+range*lv))<TOL
+      );
+    }
+    case 'arrow':{
+      const ax=_barX(d.bar), ay=_py(d.price);
+      return Math.hypot(sx-ax, sy-ay) < 20;
+    }
   }
   return false;
 }
@@ -12280,6 +12332,30 @@ function getHandles(d){
       if(!d.pts||d.pts.length<3) return [];
       return d.pts.map((p,i)=>({id:'pt'+i, x:_barX(p.bar), y:_py(p.price), cur:'crosshair'}));
     }
+    case 'extline': case 'fibext':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      return [
+        {id:'p1',  x:x1, y:y1, cur:'crosshair'},
+        {id:'mid', x:(x1+x2)/2, y:(y1+y2)/2, cur:'move'},
+        {id:'p2',  x:x2, y:y2, cur:'crosshair'},
+      ];
+    }
+    case 'channel':{
+      if(!d.bar2||d.price3===undefined) return [];
+      return [
+        {id:'p1',     x:_barX(d.bar1), y:_py(d.price1), cur:'crosshair'},
+        {id:'p2',     x:_barX(d.bar2), y:_py(d.price2), cur:'crosshair'},
+        {id:'offset', x:_barX(d.bar1), y:_py(d.price3), cur:'ns-resize'},
+      ];
+    }
+    case 'pricerange':{
+      return [
+        {id:'price1', x:_drawW/2, y:_py(d.price1), cur:'ns-resize'},
+        {id:'price2', x:_drawW/2, y:_py(d.price2), cur:'ns-resize'},
+      ];
+    }
+    case 'arrow':
+      return [{id:'p1', x:_barX(d.bar), y:_py(d.price), cur:'move'}];
     default: return [];
   }
 }
@@ -12319,6 +12395,14 @@ function drawingInRect(d, minX, maxX, minY, maxY){
     }
     case 'pitchfork':
       return d.pts && d.pts.some(p=>inRect(_barX(p.bar),_py(p.price)));
+    case 'extline': case 'fibext':
+      return inRect(_barX(d.bar1),_py(d.price1)) || inRect(_barX(d.bar2),_py(d.price2));
+    case 'channel':
+      return inRect(_barX(d.bar1),_py(d.price1)) || inRect(_barX(d.bar2),_py(d.price2));
+    case 'pricerange':
+      return (_py(d.price1)>=minY&&_py(d.price1)<=maxY) || (_py(d.price2)>=minY&&_py(d.price2)<=maxY);
+    case 'arrow':
+      return inRect(_barX(d.bar),_py(d.price));
     default: return false;
   }
 }
@@ -12399,13 +12483,22 @@ function handleDrawMousedown(sx, sy, e){
     return true;
   }
 
+  if(activeTool==='arrow'){
+    const bar=Math.round(pxToBar(sx));
+    const price=pxToPrice(sy);
+    const label=prompt('Arrow label (optional):','');
+    drawings.push({type:'arrow',bar,price,pointing:sy<H/2?'down':'up',label:label||'',color:drawingColor});
+    saveDrawings(curSym.s,curTF);
+    draw(); return true;
+  }
+
   if(activeTool==='hline'){
     const { price } = screenToDraw(sx, sy);
-    drawings.push({type:'hline',price}); saveDrawings(curSym.s,curTF); draw(); return true;
+    drawings.push({type:'hline',price,color:drawingColor,ls:drawingLineStyle,lw:drawingLineWidth}); saveDrawings(curSym.s,curTF); draw(); return true;
   }
   if(activeTool==='vline'){
     const { bar } = screenToDraw(sx, sy);
-    drawings.push({type:'vline',bar}); saveDrawings(curSym.s,curTF); draw(); return true;
+    drawings.push({type:'vline',bar,color:drawingColor,ls:drawingLineStyle,lw:drawingLineWidth}); saveDrawings(curSym.s,curTF); draw(); return true;
   }
 
   if(activeTool==='pitchfork'){
@@ -12420,6 +12513,25 @@ function handleDrawMousedown(sx, sy, e){
       drawingWIP.pts.push({bar,price});
       drawings.push(JSON.parse(JSON.stringify(drawingWIP))); saveDrawings(curSym.s,curTF);
       drawingWIP=null; pitchforkStage=0; setTool('cursor');
+    }
+    draw(); return true;
+  }
+
+  if(activeTool==='channel'){
+    const bar=Math.round(pxToBar(sx));
+    const price=pxToPrice(sy);
+    if(channelStage===0){
+      drawingWIP={type:'channel',bar1:bar,price1:price,bar2:bar,price2:price,price3:price,color:drawingColor,ls:drawingLineStyle,lw:drawingLineWidth};
+      channelStage=1;
+    } else if(channelStage===1){
+      drawingWIP.bar2=bar; drawingWIP.price2=price;
+      channelStage=2;
+    } else {
+      drawingWIP.price3=price;
+      drawings.push(drawingWIP);
+      saveDrawings(curSym.s,curTF);
+      drawingWIP=null; channelStage=0;
+      draw(); return true;
     }
     draw(); return true;
   }
@@ -12506,7 +12618,7 @@ function handleDrawMousedown(sx, sy, e){
 
   // two-click tools
   const { bar, price } = screenToDraw(sx, sy);
-  drawingWIP = {type:activeTool, bar1:bar, price1:price, bar2:bar, price2:price};
+  drawingWIP = {type:activeTool, bar1:bar, price1:price, bar2:bar, price2:price, color:drawingColor, ls:drawingLineStyle, lw:drawingLineWidth};
   return true;
 }
 
@@ -12595,6 +12707,26 @@ function handleDrawMousemove(sx, sy){
         if(!isNaN(idx)&&d.pts[idx]){ d.pts[idx].bar=bar; d.pts[idx].price=price; }
         break;
       }
+      case 'extline': case 'fibext':{
+        if(resizeHandle==='p1'){ d.bar1=bar; d.price1=price; }
+        else if(resizeHandle==='p2'){ d.bar2=bar; d.price2=price; }
+        else{ d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar; d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; }
+        break;
+      }
+      case 'channel':{
+        if(resizeHandle==='p1'){ d.bar1=bar; d.price1=price; }
+        else if(resizeHandle==='p2'){ d.bar2=bar; d.price2=price; }
+        else if(resizeHandle==='offset'){ d.price3=price; }
+        else{ d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar; d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; d.price3=s.price3+dPrice; }
+        break;
+      }
+      case 'pricerange':{
+        if(resizeHandle==='price1') d.price1=price;
+        else if(resizeHandle==='price2') d.price2=price;
+        else{ d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; }
+        break;
+      }
+      case 'arrow':{ d.bar=s.bar+dBar; d.price=s.price+dPrice; break; }
     }
     draw();
     if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
@@ -12613,8 +12745,15 @@ function handleDrawMousemove(sx, sy){
       case 'hline': case 'hray': d.price=s.price+dPrice; break;
       case 'vline': d.bar=s.bar+dBar; break;
       case 'line': case 'ray': case 'fib': case 'rect': case 'measure':
+      case 'extline': case 'fibext':
         d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
         d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; break;
+      case 'channel':
+        d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
+        d.price1=s.price1+dPrice; d.price2=s.price2+dPrice;
+        d.price3=s.price3+dPrice; break;
+      case 'pricerange': d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; break;
+      case 'arrow': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
       case 'text': d.bar=s.bar+dBar; d.price=s.price+dPrice; break;
       case 'mentor_arrow':
         if (_mentorBubbleHit(d, sx, sy)) {
@@ -12642,6 +12781,14 @@ function handleDrawMousemove(sx, sy){
     draw();
     if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
     return;
+  }
+
+  if(drawingWIP?.type==='channel'){
+    const bar=Math.round(pxToBar(sx));
+    const price=pxToPrice(sy);
+    if(channelStage===1){ drawingWIP.bar2=bar; drawingWIP.price2=price; }
+    else if(channelStage===2){ drawingWIP.price3=price; }
+    draw(); return;
   }
 
   if(!drawingWIP) return;
@@ -13738,7 +13885,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     ctx.save();
     const isSel = d===selectedDrawing;
     const isWIP = d===drawingWIP;
-    const baseCol = d.color || (d.type==='short'?'#f03060':d.type==='long'?'#00c9a0':'#f0a500');
+    const isWIP2 = d === drawingWIP;
+    const baseCol = d.color || (d.type==='short'?'#f03060':d.type==='long'?'#00c9a0': C.am || '#f0a500');
     const col = isSel ? lightenColor(baseCol, 0.3) : baseCol;
     ctx.globalAlpha = isWIP ? 0.7 : 1;
 
@@ -13746,7 +13894,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
 
       case 'hline':{
         const y=pyfn(d.price);
-        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1; ctx.setLineDash(isSel?[]:[6,4]);
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1)+1:(d.lw||1);
+        _btApplyLineStyle(ctx, isSel?'solid':(d.ls||'dashed'));
         ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
         ctx.setLineDash([]);
         // price pill
@@ -13762,7 +13911,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
 
       case 'hray':{
         const y=pyfn(d.price);
-        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1; ctx.setLineDash([]);
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1)+1:(d.lw||1);
+        _btApplyLineStyle(ctx, d.ls||'solid');
         ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-R_PANEL_OFFSET-8,y); ctx.stroke();
         // arrowhead
         ctx.fillStyle=col;
@@ -13776,7 +13926,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
 
       case 'vline':{
         const x=barXfn(d.bar);
-        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1; ctx.setLineDash([6,4]);
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1)+1:(d.lw||1);
+        _btApplyLineStyle(ctx, d.ls||'dashed');
         ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
         ctx.setLineDash([]);
         // date label at top
@@ -13792,23 +13943,24 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
 
       case 'line':{
         const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
-        ctx.strokeStyle=col; ctx.lineWidth=isSel?2.5:1.5; ctx.setLineDash([]);
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1.5)+1:(d.lw||1.5);
+        _btApplyLineStyle(ctx, d.ls||'solid');
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-        // endpoint dots (only when NOT selected, handles shown when selected)
+        ctx.setLineDash([]);
         if(!isSel){
           ctx.fillStyle=col;
           [[x1,y1],[x2,y2]].forEach(([x,y])=>{ ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill(); });
         }
-        // price difference label along line
         if(isSel){
           const diff = d.price2-d.price1;
           const pct  = (diff/d.price1*100).toFixed(2);
-          const label= `${diff>=0?'+':''}${pct}%`;
+          const angleDeg = (Math.atan2(-(y2-y1),(x2-x1))*180/Math.PI).toFixed(1);
+          const label= `${angleDeg}° · ${diff>=0?'+':''}${pct}%`;
           const mx=(x1+x2)/2, my=(y1+y2)/2;
-          ctx.font='bold 9px monospace'; const lw=ctx.measureText(label).width+8;
-          ctx.fillStyle=ca(C.bg3,.85); ctx.fillRect(mx-lw/2,my-11,lw,14);
+          ctx.font='bold 9px monospace'; const lw=ctx.measureText(label).width+10;
+          ctx.fillStyle='rgba(8,11,22,0.88)'; ctx.fillRect(mx-lw/2,my-13,lw,15);
           ctx.fillStyle=diff>=0?'#00c9a0':'#f03060'; ctx.textAlign='center';
-          ctx.fillText(label,mx,my-1);
+          ctx.fillText(label,mx,my-2);
         }
         break;
       }
@@ -13817,11 +13969,12 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
         const angle=Math.atan2(y2-y1,x2-x1);
         const ex=x1+Math.cos(angle)*W*4, ey=y1+Math.sin(angle)*W*4;
-        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1.5; ctx.setLineDash([]);
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1.5)+1:(d.lw||1.5);
+        _btApplyLineStyle(ctx, d.ls||'solid');
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(ex,ey); ctx.stroke();
+        ctx.setLineDash([]);
         if(!isSel){
           ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x1,y1,3,0,Math.PI*2); ctx.fill();
-          // direction dot
           ctx.beginPath(); ctx.arc(x2,y2,3,0,Math.PI*2); ctx.fill();
         }
         break;
@@ -14523,6 +14676,190 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.strokeStyle=lineCol; ctx.lineWidth=1; ctx.strokeRect(midX-lw/2,midY-18,lw,30);
         ctx.fillStyle=lineCol; ctx.fillText(line1,midX,midY-4);
         ctx.fillStyle='#8fa0bf'; ctx.fillText(line2,midX,midY+10);
+        break;
+      }
+
+      case 'extline': {
+        // Extended line — projects infinitely beyond both anchor points
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const dx=x2-x1, dy=y2-y1;
+        const len=Math.hypot(dx,dy)||1;
+        const ux=dx/len, uy=dy/len;
+        const ext=W*6;
+        const ex1=x1-ux*ext, ey1=y1-uy*ext;
+        const ex2=x2+ux*ext, ey2=y2+uy*ext;
+        const dCol = d.color||col;
+        ctx.save();
+        ctx.strokeStyle=dCol; ctx.lineWidth=isSel?2.5:(d.lw||1.5);
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.beginPath(); ctx.moveTo(ex1,ey1); ctx.lineTo(ex2,ey2); ctx.stroke();
+        ctx.setLineDash([]);
+        // Angle label
+        if(isSel){
+          const angleDeg=(Math.atan2(-(y2-y1),(x2-x1))*180/Math.PI).toFixed(1);
+          const pctChg=((d.price2-d.price1)/d.price1*100).toFixed(2);
+          const mx=(x1+x2)/2, my=(y1+y2)/2;
+          ctx.font='bold 9px monospace'; ctx.textAlign='center';
+          const lbl=`${angleDeg}°  ${pctChg>=0?'+':''}${pctChg}%`;
+          const lw2=ctx.measureText(lbl).width+10;
+          ctx.fillStyle='rgba(8,11,22,0.85)'; ctx.fillRect(mx-lw2/2,my-13,lw2,14);
+          ctx.fillStyle=dCol; ctx.fillText(lbl,mx,my-2);
+        }
+        if(!isSel){
+          ctx.fillStyle=dCol;
+          [[x1,y1],[x2,y2]].forEach(([px,py])=>{ ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill(); });
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'channel': {
+        // Parallel channel — 3 points: two define the main line, third sets parallel offset
+        if(!d.bar2||!d.price3) break;
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1);
+        const x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const y3=pyfn(d.price3);
+        const offsetY=y3-y1; // vertical pixel offset of parallel line
+        const dx=x2-x1, dy=y2-y1;
+        const len=Math.hypot(dx,dy)||1;
+        const ux=dx/len, uy=dy/len;
+        const ext=W*4;
+        // Extended endpoints for both lines
+        const ax1=x1-ux*ext, ay1=y1-uy*ext, ax2=x2+ux*ext, ay2=y2+uy*ext;
+        const bx1=ax1, by1=ay1+offsetY, bx2=ax2, by2=ay2+offsetY;
+        const dCol=d.color||col;
+        ctx.save();
+        // Fill between lines
+        ctx.beginPath();
+        ctx.moveTo(ax1,ay1); ctx.lineTo(ax2,ay2);
+        ctx.lineTo(bx2,by2); ctx.lineTo(bx1,by1);
+        ctx.closePath();
+        const fillCol = dCol.startsWith('#') ? dCol : '#f0a500';
+        ctx.fillStyle = fillCol+'18';
+        ctx.fill();
+        // Main line
+        ctx.strokeStyle=dCol; ctx.lineWidth=isSel?2:(d.lw||1.5);
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.beginPath(); ctx.moveTo(ax1,ay1); ctx.lineTo(ax2,ay2); ctx.stroke();
+        // Parallel line
+        ctx.beginPath(); ctx.moveTo(bx1,by1); ctx.lineTo(bx2,by2); ctx.stroke();
+        // Mid line (dashed)
+        ctx.strokeStyle=dCol+'80'; ctx.lineWidth=1; ctx.setLineDash([4,5]);
+        ctx.beginPath(); ctx.moveTo((ax1+bx1)/2,(ay1+by1)/2); ctx.lineTo((ax2+bx2)/2,(ay2+by2)/2); ctx.stroke();
+        ctx.setLineDash([]);
+        // Anchor dots
+        if(!isSel){
+          ctx.fillStyle=dCol;
+          [[x1,y1],[x2,y2],[x1,y3]].forEach(([px,py])=>{ ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill(); });
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'pricerange': {
+        // Full-width horizontal price zone (support/resistance band)
+        const y1=pyfn(d.price1), y2=pyfn(d.price2);
+        const top=Math.min(y1,y2), bot=Math.max(y1,y2);
+        const dCol=d.color||col;
+        ctx.save();
+        // Zone fill
+        ctx.fillStyle=dCol+'20';
+        ctx.fillRect(0,top,W,bot-top);
+        // Top edge
+        ctx.strokeStyle=dCol; ctx.lineWidth=isSel?2:1.2;
+        _btApplyLineStyle(ctx, d.ls||'dashed');
+        ctx.beginPath(); ctx.moveTo(0,y1); ctx.lineTo(W,y1); ctx.stroke();
+        // Bottom edge
+        ctx.beginPath(); ctx.moveTo(0,y2); ctx.lineTo(W,y2); ctx.stroke();
+        ctx.setLineDash([]);
+        // Labels
+        ctx.font='9px monospace'; ctx.textAlign='left';
+        const lbl1=fP(d.price1), lbl2=fP(d.price2);
+        const pctH=((Math.abs(d.price2-d.price1)/Math.min(d.price1,d.price2))*100).toFixed(2)+'%';
+        [[y1,lbl1],[y2,lbl2]].forEach(([y,lbl])=>{
+          const lw2=ctx.measureText(lbl).width+10;
+          ctx.fillStyle='rgba(8,11,22,0.85)'; ctx.fillRect(4,y-10,lw2,13);
+          ctx.fillStyle=dCol; ctx.fillText(lbl,9,y-1);
+        });
+        if(Math.abs(y2-y1)>28){
+          ctx.textAlign='right'; ctx.fillStyle=dCol+'99';
+          ctx.font='bold 9px monospace';
+          ctx.fillText(pctH, W-R_PANEL_OFFSET-12, (top+bot)/2+4);
+        }
+        ctx.restore();
+        break;
+      }
+
+      case 'fibext': {
+        // Fibonacci with extension levels (0% to 261.8%)
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const range=d.price1-d.price2;
+        const levels=[
+          {v:0,    c:'rgba(240,165,0,.85)',  n:'0%'},
+          {v:0.236,c:'rgba(61,127,255,.85)', n:'23.6%'},
+          {v:0.382,c:'rgba(0,201,160,.85)',  n:'38.2%'},
+          {v:0.5,  c:'rgba(255,255,255,.75)',n:'50%'},
+          {v:0.618,c:'rgba(0,201,160,.85)',  n:'61.8%'},
+          {v:0.786,c:'rgba(240,48,96,.85)',  n:'78.6%'},
+          {v:1,    c:'rgba(240,165,0,.85)',  n:'100%'},
+          {v:1.272,c:'rgba(156,110,255,.85)',n:'127.2%'},
+          {v:1.414,c:'rgba(156,110,255,.75)',n:'141.4%'},
+          {v:1.618,c:'rgba(255,165,0,.85)',  n:'161.8%'},
+          {v:2,    c:'rgba(255,165,0,.75)',  n:'200%'},
+          {v:2.618,c:'rgba(255,165,0,.65)',  n:'261.8%'},
+        ];
+        const minX=Math.min(x1,x2), maxX=Math.max(x1,x2);
+        levels.forEach((lv)=>{
+          const price=d.price2+range*lv.v;
+          const y=pyfn(price);
+          if(y<-20||y>H+20) return;
+          ctx.strokeStyle=lv.c; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+          ctx.beginPath(); ctx.moveTo(minX,y); ctx.lineTo(maxX,y); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font='8px monospace'; ctx.textAlign='left';
+          const label=`${lv.n}  ${fP(price)}`;
+          const lw2=ctx.measureText(label).width+6;
+          ctx.fillStyle='rgba(8,11,22,0.8)'; ctx.fillRect(maxX+2,y-9,lw2,12);
+          ctx.fillStyle=lv.c; ctx.fillText(label,maxX+5,y+1);
+        });
+        ctx.strokeStyle='rgba(240,165,0,.35)'; ctx.lineWidth=1; ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        break;
+      }
+
+      case 'arrow': {
+        // Directional arrow annotation
+        const ax=barXfn(d.bar), ay=pyfn(d.price);
+        const dCol=d.color||col;
+        const isUp=d.pointing==='up';
+        const ahLen=22, ahW=8;
+        ctx.save();
+        ctx.strokeStyle=dCol; ctx.fillStyle=dCol; ctx.globalAlpha=isSel?1:0.85;
+        // Shaft
+        ctx.lineWidth=isSel?3:2.5;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay+(isUp?ahLen:-ahLen));
+        ctx.lineTo(ax, ay+(isUp?ahW:-ahW));
+        ctx.stroke();
+        // Head
+        ctx.beginPath();
+        if(isUp){
+          ctx.moveTo(ax,ay); ctx.lineTo(ax-ahW,ay+ahLen/2); ctx.lineTo(ax+ahW,ay+ahLen/2);
+        } else {
+          ctx.moveTo(ax,ay); ctx.lineTo(ax-ahW,ay-ahLen/2); ctx.lineTo(ax+ahW,ay-ahLen/2);
+        }
+        ctx.closePath(); ctx.fill();
+        // Label if any
+        if(d.label){
+          ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+          const lw2=ctx.measureText(d.label).width+10;
+          const ly=isUp?ay+ahLen+14:ay-ahLen-4;
+          ctx.fillStyle='rgba(8,11,22,0.9)'; ctx.globalAlpha=0.9;
+          ctx.fillRect(ax-lw2/2,ly-12,lw2,15);
+          ctx.fillStyle=dCol; ctx.globalAlpha=1;
+          ctx.fillText(d.label,ax,ly);
+        }
+        ctx.restore();
         break;
       }
     }
