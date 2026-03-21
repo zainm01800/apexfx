@@ -261,32 +261,62 @@
 
     <!-- DRAWING TOOLS sub-panel -->
     <div id="ov-draw" class="ov-body" style="display:none;">
-      <div class="draw-group-label">Selection</div>
-      <div class="draw-tools-grid">
-        <button class="dt-btn on" id="dt-cursor" onclick="setTool('cursor')" title="Cursor (V)">↖</button>
-        <button class="dt-btn" id="dt-long" onclick="setTool('long')" title="Long Position (L)" style="color:var(--green);font-size:11px;font-weight:700;">▲</button>
-        <button class="dt-btn" id="dt-short" onclick="setTool('short')" title="Short Position (S)" style="color:var(--red);font-size:11px;font-weight:700;">▼</button>
+      <!-- Selection & Trade -->
+      <div class="dt-group-label">SELECT &amp; TRADE</div>
+      <button class="dt-btn on" id="dt-cursor" onclick="setTool('cursor')" title="Cursor (V)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 5-5 1-2 5z" fill="currentColor"/></svg><span>Cursor</span></button>
+      <button class="dt-btn" id="dt-long" onclick="setTool('long')" title="Long Position (L)">▲<span>Long</span></button>
+      <button class="dt-btn" id="dt-short" onclick="setTool('short')" title="Short Position (S)">▼<span>Short</span></button>
+      <button class="dt-btn" id="dt-eraser" onclick="setTool('eraser')" title="Eraser (E)">⌫<span>Eraser</span></button>
+
+      <!-- Lines -->
+      <div class="dt-group-label">LINES</div>
+      <button class="dt-btn" id="dt-line" onclick="setTool('line')" title="Trend Line (T)">╱<span>Trend Line</span></button>
+      <button class="dt-btn" id="dt-extline" onclick="setTool('extline')" title="Extended Line">⟵╱⟶<span>Extended</span></button>
+      <button class="dt-btn" id="dt-ray" onclick="setTool('ray')" title="Ray">╱⟶<span>Ray</span></button>
+      <button class="dt-btn" id="dt-hline" onclick="setTool('hline')" title="Horizontal Line (H)">─<span>H-Line</span></button>
+      <button class="dt-btn" id="dt-hray" onclick="setTool('hray')" title="Horizontal Ray">─⟶<span>H-Ray</span></button>
+      <button class="dt-btn" id="dt-vline" onclick="setTool('vline')" title="Vertical Line">│<span>V-Line</span></button>
+
+      <!-- Shapes -->
+      <div class="dt-group-label">SHAPES</div>
+      <button class="dt-btn" id="dt-channel" onclick="setTool('channel')" title="Parallel Channel (C)">⫿<span>Channel</span></button>
+      <button class="dt-btn" id="dt-rect" onclick="setTool('rect')" title="Rectangle (R)">▭<span>Rectangle</span></button>
+      <button class="dt-btn" id="dt-pricerange" onclick="setTool('pricerange')" title="Price Zone (P)">≡<span>Price Zone</span></button>
+      <button class="dt-btn" id="dt-pitchfork" onclick="setTool('pitchfork')" title="Pitchfork">⑂<span>Pitchfork</span></button>
+
+      <!-- Fibonacci -->
+      <div class="dt-group-label">FIBONACCI</div>
+      <button class="dt-btn" id="dt-fib" onclick="setTool('fib')" title="Fibonacci Retracement (F)">φ<span>Retracement</span></button>
+      <button class="dt-btn" id="dt-fibext" onclick="setTool('fibext')" title="Fibonacci Extensions">φ+<span>Extensions</span></button>
+
+      <!-- Annotations -->
+      <div class="dt-group-label">ANNOTATIONS</div>
+      <button class="dt-btn" id="dt-text" onclick="setTool('text')" title="Text Label (X)">T<span>Text</span></button>
+      <button class="dt-btn" id="dt-arrow" onclick="setTool('arrow')" title="Arrow (A)">↑<span>Arrow</span></button>
+      <button class="dt-btn" id="dt-measure" onclick="setTool('measure')" title="Measure Tool">⟺<span>Measure</span></button>
+
+      <!-- Style -->
+      <div class="dt-group-label">STYLE</div>
+      <div class="dt-color-row" id="dt-colors">
+        <button class="dt-color active" style="background:#f0a500" onclick="drawingColor='#f0a500';_dtSetColor(this)" title="Amber"></button>
+        <button class="dt-color" style="background:#00c9a0" onclick="drawingColor='#00c9a0';_dtSetColor(this)" title="Teal"></button>
+        <button class="dt-color" style="background:#ff4d6a" onclick="drawingColor='#ff4d6a';_dtSetColor(this)" title="Red"></button>
+        <button class="dt-color" style="background:#3d8eff" onclick="drawingColor='#3d8eff';_dtSetColor(this)" title="Blue"></button>
+        <button class="dt-color" style="background:#9b6dff" onclick="drawingColor='#9b6dff';_dtSetColor(this)" title="Purple"></button>
+        <button class="dt-color" style="background:#ffffff" onclick="drawingColor='#ffffff';_dtSetColor(this)" title="White"></button>
+        <button class="dt-color" style="background:#ff9f43" onclick="drawingColor='#ff9f43';_dtSetColor(this)" title="Orange"></button>
+        <button class="dt-color" style="background:#778ca3" onclick="drawingColor='#778ca3';_dtSetColor(this)" title="Grey"></button>
       </div>
-      <div class="draw-group-label">Lines</div>
-      <div class="draw-tools-grid">
-        <button class="dt-btn" id="dt-line" onclick="setTool('line')" title="Trend Line (T)">╱</button>
-        <button class="dt-btn" id="dt-hline" onclick="setTool('hline')" title="Horizontal Line (H)">―</button>
-        <button class="dt-btn" id="dt-hray" onclick="setTool('hray')" title="Horizontal Ray">⇒</button>
-        <button class="dt-btn" id="dt-vline" onclick="setTool('vline')" title="Vertical Line">|</button>
-        <button class="dt-btn" id="dt-ray" onclick="setTool('ray')" title="Ray">⟶</button>
-      </div>
-      <div class="draw-group-label">Shapes & Tools</div>
-      <div class="draw-tools-grid">
-        <button class="dt-btn" id="dt-rect" onclick="setTool('rect')" title="Rectangle (R)">▭</button>
-        <button class="dt-btn" id="dt-fib" onclick="setTool('fib')" title="Fibonacci (F)" style="font-size:11px;font-weight:700;">FIB</button>
-        <button class="dt-btn" id="dt-pitchfork" onclick="setTool('pitchfork')" title="Pitchfork">⑂</button>
-        <button class="dt-btn" id="dt-text" onclick="setTool('text')" title="Text (X)" style="font-size:11px;font-weight:700;">A</button>
-        <button class="dt-btn" id="dt-measure" onclick="setTool('measure')" title="Measure" style="font-size:10px;">↔</button>
-      </div>
-      <div class="draw-group-label">Erase</div>
-      <div class="draw-tools-grid">
-        <button class="dt-btn" id="dt-eraser" onclick="setTool('eraser')" title="Eraser (E)">⌫</button>
-        <button class="dt-btn" onclick="clearDrawings()" title="Clear All" style="font-size:13px;">🗑</button>
+      <div class="dt-style-row">
+        <button class="dt-style-btn active" id="dt-ls-solid"  onclick="drawingLineStyle='solid';_dtSetStyle(this,'solid')"  title="Solid">─</button>
+        <button class="dt-style-btn"        id="dt-ls-dashed" onclick="drawingLineStyle='dashed';_dtSetStyle(this,'dashed')" title="Dashed">╌</button>
+        <button class="dt-style-btn"        id="dt-ls-dotted" onclick="drawingLineStyle='dotted';_dtSetStyle(this,'dotted')" title="Dotted">⋯</button>
+        <select id="dt-lw" onchange="drawingLineWidth=parseFloat(this.value)" style="flex:1;background:#111820;border:1px solid rgba(255,255,255,.1);border-radius:4px;color:#a8bbd0;padding:3px 6px;font-size:10px">
+          <option value="1">1px</option>
+          <option value="1.5" selected>1.5px</option>
+          <option value="2">2px</option>
+          <option value="3">3px</option>
+        </select>
       </div>
     </div>
 
