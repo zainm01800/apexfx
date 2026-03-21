@@ -4107,6 +4107,7 @@ let mentorState = {
 
   // Annotation cache — drawings computed once per setup, restored on scroll
   _annCache: null, // { setupBar, method, drawings: [...] }
+  _debriefAnnotationsVisible: false,
 };
 
 // ── Centralised state transition helper ──────────────────────────────────────
@@ -4983,6 +4984,17 @@ function continueReplayAfterTradeCompletion() {
   mentorState._lastAnnotateStage        = 0;
   mentorState._lastAnnStateKey = null; mentorState._annCache = null;  // force fresh annotation draw
   mentorState._annotationsDrawnForTrade = false;
+  mentorState._debriefAnnotationsVisible = false;
+  clearMentorAnnotations();
+  // Reset show-annotations button
+  const _saBtn = document.getElementById('btn-show-annotations');
+  if (_saBtn) {
+    _saBtn.textContent = '📍 Show Annotations';
+    _saBtn.style.opacity = '1';
+    _saBtn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
+    _saBtn.style.borderColor = 'rgba(139,92,246,0.35)';
+    _saBtn.style.color = '#a78bfa';
+  }
 
   // Scan / AI state
   if (typeof _scanCache !== 'undefined') _scanCache = { bar: -1, result: null, method: null };
@@ -8501,7 +8513,7 @@ function handleSetupDetectedState(currentBar) {
     mentorState.messageLocked   = true;
     mentorState.lockedMessage   = 'setup_preview';
     mentorState._proximityHintCache = null; // clear for fresh hint
-    mentorState.annotationsEnabled = true;  // default ON for each new setup
+    mentorState.annotationsEnabled = false;  // annotations shown post-trade via debrief button only
     mentorState._confluencePauses = new Set(); // reset per-setup pause tracking
     // Reset annotation toggle buttons to default (Yes selected)
     setTimeout(() => {
@@ -9944,8 +9956,8 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
   return true;
 }
 
-// Annotation preference — default ON, user can toggle via the setup controls
-mentorState.annotationsEnabled = true;
+// Annotation preference — default OFF, annotations shown post-trade via debrief button only
+mentorState.annotationsEnabled = false;
 
 function mentorToggleAnnotations(enable) {
   mentorState.annotationsEnabled = enable;
@@ -13386,6 +13398,110 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   mentorState._annCurStage = curStage;
   _commit(ann);
 }
+
+// ── Post-trade debrief annotation ────────────────────────────────────────────
+// Called when user clicks "Show Annotations" on the trade_completed screen.
+// Places entry, stop-loss, take-profit, and R:R labels all at once.
+function _mentorAnnotateDebrief() {
+  const trade = mentorState.exampleTrade;
+  if (!trade || !curData) return;
+
+  _clearMentorAnnotationsSilent();
+
+  const entryBar  = Math.min(trade.timestamp ?? 0, replayCutoff, curData.length - 1);
+  const tradeEnd  = Math.min(replayCutoff, curData.length - 1);
+  const dir       = trade.direction || 'long';
+  const isLong    = dir === 'long';
+  const atr       = calculateATR(tradeEnd, 14) || (curData[tradeEnd]?.close * 0.005) || 1;
+
+  // Extract explanations from the AI debrief text stored in lockedInsights
+  const insights   = mentorState.lockedInsights || [];
+  const entryLine  = insights.find(l => l && /ENTRY REASONING/i.test(l)) || '';
+  const slLine     = insights.find(l => l && /STOP LOSS/i.test(l) && !/TAKE PROFIT/i.test(l)) || '';
+  const tpLine     = insights.find(l => l && /TAKE PROFIT TARGET/i.test(l)) || '';
+
+  const extractText = (str) => {
+    if (!str) return '';
+    const idx = str.indexOf(':');
+    return idx >= 0 ? str.slice(idx + 1).trim().slice(0, 140) : str.trim().slice(0, 140);
+  };
+
+  const fP = (p) => typeof p === 'number' ? p.toFixed(2) : '?';
+
+  // 1. Entry arrow — gold highlight, points in trade direction
+  _addMentorArrow(
+    entryBar,
+    trade.entry,
+    isLong ? '▲ ENTRY' : '▼ ENTRY',
+    isLong ? 'up' : 'down',
+    true,  // highlight = gold
+    extractText(entryLine) || `${isLong ? 'Long' : 'Short'} entry at ${fP(trade.entry)}`
+  );
+
+  // 2. Stop Loss zone line — spans entry to trade end
+  const slId = _addMentorBox(entryBar, tradeEnd, trade.stopLoss - atr * 0.07, trade.stopLoss + atr * 0.07, 'STOP LOSS');
+  if (slId) {
+    const slD = drawings.find(d => d.id === slId);
+    if (slD) {
+      slD.isLine       = true;
+      slD.explanation  = extractText(slLine) || `Stop placed at ${fP(trade.stopLoss)} — above/below key structure.`;
+      slD.lineColor    = 'rgba(255,77,106,0.85)';
+    }
+  }
+
+  // 3. Take Profit zone line — spans entry to trade end
+  const tpId = _addMentorBox(entryBar, tradeEnd, trade.takeProfit - atr * 0.07, trade.takeProfit + atr * 0.07, 'TAKE PROFIT');
+  if (tpId) {
+    const tpD = drawings.find(d => d.id === tpId);
+    if (tpD) {
+      tpD.isLine       = true;
+      tpD.explanation  = extractText(tpLine) || `Target at ${fP(trade.takeProfit)} — next key level / support-resistance zone.`;
+      tpD.lineColor    = 'rgba(0,212,160,0.85)';
+    }
+  }
+
+  // 4. R:R label — non-highlighted arrow near the midpoint of the trade range
+  const midPrice = (trade.stopLoss + trade.takeProfit) / 2;
+  const rrLabel  = `R:R ${typeof trade.riskReward === 'number' ? trade.riskReward.toFixed(1) : '?'}`;
+  _addMentorArrow(
+    Math.max(entryBar + 3, tradeEnd - 10),
+    midPrice,
+    rrLabel,
+    isLong ? 'up' : 'down',
+    false,
+    `Risk-to-reward ratio of ${typeof trade.riskReward === 'number' ? trade.riskReward.toFixed(2) : '?'}:1 on this trade.`
+  );
+
+  try { saveDrawings(curSym.s, curTF); } catch(e) {}
+  if (typeof draw === 'function') draw();
+}
+
+// Toggle debrief annotations on/off via the Show/Hide button
+function toggleMentorDebriefAnnotations() {
+  const btn = document.getElementById('btn-show-annotations');
+  if (mentorState._debriefAnnotationsVisible) {
+    clearMentorAnnotations();
+    mentorState._debriefAnnotationsVisible = false;
+    if (btn) {
+      btn.textContent = '📍 Show Annotations';
+      btn.style.opacity = '1';
+      btn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
+      btn.style.borderColor = 'rgba(139,92,246,0.35)';
+      btn.style.color = '#a78bfa';
+    }
+  } else {
+    _mentorAnnotateDebrief();
+    mentorState._debriefAnnotationsVisible = true;
+    if (btn) {
+      btn.textContent = '🙈 Hide Annotations';
+      btn.style.opacity = '0.8';
+      btn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.35),rgba(139,92,246,0.15))';
+      btn.style.borderColor = 'rgba(139,92,246,0.7)';
+      btn.style.color = '#c4b5fd';
+    }
+  }
+}
+
 function _commit(ann) {
   if (!ann?.length) return;
 
