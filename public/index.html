@@ -130,6 +130,9 @@
     <button class="nav-btn green" id="btn-aisetups" onclick="openAISetups()" title="AI Setups" draggable="true" ondragstart="navDragStart(event,'aisetups','AI Setups')" ondragend="navDragEnd(event)">
       <span>⚡</span><span class="nav-tip">AI Setups</span>
     </button>
+    <button class="nav-btn" id="btn-backtest" onclick="openBacktester()" title="Strategy Backtester" draggable="true" ondragstart="navDragStart(event,'backtest','Backtester')" ondragend="navDragEnd(event)">
+      <span>📊</span><span class="nav-tip">Backtester</span>
+    </button>
     <!-- Pre-market brief -->
     <button class="nav-btn" id="btn-premarket" onclick="openPremarket()" title="Pre-Market Brief" draggable="true" ondragstart="navDragStart(event,'premarket','Pre-Market Brief')" ondragend="navDragEnd(event)">
       <span>☀</span><span class="nav-tip">Pre-Market Brief</span>
@@ -2507,6 +2510,98 @@
 </div>
 
 <script src="/app.js" defer></script>
+
+<!-- ── STRATEGY BACKTESTER ─────────────────────────────────────────────────── -->
+<div id="bt-bg" onclick="if(event.target===this)closeBacktester()">
+  <div id="bt-modal">
+    <div id="bt-hdr">
+      <div>
+        <div id="bt-title">📊 STRATEGY BACKTESTER</div>
+        <div id="bt-sub">Rule-based strategy testing on real historical data</div>
+      </div>
+      <button id="bt-close" onclick="closeBacktester()">✕</button>
+    </div>
+    <div id="bt-layout">
+      <!-- LEFT: Builder -->
+      <div id="bt-builder">
+        <div class="bt-sec">
+          <div class="bt-sec-hdr">PRESET STRATEGIES</div>
+          <select id="bt-preset" onchange="if(this.value)_btLoadPreset(this.value)">
+            <option value="">— Load a preset —</option>
+            <option value="rsi_reversal_long">RSI Reversal — Long</option>
+            <option value="rsi_reversal_short">RSI Reversal — Short</option>
+            <option value="ema_cross">EMA 9/21 Crossover</option>
+            <option value="macd_signal">MACD Signal Cross</option>
+            <option value="trend_pullback">Trend Pullback (Long)</option>
+            <option value="bb_breakout">Bollinger Band Breakout</option>
+          </select>
+        </div>
+        <div class="bt-sec">
+          <div class="bt-sec-hdr">TRADE DIRECTION</div>
+          <div class="bt-dir-row">
+            <button id="bt-dir-long"  class="bt-dir-btn active" onclick="_btSetDirection('long')">▲ Long</button>
+            <button id="bt-dir-short" class="bt-dir-btn"        onclick="_btSetDirection('short')">▼ Short</button>
+            <button id="bt-dir-both"  class="bt-dir-btn"        onclick="_btSetDirection('both')">↕ Both</button>
+          </div>
+        </div>
+        <div class="bt-sec">
+          <div class="bt-sec-hdr">ENTRY CONDITIONS <span style="color:var(--tx3);font-weight:400;font-size:10px">(ALL must be true)</span></div>
+          <div id="bt-cond-list"></div>
+          <div class="bt-add-row">
+            <select id="bt-cond-type" onchange="_btUpdateConditionUI()">
+              <optgroup label="RSI">
+                <option value="rsi_below">RSI below value</option>
+                <option value="rsi_above">RSI above value</option>
+                <option value="rsi_between">RSI between two values</option>
+              </optgroup>
+              <optgroup label="Moving Averages">
+                <option value="price_above_ema">Price above EMA</option>
+                <option value="price_below_ema">Price below EMA</option>
+                <option value="price_above_sma">Price above SMA</option>
+                <option value="price_below_sma">Price below SMA</option>
+                <option value="ema_cross_up">EMA 9 crosses above EMA 21</option>
+                <option value="ema_cross_down">EMA 9 crosses below EMA 21</option>
+              </optgroup>
+              <optgroup label="MACD">
+                <option value="macd_cross_up">MACD crosses above Signal</option>
+                <option value="macd_cross_down">MACD crosses below Signal</option>
+              </optgroup>
+              <optgroup label="Bollinger Bands">
+                <option value="bb_above_upper">Close above Upper Band</option>
+                <option value="bb_below_lower">Close below Lower Band</option>
+              </optgroup>
+              <optgroup label="Stochastic">
+                <option value="stoch_below">Stochastic %K below</option>
+                <option value="stoch_above">Stochastic %K above</option>
+              </optgroup>
+              <optgroup label="Volume">
+                <option value="volume_spike">Volume spike (×avg)</option>
+              </optgroup>
+            </select>
+            <div id="bt-v1-wrap" style="display:none"><label id="bt-v1-lbl" class="bt-vlbl">Value</label><input type="number" id="bt-v1" class="bt-vinput" value="30"></div>
+            <div id="bt-v2-wrap" style="display:none"><label id="bt-v2-lbl" class="bt-vlbl">Max</label><input type="number" id="bt-v2" class="bt-vinput" value="60"></div>
+            <button class="bt-add-btn" onclick="_btAddCondition()">+ Add</button>
+          </div>
+        </div>
+        <div class="bt-sec">
+          <div class="bt-sec-hdr">RISK SETTINGS</div>
+          <div class="bt-risk-grid">
+            <span>Stop loss</span><div class="bt-risk-row"><input type="number" id="bt-sl-mult" class="bt-vinput" value="1.5" min="0.5" max="5" step="0.1"><span class="bt-unit">× ATR</span></div>
+            <span>Take profit</span><div class="bt-risk-row"><input type="number" id="bt-rr" class="bt-vinput" value="2.0" min="0.5" max="10" step="0.5"><span class="bt-unit">R:R</span></div>
+            <span>Starting capital</span><div class="bt-risk-row"><span class="bt-unit">$</span><input type="number" id="bt-capital" class="bt-vinput" value="10000" min="100"></div>
+            <span>Risk per trade</span><div class="bt-risk-row"><input type="number" id="bt-riskpct" class="bt-vinput" value="1.0" min="0.1" max="20" step="0.1"><span class="bt-unit">%</span></div>
+          </div>
+        </div>
+        <button id="bt-run-btn" onclick="_btRunBacktest()">▶ Run Backtest</button>
+        <div id="bt-run-note">Running on current chart symbol &amp; timeframe</div>
+      </div>
+      <!-- RIGHT: Results -->
+      <div id="bt-results">
+        <div class="bt-empty">Configure a strategy on the left, then click Run Backtest</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

@@ -21034,3 +21034,434 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRATEGY BACKTESTER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BT_PRESETS = {
+  rsi_reversal_long: {
+    name:'RSI Reversal — Long', direction:'long',
+    conditions:[{type:'rsi_below',value:32},{type:'price_above_ema',period:200}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  rsi_reversal_short: {
+    name:'RSI Reversal — Short', direction:'short',
+    conditions:[{type:'rsi_above',value:68},{type:'price_below_ema',period:200}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  ema_cross: {
+    name:'EMA 9/21 Crossover', direction:'both',
+    conditions:[{type:'ema_cross_up'}],
+    slMult:1.5, rr:2.5, capital:10000, riskPct:1.0
+  },
+  macd_signal: {
+    name:'MACD Signal Cross', direction:'both',
+    conditions:[{type:'macd_cross_up'}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  trend_pullback: {
+    name:'Trend Pullback', direction:'long',
+    conditions:[{type:'price_above_ema',period:200},{type:'rsi_between',min:38,max:58},{type:'price_above_ema',period:21}],
+    slMult:1.5, rr:2.5, capital:10000, riskPct:1.0
+  },
+  bb_breakout: {
+    name:'Bollinger Band Breakout', direction:'both',
+    conditions:[{type:'bb_above_upper'}],
+    slMult:1.0, rr:2.0, capital:10000, riskPct:1.0
+  },
+};
+
+const BT_COND_LABELS = {
+  rsi_below:      c=>`RSI < ${c.value}`,
+  rsi_above:      c=>`RSI > ${c.value}`,
+  rsi_between:    c=>`RSI between ${c.min}–${c.max}`,
+  price_above_ema:c=>`Price above EMA ${c.period}`,
+  price_below_ema:c=>`Price below EMA ${c.period}`,
+  price_above_sma:c=>`Price above SMA ${c.period}`,
+  price_below_sma:c=>`Price below SMA ${c.period}`,
+  ema_cross_up:   ()=>'EMA 9 crosses above EMA 21',
+  ema_cross_down: ()=>'EMA 9 crosses below EMA 21',
+  macd_cross_up:  ()=>'MACD crosses above Signal',
+  macd_cross_down:()=>'MACD crosses below Signal',
+  bb_above_upper: ()=>'Close above Upper Bollinger Band',
+  bb_below_lower: ()=>'Close below Lower Bollinger Band',
+  stoch_below:    c=>`Stochastic %K < ${c.value}`,
+  stoch_above:    c=>`Stochastic %K > ${c.value}`,
+  volume_spike:   c=>`Volume > ${c.mult}× average`,
+};
+
+const btState = {
+  strategy:{ name:'My Strategy', direction:'long', conditions:[], slMult:1.5, rr:2.0, capital:10000, riskPct:1.0 },
+  result:null,
+};
+
+function openBacktester(){
+  document.getElementById('bt-bg').classList.add('open');
+  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '—'} · ${curTF}`;
+  _btRenderBuilder();
+}
+function closeBacktester(){ document.getElementById('bt-bg').classList.remove('open'); }
+
+function _btLoadPreset(key){
+  const p = BT_PRESETS[key];
+  if(!p) return;
+  Object.assign(btState.strategy, JSON.parse(JSON.stringify(p)));
+  _btRenderBuilder();
+  _btClearResults();
+  document.getElementById('bt-preset').value = '';
+}
+
+function _btSetDirection(d){
+  btState.strategy.direction = d;
+  ['long','short','both'].forEach(x=>{
+    document.getElementById('bt-dir-'+x)?.classList.toggle('active', x===d);
+  });
+}
+
+function _btRenderBuilder(){
+  const s = btState.strategy;
+  _btSetDirection(s.direction);
+  // Conditions
+  const list = document.getElementById('bt-cond-list');
+  if(!list) return;
+  if(!s.conditions.length){
+    list.innerHTML = '<div class="bt-cond-empty">No conditions yet — add rules below or choose a preset</div>';
+  } else {
+    list.innerHTML = s.conditions.map((c,i)=>{
+      const lbl = (BT_COND_LABELS[c.type]||((x)=>x.type))(c);
+      return `<div class="bt-cond-item">
+        <span class="bt-cond-dot">◆</span>
+        <span class="bt-cond-label">${lbl}</span>
+        <button class="bt-cond-remove" onclick="_btRemoveCond(${i})">✕</button>
+      </div>`;
+    }).join('');
+  }
+  // Risk inputs
+  const set = (id,v) => { const el=document.getElementById(id); if(el) el.value=v; };
+  set('bt-sl-mult', s.slMult);
+  set('bt-rr', s.rr);
+  set('bt-capital', s.capital);
+  set('bt-riskpct', s.riskPct);
+}
+
+function _btRemoveCond(i){
+  btState.strategy.conditions.splice(i,1);
+  _btRenderBuilder();
+}
+
+function _btUpdateConditionUI(){
+  const type = document.getElementById('bt-cond-type')?.value;
+  const v1w = document.getElementById('bt-v1-wrap');
+  const v2w = document.getElementById('bt-v2-wrap');
+  const v1l = document.getElementById('bt-v1-lbl');
+  const v2l = document.getElementById('bt-v2-lbl');
+  const v1  = document.getElementById('bt-v1');
+  const v2  = document.getElementById('bt-v2');
+  if(!v1w) return;
+  v1w.style.display='none'; v2w.style.display='none';
+  const show1=(lbl,val)=>{ v1w.style.display='flex'; if(v1l)v1l.textContent=lbl; if(v1)v1.value=val; };
+  switch(type){
+    case 'rsi_below': show1('RSI value',30); break;
+    case 'rsi_above': show1('RSI value',70); break;
+    case 'rsi_between':
+      v1w.style.display='flex'; v2w.style.display='flex';
+      if(v1l)v1l.textContent='Min'; if(v2l)v2l.textContent='Max';
+      if(v1)v1.value=40; if(v2)v2.value=60; break;
+    case 'price_above_ema': case 'price_below_ema': show1('EMA period',200); break;
+    case 'price_above_sma': case 'price_below_sma': show1('SMA period',50); break;
+    case 'volume_spike': show1('× avg vol',1.5); break;
+    case 'stoch_below': show1('%K value',20); break;
+    case 'stoch_above': show1('%K value',80); break;
+  }
+}
+
+function _btAddCondition(){
+  const type = document.getElementById('bt-cond-type')?.value;
+  if(!type) return;
+  const v1 = parseFloat(document.getElementById('bt-v1')?.value||'0');
+  const v2 = parseFloat(document.getElementById('bt-v2')?.value||'0');
+  let cond = {type};
+  switch(type){
+    case 'rsi_below': case 'rsi_above': case 'stoch_below': case 'stoch_above': cond.value=v1; break;
+    case 'rsi_between': cond.min=v1; cond.max=v2; break;
+    case 'price_above_ema': case 'price_below_ema': cond.period=v1||200; break;
+    case 'price_above_sma': case 'price_below_sma': cond.period=v1||50; break;
+    case 'volume_spike': cond.mult=v1||1.5; break;
+  }
+  btState.strategy.conditions.push(cond);
+  _btRenderBuilder();
+}
+
+function _btEvalCond(cond, i, data, inds){
+  const {rsiVals,ema9,ema21,ema200,sma20,sma50,macdVals,stochVals,bbs} = inds;
+  const b = data[i], p = data[i-1];
+  if(!b||!p) return false;
+  switch(cond.type){
+    case 'rsi_below':    return rsiVals?.[i]!=null && rsiVals[i]<cond.value;
+    case 'rsi_above':    return rsiVals?.[i]!=null && rsiVals[i]>cond.value;
+    case 'rsi_between':  return rsiVals?.[i]!=null && rsiVals[i]>=cond.min && rsiVals[i]<=cond.max;
+    case 'price_above_ema':{
+      const ea = cond.period===9?ema9:cond.period===21?ema21:ema200;
+      return ea?.[i]!=null && b.close>ea[i];
+    }
+    case 'price_below_ema':{
+      const ea = cond.period===9?ema9:cond.period===21?ema21:ema200;
+      return ea?.[i]!=null && b.close<ea[i];
+    }
+    case 'price_above_sma':{
+      const sa = cond.period===20?sma20:sma50;
+      return sa?.[i]!=null && b.close>sa[i];
+    }
+    case 'price_below_sma':{
+      const sa = cond.period===20?sma20:sma50;
+      return sa?.[i]!=null && b.close<sa[i];
+    }
+    case 'ema_cross_up':
+      return ema9&&ema21&&ema9[i]!=null&&ema21[i]!=null&&ema9[i-1]!=null&&ema21[i-1]!=null
+          && ema9[i]>ema21[i] && ema9[i-1]<=ema21[i-1];
+    case 'ema_cross_down':
+      return ema9&&ema21&&ema9[i]!=null&&ema21[i]!=null&&ema9[i-1]!=null&&ema21[i-1]!=null
+          && ema9[i]<ema21[i] && ema9[i-1]>=ema21[i-1];
+    case 'macd_cross_up':
+      return macdVals?.macd&&macdVals.macd[i]!=null&&macdVals.signal[i]!=null
+          && macdVals.macd[i]>macdVals.signal[i] && macdVals.macd[i-1]<=macdVals.signal[i-1];
+    case 'macd_cross_down':
+      return macdVals?.macd&&macdVals.macd[i]!=null&&macdVals.signal[i]!=null
+          && macdVals.macd[i]<macdVals.signal[i] && macdVals.macd[i-1]>=macdVals.signal[i-1];
+    case 'bb_above_upper':
+      return bbs?.upper&&bbs.upper[i]!=null && b.close>bbs.upper[i];
+    case 'bb_below_lower':
+      return bbs?.lower&&bbs.lower[i]!=null && b.close<bbs.lower[i];
+    case 'stoch_below':
+      return stochVals?.k&&stochVals.k[i]!=null && stochVals.k[i]<cond.value;
+    case 'stoch_above':
+      return stochVals?.k&&stochVals.k[i]!=null && stochVals.k[i]>cond.value;
+    case 'volume_spike':{
+      const avg=data.slice(Math.max(0,i-20),i).reduce((s,x)=>s+x.volume,0)/20;
+      return avg>0 && b.volume>avg*cond.mult;
+    }
+    default: return false;
+  }
+}
+
+function _btFlipCond(c){
+  const map={rsi_below:'rsi_above',rsi_above:'rsi_below',price_above_ema:'price_below_ema',price_below_ema:'price_above_ema',price_above_sma:'price_below_sma',price_below_sma:'price_above_sma',ema_cross_up:'ema_cross_down',ema_cross_down:'ema_cross_up',macd_cross_up:'macd_cross_down',macd_cross_down:'macd_cross_up',bb_above_upper:'bb_below_lower',bb_below_lower:'bb_above_upper'};
+  return {...c, type:map[c.type]||c.type};
+}
+
+function _btRunBacktest(){
+  const s = btState.strategy;
+  const data = curData;
+  if(!data||data.length<60){ _btShowError('Not enough data. Load a symbol with at least 60 bars.'); return; }
+  if(!s.conditions.length){ _btShowError('Add at least one entry condition before running.'); return; }
+
+  // Read UI values
+  s.slMult   = parseFloat(document.getElementById('bt-sl-mult')?.value)||1.5;
+  s.rr       = parseFloat(document.getElementById('bt-rr')?.value)||2.0;
+  s.capital  = parseFloat(document.getElementById('bt-capital')?.value)||10000;
+  s.riskPct  = parseFloat(document.getElementById('bt-riskpct')?.value)||1.0;
+
+  const btn = document.getElementById('bt-run-btn');
+  if(btn){ btn.textContent='⏳ Running…'; btn.disabled=true; }
+
+  // Pre-compute all indicators on full dataset
+  const inds = {
+    rsiVals:   calcRSI(data),
+    ema9:      calcEMA(data,9),
+    ema21:     calcEMA(data,21),
+    ema200:    calcEMA(data,200),
+    sma20:     calcSMA(data,20),
+    sma50:     calcSMA(data,50),
+    macdVals:  calcMACD(data),
+    stochVals: calcStoch(data),
+    bbs:       calcBB(data),
+  };
+
+  const trades=[], equityCurve=[{i:0,equity:s.capital}];
+  let equity=s.capital, openTrade=null;
+  const WARMUP=210;
+
+  for(let i=WARMUP; i<data.length-1; i++){
+    const bar=data[i], next=data[i+1];
+    if(!bar||!next) continue;
+
+    // Manage open trade
+    if(openTrade){
+      const {dir,entry,sl,tp,riskAmt}=openTrade;
+      const slHit = dir==='long'? bar.low<=sl  : bar.high>=sl;
+      const tpHit = dir==='long'? bar.high>=tp : bar.low<=tp;
+      let reason=null, exitPrice=null;
+      if(slHit&&tpHit){ reason='sl'; exitPrice=sl; }
+      else if(slHit)  { reason='sl'; exitPrice=sl; }
+      else if(tpHit)  { reason='tp'; exitPrice=tp; }
+
+      if(reason){
+        const riskDist=Math.abs(entry-sl);
+        const rMult = riskDist>0 ? (exitPrice-entry)*(dir==='long'?1:-1)/riskDist : 0;
+        const pnl   = riskAmt*(reason==='tp'?s.rr:-1);
+        equity+=pnl;
+        trades.push({...openTrade, exitBar:i, exitPrice, reason, rMult, pnl, barsHeld:i-openTrade.entryBar});
+        equityCurve.push({i, equity});
+        openTrade=null;
+      }
+      continue;
+    }
+
+    // Check entry
+    const dirs = s.direction==='both'?['long','short']:[s.direction];
+    for(const dir of dirs){
+      const condsMet = s.conditions.every(c=>{
+        const cond = (s.direction==='both'&&dir==='short') ? _btFlipCond(c) : c;
+        return _btEvalCond(cond,i,data,inds);
+      });
+      if(!condsMet) continue;
+
+      const entry  = next.open;
+      const atr    = calculateATR(i,14)||entry*0.01;
+      const sl     = dir==='long' ? entry-atr*s.slMult : entry+atr*s.slMult;
+      const riskDist = Math.abs(entry-sl);
+      const tp     = dir==='long' ? entry+riskDist*s.rr : entry-riskDist*s.rr;
+      const riskAmt= equity*(s.riskPct/100);
+
+      openTrade={dir, entryBar:i+1, entry, sl, tp, riskAmt};
+      break;
+    }
+  }
+
+  // Close any remaining open trade
+  if(openTrade){
+    const last=data[data.length-1];
+    const exitPrice=last.close;
+    const riskDist=Math.abs(openTrade.entry-openTrade.sl);
+    const rMult=riskDist>0?(exitPrice-openTrade.entry)*(openTrade.dir==='long'?1:-1)/riskDist:0;
+    const pnl=openTrade.riskAmt*rMult;
+    equity+=pnl;
+    trades.push({...openTrade,exitBar:data.length-1,exitPrice,reason:'open',rMult,pnl,barsHeld:data.length-1-openTrade.entryBar});
+    equityCurve.push({i:data.length-1,equity});
+  }
+
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
+
+  const stats = _btCalcStats(trades, equityCurve, s.capital, equity);
+  btState.result={trades,equityCurve,stats};
+  _btRenderResults(btState.result, data);
+}
+
+function _btCalcStats(trades, equityCurve, startCapital, finalEquity){
+  const n=trades.length;
+  if(!n) return {empty:true};
+  const wins  = trades.filter(t=>t.rMult>0);
+  const losses= trades.filter(t=>t.rMult<=0);
+  const winRate= wins.length/n*100;
+  const avgWin = wins.length  ? wins.reduce((s,t)=>s+t.rMult,0)/wins.length   : 0;
+  const avgLoss= losses.length? Math.abs(losses.reduce((s,t)=>s+t.rMult,0)/losses.length) : 0;
+  const pf = avgLoss===0 ? Infinity : (winRate/100*avgWin)/((1-winRate/100)*avgLoss);
+  const exp= (winRate/100)*avgWin - (1-winRate/100)*avgLoss;
+  const totalRetPct=((finalEquity-startCapital)/startCapital)*100;
+  let peak=startCapital, maxDDPct=0;
+  equityCurve.forEach(p=>{ if(p.equity>peak)peak=p.equity; const dd=(peak-p.equity)/peak*100; if(dd>maxDDPct)maxDDPct=dd; });
+  let maxW=0,maxL=0,cW=0,cL=0;
+  trades.forEach(t=>{ t.rMult>0?(cW++,cL=0,maxW=Math.max(maxW,cW)):(cL++,cW=0,maxL=Math.max(maxL,cL)); });
+  return {n,wins:wins.length,losses:losses.length,winRate,avgWin,avgLoss,pf,exp,totalRetPct,finalEquity,startCapital,maxDDPct,maxW,maxL,avgBars:trades.reduce((s,t)=>s+(t.barsHeld||0),0)/n};
+}
+
+function _btRenderResults({trades,equityCurve,stats}){
+  const el=document.getElementById('bt-results');
+  if(!el) return;
+  if(!stats||stats.empty||!trades.length){
+    el.innerHTML='<div class="bt-error">No trades generated. Try loosening conditions, switching timeframe, or loading a preset.</div>';
+    return;
+  }
+  const {n,wins,losses,winRate,avgWin,avgLoss,pf,exp,totalRetPct,finalEquity,startCapital,maxDDPct,maxW,maxL,avgBars}=stats;
+  const pc=(v,good)=>v>=0?`color:${good?'#00c9a0':'#ff4d6a'}`:`color:${good?'#ff4d6a':'#00c9a0'}`;
+  const sign=v=>v>=0?'+':'';
+  el.innerHTML=`
+    <div class="bt-stats-grid">
+      <div class="bt-stat"><div class="bt-stat-val" style="${pc(totalRetPct,true)}">${sign(totalRetPct)}${totalRetPct.toFixed(1)}%</div><div class="bt-stat-label">Net Return</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:${winRate>=50?'#00c9a0':'#ff4d6a'}">${winRate.toFixed(0)}%</div><div class="bt-stat-label">Win Rate</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:${pf>=1?'#00c9a0':'#ff4d6a'}">${isFinite(pf)?pf.toFixed(2):'∞'}</div><div class="bt-stat-label">Profit Factor</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="${pc(exp,true)}">${sign(exp)}${exp.toFixed(2)}R</div><div class="bt-stat-label">Expectancy</div></div>
+      <div class="bt-stat"><div class="bt-stat-val">${n}</div><div class="bt-stat-label">Trades</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">-${maxDDPct.toFixed(1)}%</div><div class="bt-stat-label">Max Drawdown</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">+${avgWin.toFixed(2)}R</div><div class="bt-stat-label">Avg Win</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">-${avgLoss.toFixed(2)}R</div><div class="bt-stat-label">Avg Loss</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">${wins}</div><div class="bt-stat-label">Winners</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">${losses}</div><div class="bt-stat-label">Losers</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">${maxW}</div><div class="bt-stat-label">Best Streak</div></div>
+      <div class="bt-stat"><div class="bt-stat-val">${Math.round(avgBars)}</div><div class="bt-stat-label">Avg Bars Held</div></div>
+    </div>
+    <div class="bt-results-hdr" style="margin-top:14px">EQUITY CURVE</div>
+    <canvas id="bt-eq-canvas" height="120" style="width:100%;display:block"></canvas>
+    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades · $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
+    <div class="bt-trade-table">
+      <div class="bt-trade-hdr"><span>#</span><span>Dir</span><span>Entry</span><span>Exit</span><span>Result</span><span>R</span><span>P&amp;L</span></div>
+      <div class="bt-trade-rows">${trades.slice(0,300).map((t,i)=>{
+        const rc=t.rMult>0?'#00c9a0':'#ff4d6a';
+        const res=t.reason==='tp'?'✓ TP':t.reason==='sl'?'✗ SL':'⏸ Open';
+        return `<div class="bt-trade-row ${t.rMult>0?'win':'loss'}">
+          <span style="color:var(--tx3)">${i+1}</span>
+          <span style="color:${t.dir==='long'?'#00c9a0':'#ff4d6a'}">${t.dir==='long'?'▲':'▼'} ${t.dir}</span>
+          <span>${fP(t.entry)}</span>
+          <span>${fP(t.exitPrice)}</span>
+          <span>${res}</span>
+          <span style="color:${rc}">${t.rMult>=0?'+':''}${t.rMult.toFixed(2)}R</span>
+          <span style="color:${rc}">${t.pnl>=0?'+':''}$${Math.abs(t.pnl).toFixed(0)}</span>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  requestAnimationFrame(()=>_btDrawEquity(equityCurve, startCapital));
+}
+
+function _btDrawEquity(equityCurve, startCapital){
+  const canvas=document.getElementById('bt-eq-canvas');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth, H=120;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0a0e14'; ctx.fillRect(0,0,W,H);
+  if(equityCurve.length<2) return;
+  const vals=equityCurve.map(p=>p.equity);
+  const minV=Math.min(...vals), maxV=Math.max(...vals);
+  const range=maxV-minV||1;
+  const pad=14;
+  const toX=idx=>pad+idx*(W-pad*2)/(equityCurve.length-1);
+  const toY=v=>H-pad-(v-minV)*(H-pad*2)/range;
+  // Baseline
+  const baseY=toY(startCapital);
+  ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(pad,baseY); ctx.lineTo(W-pad,baseY); ctx.stroke();
+  ctx.setLineDash([]);
+  const isUp=vals[vals.length-1]>=startCapital;
+  const col=isUp?'#00c9a0':'#ff4d6a';
+  // Fill
+  const grad=ctx.createLinearGradient(0,pad,0,H);
+  grad.addColorStop(0,isUp?'rgba(0,201,160,0.25)':'rgba(255,77,106,0.25)');
+  grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.moveTo(toX(0),toY(equityCurve[0].equity));
+  equityCurve.forEach((p,i)=>ctx.lineTo(toX(i),toY(p.equity)));
+  ctx.lineTo(toX(equityCurve.length-1),H-pad); ctx.lineTo(toX(0),H-pad);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  // Line
+  ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.5;
+  equityCurve.forEach((p,i)=>i?ctx.lineTo(toX(i),toY(p.equity)):ctx.moveTo(toX(i),toY(p.equity)));
+  ctx.stroke();
+  // Labels
+  ctx.font=`${9*dpr/dpr}px sans-serif`; ctx.fillStyle='#6b8099';
+  ctx.textAlign='left'; ctx.fillText('$'+Math.round(maxV).toLocaleString(),pad+2,pad+9);
+  ctx.textAlign='right'; ctx.fillText('$'+Math.round(minV).toLocaleString(),W-pad-2,H-pad-3);
+}
+
+function _btClearResults(){
+  const el=document.getElementById('bt-results');
+  if(el) el.innerHTML='<div class="bt-empty">Configure your strategy and click Run Backtest</div>';
+}
+function _btShowError(msg){
+  const el=document.getElementById('bt-results');
+  if(el) el.innerHTML=`<div class="bt-error">⚠ ${msg}</div>`;
+  const btn=document.getElementById('bt-run-btn');
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
+}
