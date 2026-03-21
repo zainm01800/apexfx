@@ -603,6 +603,7 @@
 
         <!-- ── TRADE COMPLETION ─────────────────────────────────────────── -->
         <div id="trade-completion-controls" style="display:none;padding:12px 14px;">
+          <button id="btn-show-annotations" onclick="toggleMentorDebriefAnnotations()" style="width:100%;padding:9px;margin-bottom:8px;background:linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08));border:1px solid rgba(139,92,246,0.35);border-radius:7px;color:#a78bfa;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.3px;transition:all .15s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.65)'" onmouseout="this.style.borderColor=mentorState._debriefAnnotationsVisible?'rgba(139,92,246,0.7)':'rgba(139,92,246,0.35)'">📍 Show Annotations</button>
           <button onclick="continueReplayAfterTradeCompletion()" style="width:100%;padding:10px;background:linear-gradient(135deg,rgba(0,212,160,0.2),rgba(0,212,160,0.08));border:1px solid rgba(0,212,160,0.35);border-radius:7px;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.3px;transition:all .15s;" onmouseover="this.style.borderColor='rgba(0,212,160,0.6)'" onmouseout="this.style.borderColor='rgba(0,212,160,0.35)'">▶ Continue Replay</button>
         </div>
 
