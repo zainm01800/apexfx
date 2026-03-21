@@ -4049,7 +4049,6 @@ let mentorState = {
   waitingForTrade: false,
   currentSetup: null,
   // New quality filtering properties
-  lastTradeSuggestionBar: -1000, // Track cooldown
   cooldownCandles: 0, // No cooldown — strict detection criteria prevent over-trading
   lastMarketStructure: 'unknown',
   confluenceScore: 0,
@@ -4132,7 +4131,7 @@ function mentorPhaseMeta(){
   if (mentorState.exampleTradeActive && state === 'no_setup_found') state = 'trade_monitoring';
   const map = {
     method_selection: { pill:'SETUP', status:'Choose a strategy', note:'Pick the style you want to practice so the mentor can teach one clear playbook at a time.', color:'var(--pu)' },
-    scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:'The mentor is quietly checking structure, confluence, and timing for the next good teaching example.', color:'var(--bl)' },
+    scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:`Scanning for ${(()=>{const m={breakout:'Breakout',trend:'Trend Following',support_resistance:'S&R',pullback:'Pullback',range:'Range',liquidity:'Liquidity Sweep'};return m[mentorState.selectedTradingMethod]||'setup';})()}  criteria — checking structure, confluence, and timing.`, color:'var(--bl)' },
     no_setup_found:   { pill:'WAITING', status:'No clean setup yet', note:'Nothing worth forcing right now. That is part of the lesson too.', color:'var(--tx2)' },
     waiting:          { pill:'WAITING', status:'Letting the chart develop', note:'The mentor is waiting for clearer price action before stepping in.', color:'var(--am)' },
     setup_detected:   { pill:'HEADS UP', status:'A setup is approaching', note:'An opportunity is ahead. Watch how the context builds before the trade is ready.', color:'var(--bl)' },
@@ -4260,8 +4259,20 @@ function dismissSetupMessage() {
   clearMentorAnnotations();
   resumeReplayAfterSetup();
   
-  mentorState.currentInsights = ['📊 Resuming market scanning...'];
-  mentorState.currentQuestion = 'Looking for new trading opportunities...';
+  const _dismissMethod = mentorState.selectedTradingMethod || 'setup';
+  const _dismissLabel = {
+    breakout: 'Breakout', trend: 'Trend Following',
+    support_resistance: 'S&R', pullback: 'Pullback',
+    range: 'Range', liquidity: 'Liquidity Sweep'
+  }[_dismissMethod] || _dismissMethod;
+  const _dismissSetup = mentorState.pendingSetupDetection;
+  const _dismissDir   = _dismissSetup?.direction || null;
+  const _dismissQual  = _dismissSetup?.quality    || null;
+  mentorState.currentInsights = [
+    `↩ Back to scanning for ${_dismissLabel} setups.`,
+    _dismissDir && _dismissQual ? `Last setup was a ${_dismissQual} ${_dismissDir} opportunity — watch for similar conditions.` : 'Keep the replay running — the mentor will flag the next opportunity.',
+  ];
+  mentorState.currentQuestion = 'Advance bars to continue. The mentor will pause again when the next qualifying setup appears.';
   updateMentorUI();
 }
 
@@ -4297,32 +4308,29 @@ function addRealtimeUpdate(currentBar) {
   }
   
   // Setup-specific updates
-  switch (setupData.setup) {
-    case 'breakout':
-      if (currentPrice > (setupData.breakoutLevel || currentPrice) * 1.01) {
-        update = "• Momentum increasing";
-      } else {
-        update = "• Waiting for confirmation candle";
-      }
-      break;
-      
-    case 'support_bounce':
-      if (currentPrice > previousPrice) {
-        update = "• Bounce momentum building";
-      } else {
-        update = "• Testing support levels";
-      }
-      break;
-      
-    case 'resistance_rejection':
-      if (currentPrice < previousPrice) {
-        update = "• Rejection confirming";
-      } else {
-        update = "• Price challenging resistance";
-      }
-      break;
-  }
-  
+  const methodHint = (() => {
+    const method = mentorState.selectedTradingMethod || setupData.setup || '';
+    switch (method) {
+      case 'breakout': case 'range_breakout':
+        return currentPrice > previousPrice ? '• Momentum building toward breakout' : '• Waiting for breakout confirmation candle';
+      case 'support_resistance': case 'support_bounce':
+        return currentPrice > previousPrice ? '• Bounce momentum building' : '• Testing support — watching for rejection wick';
+      case 'resistance_rejection':
+        return currentPrice < previousPrice ? '• Rejection confirming' : '• Price challenging resistance';
+      case 'trend': case 'flag_continuation': case 'structure_continuation':
+        return currentPrice > previousPrice ? '• Trend resumption in progress' : '• Pullback continuing — watching for reversal signal';
+      case 'pullback': case 'trend_pullback':
+        return currentPrice < previousPrice ? '• Pullback deepening — approaching entry zone' : '• Pullback stalling — possible reversal forming';
+      case 'range':
+        return Math.abs(currentPrice - previousPrice) < (curData?.[currentBar]?.high - curData?.[currentBar]?.low) * 0.3 ? '• Price consolidating at range boundary' : '• Boundary test in progress';
+      case 'liquidity': case 'liquidity_sweep':
+        return currentPrice > previousPrice ? '• Displacement candle forming — institutional move' : '• Sweep developing — watching for reversal';
+      default:
+        return currentPrice > previousPrice ? '• Price moving in favour of setup' : '• Price pulling back — watching for support';
+    }
+  })();
+  update = methodHint;
+
   // Add update if it's new
   if (update && !mentorState.realtimeUpdates.includes(update)) {
     mentorState.realtimeUpdates.push(update);
@@ -4604,15 +4612,16 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   }
 
   // Wick proximity warning — alert if the wick is getting close to SL even if close is not
-  if (currentBar && trade.direction === 'long' && currentBar.low) {
-    const wickDistToSL = (currentBar.low - trade.stopLoss) / riskDist;
+  const _wickBar = curData && replayCutoff >= 0 ? curData[replayCutoff] : null;
+  if (_wickBar && trade.direction === 'long') {
+    const wickDistToSL = (_wickBar.low - trade.stopLoss) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `⚠️ Wick approaching SL — low @ ${currentBar.low.toFixed(4)}, stop @ ${trade.stopLoss.toFixed(4)}`;
+      update = `⚠️ Wick approaching SL — low @ ${fP(_wickBar.low)}, stop @ ${fP(trade.stopLoss)}`;
     }
-  } else if (currentBar && trade.direction === 'short' && currentBar.high) {
-    const wickDistToSL = (trade.stopLoss - currentBar.high) / riskDist;
+  } else if (_wickBar && trade.direction === 'short') {
+    const wickDistToSL = (trade.stopLoss - _wickBar.high) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `⚠️ Wick approaching SL — high @ ${currentBar.high.toFixed(4)}, stop @ ${trade.stopLoss.toFixed(4)}`;
+      update = `⚠️ Wick approaching SL — high @ ${fP(_wickBar.high)}, stop @ ${fP(trade.stopLoss)}`;
     }
   }
 
@@ -7382,7 +7391,13 @@ function toggleMentor() {
 function showMentorPopup() {
   const popup = document.getElementById('mentor-popup');
   if (popup) {
-    popup.style.display = 'block';
+    if (!localStorage.getItem('mentor-popup-seen')) {
+      popup.style.display = 'block';
+    } else {
+      // Skip popup for returning users — go straight to enabling
+      enableMentorFromPopup();
+      return;
+    }
     popup.style.opacity = '0';
     popup.style.transform = 'translate(-50%, -50%) scale(0.9)';
     
@@ -7420,6 +7435,7 @@ function closeMentorPopup() {
 
 function enableMentorFromPopup() {
   closeMentorPopup();
+  localStorage.setItem('mentor-popup-seen', '1');
   // Defer activation until after the popup close animation (200ms) has fully completed.
   // Without this delay, Vercel's CDN-served JS can race the setTimeout inside
   // closeMentorPopup and the panel.style.display = 'none' fires AFTER we show the panel.
@@ -7444,6 +7460,11 @@ function enableMentorFromPopup() {
     const panel = document.getElementById('ai-mentor-panel');
     if (panel) {
       panel.style.display = 'block';
+      // Always reset to a visible position so the panel is never off-screen
+      panel.style.left = '80px';
+      panel.style.top  = '60px';
+      panel.style.right  = 'auto';
+      panel.style.bottom = 'auto';
     }
 
     // Show trading method selection
@@ -9605,7 +9626,10 @@ function updateMentor() {
       // Cooldown: minimum 30 bars between setup suggestions.
       // Return immediately — no DOM work, no scan.
       const barsSinceLast = currentBar - (mentorState.lastTradeSuggestionBar || -999);
-      if (barsSinceLast < 30) return;
+      if (barsSinceLast < 30) {
+        updateMentorUIWithCooldown(30 - barsSinceLast);
+        return;
+      }
 
       // analyzeMarketData runs EMAs, SMAs, RSI, MACD — cache it by bar
       if (!mentorState._analysisCache || mentorState._analysisCache.bar !== currentBar) {
@@ -9717,28 +9741,28 @@ function updateMentor() {
 function updateMentorUIWithCooldown(candlesRemaining) {
   const insightsEl = document.getElementById('mentor-insights');
   const questionEl = document.getElementById('mentor-question');
-  
   if (!insightsEl || !questionEl) return;
-  
+  mentorRefreshHeader();
+
+  const method = mentorState.selectedTradingMethod || 'setup';
+  const methodLabel = {
+    breakout: 'Breakout', trend: 'Trend Following',
+    support_resistance: 'S&R', pullback: 'Pullback',
+    range: 'Range', liquidity: 'Liquidity Sweep'
+  }[method] || method;
+
   const analysis = mentorState.analysis;
-  let insights = [];
-  
-  // Basic market context
-  if (analysis.structure && analysis.structure.trend) {
-    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')}`);
-  } else {
-    insights.push(`Market structure: analyzing...`);
-  }
-  
-  if (analysis.trend !== 'neutral') {
-    insights.push(`Trend: ${analysis.trend.replace('_', ' ').toUpperCase()}`);
-  }
-  
-  // Cooldown message
-  insights.push(`🔍 Scanning for ${mentorState.selectedTradingMethod || 'setup'} criteria...`);
-  
-  insightsEl.textContent = insights.join('. ');
-  questionEl.textContent = '';
+  const trend = analysis?.structure?.trend?.replace(/_/g, ' ') || null;
+  const lines = [
+    `🔍 Scanning for ${methodLabel} criteria...`,
+    trend ? `Market structure: ${trend}.` : 'Reading market structure...',
+    `Next scan in ${candlesRemaining} bar${candlesRemaining !== 1 ? 's' : ''}.`,
+  ];
+
+  insightsEl.innerHTML = lines.map(l =>
+    `<div style="margin-bottom:8px;line-height:1.55;color:var(--tx2);font-size:11px;">${l}</div>`
+  ).join('');
+  questionEl.textContent = 'The mentor checks every 30 bars to avoid flagging low-quality setups.';
 }
 
 function generateHighQualityTradeInsights(setupDetection) {
@@ -9751,17 +9775,17 @@ function generateHighQualityTradeInsights(setupDetection) {
   let insights = [];
   let question = '';
 
-  // ── Pass 1 verdict badge ───────────────────────────────────────────────────
+  // ── Pass 1 verdict badge — shown FIRST so it's the headline ──────────────
   const v = setupDetection.validation?.verdict;
   if (v) {
     const verdictEmoji = { Strong: '🟢', Decent: '🟡', Weak: '🟠', Reject: '🔴' }[v.verdict] || '⚪';
-    insights.push(`${verdictEmoji} Verdict: ${v.verdict} (${v.qualityScore}/100) — ${v.timing}`);
+    insights.push(`${verdictEmoji} <strong>${v.verdict} setup</strong> — Score: ${v.qualityScore}/100 · ${v.timing}`);
     if (v.strengths.length)  insights.push(`✅ ${v.strengths[0]}`);
     if (v.weaknesses.length) insights.push(`⚠️ ${v.weaknesses[0]}`);
   }
 
   // ── Common header ─────────────────────────────────────────────────────────
-  insights.push(`Market structure: ${trend} 🚀`);
+  insights.push(`Market structure: ${trend}`);
 
   // ── Method-specific analysis panel text ───────────────────────────────────
   switch (method) {
@@ -10346,8 +10370,9 @@ function updateMentorUI() {
   }
   
   // Update candle info
-  if (candleInfoEl && mentorState.analysis) {
+  if (candleInfoEl && mentorState.analysis && mentorState.currentBar >= 0) {
     const bar = curData[mentorState.currentBar];
+    if (!bar) { candleInfoEl.textContent = ''; return; }
     const date = new Date(bar.time * 1000);
     candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} • ${date.toLocaleDateString()}`;
   }
@@ -12759,8 +12784,9 @@ function _addMentorArrow(bar, price, label, direction = 'down', highlight = fals
     bar, price: price,
     pointing: direction === 'up' ? 'up' : 'down',
     label: label || '',
-    explanation: explanation || '',  // full explanation shown in bubble
+    explanation: explanation || '',
     highlight,
+    tier: highlight ? 'primary' : 'secondary',
     id,
     isMentorAnnotation: true,
   };
@@ -12914,7 +12940,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // ── Cache check: serve cached drawings if stage hasn't advanced ──────────
   // This ensures annotations NEVER disappear when scrolling back.
   // We only recompute when curStage advances beyond what's cached.
-  const cache = null;
+  const cache = mentorState._annCache;
   if (cache && cache.setupBar === setupBar && cache.method === method) {
     if (curStage <= cache.stage) {
       // Stage hasn't advanced — restore cached drawings and return
@@ -13035,8 +13061,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // and S&R methods show their own structural context in Stage 2.
   // ══════════════════════════════════════════════════════════════════════════
   const _methodNeedsSwingContext = method === 'trend' || method === 'pullback' ||
-    method === 'flag_continuation' || method === 'structure_continuation' ||
-    method === 'support_resistance';
+    method === 'flag_continuation' || method === 'structure_continuation';
+    // Note: support_resistance intentionally excluded — S&R is about price levels,
+    // not swing sequences. Level touches are shown in Stage 2 instead.
   if (_methodNeedsSwingContext) {
     const tUp = structure.trend?.includes('up');
     const tDn = structure.trend?.includes('down');
@@ -13222,7 +13249,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   // Anchored to real OHLC. Explains exactly what to look for.
   // ══════════════════════════════════════════════════════════════════════════
   if (showConf) {
-    const dc = isVis(detectionBar) ? curData[detectionBar] : null;
+    // For stage-3 entry annotations during setup_detected phase,
+    // the setup bar may still be in the future so detectionBar fails isVis().
+    // Use liveBar as the anchor so the annotation renders at the current bar.
+    const entryAnchorBar = isVis(detectionBar) ? detectionBar : liveBar;
+    const dc = curData[entryAnchorBar] || null;
 
     if (dc) {
       switch (method) {
@@ -13235,7 +13266,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const body = Math.abs(dc.close-dc.open)||0.001;
           const ratio = wick/body;
           if (inRange(px))
-            addArrow(detectionBar, px,
+            addArrow(entryAnchorBar, px,
               ratio >= 1.5 ? `Rejection wick (${ratio.toFixed(1)}×)`
               : ratio >= 0.7 ? `Reaction candle`
               : `Level test`,
@@ -13250,7 +13281,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const px = dir==='long' ? dc.high : dc.low;
           const pct = Math.round(Math.abs(dc.close-dc.open)/Math.max(dc.high-dc.low,0.001)*100);
           if (inRange(px))
-            addArrow(detectionBar, px,
+            addArrow(entryAnchorBar, px,
               `Breakout (${pct}% body)`,
               dir==='long'?'down':'up', true, 1,
               pct >= 60
@@ -13265,7 +13296,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const px  = dir==='long' ? dc.low : dc.high;
           const pct = pb.detected && pb.retrace ? Math.round(pb.retrace*100) : null;
           if (inRange(px))
-            addArrow(detectionBar, px,
+            addArrow(entryAnchorBar, px,
               pct ? `${pct}% pullback — entry` : `Trend resuming`,
               dir==='long'?'up':'down', true, 1,
               pct
@@ -13276,7 +13307,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
         case 'liquidity': {
           const sw  = detectLiquiditySweep(data);
-          const swB = detectionBar-1;
+          const swB = entryAnchorBar-1;
           const swC = isVis(swB) ? curData[swB] : null;
           if (sw.detected && swC) {
             const sp = dir==='long' ? swC.low : swC.high;
@@ -13287,7 +13318,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           }
           const dp = dir==='long' ? dc.high : dc.low;
           if (inRange(dp))
-            addArrow(detectionBar, dp, `Displacement — enter next`,
+            addArrow(entryAnchorBar, dp, `Displacement — enter next`,
               dir==='long'?'down':'up', true, 1,
               `The displacement candle closed strongly ${dir==='long'?'up':'down'} after the sweep — this is institutional money entering. Enter on the open of the next candle.`);
           break;
@@ -13296,7 +13327,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         case 'range': {
           const px = dir==='long' ? dc.low : dc.high;
           if (inRange(px))
-            addArrow(detectionBar, px,
+            addArrow(entryAnchorBar, px,
               dir==='long' ? `Boundary bounce` : `Boundary rejection`,
               dir==='long'?'up':'down', true, 1,
               dir==='long'
@@ -13888,7 +13919,11 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         // Band height is whichever is larger: bubble height + margin, or 16% of chart height
         if (!ctx._placedBubbles) ctx._placedBubbles = [];
         if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
-        if (ctx._mentorBubbleCount >= 4 && !isPrimary && !d.highlight) break;
+        // Reserve 2 slots specifically for confluence factor annotations (✦ prefix).
+        // Non-confluence secondary annotations are capped at 3 to leave room.
+        const isConfluence = !!(d.isConfluenceFactor || d.label?.startsWith('✦'));
+        const maxAllowed = isConfluence ? 6 : 4;
+        if (ctx._mentorBubbleCount >= maxAllowed && !isPrimary && !d.highlight) break;
         if (explanation) ctx._mentorBubbleCount++;
 
         const chartH     = chartBottom - chartTop;
