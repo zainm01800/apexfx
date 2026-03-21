@@ -16284,6 +16284,21 @@ function authShowTab(tab){
   });
 }
 
+function openAuthPrompt(tab){
+  const screen = document.getElementById('auth-screen');
+  const tabs = document.getElementById('auth-tabs');
+  if(tabs) tabs.style.display = 'flex';
+  if(screen) screen.style.display = 'flex';
+  authShowTab(tab || 'login');
+}
+
+function closeAuthOverlay(){
+  const screen = document.getElementById('auth-screen');
+  const tabs = document.getElementById('auth-tabs');
+  if(tabs) tabs.style.display = 'flex';
+  if(screen) screen.style.display = 'none';
+}
+
 async function authSubmitLogin(){
   console.log('🚀 authSubmitLogin called');
   
@@ -16331,7 +16346,7 @@ async function authSubmitLogin(){
     }
     
     console.log('✅ Showing app interface...');
-    document.getElementById('auth-screen').style.display = 'none';
+    closeAuthOverlay();
     document.getElementById('app').style.display = 'flex';
     doLogin(result.username, result.displayName);
     
@@ -16367,7 +16382,7 @@ async function authSubmitRegister(){
   if(!loginResult.ok){ errEl.textContent = loginResult.err; return; }
   _currentUser   = loginResult.username;
   _currentUserId = loginResult.userId;
-  document.getElementById('auth-screen').style.display = 'none';
+  closeAuthOverlay();
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
   loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
@@ -16377,7 +16392,6 @@ async function authSubmitRegister(){
 
 function openChangePass(){
   document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
   // Show only changepass panel, hide tabs
   document.getElementById('auth-tabs').style.display = 'none';
   document.getElementById('auth-cp-username').textContent = _currentUser;
@@ -16390,7 +16404,6 @@ function openChangePass(){
 function closeChangePass(){
   document.getElementById('auth-tabs').style.display = 'flex';
   document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
 }
 
 async function authSubmitChangePass(){
@@ -16745,6 +16758,39 @@ async function authChangePassword(username, oldPass, newPass){
 function authLogin(username, password){ return { ok:false, err:'Use authLoginAsync instead.' }; }
 function authRegister(username, password, displayName){ return { ok:false, err:'Use authRegisterAsync instead.' }; }
 
+function enterGuestMode(){
+  _currentUser = null;
+  _currentUserId = null;
+  updateCloudSyncBadge({ status:'offline', message:'Local workspace only', lastOkAt:0 });
+  try{ alerts = JSON.parse(_lsGet('alerts')) || []; }catch(e){ alerts=[]; }
+  try{
+    watchlist = new Set();
+    const wl = JSON.parse(_lsGet('watchlist'));
+    if(Array.isArray(wl)) wl.forEach(s => watchlist.add(s));
+  }catch(e){}
+  try{ topbarInds = JSON.parse(_lsGet('topbar-inds')||'null') || DEFAULT_TOPBAR_INDS.slice(); }catch(e){ topbarInds = DEFAULT_TOPBAR_INDS.slice(); }
+  loadIndActive();
+  applyIndActive();
+  try{ customIndicators = JSON.parse(_lsGet('custom-inds')||'[]'); }catch(e){ customIndicators=[]; }
+  try{ showSessions = JSON.parse(_lsGet('sessions')||'false'); }catch(e){}
+  try{ const ah = JSON.parse(_lsGet('analytics-hidden')||'[]'); analyticsHidden = new Set(ah); }catch(e){ analyticsHidden = new Set(); }
+  loadJournal();
+  hydratePersonalizationCaches();
+  saveTraderProfileSnapshot(true);
+  loadSettingsFromStorage();
+  renderTopbarInds();
+  buildWL();
+  setTimeout(() => {
+    _dockedKeys.clear();
+    document.querySelectorAll('.tb-docked-btn').forEach(b => b.remove());
+    _tbInitBlocks();
+    _tbLoadState();
+    _syncAllDockedBtns();
+  }, 100);
+  updateUserBadge(null);
+  document.getElementById('app').style.display = 'flex';
+}
+
 function doLogin(username, displayName){
   _currentUser = username;
   _saveSession(username);
@@ -16834,40 +16880,40 @@ async function doLogout(){
 
   _stopAutoSave();
   _clearSession();
-  _currentUser   = null;
-  _currentUserId = null;
   // Reset Supabase circuit breaker so next login gets a fresh attempt
   _supaRLSBlocked = false;
   _supaRLSFailCount = 0;
-  updateCloudSyncBadge({ status:'offline', message:'Local only', lastOkAt:0 });
   _supa.auth.signOut().catch(()=>{});
-
-  // Clear runtime state
-  journal = []; alerts = []; watchlist = new Set();
-  customIndicators = []; topbarInds = DEFAULT_TOPBAR_INDS.slice();
-  analyticsHidden = new Set(); showSessions = false;
-
-  // Show auth screen
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-  authShowTab('login');
-  updateUserBadge(null);
-  toast('Logged out');
+  closeAuthOverlay();
+  enterGuestMode();
+  toast('Logged out - continuing in local mode');
 }
 
 function updateUserBadge(displayName){
   const badge = document.getElementById('user-badge');
+  const logoutBtn = document.getElementById('btn-logout');
+  const loginBtn = document.getElementById('btn-login');
+  const signupBtn = document.getElementById('btn-signup');
+  const cpBtn = document.getElementById('btn-change-pass');
   if(!badge) return;
   if(displayName){
     badge.textContent = displayName.slice(0,16);
     badge.title = `Logged in as ${_currentUser}`;
     badge.style.display = '';
+    if(logoutBtn) logoutBtn.style.display = '';
+    if(cpBtn) cpBtn.style.display = '';
+    if(loginBtn) loginBtn.style.display = 'none';
+    if(signupBtn) signupBtn.style.display = 'none';
     updateCloudSyncBadge(_currentUserId
       ? { status:_cloudSyncState.status || 'syncing', message:_cloudSyncState.message || 'Cloud sync ready' }
       : { status:'offline', message:'Using local storage until cloud session is ready' });
   } else {
     badge.style.display = 'none';
-    updateCloudSyncBadge({ status:'offline', message:'Local only' });
+    if(logoutBtn) logoutBtn.style.display = 'none';
+    if(cpBtn) cpBtn.style.display = 'none';
+    if(loginBtn) loginBtn.style.display = '';
+    if(signupBtn) signupBtn.style.display = '';
+    updateCloudSyncBadge({ status:'offline', message:'Local workspace only' });
   }
 }
 
@@ -16995,14 +17041,15 @@ window.addEventListener('load', () => {
       _currentUser   = username;
       _currentUserId = session.user.id;
       await _syncFromCloud();
-      document.getElementById('auth-screen').style.display = 'none';
+      closeAuthOverlay();
       document.getElementById('app').style.display = 'flex';
       doLogin(username, displayName);
       loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
     } else {
       // No active session — show auth screen
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('auth-screen').style.display = 'flex';
+      closeAuthOverlay();
+      enterGuestMode();
+      loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
     }
   })();
 
@@ -20890,14 +20937,5 @@ document.addEventListener('visibilitychange', () => {
     _flushWriteQueue();
   }
 });
-
-
-
-
-
-
-
-
-
 
 
