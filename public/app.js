@@ -13401,66 +13401,84 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
 // ── Post-trade debrief annotation ────────────────────────────────────────────
 // Called when user clicks "Show Annotations" on the trade_completed screen.
-// Places entry, stop-loss, take-profit, and R:R labels all at once.
+// Step 1: runs the full _mentorAnnotateSetup at stage-3 to draw all confluence
+//         factors and structural context that led to the trade.
+// Step 2: layers entry arrow, SL zone, TP zone, and R:R label on top.
 function _mentorAnnotateDebrief() {
   const trade = mentorState.exampleTrade;
   if (!trade || !curData) return;
 
-  _clearMentorAnnotationsSilent();
+  const tsd      = mentorState._tradeSetupData;
+  const entryBar = Math.min(trade.timestamp ?? 0, replayCutoff, curData.length - 1);
+  const tradeEnd = Math.min(replayCutoff, curData.length - 1);
+  const dir      = trade.direction || 'long';
+  const isLong   = dir === 'long';
+  const atr      = calculateATR(tradeEnd, 14) || (curData[tradeEnd]?.close * 0.005) || 1;
 
-  const entryBar  = Math.min(trade.timestamp ?? 0, replayCutoff, curData.length - 1);
-  const tradeEnd  = Math.min(replayCutoff, curData.length - 1);
-  const dir       = trade.direction || 'long';
-  const isLong    = dir === 'long';
-  const atr       = calculateATR(tradeEnd, 14) || (curData[tradeEnd]?.close * 0.005) || 1;
+  // ── Step 1: Full confluence / structural context via _mentorAnnotateSetup ──
+  // Since the setup bar is well in the past (barsAway = 0), the function always
+  // runs at stage 3 — all 3 layers of annotations are revealed at once.
+  if (tsd?.setup && typeof tsd.setupBar === 'number') {
+    const _prev = mentorState.annotationsEnabled;
+    mentorState.annotationsEnabled = true;   // temporarily allow annotations
+    mentorState._annCache = null;            // force a fresh full-stage-3 draw
+    mentorState._lastAnnStateKey = null;
+    _mentorAnnotateSetup(tsd.setup, replayCutoff, tsd.setupBar);
+    mentorState.annotationsEnabled = _prev;  // restore (false)
+    // _mentorAnnotateSetup called _clearMentorAnnotationsSilent + _commit internally,
+    // so confluence / structure drawings are now in the drawings array.
+  } else {
+    // No stored setup data — just clear and start fresh
+    _clearMentorAnnotationsSilent();
+  }
 
+  // ── Step 2: Layer trade levels on top (entry, SL, TP, R:R) ────────────────
   // Extract explanations from the AI debrief text stored in lockedInsights
-  const insights   = mentorState.lockedInsights || [];
-  const entryLine  = insights.find(l => l && /ENTRY REASONING/i.test(l)) || '';
-  const slLine     = insights.find(l => l && /STOP LOSS/i.test(l) && !/TAKE PROFIT/i.test(l)) || '';
-  const tpLine     = insights.find(l => l && /TAKE PROFIT TARGET/i.test(l)) || '';
+  const insights  = mentorState.lockedInsights || [];
+  const entryLine = insights.find(l => l && /ENTRY REASONING/i.test(l)) || '';
+  const slLine    = insights.find(l => l && /STOP LOSS/i.test(l) && !/TAKE PROFIT/i.test(l)) || '';
+  const tpLine    = insights.find(l => l && /TAKE PROFIT TARGET/i.test(l)) || '';
 
   const extractText = (str) => {
     if (!str) return '';
     const idx = str.indexOf(':');
     return idx >= 0 ? str.slice(idx + 1).trim().slice(0, 140) : str.trim().slice(0, 140);
   };
-
   const fP = (p) => typeof p === 'number' ? p.toFixed(2) : '?';
 
-  // 1. Entry arrow — gold highlight, points in trade direction
+  // Entry arrow — gold highlight, points in trade direction
   _addMentorArrow(
     entryBar,
     trade.entry,
     isLong ? '▲ ENTRY' : '▼ ENTRY',
     isLong ? 'up' : 'down',
-    true,  // highlight = gold
+    true,  // highlight = gold tier
     extractText(entryLine) || `${isLong ? 'Long' : 'Short'} entry at ${fP(trade.entry)}`
   );
 
-  // 2. Stop Loss zone line — spans entry to trade end
+  // Stop Loss zone line — dashed red, spans entry to trade end
   const slId = _addMentorBox(entryBar, tradeEnd, trade.stopLoss - atr * 0.07, trade.stopLoss + atr * 0.07, 'STOP LOSS');
   if (slId) {
     const slD = drawings.find(d => d.id === slId);
     if (slD) {
-      slD.isLine       = true;
-      slD.explanation  = extractText(slLine) || `Stop placed at ${fP(trade.stopLoss)} — above/below key structure.`;
-      slD.lineColor    = 'rgba(255,77,106,0.85)';
+      slD.isLine      = true;
+      slD.explanation = extractText(slLine) || `Stop placed at ${fP(trade.stopLoss)} — above/below key structure.`;
+      slD.lineColor   = 'rgba(255,77,106,0.85)';
     }
   }
 
-  // 3. Take Profit zone line — spans entry to trade end
+  // Take Profit zone line — dashed green, spans entry to trade end
   const tpId = _addMentorBox(entryBar, tradeEnd, trade.takeProfit - atr * 0.07, trade.takeProfit + atr * 0.07, 'TAKE PROFIT');
   if (tpId) {
     const tpD = drawings.find(d => d.id === tpId);
     if (tpD) {
-      tpD.isLine       = true;
-      tpD.explanation  = extractText(tpLine) || `Target at ${fP(trade.takeProfit)} — next key level / support-resistance zone.`;
-      tpD.lineColor    = 'rgba(0,212,160,0.85)';
+      tpD.isLine      = true;
+      tpD.explanation = extractText(tpLine) || `Target at ${fP(trade.takeProfit)} — next key level / support-resistance zone.`;
+      tpD.lineColor   = 'rgba(0,212,160,0.85)';
     }
   }
 
-  // 4. R:R label — non-highlighted arrow near the midpoint of the trade range
+  // R:R label — secondary arrow near trade midpoint
   const midPrice = (trade.stopLoss + trade.takeProfit) / 2;
   const rrLabel  = `R:R ${typeof trade.riskReward === 'number' ? trade.riskReward.toFixed(1) : '?'}`;
   _addMentorArrow(
