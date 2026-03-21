@@ -305,6 +305,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   display: flex; align-items: center; gap: 8px;
   padding: 0 4px;
 }
+.auth-top-btn{
+  height:28px;
+  padding:0 10px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.09);
+  color:var(--tx2);
+  border-radius:var(--r);
+  cursor:pointer;
+  font-family:var(--font-mono);
+  font-size:10px;
+  transition:all .15s;
+  white-space:nowrap;
+}
+.auth-top-btn:hover{background:rgba(255,255,255,.08);color:var(--tx);}
+.auth-top-btn-primary{
+  border-color:rgba(0,212,160,.28);
+  color:var(--green);
+  background:rgba(0,212,160,.08);
+}
+.auth-top-btn-primary:hover{background:rgba(0,212,160,.14);}
 /* Symbol button */
 #sym-pill{
   display:flex;align-items:center;gap:8px;
@@ -760,6 +780,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   background:transparent;border:none;color:var(--tx3);border-radius:var(--r);
   cursor:pointer;transition:color .15s;white-space:nowrap;
 }
+#btn-logout{display:none;}
 #btn-logout:hover{color:var(--red);}
 #btn-change-pass:hover{color:var(--tx);}
 .live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);
@@ -1194,10 +1215,27 @@ canvas{display:block;flex-shrink:0;}
 .il-desc{font-family:var(--font-mono);font-size:11px;color:var(--tx2);margin-top:1px;}
 
 /* ─── AUTH SCREEN ────────────────────────────────────────────────────────── */
-#auth-screen{display:flex;position:fixed;inset:0;z-index:9999;background:var(--bg);
+#auth-screen{display:flex;position:fixed;inset:0;z-index:9999;background:rgba(7,9,14,.78);
+  backdrop-filter:blur(18px);
   align-items:center;justify-content:center;flex-direction:column;}
 #auth-box{width:360px;background:var(--bg2);border:1px solid var(--line2);
-  border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,.8);overflow:hidden;}
+  border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,.8);overflow:hidden;position:relative;}
+#auth-close{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:28px;
+  height:28px;
+  border:none;
+  border-radius:999px;
+  background:rgba(255,255,255,.05);
+  color:var(--tx2);
+  cursor:pointer;
+  font-size:18px;
+  line-height:1;
+  transition:all .15s;
+}
+#auth-close:hover{background:rgba(255,255,255,.09);color:var(--tx);}
 #auth-logo{padding:28px 28px 18px;border-bottom:1px solid var(--line);}
 #auth-logo-text{font-family:var(--font-mono);font-size:18px;font-weight:700;
   letter-spacing:2px;color:var(--tx);text-transform:uppercase;}
