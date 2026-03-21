@@ -1950,3 +1950,13 @@ body.is-dragging { user-select: none; }
 .bt-trade-row.win{background:rgba(0,201,160,.03)}
 .bt-trade-row.loss{background:rgba(255,77,106,.03)}
 .bt-trade-row:last-child{border-bottom:none}
+
+/* ─── DRAWING TOOL STYLE PICKER ───────────────────────────────────────────── */
+.dt-group-label{font-size:9px;font-weight:700;letter-spacing:.8px;color:rgba(255,255,255,.25);text-transform:uppercase;padding:8px 4px 3px;margin-top:4px}
+.dt-group-label:first-child{margin-top:0;padding-top:4px}
+.dt-color-row{display:flex;gap:5px;flex-wrap:wrap;padding:2px 0}
+.dt-color{width:18px;height:18px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all .15s;padding:0;flex-shrink:0}
+.dt-color:hover,.dt-color.active{border-color:#fff;transform:scale(1.15)}
+.dt-style-row{display:flex;gap:4px;align-items:center;padding:2px 0}
+.dt-style-btn{background:#111820;border:1px solid rgba(255,255,255,.1);border-radius:4px;color:#a8bbd0;padding:3px 8px;font-size:12px;cursor:pointer;flex-shrink:0}
+.dt-style-btn.active,.dt-style-btn:hover{background:#1c2535;border-color:#f0a500;color:#f0a500}
