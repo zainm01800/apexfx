@@ -203,7 +203,7 @@ let _elCache = {}; // Cached DOM element references
 // ══ BUILTIN INDICATORS (declared early to prevent hoisting issues) ══════════════════════════════════════════
 const BUILTIN_INDS = [
   {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
-  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9 & 21)',  icon:'📈'},
+  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9, 21 & 200)',  icon:'📈'},
   {id:'bb',      name:'BB',       desc:'Bollinger Bands (20, 2)',              icon:'〰'},
   {id:'vwap',    name:'VWAP',     desc:'Volume Weighted Average Price',        icon:'💹'},
   {id:'vol',     name:'Volume',   desc:'Volume histogram sub-panel',           icon:'📊'},
@@ -287,6 +287,7 @@ function getInds(){
     rsiVals:  showRSI   ? calcRSI(data)       : null,
     ema9:     showEMA   ? calcEMA(data,9)      : null,
     ema21:    showEMA   ? calcEMA(data,21)     : null,
+    ema200:   showEMA   ? calcEMA(data,200)    : null,
     vwapVals: showVWAP  ? calcVWAP(data)      : null,
     macdVals: showMACD  ? calcMACD(data)      : null,
     stochVals:showStoch ? calcStoch(data)     : null,
@@ -3709,22 +3710,10 @@ let lastMentorUpdate = 0;
 let mentorUpdateInterval = 2000; // Update mentor every 2 seconds minimum
 
 // Log initial state for debugging
-console.log('Replay variables initialized:', {
-  replayMode,
-  replayCutoff, 
-  replayPicking,
-  replayTimer,
-  replaySpeed
-});
-
 function toggleReplay(){
-  console.log('toggleReplay called - current replayMode:', replayMode);
-  
   if(replayMode) {
-    console.log('Stopping replay...');
     stopReplay();
   } else {
-    console.log('Starting replay...');
     startReplay();
   }
 }
@@ -3734,11 +3723,9 @@ function triggerReplayRescan() {
   // upcomingSetup from _mfLaunch must survive until the early warning fires.
   const protectedStates = ['setup_detected', 'preview', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'];
   if (protectedStates.includes(mentorState.lifecycleState)) {
-    console.log('🔄 triggerReplayRescan skipped — protected state:', mentorState.lifecycleState);
     return;
   }
 
-  console.log('🔄 Triggering immediate replay rescan...');
   setMentorState('scanning', 'manual replay rescan');
   mentorState.waitingStateStart = null;
   mentorState.waitingStateMessage = null;
@@ -3778,9 +3765,6 @@ function startReplay(){
     return;
   }
   
-  // Debug: Log current symbol and timeframe
-  console.log('Starting replay for symbol:', curSym?.s, 'timeframe:', curTF);
-  
   replayMode    = true;
   replayPicking = true;    // wait for user to click to set cutoff
   replayCutoff  = -1;
@@ -3795,7 +3779,6 @@ function startReplay(){
   // Clear the flag after a short delay
   setTimeout(() => {
     replayJustStarted = false;
-    console.log('replayJustStarted flag cleared');
   }, 500);
 }
 
@@ -3822,7 +3805,6 @@ function stopReplay(){
 
 // Force reset replay state (for debugging)
 function forceResetReplay(){
-  console.log('Force resetting replay state');
   replayMode    = false;
   replayPicking = false;
   replayCutoff  = -1;
@@ -4414,13 +4396,11 @@ function generateExampleTrade(setupData, currentBar) {
   if (!levels) {
     const futureCandles = curData.slice(currentBar + 1, Math.min(currentBar + 51, curData.length));
     if (futureCandles.length < 5) {
-      console.log('❌ Not enough future data for trade placement');
       return null;
     }
     levels = computeMentorTradeLevels(direction, entryPrice, currentBar, futureCandles);
   }
   if (!levels) {
-    console.log('❌ generateExampleTrade: price action invalidates direction');
     return null;
   }
 
@@ -4439,19 +4419,12 @@ function generateExampleTrade(setupData, currentBar) {
     futureDataUsed: true,
   };
 
-  console.log('✅ AI-generated trade:', {
-    entry: entryPrice.toFixed(4), sl: stopLoss.toFixed(4),
-    tp: takeProfit.toFixed(4), rr: rr.toFixed(2), direction,
-  });
-
   return trade;
 }
 
 function drawExampleTrade(trade) {
   if (!trade) return;
-  
-  console.log('🎯 Drawing example trade on chart:', trade);
-  
+
   // Build a real long/short drawing using the same internal format
   const drawingType = trade.direction === 'short' ? 'short' : 'long';
   // Use trade.halfBars if provided (e.g. for preview trades that need wider extent),
@@ -4479,7 +4452,6 @@ function drawExampleTrade(trade) {
   
   // Store the reference so we can remove it after the trade completes
   mentorState.exampleTradeDrawingId = drawingId;
-  console.log('📊 Example trade drawn successfully on chart');
 }
 
 function activateExampleTrade(setupData, currentBar) {
@@ -4495,8 +4467,6 @@ function activateExampleTrade(setupData, currentBar) {
   mentorState.tradeMonitoringUpdates = [];
   
   drawExampleTrade(exampleTrade);
-  
-  console.log('🎯 Example trade activated:', exampleTrade);
 }
 
 function monitorExampleTrade(currentBar) {
@@ -7160,21 +7130,14 @@ function calculateStructureConfluence(setup, structure) {
 
 // Market Analysis Engine (NO future data)
 function analyzeMarketData(barIndex) {
-  console.log('🔍 analyzeMarketData called with barIndex:', barIndex);
-  console.log('🔍 curData available:', !!curData, 'length:', curData ? curData.length : 'null');
-  
   if (!curData || barIndex < 0 || barIndex >= curData.length) {
-    console.log('❌ analyzeMarketData failed: invalid data or barIndex');
     return null;
   }
-  
+
   const data = curData.slice(0, barIndex + 1); // Only current and past data
-  console.log('🔍 Data slice length:', data.length, 'from 0 to', barIndex);
-  
+
   const current = data[data.length - 1];
   const previous = data.length > 1 ? data[data.length - 2] : current;
-  
-  console.log('🔍 Current bar:', current);
   
   // Enhanced Technical Indicators (matching main AI analysis)
   const sma20 = calculateSMA(data, 20);
@@ -7251,7 +7214,6 @@ function analyzeMarketData(barIndex) {
     }
   };
   
-  console.log('🔍 Enhanced analysis result:', result);
   return result;
 }
 
@@ -8607,25 +8569,18 @@ function handleSetupDetectedState(currentBar) {
 }
 
 function handleWaitingState(currentBar) {
-  console.log('🔄 Handle waiting state at bar', currentBar);
-  
   // Only re-check after the interval has passed
   const barsSinceWaiting = currentBar - mentorState.waitingStateStart;
-  
+
   if (barsSinceWaiting >= mentorState.waitingStateRecheckInterval) {
-    console.log('🔍 Re-check interval reached, scanning for setups again');
-    
     // Scan the adaptive window for any valid setups
     const windowScan = scanForSetupsInWindow(currentBar);
-    
+
     if (windowScan.setup.setup !== 'none') {
-      console.log('✅ Found setups in window, transitioning to setup_detected');
       // Found setups - transition to setup_detected state (hide location)
       enterSetupDetectedState(windowScan);
-    } else {
-      console.log('⏳ Still no setup found, remain in waiting state');
-      // Keep the same waiting state message - don't update UI
     }
+    // else: keep the same waiting state message - don't update UI
   }
   // Don't update UI on every candle - only when state changes
 }
@@ -8635,11 +8590,9 @@ function enterSetupDetectedState(windowScan) {
   // The injected setup has a known future bar and must not be replaced by a
   // scan that might find a different bar closer to currentBar.
   if ((mentorState.lifecycleState === 'setup_detected' || mentorState.lifecycleState === 'preview') && mentorState.upcomingSetup) {
-    console.log('🔒 enterSetupDetectedState: existing setup preserved, skipping override');
     return;
   }
 
-  console.log('🎯 Setup detected — entering setup_detected state at bar', windowScan.bar);
   setMentorState('setup_detected', 'setup found');
   mentorState._confluencePauses  = new Set();
   mentorState._lastAnnotateBar   = null;
@@ -8743,8 +8696,6 @@ function _buildSetupDetectedMessage(currentBar) {
 }
 
 function enterNoSetupState(currentBar) {
-  console.log('🔍 No setup at current bar — scanning further ahead...');
-
   // Instead of giving up, scan a larger lookahead window (up to 500 bars ahead)
   // to find where the next setup will appear and give the user a vague hint.
   const method = mentorState.selectedTradingMethod || 'none';
@@ -8905,8 +8856,6 @@ function scanForSetupsInWindow(currentBar) {
 
 
 function handleTradeResultState(currentBar) {
-  console.log('📋 Handle trade result state');
-  
   // Check if this is the first time entering result state
   if (mentorState.lifecycleState !== 'trade_result') {
     return; // Not in result state yet
@@ -8931,13 +8880,11 @@ function handleTradeResultState(currentBar) {
 
 function generateTradeSuccessExplanation() {
   if (!mentorState.tradeResultData) {
-    console.log('❌ No trade result data available');
     return;
   }
-  
+
   const result = mentorState.tradeResultData;
-  console.log('🎓 Generating structured trade success explanation:', result);
-  
+
   // Build a simulated trade object for the structured review generator
   const simulatedTrade = {
     direction: result.direction || 'long',
@@ -9013,15 +8960,13 @@ function generateTradeSuccessExplanation() {
   }
   
   updateMentorUI();
-  console.log('✅ Structured trade explanation generated with 6 educational sections');
 }
 
 function pauseReplayForTradeCompletion() {
   if (replayMode && !replayPaused) {
     replayPaused = true;
     mentorState.setupPausedReplay = true; // Use same flag for consistency
-    console.log('⏸️ Replay paused for trade completion explanation');
-    
+
     // Update replay button to show paused state
     const replayBtn = document.getElementById('replay-play-btn');
     if (replayBtn) {
@@ -11428,7 +11373,7 @@ function _drawImmediate(){
   const ca = (col,a) => { try{ const [r,g,b]=hex2rgb(col); return `rgba(${r},${g},${b},${a})`; } catch(e){ return col; } };
 
   // Use cached indicators — only recalculated when data or indicator flags change
-  const {data,sma20,sma50,bbs,rsiVals,ema9,ema21,vwapVals,macdVals,stochVals} = getInds();
+  const {data,sma20,sma50,bbs,rsiVals,ema9,ema21,ema200,vwapVals,macdVals,stochVals} = getInds();
 
   // ── Coordinate helpers ────────────────────────────────────────────────────
   // barX(i): pixel x of bar i's centre
@@ -11566,6 +11511,13 @@ function _drawImmediate(){
       for(let i=firstBarOnScreen;i<=lastBarOnScreen;i++){const v=arr[i];if(!v)continue;const x=barX(i);f?(ctx.moveTo(x,py(v)),f=false):ctx.lineTo(x,py(v));}
       ctx.stroke();
     });
+  }
+
+  // EMA 200
+  if(ema200){
+    ctx.beginPath(); ctx.strokeStyle='#888888'; ctx.lineWidth=1.5; ctx.setLineDash([]); let f200=true;
+    for(let i=firstBarOnScreen;i<=lastBarOnScreen;i++){const v=ema200[i];if(!v)continue;const x=barX(i);f200?(ctx.moveTo(x,py(v)),f200=false):ctx.lineTo(x,py(v));}
+    ctx.stroke();
   }
 
   // VWAP
@@ -15112,7 +15064,7 @@ async function fetchMoreHistory(){
 async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
   const pair   = sym.replace('/','').toUpperCase().replace('USD','USDT');
   const btf    = BINANCE_TF[tf]||'1d';
-  let url = `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${btf}&limit=500`;
+  let url = `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${btf}&limit=1000`;
   if(endTime)   url += `&endTime=${endTime}`;
   if(startTime) url += `&startTime=${startTime}`;
   const data = await fetch(url).then(r=>r.json()).catch(()=>[]);
@@ -15169,7 +15121,20 @@ async function loadSym(sym){
   try{
     let bars = [];
     if(curSym.t === 'Crypto'){
-      bars = await fetchBinanceCandles(sym, curTF);
+      const shortTFs = ['1m', '5m', '15m', '1h'];
+      if (shortTFs.includes(curTF)) {
+        // For short timeframes, chain two 1000-bar fetches to get ~2000 bars
+        const recent = await fetchBinanceCandles(sym, curTF);
+        const older = recent.length > 0
+          ? await fetchBinanceCandles(sym, curTF, null, recent[0].time * 1000)
+          : [];
+        const combined = [...older, ...recent];
+        const seen = new Set();
+        bars = combined.filter(b => { if (seen.has(b.time)) return false; seen.add(b.time); return true; });
+        bars.sort((a, b) => a.time - b.time);
+      } else {
+        bars = await fetchBinanceCandles(sym, curTF);
+      }
     }
 
     if(bars.length >= 2 && sym===curSym.s){
@@ -16463,34 +16428,26 @@ function closeAuthOverlay(){
 }
 
 async function authSubmitLogin(){
-  console.log('🚀 authSubmitLogin called');
-  
   const user  = document.getElementById('auth-login-user').value.trim();
   const pass  = document.getElementById('auth-login-pass').value;
   const errEl = document.getElementById('auth-login-err');
   const btn   = document.querySelector('#auth-panel-login .auth-btn');
-  
-  console.log('📝 Form values:', { user: user ? 'provided' : 'missing', pass: pass ? 'provided' : 'missing' });
   
   errEl.textContent = '';
   if(!user || !pass){ errEl.textContent='Please enter username and password.'; return; }
   if(btn){ btn.textContent='Signing in…'; btn.disabled=true; }
   
   try {
-    console.log('⏳ Calling authLoginAsync...');
-    
     // Add timeout to prevent infinite loading
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Sign in timed out after 30 seconds')), 30000);
     });
     
     const result = await Promise.race([authLoginAsync(user, pass), timeoutPromise]);
-    console.log('📋 authLoginAsync result:', result);
-    
+
     if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
     if(!result.ok){ errEl.textContent = result.err; return; }
     
-    console.log('🔄 Syncing cloud data...');
     
     // Add timeout for cloud sync
     const syncTimeoutPromise = new Promise((_, reject) => {
@@ -16504,16 +16461,13 @@ async function authSubmitLogin(){
     try {
       await Promise.race([_syncFromCloud(), syncTimeoutPromise]);
     } catch (syncError) {
-      console.warn('⚠️ Cloud sync failed, continuing with local data:', syncError);
       // Continue without cloud sync - don't block login
     }
     
-    console.log('✅ Showing app interface...');
     closeAuthOverlay();
     document.getElementById('app').style.display = 'flex';
     doLogin(result.username, result.displayName);
     
-    console.log('🎉 Login process completed');
     loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
     document.getElementById('auth-login-pass').value = '';
     
@@ -16621,7 +16575,6 @@ function updateUserBadge(displayName){
 
 // Test Supabase connectivity
 async function testSupabaseConnection() {
-  console.log('🔍 Testing Supabase connectivity...');
   
   try {
     // Simple health check - try to access the auth service
@@ -16634,7 +16587,6 @@ async function testSupabaseConnection() {
     });
     
     if (response.ok) {
-      console.log('✅ Supabase service is reachable');
       return true;
     } else {
       console.error('❌ Supabase service responded with:', response.status, response.statusText);
@@ -16648,19 +16600,15 @@ async function testSupabaseConnection() {
 
 // Initialize Supabase when page loads
 function initializeSupabase() {
-  console.log('🔧 Initializing Supabase...', { supabase: typeof supabase, _supaReady, _supa: !!_supa });
   
   try {
     if (typeof supabase !== 'undefined') {
-      console.log('📚 Creating Supabase client...');
       _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
       _supaReady = true;
-      console.log('✅ Supabase client initialized successfully', { _supaReady, _supa: !!_supa });
       
       // Test connection
       testSupabaseConnection().then(isConnected => {
         if (!isConnected) {
-          console.warn('⚠️ Supabase client initialized but service may be unreachable');
         }
       });
     } else {
@@ -16675,24 +16623,14 @@ function initializeSupabase() {
 
 // Initialize when DOM is ready and also wait a bit for Supabase library to load
 function waitForSupabaseAndInit() {
-  console.log('🔍 Checking Supabase availability...', { 
-    supabase: typeof supabase, 
-    readyState: document.readyState,
-    _supaReady,
-    _supa: !!_supa 
-  });
-  
   if (typeof supabase !== 'undefined') {
-    console.log('📚 Supabase library found, initializing...');
     initializeSupabase();
   } else {
-    console.log('⏳ Supabase library not yet loaded, waiting...');
     setTimeout(waitForSupabaseAndInit, 100);
   }
 }
 
 // Start initialization process immediately
-console.log('🚀 Starting Supabase initialization process...');
 waitForSupabaseAndInit();
 
 // ── Storage helpers — localStorage (fast cache) + Supabase (persistent cloud) ──
@@ -16784,40 +16722,31 @@ function _lsRem(key){
 
 // Pull all cloud data for the current user into localStorage
 async function _syncFromCloud(){
-  console.log('🔄 _syncFromCloud starting for user:', _currentUserId);
   
   if(!_currentUserId) {
-    console.log('❌ No currentUserId, skipping sync');
     updateCloudSyncBadge({ status:'offline', message:'Using local workspace only' });
     return;
   }
   
   try{
     updateCloudSyncBadge({ status:'syncing', message:'Loading your cloud workspace…' });
-    console.log('📡 Fetching data from Supabase...');
     const { data, error } = await _supa.from('user_data')
       .select('key,value')
       .eq('user_id', _currentUserId);
     
-    console.log('📊 Supabase response:', { data: data ? `${data.length} items` : 'null', error: error ? error.message : 'none' });
     
     if(error) throw error;
     
-    console.log('💾 Storing data to localStorage...');
     data.forEach(({key, value}) => {
       try{ 
         localStorage.setItem(_lsKey(key), value); 
-        console.log(`✅ Stored: ${key}`);
       }catch(e){
-        console.warn(`❌ Failed to store ${key}:`, e);
       }
     });
     
-    console.log('✅ _syncFromCloud completed successfully');
     updateCloudSyncBadge({ status:'ok', message:'Cloud workspace loaded', lastOkAt: Date.now() });
   }catch(e){ 
     console.error('❌ Supabase sync error:', e);
-    console.warn('Supabase sync:', e.message); 
     updateCloudSyncBadge({ status:'error', message:`Cloud sync failed: ${e.message}` });
   }
 }
@@ -16854,12 +16783,10 @@ async function authRegisterAsync(username, password, displayName){
 }
 
 async function authLoginAsync(username, password){
-  console.log('🔐 Starting login process for:', username);
   
   username = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
   if(!username || !password) return { ok:false, err:'Please enter username and password.' };
   
-  console.log('📧 Converting to email format');
   const email = _userEmail(username);
   
   // Wait for Supabase to be ready
@@ -16874,10 +16801,8 @@ async function authLoginAsync(username, password){
       
       // Force initialization as fallback
       try {
-        console.log('🔧 Force initializing Supabase...');
         _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
         _supaReady = true;
-        console.log('✅ Force initialization successful', { _supaReady, _supa: !!_supa });
       } catch (initError) {
         console.error('❌ Force initialization failed:', initError);
         return { ok:false, err:'Authentication service failed to initialize. Please refresh the page.' };
@@ -16885,10 +16810,8 @@ async function authLoginAsync(username, password){
     }
   }
   
-  console.log('🔑 Attempting sign in with password');
   try {
     const { data, error } = await _supa.auth.signInWithPassword({ email, password });
-    console.log('📊 Sign in response:', { data: data ? 'success' : 'null', error: error ? error.message : 'none' });
     
     if(error) {
       console.error('❌ Sign in error:', error);
@@ -16896,7 +16819,6 @@ async function authLoginAsync(username, password){
     }
     
     const displayName = data.user?.user_metadata?.displayName || username;
-    console.log('✅ Login successful for:', username);
     return { ok:true, username, displayName, userId: data.user.id };
   } catch (err) {
     console.error('❌ Unexpected error during login:', err);
@@ -17319,7 +17241,17 @@ function pmbSetProgress(pct, label) {
 
 // Generate seeded data for a specific symbol + timeframe
 // Uses a standalone seed so it's independent of the current chart TF
-function genDataForTF(sym, tf, bars) {
+async function genDataForTF(sym, tf, bars) {
+  const cacheKey = sym + '_' + tf + '_mtf';
+  if (dataCache[cacheKey] && dataCache[cacheKey].length > 0) return dataCache[cacheKey];
+  try {
+    const fetched = await fetchBinanceCandles(sym, tf);
+    if (fetched && fetched.length > 0) {
+      dataCache[cacheKey] = fetched;
+      return fetched;
+    }
+  } catch(e) {}
+  // Fallback: generate synthetic if fetch fails
   const vol = VOL_MAP[tf] || 0.018;
   const basePrice = (SYMS.find(s => s.s === sym) || {p: 100}).p;
   const seedVal = sym.split('').reduce((a,c) => a + c.charCodeAt(0), 0) * 9301 + tf.length * 49297 + bars;
@@ -17340,10 +17272,10 @@ function genDataForTF(sym, tf, bars) {
 }
 
 // Analyse a single symbol on a single timeframe
-function analyseTF(sym, tf, realData) {
+async function analyseTF(sym, tf, realData) {
   // Use real data if provided, otherwise fall back to generated placeholder
   const bars = PMB_TF_BARS[tf] || 200;
-  const data  = realData && realData.length >= 10 ? realData : genDataForTF(sym, tf, bars);
+  const data  = realData && realData.length >= 10 ? realData : await genDataForTF(sym, tf, bars);
   const n     = data.length;
   const pats  = detectPatterns(data);
   const sr    = detectSR(data);
@@ -17469,7 +17401,7 @@ async function generatePremarket() {
             realData = null;
           }
         }
-        tfData[tf] = analyseTF(sym.s, tf, realData);
+        tfData[tf] = await analyseTF(sym.s, tf, realData);
         done++;
       }
       const confluence = computeConfluence(tfData);
@@ -18204,14 +18136,14 @@ function aisSetProgress(pct, lbl){
 }
 
 // ── Analyse one symbol on one specific TF ────────────────────────────────────
-function aisAnalyseSymbol(sym, tf, realData, higherRealData){
+async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const tfCfg = AIS_TF_CFG[tf] || AIS_TF_CFG['1d'];
   const TF_ORDER = ['1m','5m','15m','1h','4h','1d','1w','1M'];
   const tfIdx    = TF_ORDER.indexOf(tf);
   const higherTF = tfIdx < TF_ORDER.length - 1 ? TF_ORDER[tfIdx + 1] : null;
 
-  function calc(t, barCount, realData){
-    const data = (realData && realData.length >= 10) ? realData : genDataForTF(sym.s, t, barCount);
+  async function calc(t, barCount, realData){
+    const data = (realData && realData.length >= 10) ? realData : await genDataForTF(sym.s, t, barCount);
     const n    = data.length;
     const pats = detectPatterns(data);
     const sr   = detectSR(data);
@@ -18233,8 +18165,8 @@ function aisAnalyseSymbol(sym, tf, realData, higherRealData){
     return {data,bias,topPat,rsi:rsiV[n-1],atr:atrV[n-1]||0,price,nearestS,nearestR,movePct,emaAligned,smaAligned,n};
   }
 
-  const primary = calc(tf, tfCfg.bars, realData);
-  const higher  = higherTF ? calc(higherTF, Math.min(tfCfg.bars, 150), higherRealData) : null;
+  const primary = await calc(tf, tfCfg.bars, realData);
+  const higher  = higherTF ? await calc(higherTF, Math.min(tfCfg.bars, 150), higherRealData) : null;
 
   const price = primary.price, atr = primary.atr;
   const biasVotes = {bull:0,bear:0};
@@ -18309,7 +18241,7 @@ async function runAISetupScan(){
         if(!higherReal && htf && sym.t==='Crypto'){
           try{ higherReal = await fetchBinanceCandles(sym.s, htf); if(higherReal.length) dataCache[sym.s+'_'+htf]=higherReal; }catch(e){ higherReal=null; }
         }
-        aisSetups.push(aisAnalyseSymbol(sym, tf, realData, higherReal));
+        aisSetups.push(await aisAnalyseSymbol(sym, tf, realData, higherReal));
         done++;
       }
     }
@@ -21102,3 +21034,434 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRATEGY BACKTESTER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BT_PRESETS = {
+  rsi_reversal_long: {
+    name:'RSI Reversal — Long', direction:'long',
+    conditions:[{type:'rsi_below',value:32},{type:'price_above_ema',period:200}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  rsi_reversal_short: {
+    name:'RSI Reversal — Short', direction:'short',
+    conditions:[{type:'rsi_above',value:68},{type:'price_below_ema',period:200}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  ema_cross: {
+    name:'EMA 9/21 Crossover', direction:'both',
+    conditions:[{type:'ema_cross_up'}],
+    slMult:1.5, rr:2.5, capital:10000, riskPct:1.0
+  },
+  macd_signal: {
+    name:'MACD Signal Cross', direction:'both',
+    conditions:[{type:'macd_cross_up'}],
+    slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
+  },
+  trend_pullback: {
+    name:'Trend Pullback', direction:'long',
+    conditions:[{type:'price_above_ema',period:200},{type:'rsi_between',min:38,max:58},{type:'price_above_ema',period:21}],
+    slMult:1.5, rr:2.5, capital:10000, riskPct:1.0
+  },
+  bb_breakout: {
+    name:'Bollinger Band Breakout', direction:'both',
+    conditions:[{type:'bb_above_upper'}],
+    slMult:1.0, rr:2.0, capital:10000, riskPct:1.0
+  },
+};
+
+const BT_COND_LABELS = {
+  rsi_below:      c=>`RSI < ${c.value}`,
+  rsi_above:      c=>`RSI > ${c.value}`,
+  rsi_between:    c=>`RSI between ${c.min}–${c.max}`,
+  price_above_ema:c=>`Price above EMA ${c.period}`,
+  price_below_ema:c=>`Price below EMA ${c.period}`,
+  price_above_sma:c=>`Price above SMA ${c.period}`,
+  price_below_sma:c=>`Price below SMA ${c.period}`,
+  ema_cross_up:   ()=>'EMA 9 crosses above EMA 21',
+  ema_cross_down: ()=>'EMA 9 crosses below EMA 21',
+  macd_cross_up:  ()=>'MACD crosses above Signal',
+  macd_cross_down:()=>'MACD crosses below Signal',
+  bb_above_upper: ()=>'Close above Upper Bollinger Band',
+  bb_below_lower: ()=>'Close below Lower Bollinger Band',
+  stoch_below:    c=>`Stochastic %K < ${c.value}`,
+  stoch_above:    c=>`Stochastic %K > ${c.value}`,
+  volume_spike:   c=>`Volume > ${c.mult}× average`,
+};
+
+const btState = {
+  strategy:{ name:'My Strategy', direction:'long', conditions:[], slMult:1.5, rr:2.0, capital:10000, riskPct:1.0 },
+  result:null,
+};
+
+function openBacktester(){
+  document.getElementById('bt-bg').classList.add('open');
+  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '—'} · ${curTF}`;
+  _btRenderBuilder();
+}
+function closeBacktester(){ document.getElementById('bt-bg').classList.remove('open'); }
+
+function _btLoadPreset(key){
+  const p = BT_PRESETS[key];
+  if(!p) return;
+  Object.assign(btState.strategy, JSON.parse(JSON.stringify(p)));
+  _btRenderBuilder();
+  _btClearResults();
+  document.getElementById('bt-preset').value = '';
+}
+
+function _btSetDirection(d){
+  btState.strategy.direction = d;
+  ['long','short','both'].forEach(x=>{
+    document.getElementById('bt-dir-'+x)?.classList.toggle('active', x===d);
+  });
+}
+
+function _btRenderBuilder(){
+  const s = btState.strategy;
+  _btSetDirection(s.direction);
+  // Conditions
+  const list = document.getElementById('bt-cond-list');
+  if(!list) return;
+  if(!s.conditions.length){
+    list.innerHTML = '<div class="bt-cond-empty">No conditions yet — add rules below or choose a preset</div>';
+  } else {
+    list.innerHTML = s.conditions.map((c,i)=>{
+      const lbl = (BT_COND_LABELS[c.type]||((x)=>x.type))(c);
+      return `<div class="bt-cond-item">
+        <span class="bt-cond-dot">◆</span>
+        <span class="bt-cond-label">${lbl}</span>
+        <button class="bt-cond-remove" onclick="_btRemoveCond(${i})">✕</button>
+      </div>`;
+    }).join('');
+  }
+  // Risk inputs
+  const set = (id,v) => { const el=document.getElementById(id); if(el) el.value=v; };
+  set('bt-sl-mult', s.slMult);
+  set('bt-rr', s.rr);
+  set('bt-capital', s.capital);
+  set('bt-riskpct', s.riskPct);
+}
+
+function _btRemoveCond(i){
+  btState.strategy.conditions.splice(i,1);
+  _btRenderBuilder();
+}
+
+function _btUpdateConditionUI(){
+  const type = document.getElementById('bt-cond-type')?.value;
+  const v1w = document.getElementById('bt-v1-wrap');
+  const v2w = document.getElementById('bt-v2-wrap');
+  const v1l = document.getElementById('bt-v1-lbl');
+  const v2l = document.getElementById('bt-v2-lbl');
+  const v1  = document.getElementById('bt-v1');
+  const v2  = document.getElementById('bt-v2');
+  if(!v1w) return;
+  v1w.style.display='none'; v2w.style.display='none';
+  const show1=(lbl,val)=>{ v1w.style.display='flex'; if(v1l)v1l.textContent=lbl; if(v1)v1.value=val; };
+  switch(type){
+    case 'rsi_below': show1('RSI value',30); break;
+    case 'rsi_above': show1('RSI value',70); break;
+    case 'rsi_between':
+      v1w.style.display='flex'; v2w.style.display='flex';
+      if(v1l)v1l.textContent='Min'; if(v2l)v2l.textContent='Max';
+      if(v1)v1.value=40; if(v2)v2.value=60; break;
+    case 'price_above_ema': case 'price_below_ema': show1('EMA period',200); break;
+    case 'price_above_sma': case 'price_below_sma': show1('SMA period',50); break;
+    case 'volume_spike': show1('× avg vol',1.5); break;
+    case 'stoch_below': show1('%K value',20); break;
+    case 'stoch_above': show1('%K value',80); break;
+  }
+}
+
+function _btAddCondition(){
+  const type = document.getElementById('bt-cond-type')?.value;
+  if(!type) return;
+  const v1 = parseFloat(document.getElementById('bt-v1')?.value||'0');
+  const v2 = parseFloat(document.getElementById('bt-v2')?.value||'0');
+  let cond = {type};
+  switch(type){
+    case 'rsi_below': case 'rsi_above': case 'stoch_below': case 'stoch_above': cond.value=v1; break;
+    case 'rsi_between': cond.min=v1; cond.max=v2; break;
+    case 'price_above_ema': case 'price_below_ema': cond.period=v1||200; break;
+    case 'price_above_sma': case 'price_below_sma': cond.period=v1||50; break;
+    case 'volume_spike': cond.mult=v1||1.5; break;
+  }
+  btState.strategy.conditions.push(cond);
+  _btRenderBuilder();
+}
+
+function _btEvalCond(cond, i, data, inds){
+  const {rsiVals,ema9,ema21,ema200,sma20,sma50,macdVals,stochVals,bbs} = inds;
+  const b = data[i], p = data[i-1];
+  if(!b||!p) return false;
+  switch(cond.type){
+    case 'rsi_below':    return rsiVals?.[i]!=null && rsiVals[i]<cond.value;
+    case 'rsi_above':    return rsiVals?.[i]!=null && rsiVals[i]>cond.value;
+    case 'rsi_between':  return rsiVals?.[i]!=null && rsiVals[i]>=cond.min && rsiVals[i]<=cond.max;
+    case 'price_above_ema':{
+      const ea = cond.period===9?ema9:cond.period===21?ema21:ema200;
+      return ea?.[i]!=null && b.close>ea[i];
+    }
+    case 'price_below_ema':{
+      const ea = cond.period===9?ema9:cond.period===21?ema21:ema200;
+      return ea?.[i]!=null && b.close<ea[i];
+    }
+    case 'price_above_sma':{
+      const sa = cond.period===20?sma20:sma50;
+      return sa?.[i]!=null && b.close>sa[i];
+    }
+    case 'price_below_sma':{
+      const sa = cond.period===20?sma20:sma50;
+      return sa?.[i]!=null && b.close<sa[i];
+    }
+    case 'ema_cross_up':
+      return ema9&&ema21&&ema9[i]!=null&&ema21[i]!=null&&ema9[i-1]!=null&&ema21[i-1]!=null
+          && ema9[i]>ema21[i] && ema9[i-1]<=ema21[i-1];
+    case 'ema_cross_down':
+      return ema9&&ema21&&ema9[i]!=null&&ema21[i]!=null&&ema9[i-1]!=null&&ema21[i-1]!=null
+          && ema9[i]<ema21[i] && ema9[i-1]>=ema21[i-1];
+    case 'macd_cross_up':
+      return macdVals?.macd&&macdVals.macd[i]!=null&&macdVals.signal[i]!=null
+          && macdVals.macd[i]>macdVals.signal[i] && macdVals.macd[i-1]<=macdVals.signal[i-1];
+    case 'macd_cross_down':
+      return macdVals?.macd&&macdVals.macd[i]!=null&&macdVals.signal[i]!=null
+          && macdVals.macd[i]<macdVals.signal[i] && macdVals.macd[i-1]>=macdVals.signal[i-1];
+    case 'bb_above_upper':
+      return bbs?.upper&&bbs.upper[i]!=null && b.close>bbs.upper[i];
+    case 'bb_below_lower':
+      return bbs?.lower&&bbs.lower[i]!=null && b.close<bbs.lower[i];
+    case 'stoch_below':
+      return stochVals?.k&&stochVals.k[i]!=null && stochVals.k[i]<cond.value;
+    case 'stoch_above':
+      return stochVals?.k&&stochVals.k[i]!=null && stochVals.k[i]>cond.value;
+    case 'volume_spike':{
+      const avg=data.slice(Math.max(0,i-20),i).reduce((s,x)=>s+x.volume,0)/20;
+      return avg>0 && b.volume>avg*cond.mult;
+    }
+    default: return false;
+  }
+}
+
+function _btFlipCond(c){
+  const map={rsi_below:'rsi_above',rsi_above:'rsi_below',price_above_ema:'price_below_ema',price_below_ema:'price_above_ema',price_above_sma:'price_below_sma',price_below_sma:'price_above_sma',ema_cross_up:'ema_cross_down',ema_cross_down:'ema_cross_up',macd_cross_up:'macd_cross_down',macd_cross_down:'macd_cross_up',bb_above_upper:'bb_below_lower',bb_below_lower:'bb_above_upper'};
+  return {...c, type:map[c.type]||c.type};
+}
+
+function _btRunBacktest(){
+  const s = btState.strategy;
+  const data = curData;
+  if(!data||data.length<60){ _btShowError('Not enough data. Load a symbol with at least 60 bars.'); return; }
+  if(!s.conditions.length){ _btShowError('Add at least one entry condition before running.'); return; }
+
+  // Read UI values
+  s.slMult   = parseFloat(document.getElementById('bt-sl-mult')?.value)||1.5;
+  s.rr       = parseFloat(document.getElementById('bt-rr')?.value)||2.0;
+  s.capital  = parseFloat(document.getElementById('bt-capital')?.value)||10000;
+  s.riskPct  = parseFloat(document.getElementById('bt-riskpct')?.value)||1.0;
+
+  const btn = document.getElementById('bt-run-btn');
+  if(btn){ btn.textContent='⏳ Running…'; btn.disabled=true; }
+
+  // Pre-compute all indicators on full dataset
+  const inds = {
+    rsiVals:   calcRSI(data),
+    ema9:      calcEMA(data,9),
+    ema21:     calcEMA(data,21),
+    ema200:    calcEMA(data,200),
+    sma20:     calcSMA(data,20),
+    sma50:     calcSMA(data,50),
+    macdVals:  calcMACD(data),
+    stochVals: calcStoch(data),
+    bbs:       calcBB(data),
+  };
+
+  const trades=[], equityCurve=[{i:0,equity:s.capital}];
+  let equity=s.capital, openTrade=null;
+  const WARMUP=210;
+
+  for(let i=WARMUP; i<data.length-1; i++){
+    const bar=data[i], next=data[i+1];
+    if(!bar||!next) continue;
+
+    // Manage open trade
+    if(openTrade){
+      const {dir,entry,sl,tp,riskAmt}=openTrade;
+      const slHit = dir==='long'? bar.low<=sl  : bar.high>=sl;
+      const tpHit = dir==='long'? bar.high>=tp : bar.low<=tp;
+      let reason=null, exitPrice=null;
+      if(slHit&&tpHit){ reason='sl'; exitPrice=sl; }
+      else if(slHit)  { reason='sl'; exitPrice=sl; }
+      else if(tpHit)  { reason='tp'; exitPrice=tp; }
+
+      if(reason){
+        const riskDist=Math.abs(entry-sl);
+        const rMult = riskDist>0 ? (exitPrice-entry)*(dir==='long'?1:-1)/riskDist : 0;
+        const pnl   = riskAmt*(reason==='tp'?s.rr:-1);
+        equity+=pnl;
+        trades.push({...openTrade, exitBar:i, exitPrice, reason, rMult, pnl, barsHeld:i-openTrade.entryBar});
+        equityCurve.push({i, equity});
+        openTrade=null;
+      }
+      continue;
+    }
+
+    // Check entry
+    const dirs = s.direction==='both'?['long','short']:[s.direction];
+    for(const dir of dirs){
+      const condsMet = s.conditions.every(c=>{
+        const cond = (s.direction==='both'&&dir==='short') ? _btFlipCond(c) : c;
+        return _btEvalCond(cond,i,data,inds);
+      });
+      if(!condsMet) continue;
+
+      const entry  = next.open;
+      const atr    = calculateATR(i,14)||entry*0.01;
+      const sl     = dir==='long' ? entry-atr*s.slMult : entry+atr*s.slMult;
+      const riskDist = Math.abs(entry-sl);
+      const tp     = dir==='long' ? entry+riskDist*s.rr : entry-riskDist*s.rr;
+      const riskAmt= equity*(s.riskPct/100);
+
+      openTrade={dir, entryBar:i+1, entry, sl, tp, riskAmt};
+      break;
+    }
+  }
+
+  // Close any remaining open trade
+  if(openTrade){
+    const last=data[data.length-1];
+    const exitPrice=last.close;
+    const riskDist=Math.abs(openTrade.entry-openTrade.sl);
+    const rMult=riskDist>0?(exitPrice-openTrade.entry)*(openTrade.dir==='long'?1:-1)/riskDist:0;
+    const pnl=openTrade.riskAmt*rMult;
+    equity+=pnl;
+    trades.push({...openTrade,exitBar:data.length-1,exitPrice,reason:'open',rMult,pnl,barsHeld:data.length-1-openTrade.entryBar});
+    equityCurve.push({i:data.length-1,equity});
+  }
+
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
+
+  const stats = _btCalcStats(trades, equityCurve, s.capital, equity);
+  btState.result={trades,equityCurve,stats};
+  _btRenderResults(btState.result, data);
+}
+
+function _btCalcStats(trades, equityCurve, startCapital, finalEquity){
+  const n=trades.length;
+  if(!n) return {empty:true};
+  const wins  = trades.filter(t=>t.rMult>0);
+  const losses= trades.filter(t=>t.rMult<=0);
+  const winRate= wins.length/n*100;
+  const avgWin = wins.length  ? wins.reduce((s,t)=>s+t.rMult,0)/wins.length   : 0;
+  const avgLoss= losses.length? Math.abs(losses.reduce((s,t)=>s+t.rMult,0)/losses.length) : 0;
+  const pf = avgLoss===0 ? Infinity : (winRate/100*avgWin)/((1-winRate/100)*avgLoss);
+  const exp= (winRate/100)*avgWin - (1-winRate/100)*avgLoss;
+  const totalRetPct=((finalEquity-startCapital)/startCapital)*100;
+  let peak=startCapital, maxDDPct=0;
+  equityCurve.forEach(p=>{ if(p.equity>peak)peak=p.equity; const dd=(peak-p.equity)/peak*100; if(dd>maxDDPct)maxDDPct=dd; });
+  let maxW=0,maxL=0,cW=0,cL=0;
+  trades.forEach(t=>{ t.rMult>0?(cW++,cL=0,maxW=Math.max(maxW,cW)):(cL++,cW=0,maxL=Math.max(maxL,cL)); });
+  return {n,wins:wins.length,losses:losses.length,winRate,avgWin,avgLoss,pf,exp,totalRetPct,finalEquity,startCapital,maxDDPct,maxW,maxL,avgBars:trades.reduce((s,t)=>s+(t.barsHeld||0),0)/n};
+}
+
+function _btRenderResults({trades,equityCurve,stats}){
+  const el=document.getElementById('bt-results');
+  if(!el) return;
+  if(!stats||stats.empty||!trades.length){
+    el.innerHTML='<div class="bt-error">No trades generated. Try loosening conditions, switching timeframe, or loading a preset.</div>';
+    return;
+  }
+  const {n,wins,losses,winRate,avgWin,avgLoss,pf,exp,totalRetPct,finalEquity,startCapital,maxDDPct,maxW,maxL,avgBars}=stats;
+  const pc=(v,good)=>v>=0?`color:${good?'#00c9a0':'#ff4d6a'}`:`color:${good?'#ff4d6a':'#00c9a0'}`;
+  const sign=v=>v>=0?'+':'';
+  el.innerHTML=`
+    <div class="bt-stats-grid">
+      <div class="bt-stat"><div class="bt-stat-val" style="${pc(totalRetPct,true)}">${sign(totalRetPct)}${totalRetPct.toFixed(1)}%</div><div class="bt-stat-label">Net Return</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:${winRate>=50?'#00c9a0':'#ff4d6a'}">${winRate.toFixed(0)}%</div><div class="bt-stat-label">Win Rate</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:${pf>=1?'#00c9a0':'#ff4d6a'}">${isFinite(pf)?pf.toFixed(2):'∞'}</div><div class="bt-stat-label">Profit Factor</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="${pc(exp,true)}">${sign(exp)}${exp.toFixed(2)}R</div><div class="bt-stat-label">Expectancy</div></div>
+      <div class="bt-stat"><div class="bt-stat-val">${n}</div><div class="bt-stat-label">Trades</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">-${maxDDPct.toFixed(1)}%</div><div class="bt-stat-label">Max Drawdown</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">+${avgWin.toFixed(2)}R</div><div class="bt-stat-label">Avg Win</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">-${avgLoss.toFixed(2)}R</div><div class="bt-stat-label">Avg Loss</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">${wins}</div><div class="bt-stat-label">Winners</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">${losses}</div><div class="bt-stat-label">Losers</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:#00c9a0">${maxW}</div><div class="bt-stat-label">Best Streak</div></div>
+      <div class="bt-stat"><div class="bt-stat-val">${Math.round(avgBars)}</div><div class="bt-stat-label">Avg Bars Held</div></div>
+    </div>
+    <div class="bt-results-hdr" style="margin-top:14px">EQUITY CURVE</div>
+    <canvas id="bt-eq-canvas" height="120" style="width:100%;display:block"></canvas>
+    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades · $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
+    <div class="bt-trade-table">
+      <div class="bt-trade-hdr"><span>#</span><span>Dir</span><span>Entry</span><span>Exit</span><span>Result</span><span>R</span><span>P&amp;L</span></div>
+      <div class="bt-trade-rows">${trades.slice(0,300).map((t,i)=>{
+        const rc=t.rMult>0?'#00c9a0':'#ff4d6a';
+        const res=t.reason==='tp'?'✓ TP':t.reason==='sl'?'✗ SL':'⏸ Open';
+        return `<div class="bt-trade-row ${t.rMult>0?'win':'loss'}">
+          <span style="color:var(--tx3)">${i+1}</span>
+          <span style="color:${t.dir==='long'?'#00c9a0':'#ff4d6a'}">${t.dir==='long'?'▲':'▼'} ${t.dir}</span>
+          <span>${fP(t.entry)}</span>
+          <span>${fP(t.exitPrice)}</span>
+          <span>${res}</span>
+          <span style="color:${rc}">${t.rMult>=0?'+':''}${t.rMult.toFixed(2)}R</span>
+          <span style="color:${rc}">${t.pnl>=0?'+':''}$${Math.abs(t.pnl).toFixed(0)}</span>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  requestAnimationFrame(()=>_btDrawEquity(equityCurve, startCapital));
+}
+
+function _btDrawEquity(equityCurve, startCapital){
+  const canvas=document.getElementById('bt-eq-canvas');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.offsetWidth, H=120;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0a0e14'; ctx.fillRect(0,0,W,H);
+  if(equityCurve.length<2) return;
+  const vals=equityCurve.map(p=>p.equity);
+  const minV=Math.min(...vals), maxV=Math.max(...vals);
+  const range=maxV-minV||1;
+  const pad=14;
+  const toX=idx=>pad+idx*(W-pad*2)/(equityCurve.length-1);
+  const toY=v=>H-pad-(v-minV)*(H-pad*2)/range;
+  // Baseline
+  const baseY=toY(startCapital);
+  ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(pad,baseY); ctx.lineTo(W-pad,baseY); ctx.stroke();
+  ctx.setLineDash([]);
+  const isUp=vals[vals.length-1]>=startCapital;
+  const col=isUp?'#00c9a0':'#ff4d6a';
+  // Fill
+  const grad=ctx.createLinearGradient(0,pad,0,H);
+  grad.addColorStop(0,isUp?'rgba(0,201,160,0.25)':'rgba(255,77,106,0.25)');
+  grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.moveTo(toX(0),toY(equityCurve[0].equity));
+  equityCurve.forEach((p,i)=>ctx.lineTo(toX(i),toY(p.equity)));
+  ctx.lineTo(toX(equityCurve.length-1),H-pad); ctx.lineTo(toX(0),H-pad);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  // Line
+  ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=1.5;
+  equityCurve.forEach((p,i)=>i?ctx.lineTo(toX(i),toY(p.equity)):ctx.moveTo(toX(i),toY(p.equity)));
+  ctx.stroke();
+  // Labels
+  ctx.font=`${9*dpr/dpr}px sans-serif`; ctx.fillStyle='#6b8099';
+  ctx.textAlign='left'; ctx.fillText('$'+Math.round(maxV).toLocaleString(),pad+2,pad+9);
+  ctx.textAlign='right'; ctx.fillText('$'+Math.round(minV).toLocaleString(),W-pad-2,H-pad-3);
+}
+
+function _btClearResults(){
+  const el=document.getElementById('bt-results');
+  if(el) el.innerHTML='<div class="bt-empty">Configure your strategy and click Run Backtest</div>';
+}
+function _btShowError(msg){
+  const el=document.getElementById('bt-results');
+  if(el) el.innerHTML=`<div class="bt-error">⚠ ${msg}</div>`;
+  const btn=document.getElementById('bt-run-btn');
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
+}
