@@ -2079,6 +2079,69 @@ body.is-dragging { user-select: none; }
 .bt-trade-row:last-child{border-bottom:none}
 
 /* ─── DRAWING TOOL STYLE PICKER ───────────────────────────────────────────── */
+.ov-body#ov-draw{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:10px 10px 14px;
+  overflow-y:auto;
+}
+.ov-body#ov-draw .dt-group-label{
+  padding:10px 4px 2px;
+  margin-top:2px;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:rgba(255,255,255,.34);
+  text-transform:uppercase;
+}
+.ov-body#ov-draw .dt-group-label:first-child{
+  padding-top:0;
+}
+.ov-body#ov-draw .dt-btn{
+  width:100%;
+  min-height:38px;
+  height:auto;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  padding:9px 12px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(18,26,39,.72);
+  color:var(--tx2);
+  font-size:14px;
+  line-height:1.15;
+  text-align:left;
+  white-space:normal;
+  transform:none;
+}
+.ov-body#ov-draw .dt-btn:hover{
+  background:rgba(28,39,57,.92);
+  border-color:rgba(255,255,255,.14);
+  color:var(--tx);
+}
+.ov-body#ov-draw .dt-btn.on{
+  background:rgba(240,165,0,.12);
+  border-color:rgba(240,165,0,.35);
+  color:var(--am);
+  box-shadow:inset 0 0 0 1px rgba(240,165,0,.12);
+}
+.ov-body#ov-draw .dt-btn > span{
+  display:block;
+  flex:1;
+  min-width:0;
+  font-size:12px;
+  font-weight:600;
+  color:inherit;
+}
+.ov-body#ov-draw .dt-btn > svg,
+.ov-body#ov-draw .dt-btn > :not(span){
+  flex:0 0 16px;
+  width:16px;
+  text-align:center;
+}
 .dt-group-label{font-size:9px;font-weight:700;letter-spacing:.8px;color:rgba(255,255,255,.25);text-transform:uppercase;padding:8px 4px 3px;margin-top:4px}
 .dt-group-label:first-child{margin-top:0;padding-top:4px}
 .dt-color-row{display:flex;gap:5px;flex-wrap:wrap;padding:2px 0}
