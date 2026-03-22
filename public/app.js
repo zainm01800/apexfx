@@ -242,6 +242,176 @@ const SYMS=[
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
 let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
+let chartTabs = [];
+let activeChartTabId = null;
+let chartTabSeq = 1;
+
+function _chartTabId(){
+  return `chart_${Date.now()}_${chartTabSeq++}`;
+}
+function _chartTabStorageKey(){
+  return 'chart-tabs-v1';
+}
+function _chartTabTitle(sym){
+  return sym || 'Chart';
+}
+function _chartTabMeta(tab){
+  return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
+}
+function _chartTabSnapshot(){
+  return {
+    sym: curSym?.s || SYMS[0].s,
+    tf: curTF || '1d',
+    chartType: curCT || 'heikin',
+    rightBarIndex,
+    barWidth,
+    priceHi,
+    priceLo,
+    drawings: (drawings || []).map(drawingToTime),
+  };
+}
+function saveCurrentChartTabState(){
+  if(!activeChartTabId) return;
+  const tab = chartTabs.find(t => t.id === activeChartTabId);
+  if(!tab) return;
+  Object.assign(tab, _chartTabSnapshot(), {
+    title: _chartTabTitle(curSym?.s || tab.sym),
+    updatedAt: Date.now(),
+  });
+}
+function saveChartTabs(){
+  saveCurrentChartTabState();
+  try{
+    _lsSet(_chartTabStorageKey(), JSON.stringify({
+      activeChartTabId,
+      chartTabSeq,
+      tabs: chartTabs,
+    }));
+  }catch(e){}
+}
+function loadChartTabs(){
+  try{
+    const raw = JSON.parse(_lsGet(_chartTabStorageKey()) || 'null');
+    chartTabs = Array.isArray(raw?.tabs) ? raw.tabs : [];
+    activeChartTabId = raw?.activeChartTabId || (chartTabs[0]?.id || null);
+    chartTabSeq = Math.max(chartTabSeq, Number(raw?.chartTabSeq) || 1);
+  }catch(e){
+    chartTabs = [];
+    activeChartTabId = null;
+    chartTabSeq = 1;
+  }
+}
+function ensureChartTabs(){
+  loadChartTabs();
+  if(!chartTabs.length){
+    chartTabs = [{
+      id: _chartTabId(),
+      title: _chartTabTitle(curSym?.s || SYMS[0].s),
+      ..._chartTabSnapshot(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }];
+    activeChartTabId = chartTabs[0].id;
+    saveChartTabs();
+  }
+  renderChartTabs();
+}
+function renderChartTabs(){
+  const el = document.getElementById('chart-tabs-list');
+  if(!el) return;
+  el.innerHTML = chartTabs.map(tab => `
+    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" onclick="switchChartTab('${tab.id}')">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym)}</span>
+        <span class="chart-tab-meta">${_chartTabMeta(tab)}</span>
+      </div>
+      <button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button>
+    </div>
+  `).join('');
+}
+function createChartTab(sym, tf){
+  saveCurrentChartTabState();
+  const base = chartTabs.find(t => t.id === activeChartTabId);
+  const snapshot = base ? { ...base } : _chartTabSnapshot();
+  const tab = {
+    id: _chartTabId(),
+    title: _chartTabTitle(sym || snapshot.sym || curSym?.s || SYMS[0].s),
+    sym: sym || snapshot.sym || curSym?.s || SYMS[0].s,
+    tf: tf || snapshot.tf || curTF || '1d',
+    chartType: snapshot.chartType || curCT || 'heikin',
+    rightBarIndex: snapshot.rightBarIndex,
+    barWidth: snapshot.barWidth,
+    priceHi: snapshot.priceHi,
+    priceLo: snapshot.priceLo,
+    drawings: Array.isArray(snapshot.drawings) ? snapshot.drawings.map(d => ({ ...d })) : [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  chartTabs.push(tab);
+  activeChartTabId = tab.id;
+  renderChartTabs();
+  saveChartTabs();
+  switchChartTab(tab.id, true);
+}
+function closeChartTab(id){
+  if(chartTabs.length <= 1){
+    toast('Keep at least one chart tab open');
+    return;
+  }
+  const idx = chartTabs.findIndex(t => t.id === id);
+  if(idx < 0) return;
+  const wasActive = activeChartTabId === id;
+  chartTabs.splice(idx, 1);
+  if(wasActive){
+    const next = chartTabs[Math.max(0, idx - 1)] || chartTabs[0];
+    activeChartTabId = next?.id || null;
+  }
+  renderChartTabs();
+  saveChartTabs();
+  if(wasActive && activeChartTabId) switchChartTab(activeChartTabId, true);
+}
+function syncTimeframeButtons(){
+  document.querySelectorAll('.tf').forEach(b => {
+    const clickSrc = b.getAttribute('onclick') || '';
+    const isOn = clickSrc.includes(`'${curTF}'`);
+    b.classList.toggle('on', isOn);
+  });
+}
+function applyChartTabWorkspace(tab){
+  if(!tab) return;
+  curTF = tab.tf || '1d';
+  curCT = tab.chartType || 'heikin';
+  barWidth = tab.barWidth || 8;
+  priceHi = tab.priceHi ?? null;
+  priceLo = tab.priceLo ?? null;
+  syncTimeframeButtons();
+  const iconEl = document.getElementById('ct-sel-icon');
+  if(iconEl) iconEl.textContent = ctIconFor(curCT);
+}
+function switchChartTab(id, skipSave){
+  if(!skipSave) saveCurrentChartTabState();
+  const tab = chartTabs.find(t => t.id === id);
+  if(!tab) return;
+  activeChartTabId = id;
+  applyChartTabWorkspace(tab);
+  renderChartTabs();
+  loadSym(tab.sym || SYMS[0].s).then(() => {
+    curCT = tab.chartType || curCT;
+    barWidth = tab.barWidth || barWidth;
+    rightBarIndex = Math.max(curData.length ? 1 : 0, Math.min(tab.rightBarIndex || (curData.length + 5), curData.length + 40));
+    priceHi = tab.priceHi ?? null;
+    priceLo = tab.priceLo ?? null;
+    drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
+    drawingWIP = null;
+    selectedDrawing = null;
+    syncTimeframeButtons();
+    const iconEl = document.getElementById('ct-sel-icon');
+    if(iconEl) iconEl.textContent = ctIconFor(curCT);
+    updateTopbar();
+    draw();
+    saveChartTabs();
+  });
+}
 
 // Fetch live prices from Binance on startup to update placeholder values
 async function refreshSymPrices(){
@@ -15421,6 +15591,15 @@ async function loadSym(sym){
   if(curSym && curSym.s) saveDrawings(curSym.s, curTF);
   const prevSym = curSym?.s;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
+  const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+  if(activeTab){
+    activeTab.sym = curSym.s;
+    activeTab.title = _chartTabTitle(curSym.s);
+    activeTab.tf = curTF;
+    activeTab.chartType = curCT;
+    activeTab.updatedAt = Date.now();
+    renderChartTabs();
+  }
   // Use last real close as placeholder base so all TFs start from the same price
   const placeholderBase = (prevSym === sym && curData.length)
     ? curData[curData.length-1].close
@@ -15452,6 +15631,7 @@ async function loadSym(sym){
     updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
+    saveChartTabs();
     return;
   }
 
@@ -15489,11 +15669,14 @@ async function loadSym(sym){
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
+      saveChartTabs();
     } else {
       setSrcStatus('⚠ simulated · no live data','var(--am)');
+      saveChartTabs();
     }
   } catch(err){
     setSrcStatus('⚠ simulated · fetch error','var(--rd)');
+    saveChartTabs();
   }
 }
 
@@ -15522,6 +15705,12 @@ function updateTopbar(){
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
+  const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+  if(activeTab){
+    activeTab.tf = tf;
+    activeTab.updatedAt = Date.now();
+    renderChartTabs();
+  }
   // Clear cache for this TF so we always fetch fresh real data on TF switch
   delete dataCache[curSym.s+'_'+tf];
   document.querySelectorAll('.tf').forEach(b=>b.classList.remove('on'));
@@ -15537,6 +15726,7 @@ function setTF(btn,tf){
     });
     rightBarIndex = Math.max(rightBarIndex, n - 1 + 20);
     draw();
+    saveChartTabs();
   });
 }
 function setCT(btn,type){
@@ -15547,6 +15737,13 @@ function ctIconFor(t){ return {candle:'▪',line:'∿',area:'◿',heikin:'⬡'}[
 function ctLabelFor(t){ return {candle:'Candles',line:'Line',area:'Area',heikin:'Heikin Ashi'}[t]||t; }
 function ctSelect(type, icon, label){
   curCT = type;
+  const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+  if(activeTab){
+    activeTab.chartType = type;
+    activeTab.updatedAt = Date.now();
+    renderChartTabs();
+    saveChartTabs();
+  }
   // Update button face
   const iconEl = document.getElementById('ct-sel-icon');
   if(iconEl) iconEl.textContent = icon;
@@ -16805,7 +17002,8 @@ async function authSubmitLogin(){
     document.getElementById('app').style.display = 'flex';
     doLogin(result.username, result.displayName);
     
-    loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
+    ensureChartTabs();
+    switchChartTab(activeChartTabId, true);
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
@@ -16839,7 +17037,8 @@ async function authSubmitRegister(){
   closeAuthOverlay();
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
-  loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
+  ensureChartTabs();
+  switchChartTab(activeChartTabId, true);
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -17211,6 +17410,7 @@ function enterGuestMode(){
   }, 100);
   updateUserBadge(null);
   document.getElementById('app').style.display = 'flex';
+  ensureChartTabs();
 }
 
 function doLogin(username, displayName){
@@ -17466,12 +17666,13 @@ window.addEventListener('load', () => {
       closeAuthOverlay();
       document.getElementById('app').style.display = 'flex';
       doLogin(username, displayName);
-      loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
+      ensureChartTabs();
+      switchChartTab(activeChartTabId, true);
     } else {
       // No active session — show auth screen
       closeAuthOverlay();
       enterGuestMode();
-      loadSym(SYMS[0].s); // Load first available symbol (BTC/USD)
+      switchChartTab(activeChartTabId, true);
     }
   })();
 
@@ -21341,6 +21542,7 @@ function _fpwMakeDraggable(el, handle){
 
 // Save everything when the user closes the tab or navigates away
 window.addEventListener('beforeunload', () => {
+  saveChartTabs();
   if(!_currentUserId) return;
   saveJournal();
   saveWatchlist();
@@ -21363,6 +21565,9 @@ window.addEventListener('beforeunload', () => {
 
 // Also flush on visibility change (user switches tab/minimises)
 document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){
+    saveChartTabs();
+  }
   if(document.visibilityState === 'hidden' && _currentUserId){
     saveJournal();
     saveWatchlist();
