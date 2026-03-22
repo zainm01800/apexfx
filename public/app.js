@@ -11434,6 +11434,9 @@ async function aiComplete(prompt, {
   try {
     data = await res.json();
   } catch(parseErr) {
+    if (res.status === 404) {
+      throw new Error('AI endpoint missing on this host. Run the site through Vercel (for example `vercel dev`) or deploy it to Vercel so `/api/ai` exists.');
+    }
     throw new Error(`AI HTTP ${res.status} - invalid response`);
   }
 
