@@ -249,6 +249,7 @@ let chartTabs = [];
 let activeChartTabId = null;
 let chartTabSeq = 1;
 let chartLoadSeq = 0;
+let chartTransitionState = { tabId:null, seq:0, loading:false };
 
 function _chartTabId(){
   return `chart_${Date.now()}_${chartTabSeq++}`;
@@ -278,6 +279,7 @@ function _chartTabSnapshot(){
 }
 function syncActiveChartTabRuntimeState(persist = false){
   if(!activeChartTabId) return;
+  if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
   const tab = chartTabs.find(t => t.id === activeChartTabId);
   if(!tab) return;
   Object.assign(tab, {
@@ -293,6 +295,7 @@ function syncActiveChartTabRuntimeState(persist = false){
 }
 function saveCurrentChartTabState(){
   if(!activeChartTabId) return;
+  if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
   const tab = chartTabs.find(t => t.id === activeChartTabId);
   if(!tab) return;
   Object.assign(tab, _chartTabSnapshot(), {
@@ -376,6 +379,21 @@ function positionChartTabsBar(){
 }
 function isCurrentChartRequest(tabId, tf, sym, seq){
   return activeChartTabId === tabId && curTF === tf && curSym?.s === sym && chartLoadSeq === seq;
+}
+function beginChartTransition(tabId, seq){
+  chartTransitionState = { tabId, seq, loading:true };
+}
+function endChartTransition(tabId, seq, persist = true){
+  if(chartTransitionState.tabId !== tabId || chartTransitionState.seq !== seq) return;
+  chartTransitionState.loading = false;
+  if(activeChartTabId !== tabId) return;
+  const tab = chartTabs.find(t => t.id === tabId);
+  if(!tab) return;
+  Object.assign(tab, _chartTabSnapshot(), {
+    title: _chartTabTitle(curSym?.s || tab.sym, curTF || tab.tf),
+    updatedAt: Date.now(),
+  });
+  if(persist) saveChartTabs(false);
 }
 function resetChartInteractionState(){
   isPanning = false;
@@ -506,23 +524,26 @@ function switchChartTab(id, skipSave, options = {}){
   if(!skipSave) saveCurrentChartTabState();
   const tab = chartTabs.find(t => t.id === id);
   if(!tab) return;
+  const prevSym = curSym?.s;
+  const prevTF = curTF;
+  const datasetChanged = !!(tab.sym && (tab.sym !== prevSym || (tab.tf || '1d') !== (prevTF || '1d')));
   resetChartInteractionState();
   activeChartTabId = id;
   applyChartTabWorkspace(tab);
-  if(options.focusLatest){
+  if(options.focusLatest || datasetChanged){
     rightBarIndex = curData.length + 5;
     priceHi = null;
     priceLo = null;
   } else {
     rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
   }
-  normalizeChartViewportForCurrentData(!!options.focusLatest);
+  normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
     if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    if(options.focusLatest){
+    if(options.focusLatest || datasetChanged){
       rightBarIndex = curData.length + 5;
       priceHi = null;
       priceLo = null;
@@ -531,7 +552,7 @@ function switchChartTab(id, skipSave, options = {}){
       priceHi = tab.priceHi ?? null;
       priceLo = tab.priceLo ?? null;
     }
-    normalizeChartViewportForCurrentData(!!options.focusLatest);
+    normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     drawingWIP = null;
     selectedDrawing = null;
@@ -15807,19 +15828,19 @@ async function loadSym(sym){
   const requestTabId = activeChartTabId;
   const requestTF = curTF;
   const requestSeq = ++chartLoadSeq;
+  beginChartTransition(requestTabId, requestSeq);
   const requestTab = chartTabs.find(t => t.id === requestTabId) || null;
   if(curSym && curSym.s) saveDrawings(curSym.s, requestTF);
   const prevSym = curSym?.s;
   const symbolChanged = prevSym !== sym;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
-  const activeTab = chartTabs.find(t => t.id === activeChartTabId);
-  if(activeTab){
-    activeTab.sym = curSym.s;
-    activeTab.title = _chartTabTitle(curSym.s, requestTF);
-    activeTab.tf = requestTF;
-    activeTab.chartType = curCT;
-    activeTab.updatedAt = Date.now();
-    renderChartTabs();
+  if(requestTab){
+    requestTab.sym = curSym.s;
+    requestTab.title = _chartTabTitle(curSym.s, requestTF);
+    requestTab.tf = requestTF;
+    requestTab.chartType = curCT;
+    requestTab.updatedAt = Date.now();
+    if(activeChartTabId === requestTabId) renderChartTabs();
   }
   const requestKey = sym+'_'+requestTF;
   // Use last real close as placeholder base so all TFs start from the same price
@@ -15839,6 +15860,7 @@ async function loadSym(sym){
   } else {
     rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
   }
+  normalizeChartViewportForCurrentData(symbolChanged);
   // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
@@ -15872,7 +15894,7 @@ async function loadSym(sym){
     updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
-    saveChartTabs(false);
+    endChartTransition(requestTabId, requestSeq, true);
     return;
   }
 
@@ -15918,16 +15940,16 @@ async function loadSym(sym){
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
-      saveChartTabs(false);
+      endChartTransition(requestTabId, requestSeq, true);
     } else {
       if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       setSrcStatus('⚠ simulated · no live data','var(--am)');
-      saveChartTabs(false);
+      endChartTransition(requestTabId, requestSeq, true);
     }
   } catch(err){
     if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
     setSrcStatus('⚠ simulated · fetch error','var(--rd)');
-    saveChartTabs(false);
+    endChartTransition(requestTabId, requestSeq, true);
   }
 }
 
@@ -19618,6 +19640,16 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
   const targetTf = tf || curTF;
   const setupRef = aisSetups.find(x => x.sym === sym && x.tf === targetTf);
   const targetTabId = createChartTab(sym, targetTf);
+  const targetTab = chartTabs.find(t => t.id === targetTabId);
+  if(targetTab){
+    targetTab.sym = sym;
+    targetTab.tf = targetTf;
+    targetTab.title = _chartTabTitle(sym, targetTf);
+    targetTab.updatedAt = Date.now();
+    renderChartTabs();
+    saveChartTabs(false);
+  }
+  switchChartTab(targetTabId, true, { focusLatest: true });
 
   const doPlace = () => {
     // Use real Binance data if available in cache, otherwise use curData
