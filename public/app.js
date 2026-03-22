@@ -20386,6 +20386,23 @@ function tapBuildComparison(setupMeta, metrics){
 
   return { scanScore, tradeScore, scannerSaw, confirmed, changed, better };
 }
+function tapGetRenderedTradeScore(){
+  const scoreEl = document.getElementById('tap-verdict-score');
+  const labelEl = document.getElementById('tap-verdict-label');
+  const scoreText = String(scoreEl?.textContent || '').trim();
+  const parsed = scoreText.match(/(\d{1,3})\s*\/\s*100/i) || scoreText.match(/\b(\d{1,3})\b/);
+  if (parsed) return Math.min(100, Math.max(0, parseInt(parsed[1])));
+
+  const verdict = String(labelEl?.textContent || '').toUpperCase();
+  if (verdict.includes('STRONG SETUP') || verdict.includes('A+ SETUP')) return 88;
+  if (verdict.includes('A SETUP')) return 80;
+  if (verdict.includes('ACCEPTABLE SETUP') || verdict === 'ACCEPTABLE') return 68;
+  if (verdict.includes('B SETUP')) return 60;
+  if (verdict.includes('RISKY SETUP') || verdict === 'RISKY') return 42;
+  if (verdict.includes('C SETUP')) return 35;
+  if (verdict.includes('AVOID TRADE') || verdict === 'AVOID' || verdict.includes('INVALID SETUP')) return 18;
+  return null;
+}
 
 function buildDrawingsContext(d, data){
   const refPrice = d?.price ?? data?.[data.length-1]?.close;
@@ -20516,7 +20533,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   const metrics = analysisText ? tapExtractTradeMetrics(analysisText) : {};
   const comp = tapBuildComparison(setupMeta, metrics);
   const scanScore = comp?.scanScore;
-  const tradeScore = comp?.tradeScore;
+  const tradeScore = comp?.tradeScore ?? tapGetRenderedTradeScore();
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
