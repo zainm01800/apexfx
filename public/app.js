@@ -73,6 +73,7 @@ function toggleOverlay(name) {
 
   _updateLockBtn();
   _syncAllDockedBtns();
+  positionChartTabsBar();
 }
 
 function closeOverlay() {
@@ -87,6 +88,7 @@ function closeOverlay() {
   _overlayLocked = false;
   _updateLockBtn();
   _syncAllDockedBtns();
+  positionChartTabsBar();
   // Re-measure canvas now that panel has closed/undocked
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
   setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
@@ -99,6 +101,7 @@ function toggleOverlayLock() {
   // Toggle class on #app so margin-left CSS rule kicks in for #main-col
   document.getElementById('app').classList.toggle('panel-locked', _overlayLocked);
   _updateLockBtn();
+  positionChartTabsBar();
   // Re-measure canvas after margin transition completes
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
   setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
@@ -245,6 +248,8 @@ let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
 let chartTabs = [];
 let activeChartTabId = null;
 let chartTabSeq = 1;
+let chartLoadSeq = 0;
+let chartTransitionState = { tabId:null, seq:0, loading:false };
 
 function _chartTabId(){
   return `chart_${Date.now()}_${chartTabSeq++}`;
@@ -252,8 +257,8 @@ function _chartTabId(){
 function _chartTabStorageKey(){
   return 'chart-tabs-v1';
 }
-function _chartTabTitle(sym){
-  return sym || 'Chart';
+function _chartTabTitle(sym, tf){
+  return sym ? `${sym}${tf ? ` ${String(tf).toUpperCase()}` : ''}` : 'Chart';
 }
 function _chartTabMeta(tab){
   return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
@@ -267,20 +272,39 @@ function _chartTabSnapshot(){
     barWidth,
     priceHi,
     priceLo,
+    indActive: {...DEFAULT_IND_ACTIVE, ...indActive},
+    showSessions: !!showSessions,
     drawings: (drawings || []).map(drawingToTime),
   };
 }
+function syncActiveChartTabRuntimeState(persist = false){
+  if(!activeChartTabId) return;
+  if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
+  const tab = chartTabs.find(t => t.id === activeChartTabId);
+  if(!tab) return;
+  Object.assign(tab, {
+    rightBarIndex,
+    barWidth,
+    priceHi,
+    priceLo,
+    indActive: {...DEFAULT_IND_ACTIVE, ...indActive},
+    showSessions: !!showSessions,
+    updatedAt: Date.now(),
+  });
+  if(persist) saveChartTabs(false);
+}
 function saveCurrentChartTabState(){
   if(!activeChartTabId) return;
+  if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
   const tab = chartTabs.find(t => t.id === activeChartTabId);
   if(!tab) return;
   Object.assign(tab, _chartTabSnapshot(), {
-    title: _chartTabTitle(curSym?.s || tab.sym),
+    title: _chartTabTitle(curSym?.s || tab.sym, curTF || tab.tf),
     updatedAt: Date.now(),
   });
 }
-function saveChartTabs(){
-  saveCurrentChartTabState();
+function saveChartTabs(saveActiveState = true){
+  if(saveActiveState) saveCurrentChartTabState();
   try{
     _lsSet(_chartTabStorageKey(), JSON.stringify({
       activeChartTabId,
@@ -306,7 +330,7 @@ function ensureChartTabs(){
   if(!chartTabs.length){
     chartTabs = [{
       id: _chartTabId(),
-      title: _chartTabTitle(curSym?.s || SYMS[0].s),
+      title: _chartTabTitle(curSym?.s || SYMS[0].s, curTF || '1d'),
       ..._chartTabSnapshot(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -320,9 +344,9 @@ function renderChartTabs(){
   const el = document.getElementById('chart-tabs-list');
   if(!el) return;
   el.innerHTML = chartTabs.map(tab => `
-    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" onclick="switchChartTab('${tab.id}')">
+    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
-        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym)}</span>
+        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym, tab.tf)}</span>
         <span class="chart-tab-meta">${_chartTabMeta(tab)}</span>
       </div>
       <button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button>
@@ -330,6 +354,133 @@ function renderChartTabs(){
   `).join('');
   const activeEl = el.querySelector('.chart-tab.active');
   if(activeEl) activeEl.scrollIntoView({ block:'nearest', inline:'nearest' });
+  positionChartTabsBar();
+}
+function positionChartTabsBar(){
+  const bar = document.getElementById('chart-tabs-bar');
+  const area = document.getElementById('chart-area');
+  if(!bar || !area) return;
+  const areaRect = area.getBoundingClientRect();
+  const navRect = document.getElementById('nav')?.getBoundingClientRect();
+  const overlay = document.getElementById('overlay-panel');
+  const overlayRect = overlay && overlay.classList.contains('open') ? overlay.getBoundingClientRect() : null;
+  const drawerRect = document.getElementById('rdrawer')?.getBoundingClientRect();
+  const leftEdge = Math.max(
+    areaRect.left,
+    navRect?.right || areaRect.left,
+    overlayRect?.right || areaRect.left
+  );
+  const rightEdge = Math.min(
+    areaRect.right,
+    drawerRect?.left || areaRect.right
+  );
+  bar.style.left = `${Math.max(0, leftEdge - areaRect.left)}px`;
+  bar.style.right = `${Math.max(0, areaRect.right - rightEdge)}px`;
+}
+function isCurrentChartRequest(tabId, tf, sym, seq){
+  return activeChartTabId === tabId && curTF === tf && curSym?.s === sym && chartLoadSeq === seq;
+}
+function beginChartTransition(tabId, seq){
+  chartTransitionState = { tabId, seq, loading:true };
+}
+function endChartTransition(tabId, seq, persist = true){
+  if(chartTransitionState.tabId !== tabId || chartTransitionState.seq !== seq) return;
+  chartTransitionState.loading = false;
+  if(activeChartTabId !== tabId) return;
+  const tab = chartTabs.find(t => t.id === tabId);
+  if(!tab) return;
+  Object.assign(tab, _chartTabSnapshot(), {
+    title: _chartTabTitle(curSym?.s || tab.sym, curTF || tab.tf),
+    updatedAt: Date.now(),
+  });
+  if(persist) saveChartTabs(false);
+}
+function resetChartInteractionState(){
+  isPanning = false;
+  isXScaling = false;
+  isYScaling = false;
+  isDraggingDrawing = false;
+  isResizingDrawing = false;
+  isMarquee = false;
+  resizeHandle = null;
+  dragSnapshot = null;
+  selectedDrawing = null;
+  selectedDrawings = [];
+  drawingWIP = null;
+  mouseX = -1;
+  mouseY = -1;
+  _replayLineDragging = false;
+  const mc = _el('main-canvas');
+  if(mc) mc.style.cursor = activeTool === 'eraser' ? 'cell' : 'crosshair';
+}
+function clampChartTabRightIndex(savedIndex, dataLen){
+  const fallback = dataLen + 5;
+  if(!dataLen) return Math.max(1, savedIndex || fallback);
+  const val = Number(savedIndex);
+  if(!Number.isFinite(val)) return fallback;
+  return Math.max(1, Math.min(val, dataLen + 40));
+}
+function normalizeChartViewportForCurrentData(preferLatest = false){
+  if(!curData?.length) return;
+  barWidth = Math.max(4, Math.min(24, Number(barWidth) || 8));
+  rightBarIndex = clampChartTabRightIndex(rightBarIndex, curData.length);
+  if(preferLatest){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+    return;
+  }
+  if(priceHi == null || priceLo == null) return;
+  if(!Number.isFinite(priceHi) || !Number.isFinite(priceLo) || priceHi <= priceLo){
+    priceHi = null;
+    priceLo = null;
+    return;
+  }
+  const auto = getAutoRange();
+  const autoRange = Math.max(1e-9, (auto.hi - auto.lo));
+  const savedRange = priceHi - priceLo;
+  const lastClose = curData[curData.length - 1]?.close ?? null;
+  const badlyFramed =
+    (lastClose != null && (lastClose < priceLo || lastClose > priceHi)) ||
+    savedRange > autoRange * 8 ||
+    savedRange < autoRange * 0.2;
+  if(badlyFramed){
+    priceHi = null;
+    priceLo = null;
+  }
+}
+function placePendingAISetupOnActiveChart(tab){
+  if(!tab?._pendingAISPlacement || !curData?.length) return false;
+  const placement = tab._pendingAISPlacement;
+  const isLong = placement.dir === 'bull';
+  const dp = placement.entry < 1 ? 5 : placement.entry < 10 ? 4 : placement.entry < 100 ? 3 : 2;
+  const halfBars = Math.max(8, placement.halfBars || defaultTradeToolHalfBars(curTF));
+  const anchorBar = (curData.length - 1) + halfBars;
+
+  drawings = drawings.filter(d => !d._aisPlaced);
+  const drawing = {
+    type: isLong ? 'long' : 'short',
+    bar: anchorBar,
+    price: +placement.entry.toFixed(dp),
+    sl: +placement.sl.toFixed(dp),
+    tp: +placement.target.toFixed(dp),
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, curTF),
+    _aisPlaced: true,
+    _aisMeta: placement.meta || null,
+  };
+  drawings.push(drawing);
+  saveDrawings(curSym.s, curTF);
+  tab.drawings = drawings.map(drawingToTime);
+  tab.rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+  tab.priceHi = null;
+  tab.priceLo = null;
+  tab.updatedAt = Date.now();
+  rightBarIndex = tab.rightBarIndex;
+  priceHi = null;
+  priceLo = null;
+  delete tab._pendingAISPlacement;
+  return true;
 }
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
@@ -337,14 +488,14 @@ function createChartTab(sym, tf){
   const snapshot = base ? { ...base } : _chartTabSnapshot();
   const tab = {
     id: _chartTabId(),
-    title: _chartTabTitle(sym || snapshot.sym || curSym?.s || SYMS[0].s),
+    title: _chartTabTitle(sym || snapshot.sym || curSym?.s || SYMS[0].s, tf || snapshot.tf || curTF || '1d'),
     sym: sym || snapshot.sym || curSym?.s || SYMS[0].s,
     tf: tf || snapshot.tf || curTF || '1d',
     chartType: snapshot.chartType || curCT || 'heikin',
-    rightBarIndex: snapshot.rightBarIndex,
-    barWidth: snapshot.barWidth,
-    priceHi: snapshot.priceHi,
-    priceLo: snapshot.priceLo,
+    rightBarIndex: null,
+    barWidth: snapshot.barWidth || 8,
+    priceHi: null,
+    priceLo: null,
     drawings: Array.isArray(snapshot.drawings) ? snapshot.drawings.map(d => ({ ...d })) : [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -354,6 +505,7 @@ function createChartTab(sym, tf){
   renderChartTabs();
   saveChartTabs();
   switchChartTab(tab.id, true);
+  return tab.id;
 }
 function openSymInNewTab(sym){
   createChartTab(sym, curTF);
@@ -390,26 +542,60 @@ function applyChartTabWorkspace(tab){
   barWidth = tab.barWidth || 8;
   priceHi = tab.priceHi ?? null;
   priceLo = tab.priceLo ?? null;
+  indActive = {...DEFAULT_IND_ACTIVE, ...(tab.indActive || indActive)};
+  showSessions = tab.showSessions != null ? !!tab.showSessions : !!showSessions;
+  applyIndActive();
+  invalidateIndCache();
   syncTimeframeButtons();
   const iconEl = document.getElementById('ct-sel-icon');
   if(iconEl) iconEl.textContent = ctIconFor(curCT);
+  renderTopbarInds();
+  renderIndList(_indSearchQ());
+  sizeCanvases();
 }
-function switchChartTab(id, skipSave){
+function switchChartTab(id, skipSave, options = {}){
   if(!skipSave) saveCurrentChartTabState();
   const tab = chartTabs.find(t => t.id === id);
   if(!tab) return;
+  const prevSym = curSym?.s;
+  const prevTF = curTF;
+  const datasetChanged = !!(tab.sym && (tab.sym !== prevSym || (tab.tf || '1d') !== (prevTF || '1d')));
+  resetChartInteractionState();
   activeChartTabId = id;
   applyChartTabWorkspace(tab);
+  if(options.focusLatest || datasetChanged){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+  } else {
+    rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
+  }
+  normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
+    if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    rightBarIndex = Math.max(curData.length ? 1 : 0, Math.min(tab.rightBarIndex || (curData.length + 5), curData.length + 40));
-    priceHi = tab.priceHi ?? null;
-    priceLo = tab.priceLo ?? null;
+    if(options.focusLatest || datasetChanged){
+      rightBarIndex = curData.length + 5;
+      priceHi = null;
+      priceLo = null;
+    } else {
+      rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
+      priceHi = tab.priceHi ?? null;
+      priceLo = tab.priceLo ?? null;
+    }
+    normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
+    placePendingAISetupOnActiveChart(tab);
     drawingWIP = null;
     selectedDrawing = null;
+    selectedDrawings = [];
+    isDraggingDrawing = false;
+    isResizingDrawing = false;
+    isMarquee = false;
+    resizeHandle = null;
+    dragSnapshot = null;
     syncTimeframeButtons();
     const iconEl = document.getElementById('ct-sel-icon');
     if(iconEl) iconEl.textContent = ctIconFor(curCT);
@@ -484,6 +670,20 @@ let priceLo = null;
 
 // ── Mouse / drag state ────────────────────────────────────────────────────────
 let mouseX = -1, mouseY = -1;
+let uiScale = 1;
+
+function getUIScale(){
+  return uiScale || 1;
+}
+
+function uiToCanvasPx(px){
+  return px / getUIScale();
+}
+
+function uiInvariantPx(px, minPx){
+  const scaled = px / getUIScale();
+  return Math.max(minPx || 0, scaled);
+}
 let isPanning = false;
 let isXScaling = false;
 let isYScaling = false;
@@ -1264,7 +1464,7 @@ function captureChart(){
     canvases.forEach(c=>{ ctx2.drawImage(c,0,y,W,c.height); y+=c.height; });
 
     // watermark
-    if(_el('sc-watermark')?.checked!==false){
+    if(isSettingEnabled('scWater', true)){
     ctx2.fillStyle = 'rgba(240,165,0,.6)'; ctx2.font = 'bold 11px monospace'; ctx2.textAlign = 'right';
     ctx2.fillText(`APEX FX · ${curSym.s} · ${curTF} · ${new Date().toLocaleString()}`, W-8, H-6); }
 
@@ -3818,6 +4018,7 @@ function toggleSessions(){
   const btn = document.getElementById('btn-sessions');
   if(btn) btn.classList.toggle('on', showSessions);
   renderTopbarInds();
+  syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   draw();
   toast(showSessions ? '🌍 Sessions ON — London · NY · Asia' : '🌍 Sessions OFF');
@@ -11207,6 +11408,15 @@ let newsCache = {};
 // Order: all Groq keys first (fastest), then Gemini Flash as fallback.
 // Add more Groq keys by creating additional free accounts at console.groq.com.
 // Get a Gemini key free at aistudio.google.com (15 RPM, 1M tokens/day).
+function getLocalApiBase(){
+  try{
+    const { protocol, hostname, port } = window.location;
+    if((hostname === 'localhost' || hostname === '127.0.0.1') && port && port !== '3001'){
+      return `${protocol}//${hostname}:3001`;
+    }
+  }catch(e){}
+  return '';
+}
 async function aiComplete(prompt, {
   model = 'llama-3.1-8b-instant',
   max_tokens = 1000,
@@ -11214,12 +11424,13 @@ async function aiComplete(prompt, {
   timeoutMs = 30000,
 } = {}){
   let res;
+  const apiBase = getLocalApiBase();
   try {
-    res = await fetch('/api/ai', {
+    res = await fetch(`${apiBase}/api/ai`, {
       method: 'POST',
       signal: AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, max_tokens, temperature })
+      body: JSON.stringify({ prompt, model, max_tokens, temperature, timeoutMs })
     });
   } catch(networkErr) {
     res = null;
@@ -11233,6 +11444,9 @@ async function aiComplete(prompt, {
   try {
     data = await res.json();
   } catch(parseErr) {
+    if (res.status === 404) {
+      throw new Error('AI endpoint missing on this host. Run the site through Vercel (for example `vercel dev`) or deploy it to Vercel so `/api/ai` exists.');
+    }
     throw new Error(`AI HTTP ${res.status} - invalid response`);
   }
 
@@ -11581,20 +11795,23 @@ function _drawImmediate(){
   ctx.fillStyle=C.bg3; ctx.fillRect(0,0,W,H);
 
   const bw2 = Math.max(1, barWidth * 0.8); // body width
+  const axisFontPx = uiInvariantPx(12, 10);
+  const axisBoldFontPx = uiInvariantPx(11, 9);
+  const axisPadPx = uiInvariantPx(14, 10);
 
   // Grid (horizontal)
   for(let i=0;i<=6;i++){
     const y=Math.floor(H/6*i)+.5;
-    if(_el('sc-grid')?.checked!==false){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    if(_el('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
+    if(isSettingEnabled('scGrid', true)){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    if(isSettingEnabled('scPriceScale', true)){ ctx.fillStyle=C.tx2; ctx.font=`${axisFontPx}px monospace`; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-uiInvariantPx(3,2),y-uiInvariantPx(2,1)); }
   }
 
   // ── TradingView-style x-axis ───────────────────────────────────────────────
   const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
 
   // Min pixel gap before placing the next label (based on a typical label width)
-  ctx.font = 'bold 11px monospace';
-  const _minGap = ctx.measureText('00:00').width + 14;  // ~50px
+  ctx.font = `bold ${axisBoldFontPx}px monospace`;
+  const _minGap = ctx.measureText('00:00').width + axisPadPx;
 
   // Pre-compute crosshair label bounds to suppress any static label underneath it
   let xhLabelL = -1, xhLabelR = -1;
@@ -11605,8 +11822,8 @@ function _drawImmediate(){
       const ts = isSubDay
         ? dh.toLocaleDateString([],{month:'short',day:'numeric'}) + ' ' + dh.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
         : dh.toLocaleDateString([],{day:'numeric',month:'short',year:'numeric'});
-      ctx.font = 'bold 11px monospace';
-      const lw = ctx.measureText(ts).width + 14;
+      ctx.font = `bold ${axisBoldFontPx}px monospace`;
+      const lw = ctx.measureText(ts).width + axisPadPx;
       const lx = Math.max(lw/2 + 2, Math.min(W - R_PANEL_OFFSET - lw/2 - 2, mouseX));
       xhLabelL = lx - lw/2 - 4;
       xhLabelR = lx + lw/2 + 4;
@@ -11631,8 +11848,10 @@ function _drawImmediate(){
   }
 
   // ── Pass 2: draw grid lines (never suppressed by crosshair) ─────────────
-  if(_el('sc-grid')?.checked !== false){
+  if(isSettingEnabled('scGrid', true)){
+    const showDayBoundaries = isSettingEnabled('scDayBnd', true);
     for(const {x, tick} of xTicks){
+      if(!showDayBoundaries && tick.tier <= 1) continue;
       const lineAlpha = tick.tier <= 1 ? 0.18 : tick.tier === 2 ? 0.12 : 0.07;
       ctx.strokeStyle = tick.tier <= 1 ? ca(C.am, lineAlpha) : C.b1;
       ctx.lineWidth   = tick.tier <= 1 ? 1.5 : 1;
@@ -11646,13 +11865,14 @@ function _drawImmediate(){
 
   // ── Pass 3: draw labels (suppressed under crosshair only) ───────────────
   for(const {x, tick} of xTicks){
+    if(!isSettingEnabled('scDayBnd', true) && tick.tier <= 1) continue;
     if(x >= xhLabelL && x <= xhLabelR) continue;
-    ctx.font      = tick.bold ? 'bold 11px monospace' : '11px monospace';
+    ctx.font      = tick.bold ? `bold ${axisBoldFontPx}px monospace` : `${axisBoldFontPx}px monospace`;
     ctx.fillStyle = tick.tier === 0 ? C.tx
                   : tick.tier === 1 ? C.am
                   : tick.tier === 2 ? C.tx2
                   : 'rgba(107,128,153,0.85)';
-    ctx.fillText(tick.label, x, H - 3);
+    ctx.fillText(tick.label, x, H - uiInvariantPx(3, 2));
   }
 
   // Session highlight bands (behind everything)
@@ -11721,13 +11941,13 @@ function _drawImmediate(){
       const col=up?candleBullColor:candleBearColor;
       const yO=py(Math.max(d.open,d.close)), yC=py(Math.min(d.open,d.close));
       const bh=Math.max(1,yC-yO);
-      if(_el('sc-wicks')?.checked!==false){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
-      if(bw2>=1){ if(_el('sc-hollow')?.checked){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
+      if(isSettingEnabled('scWicks', true)){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
+      if(bw2>=1){ if(isSettingEnabled('scHollow', false)){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
     }
   }
 
   // Visible high / low labels (live — based on what's currently on screen)
-  if(_el('sc-highlow')?.checked!==false){
+  if(isSettingEnabled('scHiLo', true)){
     // Find the actual highest high and lowest low bar in the visible range
     let hiPrice = -Infinity, loPrice = Infinity;
     let hiBarX = 0, loBarX = 0;
@@ -11833,29 +12053,31 @@ function _drawImmediate(){
     }
   }
 
-  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&_el('sc-crosshair')?.checked!==false){
+  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&isSettingEnabled('scCross', true)){
     ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.moveTo(mouseX,0); ctx.lineTo(mouseX,H); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,mouseY); ctx.lineTo(W-R_PANEL_OFFSET,mouseY); ctx.stroke();
     ctx.setLineDash([]);
     // Price label on right Y-axis
     const price = yToPrice(mouseY);
-    ctx.fillStyle=C.am; ctx.fillRect(W-R_PANEL_OFFSET-62,mouseY-11,62,22);
-    ctx.fillStyle=C.bg; ctx.font='bold 12px monospace'; ctx.textAlign='right';
-    ctx.fillText(fP(price),W-R_PANEL_OFFSET-3,mouseY+5);
+    const priceTagW = uiInvariantPx(62, 50);
+    const priceTagH = uiInvariantPx(22, 18);
+    ctx.fillStyle=C.am; ctx.fillRect(W-R_PANEL_OFFSET-priceTagW,mouseY-priceTagH/2,priceTagW,priceTagH);
+    ctx.fillStyle=C.bg; ctx.font=`bold ${axisFontPx}px monospace`; ctx.textAlign='right';
+    ctx.fillText(fP(price),W-R_PANEL_OFFSET-uiInvariantPx(3,2),mouseY+uiInvariantPx(5,4));
     // OHLC tooltip
     const hoverBar = Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth);
     const hb = Math.max(0,Math.min(data.length-1,hoverBar));
     // Timestamp label on X-axis at crosshair position
-    if(data[hb]&&_el('sc-xaxislabel')?.checked!==false){
+    if(data[hb]&&isSettingEnabled('scXAxisLbl', true)){
       const d  = new Date(data[hb].time * 1000);
       const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
       const timeStr = isSubDay
         ? d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) + '  ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
         : d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-      ctx.font = 'bold 12px monospace';
-      const lw = ctx.measureText(timeStr).width + 18;
-      const lh = 20;
+      ctx.font = `bold ${axisFontPx}px monospace`;
+      const lw = ctx.measureText(timeStr).width + uiInvariantPx(18, 12);
+      const lh = uiInvariantPx(20, 16);
       const lx = Math.max(lw/2 + 2, Math.min(W - lw/2 - 2, mouseX));
       // Erase strip behind label — tall enough to cover the axis text at H-3
       ctx.fillStyle = C.bg3;
@@ -11864,14 +12086,14 @@ function _drawImmediate(){
       ctx.fillRect(lx - lw/2, H - lh, lw, lh);
       ctx.fillStyle = C.bg3;
       ctx.textAlign = 'center';
-      ctx.fillText(timeStr, lx, H - lh/2 + 3);
+      ctx.fillText(timeStr, lx, H - lh/2 + uiInvariantPx(3,2));
     }
     const d=data[hb];
     _el('tt-o').textContent=fP(d.open);
     _el('tt-h').textContent=fP(d.high);
     _el('tt-l').textContent=fP(d.low);
     _el('tt-c').textContent=fP(d.close);
-    _el('tooltip').style.display=_el('sc-ohlc')?.checked!==false?'flex':'none';
+    _el('tooltip').style.display=isSettingEnabled('scOhlc', true)?'flex':'none';
   } else {
     _el('tooltip').style.display='none';
   }
@@ -12050,6 +12272,8 @@ function _drawImmediate(){
       }
     }catch(e){ /* silent — bad formula on symbol change */ }
   });
+
+  updateChartScrubber();
 }
 
 // ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
@@ -12120,6 +12344,46 @@ function effectiveHalfBars(d){
   if(d.halfDuration) return secsToHalfBars(d.halfDuration, curTF);
   return d.halfBars || 8;
 }
+function defaultTradeToolHalfBars(tf){
+  return ({
+    '1m': 18,
+    '5m': 16,
+    '15m': 14,
+    '1h': 12,
+    '4h': 10,
+    '1d': 8,
+    '1w': 6,
+    '1M': 5,
+  })[tf] || 8;
+}
+function defaultTradeToolMinRiskPct(tf){
+  return ({
+    '1m': 0.0035,
+    '5m': 0.005,
+    '15m': 0.0075,
+    '1h': 0.01,
+    '4h': 0.015,
+    '1d': 0.02,
+    '1w': 0.035,
+    '1M': 0.05,
+  })[tf] || 0.01;
+}
+function buildTimeframeAwareTradeTool(direction, entryPrice, barIndex, tf){
+  const safeTf = tf || curTF || '1d';
+  const atr = calculateATR(Math.min(curData.length - 1, Math.max(14, barIndex)), 14) || 0;
+  const minRisk = entryPrice * defaultTradeToolMinRiskPct(safeTf);
+  const riskDist = Math.max(atr * 1.15, minRisk);
+  const rewardDist = riskDist * 2;
+  const isLong = direction === 'long';
+  const halfBars = defaultTradeToolHalfBars(safeTf);
+  return {
+    sl: isLong ? entryPrice - riskDist : entryPrice + riskDist,
+    tp: isLong ? entryPrice + rewardDist : entryPrice - rewardDist,
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, safeTf),
+    atr,
+  };
+}
 
 // ── Drag / resize state ──────────────────────────────────────────────────────
 let isDraggingDrawing  = false;  // moving whole drawing
@@ -12183,6 +12447,10 @@ document.addEventListener('keydown', e=>{
 
 function clearDrawings(){
   if(!drawings.length) return;
+  if(!appPrefs.confirmClearDrawings){
+    drawings=[]; drawingWIP=null; selectedDrawing=null; saveDrawings(curSym.s,curTF); draw();
+    return;
+  }
   showConfirm('Clear all drawings?','All lines, shapes and annotations will be removed.',()=>{
     drawings=[]; drawingWIP=null; selectedDrawing=null; saveDrawings(curSym.s,curTF); draw();
   });
@@ -12716,7 +12984,7 @@ function handleDrawMousedown(sx, sy, e){
     const { bar, price } = screenToDraw(sx, sy);
     
     // Check if we're in mentor mode with future data available
-    let sl, tp;
+    let sl, tp, halfBars, halfDuration;
     const isMentorMode = typeof mentorState !== 'undefined' && mentorState.enabled && mentorState.waitingForUserTrade;
     const hasFutureData = curData && bar < curData.length - 20;
     
@@ -12751,13 +13019,18 @@ function handleDrawMousedown(sx, sy, e){
         direction: activeTool 
       });
     } else {
-      // NORMAL MODE: Use standard percentage-based calculations
-      sl  = activeTool==='long'  ? price*0.98  : price*1.02;
-      tp  = activeTool==='long'  ? price*1.04  : price*0.96;
+      // NORMAL MODE: Use timeframe-aware width and ATR-based levels
+      const defaultTrade = buildTimeframeAwareTradeTool(activeTool, price, Math.round(bar), curTF);
+      sl = defaultTrade.sl;
+      tp = defaultTrade.tp;
+      halfBars = defaultTrade.halfBars;
+      halfDuration = defaultTrade.halfDuration;
     }
-    
-    const halfBars = 8;
-    const halfDuration = halfBarsToSecs(halfBars, curTF);
+    if(!halfBars || !halfDuration){
+      const defaultTrade = buildTimeframeAwareTradeTool(activeTool, price, Math.round(bar), curTF);
+      halfBars = defaultTrade.halfBars;
+      halfDuration = defaultTrade.halfDuration;
+    }
     // Give each drawing a unique ID so locks are per-drawing not per-symbol
     const drawingId = 'draw_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
     const drawing = {type:activeTool,bar,price,sl,tp,halfBars,halfDuration,tf:curTF,id:drawingId};
@@ -15151,8 +15424,8 @@ function setupEvents(){
   // ── mousedown ─────────────────────────────────────────────────────────────
   mc.addEventListener('mousedown', e => {
     const r  = mc.getBoundingClientRect();
-    const lx = e.clientX - r.left;
-    const ly = e.clientY - r.top;
+    const lx = uiToCanvasPx(e.clientX - r.left);
+    const ly = uiToCanvasPx(e.clientY - r.top);
     const zone = getZone(lx, ly, mc.width, mc.height);
 
     // ── Replay: click on canvas play/pause button ────────────────────────
@@ -15196,8 +15469,8 @@ function setupEvents(){
 
     if(zone === 'pan'){
       isPanning    = true;
-      panStartX    = e.clientX;
-      panStartY    = e.clientY;
+      panStartX    = uiToCanvasPx(e.clientX);
+      panStartY    = uiToCanvasPx(e.clientY);
       panStartRight= rightBarIndex;
       // snapshot price range for vertical pan
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
@@ -15207,7 +15480,7 @@ function setupEvents(){
     }
     else if(zone === 'xscale'){
       isXScaling      = true;
-      xScaleStartX    = e.clientX;
+      xScaleStartX    = uiToCanvasPx(e.clientX);
       xScaleStartBW   = barWidth;
       // anchor: bar under mouse stays fixed — store both bar and pixel position
       xScaleAnchorX   = lx;
@@ -15216,7 +15489,7 @@ function setupEvents(){
     }
     else if(zone === 'yscale'){
       isYScaling        = true;
-      yScaleStartY      = e.clientY;
+      yScaleStartY      = uiToCanvasPx(e.clientY);
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
       yScaleStartHi     = priceHi;
       yScaleStartLo     = priceLo;
@@ -15235,8 +15508,8 @@ function setupEvents(){
 
   document.addEventListener('mousemove', e => {
     const r  = _mcRect;
-    mouseX = e.clientX - r.left;
-    mouseY = e.clientY - r.top;
+    mouseX = uiToCanvasPx(e.clientX - r.left);
+    mouseY = uiToCanvasPx(e.clientY - r.top);
 
     // Drawing WIP preview or drag/resize or marquee
     if(drawingWIP || isDraggingDrawing || isResizingDrawing || isMarquee){
@@ -15275,8 +15548,8 @@ function setupEvents(){
         return;
       }
       
-      const dx   = e.clientX - panStartX;
-      const dy   = e.clientY - panStartY;
+      const dx   = uiToCanvasPx(e.clientX) - panStartX;
+      const dy   = uiToCanvasPx(e.clientY) - panStartY;
 
       // Horizontal: shift rightBarIndex by how many bars we moved
       rightBarIndex = panStartRight - dx / barWidth;
@@ -15307,7 +15580,7 @@ function setupEvents(){
         return;
       }
       
-      const dx   = e.clientX - xScaleStartX;
+      const dx   = uiToCanvasPx(e.clientX) - xScaleStartX;
       // Exponential so small moves near centre feel natural
       const newBW = Math.max(1, Math.min(80, xScaleStartBW * Math.pow(1.005, dx)));
       // Keep anchor bar at same screen pixel — anchor bar stays at xScaleAnchorX from left
@@ -15327,7 +15600,7 @@ function setupEvents(){
         return;
       }
       
-      const dy       = e.clientY - yScaleStartY;
+      const dy       = uiToCanvasPx(e.clientY) - yScaleStartY;
       const oldRange = yScaleStartHi - yScaleStartLo;
       // drag down = zoom in (tighter range), drag up = zoom out
       const newRange = Math.max(oldRange * 0.01, oldRange * Math.pow(1.005, dy));
@@ -15428,6 +15701,9 @@ function setupEvents(){
       draw();
       return;
     }
+    if(isPanning || isXScaling || isYScaling){
+      syncActiveChartTabRuntimeState(true);
+    }
     isPanning = isXScaling = isYScaling = false;
     mc.style.cursor = activeTool==='eraser'?'cell':'crosshair';
   });
@@ -15456,6 +15732,7 @@ function setupEvents(){
     }
     if(zone === 'pan' || zone === 'yscale'){ priceHi=null; priceLo=null; }
     if(zone === 'xscale'){ barWidth=8; }
+    syncActiveChartTabRuntimeState(true);
     draw();
   });
 
@@ -15463,8 +15740,8 @@ function setupEvents(){
   mc.addEventListener('wheel', e => {
     e.preventDefault();
     const r    = mc.getBoundingClientRect();
-    const lx   = e.clientX - r.left;
-    const ly   = e.clientY - r.top;
+    const lx   = uiToCanvasPx(e.clientX - r.left);
+    const ly   = uiToCanvasPx(e.clientY - r.top);
     const zone = getZone(lx, ly, mc.width, mc.height);
     const up   = e.deltaY < 0;
 
@@ -15485,10 +15762,11 @@ function setupEvents(){
       priceLo = anchorPrice - frac * newRange;
       priceHi = priceLo + newRange;
     }
+    syncActiveChartTabRuntimeState(true);
     draw();
   }, { passive:false });
 
-  window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); draw(); }, 50));
+  window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); positionChartTabsBar(); draw(); }, 50));
 }
 
 // ══ LOAD SYMBOL ═══════════════════════════════════════════════════════════════
@@ -15594,28 +15872,46 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
 
 // ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
-  if(curSym && curSym.s) saveDrawings(curSym.s, curTF);
+  const requestTabId = activeChartTabId;
+  const requestTF = curTF;
+  const requestSeq = ++chartLoadSeq;
+  beginChartTransition(requestTabId, requestSeq);
+  const requestTab = chartTabs.find(t => t.id === requestTabId) || null;
+  if(curSym && curSym.s) saveDrawings(curSym.s, requestTF);
   const prevSym = curSym?.s;
+  const symbolChanged = prevSym !== sym;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
-  const activeTab = chartTabs.find(t => t.id === activeChartTabId);
-  if(activeTab){
-    activeTab.sym = curSym.s;
-    activeTab.title = _chartTabTitle(curSym.s);
-    activeTab.tf = curTF;
-    activeTab.chartType = curCT;
-    activeTab.updatedAt = Date.now();
-    renderChartTabs();
+  if(requestTab){
+    requestTab.sym = curSym.s;
+    requestTab.title = _chartTabTitle(curSym.s, requestTF);
+    requestTab.tf = requestTF;
+    requestTab.chartType = curCT;
+    requestTab.updatedAt = Date.now();
+    if(activeChartTabId === requestTabId) renderChartTabs();
   }
+  const requestKey = sym+'_'+requestTF;
   // Use last real close as placeholder base so all TFs start from the same price
   const placeholderBase = (prevSym === sym && curData.length)
     ? curData[curData.length-1].close
     : curSym.p;
-  curData = genData(placeholderBase, 300, VOL_MAP[curTF]||.018);
-  barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
+  curData = genData(placeholderBase, 300, VOL_MAP[requestTF]||.018);
+  if(!requestTab){
+    barWidth = 8;
+    priceHi = null;
+    priceLo = null;
+  }
+  if(symbolChanged){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+  } else {
+    rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+  }
+  normalizeChartViewportForCurrentData(symbolChanged);
   // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
-  delete aiCache[curSym.s+'_'+curTF];
+  delete aiCache[requestKey];
 
   // Restore indicator on/off state from persisted indActive (not from topbarInds)
   applyIndActive();
@@ -15625,19 +15921,27 @@ async function loadSym(sym){
   setSrcStatus('⟳ fetching…','var(--tx3)');
 
   // Check session cache first
-  if(dataCache[sym+'_'+curTF]){
-    curData = dataCache[sym+'_'+curTF];
+  if(dataCache[requestKey]){
+    if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
+    curData = dataCache[requestKey];
     // Keep p in sync with cached real price
     const cachedClose = curData[curData.length-1]?.close;
     if(cachedClose && curSym.p !== cachedClose) curSym.p = cachedClose;
-    rightBarIndex = curData.length+5;
+    if(symbolChanged){
+      rightBarIndex = curData.length + 5;
+      priceHi = null;
+      priceLo = null;
+    } else {
+      rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+    }
+    normalizeChartViewportForCurrentData(symbolChanged);
     // Real data — now safe to resolve drawing timestamps → bar indices
-    loadDrawings(sym, curTF);
+    loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
     updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
-    saveChartTabs();
+    endChartTransition(requestTabId, requestSeq, true);
     return;
   }
 
@@ -15645,44 +15949,54 @@ async function loadSym(sym){
     let bars = [];
     if(curSym.t === 'Crypto'){
       const shortTFs = ['1m', '5m', '15m', '1h'];
-      if (shortTFs.includes(curTF)) {
+      if (shortTFs.includes(requestTF)) {
         // For short timeframes, chain two 1000-bar fetches to get ~2000 bars
-        const recent = await fetchBinanceCandles(sym, curTF);
+        const recent = await fetchBinanceCandles(sym, requestTF);
         const older = recent.length > 0
-          ? await fetchBinanceCandles(sym, curTF, null, recent[0].time * 1000)
+          ? await fetchBinanceCandles(sym, requestTF, null, recent[0].time * 1000)
           : [];
         const combined = [...older, ...recent];
         const seen = new Set();
         bars = combined.filter(b => { if (seen.has(b.time)) return false; seen.add(b.time); return true; });
         bars.sort((a, b) => a.time - b.time);
       } else {
-        bars = await fetchBinanceCandles(sym, curTF);
+        bars = await fetchBinanceCandles(sym, requestTF);
       }
     }
 
-    if(bars.length >= 2 && sym===curSym.s){
+    if(bars.length >= 2){
+      if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       bars.sort((a,b)=>a.time-b.time);
-      dataCache[sym+'_'+curTF] = bars;
+      dataCache[requestKey] = bars;
       curData = bars;
       // Keep curSym.p in sync with real price so placeholder is accurate next load
       const realClose = bars[bars.length-1].close;
       if(curSym.p !== realClose) curSym.p = realClose;
       invalidateIndCache();
-      rightBarIndex = curData.length+5;
+      if(symbolChanged){
+        rightBarIndex = curData.length + 5;
+        priceHi = null;
+        priceLo = null;
+      } else {
+        rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+      }
+      normalizeChartViewportForCurrentData(symbolChanged);
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
-      loadDrawings(sym, curTF);
+      loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
-      saveChartTabs();
+      endChartTransition(requestTabId, requestSeq, true);
     } else {
+      if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       setSrcStatus('⚠ simulated · no live data','var(--am)');
-      saveChartTabs();
+      endChartTransition(requestTabId, requestSeq, true);
     }
   } catch(err){
+    if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
     setSrcStatus('⚠ simulated · fetch error','var(--rd)');
-    saveChartTabs();
+    endChartTransition(requestTabId, requestSeq, true);
   }
 }
 
@@ -15696,6 +16010,7 @@ function updateTopbar(){
   const sbSym = document.getElementById('sb-sym'); if(sbSym) sbSym.textContent = curSym.s;
   const sbTf  = document.getElementById('sb-tf');  if(sbTf)  sbTf.textContent  = curTF.toUpperCase();
   const sbBars= document.getElementById('sb-bars'); if(sbBars) sbBars.textContent = curData.length + ' bars';
+  updateChartScrubber();
   document.getElementById('px-main').textContent=fP(last.close);
   const cel=document.getElementById('px-chg');
   cel.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
@@ -15711,9 +16026,11 @@ function updateTopbar(){
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
+  const requestTabId = activeChartTabId;
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
     activeTab.tf = tf;
+    activeTab.title = _chartTabTitle(activeTab.sym || curSym?.s, tf);
     activeTab.updatedAt = Date.now();
     renderChartTabs();
   }
@@ -15722,6 +16039,7 @@ function setTF(btn,tf){
   document.querySelectorAll('.tf').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   loadSym(curSym.s).then(() => {
+    if(activeChartTabId !== requestTabId) return;
     // Re-anchor any AI-placed drawings to the latest bar in the new data
     const n = curData.length;
     if(!n) return;
@@ -15800,6 +16118,7 @@ function toggleInd(name){
   const btn = document.getElementById('btn-'+name);
   if(btn) btn.classList.toggle('on', nowOn);
   renderTopbarInds();
+  syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   invalidateIndCache();
   if(needsResize) sizeCanvases();
@@ -15821,13 +16140,14 @@ function addIndToTopbar(id){
   else { renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
 }
 
-// Remove indicator button from topbar (and turn off its drawing)
+// Remove indicator button from topbar without changing its visibility state
 function removeIndFromTopbar(id){
   topbarInds = topbarInds.filter(x=>x!==id);
   saveTopbarInds();
-  // Turn off if currently on (toggleInd will call renderIndList)
-  if(getIndState(id)) toggleInd(id);
-  else { renderTopbarInds(); renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
+  renderTopbarInds();
+  renderIndList(_indSearchQ());
+  sizeCanvases();
+  draw();
 }
 
 // Rebuild the #ind-topbar div from topbarInds array
@@ -15836,7 +16156,6 @@ function renderTopbarInds(){
   if(!container) return;
   container.innerHTML = '';
   topbarInds.forEach(id => {
-    if(!getIndState(id)) return;
     const ind = BUILTIN_INDS.find(i=>i.id===id);
     const label = ind ? ind.name : id.toUpperCase();
     const on = getIndState(id);
@@ -15935,10 +16254,8 @@ function renderIndList(q){
   if(ilCurrentTab==='builtin'){
     const rows = BUILTIN_INDS.filter(i=>!lq||i.name.toLowerCase().includes(lq)||i.desc.toLowerCase().includes(lq));
     if(!rows.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:10px;">No results</div>'; return; }
-    // Snapshot topbarInds at render time so the closure is consistent
     el.innerHTML = rows.map(ind=>{
-      // "on bar" = actively showing on chart (unified state)
-      const active = getIndState(ind.id);
+      const pinned = topbarInds.includes(ind.id);
       return `<div class="il-row" style="cursor:default;">
         <div style="font-size:18px;width:28px;text-align:center;flex-shrink:0;">${ind.icon}</div>
         <div style="flex:1;min-width:0;">
@@ -15946,7 +16263,7 @@ function renderIndList(q){
           <div class="il-desc">${ind.desc}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          ${active
+          ${pinned
             ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
             : `<button onclick="addIndToTopbar('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
@@ -16281,7 +16598,7 @@ function buildWL(filter=''){
     for(const[cat,syms]of Object.entries(cats)){
       if(!syms.length)continue;
       html+=`<div class="wl-cat">${cat}</div>`;
-      syms.forEach(s=>{html+=`<div class="wl-row${s.s===curSym.s?' on':''}" onclick="selSym('${s.s}')">
+      syms.forEach(s=>{html+=`<div class="wl-row${s.s===curSym.s?' on':''}" data-sym="${s.s}" onclick="selSym('${s.s}')">
         <div style="flex:1;min-width:0;"><div class="wl-sym">${s.s}</div><div class="wl-name">${s.n}</div></div>
         <div class="wl-r"><div class="wl-px">${fP(s.p)}</div><div class="wl-ch ${s.c>=0?'up':'dn'}">${s.c>=0?'+':''}${s.c}%</div></div>
         <button onclick="event.stopPropagation();removeFromWatchlist('${s.s}')" title="Remove from watchlist" style="background:none;border:none;color:var(--tx3);cursor:pointer;padding:0 2px 0 6px;font-size:11px;line-height:1;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
@@ -16291,6 +16608,7 @@ function buildWL(filter=''){
   document.getElementById('wl-list').innerHTML=html;
 }
 function selSym(s){loadSym(s);closeModal();}
+function selSymNewTab(s){ createChartTab(s, curTF); closeModal(); }
 
 // ══ DRAGGABLE POPUPS ══════════════════════════════════════════════════════════
 // makeDraggable(el, handle) — call once per popup on DOMContentLoaded.
@@ -16392,6 +16710,7 @@ function filterModal(q){
     return `<div class="mr" onclick="selSym('${s.s}')">
       <div class="mr-s">${s.s}</div><div class="mr-n">${s.n}</div>
       <div class="mr-p">${fP(s.p)}</div><div class="mr-t">${s.t}</div>
+      <button onclick="event.stopPropagation();selSymNewTab('${s.s}')" style="flex-shrink:0;padding:2px 8px;border-radius:999px;font-size:10px;font-family:monospace;cursor:pointer;transition:all .15s;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.24);color:var(--blue);" onmouseover="this.style.background='rgba(61,142,255,.14)';this.style.color='#a9c9ff'" onmouseout="this.style.background='rgba(61,142,255,.08)';this.style.color='var(--blue)'">+ Tab</button>
       <button onclick="event.stopPropagation();${watching?`removeFromWatchlist('${s.s}')`:`addToWatchlist('${s.s}')`}" style="flex-shrink:0;padding:2px 8px;border-radius:3px;font-size:11px;font-family:monospace;cursor:pointer;transition:all .15s;${watching?'background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.4);color:var(--am);':'background:transparent;border:1px solid var(--b2);color:var(--tx3);'}" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='${watching?'rgba(240,165,0,.4)':'var(--b2)'}';this.style.color='${watching?'var(--am)':'var(--tx3)'}">${watching?'✓ Watching':'+ Watch'}</button>
     </div>`;
   }).join('');
@@ -16819,24 +17138,292 @@ function initSidebarResize(){
 // ══ SETTINGS ══════════════════════════════════════════════════════════════════
 
 function applyUIScale(val){
-  const pct = parseFloat(val) / 100;
+  const numericVal = Math.max(80, Math.min(130, parseFloat(val) || 100));
+  const pct = numericVal / 100;
   const app = document.getElementById('app');
-  if(app){ app.style.zoom = pct; }
+  const statusbar = document.getElementById('statusbar');
+  const root = document.documentElement;
+  uiScale = pct || 1;
+  setSettingValue('uiScale', numericVal);
+  if(app){
+    const safePct = uiScale;
+    app.style.zoom = '1';
+    app.style.transform = `scale(${safePct})`;
+    app.style.transformOrigin = 'top left';
+    app.style.width = `${100 / safePct}%`;
+    app.style.height = `${100 / safePct}%`;
+    app.style.minHeight = `${100 / safePct}vh`;
+  }
+  if(root){
+    const safePct = uiScale;
+    root.style.setProperty('--statusbar-h', `${22 / safePct}px`);
+    root.style.setProperty('--ui-scale', String(safePct));
+  }
+  if(statusbar){
+    const safePct = uiScale;
+    statusbar.style.zoom = '1';
+    statusbar.style.transform = `scale(${1 / safePct})`;
+    statusbar.style.transformOrigin = 'left bottom';
+  }
   const lbl = document.getElementById('sc-fontsize-v');
-  if(lbl) lbl.textContent = Math.round(val) + '%';
+  if(lbl) lbl.textContent = Math.round(numericVal) + '%';
   // After zoom, canvases need a redraw
   setTimeout(()=>{ try{ sizeCanvases(); draw(); }catch(e){} }, 50);
 }
 
+function applyPanelVisibility(panelId, isVisible){
+  const targetIds = {
+    sidebar: ['nav'],
+    rpanel: ['rdrawer'],
+    'scanner-wrap': ['scanner-wrap'],
+    'draw-toolbar': ['nav-draw'],
+    statusbar: ['statusbar'],
+  };
+  const ids = targetIds[panelId] || [panelId];
+  ids.forEach(function(id){
+    const el = document.getElementById(id);
+    if(el) el.style.display = isVisible ? '' : 'none';
+  });
+  if(panelId === 'sidebar' || panelId === 'rpanel'){
+    positionChartTabsBar();
+    setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 50);
+  }
+}
+
+function applyToggleSetting(inputId){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+  const checked = !!el.checked;
+  const stateKey = getSettingStateKey(inputId);
+  setSettingValue(stateKey, checked);
+  if(inputId === 'sc-scanner') applyPanelVisibility('scanner-wrap', checked);
+  if(inputId === 'sc-drawtb') applyPanelVisibility('draw-toolbar', checked);
+  if(inputId === 'sc-statusbar') applyPanelVisibility('statusbar', checked);
+  if(inputId === 'sc-sidebar') applyPanelVisibility('sidebar', checked);
+  if(inputId === 'sc-rpanel') applyPanelVisibility('rpanel', checked);
+  if(inputId === 'sc-contextmenu') appPrefs.enableContextMenus = checked;
+  if(inputId === 'sc-guestintro') appPrefs.guestTutorialIntro = checked;
+  if(inputId === 'sc-confirmclear') appPrefs.confirmClearDrawings = checked;
+  if(inputId === 'sc-animations') appPrefs.enableChartAnimations = checked;
+  saveSettingsToStorage();
+  draw();
+}
+
+function hydrateSettingsUI(){
+  const modal = document.getElementById('settings-modal');
+  if(!modal || modal.dataset.hydrated === '1') return;
+  modal.innerHTML = `
+    <div class="sm-hdr">
+      <div>
+        <div class="sm-title">Settings</div>
+        <div class="sm-subtitle">Workspace, chart, AI, and data controls</div>
+      </div>
+      <button class="sm-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="sm-tabs">
+      <button class="sm-tab on" onclick="smTab(this,'sm-workspace')">WORKSPACE</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-chart')">CHART</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-appearance')">APPEARANCE</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-ai')">AI & DATA</button>
+    </div>
+
+    <div class="sm-page on" id="sm-workspace">
+      <div class="sm-hero">
+        <div class="sm-hero-title">Control how the workspace behaves</div>
+        <div class="sm-hero-sub">These settings shape what users see, how the layout opens, and how quickly they can move around the platform.</div>
+      </div>
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Layout</div>
+          <div class="sm-row"><div><div class="sm-lbl">Show watchlist sidebar</div><div class="sm-sub">Keep the market list visible on the left</div></div><label class="sm-toggle"><input type="checkbox" id="sc-sidebar" onchange="applyToggleSetting('sc-sidebar')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show right panel</div><div class="sm-sub">AI, analytics, and news drawer</div></div><label class="sm-toggle"><input type="checkbox" id="sc-rpanel" onchange="applyToggleSetting('sc-rpanel')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show scanner bar</div><div class="sm-sub">Quick AI discovery prompts under the top bar</div></div><label class="sm-toggle"><input type="checkbox" id="sc-scanner" onchange="applyToggleSetting('sc-scanner')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show drawing toolbar</div><div class="sm-sub">Left chart tool rail</div></div><label class="sm-toggle"><input type="checkbox" id="sc-drawtb" onchange="applyToggleSetting('sc-drawtb')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show status bar</div><div class="sm-sub">Live session and symbol info along the bottom</div></div><label class="sm-toggle"><input type="checkbox" id="sc-statusbar" onchange="applyToggleSetting('sc-statusbar')"><span class="sm-slider"></span></label></div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Behavior</div>
+          <div class="sm-row"><div><div class="sm-lbl">Auto-open intro for guests</div><div class="sm-sub">Show the short onboarding tutorial when no user is signed in</div></div><label class="sm-toggle"><input type="checkbox" id="sc-guestintro" onchange="applyToggleSetting('sc-guestintro')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Enable right-click menus</div><div class="sm-sub">Use quick actions on chart, tabs, and watchlist rows</div></div><label class="sm-toggle"><input type="checkbox" id="sc-contextmenu" onchange="applyToggleSetting('sc-contextmenu')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Confirm clearing drawings</div><div class="sm-sub">Keep a safety prompt before wiping chart markup</div></div><label class="sm-toggle"><input type="checkbox" id="sc-confirmclear" onchange="applyToggleSetting('sc-confirmclear')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Enable chart animations</div><div class="sm-sub">Keeps small UI transitions and pulses active</div></div><label class="sm-toggle"><input type="checkbox" id="sc-animations" onchange="applyToggleSetting('sc-animations')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row">
+            <div><div class="sm-lbl">UI scale</div><div class="sm-sub">Resize the whole interface</div></div>
+            <div class="sm-slider-wrap">
+              <input type="range" class="sm-range" id="sc-fontsize" min="80" max="130" value="100" oninput="applyUIScale(this.value);saveSettingsToStorage()">
+              <span class="sm-range-val" id="sc-fontsize-v">100%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Quick actions</div>
+        <div class="sm-action-row">
+          <button class="sm-cta" onclick="saveSettingsToStorage()">Save settings</button>
+          <button class="sm-btn" onclick="openTutorial()">Open tutorial</button>
+          <button class="sm-btn" onclick="positionChartTabsBar();sizeCanvases();draw();toast('Workspace refreshed')">Refresh layout</button>
+          <button class="sm-btn sm-danger" onclick="resetAllSettings()">Reset all</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-chart">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Candles and levels</div>
+          <div class="sm-row"><div><div class="sm-lbl">Bullish candle colour</div><div class="sm-sub">Candles that close higher</div></div><div class="sm-color"><input type="color" id="sc-bull" value="#00c9a0" oninput="applyCandleColors();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bull-hex">#00c9a0</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">Bearish candle colour</div><div class="sm-sub">Candles that close lower</div></div><div class="sm-color"><input type="color" id="sc-bear" value="#f03060" oninput="applyCandleColors();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bear-hex">#f03060</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">Hollow candles</div></div><label class="sm-toggle"><input type="checkbox" id="sc-hollow" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show wicks</div></div><label class="sm-toggle"><input type="checkbox" id="sc-wicks" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Default bar width</div><div class="sm-sub">How zoomed-in charts open</div></div><div class="sm-slider-wrap"><input type="range" class="sm-range" id="sc-barwidth" min="2" max="20" value="8" oninput="document.getElementById('sc-barwidth-v').textContent=this.value+'px';barWidth=+this.value;syncActiveChartTabRuntimeState(true);draw();saveSettingsToStorage()"><span class="sm-range-val" id="sc-barwidth-v">8px</span></div></div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Chart overlays</div>
+          <div class="sm-row"><div><div class="sm-lbl">Show grid lines</div></div><label class="sm-toggle"><input type="checkbox" id="sc-grid" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show crosshair</div></div><label class="sm-toggle"><input type="checkbox" id="sc-crosshair" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show high / low labels</div></div><label class="sm-toggle"><input type="checkbox" id="sc-highlow" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show day boundary lines</div></div><label class="sm-toggle"><input type="checkbox" id="sc-dayboundary" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show price scale</div></div><label class="sm-toggle"><input type="checkbox" id="sc-pricescale" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show crosshair time label</div></div><label class="sm-toggle"><input type="checkbox" id="sc-xaxislabel" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show OHLC strip</div></div><label class="sm-toggle"><input type="checkbox" id="sc-ohlc" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show screenshot watermark</div></div><label class="sm-toggle"><input type="checkbox" id="sc-watermark" onchange="saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Moving-average colours</div>
+        <div class="sm-grid2">
+          <div class="sm-row"><div><div class="sm-lbl">SMA 20</div></div><div class="sm-color"><input type="color" id="sc-sma20c" value="#3d7fff" oninput="smaCols[0]=this.value;document.getElementById('sc-sma20c-hex').textContent=this.value;draw();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-sma20c-hex">#3d7fff</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">SMA 50</div></div><div class="sm-color"><input type="color" id="sc-sma50c" value="#f0a500" oninput="smaCols[1]=this.value;document.getElementById('sc-sma50c-hex').textContent=this.value;draw();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-sma50c-hex">#f0a500</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-appearance">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Theme</div>
+          <div class="sm-row"><div><div class="sm-lbl">Preset theme</div><div class="sm-sub">Change the whole look instantly</div></div><select class="sm-select" id="sc-theme" onchange="applyTheme(this.value);saveSettingsToStorage()"><option value="dark">Dark</option><option value="darker">Midnight</option><option value="light">Light</option><option value="green">Matrix Green</option><option value="blue">Ocean Blue</option></select></div>
+          <div class="sm-note">Use presets for fast changes, then fine-tune the main colours below.</div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Core colours</div>
+          <div class="sm-colors-grid">
+            <div class="sm-row sm-stack"><div class="sm-lbl">Background</div><div class="sm-color"><input type="color" id="sc-bg" value="#07090e" oninput="applyVar('--bg',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bg-hex">#07090e</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Panel background</div><div class="sm-color"><input type="color" id="sc-bg2" value="#0c0e16" oninput="applyVar('--bg2',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bg2-hex">#0c0e16</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Accent</div><div class="sm-color"><input type="color" id="sc-am" value="#f0a500" oninput="applyVar('--am',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-am-hex">#f0a500</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Bullish accent</div><div class="sm-color"><input type="color" id="sc-tl" value="#00c9a0" oninput="applyVar('--tl',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-tl-hex">#00c9a0</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Bearish accent</div><div class="sm-color"><input type="color" id="sc-rd" value="#f03060" oninput="applyVar('--rd',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-rd-hex">#f03060</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Blue accent</div><div class="sm-color"><input type="color" id="sc-bl" value="#3d7fff" oninput="applyVar('--bl',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bl-hex">#3d7fff</span></div></div>
+          </div>
+          <div class="sm-action-row">
+            <button class="sm-btn" onclick="resetColors();saveSettingsToStorage()">Reset colours</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-ai">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">AI and tutorial flow</div>
+          <div class="sm-row"><div><div class="sm-lbl">Live AI right panel</div><div class="sm-sub">Keep the AI drawer available for the current chart</div></div><label class="sm-toggle"><input type="checkbox" id="sc-ai-panel-proxy" checked disabled><span class="sm-slider"></span></label></div>
+          <div class="sm-note">AI Setups finds ideas. Trade Analysis checks execution. Mentor teaches in replay. The settings here focus on how those tools appear around the workspace.</div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Data and storage</div>
+          <div class="sm-row"><div><div class="sm-lbl">News cache duration</div><div class="sm-sub">How long news stays cached before refreshing</div></div><select class="sm-select" id="sc-newscache" onchange="newsCacheDuration=+this.value;saveSettingsToStorage()"><option value="900000">15 minutes</option><option value="1800000">30 minutes</option><option value="3600000">1 hour</option><option value="7200000">2 hours</option></select></div>
+          <div class="sm-row"><div><div class="sm-lbl">Cloud sync status</div><div class="sm-sub" id="sm-cloud-copy">Local workspace only</div></div><div class="sm-badge" id="sm-cloud-badge">Offline</div></div>
+          <div class="sm-action-row">
+            <button class="sm-btn" onclick="newsCache={};toast('News cache cleared');saveSettingsToStorage()">Clear news cache</button>
+            <button class="sm-btn" onclick="saveSettingsToStorage()">Save now</button>
+            <button class="sm-btn sm-danger" onclick="resetAllSettings()">Reset all settings</button>
+          </div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Keyboard shortcuts</div>
+        <div class="sm-shortcuts">
+          <span class="sm-k">V</span><span>Cursor</span>
+          <span class="sm-k">L</span><span>Long tool</span>
+          <span class="sm-k">S</span><span>Short tool</span>
+          <span class="sm-k">R</span><span>Rectangle</span>
+          <span class="sm-k">F</span><span>Fibonacci</span>
+          <span class="sm-k">E</span><span>Eraser</span>
+          <span class="sm-k">Esc</span><span>Cancel / deselect</span>
+          <span class="sm-k">Del</span><span>Delete selected drawing</span>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.dataset.hydrated = '1';
+}
+
+function syncSettingsFormFromState(){
+  const cloudBadge = document.getElementById('sm-cloud-badge');
+  const cloudCopy = document.getElementById('sm-cloud-copy');
+  const setChecked = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
+  const setValue = (id, val) => { const el = document.getElementById(id); if(el != null && val != null) el.value = val; };
+
+  setValue('sc-theme', currentThemeName || 'dark');
+  setValue('sc-bull', candleBullColor);
+  setValue('sc-bear', candleBearColor);
+  const bullHex = document.getElementById('sc-bull-hex'); if(bullHex) bullHex.textContent = candleBullColor;
+  const bearHex = document.getElementById('sc-bear-hex'); if(bearHex) bearHex.textContent = candleBearColor;
+  setValue('sc-barwidth', barWidth);
+  const bwv = document.getElementById('sc-barwidth-v'); if(bwv) bwv.textContent = `${barWidth}px`;
+  setValue('sc-sma20c', smaCols[0] || '#3d7fff');
+  setValue('sc-sma50c', smaCols[1] || '#f0a500');
+  const s20hex = document.getElementById('sc-sma20c-hex'); if(s20hex) s20hex.textContent = smaCols[0] || '#3d7fff';
+  const s50hex = document.getElementById('sc-sma50c-hex'); if(s50hex) s50hex.textContent = smaCols[1] || '#f0a500';
+  setValue('sc-fontsize', getSettingValue('uiScale', 100));
+  const fsv = document.getElementById('sc-fontsize-v'); if(fsv) fsv.textContent = `${getSettingValue('uiScale', 100)}%`;
+  setValue('sc-newscache', newsCacheDuration);
+
+  ['bg','bg2','am','tl','rd','bl'].forEach(k => {
+    const el = document.getElementById('sc-'+k);
+    if(el){
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--'+k).trim();
+      if(val) el.value = val;
+      const hex = document.getElementById('sc-'+k+'-hex');
+      if(hex && val) hex.textContent = val;
+    }
+  });
+
+  setChecked('sc-grid', isSettingEnabled('scGrid', true));
+  setChecked('sc-crosshair', isSettingEnabled('scCross', true));
+  setChecked('sc-highlow', isSettingEnabled('scHiLo', true));
+  setChecked('sc-dayboundary', isSettingEnabled('scDayBnd', true));
+  setChecked('sc-hollow', isSettingEnabled('scHollow', false));
+  setChecked('sc-wicks', isSettingEnabled('scWicks', true));
+  setChecked('sc-pricescale', isSettingEnabled('scPriceScale', true));
+  setChecked('sc-xaxislabel', isSettingEnabled('scXAxisLbl', true));
+  setChecked('sc-ohlc', isSettingEnabled('scOhlc', true));
+  setChecked('sc-watermark', isSettingEnabled('scWater', true));
+  setChecked('sc-sidebar', isSettingEnabled('scSidebar', true));
+  setChecked('sc-rpanel', isSettingEnabled('scRpanel', true));
+  setChecked('sc-scanner', isSettingEnabled('scScanner', true));
+  setChecked('sc-drawtb', isSettingEnabled('scDrawtb', true));
+  setChecked('sc-statusbar', isSettingEnabled('scStatusbar', true));
+  setChecked('sc-guestintro', appPrefs.guestTutorialIntro);
+  setChecked('sc-contextmenu', appPrefs.enableContextMenus);
+  setChecked('sc-confirmclear', appPrefs.confirmClearDrawings);
+  setChecked('sc-animations', appPrefs.enableChartAnimations);
+
+  if(cloudBadge){
+    const st = _cloudSyncState.status || 'offline';
+    cloudBadge.textContent = st === 'ok' ? 'Synced' : st === 'syncing' ? 'Syncing' : st === 'error' ? 'Error' : 'Offline';
+    cloudBadge.dataset.state = st;
+  }
+  if(cloudCopy){
+    cloudCopy.textContent = _cloudSyncState.message || (_currentUserId ? 'Cloud workspace ready' : 'Local workspace only');
+  }
+}
+
 function openSettings(){
+  hydrateSettingsUI();
   document.getElementById('settings-bg').classList.add('open');
   setTimeout(_syncAllDockedBtns, 10);
-  document.getElementById('sc-bull').value   = candleBullColor;
-  document.getElementById('sc-bear').value   = candleBearColor;
-  document.getElementById('sc-bull-hex').textContent = candleBullColor;
-  document.getElementById('sc-bear-hex').textContent = candleBearColor;
-  document.getElementById('sc-barwidth').value = barWidth;
-  document.getElementById('sc-barwidth-v').textContent = barWidth+'px';
+  syncSettingsFormFromState();
 }
 
 function closeSettings(){
@@ -16878,9 +17465,72 @@ const THEMES = {
   green:  {bg:'#020a04',bg2:'#030e06',bg3:'#041208',bg4:'#05160a',bg5:'#071a0d',b1:'#0a2010',b2:'#103018',b3:'#184025',tx:'#00ff88',tx2:'#00cc66',tx3:'#007733',am:'#00ff44',tl:'#00dd88',rd:'#ff3355',bl:'#00aaff'},
   blue:   {bg:'#030810',bg2:'#060d18',bg3:'#091220',bg4:'#0c1830',bg5:'#101e3a',b1:'#0e1e38',b2:'#162a50',b3:'#1e3868',tx:'#cce4ff',tx2:'#7aaacf',tx3:'#3a607f',am:'#4da8ff',tl:'#00cfff',rd:'#ff4488',bl:'#55aaff'},
 };
+let currentThemeName = 'dark';
+let appPrefs = {
+  guestTutorialIntro: true,
+  enableContextMenus: true,
+  confirmClearDrawings: true,
+  enableChartAnimations: true,
+};
+const SETTINGS_KEY_MAP = {
+  'sc-grid': 'scGrid',
+  'sc-crosshair': 'scCross',
+  'sc-highlow': 'scHiLo',
+  'sc-dayboundary': 'scDayBnd',
+  'sc-hollow': 'scHollow',
+  'sc-ohlc': 'scOhlc',
+  'sc-watermark': 'scWater',
+  'sc-sidebar': 'scSidebar',
+  'sc-rpanel': 'scRpanel',
+  'sc-scanner': 'scScanner',
+  'sc-drawtb': 'scDrawtb',
+  'sc-statusbar': 'scStatusbar',
+  'sc-wicks': 'scWicks',
+  'sc-pricescale': 'scPriceScale',
+  'sc-xaxislabel': 'scXAxisLbl',
+};
+const SETTINGS_DEFAULTS = {
+  scGrid: true,
+  scCross: true,
+  scHiLo: true,
+  scDayBnd: true,
+  scHollow: false,
+  scOhlc: true,
+  scWater: true,
+  scSidebar: true,
+  scRpanel: true,
+  scScanner: true,
+  scDrawtb: true,
+  scStatusbar: true,
+  scWicks: true,
+  scPriceScale: true,
+  scXAxisLbl: true,
+  uiScale: 100,
+};
+let settingsState = { ...SETTINGS_DEFAULTS };
+
+function getSettingStateKey(inputId){
+  return SETTINGS_KEY_MAP[inputId] || inputId;
+}
+function getSettingValue(key, fallback){
+  if(settingsState[key] != null) return settingsState[key];
+  return fallback;
+}
+function isSettingEnabled(key, fallback = true){
+  return !!getSettingValue(key, fallback);
+}
+function setSettingValue(key, value){
+  settingsState[key] = value;
+}
+function getDomCheckboxValue(inputId, fallbackKey, fallback){
+  const el = document.getElementById(inputId);
+  if(el) return !!el.checked;
+  return isSettingEnabled(fallbackKey, fallback);
+}
 
 function applyTheme(name){ invalidateCSSVarCache();
   const t = THEMES[name]; if(!t) return;
+  currentThemeName = name;
   const r = document.documentElement.style;
   Object.entries(t).forEach(([k,v])=>r.setProperty('--'+k, v));
   ['bg','bg2','am','tl','rd','bl'].forEach(k=>{
@@ -16920,15 +17570,24 @@ function syncIndicator(name, on){
 function resetAllSettings(){
   if(!confirm('Reset all settings to defaults?')) return;
   _lsRem('settings');
+  settingsState = { ...SETTINGS_DEFAULTS };
+  appPrefs = {
+    guestTutorialIntro: true,
+    enableContextMenus: true,
+    confirmClearDrawings: true,
+    enableChartAnimations: true,
+  };
   resetColors();
   showSMA=true; showBB=false; showEMA=false; showVWAP=false; showVol=true; showRSI=true; showMACD=false; showStoch=false;
   syncIndicator('sma',true); syncIndicator('bb',false); syncIndicator('vol',true); syncIndicator('rsi',true);
   ['sc-grid','sc-crosshair','sc-highlow','sc-dayboundary','sc-ohlc','sc-watermark','sc-sidebar','sc-rpanel','sc-scanner','sc-drawtb','sc-statusbar','sc-wicks','sc-pricescale','sc-xaxislabel'].forEach(function(id){
+    setSettingValue(getSettingStateKey(id), true);
     var el=document.getElementById(id); if(el) el.checked=true;
   });
+  setSettingValue('scHollow', false);
   var hol=document.getElementById('sc-hollow'); if(hol) hol.checked=false;
   ['sidebar','rpanel','scanner-wrap','draw-toolbar','statusbar'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.style.display='';
+    applyPanelVisibility(id, true);
   });
   barWidth=8; var bw=document.getElementById('sc-barwidth'); if(bw){ bw.value=8; document.getElementById('sc-barwidth-v').textContent='8px'; }
   applyUIScale(100); var fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=100; document.getElementById('sc-fontsize-v').textContent='100%'; }
@@ -16936,8 +17595,309 @@ function resetAllSettings(){
   smaCols=['#3d7fff','#f0a500'];
   var s20=document.getElementById('sc-sma20c'); if(s20){ s20.value='#3d7fff'; document.getElementById('sc-sma20c-hex').textContent='#3d7fff'; }
   var s50=document.getElementById('sc-sma50c'); if(s50){ s50.value='#f0a500'; document.getElementById('sc-sma50c-hex').textContent='#f0a500'; }
+  newsCache = {};
+  syncSettingsFormFromState();
+  saveSettingsToStorage();
   sizeCanvases(); draw();
   toast('All settings reset to defaults');
+}
+
+function resetChartViewport(focusLatest = true){
+  if(!curData || !curData.length) return;
+  priceHi = null;
+  priceLo = null;
+  if(focusLatest){
+    rightBarIndex = curData.length - 1 + Math.max(10, Math.round(((_el('main-canvas')?.width || 400) / Math.max(barWidth, 1)) * 0.08));
+  }
+  syncActiveChartTabRuntimeState(true);
+  saveChartTabs(false);
+  draw();
+}
+
+function updateChartScrubber(){
+  const range = document.getElementById('sb-nav-range');
+  const pos = document.getElementById('sb-nav-pos');
+  const latestBtn = document.getElementById('sb-nav-latest');
+  if(!range || !pos || !latestBtn) return;
+  if(!curData || !curData.length){
+    range.disabled = true;
+    range.value = 1000;
+    pos.textContent = 'Latest';
+    latestBtn.disabled = true;
+    return;
+  }
+  const canvas = _el('main-canvas');
+  const visibleBars = Math.max(1, Math.round((canvas?.width || 400) / Math.max(barWidth, 1)));
+  const halfBars = visibleBars / 2;
+  const minRight = Math.max(halfBars, 1);
+  const maxRight = Math.max(minRight, curData.length - 1 + halfBars);
+  const clampedRight = Math.max(minRight, Math.min(maxRight, rightBarIndex));
+  const denom = Math.max(1, maxRight - minRight);
+  const ratio = (clampedRight - minRight) / denom;
+  range.disabled = false;
+  range.value = String(Math.round(ratio * 1000));
+  const firstVisible = Math.max(0, Math.ceil(clampedRight - visibleBars));
+  const latestThreshold = 0.985;
+  if(ratio >= latestThreshold){
+    pos.textContent = 'Latest';
+    latestBtn.disabled = true;
+  } else {
+    pos.textContent = `${firstVisible + 1}/${curData.length}`;
+    latestBtn.disabled = false;
+  }
+}
+
+function scrubChartToRatio(rawValue){
+  if(!curData || !curData.length) return;
+  const value = Math.max(0, Math.min(1000, parseFloat(rawValue) || 0));
+  const canvas = _el('main-canvas');
+  const visibleBars = Math.max(1, Math.round((canvas?.width || 400) / Math.max(barWidth, 1)));
+  const halfBars = visibleBars / 2;
+  const minRight = Math.max(halfBars, 1);
+  const maxRight = Math.max(minRight, curData.length - 1 + halfBars);
+  const ratio = value / 1000;
+  rightBarIndex = minRight + (maxRight - minRight) * ratio;
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function scrubChartLatest(){
+  resetChartViewport(true);
+  updateChartScrubber();
+}
+
+function duplicateChartTab(id){
+  const base = chartTabs.find(t => t.id === id);
+  if(!base) return;
+  const idx = chartTabs.findIndex(t => t.id === id);
+  const copy = JSON.parse(JSON.stringify(base));
+  copy.id = _chartTabId();
+  copy.title = (base.title || _chartTabTitle(base.sym, base.tf)) + ' Copy';
+  copy.createdAt = Date.now();
+  copy.updatedAt = Date.now();
+  chartTabs.splice(idx + 1, 0, copy);
+  activeChartTabId = copy.id;
+  renderChartTabs();
+  saveChartTabs(false);
+  switchChartTab(copy.id, true);
+}
+
+function closeOtherChartTabs(id){
+  if(chartTabs.length <= 1) return;
+  chartTabs = chartTabs.filter(t => t.id === id);
+  activeChartTabId = id;
+  renderChartTabs();
+  saveChartTabs(false);
+  switchChartTab(id, true);
+}
+
+function addAlertForSymbol(sym, priceHint){
+  const asset = SYMS.find(x => x.s === sym) || curSym || { s: sym, p: 0 };
+  const promptPrice = Number.isFinite(priceHint) ? priceHint : (asset.p || curData[curData.length-1]?.close || 0);
+  const raw = prompt(`Price alert for ${sym}\nCurrent: ${fP(promptPrice)}\n\nTarget price:`);
+  if(!raw || isNaN(raw)) return;
+  alerts.push({ id: String(Date.now() + Math.random()), sym, price: +raw, hit: false });
+  try{ _lsSet('alerts', JSON.stringify(alerts)); }catch(e){}
+  buildAlertsPanel();
+  toast(`Alert added for ${sym}`);
+}
+
+function addHorizontalLevelAt(price){
+  if(!Number.isFinite(price)) return;
+  drawings.push({ type:'hline', price, color:drawingColor, ls:drawingLineStyle, lw:drawingLineWidth });
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function addTextDrawingAt(bar, price){
+  const txt = prompt('Add chart note:');
+  if(!txt) return;
+  drawings.push({ type:'text', bar, price, text: txt });
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function duplicateDrawing(d){
+  if(!d) return;
+  const copy = JSON.parse(JSON.stringify(d));
+  const priceNudge = ((priceHi ?? curData[curData.length-1]?.high ?? 1) - (priceLo ?? curData[curData.length-1]?.low ?? 0)) * 0.02 || 1;
+  ['bar','bar1','bar2','fromBar','toBar','startBar','endBar','entryBar'].forEach(k => {
+    if(Number.isFinite(copy[k])) copy[k] += 3;
+  });
+  ['price','price1','price2','sl','tp','entryPrice','startPrice','endPrice','top','bottom'].forEach(k => {
+    if(Number.isFinite(copy[k])) copy[k] += priceNudge;
+  });
+  drawings.push(copy);
+  selectedDrawing = copy;
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function deleteDrawing(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  if(selectedDrawing === d) selectedDrawing = null;
+  selectedDrawings = selectedDrawings.filter(x => x !== d);
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function bringDrawingToFront(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  drawings.push(d);
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
+function sendDrawingToBack(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  drawings.unshift(d);
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
+let _appContextMenu = null;
+let _appContextMenuCleanup = null;
+
+function hideAppContextMenu(){
+  if(_appContextMenu) _appContextMenu.classList.remove('open');
+  if(_appContextMenuCleanup){
+    _appContextMenuCleanup();
+    _appContextMenuCleanup = null;
+  }
+}
+
+function _ensureAppContextMenu(){
+  if(_appContextMenu) return _appContextMenu;
+  const el = document.createElement('div');
+  el.id = 'app-context-menu';
+  document.body.appendChild(el);
+  _appContextMenu = el;
+  return el;
+}
+
+function showAppContextMenu(items, x, y, title = ''){
+  if(!appPrefs.enableContextMenus) return;
+  hideAppContextMenu();
+  const el = _ensureAppContextMenu();
+  el.innerHTML = '';
+  if(title){
+    const hdr = document.createElement('div');
+    hdr.className = 'app-ctx-hdr';
+    hdr.textContent = title;
+    el.appendChild(hdr);
+  }
+  items.filter(Boolean).forEach(item => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `app-ctx-item${item.danger ? ' danger' : ''}`;
+    row.disabled = !!item.disabled;
+    row.innerHTML = `<span>${item.label}</span>${item.meta ? `<span class="app-ctx-meta">${item.meta}</span>` : ''}`;
+    row.addEventListener('click', () => {
+      hideAppContextMenu();
+      if(!item.disabled && typeof item.action === 'function') item.action();
+    });
+    el.appendChild(row);
+  });
+  el.style.left = '0px';
+  el.style.top = '0px';
+  el.classList.add('open');
+  const rect = el.getBoundingClientRect();
+  const maxX = window.innerWidth - rect.width - 10;
+  const maxY = window.innerHeight - rect.height - 10;
+  el.style.left = `${Math.max(10, Math.min(x, maxX))}px`;
+  el.style.top = `${Math.max(10, Math.min(y, maxY))}px`;
+
+  const onDocMouse = (evt) => { if(!el.contains(evt.target)) hideAppContextMenu(); };
+  const onEsc = (evt) => { if(evt.key === 'Escape') hideAppContextMenu(); };
+  const onScroll = () => hideAppContextMenu();
+  document.addEventListener('mousedown', onDocMouse, true);
+  document.addEventListener('keydown', onEsc, true);
+  window.addEventListener('scroll', onScroll, true);
+  window.addEventListener('resize', onScroll, true);
+  _appContextMenuCleanup = () => {
+    document.removeEventListener('mousedown', onDocMouse, true);
+    document.removeEventListener('keydown', onEsc, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('resize', onScroll, true);
+  };
+}
+
+function initContextMenus(){
+  const mc = _el('main-canvas');
+  if(mc && !mc.dataset.ctxReady){
+    mc.dataset.ctxReady = '1';
+    mc.addEventListener('contextmenu', e => {
+      if(!appPrefs.enableContextMenus) return;
+      e.preventDefault();
+      const rect = mc.getBoundingClientRect();
+      const lx = uiToCanvasPx(e.clientX - rect.left);
+      const ly = uiToCanvasPx(e.clientY - rect.top);
+      const bar = _xToBar ? Math.max(0, Math.min(curData.length - 1, Math.round(_xToBar(lx)))) : Math.max(0, curData.length - 1);
+      const price = _yToPrice ? _yToPrice(ly) : curData[curData.length - 1]?.close;
+      const hit = [...drawings].reverse().find(d => hitTest(d, lx, ly) || _mentorBubbleHit(d, lx, ly));
+      if(hit){
+        selectedDrawing = hit;
+        selectedDrawings = [hit];
+        draw();
+        showAppContextMenu([
+          (hit.type === 'long' || hit.type === 'short') ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
+          { label:'Duplicate drawing', action:() => duplicateDrawing(hit) },
+          { label:'Bring to front', action:() => bringDrawingToFront(hit) },
+          { label:'Send to back', action:() => sendDrawingToBack(hit) },
+          { label:'Delete drawing', action:() => deleteDrawing(hit), danger:true },
+        ], e.clientX, e.clientY, `${hit.type} drawing`);
+        return;
+      }
+      showAppContextMenu([
+        { label:'Reset chart view', action:() => resetChartViewport(true) },
+        { label:'Open this market in a new tab', action:() => createChartTab(curSym.s, curTF) },
+        { label:'Add horizontal level here', action:() => addHorizontalLevelAt(price), meta:price != null ? fP(price) : '' },
+        { label:'Add note here', action:() => addTextDrawingAt(bar, price) },
+        { label: showSessions ? 'Hide sessions' : 'Show sessions', action:() => toggleSessions() },
+        { label:'Add alert for this market', action:() => addAlertForSymbol(curSym.s, price) },
+        { label:'Open settings', action:() => openSettings() },
+      ], e.clientX, e.clientY, `${curSym.s} · ${String(curTF).toUpperCase()}`);
+    });
+  }
+
+  if(!document.body.dataset.ctxDelegatesReady){
+    document.body.dataset.ctxDelegatesReady = '1';
+    document.addEventListener('contextmenu', e => {
+      if(!appPrefs.enableContextMenus) return;
+      const tabEl = e.target.closest('.chart-tab');
+      if(tabEl){
+        e.preventDefault();
+        const tabId = tabEl.dataset.tabId;
+        const tab = chartTabs.find(t => t.id === tabId);
+        if(!tab) return;
+        showAppContextMenu([
+          { label:'Switch to tab', action:() => switchChartTab(tabId) },
+          { label:'Duplicate tab', action:() => duplicateChartTab(tabId) },
+          { label:'Close other tabs', action:() => closeOtherChartTabs(tabId), disabled: chartTabs.length <= 1 },
+          { label:'Close tab', action:() => closeChartTab(tabId), danger:true, disabled: chartTabs.length <= 1 },
+        ], e.clientX, e.clientY, tab.title || _chartTabTitle(tab.sym, tab.tf));
+        return;
+      }
+      const wlRow = e.target.closest('.wl-row');
+      if(wlRow){
+        e.preventDefault();
+        const sym = wlRow.dataset.sym;
+        showAppContextMenu([
+          { label:'Open chart', action:() => selSym(sym) },
+          { label:'Open in new tab', action:() => createChartTab(sym, curTF) },
+          { label:'Add alert', action:() => addAlertForSymbol(sym) },
+          { label:'Remove from watchlist', action:() => removeFromWatchlist(sym), danger:true },
+        ], e.clientX, e.clientY, sym);
+      }
+    });
+  }
 }
 
 // ── Auth UI functions ──────────────────────────────────────────────────────────
@@ -17009,7 +17969,7 @@ async function authSubmitLogin(){
     doLogin(result.username, result.displayName);
     
     ensureChartTabs();
-    switchChartTab(activeChartTabId, true);
+    switchChartTab(activeChartTabId, true, { focusLatest: true });
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
@@ -17044,7 +18004,7 @@ async function authSubmitRegister(){
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
   ensureChartTabs();
-  switchChartTab(activeChartTabId, true);
+  switchChartTab(activeChartTabId, true, { focusLatest: true });
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -17099,18 +18059,6 @@ function _startAutoSave(){
 }
 function _stopAutoSave(){
   if(_autoSaveInterval){ clearInterval(_autoSaveInterval); _autoSaveInterval = null; }
-}
-
-function updateUserBadge(displayName){
-  const badge = document.getElementById('user-badge');
-  const cpBtn = document.getElementById('btn-change-pass');
-  if(displayName){
-    if(badge){ badge.textContent = '👤 ' + displayName.slice(0,14); badge.title=`Logged in as ${_currentUser}`; badge.style.display=''; }
-    if(cpBtn) cpBtn.style.display='';
-  } else {
-    if(badge) badge.style.display='none';
-    if(cpBtn) cpBtn.style.display='none';
-  }
 }
 
 // ══ ACCOUNT SYSTEM (Supabase-backed) ══════════════════════════════════════════
@@ -17527,9 +18475,9 @@ function updateUserBadge(displayName){
   if(displayName){
     badge.textContent = displayName.slice(0,16);
     badge.title = `Logged in as ${_currentUser}`;
-    badge.style.display = '';
-    if(logoutBtn) logoutBtn.style.display = '';
-    if(cpBtn) cpBtn.style.display = '';
+    badge.style.display = 'inline-flex';
+    if(logoutBtn) logoutBtn.style.display = 'inline-flex';
+    if(cpBtn) cpBtn.style.display = 'inline-flex';
     if(loginBtn) loginBtn.style.display = 'none';
     if(signupBtn) signupBtn.style.display = 'none';
     updateCloudSyncBadge(_currentUserId
@@ -17539,8 +18487,8 @@ function updateUserBadge(displayName){
     badge.style.display = 'none';
     if(logoutBtn) logoutBtn.style.display = 'none';
     if(cpBtn) cpBtn.style.display = 'none';
-    if(loginBtn) loginBtn.style.display = '';
-    if(signupBtn) signupBtn.style.display = '';
+    if(loginBtn) loginBtn.style.display = 'inline-flex';
+    if(signupBtn) signupBtn.style.display = 'inline-flex';
     updateCloudSyncBadge({ status:'offline', message:'Local workspace only' });
   }
 }
@@ -17583,31 +18531,40 @@ function loadJournal(){
 
 // Patch saveSettingsToStorage / loadSettingsFromStorage to use namespace
 function saveSettingsToStorage(){
+  Object.entries(SETTINGS_KEY_MAP).forEach(([inputId, stateKey]) => {
+    const el = document.getElementById(inputId);
+    if(el && el.type === 'checkbox') settingsState[stateKey] = !!el.checked;
+  });
+  settingsState.uiScale = getSettingValue('uiScale', 100);
   const settings={
-    theme: document.getElementById('sc-theme')?.value||'dark',
+    theme: currentThemeName || 'dark',
     candleBull: candleBullColor, candleBear: candleBearColor,
     smaCols: smaCols, barWidth: barWidth,
     indActive,
     showSessions,
     showSMA,showBB,showEMA,showVWAP,showVol,showRSI,showMACD,showStoch,
-    scGrid:      _el('sc-grid')?.checked,
-    scCross:     _el('sc-crosshair')?.checked,
-    scHiLo:      _el('sc-highlow')?.checked,
-    scDayBnd:    _el('sc-dayboundary')?.checked,
-    scHollow:    _el('sc-hollow')?.checked,
-    scOhlc:      _el('sc-ohlc')?.checked,
-    scWater:     _el('sc-watermark')?.checked,
-    scSidebar:   document.getElementById('sc-sidebar')?.checked,
-    scRpanel:    document.getElementById('sc-rpanel')?.checked,
-    scScanner:   document.getElementById('sc-scanner')?.checked,
-    scDrawtb:    document.getElementById('sc-drawtb')?.checked,
-    scStatusbar: document.getElementById('sc-statusbar')?.checked,
-    scWicks:     _el('sc-wicks')?.checked,
-    scPriceScale:_el('sc-pricescale')?.checked,
-    scXAxisLbl:  _el('sc-xaxislabel')?.checked,
-    scSma20c:    document.getElementById('sc-sma20c')?.value||'#3d7fff',
-    scSma50c:    document.getElementById('sc-sma50c')?.value||'#f0a500',
-    uiScale:     document.getElementById('sc-fontsize')?.value||'100',
+    scGrid:      isSettingEnabled('scGrid', true),
+    scCross:     isSettingEnabled('scCross', true),
+    scHiLo:      isSettingEnabled('scHiLo', true),
+    scDayBnd:    isSettingEnabled('scDayBnd', true),
+    scHollow:    isSettingEnabled('scHollow', false),
+    scOhlc:      isSettingEnabled('scOhlc', true),
+    scWater:     isSettingEnabled('scWater', true),
+    scSidebar:   isSettingEnabled('scSidebar', true),
+    scRpanel:    isSettingEnabled('scRpanel', true),
+    scScanner:   isSettingEnabled('scScanner', true),
+    scDrawtb:    isSettingEnabled('scDrawtb', true),
+    scStatusbar: isSettingEnabled('scStatusbar', true),
+    scWicks:     isSettingEnabled('scWicks', true),
+    scPriceScale:isSettingEnabled('scPriceScale', true),
+    scXAxisLbl:  isSettingEnabled('scXAxisLbl', true),
+    scGuestIntro: appPrefs.guestTutorialIntro,
+    scContextMenu: appPrefs.enableContextMenus,
+    scConfirmClear: appPrefs.confirmClearDrawings,
+    scAnimations: appPrefs.enableChartAnimations,
+    scSma20c:    smaCols[0] || '#3d7fff',
+    scSma50c:    smaCols[1] || '#f0a500',
+    uiScale:     getSettingValue('uiScale', 100),
     newsCacheDuration,
     cssVars: ['--bg','--bg2','--am','--tl','--rd','--bl'].reduce((o,v)=>{
       o[v]=getComputedStyle(document.documentElement).getPropertyValue(v).trim()||null; return o;
@@ -17622,6 +18579,25 @@ function saveSettingsToStorage(){
 function loadSettingsFromStorage(){
   let s; try{ s = JSON.parse(_lsGet('settings')); }catch(e){}
   if(!s) return;
+  settingsState = {
+    ...SETTINGS_DEFAULTS,
+    scGrid: s.scGrid != null ? !!s.scGrid : SETTINGS_DEFAULTS.scGrid,
+    scCross: s.scCross != null ? !!s.scCross : SETTINGS_DEFAULTS.scCross,
+    scHiLo: s.scHiLo != null ? !!s.scHiLo : SETTINGS_DEFAULTS.scHiLo,
+    scDayBnd: s.scDayBnd != null ? !!s.scDayBnd : SETTINGS_DEFAULTS.scDayBnd,
+    scHollow: s.scHollow != null ? !!s.scHollow : SETTINGS_DEFAULTS.scHollow,
+    scOhlc: s.scOhlc != null ? !!s.scOhlc : SETTINGS_DEFAULTS.scOhlc,
+    scWater: s.scWater != null ? !!s.scWater : SETTINGS_DEFAULTS.scWater,
+    scSidebar: s.scSidebar != null ? !!s.scSidebar : SETTINGS_DEFAULTS.scSidebar,
+    scRpanel: s.scRpanel != null ? !!s.scRpanel : SETTINGS_DEFAULTS.scRpanel,
+    scScanner: s.scScanner != null ? !!s.scScanner : SETTINGS_DEFAULTS.scScanner,
+    scDrawtb: s.scDrawtb != null ? !!s.scDrawtb : SETTINGS_DEFAULTS.scDrawtb,
+    scStatusbar: s.scStatusbar != null ? !!s.scStatusbar : SETTINGS_DEFAULTS.scStatusbar,
+    scWicks: s.scWicks != null ? !!s.scWicks : SETTINGS_DEFAULTS.scWicks,
+    scPriceScale: s.scPriceScale != null ? !!s.scPriceScale : SETTINGS_DEFAULTS.scPriceScale,
+    scXAxisLbl: s.scXAxisLbl != null ? !!s.scXAxisLbl : SETTINGS_DEFAULTS.scXAxisLbl,
+    uiScale: s.uiScale != null ? parseFloat(s.uiScale) || 100 : SETTINGS_DEFAULTS.uiScale,
+  };
   if(s.theme){ const th=document.getElementById('sc-theme'); if(th) th.value=s.theme; applyTheme(s.theme); }
   if(s.cssVars) Object.entries(s.cssVars).forEach(([k,v])=>{ if(v) document.documentElement.style.setProperty(k,v); });
   if(s.candleBull){ candleBullColor=s.candleBull; const e=document.getElementById('sc-bull'); if(e){ e.value=s.candleBull; document.getElementById('sc-bull-hex').textContent=s.candleBull; } }
@@ -17632,7 +18608,7 @@ function loadSettingsFromStorage(){
     const s50=document.getElementById('sc-sma50c'); if(s50){ s50.value=s.smaCols[1]; document.getElementById('sc-sma50c-hex').textContent=s.smaCols[1]; }
   }
   if(s.barWidth){ barWidth=s.barWidth; const bw=document.getElementById('sc-barwidth'); if(bw){ bw.value=s.barWidth; document.getElementById('sc-barwidth-v').textContent=s.barWidth+'px'; } }
-  if(s.uiScale){ applyUIScale(s.uiScale); const fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=s.uiScale; document.getElementById('sc-fontsize-v').textContent=s.uiScale+'%'; } }
+  if(s.uiScale != null){ applyUIScale(s.uiScale); const fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=s.uiScale; document.getElementById('sc-fontsize-v').textContent=s.uiScale+'%'; } }
   if(s.newsCacheDuration){ newsCacheDuration=s.newsCacheDuration; const nc=document.getElementById('sc-newscache'); if(nc) nc.value=s.newsCacheDuration; }
   if(s.indActive){
     indActive = {...DEFAULT_IND_ACTIVE, ...s.indActive};
@@ -17641,21 +18617,31 @@ function loadSettingsFromStorage(){
   if(s.showSessions != null){
     showSessions = !!s.showSessions;
   }
+  if(s.scGuestIntro != null) appPrefs.guestTutorialIntro = !!s.scGuestIntro;
+  if(s.scContextMenu != null) appPrefs.enableContextMenus = !!s.scContextMenu;
+  if(s.scConfirmClear != null) appPrefs.confirmClearDrawings = !!s.scConfirmClear;
+  if(s.scAnimations != null) appPrefs.enableChartAnimations = !!s.scAnimations;
   const toggleMap={scGrid:'sc-grid',scCross:'sc-crosshair',scHiLo:'sc-highlow',scDayBnd:'sc-dayboundary',scHollow:'sc-hollow',scOhlc:'sc-ohlc',scWater:'sc-watermark',scSidebar:'sc-sidebar',scRpanel:'sc-rpanel',scScanner:'sc-scanner',scDrawtb:'sc-drawtb',scStatusbar:'sc-statusbar',scWicks:'sc-wicks',scPriceScale:'sc-pricescale',scXAxisLbl:'sc-xaxislabel'};
-  Object.entries(toggleMap).forEach(([k,id])=>{ if(s[k]!=null){ const el=document.getElementById(id); if(el) el.checked=s[k]; } });
-  const pmap={sidebar:'sc-sidebar',rpanel:'sc-rpanel','scanner-wrap':'sc-scanner','draw-toolbar':'sc-drawtb',statusbar:'sc-statusbar'};
-  Object.entries(pmap).forEach(([pid,cid])=>{ const chk=document.getElementById(cid); const pan=document.getElementById(pid); if(chk&&pan) pan.style.display=chk.checked?'':'none'; });
+  Object.entries(toggleMap).forEach(([k,id])=>{ const el=document.getElementById(id); if(el) el.checked=!!settingsState[k]; });
+  applyPanelVisibility('sidebar', isSettingEnabled('scSidebar', true));
+  applyPanelVisibility('rpanel', isSettingEnabled('scRpanel', true));
+  applyPanelVisibility('scanner-wrap', isSettingEnabled('scScanner', true));
+  applyPanelVisibility('draw-toolbar', isSettingEnabled('scDrawtb', true));
+  applyPanelVisibility('statusbar', isSettingEnabled('scStatusbar', true));
   ['sma','bb','ema','vwap','vol','rsi','macd','stoch'].forEach(n=>{
     const map={sma:'showSMA',bb:'showBB',ema:'showEMA',vwap:'showVWAP',vol:'showVol',rsi:'showRSI',macd:'showMACD',stoch:'showStoch'};
     if(!s.indActive && s[map[n]]!=null) syncIndicator(n, s[map[n]]);
   });
   saveIndActive();
   renderTopbarInds();
+  if(document.getElementById('settings-bg')?.classList.contains('open')) syncSettingsFormFromState();
 }
 // ══ INIT ══════════════════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
   sizeCanvases();
+  positionChartTabsBar();
   setupEvents();
+  initContextMenus();
   initScannerDrag();
   initSidebarResize();
 
@@ -17673,12 +18659,15 @@ window.addEventListener('load', () => {
       document.getElementById('app').style.display = 'flex';
       doLogin(username, displayName);
       ensureChartTabs();
-      switchChartTab(activeChartTabId, true);
+      switchChartTab(activeChartTabId, true, { focusLatest: true });
     } else {
       // No active session — show auth screen
       closeAuthOverlay();
       enterGuestMode();
-      switchChartTab(activeChartTabId, true);
+      switchChartTab(activeChartTabId, true, { focusLatest: true });
+      if(appPrefs.guestTutorialIntro){
+        setTimeout(() => openTutorial({ page:'intro', intro:true }), 220);
+      }
     }
   })();
 
@@ -17694,31 +18683,142 @@ window.addEventListener('load', () => {
 
 
 
-function openTutorial(){
+let _tutorialHydrated = false;
+let _tutorialOpenedAsIntro = false;
+let _tutorialHelpPulseTimer = null;
+const TUT_PAGES = ['intro','copilot','mentor','review','workspace'];
+let _tutIdx = 0;
+
+function hydrateTutorialContent(){
+  if(_tutorialHydrated) return;
+  const titleEl = document.getElementById('tut-hdr-title');
+  const subEl = document.getElementById('tut-hdr-sub');
+  const nav = document.getElementById('tut-nav');
+  const content = document.getElementById('tut-content');
+  const footerHint = document.getElementById('tut-footer-hint');
+  const prevBtn = document.querySelector('#tut-footer .tut-nav-prev');
+  const nextBtn = document.querySelector('#tut-footer .tut-nav-next');
+  if(titleEl) titleEl.textContent = 'APEXFX Help & Tutorial';
+  if(subEl) subEl.textContent = 'A quick intro to what makes APEXFX different';
+  if(nav){
+    nav.innerHTML = `
+      <div class="tut-nav-section">Quick Intro</div>
+      <button class="tut-nav-btn on" onclick="tutPage(this,'intro')"><span class="tut-nav-icon">1</span>Start Here</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'copilot')"><span class="tut-nav-icon">2</span>Live AI Copilot</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'mentor')"><span class="tut-nav-icon">3</span>Mentor & Replay</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'review')"><span class="tut-nav-icon">4</span>Analysis & Journal</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'workspace')"><span class="tut-nav-icon">5</span>Your Workspace</button>
+    `;
+  }
+  if(content){
+    content.innerHTML = `
+      <div class="tut-page on" id="tut-intro">
+        <div class="tut-hero">
+          <div class="tut-hero-kicker">Welcome</div>
+          <div class="tut-h1">This is not just a charting site</div>
+          <div class="tut-lead">APEXFX is built to help you find, understand, practise, and review trades in one place. You can use it right away in guest mode, then sign in later to sync everything.</div>
+          <div class="tut-hero-actions">
+            <span class="tut-pill">Use without an account</span>
+            <span class="tut-pill">AI built into the workflow</span>
+            <span class="tut-pill">Training + review</span>
+          </div>
+        </div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Find ideas</div><div class="tut-card-body">Use AI Setups, scans, and pre-market tools to surface markets worth looking at.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Validate trades</div><div class="tut-card-body">Use Trade Analysis to judge the exact entry, stop, target, and timing.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Train your eye</div><div class="tut-card-body">Replay + Mentor teaches setups on historical charts instead of only giving signals.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Build your edge</div><div class="tut-card-body">Journal and analytics turn your trade history into feedback and pattern recognition.</div></div>
+        </div>
+        <div class="tut-tip">Best first workflow: open a chart, check the AI tab, run Trade Analysis on a setup, then try Replay Mentor when you want to practise.</div>
+      </div>
+      <div class="tut-page" id="tut-copilot">
+        <div class="tut-h1">Live AI Copilot</div>
+        <div class="tut-lead">The AI tab on the right is your live market read. It is meant to explain what the chart is doing right now, not just throw a random signal at you.</div>
+        <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>Reads the current chart state.</strong> It looks at trend, structure, levels, and recent changes.</div></div>
+        <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Gets better when you draw on the chart.</strong> Mark levels, zones, or a thesis and the copilot becomes more specific.</div></div>
+        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Helps with context.</strong> It tells you what changed, what matters next, and whether your thesis is strengthening or weakening.</div></div>
+        <div class="tut-tip">Think of the AI tab as your live chart briefing. Think of Trade Analysis as the deeper decision check before taking the trade.</div>
+      </div>
+      <div class="tut-page" id="tut-mentor">
+        <div class="tut-h1">Mentor & Replay</div>
+        <div class="tut-lead">This is one of the most unique parts of APEXFX. Instead of only analysing the live market, the platform can teach you on historical charts too.</div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Replay mode</div><div class="tut-card-body">Step through old price action and practise reading the market without knowing what happens next.</div></div>
+          <div class="tut-card"><div class="tut-card-title">AI Mentor</div><div class="tut-card-body">The mentor spots setups, explains confluences, and can either guide you or let you try it yourself.</div></div>
+        </div>
+        <div class="tut-warn">The goal is not just signals. The goal is to help you understand why a setup is valid, what confirms it, and what would invalidate it.</div>
+      </div>
+      <div class="tut-page" id="tut-review">
+        <div class="tut-h1">Analysis, Journal, and Growth</div>
+        <div class="tut-lead">APEXFX is designed to carry one trade idea through the whole process: discovery, validation, execution, and review.</div>
+        <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>AI Setups finds ideas.</strong> It shows markets and setups worth checking.</div></div>
+        <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Trade Analysis checks the exact trade.</strong> It separates setup quality from execution quality.</div></div>
+        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Journal and analytics close the loop.</strong> Your history starts revealing habits, strengths, and weak spots.</div></div>
+        <div class="tut-tip">Over time, the goal is for the platform to feel less like a dashboard and more like a trading workspace that learns how you operate.</div>
+      </div>
+      <div class="tut-page" id="tut-workspace">
+        <div class="tut-h1">Your Workspace</div>
+        <div class="tut-lead">You do not need to learn every button on day one. Just know where the core pieces are.</div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Top of chart</div><div class="tut-card-body">Symbol, timeframe, and chart tabs. Each tab can hold its own chart state.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Left side</div><div class="tut-card-body">Watchlist, drawing tools, and the Help button you can come back to anytime.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Right side</div><div class="tut-card-body">AI, analytics, and news. This is where most of the guided intelligence lives.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Guest vs account</div><div class="tut-card-body">Guest mode lets you explore. Signing in brings cloud sync, saved progress, and a persistent trader profile.</div></div>
+        </div>
+        <div class="tut-tip">That is all you really need to get started. Use this button again later if you want a quick reset.</div>
+      </div>
+    `;
+  }
+  if(footerHint) footerHint.textContent = 'Quick intro to the unique parts of APEXFX';
+  if(prevBtn) prevBtn.textContent = 'Prev';
+  if(nextBtn) nextBtn.textContent = 'Next';
+  _tutorialHydrated = true;
+}
+
+function _setTutorialPage(id){
+  const safeId = TUT_PAGES.includes(id) ? id : 'overview';
+  const btn = document.querySelector(`.tut-nav-btn[onclick*="'${safeId}'"]`);
+  document.querySelectorAll('.tut-nav-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  document.querySelectorAll('.tut-page').forEach(p=>p.classList.remove('on'));
+  const pg = document.getElementById('tut-'+safeId);
+  if(pg) pg.classList.add('on');
+  _tutIdx = TUT_PAGES.indexOf(safeId);
+  const content = document.getElementById('tut-content');
+  if(content) content.scrollTop = 0;
+}
+
+function pulseHelpTutorialButton(){
+  const btn = document.getElementById('nav-help-btn');
+  if(!btn) return;
+  btn.classList.remove('tutorial-pulse');
+  void btn.offsetWidth;
+  btn.classList.add('tutorial-pulse');
+  if(_tutorialHelpPulseTimer) clearTimeout(_tutorialHelpPulseTimer);
+  _tutorialHelpPulseTimer = setTimeout(() => {
+    btn.classList.remove('tutorial-pulse');
+    _tutorialHelpPulseTimer = null;
+  }, 4200);
+}
+
+function openTutorial(options = {}){
+  hydrateTutorialContent();
+  _tutorialOpenedAsIntro = !!options.intro;
   document.getElementById('tut-bg').classList.add('open');
+  _setTutorialPage(options.page || 'intro');
 }
 function closeTutorial(){
   document.getElementById('tut-bg').classList.remove('open');
   resetDrag(document.getElementById('tut-content'));
+  if(_tutorialOpenedAsIntro) pulseHelpTutorialButton();
+  _tutorialOpenedAsIntro = false;
 }
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeTutorial();
 });
 
-const TUT_PAGES = ['overview','layout','symbols','timeframes','charttypes','drawings','fibonacci','indicators','indbuilder','scanner','aipanel','watchlist','journal','analytics','replay','psc','shortcuts'];
-let _tutIdx = 0;
-
 function tutPage(btn, id){
-  // deactivate all nav btns
-  document.querySelectorAll('.tut-nav-btn').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  // hide all pages
-  document.querySelectorAll('.tut-page').forEach(p=>p.classList.remove('on'));
-  const pg = document.getElementById('tut-'+id);
-  if(pg) pg.classList.add('on');
-  _tutIdx = TUT_PAGES.indexOf(id);
-  // scroll content to top
-  document.getElementById('tut-content').scrollTop = 0;
+  _setTutorialPage(id);
 }
 
 function tutNavStep(dir){
@@ -18584,25 +19684,59 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
 
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
-  const setupRef = aisSetups.find(x => x.sym === sym && x.tf === (tf || curTF));
+  const targetTf = tf || curTF;
+  const setupRef = aisSetups.find(x => x.sym === sym && x.tf === targetTf);
+  const targetTabId = createChartTab(sym, targetTf);
+  const targetTab = chartTabs.find(t => t.id === targetTabId);
+  if(targetTab){
+    targetTab.sym = sym;
+    targetTab.tf = targetTf;
+    targetTab.title = _chartTabTitle(sym, targetTf);
+    targetTab._pendingAISPlacement = {
+      dir,
+      entry,
+      sl,
+      target,
+      halfBars: defaultTradeToolHalfBars(targetTf),
+      meta: setupRef ? {
+        source: 'ai-setups',
+        sym: setupRef.sym,
+        tf: setupRef.tf,
+        dir: setupRef.dir,
+        score: setupRef.score,
+        conf: setupRef.conf,
+        rr: setupRef.rr,
+        patLabel: setupRef.patLabel || 'Structure',
+        movePct: setupRef.movePct,
+        tfAgree: setupRef.tfAgree,
+        idea: setupRef.aiIdea || '',
+      } : null,
+    };
+    targetTab.updatedAt = Date.now();
+    renderChartTabs();
+    saveChartTabs(false);
+  }
+  switchChartTab(targetTabId, true, { focusLatest: true });
 
   const doPlace = () => {
     // Use real Binance data if available in cache, otherwise use curData
-    const realBars = dataCache[sym+'_'+(tf||curTF)];
+    const realBars = dataCache[sym+'_'+targetTf];
     const bars = (realBars && realBars.length > 0) ? realBars : curData;
     if(!bars.length) return;
 
     const barIdx   = bars.length - 1;
+    const placementBarsByTf = { '1m': 18, '5m': 16, '15m': 14, '1h': 12, '4h': 10, '1d': 8, '1w': 6, '1M': 4 };
+    const halfBars = Math.max(8, placementBarsByTf[targetTf] || 12);
+    const anchorBar = (bars.length - 1) + halfBars;
     const lastClose = bars[barIdx].close;
-
-    // Keep SL/TP distances proportional, anchored to current real price
-    const slDist = Math.abs(entry - sl);
-    const tpDist = Math.abs(entry - target);
     const isLong = dir === 'bull';
-    const realEntry = lastClose;
-    const realSL    = isLong ? realEntry - slDist : realEntry + slDist;
-    const realTP    = isLong ? realEntry + tpDist : realEntry - tpDist;
-    const dp        = lastClose < 1 ? 5 : lastClose < 10 ? 4 : lastClose < 100 ? 3 : 2;
+    const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
+
+    const tradeAlreadyTriggered = (isLong && lastClose >= entry) || (!isLong && lastClose <= entry);
+    if(false && tradeAlreadyTriggered){
+      toast('Setup already triggered — opening only fresh pending setups on chart');
+      return;
+    }
 
     // Remove any previous AI-placed drawings for this symbol
     drawings = drawings.filter(d => !d._aisPlaced);
@@ -18613,12 +19747,12 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
 
     const drawing = {
       type: isLong ? 'long' : 'short',
-      bar:  barIdx,
-      price: +realEntry.toFixed(dp),
-      sl:    +realSL.toFixed(dp),
-      tp:    +realTP.toFixed(dp),
-      halfBars: 16,
-      halfDuration: halfBarsToSecs(16, tf || curTF),
+      bar:  anchorBar,
+      price: +entry.toFixed(dp),
+      sl:    +sl.toFixed(dp),
+      tp:    +target.toFixed(dp),
+      halfBars,
+      halfDuration: halfBarsToSecs(halfBars, targetTf),
       _aisPlaced: true,
       _aisMeta: setupRef ? {
         source: 'ai-setups',
@@ -18636,42 +19770,37 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     };
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
+    if(targetTab){
+      targetTab.drawings = drawings.map(drawingToTime);
+      targetTab.updatedAt = Date.now();
+    }
 
-    rightBarIndex = bars.length - 1 + 15;
+    rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
     priceHi = null; priceLo = null;
-
-    showTradeAnalysisPopup(drawing, true); // freshPlacement — clear old lock
+    syncActiveChartTabRuntimeState(true);
+    saveChartTabs(false);
     draw();
+    toast(`${sym} ${targetTf.toUpperCase()} setup opened in a new chart tab`);
   };
 
-  // Switch TF first if needed (sets curTF before loadSym)
-  if(tf && curTF !== tf){
-    const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-    if(tfBtn) setTF(tfBtn, tf);
-  }
-
-  if(curSym.s === sym){
-    // Already on this symbol — data is ready, place immediately
-    doPlace();
-  } else {
-    // Need to switch symbol — wait for loadSym then place
-    // Use a one-time event on the src status to know when real data is ready
-    loadSym(sym).then(() => {
-      // loadSym resolves after placeholder — wait for real Binance data
-      const waitForReal = (attempts) => {
-        const cached = dataCache[sym+'_'+curTF];
-        if(cached && cached.length > 0){
-          doPlace();
-        } else if(attempts > 0){
-          setTimeout(() => waitForReal(attempts - 1), 200);
-        } else {
-          // Fallback — use whatever data is in curData now
-          doPlace();
-        }
-      };
-      waitForReal(15); // poll up to 3 seconds
-    });
-  }
+  const waitForReady = (attempts) => {
+    const tabIsReady =
+      activeChartTabId === targetTabId &&
+      curSym?.s === sym &&
+      curTF === targetTf &&
+      curData?.length &&
+      !(chartTransitionState.loading && chartTransitionState.tabId === targetTabId);
+    if(tabIsReady){
+      doPlace();
+      return;
+    }
+    if(attempts <= 0){
+      toast('Could not open AI setup on chart');
+      return;
+    }
+    setTimeout(() => waitForReady(attempts - 1), 160);
+  };
+  waitForReady(30);
 }
 
 function aisSetProgress(pct, lbl){
@@ -19131,10 +20260,42 @@ function tapExtractSection(text, title){
 
 function tapParseStructuredAnalysis(text){
   const raw = String(text || '');
-  const match = raw.match(/SCORECARD_JSON:\s*(\{[^\n]*\})/i);
-  if (!match) return null;
+  const markerIdx = raw.toUpperCase().lastIndexOf('SCORECARD_JSON:');
+  if (markerIdx < 0) return null;
+  const afterMarker = raw.slice(markerIdx);
+  const braceStart = afterMarker.indexOf('{');
+  if (braceStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let jsonEnd = -1;
+  for (let i = braceStart; i < afterMarker.length; i++) {
+    const ch = afterMarker[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        jsonEnd = i;
+        break;
+      }
+    }
+  }
+  if (jsonEnd < 0) return null;
   try {
-    return JSON.parse(match[1]);
+    return JSON.parse(afterMarker.slice(braceStart, jsonEnd + 1));
   } catch (e) {
     return null;
   }
@@ -19162,20 +20323,36 @@ function tapExtractTradeMetrics(text){
       verdict: structured.verdict || '',
     };
   }
-  const scoringIdx = source.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringIdx = Math.max(
+    source.toUpperCase().indexOf('TRADE QUALITY SCORING'),
+    source.toUpperCase().indexOf('TRADE QUALITY SCORE')
+  );
   const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
   const getScore = (label) => {
-    const match = scoringZone.match(new RegExp(label + String.raw`\s*\(0.?25\)\s*:\s*(\d{1,2})`, 'i'));
+    const match = scoringZone.match(new RegExp(label + String.raw`[^0-9]{0,30}(\d{1,2})(?:\s*\/\s*25)?`, 'i'));
     return match ? parseInt(match[1]) : null;
   };
-  const combined = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i) || source.match(/(\d{1,3})\s*\/\s*100/);
+  const combined =
+    scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i) ||
+    source.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i) ||
+    source.match(/(\d{1,3})\s*\/\s*100/);
   const probability = source.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
+  const verdictIdx = source.toUpperCase().lastIndexOf('FINAL VERDICT');
+  const verdictZone = (verdictIdx >= 0 ? source.slice(verdictIdx) : source.slice(-400)).toUpperCase();
+  let fallbackCombined = null;
+  if (verdictZone.includes('STRONG SETUP') || verdictZone.includes('A+ SETUP')) fallbackCombined = 88;
+  else if (verdictZone.includes('A SETUP')) fallbackCombined = 80;
+  else if (verdictZone.includes('ACCEPTABLE SETUP') || verdictZone.includes('ACCEPTABLE')) fallbackCombined = 68;
+  else if (verdictZone.includes('B SETUP')) fallbackCombined = 60;
+  else if (verdictZone.includes('RISKY SETUP') || verdictZone.includes('RISKY')) fallbackCombined = 42;
+  else if (verdictZone.includes('C SETUP')) fallbackCombined = 35;
+  else if (verdictZone.includes('AVOID TRADE') || verdictZone.includes('AVOID') || verdictZone.includes('INVALID SETUP')) fallbackCombined = 18;
   return {
     entryQuality: getScore('Entry Quality'),
     stopPlacement: getScore('Stop Placement'),
     riskReward: getScore('Risk/Reward Logic'),
     confluence: getScore('Technical Confluence'),
-    combined: combined ? Math.min(100, Math.max(0, parseInt(combined[1]))) : null,
+    combined: combined ? Math.min(100, Math.max(0, parseInt(combined[1]))) : fallbackCombined,
     probability: probability ? Math.min(100, Math.max(0, parseInt(probability[1]))) : null,
     weaknesses: tapExtractSection(source, '7. CRITICAL WEAKNESSES'),
     improvements: tapExtractSection(source, '8. SUGGESTED IMPROVEMENTS'),
@@ -19225,6 +20402,23 @@ function tapBuildComparison(setupMeta, metrics){
 
   return { scanScore, tradeScore, scannerSaw, confirmed, changed, better };
 }
+function tapGetRenderedTradeScore(){
+  const scoreEl = document.getElementById('tap-verdict-score');
+  const labelEl = document.getElementById('tap-verdict-label');
+  const scoreText = String(scoreEl?.textContent || '').trim();
+  const parsed = scoreText.match(/(\d{1,3})\s*\/\s*100/i) || scoreText.match(/\b(\d{1,3})\b/);
+  if (parsed) return Math.min(100, Math.max(0, parseInt(parsed[1])));
+
+  const verdict = String(labelEl?.textContent || '').toUpperCase();
+  if (verdict.includes('STRONG SETUP') || verdict.includes('A+ SETUP')) return 88;
+  if (verdict.includes('A SETUP')) return 80;
+  if (verdict.includes('ACCEPTABLE SETUP') || verdict === 'ACCEPTABLE') return 68;
+  if (verdict.includes('B SETUP')) return 60;
+  if (verdict.includes('RISKY SETUP') || verdict === 'RISKY') return 42;
+  if (verdict.includes('C SETUP')) return 35;
+  if (verdict.includes('AVOID TRADE') || verdict === 'AVOID' || verdict.includes('INVALID SETUP')) return 18;
+  return null;
+}
 
 function buildDrawingsContext(d, data){
   const refPrice = d?.price ?? data?.[data.length-1]?.close;
@@ -19254,6 +20448,14 @@ function formatTraderProfileForAI(profile){
     profile.bestSetup ? `Best repeating setup: ${profile.bestSetup.key}.` : '',
     profile.weaknesses?.[0] ? `Main caution: ${profile.weaknesses[0]}` : '',
   ].filter(Boolean).join(' ');
+}
+function tapCompactTradeAIError(msg){
+  const raw = String(msg || '').trim();
+  if(!raw) return 'unknown error';
+  return raw
+    .replace(/^AI:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 260);
 }
 function buildThesisPromptContext(sym){
   const thesis = getCurrentThesis(sym);
@@ -19355,7 +20557,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   const metrics = analysisText ? tapExtractTradeMetrics(analysisText) : {};
   const comp = tapBuildComparison(setupMeta, metrics);
   const scanScore = comp?.scanScore;
-  const tradeScore = comp?.tradeScore;
+  const tradeScore = comp?.tradeScore ?? tapGetRenderedTradeScore();
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
@@ -20027,7 +21229,7 @@ async function openFullTradeAnalysis(){
       tapRenderSetupBridge(d, text);
       tapRenderDecisionContext(d);
     } catch(e) {
-      const msg = e.message || 'unknown error';
+      const msg = tapCompactTradeAIError(e.message || 'unknown error');
       aiOutEl.innerHTML =
         `<div style="color:var(--rd);font-weight:700;margin-bottom:6px;">⚠ AI Analysis Failed</div>` +
         `<div style="color:var(--am);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;background:var(--bg3);
@@ -20231,6 +21433,139 @@ function tapRenderRisk(d, rr){
 }
 
 // ── Historical similar setups ─────────────────────────────────────────────────
+function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
+  const n = curData.length;
+  const isLong = d.type === 'long';
+  const rsiV = calcRSI(curData);
+  const rsi = rsiV[n-1] || 50;
+  const atrV = calcATR(curData);
+  const atr = atrV[n-1] || 0;
+  const slPct = Math.abs((d.sl - d.price) / d.price * 100);
+  const sr = detectSR(curData);
+
+  let entryQuality = 14;
+  let stopPlacement = 14;
+  let riskRewardLogic = 14;
+  let technicalConfluence = 14;
+  const weaknesses = [];
+  const improvements = [];
+
+  if(rr >= 3) riskRewardLogic = 24;
+  else if(rr >= 2) riskRewardLogic = 20;
+  else if(rr >= 1.5) riskRewardLogic = 14;
+  else {
+    riskRewardLogic = 8;
+    weaknesses.push(`Reward-to-risk is only ${rr.toFixed(2)}:1, which weakens the trade payoff.`);
+    improvements.push('Improve the setup by tightening the stop behind cleaner structure or waiting for a better entry.');
+  }
+
+  if(atr > 0){
+    const atrPct = (atr / d.price) * 100;
+    const slVsAtr = slPct / Math.max(atrPct, 0.0001);
+    if(slVsAtr >= 0.8 && slVsAtr <= 2.2){
+      stopPlacement = 20;
+    } else if(slVsAtr < 0.8){
+      stopPlacement = 11;
+      weaknesses.push('Stop is tighter than normal volatility and may be clipped by noise.');
+      improvements.push('Place the stop slightly beyond the recent swing so normal ATR movement does not stop it out early.');
+    } else {
+      stopPlacement = 12;
+      weaknesses.push('Stop is wider than needed, which makes the trade less efficient.');
+      improvements.push('Reduce stop width by entering closer to structure if the setup still holds.');
+    }
+  }
+
+  if(isLong){
+    if(rsi < 45) technicalConfluence += 4;
+    else if(rsi > 72){
+      technicalConfluence -= 4;
+      weaknesses.push(`RSI is ${rsi.toFixed(0)}, so the long is pushing into overbought conditions.`);
+    }
+  } else {
+    if(rsi > 55) technicalConfluence += 4;
+    else if(rsi < 28){
+      technicalConfluence -= 4;
+      weaknesses.push(`RSI is ${rsi.toFixed(0)}, so the short is pushing into oversold conditions.`);
+    }
+  }
+
+  const nearestSupport = sr.support.filter(s => s < d.price).sort((a,b)=>b-a)[0] || null;
+  const nearestResistance = sr.resistance.filter(r => r > d.price).sort((a,b)=>a-b)[0] || null;
+  if(isLong && nearestSupport){
+    const dist = Math.abs(d.price - nearestSupport) / d.price * 100;
+    if(dist < 1.5){
+      entryQuality += 4;
+      technicalConfluence += 3;
+    } else if(dist > 4){
+      entryQuality -= 3;
+      weaknesses.push('Entry is not sitting close to a clear nearby support level.');
+    }
+  }
+  if(!isLong && nearestResistance){
+    const dist = Math.abs(nearestResistance - d.price) / d.price * 100;
+    if(dist < 1.5){
+      entryQuality += 4;
+      technicalConfluence += 3;
+    } else if(dist > 4){
+      entryQuality -= 3;
+      weaknesses.push('Entry is not sitting close to a clear nearby resistance level.');
+    }
+  }
+
+  const statusUpper = String(tradeStatus || '').toUpperCase();
+  if(statusUpper.includes('UNREALISTIC')){
+    entryQuality = Math.max(4, entryQuality - 8);
+    technicalConfluence = Math.max(4, technicalConfluence - 6);
+    weaknesses.push('The placement looks unrealistic relative to where price has actually traded.');
+  }
+  if(statusUpper.includes('SL HIT')){
+    technicalConfluence = Math.max(4, technicalConfluence - 5);
+  }
+  if(statusUpper.includes('TP HIT')){
+    technicalConfluence = Math.min(25, technicalConfluence + 4);
+    entryQuality = Math.min(25, entryQuality + 2);
+  }
+
+  entryQuality = Math.max(4, Math.min(25, Math.round(entryQuality)));
+  stopPlacement = Math.max(4, Math.min(25, Math.round(stopPlacement)));
+  riskRewardLogic = Math.max(4, Math.min(25, Math.round(riskRewardLogic)));
+  technicalConfluence = Math.max(4, Math.min(25, Math.round(technicalConfluence)));
+
+  const combined = Math.max(0, Math.min(100, entryQuality + stopPlacement + riskRewardLogic + technicalConfluence));
+  const probability = Math.max(5, Math.min(95, Math.round(combined * 0.9)));
+  const verdict =
+    combined >= 75 ? 'Strong Setup' :
+    combined >= 55 ? 'Acceptable Setup' :
+    combined >= 35 ? 'Risky Setup' :
+    'Avoid Trade';
+
+  const weaknessText = (weaknesses.length ? weaknesses : ['AI analysis was unavailable, so this score uses chart-based fallback logic.']).slice(0,3).join(' ');
+  const improvementText = (improvements.length ? improvements : ['Use the structure, ATR, and nearest levels to refine the entry if you want a stronger score.']).slice(0,2).join(' ');
+
+  return `AI fallback analysis used because the live AI request did not return successfully.
+
+6. TRADE QUALITY SCORE
+Entry Quality: ${entryQuality}/25
+Stop Placement: ${stopPlacement}/25
+Risk/Reward Logic: ${riskRewardLogic}/25
+Technical Confluence: ${technicalConfluence}/25
+Combined Score: ${combined}/100
+
+7. CRITICAL WEAKNESSES
+${weaknessText}
+
+8. SUGGESTED IMPROVEMENTS
+${improvementText}
+
+9. PROBABILITY ESTIMATE
+${probability}% probability based on reward-to-risk, ATR stop fit, RSI context, and nearby structure.
+
+10. FINAL VERDICT
+${verdict}
+
+SCORECARD_JSON: {"entry_quality":${entryQuality},"stop_placement":${stopPlacement},"risk_reward_logic":${riskRewardLogic},"technical_confluence":${technicalConfluence},"combined_score":${combined},"probability":${probability},"verdict":"${verdict}"}`;
+}
+
 function tapRenderHistorical(d){
   const el = document.getElementById('tap-hist-items');
   const countEl = document.getElementById('tap-hist-count');
@@ -20494,9 +21829,12 @@ function tapRenderVerdictBanner(text){
   const zone = searchZone.toUpperCase();
 
   // Extract actual combined score from Trade Quality Scoring section
-  const scoringIdx = text.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringIdx = Math.max(
+    text.toUpperCase().indexOf('TRADE QUALITY SCORING'),
+    text.toUpperCase().indexOf('TRADE QUALITY SCORE')
+  );
   const scoringZone = scoringIdx >= 0 ? text.slice(scoringIdx, scoringIdx+600) : '';
-  const scoreRaw = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i)
+  const scoreRaw = scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
   const parsedScore = structured?.combined_score ?? (scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null);
   const scoreSource = structured ? 'Structured AI score' : (parsedScore !== null ? 'Parsed from AI analysis' : 'Verdict fallback');
@@ -20665,18 +22003,8 @@ Originating Setup Context:
   Scanner Summary: ${(setupMeta.idea || `${setupMeta.patLabel || 'Setup'} found on ${setupMeta.tf || drawingTF}.`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
-  const traderCtx = `
-Trader Memory:
-  ${formatTraderProfileForAI(traderProfile)}
-  Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ')}
-`;
-  const drawingStateCtx = `
-Chart Intent Context:
-  ${thesisCtx}
-  Nearby user-marked levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'}
-  User notes on chart: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'}
-  Structure objects drawn: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools
-`;
+  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
+  const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
 
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
@@ -20710,7 +22038,7 @@ Indicators:
 
 Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
-Patterns: ${allPatsStr}
+Patterns: ${allPatsStr.slice(0, 220)}
 Trader's historical win rate on ${curSym.s}: ${symWR}
 ${traderCtx}
 ${drawingStateCtx}
@@ -20765,10 +22093,10 @@ Do not wrap it in markdown. Do not add any extra text after it.
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   return await aiComplete(prompt, {
-    model: 'llama-3.3-70b-versatile',
-    max_tokens: 900,
-    temperature: 0.3,
-    timeoutMs: 45000,
+    model: 'llama-3.1-8b-instant',
+    max_tokens: 650,
+    temperature: 0.2,
+    timeoutMs: 55000,
   });
 }
 
