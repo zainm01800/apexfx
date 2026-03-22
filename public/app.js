@@ -328,6 +328,8 @@ function renderChartTabs(){
       <button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button>
     </div>
   `).join('');
+  const activeEl = el.querySelector('.chart-tab.active');
+  if(activeEl) activeEl.scrollIntoView({ block:'nearest', inline:'nearest' });
 }
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
@@ -352,6 +354,10 @@ function createChartTab(sym, tf){
   renderChartTabs();
   saveChartTabs();
   switchChartTab(tab.id, true);
+}
+function openSymInNewTab(sym){
+  createChartTab(sym, curTF);
+  closeModal();
 }
 function closeChartTab(id){
   if(chartTabs.length <= 1){
