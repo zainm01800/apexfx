@@ -365,7 +365,6 @@
 
       <!-- Logout locked to far right — not in slot system -->
       <div id="tb-logout-fixed">
-        <button id="btn-chart-tab-top" class="auth-top-btn" onclick="createChartTab()">+ New Tab</button>
         <button id="btn-login" class="auth-top-btn" onclick="openAuthPrompt('login')">Log In</button>
         <button id="btn-signup" class="auth-top-btn auth-top-btn-primary" onclick="openAuthPrompt('register')">Sign Up</button>
         <span id="user-badge" title=""></span>
@@ -446,7 +445,7 @@
       <div id="chart-area">
         <div id="chart-tabs-bar">
           <div id="chart-tabs-list"></div>
-          <button id="chart-tab-add" onclick="createChartTab()" title="Open new chart tab">+ New Tab</button>
+          <button id="chart-tab-add" onclick="createChartTab()" title="Open new chart tab" aria-label="Open new chart tab">+</button>
         </div>
         <!-- Trade analysis badge -->
         <div id="tap-badge" style="display:none;position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:500;
