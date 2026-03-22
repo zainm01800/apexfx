@@ -17323,18 +17323,6 @@ function _stopAutoSave(){
   if(_autoSaveInterval){ clearInterval(_autoSaveInterval); _autoSaveInterval = null; }
 }
 
-function updateUserBadge(displayName){
-  const badge = document.getElementById('user-badge');
-  const cpBtn = document.getElementById('btn-change-pass');
-  if(displayName){
-    if(badge){ badge.textContent = '👤 ' + displayName.slice(0,14); badge.title=`Logged in as ${_currentUser}`; badge.style.display=''; }
-    if(cpBtn) cpBtn.style.display='';
-  } else {
-    if(badge) badge.style.display='none';
-    if(cpBtn) cpBtn.style.display='none';
-  }
-}
-
 // ══ ACCOUNT SYSTEM (Supabase-backed) ══════════════════════════════════════════
 
 // Test Supabase connectivity
@@ -17749,9 +17737,9 @@ function updateUserBadge(displayName){
   if(displayName){
     badge.textContent = displayName.slice(0,16);
     badge.title = `Logged in as ${_currentUser}`;
-    badge.style.display = '';
-    if(logoutBtn) logoutBtn.style.display = '';
-    if(cpBtn) cpBtn.style.display = '';
+    badge.style.display = 'inline-flex';
+    if(logoutBtn) logoutBtn.style.display = 'inline-flex';
+    if(cpBtn) cpBtn.style.display = 'inline-flex';
     if(loginBtn) loginBtn.style.display = 'none';
     if(signupBtn) signupBtn.style.display = 'none';
     updateCloudSyncBadge(_currentUserId
@@ -17761,8 +17749,8 @@ function updateUserBadge(displayName){
     badge.style.display = 'none';
     if(logoutBtn) logoutBtn.style.display = 'none';
     if(cpBtn) cpBtn.style.display = 'none';
-    if(loginBtn) loginBtn.style.display = '';
-    if(signupBtn) signupBtn.style.display = '';
+    if(loginBtn) loginBtn.style.display = 'inline-flex';
+    if(signupBtn) signupBtn.style.display = 'inline-flex';
     updateCloudSyncBadge({ status:'offline', message:'Local workspace only' });
   }
 }
@@ -17902,6 +17890,7 @@ window.addEventListener('load', () => {
       closeAuthOverlay();
       enterGuestMode();
       switchChartTab(activeChartTabId, true, { focusLatest: true });
+      setTimeout(() => openTutorial({ page:'overview', intro:true }), 220);
     }
   })();
 
@@ -17917,12 +17906,112 @@ window.addEventListener('load', () => {
 
 
 
-function openTutorial(){
+let _tutorialHydrated = false;
+let _tutorialOpenedAsIntro = false;
+let _tutorialHelpPulseTimer = null;
+
+function hydrateTutorialContent(){
+  if(_tutorialHydrated) return;
+  const titleEl = document.getElementById('tut-hdr-title');
+  const subEl = document.getElementById('tut-hdr-sub');
+  const aiNavBtn = document.querySelector('.tut-nav-btn[onclick*="aipanel"]');
+  const overview = document.getElementById('tut-overview');
+  const layout = document.getElementById('tut-layout');
+  if(titleEl) titleEl.textContent = 'APEXFX Help & Tutorial';
+  if(subEl) subEl.textContent = 'Quick start, workflows, and AI guidance';
+  if(aiNavBtn){
+    const labelNode = aiNavBtn.childNodes[aiNavBtn.childNodes.length - 1];
+    if(labelNode) labelNode.textContent = 'Live AI Copilot';
+  }
+  if(overview){
+    overview.innerHTML = `
+      <div class="tut-hero">
+        <div class="tut-hero-kicker">Start here</div>
+        <div class="tut-h1">Welcome to APEXFX</div>
+        <div class="tut-lead">APEXFX is a charting workspace with AI built directly into the trading workflow. You can explore it without an account, then sign in later to sync your charts, journal, settings, and trader profile.</div>
+        <div class="tut-hero-actions">
+          <span class="tut-pill">Guest mode ready</span>
+          <span class="tut-pill">Live AI copilot</span>
+          <span class="tut-pill">Replay mentor</span>
+          <span class="tut-pill">Trade analysis</span>
+        </div>
+      </div>
+      <div class="tut-h2">The quickest way to learn the platform</div>
+      <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>Pick a market and timeframe.</strong> Each chart tab can keep its own pair, timeframe, indicators, and viewport.</div></div>
+      <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Use the AI tab for live context.</strong> The copilot reads structure, levels, trend, and recent changes on the current chart.</div></div>
+      <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Run AI Setups or Trade Analysis when you want a decision.</strong> The scanner finds ideas. Trade Analysis judges the exact execution.</div></div>
+      <div class="tut-step"><div class="tut-step-num">4</div><div class="tut-step-body"><strong>Use Replay + Mentor to practise.</strong> The mentor teaches setups, explains confluences, and reviews your decisions after the trade.</div></div>
+      <div class="tut-step"><div class="tut-step-num">5</div><div class="tut-step-body"><strong>Review journal and analytics.</strong> Over time the platform highlights your strengths, weaknesses, and repeated mistakes.</div></div>
+      <div class="tut-tip">You do not need to sign in to use the website. Signing in mainly adds cloud sync, saved progress, and a persistent trader profile.</div>
+      <div class="tut-h2">What this platform is built for</div>
+      <div class="tut-grid">
+        <div class="tut-card"><div class="tut-card-title">Live chart workspace</div><div class="tut-card-body">Multi-tab charts with drawings, indicators, saved layouts, replay, and fast symbol switching.</div></div>
+        <div class="tut-card"><div class="tut-card-title">AI copilot on the chart</div><div class="tut-card-body">The AI tab explains what is happening now, what changed recently, and what level or scenario matters next.</div></div>
+        <div class="tut-card"><div class="tut-card-title">AI setup discovery</div><div class="tut-card-body">Use AI Setups and pre-market tools to find strong opportunities before you drill into execution.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Decision support</div><div class="tut-card-body">Trade Analysis separates setup quality from entry quality and can suggest a better version of the same trade idea.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Mentor and replay training</div><div class="tut-card-body">Practise historical setups with guided teaching, preview mode, annotations, and post-trade feedback.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Journal, analytics, and memory</div><div class="tut-card-body">Track trades, review patterns, and let the platform build a clearer picture of your edge over time.</div></div>
+      </div>
+      <div class="tut-tip">Use the left navigation to jump to the part you need. This guide is meant to work both as a first-time introduction and as a quick reference later.</div>
+    `;
+  }
+  if(layout){
+    layout.innerHTML = `
+      <div class="tut-h1">App Layout</div>
+      <div class="tut-lead">APEXFX is built around one main chart workspace, with AI and trader tools wrapped around it. Once you know what each zone does, the whole platform becomes much easier to use.</div>
+      <div class="tut-h2">Zone map</div>
+      <div class="tut-grid">
+        <div class="tut-card"><div class="tut-card-title">Top bar</div><div class="tut-card-body">Symbol, live price, OHLC, timeframe buttons, chart type, journal access, account controls, and workspace actions.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Chart tabs</div><div class="tut-card-body">Small tabs at the top of the chart. Each one can hold its own pair, timeframe, indicators, and chart view.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Scanner bar</div><div class="tut-card-body">Quick prompts for AI-driven discovery. Use it when you want the platform to surface markets or setups worth checking.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Left side tools</div><div class="tut-card-body">Watchlist, alerts, drawing tools, settings, and the Help & Tutorial button at the bottom-left.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Chart area</div><div class="tut-card-body">The main workspace for price action, drawings, indicators, replay, and mentor annotations. Scroll to zoom and drag to pan.</div></div>
+        <div class="tut-card"><div class="tut-card-title">Right panel</div><div class="tut-card-body">AI, Analytics, and News. This is where live AI context, trader performance, and supporting market information live.</div></div>
+      </div>
+      <div class="tut-warn">The smoothest learning path is: chart first, then AI tab, then Trade Analysis, then Replay Mentor, then journal and analytics.</div>
+      <div class="tut-tip">If you ever feel lost, the Help & Tutorial button in the bottom-left corner is your quick reset point.</div>
+    `;
+  }
+  _tutorialHydrated = true;
+}
+
+function _setTutorialPage(id){
+  const safeId = TUT_PAGES.includes(id) ? id : 'overview';
+  const btn = document.querySelector(`.tut-nav-btn[onclick*="'${safeId}'"]`);
+  document.querySelectorAll('.tut-nav-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  document.querySelectorAll('.tut-page').forEach(p=>p.classList.remove('on'));
+  const pg = document.getElementById('tut-'+safeId);
+  if(pg) pg.classList.add('on');
+  _tutIdx = TUT_PAGES.indexOf(safeId);
+  const content = document.getElementById('tut-content');
+  if(content) content.scrollTop = 0;
+}
+
+function pulseHelpTutorialButton(){
+  const btn = document.getElementById('nav-help-btn');
+  if(!btn) return;
+  btn.classList.remove('tutorial-pulse');
+  void btn.offsetWidth;
+  btn.classList.add('tutorial-pulse');
+  if(_tutorialHelpPulseTimer) clearTimeout(_tutorialHelpPulseTimer);
+  _tutorialHelpPulseTimer = setTimeout(() => {
+    btn.classList.remove('tutorial-pulse');
+    _tutorialHelpPulseTimer = null;
+  }, 4200);
+}
+
+function openTutorial(options = {}){
+  hydrateTutorialContent();
+  _tutorialOpenedAsIntro = !!options.intro;
   document.getElementById('tut-bg').classList.add('open');
+  _setTutorialPage(options.page || 'overview');
 }
 function closeTutorial(){
   document.getElementById('tut-bg').classList.remove('open');
   resetDrag(document.getElementById('tut-content'));
+  if(_tutorialOpenedAsIntro) pulseHelpTutorialButton();
+  _tutorialOpenedAsIntro = false;
 }
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeTutorial();
@@ -17932,16 +18021,7 @@ const TUT_PAGES = ['overview','layout','symbols','timeframes','charttypes','draw
 let _tutIdx = 0;
 
 function tutPage(btn, id){
-  // deactivate all nav btns
-  document.querySelectorAll('.tut-nav-btn').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  // hide all pages
-  document.querySelectorAll('.tut-page').forEach(p=>p.classList.remove('on'));
-  const pg = document.getElementById('tut-'+id);
-  if(pg) pg.classList.add('on');
-  _tutIdx = TUT_PAGES.indexOf(id);
-  // scroll content to top
-  document.getElementById('tut-content').scrollTop = 0;
+  _setTutorialPage(id);
 }
 
 function tutNavStep(dir){
