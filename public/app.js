@@ -271,8 +271,25 @@ function _chartTabSnapshot(){
     barWidth,
     priceHi,
     priceLo,
+    indActive: {...DEFAULT_IND_ACTIVE, ...indActive},
+    showSessions: !!showSessions,
     drawings: (drawings || []).map(drawingToTime),
   };
+}
+function syncActiveChartTabRuntimeState(persist = false){
+  if(!activeChartTabId) return;
+  const tab = chartTabs.find(t => t.id === activeChartTabId);
+  if(!tab) return;
+  Object.assign(tab, {
+    rightBarIndex,
+    barWidth,
+    priceHi,
+    priceLo,
+    indActive: {...DEFAULT_IND_ACTIVE, ...indActive},
+    showSessions: !!showSessions,
+    updatedAt: Date.now(),
+  });
+  if(persist) saveChartTabs(false);
 }
 function saveCurrentChartTabState(){
   if(!activeChartTabId) return;
@@ -444,9 +461,16 @@ function applyChartTabWorkspace(tab){
   barWidth = tab.barWidth || 8;
   priceHi = tab.priceHi ?? null;
   priceLo = tab.priceLo ?? null;
+  indActive = {...DEFAULT_IND_ACTIVE, ...(tab.indActive || indActive)};
+  showSessions = tab.showSessions != null ? !!tab.showSessions : !!showSessions;
+  applyIndActive();
+  invalidateIndCache();
   syncTimeframeButtons();
   const iconEl = document.getElementById('ct-sel-icon');
   if(iconEl) iconEl.textContent = ctIconFor(curCT);
+  renderTopbarInds();
+  renderIndList(_indSearchQ());
+  sizeCanvases();
 }
 function switchChartTab(id, skipSave){
   if(!skipSave) saveCurrentChartTabState();
@@ -3881,6 +3905,7 @@ function toggleSessions(){
   const btn = document.getElementById('btn-sessions');
   if(btn) btn.classList.toggle('on', showSessions);
   renderTopbarInds();
+  syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   draw();
   toast(showSessions ? '🌍 Sessions ON — London · NY · Asia' : '🌍 Sessions OFF');
@@ -15491,6 +15516,9 @@ function setupEvents(){
       draw();
       return;
     }
+    if(isPanning || isXScaling || isYScaling){
+      syncActiveChartTabRuntimeState(true);
+    }
     isPanning = isXScaling = isYScaling = false;
     mc.style.cursor = activeTool==='eraser'?'cell':'crosshair';
   });
@@ -15519,6 +15547,7 @@ function setupEvents(){
     }
     if(zone === 'pan' || zone === 'yscale'){ priceHi=null; priceLo=null; }
     if(zone === 'xscale'){ barWidth=8; }
+    syncActiveChartTabRuntimeState(true);
     draw();
   });
 
@@ -15548,6 +15577,7 @@ function setupEvents(){
       priceLo = anchorPrice - frac * newRange;
       priceHi = priceLo + newRange;
     }
+    syncActiveChartTabRuntimeState(true);
     draw();
   }, { passive:false });
 
@@ -15880,6 +15910,7 @@ function toggleInd(name){
   const btn = document.getElementById('btn-'+name);
   if(btn) btn.classList.toggle('on', nowOn);
   renderTopbarInds();
+  syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   invalidateIndCache();
   if(needsResize) sizeCanvases();
