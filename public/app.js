@@ -454,6 +454,7 @@ function createChartTab(sym, tf){
   renderChartTabs();
   saveChartTabs();
   switchChartTab(tab.id, true);
+  return tab.id;
 }
 function openSymInNewTab(sym){
   createChartTab(sym, curTF);
@@ -19614,25 +19615,26 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
 
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
-  const setupRef = aisSetups.find(x => x.sym === sym && x.tf === (tf || curTF));
+  const targetTf = tf || curTF;
+  const setupRef = aisSetups.find(x => x.sym === sym && x.tf === targetTf);
+  const targetTabId = createChartTab(sym, targetTf);
 
   const doPlace = () => {
     // Use real Binance data if available in cache, otherwise use curData
-    const realBars = dataCache[sym+'_'+(tf||curTF)];
+    const realBars = dataCache[sym+'_'+targetTf];
     const bars = (realBars && realBars.length > 0) ? realBars : curData;
     if(!bars.length) return;
 
     const barIdx   = bars.length - 1;
     const lastClose = bars[barIdx].close;
-
-    // Keep SL/TP distances proportional, anchored to current real price
-    const slDist = Math.abs(entry - sl);
-    const tpDist = Math.abs(entry - target);
     const isLong = dir === 'bull';
-    const realEntry = lastClose;
-    const realSL    = isLong ? realEntry - slDist : realEntry + slDist;
-    const realTP    = isLong ? realEntry + tpDist : realEntry - tpDist;
-    const dp        = lastClose < 1 ? 5 : lastClose < 10 ? 4 : lastClose < 100 ? 3 : 2;
+    const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
+
+    const tradeAlreadyTriggered = (isLong && lastClose >= entry) || (!isLong && lastClose <= entry);
+    if(tradeAlreadyTriggered){
+      toast('Setup already triggered — opening only fresh pending setups on chart');
+      return;
+    }
 
     // Remove any previous AI-placed drawings for this symbol
     drawings = drawings.filter(d => !d._aisPlaced);
@@ -19644,11 +19646,11 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     const drawing = {
       type: isLong ? 'long' : 'short',
       bar:  barIdx,
-      price: +realEntry.toFixed(dp),
-      sl:    +realSL.toFixed(dp),
-      tp:    +realTP.toFixed(dp),
+      price: +entry.toFixed(dp),
+      sl:    +sl.toFixed(dp),
+      tp:    +target.toFixed(dp),
       halfBars: 16,
-      halfDuration: halfBarsToSecs(16, tf || curTF),
+      halfDuration: halfBarsToSecs(16, targetTf),
       _aisPlaced: true,
       _aisMeta: setupRef ? {
         source: 'ai-setups',
@@ -19667,41 +19669,26 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
 
-    rightBarIndex = bars.length - 1 + 15;
+    rightBarIndex = bars.length - 1 + Math.max(12, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.18));
     priceHi = null; priceLo = null;
-
-    showTradeAnalysisPopup(drawing, true); // freshPlacement — clear old lock
+    syncActiveChartTabRuntimeState(true);
+    saveChartTabs(false);
     draw();
+    toast(`${sym} ${targetTf.toUpperCase()} setup opened in a new chart tab`);
   };
 
-  // Switch TF first if needed (sets curTF before loadSym)
-  if(tf && curTF !== tf){
-    const tfBtn = document.querySelector(`.tf[onclick*="'${tf}'"]`);
-    if(tfBtn) setTF(tfBtn, tf);
-  }
-
-  if(curSym.s === sym){
-    // Already on this symbol — data is ready, place immediately
-    doPlace();
-  } else {
-    // Need to switch symbol — wait for loadSym then place
-    // Use a one-time event on the src status to know when real data is ready
-    loadSym(sym).then(() => {
-      // loadSym resolves after placeholder — wait for real Binance data
-      const waitForReal = (attempts) => {
-        const cached = dataCache[sym+'_'+curTF];
-        if(cached && cached.length > 0){
-          doPlace();
-        } else if(attempts > 0){
-          setTimeout(() => waitForReal(attempts - 1), 200);
-        } else {
-          // Fallback — use whatever data is in curData now
-          doPlace();
-        }
-      };
-      waitForReal(15); // poll up to 3 seconds
-    });
-  }
+  const waitForReady = (attempts) => {
+    if(activeChartTabId === targetTabId && curSym?.s === sym && curTF === targetTf && curData?.length){
+      doPlace();
+      return;
+    }
+    if(attempts <= 0){
+      toast('Could not open AI setup on chart');
+      return;
+    }
+    setTimeout(() => waitForReady(attempts - 1), 160);
+  };
+  waitForReady(30);
 }
 
 function aisSetProgress(pct, lbl){
@@ -20161,10 +20148,42 @@ function tapExtractSection(text, title){
 
 function tapParseStructuredAnalysis(text){
   const raw = String(text || '');
-  const match = raw.match(/SCORECARD_JSON:\s*(\{[^\n]*\})/i);
-  if (!match) return null;
+  const markerIdx = raw.toUpperCase().lastIndexOf('SCORECARD_JSON:');
+  if (markerIdx < 0) return null;
+  const afterMarker = raw.slice(markerIdx);
+  const braceStart = afterMarker.indexOf('{');
+  if (braceStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let jsonEnd = -1;
+  for (let i = braceStart; i < afterMarker.length; i++) {
+    const ch = afterMarker[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        jsonEnd = i;
+        break;
+      }
+    }
+  }
+  if (jsonEnd < 0) return null;
   try {
-    return JSON.parse(match[1]);
+    return JSON.parse(afterMarker.slice(braceStart, jsonEnd + 1));
   } catch (e) {
     return null;
   }
@@ -20195,10 +20214,13 @@ function tapExtractTradeMetrics(text){
   const scoringIdx = source.toUpperCase().indexOf('TRADE QUALITY SCORING');
   const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
   const getScore = (label) => {
-    const match = scoringZone.match(new RegExp(label + String.raw`\s*\(0.?25\)\s*:\s*(\d{1,2})`, 'i'));
+    const match = scoringZone.match(new RegExp(label + String.raw`[^0-9]{0,30}(\d{1,2})(?:\s*\/\s*25)?`, 'i'));
     return match ? parseInt(match[1]) : null;
   };
-  const combined = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i) || source.match(/(\d{1,3})\s*\/\s*100/);
+  const combined =
+    scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i) ||
+    source.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i) ||
+    source.match(/(\d{1,3})\s*\/\s*100/);
   const probability = source.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
   return {
     entryQuality: getScore('Entry Quality'),
@@ -21526,7 +21548,7 @@ function tapRenderVerdictBanner(text){
   // Extract actual combined score from Trade Quality Scoring section
   const scoringIdx = text.toUpperCase().indexOf('TRADE QUALITY SCORING');
   const scoringZone = scoringIdx >= 0 ? text.slice(scoringIdx, scoringIdx+600) : '';
-  const scoreRaw = scoringZone.match(/combined\s*score[:\s]+(\d{1,3})/i)
+  const scoreRaw = scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
   const parsedScore = structured?.combined_score ?? (scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null);
   const scoreSource = structured ? 'Structured AI score' : (parsedScore !== null ? 'Parsed from AI analysis' : 'Verdict fallback');
