@@ -17049,7 +17049,14 @@ function applyUIScale(val){
   const app = document.getElementById('app');
   const statusbar = document.getElementById('statusbar');
   const root = document.documentElement;
-  if(app){ app.style.zoom = pct; }
+  if(app){
+    const safePct = pct || 1;
+    app.style.zoom = safePct;
+    app.style.width = `${100 / safePct}%`;
+    app.style.height = `${100 / safePct}%`;
+    app.style.minHeight = `${100 / safePct}vh`;
+    app.style.transformOrigin = 'top left';
+  }
   if(root){
     const safePct = pct || 1;
     root.style.setProperty('--statusbar-h', `${22 / safePct}px`);
