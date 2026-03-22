@@ -17052,7 +17052,7 @@ function applyUIScale(val){
   if(app){
     const safePct = pct || 1;
     app.style.zoom = safePct;
-    app.style.width = `${100 / safePct}%`;
+    app.style.width = '100%';
     app.style.height = `${100 / safePct}%`;
     app.style.minHeight = `${100 / safePct}vh`;
     app.style.transformOrigin = 'top left';
