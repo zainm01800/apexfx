@@ -16067,13 +16067,14 @@ function addIndToTopbar(id){
   else { renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
 }
 
-// Remove indicator button from topbar (and turn off its drawing)
+// Remove indicator button from topbar without changing its visibility state
 function removeIndFromTopbar(id){
   topbarInds = topbarInds.filter(x=>x!==id);
   saveTopbarInds();
-  // Turn off if currently on (toggleInd will call renderIndList)
-  if(getIndState(id)) toggleInd(id);
-  else { renderTopbarInds(); renderIndList(_indSearchQ()); sizeCanvases(); draw(); }
+  renderTopbarInds();
+  renderIndList(_indSearchQ());
+  sizeCanvases();
+  draw();
 }
 
 // Rebuild the #ind-topbar div from topbarInds array
@@ -16082,7 +16083,6 @@ function renderTopbarInds(){
   if(!container) return;
   container.innerHTML = '';
   topbarInds.forEach(id => {
-    if(!getIndState(id)) return;
     const ind = BUILTIN_INDS.find(i=>i.id===id);
     const label = ind ? ind.name : id.toUpperCase();
     const on = getIndState(id);
