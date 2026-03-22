@@ -623,6 +623,11 @@ function getUIScale(){
 function uiToCanvasPx(px){
   return px / getUIScale();
 }
+
+function uiInvariantPx(px, minPx){
+  const scaled = px / getUIScale();
+  return Math.max(minPx || 0, scaled);
+}
 let isPanning = false;
 let isXScaling = false;
 let isYScaling = false;
@@ -11721,20 +11726,23 @@ function _drawImmediate(){
   ctx.fillStyle=C.bg3; ctx.fillRect(0,0,W,H);
 
   const bw2 = Math.max(1, barWidth * 0.8); // body width
+  const axisFontPx = uiInvariantPx(12, 10);
+  const axisBoldFontPx = uiInvariantPx(11, 9);
+  const axisPadPx = uiInvariantPx(14, 10);
 
   // Grid (horizontal)
   for(let i=0;i<=6;i++){
     const y=Math.floor(H/6*i)+.5;
     if(isSettingEnabled('scGrid', true)){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    if(isSettingEnabled('scPriceScale', true)){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
+    if(isSettingEnabled('scPriceScale', true)){ ctx.fillStyle=C.tx2; ctx.font=`${axisFontPx}px monospace`; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-uiInvariantPx(3,2),y-uiInvariantPx(2,1)); }
   }
 
   // ── TradingView-style x-axis ───────────────────────────────────────────────
   const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
 
   // Min pixel gap before placing the next label (based on a typical label width)
-  ctx.font = 'bold 11px monospace';
-  const _minGap = ctx.measureText('00:00').width + 14;  // ~50px
+  ctx.font = `bold ${axisBoldFontPx}px monospace`;
+  const _minGap = ctx.measureText('00:00').width + axisPadPx;
 
   // Pre-compute crosshair label bounds to suppress any static label underneath it
   let xhLabelL = -1, xhLabelR = -1;
@@ -11745,8 +11753,8 @@ function _drawImmediate(){
       const ts = isSubDay
         ? dh.toLocaleDateString([],{month:'short',day:'numeric'}) + ' ' + dh.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
         : dh.toLocaleDateString([],{day:'numeric',month:'short',year:'numeric'});
-      ctx.font = 'bold 11px monospace';
-      const lw = ctx.measureText(ts).width + 14;
+      ctx.font = `bold ${axisBoldFontPx}px monospace`;
+      const lw = ctx.measureText(ts).width + axisPadPx;
       const lx = Math.max(lw/2 + 2, Math.min(W - R_PANEL_OFFSET - lw/2 - 2, mouseX));
       xhLabelL = lx - lw/2 - 4;
       xhLabelR = lx + lw/2 + 4;
@@ -11790,12 +11798,12 @@ function _drawImmediate(){
   for(const {x, tick} of xTicks){
     if(!isSettingEnabled('scDayBnd', true) && tick.tier <= 1) continue;
     if(x >= xhLabelL && x <= xhLabelR) continue;
-    ctx.font      = tick.bold ? 'bold 11px monospace' : '11px monospace';
+    ctx.font      = tick.bold ? `bold ${axisBoldFontPx}px monospace` : `${axisBoldFontPx}px monospace`;
     ctx.fillStyle = tick.tier === 0 ? C.tx
                   : tick.tier === 1 ? C.am
                   : tick.tier === 2 ? C.tx2
                   : 'rgba(107,128,153,0.85)';
-    ctx.fillText(tick.label, x, H - 3);
+    ctx.fillText(tick.label, x, H - uiInvariantPx(3, 2));
   }
 
   // Session highlight bands (behind everything)
@@ -11983,9 +11991,11 @@ function _drawImmediate(){
     ctx.setLineDash([]);
     // Price label on right Y-axis
     const price = yToPrice(mouseY);
-    ctx.fillStyle=C.am; ctx.fillRect(W-R_PANEL_OFFSET-62,mouseY-11,62,22);
-    ctx.fillStyle=C.bg; ctx.font='bold 12px monospace'; ctx.textAlign='right';
-    ctx.fillText(fP(price),W-R_PANEL_OFFSET-3,mouseY+5);
+    const priceTagW = uiInvariantPx(62, 50);
+    const priceTagH = uiInvariantPx(22, 18);
+    ctx.fillStyle=C.am; ctx.fillRect(W-R_PANEL_OFFSET-priceTagW,mouseY-priceTagH/2,priceTagW,priceTagH);
+    ctx.fillStyle=C.bg; ctx.font=`bold ${axisFontPx}px monospace`; ctx.textAlign='right';
+    ctx.fillText(fP(price),W-R_PANEL_OFFSET-uiInvariantPx(3,2),mouseY+uiInvariantPx(5,4));
     // OHLC tooltip
     const hoverBar = Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth);
     const hb = Math.max(0,Math.min(data.length-1,hoverBar));
@@ -11996,9 +12006,9 @@ function _drawImmediate(){
       const timeStr = isSubDay
         ? d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) + '  ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})
         : d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-      ctx.font = 'bold 12px monospace';
-      const lw = ctx.measureText(timeStr).width + 18;
-      const lh = 20;
+      ctx.font = `bold ${axisFontPx}px monospace`;
+      const lw = ctx.measureText(timeStr).width + uiInvariantPx(18, 12);
+      const lh = uiInvariantPx(20, 16);
       const lx = Math.max(lw/2 + 2, Math.min(W - lw/2 - 2, mouseX));
       // Erase strip behind label — tall enough to cover the axis text at H-3
       ctx.fillStyle = C.bg3;
@@ -12007,7 +12017,7 @@ function _drawImmediate(){
       ctx.fillRect(lx - lw/2, H - lh, lw, lh);
       ctx.fillStyle = C.bg3;
       ctx.textAlign = 'center';
-      ctx.fillText(timeStr, lx, H - lh/2 + 3);
+      ctx.fillText(timeStr, lx, H - lh/2 + uiInvariantPx(3,2));
     }
     const d=data[hb];
     _el('tt-o').textContent=fP(d.open);
