@@ -17047,7 +17047,12 @@ function initSidebarResize(){
 function applyUIScale(val){
   const pct = parseFloat(val) / 100;
   const app = document.getElementById('app');
+  const statusbar = document.getElementById('statusbar');
   if(app){ app.style.zoom = pct; }
+  if(statusbar){
+    statusbar.style.zoom = pct ? String(1 / pct) : '1';
+    statusbar.style.transformOrigin = 'left bottom';
+  }
   const lbl = document.getElementById('sc-fontsize-v');
   if(lbl) lbl.textContent = Math.round(val) + '%';
   // After zoom, canvases need a redraw
