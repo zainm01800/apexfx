@@ -73,6 +73,7 @@ function toggleOverlay(name) {
 
   _updateLockBtn();
   _syncAllDockedBtns();
+  positionChartTabsBar();
 }
 
 function closeOverlay() {
@@ -87,6 +88,7 @@ function closeOverlay() {
   _overlayLocked = false;
   _updateLockBtn();
   _syncAllDockedBtns();
+  positionChartTabsBar();
   // Re-measure canvas now that panel has closed/undocked
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
   setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
@@ -99,6 +101,7 @@ function toggleOverlayLock() {
   // Toggle class on #app so margin-left CSS rule kicks in for #main-col
   document.getElementById('app').classList.toggle('panel-locked', _overlayLocked);
   _updateLockBtn();
+  positionChartTabsBar();
   // Re-measure canvas after margin transition completes
   requestAnimationFrame(() => { try { sizeCanvases(); draw(); } catch(e){} });
   setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 200);
@@ -330,6 +333,28 @@ function renderChartTabs(){
   `).join('');
   const activeEl = el.querySelector('.chart-tab.active');
   if(activeEl) activeEl.scrollIntoView({ block:'nearest', inline:'nearest' });
+  positionChartTabsBar();
+}
+function positionChartTabsBar(){
+  const bar = document.getElementById('chart-tabs-bar');
+  const area = document.getElementById('chart-area');
+  if(!bar || !area) return;
+  const areaRect = area.getBoundingClientRect();
+  const navRect = document.getElementById('nav')?.getBoundingClientRect();
+  const overlay = document.getElementById('overlay-panel');
+  const overlayRect = overlay && overlay.classList.contains('open') ? overlay.getBoundingClientRect() : null;
+  const drawerRect = document.getElementById('rdrawer')?.getBoundingClientRect();
+  const leftEdge = Math.max(
+    areaRect.left,
+    navRect?.right || areaRect.left,
+    overlayRect?.right || areaRect.left
+  );
+  const rightEdge = Math.min(
+    areaRect.right,
+    drawerRect?.left || areaRect.right
+  );
+  bar.style.left = `${Math.max(0, leftEdge - areaRect.left)}px`;
+  bar.style.right = `${Math.max(0, areaRect.right - rightEdge)}px`;
 }
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
@@ -15488,7 +15513,7 @@ function setupEvents(){
     draw();
   }, { passive:false });
 
-  window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); draw(); }, 50));
+  window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); positionChartTabsBar(); draw(); }, 50));
 }
 
 // ══ LOAD SYMBOL ═══════════════════════════════════════════════════════════════
@@ -17655,6 +17680,7 @@ function loadSettingsFromStorage(){
 // ══ INIT ══════════════════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
   sizeCanvases();
+  positionChartTabsBar();
   setupEvents();
   initScannerDrag();
   initSidebarResize();
