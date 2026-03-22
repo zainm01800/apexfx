@@ -472,22 +472,34 @@ function applyChartTabWorkspace(tab){
   renderIndList(_indSearchQ());
   sizeCanvases();
 }
-function switchChartTab(id, skipSave){
+function switchChartTab(id, skipSave, options = {}){
   if(!skipSave) saveCurrentChartTabState();
   const tab = chartTabs.find(t => t.id === id);
   if(!tab) return;
   resetChartInteractionState();
   activeChartTabId = id;
   applyChartTabWorkspace(tab);
-  rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
+  if(options.focusLatest){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+  } else {
+    rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
+  }
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
     if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
-    priceHi = tab.priceHi ?? null;
-    priceLo = tab.priceLo ?? null;
+    if(options.focusLatest){
+      rightBarIndex = curData.length + 5;
+      priceHi = null;
+      priceLo = null;
+    } else {
+      rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
+      priceHi = tab.priceHi ?? null;
+      priceLo = tab.priceLo ?? null;
+    }
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     drawingWIP = null;
     selectedDrawing = null;
@@ -17122,7 +17134,7 @@ async function authSubmitLogin(){
     doLogin(result.username, result.displayName);
     
     ensureChartTabs();
-    switchChartTab(activeChartTabId, true);
+    switchChartTab(activeChartTabId, true, { focusLatest: true });
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
@@ -17157,7 +17169,7 @@ async function authSubmitRegister(){
   document.getElementById('app').style.display = 'flex';
   doLogin(loginResult.username, loginResult.displayName);
   ensureChartTabs();
-  switchChartTab(activeChartTabId, true);
+  switchChartTab(activeChartTabId, true, { focusLatest: true });
   toast(`Welcome to APEXFX, ${loginResult.displayName || loginResult.username}!`);
   document.getElementById('auth-reg-pass').value = '';
 }
@@ -17787,12 +17799,12 @@ window.addEventListener('load', () => {
       document.getElementById('app').style.display = 'flex';
       doLogin(username, displayName);
       ensureChartTabs();
-      switchChartTab(activeChartTabId, true);
+      switchChartTab(activeChartTabId, true, { focusLatest: true });
     } else {
       // No active session — show auth screen
       closeAuthOverlay();
       enterGuestMode();
-      switchChartTab(activeChartTabId, true);
+      switchChartTab(activeChartTabId, true, { focusLatest: true });
     }
   })();
 
