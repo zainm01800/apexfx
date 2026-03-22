@@ -2,5 +2,9 @@
   "name": "apexfx",
   "version": "1.0.0",
   "description": "APEX FX Trading Platform",
-  "private": true
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev --listen 3001 --yes",
+    "start": "vercel dev --listen 3001 --yes"
+  }
 }
