@@ -325,6 +325,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   background:rgba(0,212,160,.08);
 }
 .auth-top-btn-primary:hover{background:rgba(0,212,160,.14);}
+#btn-chart-tab-top{
+  border-color:rgba(61,142,255,.24);
+  color:var(--blue);
+  background:rgba(61,142,255,.08);
+  font-weight:600;
+}
+#btn-chart-tab-top:hover{
+  background:rgba(61,142,255,.14);
+  color:#a9c9ff;
+}
 /* Symbol button */
 #sym-pill{
   display:flex;align-items:center;gap:8px;
