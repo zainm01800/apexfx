@@ -283,8 +283,8 @@ function saveCurrentChartTabState(){
     updatedAt: Date.now(),
   });
 }
-function saveChartTabs(){
-  saveCurrentChartTabState();
+function saveChartTabs(saveActiveState = true){
+  if(saveActiveState) saveCurrentChartTabState();
   try{
     _lsSet(_chartTabStorageKey(), JSON.stringify({
       activeChartTabId,
@@ -360,6 +360,13 @@ function positionChartTabsBar(){
 function isCurrentChartRequest(tabId, tf, sym, seq){
   return activeChartTabId === tabId && curTF === tf && curSym?.s === sym && chartLoadSeq === seq;
 }
+function clampChartTabRightIndex(savedIndex, dataLen){
+  const fallback = dataLen + 5;
+  if(!dataLen) return Math.max(1, savedIndex || fallback);
+  const val = Number(savedIndex);
+  if(!Number.isFinite(val)) return fallback;
+  return Math.max(1, Math.min(val, dataLen + 40));
+}
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
   const base = chartTabs.find(t => t.id === activeChartTabId);
@@ -429,12 +436,13 @@ function switchChartTab(id, skipSave){
   if(!tab) return;
   activeChartTabId = id;
   applyChartTabWorkspace(tab);
+  rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
     if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    rightBarIndex = Math.max(curData.length ? 1 : 0, Math.min(tab.rightBarIndex || (curData.length + 5), curData.length + 40));
+    rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
     priceHi = tab.priceHi ?? null;
     priceLo = tab.priceLo ?? null;
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
@@ -15627,6 +15635,7 @@ async function loadSym(sym){
   const requestTabId = activeChartTabId;
   const requestTF = curTF;
   const requestSeq = ++chartLoadSeq;
+  const requestTab = chartTabs.find(t => t.id === requestTabId) || null;
   if(curSym && curSym.s) saveDrawings(curSym.s, requestTF);
   const prevSym = curSym?.s;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
@@ -15645,7 +15654,12 @@ async function loadSym(sym){
     ? curData[curData.length-1].close
     : curSym.p;
   curData = genData(placeholderBase, 300, VOL_MAP[requestTF]||.018);
-  barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
+  if(!requestTab){
+    barWidth = 8;
+    priceHi = null;
+    priceLo = null;
+  }
+  rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
   // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
@@ -15665,14 +15679,14 @@ async function loadSym(sym){
     // Keep p in sync with cached real price
     const cachedClose = curData[curData.length-1]?.close;
     if(cachedClose && curSym.p !== cachedClose) curSym.p = cachedClose;
-    rightBarIndex = curData.length+5;
+    rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
     // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
     updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
-    saveChartTabs();
+    saveChartTabs(false);
     return;
   }
 
@@ -15704,23 +15718,23 @@ async function loadSym(sym){
       const realClose = bars[bars.length-1].close;
       if(curSym.p !== realClose) curSym.p = realClose;
       invalidateIndCache();
-      rightBarIndex = curData.length+5;
+      rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
-      saveChartTabs();
+      saveChartTabs(false);
     } else {
       if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       setSrcStatus('⚠ simulated · no live data','var(--am)');
-      saveChartTabs();
+      saveChartTabs(false);
     }
   } catch(err){
     if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
     setSrcStatus('⚠ simulated · fetch error','var(--rd)');
-    saveChartTabs();
+    saveChartTabs(false);
   }
 }
 
