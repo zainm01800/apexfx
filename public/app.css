@@ -78,7 +78,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 
 /* ─── OVERLAY PANEL (slides out from left nav) ───────────────────────────── */
 #overlay-panel{
-  position:absolute;left:48px;top:0;bottom:22px;width:260px;
+position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);width:260px;
   background:rgba(22,30,44,0.75);
   backdrop-filter:blur(40px) saturate(2) brightness(1.15);
   -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
@@ -91,7 +91,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #overlay-panel.open{display:flex;}
 /* Locked = stays position:absolute so backdrop-filter blurs chart behind it */
 #overlay-panel.locked{
-  position:absolute;left:48px;top:0;bottom:22px;
+position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);
   display:flex;z-index:150;flex-shrink:0;animation:none;
   background:rgba(22,30,44,0.75);
   backdrop-filter:blur(40px) saturate(2) brightness(1.15);
@@ -222,7 +222,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #draw-toolbar{display:none;}
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
-#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
+#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:var(--statusbar-h,22px);display:flex;flex-direction:column;overflow:hidden;}
 
 /* ─── COMMAND BAR ────────────────────────────────────────────────────────── */
 #cmd-bar{
@@ -437,7 +437,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 
 /* ─── OVERLAY PANEL (slides out from left nav) ───────────────────────────── */
 #overlay-panel{
-  position:absolute;left:48px;top:0;bottom:22px;width:260px;
+position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);width:260px;
   background:rgba(22,30,44,0.75);
   backdrop-filter:blur(40px) saturate(2) brightness(1.15);
   -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
@@ -450,7 +450,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #overlay-panel.open{display:flex;}
 /* Locked = stays position:absolute so backdrop-filter blurs chart behind it */
 #overlay-panel.locked{
-  position:absolute;left:48px;top:0;bottom:22px;
+position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);
   display:flex;z-index:150;flex-shrink:0;animation:none;
   background:rgba(22,30,44,0.75);
   backdrop-filter:blur(40px) saturate(2) brightness(1.15);
@@ -581,7 +581,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 #draw-toolbar{display:none;}
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
-#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:22px;display:flex;flex-direction:column;overflow:hidden;}
+#main-col{position:absolute;inset:0;padding-top:0;padding-bottom:var(--statusbar-h,22px);display:flex;flex-direction:column;overflow:hidden;}
 
 /* ─── COMMAND BAR ────────────────────────────────────────────────────────── */
 #cmd-bar{
@@ -973,7 +973,7 @@ canvas{display:block;flex-shrink:0;}
 
 /* ─── STATUS BAR ─────────────────────────────────────────────────────────── */
 #statusbar{
-  position:absolute;bottom:0;left:48px;right:0;height:22px;
+  position:absolute;bottom:0;left:48px;right:0;height:var(--statusbar-h,22px);
   background:rgba(9,12,18,0.62);
   backdrop-filter:blur(24px) saturate(1.6);
   -webkit-backdrop-filter:blur(24px) saturate(1.6);
@@ -1021,7 +1021,7 @@ canvas{display:block;flex-shrink:0;}
 
 /* ─── RIGHT DRAWER ───────────────────────────────────────────────────────── */
 #rdrawer{
-  position:absolute;right:0;top:0;bottom:22px;width:280px;
+position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
   background:rgba(22,30,44,0.75);
   backdrop-filter:blur(40px) saturate(2) brightness(1.15);
   -webkit-backdrop-filter:blur(40px) saturate(2) brightness(1.15);
