@@ -19703,6 +19703,10 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     };
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
+    if(targetTab){
+      targetTab.drawings = drawings.map(drawingToTime);
+      targetTab.updatedAt = Date.now();
+    }
 
     rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
     priceHi = null; priceLo = null;
@@ -19713,7 +19717,13 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
   };
 
   const waitForReady = (attempts) => {
-    if(activeChartTabId === targetTabId && curSym?.s === sym && curTF === targetTf && curData?.length){
+    const tabIsReady =
+      activeChartTabId === targetTabId &&
+      curSym?.s === sym &&
+      curTF === targetTf &&
+      curData?.length &&
+      !(chartTransitionState.loading && chartTransitionState.tabId === targetTabId);
+    if(tabIsReady){
       doPlace();
       return;
     }
