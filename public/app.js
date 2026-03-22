@@ -341,7 +341,7 @@ function renderChartTabs(){
   const el = document.getElementById('chart-tabs-list');
   if(!el) return;
   el.innerHTML = chartTabs.map(tab => `
-    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" onclick="switchChartTab('${tab.id}')">
+    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
         <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym, tab.tf)}</span>
         <span class="chart-tab-meta">${_chartTabMeta(tab)}</span>
@@ -12354,6 +12354,10 @@ document.addEventListener('keydown', e=>{
 
 function clearDrawings(){
   if(!drawings.length) return;
+  if(!appPrefs.confirmClearDrawings){
+    drawings=[]; drawingWIP=null; selectedDrawing=null; saveDrawings(curSym.s,curTF); draw();
+    return;
+  }
   showConfirm('Clear all drawings?','All lines, shapes and annotations will be removed.',()=>{
     drawings=[]; drawingWIP=null; selectedDrawing=null; saveDrawings(curSym.s,curTF); draw();
   });
@@ -16501,7 +16505,7 @@ function buildWL(filter=''){
     for(const[cat,syms]of Object.entries(cats)){
       if(!syms.length)continue;
       html+=`<div class="wl-cat">${cat}</div>`;
-      syms.forEach(s=>{html+=`<div class="wl-row${s.s===curSym.s?' on':''}" onclick="selSym('${s.s}')">
+      syms.forEach(s=>{html+=`<div class="wl-row${s.s===curSym.s?' on':''}" data-sym="${s.s}" onclick="selSym('${s.s}')">
         <div style="flex:1;min-width:0;"><div class="wl-sym">${s.s}</div><div class="wl-name">${s.n}</div></div>
         <div class="wl-r"><div class="wl-px">${fP(s.p)}</div><div class="wl-ch ${s.c>=0?'up':'dn'}">${s.c>=0?'+':''}${s.c}%</div></div>
         <button onclick="event.stopPropagation();removeFromWatchlist('${s.s}')" title="Remove from watchlist" style="background:none;border:none;color:var(--tx3);cursor:pointer;padding:0 2px 0 6px;font-size:11px;line-height:1;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
@@ -17050,15 +17054,247 @@ function applyUIScale(val){
   setTimeout(()=>{ try{ sizeCanvases(); draw(); }catch(e){} }, 50);
 }
 
+function applyPanelVisibility(panelId, isVisible){
+  const el = document.getElementById(panelId);
+  if(el) el.style.display = isVisible ? '' : 'none';
+  if(panelId === 'sidebar' || panelId === 'rpanel'){
+    positionChartTabsBar();
+    setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 50);
+  }
+}
+
+function applyToggleSetting(inputId){
+  const el = document.getElementById(inputId);
+  if(!el) return;
+  const checked = !!el.checked;
+  if(inputId === 'sc-scanner') applyPanelVisibility('scanner-wrap', checked);
+  if(inputId === 'sc-drawtb') applyPanelVisibility('draw-toolbar', checked);
+  if(inputId === 'sc-statusbar') applyPanelVisibility('statusbar', checked);
+  if(inputId === 'sc-sidebar') applyPanelVisibility('sidebar', checked);
+  if(inputId === 'sc-rpanel') applyPanelVisibility('rpanel', checked);
+  if(inputId === 'sc-contextmenu') appPrefs.enableContextMenus = checked;
+  if(inputId === 'sc-guestintro') appPrefs.guestTutorialIntro = checked;
+  if(inputId === 'sc-confirmclear') appPrefs.confirmClearDrawings = checked;
+  if(inputId === 'sc-animations') appPrefs.enableChartAnimations = checked;
+  saveSettingsToStorage();
+  draw();
+}
+
+function hydrateSettingsUI(){
+  const modal = document.getElementById('settings-modal');
+  if(!modal || modal.dataset.hydrated === '1') return;
+  modal.innerHTML = `
+    <div class="sm-hdr">
+      <div>
+        <div class="sm-title">Settings</div>
+        <div class="sm-subtitle">Workspace, chart, AI, and data controls</div>
+      </div>
+      <button class="sm-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="sm-tabs">
+      <button class="sm-tab on" onclick="smTab(this,'sm-workspace')">WORKSPACE</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-chart')">CHART</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-appearance')">APPEARANCE</button>
+      <button class="sm-tab" onclick="smTab(this,'sm-ai')">AI & DATA</button>
+    </div>
+
+    <div class="sm-page on" id="sm-workspace">
+      <div class="sm-hero">
+        <div class="sm-hero-title">Control how the workspace behaves</div>
+        <div class="sm-hero-sub">These settings shape what users see, how the layout opens, and how quickly they can move around the platform.</div>
+      </div>
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Layout</div>
+          <div class="sm-row"><div><div class="sm-lbl">Show watchlist sidebar</div><div class="sm-sub">Keep the market list visible on the left</div></div><label class="sm-toggle"><input type="checkbox" id="sc-sidebar" onchange="applyToggleSetting('sc-sidebar')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show right panel</div><div class="sm-sub">AI, analytics, and news drawer</div></div><label class="sm-toggle"><input type="checkbox" id="sc-rpanel" onchange="applyToggleSetting('sc-rpanel')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show scanner bar</div><div class="sm-sub">Quick AI discovery prompts under the top bar</div></div><label class="sm-toggle"><input type="checkbox" id="sc-scanner" onchange="applyToggleSetting('sc-scanner')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show drawing toolbar</div><div class="sm-sub">Left chart tool rail</div></div><label class="sm-toggle"><input type="checkbox" id="sc-drawtb" onchange="applyToggleSetting('sc-drawtb')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show status bar</div><div class="sm-sub">Live session and symbol info along the bottom</div></div><label class="sm-toggle"><input type="checkbox" id="sc-statusbar" onchange="applyToggleSetting('sc-statusbar')"><span class="sm-slider"></span></label></div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Behavior</div>
+          <div class="sm-row"><div><div class="sm-lbl">Auto-open intro for guests</div><div class="sm-sub">Show the short onboarding tutorial when no user is signed in</div></div><label class="sm-toggle"><input type="checkbox" id="sc-guestintro" onchange="applyToggleSetting('sc-guestintro')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Enable right-click menus</div><div class="sm-sub">Use quick actions on chart, tabs, and watchlist rows</div></div><label class="sm-toggle"><input type="checkbox" id="sc-contextmenu" onchange="applyToggleSetting('sc-contextmenu')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Confirm clearing drawings</div><div class="sm-sub">Keep a safety prompt before wiping chart markup</div></div><label class="sm-toggle"><input type="checkbox" id="sc-confirmclear" onchange="applyToggleSetting('sc-confirmclear')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Enable chart animations</div><div class="sm-sub">Keeps small UI transitions and pulses active</div></div><label class="sm-toggle"><input type="checkbox" id="sc-animations" onchange="applyToggleSetting('sc-animations')"><span class="sm-slider"></span></label></div>
+          <div class="sm-row">
+            <div><div class="sm-lbl">UI scale</div><div class="sm-sub">Resize the whole interface</div></div>
+            <div class="sm-slider-wrap">
+              <input type="range" class="sm-range" id="sc-fontsize" min="80" max="130" value="100" oninput="applyUIScale(this.value);saveSettingsToStorage()">
+              <span class="sm-range-val" id="sc-fontsize-v">100%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Quick actions</div>
+        <div class="sm-action-row">
+          <button class="sm-cta" onclick="saveSettingsToStorage()">Save settings</button>
+          <button class="sm-btn" onclick="openTutorial()">Open tutorial</button>
+          <button class="sm-btn" onclick="positionChartTabsBar();sizeCanvases();draw();toast('Workspace refreshed')">Refresh layout</button>
+          <button class="sm-btn sm-danger" onclick="resetAllSettings()">Reset all</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-chart">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Candles and levels</div>
+          <div class="sm-row"><div><div class="sm-lbl">Bullish candle colour</div><div class="sm-sub">Candles that close higher</div></div><div class="sm-color"><input type="color" id="sc-bull" value="#00c9a0" oninput="applyCandleColors();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bull-hex">#00c9a0</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">Bearish candle colour</div><div class="sm-sub">Candles that close lower</div></div><div class="sm-color"><input type="color" id="sc-bear" value="#f03060" oninput="applyCandleColors();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bear-hex">#f03060</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">Hollow candles</div></div><label class="sm-toggle"><input type="checkbox" id="sc-hollow" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show wicks</div></div><label class="sm-toggle"><input type="checkbox" id="sc-wicks" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Default bar width</div><div class="sm-sub">How zoomed-in charts open</div></div><div class="sm-slider-wrap"><input type="range" class="sm-range" id="sc-barwidth" min="2" max="20" value="8" oninput="document.getElementById('sc-barwidth-v').textContent=this.value+'px';barWidth=+this.value;syncActiveChartTabRuntimeState(true);draw();saveSettingsToStorage()"><span class="sm-range-val" id="sc-barwidth-v">8px</span></div></div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Chart overlays</div>
+          <div class="sm-row"><div><div class="sm-lbl">Show grid lines</div></div><label class="sm-toggle"><input type="checkbox" id="sc-grid" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show crosshair</div></div><label class="sm-toggle"><input type="checkbox" id="sc-crosshair" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show high / low labels</div></div><label class="sm-toggle"><input type="checkbox" id="sc-highlow" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show day boundary lines</div></div><label class="sm-toggle"><input type="checkbox" id="sc-dayboundary" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show price scale</div></div><label class="sm-toggle"><input type="checkbox" id="sc-pricescale" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show crosshair time label</div></div><label class="sm-toggle"><input type="checkbox" id="sc-xaxislabel" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show OHLC strip</div></div><label class="sm-toggle"><input type="checkbox" id="sc-ohlc" onchange="draw();saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+          <div class="sm-row"><div><div class="sm-lbl">Show screenshot watermark</div></div><label class="sm-toggle"><input type="checkbox" id="sc-watermark" onchange="saveSettingsToStorage()"><span class="sm-slider"></span></label></div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Moving-average colours</div>
+        <div class="sm-grid2">
+          <div class="sm-row"><div><div class="sm-lbl">SMA 20</div></div><div class="sm-color"><input type="color" id="sc-sma20c" value="#3d7fff" oninput="smaCols[0]=this.value;document.getElementById('sc-sma20c-hex').textContent=this.value;draw();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-sma20c-hex">#3d7fff</span></div></div>
+          <div class="sm-row"><div><div class="sm-lbl">SMA 50</div></div><div class="sm-color"><input type="color" id="sc-sma50c" value="#f0a500" oninput="smaCols[1]=this.value;document.getElementById('sc-sma50c-hex').textContent=this.value;draw();saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-sma50c-hex">#f0a500</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-appearance">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">Theme</div>
+          <div class="sm-row"><div><div class="sm-lbl">Preset theme</div><div class="sm-sub">Change the whole look instantly</div></div><select class="sm-select" id="sc-theme" onchange="applyTheme(this.value);saveSettingsToStorage()"><option value="dark">Dark</option><option value="darker">Midnight</option><option value="light">Light</option><option value="green">Matrix Green</option><option value="blue">Ocean Blue</option></select></div>
+          <div class="sm-note">Use presets for fast changes, then fine-tune the main colours below.</div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Core colours</div>
+          <div class="sm-colors-grid">
+            <div class="sm-row sm-stack"><div class="sm-lbl">Background</div><div class="sm-color"><input type="color" id="sc-bg" value="#07090e" oninput="applyVar('--bg',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bg-hex">#07090e</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Panel background</div><div class="sm-color"><input type="color" id="sc-bg2" value="#0c0e16" oninput="applyVar('--bg2',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bg2-hex">#0c0e16</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Accent</div><div class="sm-color"><input type="color" id="sc-am" value="#f0a500" oninput="applyVar('--am',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-am-hex">#f0a500</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Bullish accent</div><div class="sm-color"><input type="color" id="sc-tl" value="#00c9a0" oninput="applyVar('--tl',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-tl-hex">#00c9a0</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Bearish accent</div><div class="sm-color"><input type="color" id="sc-rd" value="#f03060" oninput="applyVar('--rd',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-rd-hex">#f03060</span></div></div>
+            <div class="sm-row sm-stack"><div class="sm-lbl">Blue accent</div><div class="sm-color"><input type="color" id="sc-bl" value="#3d7fff" oninput="applyVar('--bl',this.value);updateColorHex(this);saveSettingsToStorage()"><span class="sm-color-lbl" id="sc-bl-hex">#3d7fff</span></div></div>
+          </div>
+          <div class="sm-action-row">
+            <button class="sm-btn" onclick="resetColors();saveSettingsToStorage()">Reset colours</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm-page" id="sm-ai">
+      <div class="sm-grid2">
+        <div class="sm-section">
+          <div class="sm-sec-title">AI and tutorial flow</div>
+          <div class="sm-row"><div><div class="sm-lbl">Live AI right panel</div><div class="sm-sub">Keep the AI drawer available for the current chart</div></div><label class="sm-toggle"><input type="checkbox" id="sc-ai-panel-proxy" checked disabled><span class="sm-slider"></span></label></div>
+          <div class="sm-note">AI Setups finds ideas. Trade Analysis checks execution. Mentor teaches in replay. The settings here focus on how those tools appear around the workspace.</div>
+        </div>
+        <div class="sm-section">
+          <div class="sm-sec-title">Data and storage</div>
+          <div class="sm-row"><div><div class="sm-lbl">News cache duration</div><div class="sm-sub">How long news stays cached before refreshing</div></div><select class="sm-select" id="sc-newscache" onchange="newsCacheDuration=+this.value;saveSettingsToStorage()"><option value="900000">15 minutes</option><option value="1800000">30 minutes</option><option value="3600000">1 hour</option><option value="7200000">2 hours</option></select></div>
+          <div class="sm-row"><div><div class="sm-lbl">Cloud sync status</div><div class="sm-sub" id="sm-cloud-copy">Local workspace only</div></div><div class="sm-badge" id="sm-cloud-badge">Offline</div></div>
+          <div class="sm-action-row">
+            <button class="sm-btn" onclick="newsCache={};toast('News cache cleared');saveSettingsToStorage()">Clear news cache</button>
+            <button class="sm-btn" onclick="saveSettingsToStorage()">Save now</button>
+            <button class="sm-btn sm-danger" onclick="resetAllSettings()">Reset all settings</button>
+          </div>
+        </div>
+      </div>
+      <div class="sm-section">
+        <div class="sm-sec-title">Keyboard shortcuts</div>
+        <div class="sm-shortcuts">
+          <span class="sm-k">V</span><span>Cursor</span>
+          <span class="sm-k">L</span><span>Long tool</span>
+          <span class="sm-k">S</span><span>Short tool</span>
+          <span class="sm-k">R</span><span>Rectangle</span>
+          <span class="sm-k">F</span><span>Fibonacci</span>
+          <span class="sm-k">E</span><span>Eraser</span>
+          <span class="sm-k">Esc</span><span>Cancel / deselect</span>
+          <span class="sm-k">Del</span><span>Delete selected drawing</span>
+        </div>
+      </div>
+    </div>
+  `;
+  modal.dataset.hydrated = '1';
+}
+
+function syncSettingsFormFromState(){
+  const cloudBadge = document.getElementById('sm-cloud-badge');
+  const cloudCopy = document.getElementById('sm-cloud-copy');
+  const setChecked = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
+  const setValue = (id, val) => { const el = document.getElementById(id); if(el != null && val != null) el.value = val; };
+
+  setValue('sc-theme', currentThemeName || 'dark');
+  setValue('sc-bull', candleBullColor);
+  setValue('sc-bear', candleBearColor);
+  const bullHex = document.getElementById('sc-bull-hex'); if(bullHex) bullHex.textContent = candleBullColor;
+  const bearHex = document.getElementById('sc-bear-hex'); if(bearHex) bearHex.textContent = candleBearColor;
+  setValue('sc-barwidth', barWidth);
+  const bwv = document.getElementById('sc-barwidth-v'); if(bwv) bwv.textContent = `${barWidth}px`;
+  setValue('sc-sma20c', smaCols[0] || '#3d7fff');
+  setValue('sc-sma50c', smaCols[1] || '#f0a500');
+  const s20hex = document.getElementById('sc-sma20c-hex'); if(s20hex) s20hex.textContent = smaCols[0] || '#3d7fff';
+  const s50hex = document.getElementById('sc-sma50c-hex'); if(s50hex) s50hex.textContent = smaCols[1] || '#f0a500';
+  setValue('sc-fontsize', (document.getElementById('app')?.style.zoom ? Math.round(parseFloat(document.getElementById('app').style.zoom) * 100) : 100));
+  const fsv = document.getElementById('sc-fontsize-v'); if(fsv) fsv.textContent = `${document.getElementById('sc-fontsize')?.value || 100}%`;
+  setValue('sc-newscache', newsCacheDuration);
+
+  ['bg','bg2','am','tl','rd','bl'].forEach(k => {
+    const el = document.getElementById('sc-'+k);
+    if(el){
+      const val = getComputedStyle(document.documentElement).getPropertyValue('--'+k).trim();
+      if(val) el.value = val;
+      const hex = document.getElementById('sc-'+k+'-hex');
+      if(hex && val) hex.textContent = val;
+    }
+  });
+
+  setChecked('sc-grid', _el('sc-grid')?.checked !== false);
+  setChecked('sc-crosshair', _el('sc-crosshair')?.checked !== false);
+  setChecked('sc-highlow', _el('sc-highlow')?.checked !== false);
+  setChecked('sc-dayboundary', _el('sc-dayboundary')?.checked !== false);
+  setChecked('sc-hollow', _el('sc-hollow')?.checked);
+  setChecked('sc-wicks', _el('sc-wicks')?.checked !== false);
+  setChecked('sc-pricescale', _el('sc-pricescale')?.checked !== false);
+  setChecked('sc-xaxislabel', _el('sc-xaxislabel')?.checked !== false);
+  setChecked('sc-ohlc', _el('sc-ohlc')?.checked !== false);
+  setChecked('sc-watermark', _el('sc-watermark')?.checked !== false);
+  setChecked('sc-sidebar', document.getElementById('sidebar')?.style.display !== 'none');
+  setChecked('sc-rpanel', document.getElementById('rpanel')?.style.display !== 'none');
+  setChecked('sc-scanner', document.getElementById('scanner-wrap')?.style.display !== 'none');
+  setChecked('sc-drawtb', document.getElementById('draw-toolbar')?.style.display !== 'none');
+  setChecked('sc-statusbar', document.getElementById('statusbar')?.style.display !== 'none');
+  setChecked('sc-guestintro', appPrefs.guestTutorialIntro);
+  setChecked('sc-contextmenu', appPrefs.enableContextMenus);
+  setChecked('sc-confirmclear', appPrefs.confirmClearDrawings);
+  setChecked('sc-animations', appPrefs.enableChartAnimations);
+
+  if(cloudBadge){
+    const st = _cloudSyncState.status || 'offline';
+    cloudBadge.textContent = st === 'ok' ? 'Synced' : st === 'syncing' ? 'Syncing' : st === 'error' ? 'Error' : 'Offline';
+    cloudBadge.dataset.state = st;
+  }
+  if(cloudCopy){
+    cloudCopy.textContent = _cloudSyncState.message || (_currentUserId ? 'Cloud workspace ready' : 'Local workspace only');
+  }
+}
+
 function openSettings(){
+  hydrateSettingsUI();
   document.getElementById('settings-bg').classList.add('open');
   setTimeout(_syncAllDockedBtns, 10);
-  document.getElementById('sc-bull').value   = candleBullColor;
-  document.getElementById('sc-bear').value   = candleBearColor;
-  document.getElementById('sc-bull-hex').textContent = candleBullColor;
-  document.getElementById('sc-bear-hex').textContent = candleBearColor;
-  document.getElementById('sc-barwidth').value = barWidth;
-  document.getElementById('sc-barwidth-v').textContent = barWidth+'px';
+  syncSettingsFormFromState();
 }
 
 function closeSettings(){
@@ -17100,9 +17336,17 @@ const THEMES = {
   green:  {bg:'#020a04',bg2:'#030e06',bg3:'#041208',bg4:'#05160a',bg5:'#071a0d',b1:'#0a2010',b2:'#103018',b3:'#184025',tx:'#00ff88',tx2:'#00cc66',tx3:'#007733',am:'#00ff44',tl:'#00dd88',rd:'#ff3355',bl:'#00aaff'},
   blue:   {bg:'#030810',bg2:'#060d18',bg3:'#091220',bg4:'#0c1830',bg5:'#101e3a',b1:'#0e1e38',b2:'#162a50',b3:'#1e3868',tx:'#cce4ff',tx2:'#7aaacf',tx3:'#3a607f',am:'#4da8ff',tl:'#00cfff',rd:'#ff4488',bl:'#55aaff'},
 };
+let currentThemeName = 'dark';
+let appPrefs = {
+  guestTutorialIntro: true,
+  enableContextMenus: true,
+  confirmClearDrawings: true,
+  enableChartAnimations: true,
+};
 
 function applyTheme(name){ invalidateCSSVarCache();
   const t = THEMES[name]; if(!t) return;
+  currentThemeName = name;
   const r = document.documentElement.style;
   Object.entries(t).forEach(([k,v])=>r.setProperty('--'+k, v));
   ['bg','bg2','am','tl','rd','bl'].forEach(k=>{
@@ -17142,6 +17386,12 @@ function syncIndicator(name, on){
 function resetAllSettings(){
   if(!confirm('Reset all settings to defaults?')) return;
   _lsRem('settings');
+  appPrefs = {
+    guestTutorialIntro: true,
+    enableContextMenus: true,
+    confirmClearDrawings: true,
+    enableChartAnimations: true,
+  };
   resetColors();
   showSMA=true; showBB=false; showEMA=false; showVWAP=false; showVol=true; showRSI=true; showMACD=false; showStoch=false;
   syncIndicator('sma',true); syncIndicator('bb',false); syncIndicator('vol',true); syncIndicator('rsi',true);
@@ -17158,8 +17408,257 @@ function resetAllSettings(){
   smaCols=['#3d7fff','#f0a500'];
   var s20=document.getElementById('sc-sma20c'); if(s20){ s20.value='#3d7fff'; document.getElementById('sc-sma20c-hex').textContent='#3d7fff'; }
   var s50=document.getElementById('sc-sma50c'); if(s50){ s50.value='#f0a500'; document.getElementById('sc-sma50c-hex').textContent='#f0a500'; }
+  newsCache = {};
+  syncSettingsFormFromState();
+  saveSettingsToStorage();
   sizeCanvases(); draw();
   toast('All settings reset to defaults');
+}
+
+function resetChartViewport(focusLatest = true){
+  if(!curData || !curData.length) return;
+  priceHi = null;
+  priceLo = null;
+  if(focusLatest){
+    rightBarIndex = curData.length - 1 + Math.max(10, Math.round(((_el('main-canvas')?.width || 400) / Math.max(barWidth, 1)) * 0.08));
+  }
+  syncActiveChartTabRuntimeState(true);
+  saveChartTabs(false);
+  draw();
+}
+
+function duplicateChartTab(id){
+  const base = chartTabs.find(t => t.id === id);
+  if(!base) return;
+  const idx = chartTabs.findIndex(t => t.id === id);
+  const copy = JSON.parse(JSON.stringify(base));
+  copy.id = _chartTabId();
+  copy.title = (base.title || _chartTabTitle(base.sym, base.tf)) + ' Copy';
+  copy.createdAt = Date.now();
+  copy.updatedAt = Date.now();
+  chartTabs.splice(idx + 1, 0, copy);
+  activeChartTabId = copy.id;
+  renderChartTabs();
+  saveChartTabs(false);
+  switchChartTab(copy.id, true);
+}
+
+function closeOtherChartTabs(id){
+  if(chartTabs.length <= 1) return;
+  chartTabs = chartTabs.filter(t => t.id === id);
+  activeChartTabId = id;
+  renderChartTabs();
+  saveChartTabs(false);
+  switchChartTab(id, true);
+}
+
+function addAlertForSymbol(sym, priceHint){
+  const asset = SYMS.find(x => x.s === sym) || curSym || { s: sym, p: 0 };
+  const promptPrice = Number.isFinite(priceHint) ? priceHint : (asset.p || curData[curData.length-1]?.close || 0);
+  const raw = prompt(`Price alert for ${sym}\nCurrent: ${fP(promptPrice)}\n\nTarget price:`);
+  if(!raw || isNaN(raw)) return;
+  alerts.push({ id: String(Date.now() + Math.random()), sym, price: +raw, hit: false });
+  try{ _lsSet('alerts', JSON.stringify(alerts)); }catch(e){}
+  buildAlertsPanel();
+  toast(`Alert added for ${sym}`);
+}
+
+function addHorizontalLevelAt(price){
+  if(!Number.isFinite(price)) return;
+  drawings.push({ type:'hline', price, color:drawingColor, ls:drawingLineStyle, lw:drawingLineWidth });
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function addTextDrawingAt(bar, price){
+  const txt = prompt('Add chart note:');
+  if(!txt) return;
+  drawings.push({ type:'text', bar, price, text: txt });
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function duplicateDrawing(d){
+  if(!d) return;
+  const copy = JSON.parse(JSON.stringify(d));
+  const priceNudge = ((priceHi ?? curData[curData.length-1]?.high ?? 1) - (priceLo ?? curData[curData.length-1]?.low ?? 0)) * 0.02 || 1;
+  ['bar','bar1','bar2','fromBar','toBar','startBar','endBar','entryBar'].forEach(k => {
+    if(Number.isFinite(copy[k])) copy[k] += 3;
+  });
+  ['price','price1','price2','sl','tp','entryPrice','startPrice','endPrice','top','bottom'].forEach(k => {
+    if(Number.isFinite(copy[k])) copy[k] += priceNudge;
+  });
+  drawings.push(copy);
+  selectedDrawing = copy;
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function deleteDrawing(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  if(selectedDrawing === d) selectedDrawing = null;
+  selectedDrawings = selectedDrawings.filter(x => x !== d);
+  saveDrawings(curSym.s, curTF);
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function bringDrawingToFront(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  drawings.push(d);
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
+function sendDrawingToBack(d){
+  if(!d) return;
+  drawings = drawings.filter(x => x !== d);
+  drawings.unshift(d);
+  saveDrawings(curSym.s, curTF);
+  draw();
+}
+
+let _appContextMenu = null;
+let _appContextMenuCleanup = null;
+
+function hideAppContextMenu(){
+  if(_appContextMenu) _appContextMenu.classList.remove('open');
+  if(_appContextMenuCleanup){
+    _appContextMenuCleanup();
+    _appContextMenuCleanup = null;
+  }
+}
+
+function _ensureAppContextMenu(){
+  if(_appContextMenu) return _appContextMenu;
+  const el = document.createElement('div');
+  el.id = 'app-context-menu';
+  document.body.appendChild(el);
+  _appContextMenu = el;
+  return el;
+}
+
+function showAppContextMenu(items, x, y, title = ''){
+  if(!appPrefs.enableContextMenus) return;
+  hideAppContextMenu();
+  const el = _ensureAppContextMenu();
+  el.innerHTML = '';
+  if(title){
+    const hdr = document.createElement('div');
+    hdr.className = 'app-ctx-hdr';
+    hdr.textContent = title;
+    el.appendChild(hdr);
+  }
+  items.filter(Boolean).forEach(item => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `app-ctx-item${item.danger ? ' danger' : ''}`;
+    row.disabled = !!item.disabled;
+    row.innerHTML = `<span>${item.label}</span>${item.meta ? `<span class="app-ctx-meta">${item.meta}</span>` : ''}`;
+    row.addEventListener('click', () => {
+      hideAppContextMenu();
+      if(!item.disabled && typeof item.action === 'function') item.action();
+    });
+    el.appendChild(row);
+  });
+  el.style.left = '0px';
+  el.style.top = '0px';
+  el.classList.add('open');
+  const rect = el.getBoundingClientRect();
+  const maxX = window.innerWidth - rect.width - 10;
+  const maxY = window.innerHeight - rect.height - 10;
+  el.style.left = `${Math.max(10, Math.min(x, maxX))}px`;
+  el.style.top = `${Math.max(10, Math.min(y, maxY))}px`;
+
+  const onDocMouse = (evt) => { if(!el.contains(evt.target)) hideAppContextMenu(); };
+  const onEsc = (evt) => { if(evt.key === 'Escape') hideAppContextMenu(); };
+  const onScroll = () => hideAppContextMenu();
+  document.addEventListener('mousedown', onDocMouse, true);
+  document.addEventListener('keydown', onEsc, true);
+  window.addEventListener('scroll', onScroll, true);
+  window.addEventListener('resize', onScroll, true);
+  _appContextMenuCleanup = () => {
+    document.removeEventListener('mousedown', onDocMouse, true);
+    document.removeEventListener('keydown', onEsc, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('resize', onScroll, true);
+  };
+}
+
+function initContextMenus(){
+  const mc = _el('main-canvas');
+  if(mc && !mc.dataset.ctxReady){
+    mc.dataset.ctxReady = '1';
+    mc.addEventListener('contextmenu', e => {
+      if(!appPrefs.enableContextMenus) return;
+      e.preventDefault();
+      const rect = mc.getBoundingClientRect();
+      const lx = e.clientX - rect.left;
+      const ly = e.clientY - rect.top;
+      const bar = _xToBar ? Math.max(0, Math.min(curData.length - 1, Math.round(_xToBar(lx)))) : Math.max(0, curData.length - 1);
+      const price = _yToPrice ? _yToPrice(ly) : curData[curData.length - 1]?.close;
+      const hit = [...drawings].reverse().find(d => hitTest(d, lx, ly) || _mentorBubbleHit(d, lx, ly));
+      if(hit){
+        selectedDrawing = hit;
+        selectedDrawings = [hit];
+        draw();
+        showAppContextMenu([
+          (hit.type === 'long' || hit.type === 'short') ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
+          { label:'Duplicate drawing', action:() => duplicateDrawing(hit) },
+          { label:'Bring to front', action:() => bringDrawingToFront(hit) },
+          { label:'Send to back', action:() => sendDrawingToBack(hit) },
+          { label:'Delete drawing', action:() => deleteDrawing(hit), danger:true },
+        ], e.clientX, e.clientY, `${hit.type} drawing`);
+        return;
+      }
+      showAppContextMenu([
+        { label:'Reset chart view', action:() => resetChartViewport(true) },
+        { label:'Open this market in a new tab', action:() => createChartTab(curSym.s, curTF) },
+        { label:'Add horizontal level here', action:() => addHorizontalLevelAt(price), meta:price != null ? fP(price) : '' },
+        { label:'Add note here', action:() => addTextDrawingAt(bar, price) },
+        { label: showSessions ? 'Hide sessions' : 'Show sessions', action:() => toggleSessions() },
+        { label:'Add alert for this market', action:() => addAlertForSymbol(curSym.s, price) },
+        { label:'Open settings', action:() => openSettings() },
+      ], e.clientX, e.clientY, `${curSym.s} · ${String(curTF).toUpperCase()}`);
+    });
+  }
+
+  if(!document.body.dataset.ctxDelegatesReady){
+    document.body.dataset.ctxDelegatesReady = '1';
+    document.addEventListener('contextmenu', e => {
+      if(!appPrefs.enableContextMenus) return;
+      const tabEl = e.target.closest('.chart-tab');
+      if(tabEl){
+        e.preventDefault();
+        const tabId = tabEl.dataset.tabId;
+        const tab = chartTabs.find(t => t.id === tabId);
+        if(!tab) return;
+        showAppContextMenu([
+          { label:'Switch to tab', action:() => switchChartTab(tabId) },
+          { label:'Duplicate tab', action:() => duplicateChartTab(tabId) },
+          { label:'Close other tabs', action:() => closeOtherChartTabs(tabId), disabled: chartTabs.length <= 1 },
+          { label:'Close tab', action:() => closeChartTab(tabId), danger:true, disabled: chartTabs.length <= 1 },
+        ], e.clientX, e.clientY, tab.title || _chartTabTitle(tab.sym, tab.tf));
+        return;
+      }
+      const wlRow = e.target.closest('.wl-row');
+      if(wlRow){
+        e.preventDefault();
+        const sym = wlRow.dataset.sym;
+        showAppContextMenu([
+          { label:'Open chart', action:() => selSym(sym) },
+          { label:'Open in new tab', action:() => createChartTab(sym, curTF) },
+          { label:'Add alert', action:() => addAlertForSymbol(sym) },
+          { label:'Remove from watchlist', action:() => removeFromWatchlist(sym), danger:true },
+        ], e.clientX, e.clientY, sym);
+      }
+    });
+  }
 }
 
 // ── Auth UI functions ──────────────────────────────────────────────────────────
@@ -17794,7 +18293,7 @@ function loadJournal(){
 // Patch saveSettingsToStorage / loadSettingsFromStorage to use namespace
 function saveSettingsToStorage(){
   const settings={
-    theme: document.getElementById('sc-theme')?.value||'dark',
+    theme: document.getElementById('sc-theme')?.value||currentThemeName||'dark',
     candleBull: candleBullColor, candleBear: candleBearColor,
     smaCols: smaCols, barWidth: barWidth,
     indActive,
@@ -17815,6 +18314,10 @@ function saveSettingsToStorage(){
     scWicks:     _el('sc-wicks')?.checked,
     scPriceScale:_el('sc-pricescale')?.checked,
     scXAxisLbl:  _el('sc-xaxislabel')?.checked,
+    scGuestIntro: appPrefs.guestTutorialIntro,
+    scContextMenu: appPrefs.enableContextMenus,
+    scConfirmClear: appPrefs.confirmClearDrawings,
+    scAnimations: appPrefs.enableChartAnimations,
     scSma20c:    document.getElementById('sc-sma20c')?.value||'#3d7fff',
     scSma50c:    document.getElementById('sc-sma50c')?.value||'#f0a500',
     uiScale:     document.getElementById('sc-fontsize')?.value||'100',
@@ -17851,6 +18354,10 @@ function loadSettingsFromStorage(){
   if(s.showSessions != null){
     showSessions = !!s.showSessions;
   }
+  if(s.scGuestIntro != null) appPrefs.guestTutorialIntro = !!s.scGuestIntro;
+  if(s.scContextMenu != null) appPrefs.enableContextMenus = !!s.scContextMenu;
+  if(s.scConfirmClear != null) appPrefs.confirmClearDrawings = !!s.scConfirmClear;
+  if(s.scAnimations != null) appPrefs.enableChartAnimations = !!s.scAnimations;
   const toggleMap={scGrid:'sc-grid',scCross:'sc-crosshair',scHiLo:'sc-highlow',scDayBnd:'sc-dayboundary',scHollow:'sc-hollow',scOhlc:'sc-ohlc',scWater:'sc-watermark',scSidebar:'sc-sidebar',scRpanel:'sc-rpanel',scScanner:'sc-scanner',scDrawtb:'sc-drawtb',scStatusbar:'sc-statusbar',scWicks:'sc-wicks',scPriceScale:'sc-pricescale',scXAxisLbl:'sc-xaxislabel'};
   Object.entries(toggleMap).forEach(([k,id])=>{ if(s[k]!=null){ const el=document.getElementById(id); if(el) el.checked=s[k]; } });
   const pmap={sidebar:'sc-sidebar',rpanel:'sc-rpanel','scanner-wrap':'sc-scanner','draw-toolbar':'sc-drawtb',statusbar:'sc-statusbar'};
@@ -17861,12 +18368,14 @@ function loadSettingsFromStorage(){
   });
   saveIndActive();
   renderTopbarInds();
+  if(document.getElementById('settings-bg')?.classList.contains('open')) syncSettingsFormFromState();
 }
 // ══ INIT ══════════════════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
   sizeCanvases();
   positionChartTabsBar();
   setupEvents();
+  initContextMenus();
   initScannerDrag();
   initSidebarResize();
 
@@ -17890,7 +18399,9 @@ window.addEventListener('load', () => {
       closeAuthOverlay();
       enterGuestMode();
       switchChartTab(activeChartTabId, true, { focusLatest: true });
-      setTimeout(() => openTutorial({ page:'overview', intro:true }), 220);
+      if(appPrefs.guestTutorialIntro){
+        setTimeout(() => openTutorial({ page:'intro', intro:true }), 220);
+      }
     }
   })();
 
@@ -18028,7 +18539,7 @@ function openTutorial(options = {}){
   hydrateTutorialContent();
   _tutorialOpenedAsIntro = !!options.intro;
   document.getElementById('tut-bg').classList.add('open');
-  _setTutorialPage(options.page || 'overview');
+  _setTutorialPage(options.page || 'intro');
 }
 function closeTutorial(){
   document.getElementById('tut-bg').classList.remove('open');
