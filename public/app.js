@@ -16185,7 +16185,6 @@ function renderIndList(q){
     const rows = BUILTIN_INDS.filter(i=>!lq||i.name.toLowerCase().includes(lq)||i.desc.toLowerCase().includes(lq));
     if(!rows.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:10px;">No results</div>'; return; }
     el.innerHTML = rows.map(ind=>{
-      const active = getIndState(ind.id);
       const pinned = topbarInds.includes(ind.id);
       return `<div class="il-row" style="cursor:default;">
         <div style="font-size:18px;width:28px;text-align:center;flex-shrink:0;">${ind.icon}</div>
@@ -16194,10 +16193,6 @@ function renderIndList(q){
           <div class="il-desc">${ind.desc}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          ${active
-            ? `<button onclick="toggleInd('${ind.id}')" style="padding:4px 10px;background:rgba(0,201,160,.12);border:1px solid rgba(0,201,160,.38);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On chart</button>`
-            : `<button onclick="toggleInd('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--tl)';this.style.color='var(--tl)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">Show chart</button>`
-          }
           ${pinned
             ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
             : `<button onclick="addIndToTopbar('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
