@@ -11444,10 +11444,16 @@ async function aiComplete(prompt, {
   try {
     data = await res.json();
   } catch(parseErr) {
+    let rawText = '';
+    try { rawText = await res.text(); } catch(e) {}
+    const snippet = rawText.replace(/\s+/g, ' ').trim().slice(0, 180);
     if (res.status === 404) {
-      throw new Error('AI endpoint missing on this host. Run the site through Vercel (for example `vercel dev`) or deploy it to Vercel so `/api/ai` exists.');
+      throw new Error(`AI HTTP 404 from ${apiBase || window.location.origin}/api/ai${snippet ? ` — ${snippet}` : ''}`);
     }
-    throw new Error(`AI HTTP ${res.status} - invalid response`);
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`AI HTTP ${res.status}${snippet ? ` — ${snippet}` : ''}`);
+    }
+    throw new Error(`AI HTTP ${res.status} - invalid response${snippet ? ` — ${snippet}` : ''}`);
   }
 
   if(!res.ok){
