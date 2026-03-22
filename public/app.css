@@ -325,16 +325,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   background:rgba(0,212,160,.08);
 }
 .auth-top-btn-primary:hover{background:rgba(0,212,160,.14);}
-#btn-chart-tab-top{
-  border-color:rgba(61,142,255,.24);
-  color:var(--blue);
-  background:rgba(61,142,255,.08);
-  font-weight:600;
-}
-#btn-chart-tab-top:hover{
-  background:rgba(61,142,255,.14);
-  color:#a9c9ff;
-}
 /* Symbol button */
 #sym-pill{
   display:flex;align-items:center;gap:8px;
@@ -898,23 +888,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 }
 .chart-tab-close:hover{background:rgba(255,77,106,.1);color:var(--red);}
 #chart-tab-add{
+  width:30px;
+  min-width:30px;
   height:30px;
-  padding:0 12px;
-  border-radius:6px 6px 0 0;
+  padding:0;
+  display:grid;
+  place-items:center;
+  border-radius:6px;
   border:1px solid rgba(61,142,255,.3);
-  border-bottom:none;
   background:rgba(20,35,56,.8);
   backdrop-filter:blur(10px);
   -webkit-backdrop-filter:blur(10px);
   color:#a9c9ff;
   font-family:var(--font-mono);
-  font-size:10px;
-  font-weight:600;
+  font-size:18px;
+  font-weight:700;
   cursor:pointer;
-  white-space:nowrap;
   transition:all .15s;
-  transform:translateY(1px);
+  align-self:center;
+  line-height:1;
   pointer-events:auto;
+  flex-shrink:0;
 }
 #chart-tab-add:hover{
   border-color:rgba(61,142,255,.48);
