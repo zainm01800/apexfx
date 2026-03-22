@@ -790,6 +790,95 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 /* ─── CHART BODY ─────────────────────────────────────────────────────────── */
 #chart-body{display:flex;flex:1;overflow:hidden;position:relative;height:100%;}
 #chart-area{flex:1;display:flex;flex-direction:column;overflow:clip;position:relative;background:transparent;}
+#chart-tabs-bar{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:38px;
+  padding:6px 10px 4px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+  flex-shrink:0;
+}
+#chart-tabs-list{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  flex:1;
+  min-width:0;
+}
+#chart-tabs-list::-webkit-scrollbar{display:none;}
+.chart-tab{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  max-width:220px;
+  height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--tx2);
+  cursor:pointer;
+  transition:all .15s;
+}
+.chart-tab:hover{background:rgba(255,255,255,.07);color:var(--tx);}
+.chart-tab.active{
+  background:rgba(0,212,160,.08);
+  border-color:rgba(0,212,160,.26);
+  color:var(--tx);
+  box-shadow:inset 0 0 0 1px rgba(0,212,160,.08);
+}
+.chart-tab-label{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-family:var(--font-mono);
+  font-size:10px;
+}
+.chart-tab-meta{
+  font-family:var(--font-mono);
+  font-size:9px;
+  color:var(--tx3);
+  white-space:nowrap;
+}
+.chart-tab.active .chart-tab-meta{color:rgba(237,242,250,.72);}
+.chart-tab-close{
+  width:18px;
+  height:18px;
+  border:none;
+  border-radius:999px;
+  background:transparent;
+  color:var(--tx3);
+  cursor:pointer;
+  font-size:11px;
+  line-height:1;
+  flex-shrink:0;
+  transition:all .15s;
+}
+.chart-tab-close:hover{background:rgba(255,77,106,.1);color:var(--red);}
+#chart-tab-add{
+  height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px dashed rgba(255,255,255,.14);
+  background:rgba(255,255,255,.03);
+  color:var(--tx2);
+  font-family:var(--font-mono);
+  font-size:10px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s;
+}
+#chart-tab-add:hover{
+  border-color:rgba(0,212,160,.28);
+  color:var(--green);
+  background:rgba(0,212,160,.06);
+}
 #chart-wrap{display:flex;flex:1;overflow:hidden;position:relative;}
 canvas{display:block;flex-shrink:0;}
 #main-canvas{cursor:crosshair;}
