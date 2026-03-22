@@ -255,8 +255,8 @@ function _chartTabId(){
 function _chartTabStorageKey(){
   return 'chart-tabs-v1';
 }
-function _chartTabTitle(sym){
-  return sym || 'Chart';
+function _chartTabTitle(sym, tf){
+  return sym ? `${sym}${tf ? ` ${String(tf).toUpperCase()}` : ''}` : 'Chart';
 }
 function _chartTabMeta(tab){
   return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
@@ -278,7 +278,7 @@ function saveCurrentChartTabState(){
   const tab = chartTabs.find(t => t.id === activeChartTabId);
   if(!tab) return;
   Object.assign(tab, _chartTabSnapshot(), {
-    title: _chartTabTitle(curSym?.s || tab.sym),
+    title: _chartTabTitle(curSym?.s || tab.sym, curTF || tab.tf),
     updatedAt: Date.now(),
   });
 }
@@ -309,7 +309,7 @@ function ensureChartTabs(){
   if(!chartTabs.length){
     chartTabs = [{
       id: _chartTabId(),
-      title: _chartTabTitle(curSym?.s || SYMS[0].s),
+      title: _chartTabTitle(curSym?.s || SYMS[0].s, curTF || '1d'),
       ..._chartTabSnapshot(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -325,7 +325,7 @@ function renderChartTabs(){
   el.innerHTML = chartTabs.map(tab => `
     <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" onclick="switchChartTab('${tab.id}')">
       <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
-        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym)}</span>
+        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym, tab.tf)}</span>
         <span class="chart-tab-meta">${_chartTabMeta(tab)}</span>
       </div>
       <button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button>
@@ -362,7 +362,7 @@ function createChartTab(sym, tf){
   const snapshot = base ? { ...base } : _chartTabSnapshot();
   const tab = {
     id: _chartTabId(),
-    title: _chartTabTitle(sym || snapshot.sym || curSym?.s || SYMS[0].s),
+    title: _chartTabTitle(sym || snapshot.sym || curSym?.s || SYMS[0].s, tf || snapshot.tf || curTF || '1d'),
     sym: sym || snapshot.sym || curSym?.s || SYMS[0].s,
     tf: tf || snapshot.tf || curTF || '1d',
     chartType: snapshot.chartType || curCT || 'heikin',
@@ -15625,7 +15625,7 @@ async function loadSym(sym){
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
     activeTab.sym = curSym.s;
-    activeTab.title = _chartTabTitle(curSym.s);
+    activeTab.title = _chartTabTitle(curSym.s, curTF);
     activeTab.tf = curTF;
     activeTab.chartType = curCT;
     activeTab.updatedAt = Date.now();
@@ -15739,6 +15739,7 @@ function setTF(btn,tf){
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
     activeTab.tf = tf;
+    activeTab.title = _chartTabTitle(activeTab.sym || curSym?.s, tf);
     activeTab.updatedAt = Date.now();
     renderChartTabs();
   }
@@ -16316,6 +16317,7 @@ function buildWL(filter=''){
   document.getElementById('wl-list').innerHTML=html;
 }
 function selSym(s){loadSym(s);closeModal();}
+function selSymNewTab(s){ createChartTab(s, curTF); closeModal(); }
 
 // ══ DRAGGABLE POPUPS ══════════════════════════════════════════════════════════
 // makeDraggable(el, handle) — call once per popup on DOMContentLoaded.
@@ -16417,6 +16419,7 @@ function filterModal(q){
     return `<div class="mr" onclick="selSym('${s.s}')">
       <div class="mr-s">${s.s}</div><div class="mr-n">${s.n}</div>
       <div class="mr-p">${fP(s.p)}</div><div class="mr-t">${s.t}</div>
+      <button onclick="event.stopPropagation();selSymNewTab('${s.s}')" style="flex-shrink:0;padding:2px 8px;border-radius:999px;font-size:10px;font-family:monospace;cursor:pointer;transition:all .15s;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.24);color:var(--blue);" onmouseover="this.style.background='rgba(61,142,255,.14)';this.style.color='#a9c9ff'" onmouseout="this.style.background='rgba(61,142,255,.08)';this.style.color='var(--blue)'">+ Tab</button>
       <button onclick="event.stopPropagation();${watching?`removeFromWatchlist('${s.s}')`:`addToWatchlist('${s.s}')`}" style="flex-shrink:0;padding:2px 8px;border-radius:3px;font-size:11px;font-family:monospace;cursor:pointer;transition:all .15s;${watching?'background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.4);color:var(--am);':'background:transparent;border:1px solid var(--b2);color:var(--tx3);'}" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='${watching?'rgba(240,165,0,.4)':'var(--b2)'}';this.style.color='${watching?'var(--am)':'var(--tx3)'}">${watching?'✓ Watching':'+ Watch'}</button>
     </div>`;
   }).join('');
