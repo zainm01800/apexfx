@@ -248,6 +248,7 @@ let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
 let chartTabs = [];
 let activeChartTabId = null;
 let chartTabSeq = 1;
+let chartLoadSeq = 0;
 
 function _chartTabId(){
   return `chart_${Date.now()}_${chartTabSeq++}`;
@@ -356,6 +357,9 @@ function positionChartTabsBar(){
   bar.style.left = `${Math.max(0, leftEdge - areaRect.left)}px`;
   bar.style.right = `${Math.max(0, areaRect.right - rightEdge)}px`;
 }
+function isCurrentChartRequest(tabId, tf, sym, seq){
+  return activeChartTabId === tabId && curTF === tf && curSym?.s === sym && chartLoadSeq === seq;
+}
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
   const base = chartTabs.find(t => t.id === activeChartTabId);
@@ -427,6 +431,7 @@ function switchChartTab(id, skipSave){
   applyChartTabWorkspace(tab);
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
+    if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
     rightBarIndex = Math.max(curData.length ? 1 : 0, Math.min(tab.rightBarIndex || (curData.length + 5), curData.length + 40));
@@ -15619,28 +15624,32 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
 
 // ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
-  if(curSym && curSym.s) saveDrawings(curSym.s, curTF);
+  const requestTabId = activeChartTabId;
+  const requestTF = curTF;
+  const requestSeq = ++chartLoadSeq;
+  if(curSym && curSym.s) saveDrawings(curSym.s, requestTF);
   const prevSym = curSym?.s;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
     activeTab.sym = curSym.s;
-    activeTab.title = _chartTabTitle(curSym.s, curTF);
-    activeTab.tf = curTF;
+    activeTab.title = _chartTabTitle(curSym.s, requestTF);
+    activeTab.tf = requestTF;
     activeTab.chartType = curCT;
     activeTab.updatedAt = Date.now();
     renderChartTabs();
   }
+  const requestKey = sym+'_'+requestTF;
   // Use last real close as placeholder base so all TFs start from the same price
   const placeholderBase = (prevSym === sym && curData.length)
     ? curData[curData.length-1].close
     : curSym.p;
-  curData = genData(placeholderBase, 300, VOL_MAP[curTF]||.018);
+  curData = genData(placeholderBase, 300, VOL_MAP[requestTF]||.018);
   barWidth=8; rightBarIndex=curData.length+5; priceHi=null; priceLo=null;
   // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
-  delete aiCache[curSym.s+'_'+curTF];
+  delete aiCache[requestKey];
 
   // Restore indicator on/off state from persisted indActive (not from topbarInds)
   applyIndActive();
@@ -15650,14 +15659,15 @@ async function loadSym(sym){
   setSrcStatus('⟳ fetching…','var(--tx3)');
 
   // Check session cache first
-  if(dataCache[sym+'_'+curTF]){
-    curData = dataCache[sym+'_'+curTF];
+  if(dataCache[requestKey]){
+    if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
+    curData = dataCache[requestKey];
     // Keep p in sync with cached real price
     const cachedClose = curData[curData.length-1]?.close;
     if(cachedClose && curSym.p !== cachedClose) curSym.p = cachedClose;
     rightBarIndex = curData.length+5;
     // Real data — now safe to resolve drawing timestamps → bar indices
-    loadDrawings(sym, curTF);
+    loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
     updateTopbar(); draw(); buildAIPanel(true);
     setSrcStatus('● live · cached','var(--tl)');
@@ -15670,24 +15680,25 @@ async function loadSym(sym){
     let bars = [];
     if(curSym.t === 'Crypto'){
       const shortTFs = ['1m', '5m', '15m', '1h'];
-      if (shortTFs.includes(curTF)) {
+      if (shortTFs.includes(requestTF)) {
         // For short timeframes, chain two 1000-bar fetches to get ~2000 bars
-        const recent = await fetchBinanceCandles(sym, curTF);
+        const recent = await fetchBinanceCandles(sym, requestTF);
         const older = recent.length > 0
-          ? await fetchBinanceCandles(sym, curTF, null, recent[0].time * 1000)
+          ? await fetchBinanceCandles(sym, requestTF, null, recent[0].time * 1000)
           : [];
         const combined = [...older, ...recent];
         const seen = new Set();
         bars = combined.filter(b => { if (seen.has(b.time)) return false; seen.add(b.time); return true; });
         bars.sort((a, b) => a.time - b.time);
       } else {
-        bars = await fetchBinanceCandles(sym, curTF);
+        bars = await fetchBinanceCandles(sym, requestTF);
       }
     }
 
-    if(bars.length >= 2 && sym===curSym.s){
+    if(bars.length >= 2){
+      if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       bars.sort((a,b)=>a.time-b.time);
-      dataCache[sym+'_'+curTF] = bars;
+      dataCache[requestKey] = bars;
       curData = bars;
       // Keep curSym.p in sync with real price so placeholder is accurate next load
       const realClose = bars[bars.length-1].close;
@@ -15695,17 +15706,19 @@ async function loadSym(sym){
       invalidateIndCache();
       rightBarIndex = curData.length+5;
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
-      loadDrawings(sym, curTF);
+      loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
       saveChartTabs();
     } else {
+      if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
       setSrcStatus('⚠ simulated · no live data','var(--am)');
       saveChartTabs();
     }
   } catch(err){
+    if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
     setSrcStatus('⚠ simulated · fetch error','var(--rd)');
     saveChartTabs();
   }
@@ -15736,6 +15749,7 @@ function updateTopbar(){
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
+  const requestTabId = activeChartTabId;
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
     activeTab.tf = tf;
@@ -15748,6 +15762,7 @@ function setTF(btn,tf){
   document.querySelectorAll('.tf').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   loadSym(curSym.s).then(() => {
+    if(activeChartTabId !== requestTabId) return;
     // Re-anchor any AI-placed drawings to the latest bar in the new data
     const n = curData.length;
     if(!n) return;
