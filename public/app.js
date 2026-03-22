@@ -17909,69 +17909,92 @@ window.addEventListener('load', () => {
 let _tutorialHydrated = false;
 let _tutorialOpenedAsIntro = false;
 let _tutorialHelpPulseTimer = null;
+const TUT_PAGES = ['intro','copilot','mentor','review','workspace'];
+let _tutIdx = 0;
 
 function hydrateTutorialContent(){
   if(_tutorialHydrated) return;
   const titleEl = document.getElementById('tut-hdr-title');
   const subEl = document.getElementById('tut-hdr-sub');
-  const aiNavBtn = document.querySelector('.tut-nav-btn[onclick*="aipanel"]');
-  const overview = document.getElementById('tut-overview');
-  const layout = document.getElementById('tut-layout');
+  const nav = document.getElementById('tut-nav');
+  const content = document.getElementById('tut-content');
+  const footerHint = document.getElementById('tut-footer-hint');
+  const prevBtn = document.querySelector('#tut-footer .tut-nav-prev');
+  const nextBtn = document.querySelector('#tut-footer .tut-nav-next');
   if(titleEl) titleEl.textContent = 'APEXFX Help & Tutorial';
-  if(subEl) subEl.textContent = 'Quick start, workflows, and AI guidance';
-  if(aiNavBtn){
-    const labelNode = aiNavBtn.childNodes[aiNavBtn.childNodes.length - 1];
-    if(labelNode) labelNode.textContent = 'Live AI Copilot';
+  if(subEl) subEl.textContent = 'A quick intro to what makes APEXFX different';
+  if(nav){
+    nav.innerHTML = `
+      <div class="tut-nav-section">Quick Intro</div>
+      <button class="tut-nav-btn on" onclick="tutPage(this,'intro')"><span class="tut-nav-icon">1</span>Start Here</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'copilot')"><span class="tut-nav-icon">2</span>Live AI Copilot</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'mentor')"><span class="tut-nav-icon">3</span>Mentor & Replay</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'review')"><span class="tut-nav-icon">4</span>Analysis & Journal</button>
+      <button class="tut-nav-btn" onclick="tutPage(this,'workspace')"><span class="tut-nav-icon">5</span>Your Workspace</button>
+    `;
   }
-  if(overview){
-    overview.innerHTML = `
-      <div class="tut-hero">
-        <div class="tut-hero-kicker">Start here</div>
-        <div class="tut-h1">Welcome to APEXFX</div>
-        <div class="tut-lead">APEXFX is a charting workspace with AI built directly into the trading workflow. You can explore it without an account, then sign in later to sync your charts, journal, settings, and trader profile.</div>
-        <div class="tut-hero-actions">
-          <span class="tut-pill">Guest mode ready</span>
-          <span class="tut-pill">Live AI copilot</span>
-          <span class="tut-pill">Replay mentor</span>
-          <span class="tut-pill">Trade analysis</span>
+  if(content){
+    content.innerHTML = `
+      <div class="tut-page on" id="tut-intro">
+        <div class="tut-hero">
+          <div class="tut-hero-kicker">Welcome</div>
+          <div class="tut-h1">This is not just a charting site</div>
+          <div class="tut-lead">APEXFX is built to help you find, understand, practise, and review trades in one place. You can use it right away in guest mode, then sign in later to sync everything.</div>
+          <div class="tut-hero-actions">
+            <span class="tut-pill">Use without an account</span>
+            <span class="tut-pill">AI built into the workflow</span>
+            <span class="tut-pill">Training + review</span>
+          </div>
         </div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Find ideas</div><div class="tut-card-body">Use AI Setups, scans, and pre-market tools to surface markets worth looking at.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Validate trades</div><div class="tut-card-body">Use Trade Analysis to judge the exact entry, stop, target, and timing.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Train your eye</div><div class="tut-card-body">Replay + Mentor teaches setups on historical charts instead of only giving signals.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Build your edge</div><div class="tut-card-body">Journal and analytics turn your trade history into feedback and pattern recognition.</div></div>
+        </div>
+        <div class="tut-tip">Best first workflow: open a chart, check the AI tab, run Trade Analysis on a setup, then try Replay Mentor when you want to practise.</div>
       </div>
-      <div class="tut-h2">The quickest way to learn the platform</div>
-      <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>Pick a market and timeframe.</strong> Each chart tab can keep its own pair, timeframe, indicators, and viewport.</div></div>
-      <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Use the AI tab for live context.</strong> The copilot reads structure, levels, trend, and recent changes on the current chart.</div></div>
-      <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Run AI Setups or Trade Analysis when you want a decision.</strong> The scanner finds ideas. Trade Analysis judges the exact execution.</div></div>
-      <div class="tut-step"><div class="tut-step-num">4</div><div class="tut-step-body"><strong>Use Replay + Mentor to practise.</strong> The mentor teaches setups, explains confluences, and reviews your decisions after the trade.</div></div>
-      <div class="tut-step"><div class="tut-step-num">5</div><div class="tut-step-body"><strong>Review journal and analytics.</strong> Over time the platform highlights your strengths, weaknesses, and repeated mistakes.</div></div>
-      <div class="tut-tip">You do not need to sign in to use the website. Signing in mainly adds cloud sync, saved progress, and a persistent trader profile.</div>
-      <div class="tut-h2">What this platform is built for</div>
-      <div class="tut-grid">
-        <div class="tut-card"><div class="tut-card-title">Live chart workspace</div><div class="tut-card-body">Multi-tab charts with drawings, indicators, saved layouts, replay, and fast symbol switching.</div></div>
-        <div class="tut-card"><div class="tut-card-title">AI copilot on the chart</div><div class="tut-card-body">The AI tab explains what is happening now, what changed recently, and what level or scenario matters next.</div></div>
-        <div class="tut-card"><div class="tut-card-title">AI setup discovery</div><div class="tut-card-body">Use AI Setups and pre-market tools to find strong opportunities before you drill into execution.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Decision support</div><div class="tut-card-body">Trade Analysis separates setup quality from entry quality and can suggest a better version of the same trade idea.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Mentor and replay training</div><div class="tut-card-body">Practise historical setups with guided teaching, preview mode, annotations, and post-trade feedback.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Journal, analytics, and memory</div><div class="tut-card-body">Track trades, review patterns, and let the platform build a clearer picture of your edge over time.</div></div>
+      <div class="tut-page" id="tut-copilot">
+        <div class="tut-h1">Live AI Copilot</div>
+        <div class="tut-lead">The AI tab on the right is your live market read. It is meant to explain what the chart is doing right now, not just throw a random signal at you.</div>
+        <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>Reads the current chart state.</strong> It looks at trend, structure, levels, and recent changes.</div></div>
+        <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Gets better when you draw on the chart.</strong> Mark levels, zones, or a thesis and the copilot becomes more specific.</div></div>
+        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Helps with context.</strong> It tells you what changed, what matters next, and whether your thesis is strengthening or weakening.</div></div>
+        <div class="tut-tip">Think of the AI tab as your live chart briefing. Think of Trade Analysis as the deeper decision check before taking the trade.</div>
       </div>
-      <div class="tut-tip">Use the left navigation to jump to the part you need. This guide is meant to work both as a first-time introduction and as a quick reference later.</div>
+      <div class="tut-page" id="tut-mentor">
+        <div class="tut-h1">Mentor & Replay</div>
+        <div class="tut-lead">This is one of the most unique parts of APEXFX. Instead of only analysing the live market, the platform can teach you on historical charts too.</div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Replay mode</div><div class="tut-card-body">Step through old price action and practise reading the market without knowing what happens next.</div></div>
+          <div class="tut-card"><div class="tut-card-title">AI Mentor</div><div class="tut-card-body">The mentor spots setups, explains confluences, and can either guide you or let you try it yourself.</div></div>
+        </div>
+        <div class="tut-warn">The goal is not just signals. The goal is to help you understand why a setup is valid, what confirms it, and what would invalidate it.</div>
+      </div>
+      <div class="tut-page" id="tut-review">
+        <div class="tut-h1">Analysis, Journal, and Growth</div>
+        <div class="tut-lead">APEXFX is designed to carry one trade idea through the whole process: discovery, validation, execution, and review.</div>
+        <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>AI Setups finds ideas.</strong> It shows markets and setups worth checking.</div></div>
+        <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Trade Analysis checks the exact trade.</strong> It separates setup quality from execution quality.</div></div>
+        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Journal and analytics close the loop.</strong> Your history starts revealing habits, strengths, and weak spots.</div></div>
+        <div class="tut-tip">Over time, the goal is for the platform to feel less like a dashboard and more like a trading workspace that learns how you operate.</div>
+      </div>
+      <div class="tut-page" id="tut-workspace">
+        <div class="tut-h1">Your Workspace</div>
+        <div class="tut-lead">You do not need to learn every button on day one. Just know where the core pieces are.</div>
+        <div class="tut-grid">
+          <div class="tut-card"><div class="tut-card-title">Top of chart</div><div class="tut-card-body">Symbol, timeframe, and chart tabs. Each tab can hold its own chart state.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Left side</div><div class="tut-card-body">Watchlist, drawing tools, and the Help button you can come back to anytime.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Right side</div><div class="tut-card-body">AI, analytics, and news. This is where most of the guided intelligence lives.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Guest vs account</div><div class="tut-card-body">Guest mode lets you explore. Signing in brings cloud sync, saved progress, and a persistent trader profile.</div></div>
+        </div>
+        <div class="tut-tip">That is all you really need to get started. Use this button again later if you want a quick reset.</div>
+      </div>
     `;
   }
-  if(layout){
-    layout.innerHTML = `
-      <div class="tut-h1">App Layout</div>
-      <div class="tut-lead">APEXFX is built around one main chart workspace, with AI and trader tools wrapped around it. Once you know what each zone does, the whole platform becomes much easier to use.</div>
-      <div class="tut-h2">Zone map</div>
-      <div class="tut-grid">
-        <div class="tut-card"><div class="tut-card-title">Top bar</div><div class="tut-card-body">Symbol, live price, OHLC, timeframe buttons, chart type, journal access, account controls, and workspace actions.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Chart tabs</div><div class="tut-card-body">Small tabs at the top of the chart. Each one can hold its own pair, timeframe, indicators, and chart view.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Scanner bar</div><div class="tut-card-body">Quick prompts for AI-driven discovery. Use it when you want the platform to surface markets or setups worth checking.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Left side tools</div><div class="tut-card-body">Watchlist, alerts, drawing tools, settings, and the Help & Tutorial button at the bottom-left.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Chart area</div><div class="tut-card-body">The main workspace for price action, drawings, indicators, replay, and mentor annotations. Scroll to zoom and drag to pan.</div></div>
-        <div class="tut-card"><div class="tut-card-title">Right panel</div><div class="tut-card-body">AI, Analytics, and News. This is where live AI context, trader performance, and supporting market information live.</div></div>
-      </div>
-      <div class="tut-warn">The smoothest learning path is: chart first, then AI tab, then Trade Analysis, then Replay Mentor, then journal and analytics.</div>
-      <div class="tut-tip">If you ever feel lost, the Help & Tutorial button in the bottom-left corner is your quick reset point.</div>
-    `;
-  }
+  if(footerHint) footerHint.textContent = 'Quick intro to the unique parts of APEXFX';
+  if(prevBtn) prevBtn.textContent = 'Prev';
+  if(nextBtn) nextBtn.textContent = 'Next';
   _tutorialHydrated = true;
 }
 
@@ -18016,9 +18039,6 @@ function closeTutorial(){
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape') closeTutorial();
 });
-
-const TUT_PAGES = ['overview','layout','symbols','timeframes','charttypes','drawings','fibonacci','indicators','indbuilder','scanner','aipanel','watchlist','journal','analytics','replay','psc','shortcuts'];
-let _tutIdx = 0;
 
 function tutPage(btn, id){
   _setTutorialPage(id);
