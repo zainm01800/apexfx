@@ -17051,18 +17051,21 @@ function applyUIScale(val){
   const root = document.documentElement;
   if(app){
     const safePct = pct || 1;
-    app.style.zoom = safePct;
-    app.style.width = '100%';
+    app.style.zoom = '1';
+    app.style.transform = `scale(${safePct})`;
+    app.style.transformOrigin = 'top left';
+    app.style.width = `${100 / safePct}%`;
     app.style.height = `${100 / safePct}%`;
     app.style.minHeight = `${100 / safePct}vh`;
-    app.style.transformOrigin = 'top left';
   }
   if(root){
     const safePct = pct || 1;
     root.style.setProperty('--statusbar-h', `${22 / safePct}px`);
   }
   if(statusbar){
-    statusbar.style.zoom = pct ? String(1 / pct) : '1';
+    const safePct = pct || 1;
+    statusbar.style.zoom = '1';
+    statusbar.style.transform = `scale(${1 / safePct})`;
     statusbar.style.transformOrigin = 'left bottom';
   }
   const lbl = document.getElementById('sc-fontsize-v');
