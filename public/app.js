@@ -11408,6 +11408,15 @@ let newsCache = {};
 // Order: all Groq keys first (fastest), then Gemini Flash as fallback.
 // Add more Groq keys by creating additional free accounts at console.groq.com.
 // Get a Gemini key free at aistudio.google.com (15 RPM, 1M tokens/day).
+function getLocalApiBase(){
+  try{
+    const { protocol, hostname, port } = window.location;
+    if((hostname === 'localhost' || hostname === '127.0.0.1') && port && port !== '3001'){
+      return `${protocol}//${hostname}:3001`;
+    }
+  }catch(e){}
+  return '';
+}
 async function aiComplete(prompt, {
   model = 'llama-3.1-8b-instant',
   max_tokens = 1000,
@@ -11415,8 +11424,9 @@ async function aiComplete(prompt, {
   timeoutMs = 30000,
 } = {}){
   let res;
+  const apiBase = getLocalApiBase();
   try {
-    res = await fetch('/api/ai', {
+    res = await fetch(`${apiBase}/api/ai`, {
       method: 'POST',
       signal: AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json' },
