@@ -360,6 +360,24 @@ function positionChartTabsBar(){
 function isCurrentChartRequest(tabId, tf, sym, seq){
   return activeChartTabId === tabId && curTF === tf && curSym?.s === sym && chartLoadSeq === seq;
 }
+function resetChartInteractionState(){
+  isPanning = false;
+  isXScaling = false;
+  isYScaling = false;
+  isDraggingDrawing = false;
+  isResizingDrawing = false;
+  isMarquee = false;
+  resizeHandle = null;
+  dragSnapshot = null;
+  selectedDrawing = null;
+  selectedDrawings = [];
+  drawingWIP = null;
+  mouseX = -1;
+  mouseY = -1;
+  _replayLineDragging = false;
+  const mc = _el('main-canvas');
+  if(mc) mc.style.cursor = activeTool === 'eraser' ? 'cell' : 'crosshair';
+}
 function clampChartTabRightIndex(savedIndex, dataLen){
   const fallback = dataLen + 5;
   if(!dataLen) return Math.max(1, savedIndex || fallback);
@@ -434,6 +452,7 @@ function switchChartTab(id, skipSave){
   if(!skipSave) saveCurrentChartTabState();
   const tab = chartTabs.find(t => t.id === id);
   if(!tab) return;
+  resetChartInteractionState();
   activeChartTabId = id;
   applyChartTabWorkspace(tab);
   rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
@@ -448,6 +467,12 @@ function switchChartTab(id, skipSave){
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     drawingWIP = null;
     selectedDrawing = null;
+    selectedDrawings = [];
+    isDraggingDrawing = false;
+    isResizingDrawing = false;
+    isMarquee = false;
+    resizeHandle = null;
+    dragSnapshot = null;
     syncTimeframeButtons();
     const iconEl = document.getElementById('ct-sel-icon');
     if(iconEl) iconEl.textContent = ctIconFor(curCT);
