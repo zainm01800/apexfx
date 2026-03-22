@@ -614,6 +614,15 @@ let priceLo = null;
 
 // ── Mouse / drag state ────────────────────────────────────────────────────────
 let mouseX = -1, mouseY = -1;
+let uiScale = 1;
+
+function getUIScale(){
+  return uiScale || 1;
+}
+
+function uiToCanvasPx(px){
+  return px / getUIScale();
+}
 let isPanning = false;
 let isXScaling = false;
 let isYScaling = false;
@@ -1394,7 +1403,7 @@ function captureChart(){
     canvases.forEach(c=>{ ctx2.drawImage(c,0,y,W,c.height); y+=c.height; });
 
     // watermark
-    if(_el('sc-watermark')?.checked!==false){
+    if(isSettingEnabled('scWater', true)){
     ctx2.fillStyle = 'rgba(240,165,0,.6)'; ctx2.font = 'bold 11px monospace'; ctx2.textAlign = 'right';
     ctx2.fillText(`APEX FX · ${curSym.s} · ${curTF} · ${new Date().toLocaleString()}`, W-8, H-6); }
 
@@ -11716,8 +11725,8 @@ function _drawImmediate(){
   // Grid (horizontal)
   for(let i=0;i<=6;i++){
     const y=Math.floor(H/6*i)+.5;
-    if(_el('sc-grid')?.checked!==false){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-    if(_el('sc-pricescale')?.checked!==false){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
+    if(isSettingEnabled('scGrid', true)){ ctx.strokeStyle=C.b1; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    if(isSettingEnabled('scPriceScale', true)){ ctx.fillStyle=C.tx2; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-3,y-2); }
   }
 
   // ── TradingView-style x-axis ───────────────────────────────────────────────
@@ -11762,8 +11771,10 @@ function _drawImmediate(){
   }
 
   // ── Pass 2: draw grid lines (never suppressed by crosshair) ─────────────
-  if(_el('sc-grid')?.checked !== false){
+  if(isSettingEnabled('scGrid', true)){
+    const showDayBoundaries = isSettingEnabled('scDayBnd', true);
     for(const {x, tick} of xTicks){
+      if(!showDayBoundaries && tick.tier <= 1) continue;
       const lineAlpha = tick.tier <= 1 ? 0.18 : tick.tier === 2 ? 0.12 : 0.07;
       ctx.strokeStyle = tick.tier <= 1 ? ca(C.am, lineAlpha) : C.b1;
       ctx.lineWidth   = tick.tier <= 1 ? 1.5 : 1;
@@ -11777,6 +11788,7 @@ function _drawImmediate(){
 
   // ── Pass 3: draw labels (suppressed under crosshair only) ───────────────
   for(const {x, tick} of xTicks){
+    if(!isSettingEnabled('scDayBnd', true) && tick.tier <= 1) continue;
     if(x >= xhLabelL && x <= xhLabelR) continue;
     ctx.font      = tick.bold ? 'bold 11px monospace' : '11px monospace';
     ctx.fillStyle = tick.tier === 0 ? C.tx
@@ -11852,13 +11864,13 @@ function _drawImmediate(){
       const col=up?candleBullColor:candleBearColor;
       const yO=py(Math.max(d.open,d.close)), yC=py(Math.min(d.open,d.close));
       const bh=Math.max(1,yC-yO);
-      if(_el('sc-wicks')?.checked!==false){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
-      if(bw2>=1){ if(_el('sc-hollow')?.checked){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
+      if(isSettingEnabled('scWicks', true)){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x,py(d.high)); ctx.lineTo(x,yO); ctx.moveTo(x,yC); ctx.lineTo(x,py(d.low)); ctx.stroke(); }
+      if(bw2>=1){ if(isSettingEnabled('scHollow', false)){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(x-bw2/2,yO,bw2,bh); } else { ctx.fillStyle=col; ctx.fillRect(x-bw2/2, yO, bw2, bh); } }
     }
   }
 
   // Visible high / low labels (live — based on what's currently on screen)
-  if(_el('sc-highlow')?.checked!==false){
+  if(isSettingEnabled('scHiLo', true)){
     // Find the actual highest high and lowest low bar in the visible range
     let hiPrice = -Infinity, loPrice = Infinity;
     let hiBarX = 0, loBarX = 0;
@@ -11964,7 +11976,7 @@ function _drawImmediate(){
     }
   }
 
-  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&_el('sc-crosshair')?.checked!==false){
+  if(mouseX>=0&&mouseX<W&&mouseY>=0&&mouseY<H&&isSettingEnabled('scCross', true)){
     ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.moveTo(mouseX,0); ctx.lineTo(mouseX,H); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,mouseY); ctx.lineTo(W-R_PANEL_OFFSET,mouseY); ctx.stroke();
@@ -11978,7 +11990,7 @@ function _drawImmediate(){
     const hoverBar = Math.round(firstBarOnScreen + (mouseX - barX(firstBarOnScreen)) / barWidth);
     const hb = Math.max(0,Math.min(data.length-1,hoverBar));
     // Timestamp label on X-axis at crosshair position
-    if(data[hb]&&_el('sc-xaxislabel')?.checked!==false){
+    if(data[hb]&&isSettingEnabled('scXAxisLbl', true)){
       const d  = new Date(data[hb].time * 1000);
       const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
       const timeStr = isSubDay
@@ -12002,7 +12014,7 @@ function _drawImmediate(){
     _el('tt-h').textContent=fP(d.high);
     _el('tt-l').textContent=fP(d.low);
     _el('tt-c').textContent=fP(d.close);
-    _el('tooltip').style.display=_el('sc-ohlc')?.checked!==false?'flex':'none';
+    _el('tooltip').style.display=isSettingEnabled('scOhlc', true)?'flex':'none';
   } else {
     _el('tooltip').style.display='none';
   }
@@ -15331,8 +15343,8 @@ function setupEvents(){
   // ── mousedown ─────────────────────────────────────────────────────────────
   mc.addEventListener('mousedown', e => {
     const r  = mc.getBoundingClientRect();
-    const lx = e.clientX - r.left;
-    const ly = e.clientY - r.top;
+    const lx = uiToCanvasPx(e.clientX - r.left);
+    const ly = uiToCanvasPx(e.clientY - r.top);
     const zone = getZone(lx, ly, mc.width, mc.height);
 
     // ── Replay: click on canvas play/pause button ────────────────────────
@@ -15376,8 +15388,8 @@ function setupEvents(){
 
     if(zone === 'pan'){
       isPanning    = true;
-      panStartX    = e.clientX;
-      panStartY    = e.clientY;
+      panStartX    = uiToCanvasPx(e.clientX);
+      panStartY    = uiToCanvasPx(e.clientY);
       panStartRight= rightBarIndex;
       // snapshot price range for vertical pan
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
@@ -15387,7 +15399,7 @@ function setupEvents(){
     }
     else if(zone === 'xscale'){
       isXScaling      = true;
-      xScaleStartX    = e.clientX;
+      xScaleStartX    = uiToCanvasPx(e.clientX);
       xScaleStartBW   = barWidth;
       // anchor: bar under mouse stays fixed — store both bar and pixel position
       xScaleAnchorX   = lx;
@@ -15396,7 +15408,7 @@ function setupEvents(){
     }
     else if(zone === 'yscale'){
       isYScaling        = true;
-      yScaleStartY      = e.clientY;
+      yScaleStartY      = uiToCanvasPx(e.clientY);
       if(priceHi === null){ const a=getAutoRange(); priceHi=a.hi; priceLo=a.lo; }
       yScaleStartHi     = priceHi;
       yScaleStartLo     = priceLo;
@@ -15415,8 +15427,8 @@ function setupEvents(){
 
   document.addEventListener('mousemove', e => {
     const r  = _mcRect;
-    mouseX = e.clientX - r.left;
-    mouseY = e.clientY - r.top;
+    mouseX = uiToCanvasPx(e.clientX - r.left);
+    mouseY = uiToCanvasPx(e.clientY - r.top);
 
     // Drawing WIP preview or drag/resize or marquee
     if(drawingWIP || isDraggingDrawing || isResizingDrawing || isMarquee){
@@ -15455,8 +15467,8 @@ function setupEvents(){
         return;
       }
       
-      const dx   = e.clientX - panStartX;
-      const dy   = e.clientY - panStartY;
+      const dx   = uiToCanvasPx(e.clientX) - panStartX;
+      const dy   = uiToCanvasPx(e.clientY) - panStartY;
 
       // Horizontal: shift rightBarIndex by how many bars we moved
       rightBarIndex = panStartRight - dx / barWidth;
@@ -15487,7 +15499,7 @@ function setupEvents(){
         return;
       }
       
-      const dx   = e.clientX - xScaleStartX;
+      const dx   = uiToCanvasPx(e.clientX) - xScaleStartX;
       // Exponential so small moves near centre feel natural
       const newBW = Math.max(1, Math.min(80, xScaleStartBW * Math.pow(1.005, dx)));
       // Keep anchor bar at same screen pixel — anchor bar stays at xScaleAnchorX from left
@@ -15507,7 +15519,7 @@ function setupEvents(){
         return;
       }
       
-      const dy       = e.clientY - yScaleStartY;
+      const dy       = uiToCanvasPx(e.clientY) - yScaleStartY;
       const oldRange = yScaleStartHi - yScaleStartLo;
       // drag down = zoom in (tighter range), drag up = zoom out
       const newRange = Math.max(oldRange * 0.01, oldRange * Math.pow(1.005, dy));
@@ -15647,8 +15659,8 @@ function setupEvents(){
   mc.addEventListener('wheel', e => {
     e.preventDefault();
     const r    = mc.getBoundingClientRect();
-    const lx   = e.clientX - r.left;
-    const ly   = e.clientY - r.top;
+    const lx   = uiToCanvasPx(e.clientX - r.left);
+    const ly   = uiToCanvasPx(e.clientY - r.top);
     const zone = getZone(lx, ly, mc.width, mc.height);
     const up   = e.deltaY < 0;
 
@@ -17045,12 +17057,15 @@ function initSidebarResize(){
 // ══ SETTINGS ══════════════════════════════════════════════════════════════════
 
 function applyUIScale(val){
-  const pct = parseFloat(val) / 100;
+  const numericVal = Math.max(80, Math.min(130, parseFloat(val) || 100));
+  const pct = numericVal / 100;
   const app = document.getElementById('app');
   const statusbar = document.getElementById('statusbar');
   const root = document.documentElement;
+  uiScale = pct || 1;
+  setSettingValue('uiScale', numericVal);
   if(app){
-    const safePct = pct || 1;
+    const safePct = uiScale;
     app.style.zoom = '1';
     app.style.transform = `scale(${safePct})`;
     app.style.transformOrigin = 'top left';
@@ -17059,24 +17074,35 @@ function applyUIScale(val){
     app.style.minHeight = `${100 / safePct}vh`;
   }
   if(root){
-    const safePct = pct || 1;
+    const safePct = uiScale;
     root.style.setProperty('--statusbar-h', `${22 / safePct}px`);
+    root.style.setProperty('--ui-scale', String(safePct));
   }
   if(statusbar){
-    const safePct = pct || 1;
+    const safePct = uiScale;
     statusbar.style.zoom = '1';
     statusbar.style.transform = `scale(${1 / safePct})`;
     statusbar.style.transformOrigin = 'left bottom';
   }
   const lbl = document.getElementById('sc-fontsize-v');
-  if(lbl) lbl.textContent = Math.round(val) + '%';
+  if(lbl) lbl.textContent = Math.round(numericVal) + '%';
   // After zoom, canvases need a redraw
   setTimeout(()=>{ try{ sizeCanvases(); draw(); }catch(e){} }, 50);
 }
 
 function applyPanelVisibility(panelId, isVisible){
-  const el = document.getElementById(panelId);
-  if(el) el.style.display = isVisible ? '' : 'none';
+  const targetIds = {
+    sidebar: ['nav'],
+    rpanel: ['rdrawer'],
+    'scanner-wrap': ['scanner-wrap'],
+    'draw-toolbar': ['nav-draw'],
+    statusbar: ['statusbar'],
+  };
+  const ids = targetIds[panelId] || [panelId];
+  ids.forEach(function(id){
+    const el = document.getElementById(id);
+    if(el) el.style.display = isVisible ? '' : 'none';
+  });
   if(panelId === 'sidebar' || panelId === 'rpanel'){
     positionChartTabsBar();
     setTimeout(() => { try { sizeCanvases(); draw(); } catch(e){} }, 50);
@@ -17087,6 +17113,8 @@ function applyToggleSetting(inputId){
   const el = document.getElementById(inputId);
   if(!el) return;
   const checked = !!el.checked;
+  const stateKey = getSettingStateKey(inputId);
+  setSettingValue(stateKey, checked);
   if(inputId === 'sc-scanner') applyPanelVisibility('scanner-wrap', checked);
   if(inputId === 'sc-drawtb') applyPanelVisibility('draw-toolbar', checked);
   if(inputId === 'sc-statusbar') applyPanelVisibility('statusbar', checked);
@@ -17266,8 +17294,8 @@ function syncSettingsFormFromState(){
   setValue('sc-sma50c', smaCols[1] || '#f0a500');
   const s20hex = document.getElementById('sc-sma20c-hex'); if(s20hex) s20hex.textContent = smaCols[0] || '#3d7fff';
   const s50hex = document.getElementById('sc-sma50c-hex'); if(s50hex) s50hex.textContent = smaCols[1] || '#f0a500';
-  setValue('sc-fontsize', (document.getElementById('app')?.style.zoom ? Math.round(parseFloat(document.getElementById('app').style.zoom) * 100) : 100));
-  const fsv = document.getElementById('sc-fontsize-v'); if(fsv) fsv.textContent = `${document.getElementById('sc-fontsize')?.value || 100}%`;
+  setValue('sc-fontsize', getSettingValue('uiScale', 100));
+  const fsv = document.getElementById('sc-fontsize-v'); if(fsv) fsv.textContent = `${getSettingValue('uiScale', 100)}%`;
   setValue('sc-newscache', newsCacheDuration);
 
   ['bg','bg2','am','tl','rd','bl'].forEach(k => {
@@ -17280,21 +17308,21 @@ function syncSettingsFormFromState(){
     }
   });
 
-  setChecked('sc-grid', _el('sc-grid')?.checked !== false);
-  setChecked('sc-crosshair', _el('sc-crosshair')?.checked !== false);
-  setChecked('sc-highlow', _el('sc-highlow')?.checked !== false);
-  setChecked('sc-dayboundary', _el('sc-dayboundary')?.checked !== false);
-  setChecked('sc-hollow', _el('sc-hollow')?.checked);
-  setChecked('sc-wicks', _el('sc-wicks')?.checked !== false);
-  setChecked('sc-pricescale', _el('sc-pricescale')?.checked !== false);
-  setChecked('sc-xaxislabel', _el('sc-xaxislabel')?.checked !== false);
-  setChecked('sc-ohlc', _el('sc-ohlc')?.checked !== false);
-  setChecked('sc-watermark', _el('sc-watermark')?.checked !== false);
-  setChecked('sc-sidebar', document.getElementById('sidebar')?.style.display !== 'none');
-  setChecked('sc-rpanel', document.getElementById('rpanel')?.style.display !== 'none');
-  setChecked('sc-scanner', document.getElementById('scanner-wrap')?.style.display !== 'none');
-  setChecked('sc-drawtb', document.getElementById('draw-toolbar')?.style.display !== 'none');
-  setChecked('sc-statusbar', document.getElementById('statusbar')?.style.display !== 'none');
+  setChecked('sc-grid', isSettingEnabled('scGrid', true));
+  setChecked('sc-crosshair', isSettingEnabled('scCross', true));
+  setChecked('sc-highlow', isSettingEnabled('scHiLo', true));
+  setChecked('sc-dayboundary', isSettingEnabled('scDayBnd', true));
+  setChecked('sc-hollow', isSettingEnabled('scHollow', false));
+  setChecked('sc-wicks', isSettingEnabled('scWicks', true));
+  setChecked('sc-pricescale', isSettingEnabled('scPriceScale', true));
+  setChecked('sc-xaxislabel', isSettingEnabled('scXAxisLbl', true));
+  setChecked('sc-ohlc', isSettingEnabled('scOhlc', true));
+  setChecked('sc-watermark', isSettingEnabled('scWater', true));
+  setChecked('sc-sidebar', isSettingEnabled('scSidebar', true));
+  setChecked('sc-rpanel', isSettingEnabled('scRpanel', true));
+  setChecked('sc-scanner', isSettingEnabled('scScanner', true));
+  setChecked('sc-drawtb', isSettingEnabled('scDrawtb', true));
+  setChecked('sc-statusbar', isSettingEnabled('scStatusbar', true));
   setChecked('sc-guestintro', appPrefs.guestTutorialIntro);
   setChecked('sc-contextmenu', appPrefs.enableContextMenus);
   setChecked('sc-confirmclear', appPrefs.confirmClearDrawings);
@@ -17363,6 +17391,61 @@ let appPrefs = {
   confirmClearDrawings: true,
   enableChartAnimations: true,
 };
+const SETTINGS_KEY_MAP = {
+  'sc-grid': 'scGrid',
+  'sc-crosshair': 'scCross',
+  'sc-highlow': 'scHiLo',
+  'sc-dayboundary': 'scDayBnd',
+  'sc-hollow': 'scHollow',
+  'sc-ohlc': 'scOhlc',
+  'sc-watermark': 'scWater',
+  'sc-sidebar': 'scSidebar',
+  'sc-rpanel': 'scRpanel',
+  'sc-scanner': 'scScanner',
+  'sc-drawtb': 'scDrawtb',
+  'sc-statusbar': 'scStatusbar',
+  'sc-wicks': 'scWicks',
+  'sc-pricescale': 'scPriceScale',
+  'sc-xaxislabel': 'scXAxisLbl',
+};
+const SETTINGS_DEFAULTS = {
+  scGrid: true,
+  scCross: true,
+  scHiLo: true,
+  scDayBnd: true,
+  scHollow: false,
+  scOhlc: true,
+  scWater: true,
+  scSidebar: true,
+  scRpanel: true,
+  scScanner: true,
+  scDrawtb: true,
+  scStatusbar: true,
+  scWicks: true,
+  scPriceScale: true,
+  scXAxisLbl: true,
+  uiScale: 100,
+};
+let settingsState = { ...SETTINGS_DEFAULTS };
+
+function getSettingStateKey(inputId){
+  return SETTINGS_KEY_MAP[inputId] || inputId;
+}
+function getSettingValue(key, fallback){
+  if(settingsState[key] != null) return settingsState[key];
+  return fallback;
+}
+function isSettingEnabled(key, fallback = true){
+  return !!getSettingValue(key, fallback);
+}
+function setSettingValue(key, value){
+  settingsState[key] = value;
+}
+function getDomCheckboxValue(inputId, fallbackKey, fallback){
+  const el = document.getElementById(inputId);
+  if(el) return !!el.checked;
+  return isSettingEnabled(fallbackKey, fallback);
+}
 
 function applyTheme(name){ invalidateCSSVarCache();
   const t = THEMES[name]; if(!t) return;
@@ -17406,6 +17489,7 @@ function syncIndicator(name, on){
 function resetAllSettings(){
   if(!confirm('Reset all settings to defaults?')) return;
   _lsRem('settings');
+  settingsState = { ...SETTINGS_DEFAULTS };
   appPrefs = {
     guestTutorialIntro: true,
     enableContextMenus: true,
@@ -17416,11 +17500,13 @@ function resetAllSettings(){
   showSMA=true; showBB=false; showEMA=false; showVWAP=false; showVol=true; showRSI=true; showMACD=false; showStoch=false;
   syncIndicator('sma',true); syncIndicator('bb',false); syncIndicator('vol',true); syncIndicator('rsi',true);
   ['sc-grid','sc-crosshair','sc-highlow','sc-dayboundary','sc-ohlc','sc-watermark','sc-sidebar','sc-rpanel','sc-scanner','sc-drawtb','sc-statusbar','sc-wicks','sc-pricescale','sc-xaxislabel'].forEach(function(id){
+    setSettingValue(getSettingStateKey(id), true);
     var el=document.getElementById(id); if(el) el.checked=true;
   });
+  setSettingValue('scHollow', false);
   var hol=document.getElementById('sc-hollow'); if(hol) hol.checked=false;
   ['sidebar','rpanel','scanner-wrap','draw-toolbar','statusbar'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.style.display='';
+    applyPanelVisibility(id, true);
   });
   barWidth=8; var bw=document.getElementById('sc-barwidth'); if(bw){ bw.value=8; document.getElementById('sc-barwidth-v').textContent='8px'; }
   applyUIScale(100); var fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=100; document.getElementById('sc-fontsize-v').textContent='100%'; }
@@ -17618,8 +17704,8 @@ function initContextMenus(){
       if(!appPrefs.enableContextMenus) return;
       e.preventDefault();
       const rect = mc.getBoundingClientRect();
-      const lx = e.clientX - rect.left;
-      const ly = e.clientY - rect.top;
+      const lx = uiToCanvasPx(e.clientX - rect.left);
+      const ly = uiToCanvasPx(e.clientY - rect.top);
       const bar = _xToBar ? Math.max(0, Math.min(curData.length - 1, Math.round(_xToBar(lx)))) : Math.max(0, curData.length - 1);
       const price = _yToPrice ? _yToPrice(ly) : curData[curData.length - 1]?.close;
       const hit = [...drawings].reverse().find(d => hitTest(d, lx, ly) || _mentorBubbleHit(d, lx, ly));
@@ -18312,35 +18398,40 @@ function loadJournal(){
 
 // Patch saveSettingsToStorage / loadSettingsFromStorage to use namespace
 function saveSettingsToStorage(){
+  Object.entries(SETTINGS_KEY_MAP).forEach(([inputId, stateKey]) => {
+    const el = document.getElementById(inputId);
+    if(el && el.type === 'checkbox') settingsState[stateKey] = !!el.checked;
+  });
+  settingsState.uiScale = getSettingValue('uiScale', 100);
   const settings={
-    theme: document.getElementById('sc-theme')?.value||currentThemeName||'dark',
+    theme: currentThemeName || 'dark',
     candleBull: candleBullColor, candleBear: candleBearColor,
     smaCols: smaCols, barWidth: barWidth,
     indActive,
     showSessions,
     showSMA,showBB,showEMA,showVWAP,showVol,showRSI,showMACD,showStoch,
-    scGrid:      _el('sc-grid')?.checked,
-    scCross:     _el('sc-crosshair')?.checked,
-    scHiLo:      _el('sc-highlow')?.checked,
-    scDayBnd:    _el('sc-dayboundary')?.checked,
-    scHollow:    _el('sc-hollow')?.checked,
-    scOhlc:      _el('sc-ohlc')?.checked,
-    scWater:     _el('sc-watermark')?.checked,
-    scSidebar:   document.getElementById('sc-sidebar')?.checked,
-    scRpanel:    document.getElementById('sc-rpanel')?.checked,
-    scScanner:   document.getElementById('sc-scanner')?.checked,
-    scDrawtb:    document.getElementById('sc-drawtb')?.checked,
-    scStatusbar: document.getElementById('sc-statusbar')?.checked,
-    scWicks:     _el('sc-wicks')?.checked,
-    scPriceScale:_el('sc-pricescale')?.checked,
-    scXAxisLbl:  _el('sc-xaxislabel')?.checked,
+    scGrid:      isSettingEnabled('scGrid', true),
+    scCross:     isSettingEnabled('scCross', true),
+    scHiLo:      isSettingEnabled('scHiLo', true),
+    scDayBnd:    isSettingEnabled('scDayBnd', true),
+    scHollow:    isSettingEnabled('scHollow', false),
+    scOhlc:      isSettingEnabled('scOhlc', true),
+    scWater:     isSettingEnabled('scWater', true),
+    scSidebar:   isSettingEnabled('scSidebar', true),
+    scRpanel:    isSettingEnabled('scRpanel', true),
+    scScanner:   isSettingEnabled('scScanner', true),
+    scDrawtb:    isSettingEnabled('scDrawtb', true),
+    scStatusbar: isSettingEnabled('scStatusbar', true),
+    scWicks:     isSettingEnabled('scWicks', true),
+    scPriceScale:isSettingEnabled('scPriceScale', true),
+    scXAxisLbl:  isSettingEnabled('scXAxisLbl', true),
     scGuestIntro: appPrefs.guestTutorialIntro,
     scContextMenu: appPrefs.enableContextMenus,
     scConfirmClear: appPrefs.confirmClearDrawings,
     scAnimations: appPrefs.enableChartAnimations,
-    scSma20c:    document.getElementById('sc-sma20c')?.value||'#3d7fff',
-    scSma50c:    document.getElementById('sc-sma50c')?.value||'#f0a500',
-    uiScale:     document.getElementById('sc-fontsize')?.value||'100',
+    scSma20c:    smaCols[0] || '#3d7fff',
+    scSma50c:    smaCols[1] || '#f0a500',
+    uiScale:     getSettingValue('uiScale', 100),
     newsCacheDuration,
     cssVars: ['--bg','--bg2','--am','--tl','--rd','--bl'].reduce((o,v)=>{
       o[v]=getComputedStyle(document.documentElement).getPropertyValue(v).trim()||null; return o;
@@ -18355,6 +18446,25 @@ function saveSettingsToStorage(){
 function loadSettingsFromStorage(){
   let s; try{ s = JSON.parse(_lsGet('settings')); }catch(e){}
   if(!s) return;
+  settingsState = {
+    ...SETTINGS_DEFAULTS,
+    scGrid: s.scGrid != null ? !!s.scGrid : SETTINGS_DEFAULTS.scGrid,
+    scCross: s.scCross != null ? !!s.scCross : SETTINGS_DEFAULTS.scCross,
+    scHiLo: s.scHiLo != null ? !!s.scHiLo : SETTINGS_DEFAULTS.scHiLo,
+    scDayBnd: s.scDayBnd != null ? !!s.scDayBnd : SETTINGS_DEFAULTS.scDayBnd,
+    scHollow: s.scHollow != null ? !!s.scHollow : SETTINGS_DEFAULTS.scHollow,
+    scOhlc: s.scOhlc != null ? !!s.scOhlc : SETTINGS_DEFAULTS.scOhlc,
+    scWater: s.scWater != null ? !!s.scWater : SETTINGS_DEFAULTS.scWater,
+    scSidebar: s.scSidebar != null ? !!s.scSidebar : SETTINGS_DEFAULTS.scSidebar,
+    scRpanel: s.scRpanel != null ? !!s.scRpanel : SETTINGS_DEFAULTS.scRpanel,
+    scScanner: s.scScanner != null ? !!s.scScanner : SETTINGS_DEFAULTS.scScanner,
+    scDrawtb: s.scDrawtb != null ? !!s.scDrawtb : SETTINGS_DEFAULTS.scDrawtb,
+    scStatusbar: s.scStatusbar != null ? !!s.scStatusbar : SETTINGS_DEFAULTS.scStatusbar,
+    scWicks: s.scWicks != null ? !!s.scWicks : SETTINGS_DEFAULTS.scWicks,
+    scPriceScale: s.scPriceScale != null ? !!s.scPriceScale : SETTINGS_DEFAULTS.scPriceScale,
+    scXAxisLbl: s.scXAxisLbl != null ? !!s.scXAxisLbl : SETTINGS_DEFAULTS.scXAxisLbl,
+    uiScale: s.uiScale != null ? parseFloat(s.uiScale) || 100 : SETTINGS_DEFAULTS.uiScale,
+  };
   if(s.theme){ const th=document.getElementById('sc-theme'); if(th) th.value=s.theme; applyTheme(s.theme); }
   if(s.cssVars) Object.entries(s.cssVars).forEach(([k,v])=>{ if(v) document.documentElement.style.setProperty(k,v); });
   if(s.candleBull){ candleBullColor=s.candleBull; const e=document.getElementById('sc-bull'); if(e){ e.value=s.candleBull; document.getElementById('sc-bull-hex').textContent=s.candleBull; } }
@@ -18365,7 +18475,7 @@ function loadSettingsFromStorage(){
     const s50=document.getElementById('sc-sma50c'); if(s50){ s50.value=s.smaCols[1]; document.getElementById('sc-sma50c-hex').textContent=s.smaCols[1]; }
   }
   if(s.barWidth){ barWidth=s.barWidth; const bw=document.getElementById('sc-barwidth'); if(bw){ bw.value=s.barWidth; document.getElementById('sc-barwidth-v').textContent=s.barWidth+'px'; } }
-  if(s.uiScale){ applyUIScale(s.uiScale); const fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=s.uiScale; document.getElementById('sc-fontsize-v').textContent=s.uiScale+'%'; } }
+  if(s.uiScale != null){ applyUIScale(s.uiScale); const fs=document.getElementById('sc-fontsize'); if(fs){ fs.value=s.uiScale; document.getElementById('sc-fontsize-v').textContent=s.uiScale+'%'; } }
   if(s.newsCacheDuration){ newsCacheDuration=s.newsCacheDuration; const nc=document.getElementById('sc-newscache'); if(nc) nc.value=s.newsCacheDuration; }
   if(s.indActive){
     indActive = {...DEFAULT_IND_ACTIVE, ...s.indActive};
@@ -18379,9 +18489,12 @@ function loadSettingsFromStorage(){
   if(s.scConfirmClear != null) appPrefs.confirmClearDrawings = !!s.scConfirmClear;
   if(s.scAnimations != null) appPrefs.enableChartAnimations = !!s.scAnimations;
   const toggleMap={scGrid:'sc-grid',scCross:'sc-crosshair',scHiLo:'sc-highlow',scDayBnd:'sc-dayboundary',scHollow:'sc-hollow',scOhlc:'sc-ohlc',scWater:'sc-watermark',scSidebar:'sc-sidebar',scRpanel:'sc-rpanel',scScanner:'sc-scanner',scDrawtb:'sc-drawtb',scStatusbar:'sc-statusbar',scWicks:'sc-wicks',scPriceScale:'sc-pricescale',scXAxisLbl:'sc-xaxislabel'};
-  Object.entries(toggleMap).forEach(([k,id])=>{ if(s[k]!=null){ const el=document.getElementById(id); if(el) el.checked=s[k]; } });
-  const pmap={sidebar:'sc-sidebar',rpanel:'sc-rpanel','scanner-wrap':'sc-scanner','draw-toolbar':'sc-drawtb',statusbar:'sc-statusbar'};
-  Object.entries(pmap).forEach(([pid,cid])=>{ const chk=document.getElementById(cid); const pan=document.getElementById(pid); if(chk&&pan) pan.style.display=chk.checked?'':'none'; });
+  Object.entries(toggleMap).forEach(([k,id])=>{ const el=document.getElementById(id); if(el) el.checked=!!settingsState[k]; });
+  applyPanelVisibility('sidebar', isSettingEnabled('scSidebar', true));
+  applyPanelVisibility('rpanel', isSettingEnabled('scRpanel', true));
+  applyPanelVisibility('scanner-wrap', isSettingEnabled('scScanner', true));
+  applyPanelVisibility('draw-toolbar', isSettingEnabled('scDrawtb', true));
+  applyPanelVisibility('statusbar', isSettingEnabled('scStatusbar', true));
   ['sma','bb','ema','vwap','vol','rsi','macd','stoch'].forEach(n=>{
     const map={sma:'showSMA',bb:'showBB',ema:'showEMA',vwap:'showVWAP',vol:'showVol',rsi:'showRSI',macd:'showMACD',stoch:'showStoch'};
     if(!s.indActive && s[map[n]]!=null) syncIndicator(n, s[map[n]]);
