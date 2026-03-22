@@ -20310,7 +20310,10 @@ function tapExtractTradeMetrics(text){
       verdict: structured.verdict || '',
     };
   }
-  const scoringIdx = source.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringIdx = Math.max(
+    source.toUpperCase().indexOf('TRADE QUALITY SCORING'),
+    source.toUpperCase().indexOf('TRADE QUALITY SCORE')
+  );
   const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
   const getScore = (label) => {
     const match = scoringZone.match(new RegExp(label + String.raw`[^0-9]{0,30}(\d{1,2})(?:\s*\/\s*25)?`, 'i'));
@@ -21672,7 +21675,10 @@ function tapRenderVerdictBanner(text){
   const zone = searchZone.toUpperCase();
 
   // Extract actual combined score from Trade Quality Scoring section
-  const scoringIdx = text.toUpperCase().indexOf('TRADE QUALITY SCORING');
+  const scoringIdx = Math.max(
+    text.toUpperCase().indexOf('TRADE QUALITY SCORING'),
+    text.toUpperCase().indexOf('TRADE QUALITY SCORE')
+  );
   const scoringZone = scoringIdx >= 0 ? text.slice(scoringIdx, scoringIdx+600) : '';
   const scoreRaw = scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
