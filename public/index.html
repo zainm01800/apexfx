@@ -517,6 +517,12 @@
         <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 8px;background:linear-gradient(135deg, rgba(138,43,226,.3), rgba(138,43,226,.15));border:1px solid rgba(138,43,226,.6);color:var(--purple);font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;box-shadow:0 2px 4px rgba(138,43,226,.2);transition:all 0.3s ease;">🧠 Mentor</button>
 
       </span>
+      <div id="statusbar-scrubber">
+        <span id="sb-nav-label">Scroll</span>
+        <input id="sb-nav-range" type="range" min="0" max="1000" value="1000" oninput="scrubChartToRatio(this.value)" aria-label="Scroll through chart history">
+        <span id="sb-nav-pos">Latest</span>
+        <button id="sb-nav-latest" onclick="scrubChartLatest()">Latest</button>
+      </div>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
