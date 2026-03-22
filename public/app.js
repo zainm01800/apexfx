@@ -449,6 +449,39 @@ function normalizeChartViewportForCurrentData(preferLatest = false){
     priceLo = null;
   }
 }
+function placePendingAISetupOnActiveChart(tab){
+  if(!tab?._pendingAISPlacement || !curData?.length) return false;
+  const placement = tab._pendingAISPlacement;
+  const isLong = placement.dir === 'bull';
+  const dp = placement.entry < 1 ? 5 : placement.entry < 10 ? 4 : placement.entry < 100 ? 3 : 2;
+  const halfBars = Math.max(8, placement.halfBars || defaultTradeToolHalfBars(curTF));
+  const anchorBar = (curData.length - 1) + halfBars;
+
+  drawings = drawings.filter(d => !d._aisPlaced);
+  const drawing = {
+    type: isLong ? 'long' : 'short',
+    bar: anchorBar,
+    price: +placement.entry.toFixed(dp),
+    sl: +placement.sl.toFixed(dp),
+    tp: +placement.target.toFixed(dp),
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, curTF),
+    _aisPlaced: true,
+    _aisMeta: placement.meta || null,
+  };
+  drawings.push(drawing);
+  saveDrawings(curSym.s, curTF);
+  tab.drawings = drawings.map(drawingToTime);
+  tab.rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+  tab.priceHi = null;
+  tab.priceLo = null;
+  tab.updatedAt = Date.now();
+  rightBarIndex = tab.rightBarIndex;
+  priceHi = null;
+  priceLo = null;
+  delete tab._pendingAISPlacement;
+  return true;
+}
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
   const base = chartTabs.find(t => t.id === activeChartTabId);
@@ -554,6 +587,7 @@ function switchChartTab(id, skipSave, options = {}){
     }
     normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
+    placePendingAISetupOnActiveChart(tab);
     drawingWIP = null;
     selectedDrawing = null;
     selectedDrawings = [];
@@ -19645,6 +19679,26 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     targetTab.sym = sym;
     targetTab.tf = targetTf;
     targetTab.title = _chartTabTitle(sym, targetTf);
+    targetTab._pendingAISPlacement = {
+      dir,
+      entry,
+      sl,
+      target,
+      halfBars: defaultTradeToolHalfBars(targetTf),
+      meta: setupRef ? {
+        source: 'ai-setups',
+        sym: setupRef.sym,
+        tf: setupRef.tf,
+        dir: setupRef.dir,
+        score: setupRef.score,
+        conf: setupRef.conf,
+        rr: setupRef.rr,
+        patLabel: setupRef.patLabel || 'Structure',
+        movePct: setupRef.movePct,
+        tfAgree: setupRef.tfAgree,
+        idea: setupRef.aiIdea || '',
+      } : null,
+    };
     targetTab.updatedAt = Date.now();
     renderChartTabs();
     saveChartTabs(false);
@@ -19666,7 +19720,7 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
 
     const tradeAlreadyTriggered = (isLong && lastClose >= entry) || (!isLong && lastClose <= entry);
-    if(tradeAlreadyTriggered){
+    if(false && tradeAlreadyTriggered){
       toast('Setup already triggered — opening only fresh pending setups on chart');
       return;
     }
