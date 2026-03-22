@@ -20321,12 +20321,22 @@ function tapExtractTradeMetrics(text){
     source.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i) ||
     source.match(/(\d{1,3})\s*\/\s*100/);
   const probability = source.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
+  const verdictIdx = source.toUpperCase().lastIndexOf('FINAL VERDICT');
+  const verdictZone = (verdictIdx >= 0 ? source.slice(verdictIdx) : source.slice(-400)).toUpperCase();
+  let fallbackCombined = null;
+  if (verdictZone.includes('STRONG SETUP') || verdictZone.includes('A+ SETUP')) fallbackCombined = 88;
+  else if (verdictZone.includes('A SETUP')) fallbackCombined = 80;
+  else if (verdictZone.includes('ACCEPTABLE SETUP') || verdictZone.includes('ACCEPTABLE')) fallbackCombined = 68;
+  else if (verdictZone.includes('B SETUP')) fallbackCombined = 60;
+  else if (verdictZone.includes('RISKY SETUP') || verdictZone.includes('RISKY')) fallbackCombined = 42;
+  else if (verdictZone.includes('C SETUP')) fallbackCombined = 35;
+  else if (verdictZone.includes('AVOID TRADE') || verdictZone.includes('AVOID') || verdictZone.includes('INVALID SETUP')) fallbackCombined = 18;
   return {
     entryQuality: getScore('Entry Quality'),
     stopPlacement: getScore('Stop Placement'),
     riskReward: getScore('Risk/Reward Logic'),
     confluence: getScore('Technical Confluence'),
-    combined: combined ? Math.min(100, Math.max(0, parseInt(combined[1]))) : null,
+    combined: combined ? Math.min(100, Math.max(0, parseInt(combined[1]))) : fallbackCombined,
     probability: probability ? Math.min(100, Math.max(0, parseInt(probability[1]))) : null,
     weaknesses: tapExtractSection(source, '7. CRITICAL WEAKNESSES'),
     improvements: tapExtractSection(source, '8. SUGGESTED IMPROVEMENTS'),
