@@ -20436,6 +20436,14 @@ function formatTraderProfileForAI(profile){
     profile.weaknesses?.[0] ? `Main caution: ${profile.weaknesses[0]}` : '',
   ].filter(Boolean).join(' ');
 }
+function tapCompactTradeAIError(msg){
+  const raw = String(msg || '').trim();
+  if(!raw) return 'unknown error';
+  return raw
+    .replace(/^AI:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 260);
+}
 function buildThesisPromptContext(sym){
   const thesis = getCurrentThesis(sym);
   if(!thesis) return 'Active thesis: none pinned.';
@@ -21208,7 +21216,7 @@ async function openFullTradeAnalysis(){
       tapRenderSetupBridge(d, text);
       tapRenderDecisionContext(d);
     } catch(e) {
-      const msg = e.message || 'unknown error';
+      const msg = tapCompactTradeAIError(e.message || 'unknown error');
       aiOutEl.innerHTML =
         `<div style="color:var(--rd);font-weight:700;margin-bottom:6px;">⚠ AI Analysis Failed</div>` +
         `<div style="color:var(--am);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;background:var(--bg3);
@@ -21982,18 +21990,8 @@ Originating Setup Context:
   Scanner Summary: ${(setupMeta.idea || `${setupMeta.patLabel || 'Setup'} found on ${setupMeta.tf || drawingTF}.`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
-  const traderCtx = `
-Trader Memory:
-  ${formatTraderProfileForAI(traderProfile)}
-  Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ')}
-`;
-  const drawingStateCtx = `
-Chart Intent Context:
-  ${thesisCtx}
-  Nearby user-marked levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'}
-  User notes on chart: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'}
-  Structure objects drawn: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools
-`;
+  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
+  const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
 
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
@@ -22027,7 +22025,7 @@ Indicators:
 
 Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
-Patterns: ${allPatsStr}
+Patterns: ${allPatsStr.slice(0, 220)}
 Trader's historical win rate on ${curSym.s}: ${symWR}
 ${traderCtx}
 ${drawingStateCtx}
@@ -22082,10 +22080,10 @@ Do not wrap it in markdown. Do not add any extra text after it.
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   return await aiComplete(prompt, {
-    model: 'llama-3.3-70b-versatile',
-    max_tokens: 900,
-    temperature: 0.3,
-    timeoutMs: 45000,
+    model: 'llama-3.1-8b-instant',
+    max_tokens: 650,
+    temperature: 0.2,
+    timeoutMs: 55000,
   });
 }
 
