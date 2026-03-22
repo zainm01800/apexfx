@@ -51,11 +51,12 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: corsHeaders });
   }
 
-  const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0 } = body;
+  const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0, timeoutMs = 30000 } = body;
   const safeMaxTokens = Math.max(1, Math.min(4000, Number(max_tokens) || 1000));
   const safeTemperature = Math.max(0, Math.min(1, Number(temperature) || 0));
+  const safeTimeoutMs = Math.max(5000, Math.min(60000, Number(timeoutMs) || 30000));
 
-  if (!prompt || typeof prompt !== 'string' || prompt.length > 40000) {
+  if (!prompt || typeof prompt !== 'string' || prompt.length > 120000) {
     return new Response(JSON.stringify({ error: 'Invalid prompt' }), { status: 400, headers: corsHeaders });
   }
 
@@ -72,7 +73,7 @@ export default async function handler(req) {
         temperature: safeTemperature,
         messages: [{ role: 'user', content: prompt }],
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(safeTimeoutMs),
     });
 
     const data = await res.json();

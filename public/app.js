@@ -11420,7 +11420,7 @@ async function aiComplete(prompt, {
       method: 'POST',
       signal: AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, max_tokens, temperature })
+      body: JSON.stringify({ prompt, model, max_tokens, temperature, timeoutMs })
     });
   } catch(networkErr) {
     res = null;
@@ -21412,6 +21412,139 @@ function tapRenderRisk(d, rr){
 }
 
 // ── Historical similar setups ─────────────────────────────────────────────────
+function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
+  const n = curData.length;
+  const isLong = d.type === 'long';
+  const rsiV = calcRSI(curData);
+  const rsi = rsiV[n-1] || 50;
+  const atrV = calcATR(curData);
+  const atr = atrV[n-1] || 0;
+  const slPct = Math.abs((d.sl - d.price) / d.price * 100);
+  const sr = detectSR(curData);
+
+  let entryQuality = 14;
+  let stopPlacement = 14;
+  let riskRewardLogic = 14;
+  let technicalConfluence = 14;
+  const weaknesses = [];
+  const improvements = [];
+
+  if(rr >= 3) riskRewardLogic = 24;
+  else if(rr >= 2) riskRewardLogic = 20;
+  else if(rr >= 1.5) riskRewardLogic = 14;
+  else {
+    riskRewardLogic = 8;
+    weaknesses.push(`Reward-to-risk is only ${rr.toFixed(2)}:1, which weakens the trade payoff.`);
+    improvements.push('Improve the setup by tightening the stop behind cleaner structure or waiting for a better entry.');
+  }
+
+  if(atr > 0){
+    const atrPct = (atr / d.price) * 100;
+    const slVsAtr = slPct / Math.max(atrPct, 0.0001);
+    if(slVsAtr >= 0.8 && slVsAtr <= 2.2){
+      stopPlacement = 20;
+    } else if(slVsAtr < 0.8){
+      stopPlacement = 11;
+      weaknesses.push('Stop is tighter than normal volatility and may be clipped by noise.');
+      improvements.push('Place the stop slightly beyond the recent swing so normal ATR movement does not stop it out early.');
+    } else {
+      stopPlacement = 12;
+      weaknesses.push('Stop is wider than needed, which makes the trade less efficient.');
+      improvements.push('Reduce stop width by entering closer to structure if the setup still holds.');
+    }
+  }
+
+  if(isLong){
+    if(rsi < 45) technicalConfluence += 4;
+    else if(rsi > 72){
+      technicalConfluence -= 4;
+      weaknesses.push(`RSI is ${rsi.toFixed(0)}, so the long is pushing into overbought conditions.`);
+    }
+  } else {
+    if(rsi > 55) technicalConfluence += 4;
+    else if(rsi < 28){
+      technicalConfluence -= 4;
+      weaknesses.push(`RSI is ${rsi.toFixed(0)}, so the short is pushing into oversold conditions.`);
+    }
+  }
+
+  const nearestSupport = sr.support.filter(s => s < d.price).sort((a,b)=>b-a)[0] || null;
+  const nearestResistance = sr.resistance.filter(r => r > d.price).sort((a,b)=>a-b)[0] || null;
+  if(isLong && nearestSupport){
+    const dist = Math.abs(d.price - nearestSupport) / d.price * 100;
+    if(dist < 1.5){
+      entryQuality += 4;
+      technicalConfluence += 3;
+    } else if(dist > 4){
+      entryQuality -= 3;
+      weaknesses.push('Entry is not sitting close to a clear nearby support level.');
+    }
+  }
+  if(!isLong && nearestResistance){
+    const dist = Math.abs(nearestResistance - d.price) / d.price * 100;
+    if(dist < 1.5){
+      entryQuality += 4;
+      technicalConfluence += 3;
+    } else if(dist > 4){
+      entryQuality -= 3;
+      weaknesses.push('Entry is not sitting close to a clear nearby resistance level.');
+    }
+  }
+
+  const statusUpper = String(tradeStatus || '').toUpperCase();
+  if(statusUpper.includes('UNREALISTIC')){
+    entryQuality = Math.max(4, entryQuality - 8);
+    technicalConfluence = Math.max(4, technicalConfluence - 6);
+    weaknesses.push('The placement looks unrealistic relative to where price has actually traded.');
+  }
+  if(statusUpper.includes('SL HIT')){
+    technicalConfluence = Math.max(4, technicalConfluence - 5);
+  }
+  if(statusUpper.includes('TP HIT')){
+    technicalConfluence = Math.min(25, technicalConfluence + 4);
+    entryQuality = Math.min(25, entryQuality + 2);
+  }
+
+  entryQuality = Math.max(4, Math.min(25, Math.round(entryQuality)));
+  stopPlacement = Math.max(4, Math.min(25, Math.round(stopPlacement)));
+  riskRewardLogic = Math.max(4, Math.min(25, Math.round(riskRewardLogic)));
+  technicalConfluence = Math.max(4, Math.min(25, Math.round(technicalConfluence)));
+
+  const combined = Math.max(0, Math.min(100, entryQuality + stopPlacement + riskRewardLogic + technicalConfluence));
+  const probability = Math.max(5, Math.min(95, Math.round(combined * 0.9)));
+  const verdict =
+    combined >= 75 ? 'Strong Setup' :
+    combined >= 55 ? 'Acceptable Setup' :
+    combined >= 35 ? 'Risky Setup' :
+    'Avoid Trade';
+
+  const weaknessText = (weaknesses.length ? weaknesses : ['AI analysis was unavailable, so this score uses chart-based fallback logic.']).slice(0,3).join(' ');
+  const improvementText = (improvements.length ? improvements : ['Use the structure, ATR, and nearest levels to refine the entry if you want a stronger score.']).slice(0,2).join(' ');
+
+  return `AI fallback analysis used because the live AI request did not return successfully.
+
+6. TRADE QUALITY SCORE
+Entry Quality: ${entryQuality}/25
+Stop Placement: ${stopPlacement}/25
+Risk/Reward Logic: ${riskRewardLogic}/25
+Technical Confluence: ${technicalConfluence}/25
+Combined Score: ${combined}/100
+
+7. CRITICAL WEAKNESSES
+${weaknessText}
+
+8. SUGGESTED IMPROVEMENTS
+${improvementText}
+
+9. PROBABILITY ESTIMATE
+${probability}% probability based on reward-to-risk, ATR stop fit, RSI context, and nearby structure.
+
+10. FINAL VERDICT
+${verdict}
+
+SCORECARD_JSON: {"entry_quality":${entryQuality},"stop_placement":${stopPlacement},"risk_reward_logic":${riskRewardLogic},"technical_confluence":${technicalConfluence},"combined_score":${combined},"probability":${probability},"verdict":"${verdict}"}`;
+}
+
 function tapRenderHistorical(d){
   const el = document.getElementById('tap-hist-items');
   const countEl = document.getElementById('tap-hist-count');
