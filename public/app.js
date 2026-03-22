@@ -19658,6 +19658,9 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     if(!bars.length) return;
 
     const barIdx   = bars.length - 1;
+    const placementBarsByTf = { '1m': 18, '5m': 16, '15m': 14, '1h': 12, '4h': 10, '1d': 8, '1w': 6, '1M': 4 };
+    const halfBars = Math.max(8, placementBarsByTf[targetTf] || 12);
+    const anchorBar = (bars.length - 1) + halfBars;
     const lastClose = bars[barIdx].close;
     const isLong = dir === 'bull';
     const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
@@ -19677,12 +19680,12 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
 
     const drawing = {
       type: isLong ? 'long' : 'short',
-      bar:  barIdx,
+      bar:  anchorBar,
       price: +entry.toFixed(dp),
       sl:    +sl.toFixed(dp),
       tp:    +target.toFixed(dp),
-      halfBars: 16,
-      halfDuration: halfBarsToSecs(16, targetTf),
+      halfBars,
+      halfDuration: halfBarsToSecs(halfBars, targetTf),
       _aisPlaced: true,
       _aisMeta: setupRef ? {
         source: 'ai-setups',
@@ -19701,7 +19704,7 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     drawings.push(drawing);
     saveDrawings(curSym.s, curTF);
 
-    rightBarIndex = bars.length - 1 + Math.max(12, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.18));
+    rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
     priceHi = null; priceLo = null;
     syncActiveChartTabRuntimeState(true);
     saveChartTabs(false);
