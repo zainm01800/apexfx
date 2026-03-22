@@ -798,7 +798,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
 
 /* ─── CHART BODY ─────────────────────────────────────────────────────────── */
-#chart-body{display:flex;flex:1;overflow:hidden;position:relative;height:100%;}
+#chart-body{
+  display:flex;
+  flex:1;
+  overflow:hidden;
+  position:relative;
+  height:calc(100% - 52px);
+  margin-top:52px;
+}
 #chart-area{flex:1;display:flex;flex-direction:column;overflow:clip;position:relative;background:transparent;}
 #chart-tabs-bar{
   display:flex;
