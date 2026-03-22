@@ -12220,6 +12220,46 @@ function effectiveHalfBars(d){
   if(d.halfDuration) return secsToHalfBars(d.halfDuration, curTF);
   return d.halfBars || 8;
 }
+function defaultTradeToolHalfBars(tf){
+  return ({
+    '1m': 18,
+    '5m': 16,
+    '15m': 14,
+    '1h': 12,
+    '4h': 10,
+    '1d': 8,
+    '1w': 6,
+    '1M': 5,
+  })[tf] || 8;
+}
+function defaultTradeToolMinRiskPct(tf){
+  return ({
+    '1m': 0.0035,
+    '5m': 0.005,
+    '15m': 0.0075,
+    '1h': 0.01,
+    '4h': 0.015,
+    '1d': 0.02,
+    '1w': 0.035,
+    '1M': 0.05,
+  })[tf] || 0.01;
+}
+function buildTimeframeAwareTradeTool(direction, entryPrice, barIndex, tf){
+  const safeTf = tf || curTF || '1d';
+  const atr = calculateATR(Math.min(curData.length - 1, Math.max(14, barIndex)), 14) || 0;
+  const minRisk = entryPrice * defaultTradeToolMinRiskPct(safeTf);
+  const riskDist = Math.max(atr * 1.15, minRisk);
+  const rewardDist = riskDist * 2;
+  const isLong = direction === 'long';
+  const halfBars = defaultTradeToolHalfBars(safeTf);
+  return {
+    sl: isLong ? entryPrice - riskDist : entryPrice + riskDist,
+    tp: isLong ? entryPrice + rewardDist : entryPrice - rewardDist,
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, safeTf),
+    atr,
+  };
+}
 
 // ── Drag / resize state ──────────────────────────────────────────────────────
 let isDraggingDrawing  = false;  // moving whole drawing
@@ -12816,7 +12856,7 @@ function handleDrawMousedown(sx, sy, e){
     const { bar, price } = screenToDraw(sx, sy);
     
     // Check if we're in mentor mode with future data available
-    let sl, tp;
+    let sl, tp, halfBars, halfDuration;
     const isMentorMode = typeof mentorState !== 'undefined' && mentorState.enabled && mentorState.waitingForUserTrade;
     const hasFutureData = curData && bar < curData.length - 20;
     
@@ -12851,13 +12891,18 @@ function handleDrawMousedown(sx, sy, e){
         direction: activeTool 
       });
     } else {
-      // NORMAL MODE: Use standard percentage-based calculations
-      sl  = activeTool==='long'  ? price*0.98  : price*1.02;
-      tp  = activeTool==='long'  ? price*1.04  : price*0.96;
+      // NORMAL MODE: Use timeframe-aware width and ATR-based levels
+      const defaultTrade = buildTimeframeAwareTradeTool(activeTool, price, Math.round(bar), curTF);
+      sl = defaultTrade.sl;
+      tp = defaultTrade.tp;
+      halfBars = defaultTrade.halfBars;
+      halfDuration = defaultTrade.halfDuration;
     }
-    
-    const halfBars = 8;
-    const halfDuration = halfBarsToSecs(halfBars, curTF);
+    if(!halfBars || !halfDuration){
+      const defaultTrade = buildTimeframeAwareTradeTool(activeTool, price, Math.round(bar), curTF);
+      halfBars = defaultTrade.halfBars;
+      halfDuration = defaultTrade.halfDuration;
+    }
     // Give each drawing a unique ID so locks are per-drawing not per-symbol
     const drawingId = 'draw_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
     const drawing = {type:activeTool,bar,price,sl,tp,halfBars,halfDuration,tf:curTF,id:drawingId};
