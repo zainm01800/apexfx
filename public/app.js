@@ -402,6 +402,35 @@ function clampChartTabRightIndex(savedIndex, dataLen){
   if(!Number.isFinite(val)) return fallback;
   return Math.max(1, Math.min(val, dataLen + 40));
 }
+function normalizeChartViewportForCurrentData(preferLatest = false){
+  if(!curData?.length) return;
+  barWidth = Math.max(4, Math.min(24, Number(barWidth) || 8));
+  rightBarIndex = clampChartTabRightIndex(rightBarIndex, curData.length);
+  if(preferLatest){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+    return;
+  }
+  if(priceHi == null || priceLo == null) return;
+  if(!Number.isFinite(priceHi) || !Number.isFinite(priceLo) || priceHi <= priceLo){
+    priceHi = null;
+    priceLo = null;
+    return;
+  }
+  const auto = getAutoRange();
+  const autoRange = Math.max(1e-9, (auto.hi - auto.lo));
+  const savedRange = priceHi - priceLo;
+  const lastClose = curData[curData.length - 1]?.close ?? null;
+  const badlyFramed =
+    (lastClose != null && (lastClose < priceLo || lastClose > priceHi)) ||
+    savedRange > autoRange * 8 ||
+    savedRange < autoRange * 0.2;
+  if(badlyFramed){
+    priceHi = null;
+    priceLo = null;
+  }
+}
 function createChartTab(sym, tf){
   saveCurrentChartTabState();
   const base = chartTabs.find(t => t.id === activeChartTabId);
@@ -412,10 +441,10 @@ function createChartTab(sym, tf){
     sym: sym || snapshot.sym || curSym?.s || SYMS[0].s,
     tf: tf || snapshot.tf || curTF || '1d',
     chartType: snapshot.chartType || curCT || 'heikin',
-    rightBarIndex: snapshot.rightBarIndex,
-    barWidth: snapshot.barWidth,
-    priceHi: snapshot.priceHi,
-    priceLo: snapshot.priceLo,
+    rightBarIndex: null,
+    barWidth: snapshot.barWidth || 8,
+    priceHi: null,
+    priceLo: null,
     drawings: Array.isArray(snapshot.drawings) ? snapshot.drawings.map(d => ({ ...d })) : [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -486,6 +515,7 @@ function switchChartTab(id, skipSave, options = {}){
   } else {
     rightBarIndex = clampChartTabRightIndex(tab.rightBarIndex, curData.length);
   }
+  normalizeChartViewportForCurrentData(!!options.focusLatest);
   renderChartTabs();
   loadSym(tab.sym || SYMS[0].s).then(() => {
     if(activeChartTabId !== id) return;
@@ -500,6 +530,7 @@ function switchChartTab(id, skipSave, options = {}){
       priceHi = tab.priceHi ?? null;
       priceLo = tab.priceLo ?? null;
     }
+    normalizeChartViewportForCurrentData(!!options.focusLatest);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     drawingWIP = null;
     selectedDrawing = null;
@@ -15750,6 +15781,7 @@ async function loadSym(sym){
   const requestTab = chartTabs.find(t => t.id === requestTabId) || null;
   if(curSym && curSym.s) saveDrawings(curSym.s, requestTF);
   const prevSym = curSym?.s;
+  const symbolChanged = prevSym !== sym;
   curSym = SYMS.find(x=>x.s===sym) || SYMS[0];
   const activeTab = chartTabs.find(t => t.id === activeChartTabId);
   if(activeTab){
@@ -15771,7 +15803,13 @@ async function loadSym(sym){
     priceHi = null;
     priceLo = null;
   }
-  rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+  if(symbolChanged){
+    rightBarIndex = curData.length + 5;
+    priceHi = null;
+    priceLo = null;
+  } else {
+    rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+  }
   // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
@@ -15791,7 +15829,14 @@ async function loadSym(sym){
     // Keep p in sync with cached real price
     const cachedClose = curData[curData.length-1]?.close;
     if(cachedClose && curSym.p !== cachedClose) curSym.p = cachedClose;
-    rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+    if(symbolChanged){
+      rightBarIndex = curData.length + 5;
+      priceHi = null;
+      priceLo = null;
+    } else {
+      rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+    }
+    normalizeChartViewportForCurrentData(symbolChanged);
     // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
@@ -15830,7 +15875,14 @@ async function loadSym(sym){
       const realClose = bars[bars.length-1].close;
       if(curSym.p !== realClose) curSym.p = realClose;
       invalidateIndCache();
-      rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+      if(symbolChanged){
+        rightBarIndex = curData.length + 5;
+        priceHi = null;
+        priceLo = null;
+      } else {
+        rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
+      }
+      normalizeChartViewportForCurrentData(symbolChanged);
       // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
