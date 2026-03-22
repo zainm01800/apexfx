@@ -12203,6 +12203,8 @@ function _drawImmediate(){
       }
     }catch(e){ /* silent — bad formula on symbol change */ }
   });
+
+  updateChartScrubber();
 }
 
 // ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
@@ -15938,6 +15940,7 @@ function updateTopbar(){
   const sbSym = document.getElementById('sb-sym'); if(sbSym) sbSym.textContent = curSym.s;
   const sbTf  = document.getElementById('sb-tf');  if(sbTf)  sbTf.textContent  = curTF.toUpperCase();
   const sbBars= document.getElementById('sb-bars'); if(sbBars) sbBars.textContent = curData.length + ' bars';
+  updateChartScrubber();
   document.getElementById('px-main').textContent=fP(last.close);
   const cel=document.getElementById('px-chg');
   cel.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
@@ -16181,10 +16184,9 @@ function renderIndList(q){
   if(ilCurrentTab==='builtin'){
     const rows = BUILTIN_INDS.filter(i=>!lq||i.name.toLowerCase().includes(lq)||i.desc.toLowerCase().includes(lq));
     if(!rows.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:10px;">No results</div>'; return; }
-    // Snapshot topbarInds at render time so the closure is consistent
     el.innerHTML = rows.map(ind=>{
-      // "on bar" = actively showing on chart (unified state)
       const active = getIndState(ind.id);
+      const pinned = topbarInds.includes(ind.id);
       return `<div class="il-row" style="cursor:default;">
         <div style="font-size:18px;width:28px;text-align:center;flex-shrink:0;">${ind.icon}</div>
         <div style="flex:1;min-width:0;">
@@ -16193,6 +16195,10 @@ function renderIndList(q){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
           ${active
+            ? `<button onclick="toggleInd('${ind.id}')" style="padding:4px 10px;background:rgba(0,201,160,.12);border:1px solid rgba(0,201,160,.38);color:var(--tl);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On chart</button>`
+            : `<button onclick="toggleInd('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--tl)';this.style.color='var(--tl)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">Show chart</button>`
+          }
+          ${pinned
             ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
             : `<button onclick="addIndToTopbar('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
@@ -17541,6 +17547,58 @@ function resetChartViewport(focusLatest = true){
   syncActiveChartTabRuntimeState(true);
   saveChartTabs(false);
   draw();
+}
+
+function updateChartScrubber(){
+  const range = document.getElementById('sb-nav-range');
+  const pos = document.getElementById('sb-nav-pos');
+  const latestBtn = document.getElementById('sb-nav-latest');
+  if(!range || !pos || !latestBtn) return;
+  if(!curData || !curData.length){
+    range.disabled = true;
+    range.value = 1000;
+    pos.textContent = 'Latest';
+    latestBtn.disabled = true;
+    return;
+  }
+  const canvas = _el('main-canvas');
+  const visibleBars = Math.max(1, Math.round((canvas?.width || 400) / Math.max(barWidth, 1)));
+  const halfBars = visibleBars / 2;
+  const minRight = Math.max(halfBars, 1);
+  const maxRight = Math.max(minRight, curData.length - 1 + halfBars);
+  const clampedRight = Math.max(minRight, Math.min(maxRight, rightBarIndex));
+  const denom = Math.max(1, maxRight - minRight);
+  const ratio = (clampedRight - minRight) / denom;
+  range.disabled = false;
+  range.value = String(Math.round(ratio * 1000));
+  const firstVisible = Math.max(0, Math.ceil(clampedRight - visibleBars));
+  const latestThreshold = 0.985;
+  if(ratio >= latestThreshold){
+    pos.textContent = 'Latest';
+    latestBtn.disabled = true;
+  } else {
+    pos.textContent = `${firstVisible + 1}/${curData.length}`;
+    latestBtn.disabled = false;
+  }
+}
+
+function scrubChartToRatio(rawValue){
+  if(!curData || !curData.length) return;
+  const value = Math.max(0, Math.min(1000, parseFloat(rawValue) || 0));
+  const canvas = _el('main-canvas');
+  const visibleBars = Math.max(1, Math.round((canvas?.width || 400) / Math.max(barWidth, 1)));
+  const halfBars = visibleBars / 2;
+  const minRight = Math.max(halfBars, 1);
+  const maxRight = Math.max(minRight, curData.length - 1 + halfBars);
+  const ratio = value / 1000;
+  rightBarIndex = minRight + (maxRight - minRight) * ratio;
+  syncActiveChartTabRuntimeState(true);
+  draw();
+}
+
+function scrubChartLatest(){
+  resetChartViewport(true);
+  updateChartScrubber();
 }
 
 function duplicateChartTab(id){

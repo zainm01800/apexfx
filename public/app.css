@@ -983,6 +983,41 @@ canvas{display:block;flex-shrink:0;}
   font-family:var(--font-mono);font-size:10px;color:var(--tx2);
   z-index:200;
 }
+#statusbar-scrubber{
+  display:flex;align-items:center;gap:8px;
+  min-width:260px;max-width:440px;flex:0 1 36%;
+}
+#sb-nav-label,#sb-nav-pos{
+  font-family:var(--font-mono);font-size:10px;color:var(--tx3);
+  white-space:nowrap;
+}
+#sb-nav-pos{min-width:44px;text-align:center;color:var(--tx2);}
+#sb-nav-range{
+  appearance:none;-webkit-appearance:none;
+  flex:1;min-width:120px;height:4px;border-radius:999px;
+  background:linear-gradient(90deg, rgba(255,255,255,.08), rgba(0,212,160,.25));
+  outline:none;border:none;
+}
+#sb-nav-range::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:12px;height:12px;border-radius:50%;
+  background:var(--green);border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 0 0 2px rgba(0,212,160,.16);
+  cursor:pointer;
+}
+#sb-nav-range::-moz-range-thumb{
+  width:12px;height:12px;border-radius:50%;
+  background:var(--green);border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 0 0 2px rgba(0,212,160,.16);
+  cursor:pointer;
+}
+#sb-nav-latest{
+  height:20px;padding:0 8px;border-radius:4px;
+  border:1px solid rgba(0,212,160,.25);
+  background:rgba(0,212,160,.08);color:var(--green);
+  font-family:var(--font-mono);font-size:10px;cursor:pointer;
+}
+#sb-nav-latest:hover{background:rgba(0,212,160,.14);}
 
 /* ─── IND TOPBAR — indicator chips in the command bar ───────────────────── */
 #ind-topbar{
