@@ -21160,6 +21160,16 @@ async function openFullTradeAnalysis(){
   document.getElementById('tap-l-rr').textContent       = rr.toFixed(2) + ':1';
   document.getElementById('tap-l-rr-grade').textContent = rr >= 3 ? 'Excellent' : rr >= 2 ? 'Good' : rr >= 1.5 ? 'Acceptable' : 'Poor';
   document.getElementById('tap-l-rr-grade').style.color = rr >= 3 ? 'var(--tl)' : rr >= 2 ? 'var(--am)' : 'var(--rd)';
+  const topScoreEl = document.getElementById('tap-l-ai-score');
+  const topScoreSubEl = document.getElementById('tap-l-ai-score-sub');
+  if(topScoreEl){
+    topScoreEl.textContent = '...';
+    topScoreEl.style.color = 'var(--tx2)';
+  }
+  if(topScoreSubEl){
+    topScoreSubEl.textContent = 'Analyzing trade';
+    topScoreSubEl.style.color = 'var(--tx3)';
+  }
 
   // Inject status banner
   document.getElementById('tap-status-banner').innerHTML = statusBanner;
@@ -21241,6 +21251,14 @@ async function openFullTradeAnalysis(){
         `<div style="color:var(--am);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;background:var(--bg3);
           padding:8px 10px;border-radius:3px;border-left:3px solid var(--rd);">${msg}</div>` +
         `<div style="color:var(--tx3);font-size:11px;margin-top:8px;">Real error from Groq — use this to diagnose.</div>`;
+      if(topScoreEl){
+        topScoreEl.textContent = '—';
+        topScoreEl.style.color = 'var(--rd)';
+      }
+      if(topScoreSubEl){
+        topScoreSubEl.textContent = 'AI failed';
+        topScoreSubEl.style.color = 'var(--rd)';
+      }
     }
     aiLoadingEl.style.display = 'none';
   }
@@ -21824,6 +21842,8 @@ function tapRenderVerdictBanner(text){
   const subEl    = document.getElementById('tap-verdict-sub');
   const probEl   = document.getElementById('tap-verdict-prob');
   const barEl    = document.getElementById('tap-verdict-bar');
+  const topScoreEl = document.getElementById('tap-l-ai-score');
+  const topScoreSubEl = document.getElementById('tap-l-ai-score-sub');
   if(!banner) return;
 
   const structured = tapParseStructuredAnalysis(text);
@@ -21878,7 +21898,17 @@ function tapRenderVerdictBanner(text){
     scoreVal = scoreVal ?? 5; likelihood='Setup is invalid — do not trade'; barPct=scoreVal;
   }
 
-  if(!verdict) return;
+  if(!verdict){
+    if(topScoreEl){
+      topScoreEl.textContent = parsedScore !== null ? `${parsedScore}/100` : '—';
+      topScoreEl.style.color = parsedScore !== null ? 'var(--tx)' : 'var(--tx2)';
+    }
+    if(topScoreSubEl){
+      topScoreSubEl.textContent = parsedScore !== null ? scoreSource : 'Score unavailable';
+      topScoreSubEl.style.color = 'var(--tx3)';
+    }
+    return;
+  }
 
   const probMatch = text.match(/(\d{1,3})\s*%\s*(?:chance|probability|likelihood)/i);
   const probPct = structured?.probability ?? (probMatch ? parseInt(probMatch[1]) : null);
@@ -21896,6 +21926,14 @@ function tapRenderVerdictBanner(text){
   probEl.textContent       = probPct ? `${probPct}% probability of success · ${scoreSource}` : `See full analysis below · ${scoreSource}`;
   probEl.style.color       = verdictColor;
   barEl.style.background   = verdictColor;
+  if(topScoreEl){
+    topScoreEl.textContent = scoreVal !== null ? `${scoreVal}/100` : '—';
+    topScoreEl.style.color = verdictColor;
+  }
+  if(topScoreSubEl){
+    topScoreSubEl.textContent = verdict || scoreSource;
+    topScoreSubEl.style.color = verdictColor;
+  }
   setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);
 }
 
