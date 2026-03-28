@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "description": "APEX FX Trading Platform",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "npx serve public -l 3001",
-    "start": "vercel dev --listen 3001 --yes"
+    "start": "vercel dev --listen 3001 --yes",
+    "scan": "node scripts/historical-scan.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
   }
 }

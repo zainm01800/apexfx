@@ -1287,7 +1287,16 @@ Chart notes: ${state.drawCtx.notes.length ? state.drawCtx.notes.join(' | ') : 'n
 Trader memory: ${state.profile?.total ? formatTraderProfileForAI(state.profile) : 'not enough data yet'}
 
 Do not give financial advice. Do not use markdown. Keep the tone calm, clear, and practical.`;
-    const text = await groqFetch(prompt, { max_tokens: 220, temperature: 0.2, timeoutMs: 20000 });
+  // Inject historical win-rate context if available (no Groq cost — pure DB lookup)
+  let _histCtx = '';
+  try {
+    const _hStats = _supa ? await tapFetchHistoricalStats(state.sym || curSym?.s, state.tf || curTF, state.bias === 'Bullish' ? 'long' : 'short') : null;
+    if (_hStats && _hStats.count >= 10) {
+      _histCtx = ` Historical data: ${_hStats.count} similar ${state.sym} ${state.tf} setups scanned — ${_hStats.winRate}% win rate.` +
+        (_hStats.topMethod ? ` Best performing method: ${_hStats.topMethod} (${_hStats.methodWinRate}%).` : '');
+    }
+  } catch(e) {}
+    const text = await groqFetch(prompt + _histCtx, { max_tokens: 220, temperature: 0.2, timeoutMs: 20000 });
     aiCopilotCache[cacheKey] = { text, ts: Date.now() };
     outEl.innerHTML = aiCopilotRenderAIText(text);
     statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
@@ -13016,8 +13025,8 @@ function handleDrawMousedown(sx, sy, e){
         dragStartY        = sy;
         dragSnapshot      = JSON.parse(JSON.stringify(selectedDrawing));
         // If user clicks a long/short drawing, make it the active analysis target
-        // Skip the popup for AI mentor example drawings
-        if((drawings[i].type==='long'||drawings[i].type==='short') && drawings[i]!==_tapDrawing && !drawings[i].isMentorExample){
+        // Skip the popup for AI mentor examples and temporary refinement suggestions
+        if((drawings[i].type==='long'||drawings[i].type==='short') && drawings[i]!==_tapDrawing && !drawings[i].isMentorExample && !drawings[i]._tapRefinement){
           _tapDrawing = drawings[i];
           showTradeAnalysisPopup(drawings[i], false); // re-open with this drawing's lock
         }
@@ -13299,7 +13308,7 @@ function handleDrawMousemove(sx, sy){
       case 'arrow':{ d.bar=s.bar+dBar; d.price=s.price+dPrice; break; }
     }
     draw();
-    if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
     return;
   }
 
@@ -13349,7 +13358,7 @@ function handleDrawMousemove(sx, sy){
         d.pts=s.pts.map(p=>({bar:p.bar+dBar,price:p.price+dPrice})); break;
     }
     draw();
-    if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
     return;
   }
 
@@ -15214,6 +15223,24 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         if(rrStr){
           ctx.fillStyle=rr>=2?'#00c9a0':'#f0a500';
           ctx.fillText(rrStr, bx+4, (ey+tpy)/2+3);
+        }
+        // "AI Refined" badge for refinement suggestions placed via Show on Chart
+        if(d._refinementLabel){
+          const badge = '★ AI REFINED SETUP';
+          ctx.font = 'bold 9px ui-monospace,monospace';
+          const bw = ctx.measureText(badge).width + 12;
+          const bh = 15;
+          const bxPos = bx + 4;
+          const byPos = tpy + (isLong ? -18 : 14);
+          ctx.fillStyle = isLong ? 'rgba(0,201,160,.22)' : 'rgba(240,48,96,.22)';
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(bxPos, byPos, bw, bh, 3)
+            : ctx.rect(bxPos, byPos, bw, bh);
+          ctx.fill();
+          ctx.strokeStyle = entryCol; ctx.lineWidth = 0.8; ctx.setLineDash([]);
+          ctx.strokeRect(bxPos, byPos, bw, bh);
+          ctx.fillStyle = entryCol; ctx.textAlign = 'left';
+          ctx.fillText(badge, bxPos + 6, byPos + 10);
         }
         break;
       }
@@ -17970,7 +17997,7 @@ function initContextMenus(){
         selectedDrawings = [hit];
         draw();
         showAppContextMenu([
-          (hit.type === 'long' || hit.type === 'short') ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
+          (hit.type === 'long' || hit.type === 'short') && !hit._tapRefinement ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
           { label:'Duplicate drawing', action:() => duplicateDrawing(hit) },
           { label:'Bring to front', action:() => bringDrawingToFront(hit) },
           { label:'Send to back', action:() => sendDrawingToBack(hit) },
@@ -20145,6 +20172,30 @@ function aisRenderCards(){
 
   // Apply current filter state immediately
   aisApplyFilter();
+
+  // Enrich cards with historical win-rate data (non-blocking)
+  sorted.forEach(s => {
+    const cid = `${s.sym}-${s.tf}`;
+    const dir = s.dir === 'bull' ? 'long' : 'short';
+    tapFetchHistoricalStats(s.sym, s.tf, dir).then(stats => {
+      if (!stats || stats.count < 10) return;
+      const el     = document.getElementById(`ais-hist-${cid}`);
+      const body   = document.getElementById(`ais-hist-body-${cid}`);
+      if (!el || !body) return;
+      const wrCol  = stats.winRate >= 60 ? 'var(--tl)' : stats.winRate >= 45 ? 'var(--am)' : 'var(--rd)';
+      const bar    = Math.round(stats.winRate);
+      body.innerHTML =
+        `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">` +
+          `<span style="color:${wrCol};font-weight:700;">${stats.winRate}% win rate</span>` +
+          `<span style="color:var(--tx3);">${stats.count} setups · ${stats.tpCount}W / ${stats.slCount}L</span>` +
+        `</div>` +
+        `<div style="height:3px;border-radius:2px;background:rgba(136,153,176,.2);margin-bottom:4px;">` +
+          `<div style="height:100%;width:${bar}%;border-radius:2px;background:${wrCol};transition:width .4s;"></div>` +
+        `</div>` +
+        (stats.topMethod ? `<span style="color:var(--tx3);">Best method: ${stats.topMethod} (${stats.methodWinRate}%)</span>` : '');
+      el.style.display = 'block';
+    }).catch(() => {});
+  });
 }
 
 function aisBuildSelectionReason(s){
@@ -20198,6 +20249,10 @@ function aisCardHTML(s, rank){
       <div class="ais-lvl"><div class="ais-lvl-lbl">${entryLbl}</div><div class="ais-lvl-val" style="color:${entryCol}">${fP(s.entry)}</div></div>
       <div class="ais-lvl"><div class="ais-lvl-lbl">STOP LOSS</div><div class="ais-lvl-val" style="color:var(--rd)">${fP(s.sl)}</div></div>
       <div class="ais-lvl"><div class="ais-lvl-val" style="color:${tgtCol};margin-top:2px">${fP(s.target)}</div><div class="ais-lvl-lbl">${tgtLbl}</div></div>
+    </div>
+    <div id="ais-hist-${cid}" style="display:none;margin:6px 0 2px;padding:7px 10px;border-radius:6px;background:rgba(136,153,176,.07);border:1px solid rgba(136,153,176,.15);">
+      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;letter-spacing:.4px;margin-bottom:4px;">📊 HISTORICAL DATA</div>
+      <div id="ais-hist-body-${cid}" style="font-size:10px;color:var(--tx2);font-family:ui-monospace,monospace;line-height:1.6;"></div>
     </div>
     <div class="ais-idea">
       <div class="ais-idea-lbl">💡 AI SETUP SUMMARY</div>
@@ -20438,6 +20493,7 @@ function tapParseStructuredAnalysis(text){
 
 function tapDisplayAnalysisText(text){
   return String(text || '')
+    .replace(/\n?METHOD_JSON:\s*\{[^\n]*\}/gi, '')
     .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}\s*$/i, '')
     .trim();
 }
@@ -20735,71 +20791,71 @@ function tapRenderSetupBridge(d, analysisText=''){
 
 
 
-// ── Show refinement annotations on the main chart ────────────────────────────
+// ── Show refinement as a proper long/short trade tool on the main chart ───────
 function tapShowRefinementOnChart(){
   if(!_tapDrawing || !curData?.length) return;
-  const d   = _tapDrawing;
-  const n   = curData.length;
-  const atrV = calcATR(curData);
-  const atr  = atrV[n-1] || Math.abs(d.price - d.sl) * 0.8;
-  const sr   = detectSR(curData);
+  const d      = _tapDrawing;
+  const n      = curData.length;
+  const atrV   = calcATR(curData);
+  const atr    = atrV[n-1] || Math.abs(d.price - d.sl) * 0.8;
+  const sr     = detectSR(curData);
   const isLong = d.type === 'long';
   const barNow = n - 1;
 
-  // Remove old refinement annotations
+  // Remove any existing refinement tool so we don't stack up multiples
   drawings = drawings.filter(x => !x._tapRefinement);
 
-  // ── Suggested entry: nearest S/R within 3% of current entry on the correct side ─
+  // ── Suggested entry: nearest S/R within 3% of current entry, correct side ──
   let suggestedEntry = null;
   if(isLong){
     const candidates = sr.support.filter(s => s < d.price && s > d.price * 0.97);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>b-a)[0];
+    if(candidates.length) suggestedEntry = candidates.sort((a,b) => b-a)[0];
   } else {
     const candidates = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>a-b)[0];
+    if(candidates.length) suggestedEntry = candidates.sort((a,b) => a-b)[0];
   }
-  // If no S/R found, suggest ATR-snapped level
+  // Fallback: half ATR from current entry
   if(!suggestedEntry) suggestedEntry = isLong ? d.price - atr * 0.5 : d.price + atr * 0.5;
 
   // ── Suggested SL: 1.5× ATR beyond suggested entry ─────────────────────────
   const suggestedSL = isLong ? suggestedEntry - atr * 1.5 : suggestedEntry + atr * 1.5;
 
-  // ── Suggested TP: 2.5:1 R:R from suggested entry → suggested SL ──────────
-  const riskAmt = Math.abs(suggestedEntry - suggestedSL);
+  // ── Suggested TP: 2.5:1 R:R from suggested entry ──────────────────────────
+  const riskAmt    = Math.abs(suggestedEntry - suggestedSL);
   const suggestedTP = isLong ? suggestedEntry + riskAmt * 2.5 : suggestedEntry - riskAmt * 2.5;
 
-  const addLine = (price, label, color, dash=false) => {
-    if(!isFinite(price)) return;
-    drawings.push({ type:'hline', price, color, label,
-      dash, lineWidth:1.5, _tapRefinement:true, _noSave:true, bar:barNow });
+  // ── Build a proper long/short drawing — same format as user-placed tools ───
+  const halfBars = defaultTradeToolHalfBars(curTF);
+  // Place the box centred on the current bar so it's clearly visible
+  const refinementDraw = {
+    type:         isLong ? 'long' : 'short',
+    bar:          barNow + halfBars,           // right-anchored at current bar
+    price:        suggestedEntry,
+    sl:           suggestedSL,
+    tp:           suggestedTP,
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, curTF),
+    tf:           curTF,
+    id:           'tap-refine-' + Date.now(),
+    _tapRefinement: true,                      // marks it as temporary
+    _noSave:        true,                      // excluded from localStorage
+    _refinementLabel: true,                    // tells renderer to show "AI Refined" badge
   };
 
-  // Draw the 3 suggested level lines
-  addLine(suggestedEntry, `Refined Entry · ${fP(suggestedEntry)}`, '#3d8eff', false);
-  addLine(suggestedSL,    `Refined SL · ${fP(suggestedSL)}`,     '#f03060', true);
-  addLine(suggestedTP,    `Refined TP · ${fP(suggestedTP)}`,     '#00c9a0', true);
-
-  // Annotation text block at the entry bar position
-  const textLabel = isLong
-    ? `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`
-    : `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`;
-  drawings.push({
-    type:'text', bar: barNow - 4, price: suggestedEntry,
-    text: textLabel, color:'#3d8eff', fontSize:10,
-    _tapRefinement:true, _noSave:true
-  });
-
+  drawings.push(refinementDraw);
   draw();
-  toast('📍 Refinement shown on chart — dashed lines = suggested levels');
 
-  // Auto-remove after 60 seconds so the chart doesn't stay cluttered
-  setTimeout(()=>{
+  const rr = (riskAmt > 0 ? (riskAmt * 2.5 / riskAmt).toFixed(2) : '2.50');
+  toast(`📍 AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
+
+  // Auto-remove after 90 seconds to keep chart clean
+  setTimeout(() => {
     drawings = drawings.filter(x => !x._tapRefinement);
     draw();
-  }, 60000);
+  }, 90000);
 }
 
-// Clear refinement annotations manually
+// Clear refinement tool manually (e.g. if user re-clicks Show on Chart)
 function tapClearRefinement(){
   drawings = drawings.filter(x => !x._tapRefinement);
   draw();
@@ -21525,6 +21581,8 @@ async function openFullTradeAnalysis(){
     const sessionResult = cached.aiResult;
     aiOutEl.textContent = tapDisplayAnalysisText(sessionResult);
     tapRenderVerdictBanner(sessionResult);
+    tapRenderMethodBadge(sessionResult);
+    tapRenderHistoricalStatsBadge(d);
     tapRenderSetupBridge(d, sessionResult);
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
@@ -21562,6 +21620,8 @@ async function openFullTradeAnalysis(){
     const ageSec = Math.round(_enq.ageMs / 1000);
     aiOutEl.textContent = tapDisplayAnalysisText(_enq.result);
     tapRenderVerdictBanner(_enq.result);
+    tapRenderMethodBadge(_enq.result);
+    tapRenderHistoricalStatsBadge(d);
     tapRenderSetupBridge(d, _enq.result);
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
@@ -21608,6 +21668,8 @@ async function openFullTradeAnalysis(){
       tapSaveLock(curSym.s, text, d);
       _tapAnchorFill(d);
       tapRenderVerdictBanner(text);
+      tapRenderMethodBadge(text);
+      tapRenderHistoricalStatsBadge(d);
       tapRenderSetupBridge(d, text);
       tapRenderDecisionContext(d);
       aiLoadingEl.style.display = 'none';
@@ -22358,6 +22420,386 @@ function tapRenderVerdictBanner(text){
   setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── TAP RAG (Retrieval-Augmented Generation) — Self-Learning Analysis Engine ─
+// ══════════════════════════════════════════════════════════════════════════════
+// How it works:
+//   1. Extract a 12-dim normalised feature vector from the current trade setup
+//   2. Search local history + Supabase for past analyses with similar vectors
+//   3. Tier 1 (≥0.93 similarity, non-failed): return stored analysis → FREE
+//   4. Tier 2 (≥0.75 similarity): inject as few-shot context → ~40% cheaper
+//   5. Tier 3 (<0.75): full Groq call → standard cost
+//   6. After every Groq call, store analysis + feature vector for future reuse
+//   7. When SL/TP is hit, record outcome → system learns what worked
+
+// ── Feature vector extraction ─────────────────────────────────────────────────
+// Returns [rsi_norm, trend_bull, direction, rr_norm, sl_atr_norm, pat_conf,
+//          pat_aligns, sr_prox, vol_ratio_norm, macd_bull, macd_str, rsi_bull]
+function tapExtractFeatureVector(d, analysisData) {
+  try {
+    const n = analysisData.length;
+    if (n < 20) return null;
+    const isLong = d.type === 'long';
+    const rsiV   = calcRSI(analysisData);
+    const rsi    = rsiV[n-1] ?? 50;
+    const sma20V = calcSMA(analysisData, 20);
+    const sma50V = calcSMA(analysisData, 50);
+    const atrV   = calcATR(analysisData);
+    const atr    = atrV[n-1] || 0.0001;
+    const macdV  = calcMACD(analysisData);
+    const lastMACD = macdV[n-1];
+    const pats   = detectPatterns(analysisData);
+    const sr     = detectSR(analysisData);
+    const lastBar = analysisData[n-1];
+    const sma20val = sma20V[n-1] || 0;
+    const sma50val = sma50V[n-1] || 0;
+    const rr     = Math.abs(d.tp - d.price) / Math.abs(d.sl - d.price);
+    const slAtr  = Math.abs(d.price - d.sl) / atr;
+    const topPat = pats.sort((a,b) => b.conf - a.conf)[0];
+    const patConf   = topPat ? topPat.conf : 0;
+    const patDir    = topPat ? (topPat.dir === 'bullish' ? 1 : topPat.dir === 'bearish' ? -1 : 0) : 0;
+    const patAligns = topPat ? (((isLong && patDir > 0) || (!isLong && patDir < 0)) ? 1 : (patDir === 0 ? 0.5 : 0)) : 0.5;
+    const allSRVals = [...(sr.support || []), ...(sr.resistance || [])];
+    const nearestSRDist = allSRVals.length > 0
+      ? Math.min(...allSRVals.map(v => Math.abs(v - d.price)))
+      : atr * 3;
+    const srProx = 1 - Math.min(nearestSRDist / (atr * 2), 1);
+    const recentBars = analysisData.slice(-20);
+    const avgVol = recentBars.reduce((s,b) => s + (b.volume || 0), 0) / recentBars.length;
+    const volRatio = avgVol > 0 ? (lastBar.volume || 0) / avgVol : 1;
+    const macdHist = lastMACD?.hist || 0;
+    return [
+      rsi / 100,                                                             // 0: rsi_norm
+      (sma20val > 0 && sma50val > 0) ? (sma20val > sma50val ? 1 : 0) : 0.5,// 1: trend_bull
+      isLong ? 1 : 0,                                                        // 2: direction
+      Math.min(rr / 4, 1),                                                   // 3: rr_norm
+      Math.min(slAtr / 3, 1),                                                // 4: sl_atr_norm
+      Math.max(0, Math.min(1, patConf)),                                     // 5: pat_conf
+      patAligns,                                                             // 6: pat_aligns
+      Math.max(0, Math.min(1, srProx)),                                      // 7: sr_prox
+      Math.min(volRatio / 3, 1),                                             // 8: vol_ratio_norm
+      macdHist > 0 ? 1 : 0,                                                 // 9: macd_bull
+      atr > 0 ? Math.min(Math.abs(macdHist) / atr, 1) : 0,                  // 10: macd_str
+      rsi > 50 ? 1 : 0,                                                      // 11: rsi_bull
+    ];
+  } catch(e) { return null; }
+}
+
+// ── Cosine similarity between two equal-length vectors ────────────────────────
+function tapCosineSimilarity(v1, v2) {
+  if (!v1 || !v2 || v1.length !== v2.length) return 0;
+  let dot = 0, mag1 = 0, mag2 = 0;
+  for (let i = 0; i < v1.length; i++) {
+    dot  += v1[i] * v2[i];
+    mag1 += v1[i] * v1[i];
+    mag2 += v2[i] * v2[i];
+  }
+  const denom = Math.sqrt(mag1) * Math.sqrt(mag2);
+  return denom > 0 ? dot / denom : 0;
+}
+
+// ── Local analysis history (localStorage) ────────────────────────────────────
+function tapGetLocalAnalysisHistory() {
+  try { return JSON.parse(_lsGet('apex-analyses') || '[]'); } catch(e) { return []; }
+}
+function tapSetLocalAnalysisHistory(arr) {
+  try { _lsSet('apex-analyses', JSON.stringify(arr.slice(0, 120))); } catch(e) {}
+}
+
+// ── Cross-timeframe similarity weight ─────────────────────────────────────────
+// Short TFs (1m/5m) have thin history so we cast a wider cross-TF net.
+// Same-TF matches are always preferred; cross-TF matches are slightly discounted.
+function _tapTFSimilarityWeight(currentTF, rowTF) {
+  if (!rowTF || rowTF === currentTF) return 1.0;
+  const shortTFs = ['1m', '5m'];
+  const midTFs   = ['15m', '30m'];
+  const longTFs  = ['1h', '4h', '1d'];
+  const bucket = tf => shortTFs.includes(tf) ? 0 : midTFs.includes(tf) ? 1 : 2;
+  const dist = Math.abs(bucket(currentTF) - bucket(rowTF));
+  // 1 bucket away (e.g. 5m↔15m): 0.95×   2 buckets away (e.g. 1m↔1h): 0.88×
+  return dist === 0 ? 1.0 : dist === 1 ? 0.95 : 0.88;
+}
+
+// ── Search for similar past analyses ─────────────────────────────────────────
+// Pulls from:  1) localStorage (your own recent analyses)
+//              2) Supabase — your personal analyses (cross-device)
+//              3) Supabase — historical scan data (user_id = 'anonymous')
+// Cross-timeframe matches are included but slightly down-weighted so same-TF
+// matches are always preferred when available.
+async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
+  if (!featureVec) return [];
+  const tf = currentTF || curTF;
+
+  // 1. Local history
+  const local = tapGetLocalAnalysisHistory();
+  let candidates = local.filter(a =>
+    Array.isArray(a.feature_vector) && a.feature_vector.length === featureVec.length
+  );
+
+  // 2 + 3. Supabase: your analyses AND historical scan data (anonymous)
+  if (_supa) {
+    try {
+      // Fetch both in parallel — your personal data + the historical library
+      const [personalRes, historicalRes] = await Promise.all([
+        _currentUserId
+          ? _supa.from('apex_analyses')
+              .select('id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected')
+              .eq('user_id', _currentUserId)
+              .order('created_at', { ascending: false })
+              .limit(80)
+          : { data: [] },
+        _supa.from('apex_analyses')
+          .select('id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected')
+          .eq('user_id', 'anonymous')
+          .eq('symbol', symbol)          // historical data filtered to same symbol
+          .order('created_at', { ascending: false })
+          .limit(120),
+      ]);
+
+      const localIds = new Set(candidates.map(a => a.id));
+      const remoteRows = [
+        ...(personalRes.data   || []),
+        ...(historicalRes.data || []),
+      ].filter(r =>
+        !localIds.has(r.id) &&
+        Array.isArray(r.feature_vector) &&
+        r.feature_vector.length === featureVec.length
+      );
+      candidates = [...candidates, ...remoteRows];
+    } catch(e) { /* Supabase unavailable — use local only */ }
+  }
+
+  // Score with cross-TF weight applied
+  return candidates
+    .map(a => ({
+      ...a,
+      similarity: tapCosineSimilarity(featureVec, a.feature_vector)
+                  * _tapTFSimilarityWeight(tf, a.timeframe),
+    }))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 5);
+}
+
+// ── Store a completed analysis for future RAG reuse ───────────────────────────
+async function tapStoreAnalysis(d, featureVec, analysisText, scorecard, symbol, tf, methodDetected) {
+  if (!featureVec || !analysisText) return null;
+  const id = 'apex-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const record = {
+    id,
+    user_id: _currentUserId || 'anonymous',
+    symbol:  symbol  || curSym?.s || 'unknown',
+    timeframe: tf    || curTF    || '1d',
+    direction: d.type,
+    feature_vector:  featureVec,
+    analysis_text:   analysisText,
+    scorecard:       scorecard || null,
+    verdict:         scorecard?.verdict || null,
+    combined_score:  scorecard?.combined_score ?? null,
+    probability:     scorecard?.probability ?? null,
+    method_detected: methodDetected || null,
+    entry_price:     d.price,
+    sl_price:        d.sl,
+    tp_price:        d.tp,
+    outcome:         'pending',
+    verdict_correct: null,
+    outcome_at:      null,
+    created_at:      new Date().toISOString(),
+  };
+
+  // Always persist locally
+  const history = tapGetLocalAnalysisHistory();
+  history.unshift(record);
+  tapSetLocalAnalysisHistory(history);
+
+  // Sync to Supabase if user is logged in
+  if (_supa && _currentUserId) {
+    try {
+      await _supa.from('apex_analyses').insert(record);
+    } catch(e) { /* non-critical — local copy already saved */ }
+  }
+
+  return id;
+}
+
+// ── Record SL/TP outcome against a stored analysis ───────────────────────────
+// Called when tapTradeStatus detects SL Hit or TP Hit for a drawing
+async function tapUpdateAnalysisOutcome(d, outcome) {
+  // outcome: 'tp_hit' | 'sl_hit' | 'breakeven'
+  const history = tapGetLocalAnalysisHistory();
+  const record = history.find(a =>
+    Math.abs(a.entry_price - d.price) < 0.000001 &&
+    Math.abs(a.sl_price   - d.sl)    < 0.000001 &&
+    Math.abs(a.tp_price   - d.tp)    < 0.000001 &&
+    a.outcome === 'pending'
+  );
+  if (!record) return;
+
+  // Determine if the AI verdict was correct:
+  // Strong/Acceptable Setup → expected TP hit; Risky/Avoid → expected SL hit
+  const positiveVerdict = /strong|acceptable/i.test(record.verdict || '');
+  const verdictCorrect  = outcome === 'tp_hit' ? positiveVerdict : !positiveVerdict;
+
+  record.outcome         = outcome;
+  record.verdict_correct = verdictCorrect;
+  record.outcome_at      = new Date().toISOString();
+  tapSetLocalAnalysisHistory(history);
+
+  // Sync outcome to Supabase
+  if (_supa && _currentUserId) {
+    try {
+      await _supa.from('apex_analyses')
+        .update({ outcome, verdict_correct: verdictCorrect, outcome_at: record.outcome_at })
+        .eq('id', record.id)
+        .eq('user_id', _currentUserId);
+    } catch(e) {}
+  }
+}
+
+// ── RAG stats visible in the TAP panel (win-rate from stored outcomes) ─────────
+function tapGetRAGStats(symbol) {
+  const history = tapGetLocalAnalysisHistory();
+  const resolved = history.filter(a => a.outcome && a.outcome !== 'pending' && a.symbol === symbol);
+  if (!resolved.length) return null;
+  const wins   = resolved.filter(a => a.outcome === 'tp_hit').length;
+  const total  = resolved.length;
+  const correct = resolved.filter(a => a.verdict_correct === true).length;
+  return {
+    total,
+    wins,
+    winRate: Math.round(wins / total * 100),
+    aiAccuracy: Math.round(correct / total * 100),
+  };
+}
+
+// ── Fetch historical win-rate stats from the scan database ───────────────────
+// Queries the anonymous historical data for a specific symbol/TF/direction
+// Returns { winRate, count, tpCount, slCount, topMethod, methodWinRate } or null
+async function tapFetchHistoricalStats(symbol, tf, direction) {
+  if (!_supa) return null;
+  try {
+    const { data, error } = await _supa
+      .from('apex_analyses')
+      .select('outcome, method_detected')
+      .eq('user_id', 'anonymous')
+      .eq('symbol', symbol)
+      .eq('timeframe', tf)
+      .eq('direction', direction)
+      .neq('outcome', 'pending');
+    if (error || !data?.length) return null;
+    const total   = data.length;
+    const tpCount = data.filter(r => r.outcome === 'tp_hit').length;
+    const slCount = data.filter(r => r.outcome === 'sl_hit').length;
+    const winRate = Math.round(tpCount / total * 100);
+    // Find the method with the best win rate (min 5 samples)
+    const methodMap = {};
+    data.forEach(r => {
+      if (!r.method_detected) return;
+      if (!methodMap[r.method_detected]) methodMap[r.method_detected] = { tp: 0, total: 0 };
+      methodMap[r.method_detected].total++;
+      if (r.outcome === 'tp_hit') methodMap[r.method_detected].tp++;
+    });
+    let topMethod = null, topMethodWR = 0;
+    Object.entries(methodMap).forEach(([m, v]) => {
+      if (v.total >= 5) {
+        const wr = Math.round(v.tp / v.total * 100);
+        if (wr > topMethodWR) { topMethodWR = wr; topMethod = m; }
+      }
+    });
+    return { winRate, count: total, tpCount, slCount, topMethod, methodWinRate: topMethodWR };
+  } catch(e) { return null; }
+}
+
+// ── Parse METHOD_JSON line from analysis text ─────────────────────────────────
+function tapParseMethodJSON(text) {
+  if (!text) return null;
+  try {
+    const m = text.match(/METHOD_JSON:\s*(\{[^\n]+\})/);
+    if (!m) return null;
+    return JSON.parse(m[1]);
+  } catch(e) { return null; }
+}
+
+// ── Render method badge in the TAP panel ──────────────────────────────────────
+// Shows which trading methodology was detected, with confidence + key signals
+function tapRenderMethodBadge(analysisText) {
+  document.getElementById('tap-method-badge')?.remove();
+  if (!analysisText) return;
+  const mj = tapParseMethodJSON(analysisText);
+  if (!mj?.method) return;
+
+  // Method colour map
+  const methodColors = {
+    'ICT':               { bg: 'rgba(99,102,241,.15)',  border: 'rgba(99,102,241,.45)',  text: '#818cf8' },
+    'SMC':               { bg: 'rgba(168,85,247,.15)',  border: 'rgba(168,85,247,.45)',  text: '#c084fc' },
+    'Supply & Demand':   { bg: 'rgba(249,115,22,.15)',  border: 'rgba(249,115,22,.45)',  text: '#fb923c' },
+    'Support & Resistance': { bg: 'rgba(20,184,166,.15)', border: 'rgba(20,184,166,.45)', text: '#2dd4bf' },
+    'MA / Trend Following': { bg: 'rgba(59,130,246,.15)', border: 'rgba(59,130,246,.45)', text: '#60a5fa' },
+    'Price Action':      { bg: 'rgba(234,179,8,.15)',   border: 'rgba(234,179,8,.45)',   text: '#facc15' },
+    'Breakout':          { bg: 'rgba(239,68,68,.15)',   border: 'rgba(239,68,68,.45)',   text: '#f87171' },
+    'Fibonacci':         { bg: 'rgba(16,185,129,.15)',  border: 'rgba(16,185,129,.45)',  text: '#34d399' },
+    'RSI / Momentum':    { bg: 'rgba(245,158,11,.15)',  border: 'rgba(245,158,11,.45)',  text: '#fbbf24' },
+    'Wyckoff':           { bg: 'rgba(139,92,246,.15)',  border: 'rgba(139,92,246,.45)',  text: '#a78bfa' },
+  };
+  const col = methodColors[mj.method] || { bg: 'rgba(136,153,176,.12)', border: 'rgba(136,153,176,.35)', text: 'var(--tx2)' };
+  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' · ') : '';
+
+  const badge = document.createElement('div');
+  badge.id = 'tap-method-badge';
+  badge.style.cssText = `margin-bottom:10px;padding:10px 12px;border-radius:8px;` +
+    `background:${col.bg};border:1px solid ${col.border};`;
+  badge.innerHTML =
+    `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${mj.method_verdict ? '6px' : '0'};">` +
+      `<div style="display:flex;align-items:center;gap:8px;">` +
+        `<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:.5px;color:${col.text};">` +
+          `📊 ${mj.method.toUpperCase()}</span>` +
+        (signals ? `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${signals}</span>` : '') +
+      `</div>` +
+      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '—'}% match</span>` +
+    `</div>` +
+    (mj.method_verdict ? `<div style="font-size:10px;color:var(--tx2);line-height:1.5;">${mj.method_verdict}</div>` : '');
+
+  // Insert above the AI output text
+  const aiOut = document.getElementById('tap-ai-out');
+  aiOut?.parentNode?.insertBefore(badge, aiOut);
+}
+
+// ── Show historical win-rate stats in TAP panel ───────────────────────────────
+async function tapRenderHistoricalStatsBadge(d) {
+  document.getElementById('tap-hist-stats-badge')?.remove();
+  if (!d || !_supa) return;
+  const dir   = d.type;
+  const tf    = d.tf || curTF;
+  const sym   = curSym?.s;
+  if (!sym) return;
+  const stats = await tapFetchHistoricalStats(sym, tf, dir);
+  if (!stats || stats.count < 5) return;
+  const wrCol = stats.winRate >= 60 ? '#00c9a0' : stats.winRate >= 45 ? '#f0a500' : '#f03060';
+  const badge = document.createElement('div');
+  badge.id    = 'tap-hist-stats-badge';
+  badge.style.cssText = 'margin-bottom:10px;padding:8px 12px;border-radius:8px;' +
+    'background:rgba(136,153,176,.07);border:1px solid rgba(136,153,176,.18);';
+  badge.innerHTML =
+    `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">` +
+      `<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;` +
+        `letter-spacing:.4px;color:var(--tx2);">📊 HISTORICAL DATA · ${sym} ${tf}</span>` +
+      `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${stats.count} similar setups scanned</span>` +
+    `</div>` +
+    `<div style="display:flex;align-items:center;gap:12px;">` +
+      `<span style="font-size:18px;font-weight:700;font-family:ui-monospace,monospace;color:${wrCol};">${stats.winRate}%</span>` +
+      `<div style="flex:1;">` +
+        `<div style="height:4px;border-radius:2px;background:rgba(136,153,176,.2);margin-bottom:3px;">` +
+          `<div style="height:100%;width:${stats.winRate}%;border-radius:2px;background:${wrCol};"></div>` +
+        `</div>` +
+        `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">` +
+          `${stats.tpCount} TP hit · ${stats.slCount} SL hit` +
+          (stats.topMethod ? ` · Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
+        `</span>` +
+      `</div>` +
+    `</div>`;
+  const aiOut = document.getElementById('tap-ai-out');
+  aiOut?.parentNode?.insertBefore(badge, aiOut);
+}
+
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
   // Use the TF the drawing was placed on — fall back to curTF if not stored
@@ -22471,6 +22913,39 @@ Originating Setup Context:
   const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
   const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
 
+  // ── Historical stats: fetch BEFORE building prompt so scores reflect real data ─
+  const _histStats = await tapFetchHistoricalStats(curSym.s, drawingTF, isLong ? 'long' : 'short').catch(() => null);
+  const _histCtxForPrompt = _histStats && _histStats.count >= 10
+    ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${curSym.s} ${drawingTF} ${isLong?'long':'short'} setups scanned):
+  Overall win rate: ${_histStats.winRate}% (${_histStats.tpCount} TP hit, ${_histStats.slCount} SL hit)` +
+      (_histStats.topMethod ? `\n  Best performing method on this pair/TF: ${_histStats.topMethod} with ${_histStats.methodWinRate}% win rate` : '') +
+      `\n  IMPORTANT: Use this historical win rate as a STRONG input to your Technical Confluence score and your Probability Estimate. A ${_histStats.winRate}% base rate for this setup type should anchor your probability — adjust up/down based on how well this specific trade aligns with the best-performing conditions.`
+    : '';
+
+  // ── RAG: Extract feature vector and search similar past analyses ──────────────
+  const _ragFeatureVec = tapExtractFeatureVector(d, analysisData);
+  const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, curSym.s, drawingTF) : [];
+  const _ragBest       = _ragMatches[0];
+
+  // Tier 1 (≥0.93 similarity, non-failed) — return stored analysis directly (FREE)
+  if (_ragBest?.similarity >= 0.93 && _ragBest.analysis_text && _ragBest.outcome !== 'sl_hit') {
+    const _simPct = (_ragBest.similarity * 100).toFixed(0);
+    const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? '✓ TP Hit historically'
+                        : _ragBest.outcome === 'sl_hit' ? '✗ SL Hit historically' : 'Outcome pending';
+    const _ragNote = `\n\n─────────────────────────────────────────\n` +
+      `🧠 RETRIEVED FROM SIMILAR PAST ANALYSIS · ${_simPct}% match\n` +
+      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} · ${_outcomeLabel}\n` +
+      `(No new Groq call — saved from your analysis history)`;
+    return _ragBest.analysis_text + _ragNote;
+  }
+
+  // Tier 2 (0.75–0.92) — inject as few-shot context into the prompt
+  const _ragCtx = (_ragBest?.similarity >= 0.75 && _ragBest.analysis_text)
+    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state · outcome: ${_ragBest.outcome || 'pending'}):\n` +
+      _ragBest.analysis_text.slice(0, 600) +
+      `\n[Apply similar reasoning — but re-evaluate with the live data above]\n`
+    : '';
+
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
 Be forensic, objective, and blunt. The trader does not need encouragement — they need an honest assessment.
@@ -22507,7 +22982,7 @@ Patterns: ${allPatsStr.slice(0, 220)}
 Trader's historical win rate on ${curSym.s}: ${symWR}
 ${traderCtx}
 ${drawingStateCtx}
-${setupCtx}
+${setupCtx}${_histCtxForPrompt}
 -----------------------------
 TRADE VALIDATION PROCESS
 
@@ -22550,19 +23025,58 @@ Give a specific percentage probability of hitting take profit before stop loss, 
 Classify as one of: Strong Setup / Acceptable Setup / Risky Setup / Avoid Trade
 One sentence of reasoning. Be decisive.
 
-11. SCORECARD_JSON
+11. TRADING METHOD IDENTIFICATION
+Identify which single trading methodology this trade most closely follows, based on:
+- WHERE entry is placed (FVG? order block? S/R level? MA? zone? Fibonacci level? pattern candle?)
+- HOW the stop is placed (beyond structure? ATR-based? below/above a zone? tight arbitrary?)
+- WHAT the take profit targets (liquidity pool? opposing S/R? MA extension? Fibonacci extension? next structure?)
+- Any other signals (displacement candles, BOS/CHoCH, RSI extreme, MA crossover)
+
+Choose exactly ONE method from this list:
+  • ICT — entry at Fair Value Gap or Order Block; SL below/above OB; TP at liquidity pool or previous high/low; displacement candles present
+  • SMC (Smart Money Concepts) — entry after Break of Structure or Change of Character + retest; TP at imbalance or opposing liquidity
+  • Supply & Demand — entry at fresh untested supply/demand zone from an explosive base move; SL just outside the zone
+  • Support & Resistance — entry at a horizontal S/R level; SL just beyond the level; TP at next major S/R
+  • MA / Trend Following — entry on EMA/SMA crossover or pullback to a moving average; trend continuation logic
+  • Price Action — candlestick pattern trigger (pin bar, engulfing, inside bar, hammer) at a key structural level
+  • Breakout — entry above/below a consolidation range or key level with momentum; SL inside range; TP = range projection
+  • Fibonacci — entry at 38.2%, 50%, or 61.8% retracement of a clear swing; TP at 127.2% or 161.8% extension
+  • RSI / Momentum — entry triggered by RSI extreme (<30 or >70) or divergence at a key level; momentum confirmation
+  • Wyckoff — entry after accumulation/distribution phase completing; spring or upthrust as trigger; markup/markdown TP
+
+Then evaluate this specific trade through the lens of THAT method:
+- Does this trade follow the method's rules correctly?
+- What does the method say about this specific entry, stop, and target?
+- What rule, if any, is being broken for this method?
+- Is this a textbook example of the method or a loose interpretation?
+
+12. SCORECARD_JSON
 On a single final line, output exactly:
 SCORECARD_JSON: {"entry_quality":<0-28 integer>,"stop_placement":<0-26 integer>,"risk_reward_logic":<0-23 integer>,"technical_confluence":<0-23 integer>,"combined_score":<0-100 integer>,"probability":<0-100 integer>,"verdict":"<exact final verdict label>"}
-IMPORTANT: combined_score must equal entry_quality + stop_placement + risk_reward_logic + technical_confluence. Do not wrap in markdown. Do not add any text after it.
+IMPORTANT: combined_score must equal entry_quality + stop_placement + risk_reward_logic + technical_confluence. Do not wrap in markdown.
+Then on the very next line output exactly:
+METHOD_JSON: {"method":"<exact method name from the list>","confidence":<0-100 integer>,"signals":["<signal1>","<signal2>","<signal3>"],"method_verdict":"<one sentence evaluation from that method's perspective>"}
+Do not add any text after METHOD_JSON.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
-  return await aiComplete(prompt, {
+  // Tier 3: full Groq call (with optional Tier 2 context injected)
+  const _fullPrompt = prompt + _ragCtx;
+  const _result = await aiComplete(_fullPrompt, {
     model: 'llama-3.3-70b-versatile',
-    max_tokens: 1400,
+    max_tokens: 1600,
     temperature: 0.35,
     timeoutMs: 55000,
   });
+
+  // Store this analysis for future RAG reuse (non-blocking — never blocks the result)
+  if (_ragFeatureVec && _result) {
+    const _sc    = tapExtractTradeMetrics(_result);
+    const _mj    = tapParseMethodJSON(_result);
+    tapStoreAnalysis(d, _ragFeatureVec, _result, _sc, curSym.s, drawingTF, _mj?.method || null).catch(() => {});
+  }
+
+  return _result;
 }
 
 
