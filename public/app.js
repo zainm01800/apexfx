@@ -343,15 +343,14 @@ function ensureChartTabs(){
 function renderChartTabs(){
   const el = document.getElementById('chart-tabs-list');
   if(!el) return;
-  el.innerHTML = chartTabs.map(tab => `
-    <div class="chart-tab ${tab.id === activeChartTabId ? 'active' : ''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')">
-      <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
-        <span class="chart-tab-label">${tab.title || _chartTabTitle(tab.sym, tab.tf)}</span>
-        <span class="chart-tab-meta">${_chartTabMeta(tab)}</span>
-      </div>
-      <button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button>
-    </div>
-  `).join('');
+  // Build desired HTML and only update if changed (avoids layout thrash / flicker)
+  const desired = chartTabs.map(tab => {
+    const isActive = tab.id === activeChartTabId;
+    const title = tab.title || _chartTabTitle(tab.sym, tab.tf);
+    const meta  = _chartTabMeta(tab);
+    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button></div>`;
+  }).join('');
+  if(el.innerHTML !== desired) el.innerHTML = desired;
   const activeEl = el.querySelector('.chart-tab.active');
   if(activeEl) activeEl.scrollIntoView({ block:'nearest', inline:'nearest' });
   positionChartTabsBar();
@@ -415,9 +414,10 @@ function resetChartInteractionState(){
 }
 function clampChartTabRightIndex(savedIndex, dataLen){
   const fallback = dataLen + 5;
-  if(!dataLen) return Math.max(1, savedIndex || fallback);
+  if(!dataLen) return Math.max(1, Number(savedIndex) || fallback);
+  // null / undefined / 0 all mean "no saved position → show latest"
   const val = Number(savedIndex);
-  if(!Number.isFinite(val)) return fallback;
+  if(!Number.isFinite(val) || val <= 0) return fallback;
   return Math.max(1, Math.min(val, dataLen + 40));
 }
 function normalizeChartViewportForCurrentData(preferLatest = false){
@@ -519,13 +519,16 @@ function closeChartTab(id){
   const idx = chartTabs.findIndex(t => t.id === id);
   if(idx < 0) return;
   const wasActive = activeChartTabId === id;
+  // Save the current tab's state BEFORE we change activeChartTabId, so we
+  // don't accidentally overwrite the next tab with the closed tab's symbol.
+  if(wasActive) saveCurrentChartTabState();
   chartTabs.splice(idx, 1);
   if(wasActive){
     const next = chartTabs[Math.max(0, idx - 1)] || chartTabs[0];
     activeChartTabId = next?.id || null;
   }
   renderChartTabs();
-  saveChartTabs();
+  saveChartTabs(false); // false = don't re-snapshot active state (curSym is still stale)
   if(wasActive && activeChartTabId) switchChartTab(activeChartTabId, true);
 }
 function syncTimeframeButtons(){
@@ -552,6 +555,8 @@ function applyChartTabWorkspace(tab){
   renderTopbarInds();
   renderIndList(_indSearchQ());
   sizeCanvases();
+  // Re-draw immediately after canvas resize so it never stays blank during tab switch
+  if(curData?.length) draw();
 }
 function switchChartTab(id, skipSave, options = {}){
   if(!skipSave) saveCurrentChartTabState();
@@ -11770,6 +11775,11 @@ function sizeCanvases(){
     const p=document.getElementById('ci-panel-'+ind.id);
     if(p) p.style.display='none';
   });
+  // Keep _mcRect fresh so mouse events are accurate after resize/tab switch
+  if(typeof _mcRect !== 'undefined'){
+    const _mc2 = _el('main-canvas');
+    if(_mc2) try{ _mcRect = _mc2.getBoundingClientRect(); }catch(e){}
+  }
 }
 
 // CSS var cache — avoids getComputedStyle on every draw call
@@ -24566,154 +24576,102 @@ function _syncAIOverlayBtn(){
 
 function renderAIOverlay(ctx, W, H, py, barX, C){
   if(!aiOverlayEnabled || !_aiOverlayData) return;
-  const { sr, bias, top, pats } = _aiOverlayData;
+  const { sr, bias } = _aiOverlayData;
   if(!sr) return;
 
   const last = curData?.[curData.length - 1];
   if(!last) return;
 
   ctx.save();
-  // rightEdge = visible chart area (excludes right panel + price axis)
+  // Keep everything inside the visible chart area (left of right panel + price axis)
   const _rPanelW = typeof R_PANEL_OFFSET !== 'undefined' ? R_PANEL_OFFSET : 280;
-  const rightEdge = W - _rPanelW - 4; // stay inside the visible chart area
+  const rightEdge = W - _rPanelW - 4;
 
   const currentPrice = last.close;
 
-  // ── Support levels (below current price, closest first) ───────────────────
-  const supportLevels = (sr.support || [])
-    .filter(p => isFinite(p) && p < currentPrice && py(p) >= 0 && py(p) <= H)
-    .sort((a, b) => b - a)   // highest first = closest to current price
-    .slice(0, 3);
+  // ── Nearest support (1 line only, closest below price) ───────────────────
+  const nearestSupport = (sr.support || [])
+    .filter(p => isFinite(p) && p < currentPrice && py(p) >= 2 && py(p) <= H - 2)
+    .sort((a, b) => b - a)[0];
 
-  supportLevels.forEach((price, i) => {
-    const y = py(price);
-    const alpha = i === 0 ? 0.7 : 0.4;
-
-    // Dashed line
-    ctx.strokeStyle = `rgba(0,201,160,${alpha})`;
-    ctx.lineWidth   = i === 0 ? 1.5 : 1;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(rightEdge, y);
-    ctx.stroke();
+  if(nearestSupport != null){
+    const y = py(nearestSupport);
+    ctx.strokeStyle = 'rgba(0,201,160,0.65)';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rightEdge, y); ctx.stroke();
     ctx.setLineDash([]);
-
-    // Label pill at right side of visible chart
-    const label = 'S  ' + fP(price);
-    ctx.font = 'bold 9px monospace';
-    const tw  = ctx.measureText(label).width;
-    const lx  = rightEdge - tw - 12;
-    ctx.fillStyle = `rgba(0,201,160,${alpha})`;
-    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
+    // Compact inline label at right edge
+    const label = 'S ' + fP(nearestSupport);
+    ctx.font = '9px monospace';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(0,201,160,0.8)';
+    _roundRect(ctx, rightEdge - tw - 10, y - 7, tw + 8, 13, 3);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
+    ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, lx + 4, y - 1);
-  });
-
-  // ── Resistance levels (above current price, closest first) ────────────────
-  const resistanceLevels = (sr.resistance || [])
-    .filter(p => isFinite(p) && p > currentPrice && py(p) >= 0 && py(p) <= H)
-    .sort((a, b) => a - b)   // lowest first = closest to current price
-    .slice(0, 3);
-
-  resistanceLevels.forEach((price, i) => {
-    const y = py(price);
-    const alpha = i === 0 ? 0.7 : 0.4;
-
-    ctx.strokeStyle = `rgba(240,48,96,${alpha})`;
-    ctx.lineWidth   = i === 0 ? 1.5 : 1;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(rightEdge, y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Label pill at right side of visible chart
-    const label = 'R  ' + fP(price);
-    ctx.font = 'bold 9px monospace';
-    const tw  = ctx.measureText(label).width;
-    const lx  = rightEdge - tw - 12;
-    ctx.fillStyle = `rgba(240,48,96,${alpha})`;
-    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, lx + 4, y - 1);
-  });
-
-  // ── Bias badge (top-right of chart, before price axis) ───────────────────
-  if(bias){
-    const biasCol  = bias === 'BULLISH' ? 'rgba(0,201,160,' : bias === 'BEARISH' ? 'rgba(240,48,96,' : 'rgba(240,165,0,';
-    const biasIcon = bias === 'BULLISH' ? '▲' : bias === 'BEARISH' ? '▼' : '─';
-    const biasText = biasIcon + ' ' + bias;
-    ctx.font = 'bold 10px monospace';
-    const bw = ctx.measureText(biasText).width + 14;
-    const bx = rightEdge - bw - 4;
-    const by = 8;
-    // Badge background
-    ctx.fillStyle = biasCol + '0.18)';
-    _roundRect(ctx, bx, by, bw, 18, 4);
-    ctx.fill();
-    ctx.strokeStyle = biasCol + '0.45)';
-    ctx.lineWidth = 1;
-    _roundRect(ctx, bx, by, bw, 18, 4);
-    ctx.stroke();
-    // Badge text
-    ctx.fillStyle = biasCol + '1)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(biasText, bx + bw / 2, by + 9);
+    ctx.fillText(label, rightEdge - 5, y - 1);
   }
 
-  // ── Pattern list stacked below bias badge ────────────────────────────────
-  if(pats && pats.length){
-    const topPats = [...pats].sort((a, b) => b.conf - a.conf).slice(0, 3);
-    let stackY = bias ? 34 : 8; // start below bias badge if shown
-    topPats.forEach(p => {
-      const patCol = p.dir === 'bull' ? 'rgba(0,201,160,' : p.dir === 'bear' ? 'rgba(240,48,96,' : 'rgba(240,165,0,';
-      const icon   = p.dir === 'bull' ? '▲' : p.dir === 'bear' ? '▼' : '─';
-      const confPct = Math.round((p.conf || 0) * 100);
-      const patText = icon + ' ' + p.name + '  ' + confPct + '%';
-      ctx.font = '9px monospace';
-      const pw = ctx.measureText(patText).width + 10;
-      const px2 = rightEdge - pw - 4;
-      const py2 = stackY;
-      ctx.fillStyle = patCol + '0.1)';
-      _roundRect(ctx, px2, py2, pw, 15, 3);
-      ctx.fill();
-      ctx.strokeStyle = patCol + '0.3)';
-      ctx.lineWidth = 0.75;
-      _roundRect(ctx, px2, py2, pw, 15, 3);
-      ctx.stroke();
-      ctx.fillStyle = patCol + '0.85)';
+  // ── Nearest resistance (1 line only, closest above price) ────────────────
+  const nearestResistance = (sr.resistance || [])
+    .filter(p => isFinite(p) && p > currentPrice && py(p) >= 2 && py(p) <= H - 2)
+    .sort((a, b) => a - b)[0];
+
+  if(nearestResistance != null){
+    const y = py(nearestResistance);
+    ctx.strokeStyle = 'rgba(240,48,96,0.65)';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rightEdge, y); ctx.stroke();
+    ctx.setLineDash([]);
+    const label = 'R ' + fP(nearestResistance);
+    ctx.font = '9px monospace';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(240,48,96,0.8)';
+    _roundRect(ctx, rightEdge - tw - 10, y - 7, tw + 8, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, rightEdge - 5, y - 1);
+  }
+
+  // ── Compact bias badge — top-left of chart ───────────────────────────────
+  if(bias && bias !== 'NEUTRAL'){
+    const isUp  = bias === 'BULLISH';
+    const col   = isUp ? 'rgba(0,201,160,' : 'rgba(240,48,96,';
+    const icon  = isUp ? '▲' : '▼';
+    const text  = icon + ' ' + (isUp ? 'Bullish' : 'Bearish');
+    ctx.font = 'bold 9px monospace';
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = col + '0.13)';
+    _roundRect(ctx, 6, 6, tw + 12, 16, 3);
+    ctx.fill();
+    ctx.strokeStyle = col + '0.35)';
+    ctx.lineWidth = 0.75;
+    _roundRect(ctx, 6, 6, tw + 12, 16, 3);
+    ctx.stroke();
+    ctx.fillStyle = col + '0.9)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 12, 14);
+  }
+
+  // ── Directional arrow above/below the most recent bar ────────────────────
+  if(bias && bias !== 'NEUTRAL' && curData?.length){
+    const lastBar = curData[curData.length - 1];
+    const bx2     = barX(curData.length - 1);
+    if(bx2 >= 6 && bx2 <= rightEdge){
+      const isUp   = bias === 'BULLISH';
+      const arrowY = isUp ? py(lastBar.high) - 12 : py(lastBar.low) + 12;
+      const col    = isUp ? 'rgba(0,201,160,.85)' : 'rgba(240,48,96,.85)';
+      ctx.font      = 'bold 10px sans-serif';
+      ctx.fillStyle = col;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(patText, px2 + pw / 2, py2 + 7.5);
-      stackY += 18;
-    });
-  }
-
-  // ── Arrow on the most recent bar showing direction ────────────────────────
-  if(bias && curData && curData.length){
-    const lastBar = curData[curData.length - 1];
-    const bx2    = barX(curData.length - 1);
-    if(bx2 >= 0 && bx2 <= rightEdge){
-      const isUp  = bias === 'BULLISH';
-      const isDown= bias === 'BEARISH';
-      if(isUp || isDown){
-        const arrowY = isUp ? py(lastBar.high) - 10 : py(lastBar.low) + 10;
-        const col    = isUp ? 'rgba(0,201,160,.9)' : 'rgba(240,48,96,.9)';
-        ctx.font      = 'bold 11px monospace';
-        ctx.fillStyle = col;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(isUp ? '▲' : '▼', bx2, arrowY);
-      }
+      ctx.fillText(isUp ? '▲' : '▼', bx2, arrowY);
     }
   }
 
