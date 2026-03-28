@@ -519,13 +519,16 @@ function closeChartTab(id){
   const idx = chartTabs.findIndex(t => t.id === id);
   if(idx < 0) return;
   const wasActive = activeChartTabId === id;
+  // Save the current tab's state BEFORE we change activeChartTabId, so we
+  // don't accidentally overwrite the next tab with the closed tab's symbol.
+  if(wasActive) saveCurrentChartTabState();
   chartTabs.splice(idx, 1);
   if(wasActive){
     const next = chartTabs[Math.max(0, idx - 1)] || chartTabs[0];
     activeChartTabId = next?.id || null;
   }
   renderChartTabs();
-  saveChartTabs();
+  saveChartTabs(false); // false = don't re-snapshot active state (curSym is still stale)
   if(wasActive && activeChartTabId) switchChartTab(activeChartTabId, true);
 }
 function syncTimeframeButtons(){
