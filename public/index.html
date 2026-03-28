@@ -514,23 +514,22 @@
       <span id="sb-bars" style="color:var(--tx3);"></span>
       <span id="st-pattern" style="display:none;color:var(--amber);font-size:11px;margin-left:6px;"></span>
       <span id="st-tilt" style="display:none;color:var(--rd);font-size:11px;margin-left:6px;">⚠ Tilt Risk</span>
-      <button id="sb-ai-overlay-btn" onclick="toggleAIOverlay()" title="Toggle AI chart annotations" style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 8px;background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.3);color:var(--bl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;transition:all .15s;">⬡ AI Overlay</button>
+      <button id="sb-ai-overlay-btn" onclick="toggleAIOverlay()" title="Toggle AI chart annotations" style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 8px;background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.3);color:var(--bl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;transition:all .15s;">⬡ AI</button>
+      <span id="sb-streak" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;"></span>
+      <span id="sb-daily-pl" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;cursor:default;" title="Today's P&L"></span>
+      <span id="sb-alert-count" style="display:none;font-size:11px;margin-left:6px;cursor:pointer;" onclick="toggleOverlay('alerts')" title="Active alerts"></span>
       <span id="st-replay" style="display:none;align-items:center;gap:4px;margin-left:6px;">
         <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
         <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
         <button id="st-replay-mentor" onclick="toggleMentor()" style="padding:2px 8px;background:linear-gradient(135deg, rgba(138,43,226,.3), rgba(138,43,226,.15));border:1px solid rgba(138,43,226,.6);color:var(--purple);font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;box-shadow:0 2px 4px rgba(138,43,226,.2);transition:all 0.3s ease;">🧠 Mentor</button>
-
       </span>
+      <span style="flex:1;"></span>
       <div id="statusbar-scrubber">
         <span id="sb-nav-label">Scroll</span>
         <input id="sb-nav-range" type="range" min="0" max="1000" value="1000" oninput="scrubChartToRatio(this.value)" aria-label="Scroll through chart history">
         <span id="sb-nav-pos">Latest</span>
         <button id="sb-nav-latest" onclick="scrubChartLatest()">Latest</button>
       </div>
-      <span id="sb-streak" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;"></span>
-      <span id="sb-daily-pl" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;cursor:default;" title="Today's P&L"></span>
-      <span id="sb-alert-count" style="display:none;font-size:11px;margin-left:6px;cursor:pointer;" onclick="toggleOverlay('alerts')" title="Active alerts"></span>
-      <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
       <span id="st-clk" style="font-size:11px;color:var(--tx2);margin-right:6px;"></span>
