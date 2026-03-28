@@ -24,6 +24,7 @@ export default async function handler(req) {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Expose-Headers': 'x-ratelimit-reset-requests, retry-after',
     'Content-Type': 'application/json',
   };
 
@@ -80,7 +81,12 @@ export default async function handler(req) {
 
     if (!res.ok) {
       const msg = data?.error?.message || data?.error?.code || `HTTP ${res.status}`;
-      return new Response(JSON.stringify({ error: msg }), { status: res.status, headers: corsHeaders });
+      const errHeaders = { ...corsHeaders };
+      const rl = res.headers.get('x-ratelimit-reset-requests');
+      if (rl) errHeaders['x-ratelimit-reset-requests'] = rl;
+      const ra = res.headers.get('retry-after');
+      if (ra) errHeaders['retry-after'] = ra;
+      return new Response(JSON.stringify({ error: msg }), { status: res.status, headers: errHeaders });
     }
 
     const text = data.choices?.[0]?.message?.content || '';
