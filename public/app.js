@@ -8128,169 +8128,198 @@ function analyzePlacedTrade(trade) {
 }
 
 function evaluateEntryQuality(trade, analysis) {
-  let score = 50;
+  let score = 48; // slightly asymmetric base
   let feedback = [];
-  
+
   const currentPrice = analysis.current.price;
   const entryPrice = trade.entryPrice;
   const priceDiff = Math.abs(entryPrice - currentPrice) / currentPrice;
-  
-  // Check if entry is at current price (good)
+
+  // Check if entry is at current price — continuous score based on exact distance
   if (priceDiff < 0.001) {
-    score += 20;
+    score += Math.round(17 + (1 - priceDiff / 0.001) * 5); // 17–22
     feedback.push('✅ Entry at current market price');
   } else if (priceDiff < 0.005) {
-    score += 10;
+    score += Math.round(7 + (1 - priceDiff / 0.005) * 6); // 7–13
     feedback.push('⚠️ Entry close to current price');
   } else {
+    score -= Math.round(3 + Math.min(12, priceDiff * 800)); // proportional penalty
     feedback.push('❌ Entry far from current price');
   }
-  
+
   // Check if entry aligns with recent price action
   const recentData = curData.slice(Math.max(0, mentorState.currentBar - 5), mentorState.currentBar + 1);
   const recentHigh = Math.max(...recentData.map(bar => bar.high));
   const recentLow = Math.min(...recentData.map(bar => bar.low));
-  
+  const rangeSize = recentHigh - recentLow || recentHigh * 0.01;
+
   if (trade.direction === 'long') {
+    const distFromLow = Math.abs(entryPrice - recentLow) / rangeSize;
     if (entryPrice <= recentLow * 1.01) {
-      score += 15;
+      score += Math.round(12 + (1 - distFromLow) * 5); // 12–17
       feedback.push('✅ Entry near recent low');
     } else if (entryPrice > recentHigh) {
-      score -= 10;
+      score -= Math.round(8 + distFromLow * 4); // 8–12 penalty
       feedback.push('❌ Entry above recent high');
     }
   } else {
+    const distFromHigh = Math.abs(recentHigh - entryPrice) / rangeSize;
     if (entryPrice >= recentHigh * 0.99) {
-      score += 15;
+      score += Math.round(12 + (1 - distFromHigh) * 5); // 12–17
       feedback.push('✅ Entry near recent high');
     } else if (entryPrice < recentLow) {
-      score -= 10;
+      score -= Math.round(8 + distFromHigh * 4);
       feedback.push('❌ Entry below recent low');
     }
   }
-  
-  // Check volume confirmation
-  if (analysis.volume === 'high' || analysis.volume === 'very_high') {
-    score += 15;
+
+  // Check volume confirmation — continuous based on relative volume
+  if (analysis.volume === 'very_high') {
+    score += 14;
     feedback.push('✅ High volume supports entry');
+  } else if (analysis.volume === 'high') {
+    score += 11;
+    feedback.push('✅ Above-average volume at entry');
+  } else if (analysis.volume === 'low') {
+    score -= 6;
+    feedback.push('⚠️ Low volume — entry conviction is weak');
   }
-  
+
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
 }
 
 function evaluateStopLoss(trade, analysis) {
-  let score = 50;
+  let score = 48;
   let feedback = [];
-  
+
   const entryPrice = trade.entryPrice;
   const stopLoss = trade.stopLoss;
   const risk = trade.risk;
   const atr = analysis.atr || 0.02;
-  const atrRisk = atr * entryPrice;
-  
-  // Check stop loss distance
+
+  // Check stop loss distance — continuous based on ATR ratio
   const riskPercent = risk / entryPrice;
-  if (riskPercent >= atr * 1.2 && riskPercent <= atr * 2.5) {
-    score += 25;
+  const atrRatio = riskPercent / Math.max(atr, 0.0001);
+  if (atrRatio >= 1.2 && atrRatio <= 2.5) {
+    // Ideal zone: score based on how close to sweet spot (1.85x ATR)
+    const deviation = Math.abs(atrRatio - 1.85) / 1.85;
+    score += Math.round(22 - deviation * 13); // 17–22
     feedback.push('✅ Stop loss at appropriate distance');
-  } else if (riskPercent < atr * 1.2) {
-    score -= 15;
+  } else if (atrRatio < 1.2) {
+    score -= Math.round(12 + (1.2 - atrRatio) / 1.2 * 8); // 12–20 penalty
     feedback.push('❌ Stop loss too tight');
   } else {
-    score -= 10;
+    score -= Math.round(7 + (atrRatio - 2.5) * 3); // 7–13 penalty
     feedback.push('⚠️ Stop loss too wide');
   }
-  
+
   // Check logical placement
   if (trade.direction === 'long') {
     const recentLow = Math.min(...curData.slice(Math.max(0, mentorState.currentBar - 10), mentorState.currentBar + 1).map(bar => bar.low));
+    const bufferPct = (recentLow - stopLoss) / recentLow;
     if (stopLoss < recentLow) {
-      score += 15;
+      score += Math.round(11 + Math.min(5, bufferPct * 300)); // 11–16
       feedback.push('✅ Stop loss below recent support');
     } else {
+      const overshoot = Math.round((stopLoss - recentLow) / recentLow * 100);
+      score -= Math.round(5 + overshoot * 2);
       feedback.push('⚠️ Stop loss above recent support');
     }
   } else {
     const recentHigh = Math.max(...curData.slice(Math.max(0, mentorState.currentBar - 10), mentorState.currentBar + 1).map(bar => bar.high));
+    const bufferPct = (stopLoss - recentHigh) / recentHigh;
     if (stopLoss > recentHigh) {
-      score += 15;
+      score += Math.round(11 + Math.min(5, bufferPct * 300));
       feedback.push('✅ Stop loss above recent resistance');
     } else {
+      score -= Math.round(5 + Math.abs(bufferPct) * 200);
       feedback.push('⚠️ Stop loss below recent resistance');
     }
   }
-  
+
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
 }
 
 function evaluateRiskManagement(trade, analysis) {
-  let score = 50;
+  let score = 46;
   let feedback = [];
-  
+
   const riskRewardRatio = trade.riskRewardRatio;
-  
-  // Check risk/reward ratio
+
+  // Check risk/reward ratio — continuous based on actual ratio
   if (riskRewardRatio >= 2) {
-    score += 30;
+    score += Math.round(26 + Math.min(8, (riskRewardRatio - 2) * 5)); // 26–34
     feedback.push('✅ Excellent risk/reward ratio');
   } else if (riskRewardRatio >= 1.5) {
-    score += 20;
+    score += Math.round(16 + (riskRewardRatio - 1.5) * 20); // 16–26
     feedback.push('✅ Good risk/reward ratio');
   } else if (riskRewardRatio >= 1) {
-    score += 10;
+    score += Math.round(6 + (riskRewardRatio - 1) * 20); // 6–16
     feedback.push('⚠️ Minimum acceptable risk/reward ratio');
   } else {
-    score -= 20;
+    score -= Math.round(14 + (1 - riskRewardRatio) * 12); // 14–26 penalty
     feedback.push('❌ Poor risk/reward ratio');
   }
-  
+
   // Check position size relative to ATR
   const riskPercent = trade.risk / trade.entryPrice;
   const atr = analysis.atr || 0.02;
-  
-  if (riskPercent <= atr * 2) {
-    score += 20;
+  const atrRatio = riskPercent / Math.max(atr, 0.0001);
+
+  if (atrRatio <= 2) {
+    score += Math.round(17 + (1 - atrRatio / 2) * 5); // 17–22 — tighter is slightly better
     feedback.push('✅ Reasonable position size');
   } else {
-    score -= 10;
+    score -= Math.round(7 + (atrRatio - 2) * 4); // growing penalty for large risk
     feedback.push('⚠️ Large position size');
   }
-  
+
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
 }
 
 function evaluateTrendAlignment(trade, analysis) {
-  let score = 50;
+  let score = 47;
   let feedback = [];
-  
+
   const trend = analysis.trend;
   const direction = trade.direction;
-  
-  // Check trend alignment
+
+  // Check trend alignment — use actual SMA values for a continuous component
+  const n = curData?.length || 1;
+  const sma20 = calcSMA(curData, 20);
+  const sma50 = calcSMA(curData, 50);
+  const lastPrice = curData?.[n - 1]?.close || 0;
+  const sma20val = sma20[n - 1] || lastPrice;
+  const sma50val = sma50[n - 1] || lastPrice;
+  const smaBias = lastPrice > sma20val && lastPrice > sma50val ? 'bull' :
+                  lastPrice < sma20val && lastPrice < sma50val ? 'bear' : 'mixed';
+
   if (direction === 'long' && (trend === 'uptrend' || trend === 'strong_uptrend')) {
-    score += 40;
+    const momentum = Math.min(1, Math.abs(lastPrice - sma20val) / (sma20val * 0.05));
+    score += Math.round(34 + momentum * 8); // 34–42
     feedback.push('✅ Trade aligned with uptrend');
   } else if (direction === 'short' && (trend === 'downtrend' || trend === 'strong_downtrend')) {
-    score += 40;
+    const momentum = Math.min(1, Math.abs(lastPrice - sma20val) / (sma20val * 0.05));
+    score += Math.round(34 + momentum * 8);
     feedback.push('✅ Trade aligned with downtrend');
   } else if (trend === 'neutral') {
-    score += 10;
+    score += Math.round(7 + (smaBias === 'mixed' ? 3 : 0));
     feedback.push('⚠️ Trading in ranging market');
   } else {
-    score -= 20;
+    score -= Math.round(17 + (smaBias !== 'mixed' ? 4 : 0));
     feedback.push('❌ Trade against trend');
   }
-  
-  // Check market structure
+
+  // Check market structure — reward aligned structure confirmation
   const structure = analysis.structure;
   if (structure === 'uptrend_structure' && direction === 'long') {
-    score += 10;
+    score += Math.round(8 + (smaBias === 'bull' ? 3 : 0)); // 8–11
     feedback.push('✅ Higher highs and lows structure');
   } else if (structure === 'downtrend_structure' && direction === 'short') {
-    score += 10;
+    score += Math.round(8 + (smaBias === 'bear' ? 3 : 0));
     feedback.push('✅ Lower highs and lows structure');
   }
-  
+
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
 }
 
@@ -12412,10 +12441,12 @@ function drawingFromTime(d) {
 function _drawKey(sym,tf){ return `drawings-${sym}`; }
 function saveDrawings(sym,tf){
   try{
-    const portable = drawings.map(drawingToTime);
+    // Exclude temporary refinement/overlay annotations (_noSave) from persistence
+    const portable = drawings.filter(d => !d._noSave).map(drawingToTime);
     _lsSet(_drawKey(sym,tf), JSON.stringify(portable));
   }catch(e){}
-  if(curSym?.s === sym && curTF === tf) buildAIPanel(true);
+  // Use cached AI panel data — force=false prevents Groq re-calls on drawing move/save
+  if(curSym?.s === sym && curTF === tf) buildAIPanel(false);
 }
 function loadDrawings(sym,tf){
   try{
@@ -14434,17 +14465,19 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       case 'hline':{
         const y=pyfn(d.price);
         ctx.strokeStyle=col; ctx.lineWidth=isSel?(d.lw||1)+1:(d.lw||1);
-        _btApplyLineStyle(ctx, isSel?'solid':(d.ls||'dashed'));
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+        // Refinement annotations use dashed style; normal hlines use their stored style
+        const hlineStyle = d._tapRefinement ? (d.dash?'dashed':'solid') : (isSel?'solid':(d.ls||'dashed'));
+        _btApplyLineStyle(ctx, hlineStyle);
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-R_PANEL_OFFSET-4,y); ctx.stroke();
         ctx.setLineDash([]);
-        // price pill
-        const label=fP(d.price);
-        const lw=ctx.measureText(label).width+10;
-        ctx.font='9px monospace';
-        ctx.fillStyle=ca(C.am,.18);
-        ctx.fillRect(4,y-10,lw,13); 
+        // Label pill — show custom label for refinement annotations, price for normal hlines
+        const pillLabel = d._tapRefinement && d.label ? d.label : fP(d.price);
+        ctx.font = d._tapRefinement ? 'bold 9px ui-monospace,monospace' : '9px monospace';
+        const lw=ctx.measureText(pillLabel).width+10;
+        ctx.fillStyle=col+'28'; // semi-transparent bg matching line color
+        ctx.fillRect(4,y-12,lw,14);
         ctx.fillStyle=col; ctx.textAlign='left';
-        ctx.fillText(label,9,y-1);
+        ctx.fillText(pillLabel,9,y-2);
         break;
       }
 
@@ -20055,9 +20088,13 @@ async function runAISetupScan(){
     }
 
     const tfLabel = selectedTFs.length === ALL_TFS.length ? 'all TFs' : selectedTFs.join(', ');
+    const scanTime = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     aisSetProgress(100,`Done — ${SYMS.length} symbols × ${selectedTFs.length} TF${selectedTFs.length>1?'s':''}`);
     document.getElementById('ais-footer-info').textContent =
-      `Scanned ${SYMS.length} instruments across ${tfLabel} · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · Ideas only — always verify before trading`;
+      `Scan locked at ${scanTime} · ${SYMS.length} instruments · ${tfLabel} · Click "↻ Update Scan" to refresh · Ideas only — always verify before trading`;
+    // Store scan timestamp on the rescan button for user visibility
+    const rescBtn = document.getElementById('ais-rescan-btn');
+    if(rescBtn) rescBtn.title = `Last scanned at ${scanTime} — click to re-run with latest candle data`;
   } catch (err) {
     console.error('AI setup scan failed:', err);
     aisSetProgress(100, 'Scan failed');
@@ -20427,7 +20464,7 @@ function tapExtractTradeMetrics(text){
   );
   const scoringZone = scoringIdx >= 0 ? source.slice(scoringIdx, scoringIdx + 700) : source;
   const getScore = (label) => {
-    const match = scoringZone.match(new RegExp(label + String.raw`[^0-9]{0,30}(\d{1,2})(?:\s*\/\s*25)?`, 'i'));
+    const match = scoringZone.match(new RegExp(label + String.raw`[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*(?:28|26|23|25|100))?`, 'i'));
     return match ? parseInt(match[1]) : null;
   };
   const combined =
@@ -20685,13 +20722,88 @@ function tapRenderSetupBridge(d, analysisText=''){
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.changed}</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
-        <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">${betterLabel}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;">${betterLabel}</div>
+          <button onclick="tapShowRefinementOnChart()" style="background:rgba(0,201,160,.13);border:1px solid rgba(0,201,160,.35);border-radius:4px;color:var(--tl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 9px;cursor:pointer;letter-spacing:.3px;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+            <span>📍</span><span>Show on Chart</span>
+          </button>
+        </div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
       </div>
     </div>`;
 }
 
 
+
+// ── Show refinement annotations on the main chart ────────────────────────────
+function tapShowRefinementOnChart(){
+  if(!_tapDrawing || !curData?.length) return;
+  const d   = _tapDrawing;
+  const n   = curData.length;
+  const atrV = calcATR(curData);
+  const atr  = atrV[n-1] || Math.abs(d.price - d.sl) * 0.8;
+  const sr   = detectSR(curData);
+  const isLong = d.type === 'long';
+  const barNow = n - 1;
+
+  // Remove old refinement annotations
+  drawings = drawings.filter(x => !x._tapRefinement);
+
+  // ── Suggested entry: nearest S/R within 3% of current entry on the correct side ─
+  let suggestedEntry = null;
+  if(isLong){
+    const candidates = sr.support.filter(s => s < d.price && s > d.price * 0.97);
+    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>b-a)[0];
+  } else {
+    const candidates = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
+    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>a-b)[0];
+  }
+  // If no S/R found, suggest ATR-snapped level
+  if(!suggestedEntry) suggestedEntry = isLong ? d.price - atr * 0.5 : d.price + atr * 0.5;
+
+  // ── Suggested SL: 1.5× ATR beyond suggested entry ─────────────────────────
+  const suggestedSL = isLong ? suggestedEntry - atr * 1.5 : suggestedEntry + atr * 1.5;
+
+  // ── Suggested TP: 2.5:1 R:R from suggested entry → suggested SL ──────────
+  const riskAmt = Math.abs(suggestedEntry - suggestedSL);
+  const suggestedTP = isLong ? suggestedEntry + riskAmt * 2.5 : suggestedEntry - riskAmt * 2.5;
+
+  const addLine = (price, label, color, dash=false) => {
+    if(!isFinite(price)) return;
+    drawings.push({ type:'hline', price, color, label,
+      dash, lineWidth:1.5, _tapRefinement:true, _noSave:true, bar:barNow });
+  };
+
+  // Draw the 3 suggested level lines
+  addLine(suggestedEntry, `Refined Entry · ${fP(suggestedEntry)}`, '#3d8eff', false);
+  addLine(suggestedSL,    `Refined SL · ${fP(suggestedSL)}`,     '#f03060', true);
+  addLine(suggestedTP,    `Refined TP · ${fP(suggestedTP)}`,     '#00c9a0', true);
+
+  // Annotation text block at the entry bar position
+  const textLabel = isLong
+    ? `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`
+    : `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`;
+  drawings.push({
+    type:'text', bar: barNow - 4, price: suggestedEntry,
+    text: textLabel, color:'#3d8eff', fontSize:10,
+    _tapRefinement:true, _noSave:true
+  });
+
+  draw();
+  toast('📍 Refinement shown on chart — dashed lines = suggested levels');
+
+  // Auto-remove after 60 seconds so the chart doesn't stay cluttered
+  setTimeout(()=>{
+    drawings = drawings.filter(x => !x._tapRefinement);
+    draw();
+  }, 60000);
+}
+
+// Clear refinement annotations manually
+function tapClearRefinement(){
+  drawings = drawings.filter(x => !x._tapRefinement);
+  draw();
+}
 
 // ══ TRADE ANALYSIS POPUP ══════════════════════════════════════════════════════
 // ── Trade Analysis Cache — one entry per symbol ─────────────────────────────
@@ -20701,8 +20813,8 @@ function tapRenderSetupBridge(d, analysisText=''){
 const tapAnalysisCache = {};
 
 // ══ AI ANALYSIS — TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP ═══════════════════
-// Cache key: `${sym}|${tf}`  |  TTL: 60 s  |  Queue delay: 2 s (grows on 429)
-const TAP_AI_TTL      = 60_000;
+// Cache key: `${sym}|${tf}`  |  TTL: 30 min  |  Queue delay: 2 s (grows on 429)
+const TAP_AI_TTL      = 1_800_000; // 30 minutes — locked until user clicks Re-analyse
 const TAP_AI_INTERVAL = 2_000;
 
 // tapAiTTLCache[key] = { result: string, ts: number }
@@ -21318,9 +21430,10 @@ async function openFullTradeAnalysis(){
 
   document.getElementById('tap-expand-row').style.display = '';
 
-  // Reset verdict banner to loading state (always visible)
+  // Only reset verdict banner to loading state if we have no cached result
+  const _hasCachedResult = !!(cached?.aiResult);
   const _vBanner = document.getElementById('tap-verdict-banner');
-  if(_vBanner){
+  if(_vBanner && !_hasCachedResult){
     _vBanner.style.background    = 'rgba(136,153,176,0.05)';
     _vBanner.style.borderColor   = 'rgba(136,153,176,0.18)';
     document.getElementById('tap-verdict-label').textContent = 'ANALYZING TRADE\u2026';
@@ -21397,13 +21510,38 @@ async function openFullTradeAnalysis(){
   if(scCp) scCp.style.display='none';
   tapCaptureScreenshot();
 
-  // ── AI — TTL cache (60 s) → in-flight dedup → FIFO queue ────────────────────
+  // ── AI — session lock (30 min TTL) → in-flight dedup → FIFO queue ────────────
   const aiOutEl     = document.getElementById('tap-ai-out');
   const aiLoadingEl = document.getElementById('tap-ai-loading');
   const _aiTF       = d.tf || curTF;
 
   // Remove any stale age-badge from a previous open
   document.getElementById('tap-ai-age-badge')?.remove();
+  document.getElementById('tap-ai-reanalyse-btn')?.remove();
+
+  // ── SESSION LOCK: if we already have a result for this drawing, show it immediately ──
+  // This prevents re-running on every open — use "Re-analyse" to force fresh analysis.
+  if(_hasCachedResult){
+    const sessionResult = cached.aiResult;
+    aiOutEl.textContent = tapDisplayAnalysisText(sessionResult);
+    tapRenderVerdictBanner(sessionResult);
+    tapRenderSetupBridge(d, sessionResult);
+    tapRenderDecisionContext(d);
+    aiLoadingEl.style.display = 'none';
+    if(topScoreSubEl) topScoreSubEl.textContent = 'Locked analysis — click Re-analyse to refresh';
+    // Inject age badge + Re-analyse button
+    const ageEl = document.createElement('div');
+    ageEl.id = 'tap-ai-age-badge';
+    ageEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    ageEl.innerHTML = `<span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);letter-spacing:.3px;">` +
+      `\uD83D\uDD12 Showing saved analysis</span>` +
+      `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
+      `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
+      `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
+      `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
+    aiOutEl.parentNode.insertBefore(ageEl, aiOutEl);
+    return;
+  }
 
   let _enq;
   try {
@@ -21427,11 +21565,17 @@ async function openFullTradeAnalysis(){
     tapRenderSetupBridge(d, _enq.result);
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
+    if(cached) cached.aiResult = _enq.result;
     if(topScoreSubEl) topScoreSubEl.textContent = `Last analyzed ${ageSec}s ago`;
     const ageEl = document.createElement('div');
     ageEl.id = 'tap-ai-age-badge';
-    ageEl.style.cssText = 'font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);margin-bottom:8px;letter-spacing:.3px;';
-    ageEl.textContent = `\uD83D\uDD50 Last analyzed ${ageSec}s ago \u2014 showing cached result`;
+    ageEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    ageEl.innerHTML = `<span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);letter-spacing:.3px;">` +
+      `\uD83D\uDD50 Last analyzed ${ageSec}s ago</span>` +
+      `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
+      `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
+      `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
+      `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
     aiOutEl.parentNode.insertBefore(ageEl, aiOutEl);
   } else {
     // Queued or in-flight — show skeleton + live position/countdown
@@ -21467,11 +21611,44 @@ async function openFullTradeAnalysis(){
       tapRenderSetupBridge(d, text);
       tapRenderDecisionContext(d);
       aiLoadingEl.style.display = 'none';
+      // Show Re-analyse button after result arrives
+      document.getElementById('tap-ai-age-badge')?.remove();
+      document.getElementById('tap-ai-reanalyse-btn')?.remove();
+      const doneEl = document.createElement('div');
+      doneEl.id = 'tap-ai-age-badge';
+      doneEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+      doneEl.innerHTML = `<span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);letter-spacing:.3px;">` +
+        `\uD83D\uDD12 Analysis locked — will not re-run on reopen</span>` +
+        `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
+        `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
+        `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
+        `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
+      aiOutEl.parentNode.insertBefore(doneEl, aiOutEl);
     } catch(e) {
       clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null;
       _tapAiRenderErr(e.message, aiOutEl, aiLoadingEl, topScoreEl, topScoreSubEl);
     }
   }
+}
+
+// Force re-analysis — clears session lock so next open triggers fresh Groq call
+function tapForceReanalyse(){
+  if(!curSym?.s) return;
+  const cached = tapAnalysisCache[curSym.s];
+  if(cached) cached.aiResult = null;
+  // Clear TTL cache and localStorage lock for this drawing
+  const _d = _tapDrawing;
+  if(_d){
+    const tf = _d.tf || curTF;
+    const cacheKey = curSym.s + '|' + tf;
+    delete tapAiTTLCache[cacheKey];
+    if(_d.id){
+      try{ localStorage.removeItem('tap-lock-draw-' + _d.id); }catch(e){}
+    }
+    try{ localStorage.removeItem('tap-lock-' + curSym.s); }catch(e){}
+  }
+  toast('\u21BB Re-analysing — fresh AI request queued\u2026');
+  openFullTradeAnalysis();
 }
 
 // ── AI queue UI helpers ────────────────────────────────────────────────────────
@@ -21702,33 +21879,38 @@ function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
   const slPct = Math.abs((d.sl - d.price) / d.price * 100);
   const sr = detectSR(curData);
 
-  let entryQuality = 14;
-  let stopPlacement = 14;
-  let riskRewardLogic = 14;
-  let technicalConfluence = 14;
+  let entryQuality = 13;
+  let stopPlacement = 13;
+  let riskRewardLogic = 12;
+  let technicalConfluence = 12;
   const weaknesses = [];
   const improvements = [];
 
-  if(rr >= 3) riskRewardLogic = 24;
-  else if(rr >= 2) riskRewardLogic = 20;
-  else if(rr >= 1.5) riskRewardLogic = 14;
+  // Risk/Reward Logic (max 23) — continuous based on actual ratio
+  if(rr >= 3)      riskRewardLogic = Math.round(19 + Math.min(4, (rr - 3) * 2));   // 19-23
+  else if(rr >= 2) riskRewardLogic = Math.round(14 + (rr - 2) * 5);                // 14-19
+  else if(rr >= 1.5) riskRewardLogic = Math.round(9 + (rr - 1.5) * 10);            // 9-14
   else {
-    riskRewardLogic = 8;
+    riskRewardLogic = Math.round(Math.max(3, rr * 6));                              // 0-9
     weaknesses.push(`Reward-to-risk is only ${rr.toFixed(2)}:1, which weakens the trade payoff.`);
     improvements.push('Improve the setup by tightening the stop behind cleaner structure or waiting for a better entry.');
   }
 
+  // Stop Placement (max 26) — continuous based on ATR ratio
   if(atr > 0){
     const atrPct = (atr / d.price) * 100;
     const slVsAtr = slPct / Math.max(atrPct, 0.0001);
     if(slVsAtr >= 0.8 && slVsAtr <= 2.2){
-      stopPlacement = 20;
+      // Ideal range: score based on how close to the sweet spot (1.5x ATR)
+      const ideal = 1.5;
+      const deviation = Math.abs(slVsAtr - ideal) / ideal;
+      stopPlacement = Math.round(22 - deviation * 10); // 16-22 within range
     } else if(slVsAtr < 0.8){
-      stopPlacement = 11;
+      stopPlacement = Math.round(Math.max(6, slVsAtr * 14)); // 0-11
       weaknesses.push('Stop is tighter than normal volatility and may be clipped by noise.');
       improvements.push('Place the stop slightly beyond the recent swing so normal ATR movement does not stop it out early.');
     } else {
-      stopPlacement = 12;
+      stopPlacement = Math.round(Math.max(7, 13 - (slVsAtr - 2.2) * 2)); // 7-13 for wide stops
       weaknesses.push('Stop is wider than needed, which makes the trade less efficient.');
       improvements.push('Reduce stop width by entering closer to structure if the setup still holds.');
     }
@@ -21778,17 +21960,17 @@ function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
     weaknesses.push('The placement looks unrealistic relative to where price has actually traded.');
   }
   if(statusUpper.includes('SL HIT')){
-    technicalConfluence = Math.max(4, technicalConfluence - 5);
+    technicalConfluence = Math.max(3, technicalConfluence - 5);
   }
   if(statusUpper.includes('TP HIT')){
-    technicalConfluence = Math.min(25, technicalConfluence + 4);
-    entryQuality = Math.min(25, entryQuality + 2);
+    technicalConfluence = Math.min(23, technicalConfluence + 4);
+    entryQuality = Math.min(28, entryQuality + 3);
   }
 
-  entryQuality = Math.max(4, Math.min(25, Math.round(entryQuality)));
-  stopPlacement = Math.max(4, Math.min(25, Math.round(stopPlacement)));
-  riskRewardLogic = Math.max(4, Math.min(25, Math.round(riskRewardLogic)));
-  technicalConfluence = Math.max(4, Math.min(25, Math.round(technicalConfluence)));
+  entryQuality = Math.max(3, Math.min(28, Math.round(entryQuality)));
+  stopPlacement = Math.max(3, Math.min(26, Math.round(stopPlacement)));
+  riskRewardLogic = Math.max(3, Math.min(23, Math.round(riskRewardLogic)));
+  technicalConfluence = Math.max(3, Math.min(23, Math.round(technicalConfluence)));
 
   const combined = Math.max(0, Math.min(100, entryQuality + stopPlacement + riskRewardLogic + technicalConfluence));
   const probability = Math.max(5, Math.min(95, Math.round(combined * 0.9)));
@@ -21804,10 +21986,10 @@ function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
   return `AI fallback analysis used because the live AI request did not return successfully.
 
 6. TRADE QUALITY SCORE
-Entry Quality: ${entryQuality}/25
-Stop Placement: ${stopPlacement}/25
-Risk/Reward Logic: ${riskRewardLogic}/25
-Technical Confluence: ${technicalConfluence}/25
+Entry Quality: ${entryQuality}/28
+Stop Placement: ${stopPlacement}/26
+Risk/Reward Logic: ${riskRewardLogic}/23
+Technical Confluence: ${technicalConfluence}/23
 Combined Score: ${combined}/100
 
 7. CRITICAL WEAKNESSES
@@ -22348,12 +22530,12 @@ State whether 1:${rr.toFixed(2)} is acceptable, poor, or excellent for this setu
 List the factors that support this trade (confluent) and those that work against it (conflicting). Be specific with indicator readings and price levels. Explicitly state whether the idea is good but the execution is weak, or whether both are strong.
 
 6. TRADE QUALITY SCORE
-Score from 0–100 across:
-  Entry Quality (0–25):
-  Stop Placement (0–25):
-  Risk/Reward Logic (0–25):
-  Technical Confluence (0–25):
-  Combined Score:
+Score each component using SPECIFIC measured values from the input data — do NOT use round numbers or multiples of 5. Every score must reflect the actual measurements (price distances, ATR ratios, indicator readings). Think of each score as a precise calculation, not an estimate.
+  Entry Quality (0–28): Precision of entry relative to structure, key levels, and current price distance.
+  Stop Placement (0–26): Quality of stop relative to ATR, structural levels, and noise buffer.
+  Risk/Reward Logic (0–23): How well the R:R of 1:${rr.toFixed(2)} fits this specific setup and market conditions.
+  Technical Confluence (0–23): Number and strength of aligned technical factors (indicators, structure, volume, patterns).
+  Combined Score (0–100): Sum of the four components above.
 
 7. CRITICAL WEAKNESSES
 What are the 2–3 most important reasons this trade could fail? Be direct.
@@ -22362,7 +22544,7 @@ What are the 2–3 most important reasons this trade could fail? Be direct.
 If the trade has weaknesses, suggest a better version of the same setup with improved entry, stop, and target logic. If it is strong, confirm the levels are appropriate.
 
 9. PROBABILITY ESTIMATE
-Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Explain your reasoning in one sentence.
+Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Use a precise number (e.g. 61%, 73%, 44%) — not a round estimate. Explain your reasoning in one sentence.
 
 10. FINAL VERDICT
 Classify as one of: Strong Setup / Acceptable Setup / Risky Setup / Avoid Trade
@@ -22370,15 +22552,15 @@ One sentence of reasoning. Be decisive.
 
 11. SCORECARD_JSON
 On a single final line, output exactly:
-SCORECARD_JSON: {"entry_quality":<0-25 integer>,"stop_placement":<0-25 integer>,"risk_reward_logic":<0-25 integer>,"technical_confluence":<0-25 integer>,"combined_score":<0-100 integer>,"probability":<0-100 integer>,"verdict":"<exact final verdict label>"}
-Do not wrap it in markdown. Do not add any extra text after it.
+SCORECARD_JSON: {"entry_quality":<0-28 integer>,"stop_placement":<0-26 integer>,"risk_reward_logic":<0-23 integer>,"technical_confluence":<0-23 integer>,"combined_score":<0-100 integer>,"probability":<0-100 integer>,"verdict":"<exact final verdict label>"}
+IMPORTANT: combined_score must equal entry_quality + stop_placement + risk_reward_logic + technical_confluence. Do not wrap in markdown. Do not add any text after it.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   return await aiComplete(prompt, {
     model: 'llama-3.3-70b-versatile',
-    max_tokens: 1200,
-    temperature: 0.2,
+    max_tokens: 1400,
+    temperature: 0.35,
     timeoutMs: 55000,
   });
 }
