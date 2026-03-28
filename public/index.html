@@ -468,6 +468,11 @@
 
         <!-- Trade analysis float (now rendered at app level, see below) -->
 
+        <!-- Macro context strip -->
+        <div id="macro-strip" style="display:none;"></div>
+        <!-- Pattern completion progress -->
+        <div id="pattern-progress" style="display:none;"></div>
+
         <div id="chart-wrap">
           <canvas id="main-canvas"></canvas>
         </div>
@@ -523,6 +528,9 @@
         <span id="sb-nav-pos">Latest</span>
         <button id="sb-nav-latest" onclick="scrubChartLatest()">Latest</button>
       </div>
+      <span id="sb-streak" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;"></span>
+      <span id="sb-daily-pl" style="display:none;font-size:11px;margin-left:6px;font-family:monospace;cursor:default;" title="Today's P&L"></span>
+      <span id="sb-alert-count" style="display:none;font-size:11px;margin-left:6px;cursor:pointer;" onclick="toggleOverlay('alerts')" title="Active alerts"></span>
       <span style="flex:1;"></span>
       <span id="st-session" style="font-size:11px;margin-right:6px;"></span>
       <span id="st-live" style="font-size:11px;font-weight:700;margin-right:6px;color:var(--tl);">LIVE</span>
@@ -747,9 +755,9 @@
   <!-- ── RIGHT DRAWER ───────────────────────────────────────────────────── -->
   <div id="rdrawer">
     <div class="rd-tabs">
-      <button class="rp-tab on" onclick="rpTab(this,'ai')">AI</button>
-      <button class="rp-tab" onclick="rpTab(this,'analytics')" id="tab-analytics">Analytics</button>
-      <button class="rp-tab" onclick="rpTab(this,'info')">News</button>
+      <button class="rp-tab on" onclick="rpTab(this,'ai')">AI<span class="rp-badge" id="rp-badge-ai"></span></button>
+      <button class="rp-tab" onclick="rpTab(this,'analytics')" id="tab-analytics">Analytics<span class="rp-badge" id="rp-badge-analytics"></span></button>
+      <button class="rp-tab" onclick="rpTab(this,'info')">News<span class="rp-badge" id="rp-badge-news"></span></button>
     </div>
 
     <!-- AI tab -->
@@ -2336,21 +2344,23 @@
     <!-- Status banner injected here by JS -->
     <div id="tap-status-banner"></div>
 
-    <!-- Verdict banner — populated by AI after analysis -->
-    <div id="tap-verdict-banner" style="display:none;margin:0 22px 14px;border-radius:8px;padding:14px 18px;border:1px solid transparent;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div>
-          <div id="tap-verdict-label" style="font-family:ui-monospace,'SF Mono',monospace;font-size:15px;font-weight:700;letter-spacing:.5px;margin-bottom:4px;"></div>
-          <div id="tap-verdict-sub" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;opacity:0.8;"></div>
+    <!-- Verdict hero — always visible, populated by AI (loading state shown immediately) -->
+    <div id="tap-verdict-banner" style="margin:0 16px 12px;border-radius:10px;padding:16px 20px;border:1px solid rgba(136,153,176,0.18);background:rgba(136,153,176,0.05);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="flex:1;min-width:0;">
+          <div id="tap-verdict-label" style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:700;letter-spacing:.8px;color:var(--tx3);">ANALYZING TRADE…</div>
+          <div id="tap-verdict-sub" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--tx3);margin-top:3px;opacity:0.8;">AI is reviewing your setup</div>
+          <div id="tap-verdict-prob" style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:var(--tx3);margin-top:4px;opacity:0.6;"></div>
         </div>
-        <div style="text-align:right;">
-          <div id="tap-verdict-score" style="font-family:ui-monospace,'SF Mono',monospace;font-size:32px;font-weight:700;line-height:1;"></div>
-          <div id="tap-verdict-prob" style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;opacity:0.75;margin-top:3px;"></div>
+        <div style="text-align:right;flex-shrink:0;margin-left:16px;">
+          <div id="tap-verdict-score" style="font-family:ui-monospace,'SF Mono',monospace;font-size:44px;font-weight:800;line-height:1;color:var(--tx3);">—</div>
+          <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:var(--tx3);opacity:0.6;margin-top:2px;">/ 100</div>
         </div>
       </div>
-      <div style="height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;">
-        <div id="tap-verdict-bar" style="height:100%;border-radius:3px;transition:width .7s ease;width:0%;"></div>
+      <div style="height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;">
+        <div id="tap-verdict-bar" style="height:100%;border-radius:3px;transition:width .7s ease;width:0%;background:rgba(136,153,176,0.4);"></div>
       </div>
+      <div id="tap-ai-loading" style="font-size:10px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-top:8px;display:none;">⟳ analysing…</div>
     </div>
 
     <!-- Levels strip -->
@@ -2380,13 +2390,16 @@
         <div class="val" id="tap-l-rr" style="color:var(--amber);">—</div>
         <div class="sub" id="tap-l-rr-grade"></div>
       </div>
-      <div class="tap-lvl-cell">
-        <div class="lbl">AI SCORE</div>
-        <div class="val" id="tap-l-ai-score" style="color:var(--tx2);">—</div>
-        <div class="sub" id="tap-l-ai-score-sub">Waiting for analysis</div>
-      </div>
     </div>
     </div><!-- /tap-levels-block -->
+
+    <!-- Expand row -->
+    <div id="tap-expand-row" style="padding:10px 16px 8px;">
+      <button id="tap-expand-btn" onclick="tapToggleExpand()" style="width:100%;padding:9px 0;background:rgba(255,255,255,0.04);border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:11px;font-weight:600;font-family:ui-monospace,'SF Mono',monospace;cursor:pointer;letter-spacing:.4px;transition:all .15s;"
+        onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+        SHOW FULL ANALYSIS ↓
+      </button>
+    </div>
 
     <div id="tap-body">
 
@@ -2438,7 +2451,7 @@
         <div class="tap-sec-hdr">
           <span class="tap-sec-icon">🤖</span>
           <span class="tap-sec-title" style="color:var(--tx2);">AI PRE-TRADE ANALYSIS</span>
-          <span id="tap-ai-loading" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:8px;display:none;">⟳ analysing…</span>
+          <span id="tap-ai-loading-dummy" style="display:none;"></span><!-- loading indicator moved to verdict banner -->
         </div>
         <div id="tap-ai-out"><div class="tap-skel" style="height:13px;width:90%;margin:4px 0;"></div><div class="tap-skel" style="height:13px;width:75%;margin:4px 0;"></div><div class="tap-skel" style="height:13px;width:82%;margin:4px 0;"></div></div>
       </div>
@@ -2452,34 +2465,6 @@
         <div id="tap-hist-items"></div>
       </div>
 
-      <!-- Journal trade history on this symbol -->
-      <!-- Chart Screenshot -->
-      <div class="tap-section" id="tap-screenshot-section">
-        <div class="tap-sec-hdr">
-          <span class="tap-sec-icon">📷</span>
-          <span class="tap-sec-title" style="color:var(--tx2);">TRADE SCREENSHOT</span>
-          <button id="tap-sc-dl-btn" onclick="tapDownloadScreenshot()" title="Download screenshot"
-            style="margin-left:auto;padding:3px 10px;background:rgba(0,201,160,.08);border:1px solid rgba(0,201,160,.3);
-            color:var(--tl);font-size:11px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;
-            display:none;transition:all .13s;"
-            onmouseover="this.style.background='rgba(0,201,160,.18)'" onmouseout="this.style.background='rgba(0,201,160,.08)'">
-            ⬇ Download
-          </button>
-          <button id="tap-sc-copy-btn" onclick="tapCopyScreenshot()" title="Copy to clipboard"
-            style="margin-left:6px;padding:3px 10px;background:rgba(61,127,255,.08);border:1px solid rgba(61,127,255,.3);
-            color:var(--bl);font-size:11px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;
-            display:none;transition:all .13s;"
-            onmouseover="this.style.background='rgba(61,127,255,.18)'" onmouseout="this.style.background='rgba(61,127,255,.08)'">
-            ⎘ Copy
-          </button>
-        </div>
-        <div id="tap-sc-wrap" style="margin-top:8px;border-radius:4px;overflow:hidden;border:1px solid var(--b1);
-          background:var(--bg3);min-height:60px;display:flex;align-items:center;justify-content:center;">
-          <span id="tap-sc-placeholder" style="font-size:11px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;">Capturing chart…</span>
-          <img id="tap-sc-img" style="display:none;width:100%;height:auto;border-radius:3px;" alt="Trade screenshot"/>
-        </div>
-      </div>
-
       <div class="tap-section" id="tap-journal-section">
         <div class="tap-sec-hdr">
           <span class="tap-sec-icon">📓</span>
@@ -2488,7 +2473,36 @@
         <div id="tap-journal-history"></div>
       </div>
 
+      <!-- Screenshot — last item, requires scrolling to reach -->
+      <div class="tap-section" id="tap-screenshot-section">
+        <div class="tap-sec-hdr">
+          <span class="tap-sec-icon">📷</span>
+          <span class="tap-sec-title" style="color:var(--tx2);">TRADE SCREENSHOT</span>
+          <button id="tap-sc-dl-btn" onclick="tapDownloadScreenshot()" title="Download"
+            style="margin-left:auto;padding:3px 10px;background:rgba(0,201,160,.08);border:1px solid rgba(0,201,160,.3);
+            color:var(--tl);font-size:11px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;
+            display:none;transition:all .13s;"
+            onmouseover="this.style.background='rgba(0,201,160,.18)'" onmouseout="this.style.background='rgba(0,201,160,.08)'">⬇ Download</button>
+          <button id="tap-sc-copy-btn" onclick="tapCopyScreenshot()" title="Copy"
+            style="margin-left:6px;padding:3px 10px;background:rgba(61,127,255,.08);border:1px solid rgba(61,127,255,.3);
+            color:var(--bl);font-size:11px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;
+            display:none;transition:all .13s;"
+            onmouseover="this.style.background='rgba(61,127,255,.18)'" onmouseout="this.style.background='rgba(61,127,255,.08)'">⎘ Copy</button>
+        </div>
+        <div id="tap-sc-wrap" style="border-radius:4px;overflow:hidden;border:1px solid var(--b1);
+          background:var(--bg3);min-height:60px;display:flex;align-items:center;justify-content:center;">
+          <span id="tap-sc-placeholder" style="font-size:11px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;">Capturing chart…</span>
+          <img id="tap-sc-img" style="display:none;width:100%;height:auto;border-radius:3px;" alt="Trade screenshot"/>
+        </div>
+      </div>
+
     </div><!-- /tap-body -->
+
+    <!-- Hidden legacy stubs -->
+    <span id="tap-l-ai-score" style="display:none;"></span>
+    <span id="tap-l-ai-score-sub" style="display:none;"></span>
+    <span id="tap-compact-sc-img" style="display:none;"></span>
+    <span id="tap-compact-sc-ph" style="display:none;"></span>
 
     <div id="tap-footer">
       <span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);flex:1;">Analysis is AI-generated from chart patterns and historical data — always apply your own judgement.</span>
@@ -2647,6 +2661,190 @@
     </div>
   </div>
 </div>
+
+<!-- ══ COMMAND PALETTE ════════════════════════════════════════════════════════ -->
+<div id="cmdpal-bg" onclick="if(event.target===this)closeCommandPalette()">
+  <div id="cmdpal-box">
+    <div id="cmdpal-top">
+      <span id="cmdpal-icon">⌘</span>
+      <input id="cmdpal-input" placeholder="Type a command, symbol, or action…" oninput="renderCmdPalResults(this.value)" onkeydown="cmdPalKey(event)" autocomplete="off" spellcheck="false">
+      <span id="cmdpal-hint">ESC to close</span>
+    </div>
+    <div id="cmdpal-results"></div>
+    <div id="cmdpal-footer">
+      <span>↑↓ navigate</span><span>↵ select</span><span>ESC close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRE-SESSION RITUAL ═════════════════════════════════════════════════════ -->
+<div id="ritual-bg" onclick="if(event.target===this)closeRitualModal()">
+  <div id="ritual-modal">
+    <div class="ritual-hdr">
+      <div>
+        <div class="ritual-title">☀ Morning Ritual</div>
+        <div class="ritual-sub">Complete before trading today</div>
+      </div>
+      <button onclick="closeRitualModal()" class="ritual-close">✕</button>
+    </div>
+    <div id="ritual-body">
+      <div class="ritual-item"><label><input type="checkbox" onchange="ritualCheck()"><span>I've reviewed my open watchlist</span></label></div>
+      <div class="ritual-item"><label><input type="checkbox" onchange="ritualCheck()"><span>I know today's key economic events</span></label></div>
+      <div class="ritual-item"><label><input type="checkbox" onchange="ritualCheck()"><span>I've set a daily max loss limit</span></label></div>
+      <div class="ritual-item"><label><input type="checkbox" onchange="ritualCheck()"><span>I'm in the right headspace to trade</span></label></div>
+      <div class="ritual-item"><label><input type="checkbox" onchange="ritualCheck()"><span>I know my bias for today (or I'm neutral)</span></label></div>
+      <div style="margin:12px 0 6px;">
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-family:monospace;">Today's max loss ($)</div>
+        <input id="ritual-max-loss" type="number" step="any" placeholder="e.g. 100" style="width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--line);color:var(--tx);border-radius:5px;font-size:12px;outline:none;">
+      </div>
+      <div style="margin:8px 0 6px;">
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-family:monospace;">Today's bias</div>
+        <div style="display:flex;gap:6px;">
+          <button class="ritual-bias-btn" id="ritual-bias-bull" onclick="setRitualBias('bull')">▲ Bullish</button>
+          <button class="ritual-bias-btn" id="ritual-bias-bear" onclick="setRitualBias('bear')">▼ Bearish</button>
+          <button class="ritual-bias-btn on" id="ritual-bias-neu" onclick="setRitualBias('neutral')">– Neutral</button>
+        </div>
+      </div>
+    </div>
+    <div id="ritual-progress-bar"><div id="ritual-progress-fill"></div></div>
+    <button id="ritual-start-btn" onclick="ritualComplete()" disabled>Complete Checklist First…</button>
+  </div>
+</div>
+
+<!-- ══ TILT INTERVENTION ══════════════════════════════════════════════════════ -->
+<div id="tilt-intervention-bg" onclick="if(event.target===this)dismissTiltAlert(false)">
+  <div id="tilt-intervention-modal">
+    <div style="font-size:32px;margin-bottom:8px;">⚠️</div>
+    <div id="tilt-intervention-title" style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:6px;">Tilt Risk Detected</div>
+    <div id="tilt-intervention-body" style="font-size:12px;color:var(--tx2);margin-bottom:18px;line-height:1.6;text-align:center;max-width:280px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="dismissTiltAlert(true)" style="flex:1;padding:9px;background:rgba(255,77,106,.1);border:1px solid rgba(255,77,106,.35);color:var(--rd);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Step Away</button>
+      <button onclick="dismissTiltAlert(false)" style="flex:1;padding:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--tx2);border-radius:6px;cursor:pointer;font-size:12px;">Continue Anyway</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EMOTIONAL GUARD ════════════════════════════════════════════════════════ -->
+<div id="emo-guard-bg" onclick="if(event.target===this)dismissEmotionalGuard()">
+  <div id="emo-guard-modal">
+    <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px;">How are you feeling?</div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;">Log your state before placing this trade</div>
+    <div id="emo-guard-btns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;">
+      <button class="emo-btn" onclick="selectEmotion('😌 Calm')">😌<span>Calm</span></button>
+      <button class="emo-btn" onclick="selectEmotion('🤔 Unsure')">🤔<span>Unsure</span></button>
+      <button class="emo-btn" onclick="selectEmotion('😤 Frustrated')">😤<span>Frustrated</span></button>
+      <button class="emo-btn" onclick="selectEmotion('😰 Anxious')">😰<span>Anxious</span></button>
+      <button class="emo-btn" onclick="selectEmotion('🔥 Confident')">🔥<span>Confident</span></button>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="proceedWithTool()" style="flex:1;padding:8px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.3);color:var(--tl);border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">Skip & Proceed</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SESSION DEBRIEF ════════════════════════════════════════════════════════ -->
+<div id="debrief-bg" onclick="if(event.target===this)closeSessionDebrief()">
+  <div id="debrief-modal">
+    <div class="debrief-hdr">
+      <div>
+        <div class="debrief-title">📊 Session Debrief</div>
+        <div id="debrief-date" style="font-size:11px;color:var(--tx3);margin-top:2px;"></div>
+      </div>
+      <button onclick="closeSessionDebrief()" style="background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer;padding:4px;">✕</button>
+    </div>
+    <div id="debrief-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0;"></div>
+    <div id="debrief-body" style="font-size:12px;color:var(--tx2);line-height:1.75;min-height:80px;"></div>
+    <div id="debrief-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeSessionDebrief()" style="padding:7px 18px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);border-radius:5px;cursor:pointer;font-size:11px;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TRADER DNA CARD ════════════════════════════════════════════════════════ -->
+<div id="dna-bg" onclick="if(event.target===this)closeDNACard()">
+  <div id="dna-modal">
+    <div class="dna-hdr">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="dna-avatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pu),var(--bl));display:flex;align-items:center;justify-content:center;font-size:16px;">🧬</div>
+        <div>
+          <div id="dna-username" style="font-size:14px;font-weight:700;color:var(--tx);">Trader</div>
+          <div id="dna-subtitle" style="font-size:11px;color:var(--tx3);"></div>
+        </div>
+      </div>
+      <button onclick="closeDNACard()" style="background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div id="dna-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
+    <div id="dna-strengths" style="margin-bottom:10px;"></div>
+    <div id="dna-setups" style="margin-bottom:10px;"></div>
+    <div id="dna-weakness" style="margin-bottom:10px;"></div>
+    <div style="padding-top:10px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeDNACard()" style="padding:7px 18px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);border-radius:5px;cursor:pointer;font-size:11px;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TRADE IDEA KANBAN ═══════════════════════════════════════════════════════ -->
+<div id="kanban-bg" onclick="if(event.target===this)closeKanban()">
+  <div id="kanban-modal">
+    <div class="kanban-hdr">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">📋</span>
+        <span style="font-size:14px;font-weight:700;color:var(--tx);">Trade Idea Board</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="openAddIdeaForm()" style="padding:5px 12px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.3);color:var(--tl);border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">+ Add Idea</button>
+        <button onclick="closeKanban()" style="background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer;padding:0 4px;">✕</button>
+      </div>
+    </div>
+    <!-- Add idea form (hidden by default) -->
+    <div id="kanban-add-form" style="display:none;margin-bottom:12px;padding:10px;background:var(--bg3);border:1px solid var(--line);border-radius:7px;">
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="kanban-idea-sym" placeholder="Symbol e.g. BTC" style="flex:1;padding:6px 8px;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:4px;font-size:11px;outline:none;">
+        <input id="kanban-idea-setup" placeholder="Setup type" style="flex:1;padding:6px 8px;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:4px;font-size:11px;outline:none;">
+        <select id="kanban-idea-dir" style="padding:6px 8px;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:4px;font-size:11px;outline:none;">
+          <option value="long">Long</option>
+          <option value="short">Short</option>
+        </select>
+      </div>
+      <input id="kanban-idea-notes" placeholder="Notes or thesis…" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:4px;font-size:11px;outline:none;margin-bottom:6px;">
+      <div style="display:flex;gap:6px;">
+        <button onclick="saveTradeIdea()" style="flex:1;padding:6px;background:rgba(0,212,160,.1);border:1px solid rgba(0,212,160,.3);color:var(--tl);border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">Save Idea</button>
+        <button onclick="document.getElementById('kanban-add-form').style.display='none'" style="padding:6px 12px;background:var(--bg);border:1px solid var(--line);color:var(--tx2);border-radius:4px;cursor:pointer;font-size:11px;">Cancel</button>
+      </div>
+    </div>
+    <div id="kanban-board" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;overflow-y:auto;max-height:calc(80vh - 140px);"></div>
+  </div>
+</div>
+
+<!-- ══ ONBOARDING TOUR ════════════════════════════════════════════════════════ -->
+<div id="tour-overlay" style="display:none;">
+  <div id="tour-spotlight"></div>
+  <div id="tour-tooltip">
+    <div id="tour-step-label" style="font-size:10px;color:var(--tx3);margin-bottom:4px;font-family:monospace;"></div>
+    <div id="tour-title" style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:5px;"></div>
+    <div id="tour-body" style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:14px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <button onclick="tourSkip()" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;padding:0;">Skip tour</button>
+      <div style="display:flex;gap:6px;">
+        <button id="tour-prev-btn" onclick="tourPrev()" style="padding:5px 12px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);border-radius:4px;cursor:pointer;font-size:11px;">←</button>
+        <button id="tour-next-btn" onclick="tourNext()" style="padding:5px 14px;background:rgba(61,142,255,.15);border:1px solid rgba(61,142,255,.4);color:var(--bl);border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB COLOUR CONTEXT MENU ════════════════════════════════════════════════ -->
+<div id="tab-ctx-menu" style="display:none;position:fixed;z-index:9999;background:var(--bg2);border:1px solid var(--line);border-radius:7px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);">
+  <div style="font-size:10px;color:var(--tx3);font-family:monospace;margin-bottom:6px;padding:0 2px;">TAB COLOUR</div>
+  <div style="display:flex;gap:5px;margin-bottom:8px;" id="tab-ctx-swatches"></div>
+  <div style="border-top:1px solid var(--line);padding-top:6px;">
+    <button onclick="closeTabContextMenu()" style="width:100%;padding:4px 8px;background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-align:left;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">Close</button>
+    <button onclick="renameChartTabPrompt()" style="width:100%;padding:4px 8px;background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;text-align:left;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">Rename Tab…</button>
+  </div>
+</div>
+
+<!-- ══ SETUP WATCH INDICATOR ══════════════════════════════════════════════════ -->
+<!-- (injected dynamically via JS into nav) -->
 
 </body>
 </html>

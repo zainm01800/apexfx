@@ -4,7 +4,7 @@
   "description": "APEX FX Trading Platform",
   "private": true,
   "scripts": {
-    "dev": "vercel dev --listen 3001 --yes",
+    "dev": "npx serve public -l 3001",
     "start": "vercel dev --listen 3001 --yes"
   }
 }

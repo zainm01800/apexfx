@@ -659,6 +659,52 @@ function getInds(){
 }
 let alerts=[], journal=[];
 
+// ══════════════════════════════════════════════════════════════════════════════
+// APEX FX — 20-FEATURE UPGRADE STATE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Trade Idea Board
+let tradeIdeas = [];
+try { tradeIdeas = JSON.parse(_lsGet('trade-ideas') || '[]'); } catch(e){ tradeIdeas=[]; }
+
+// Pre-session ritual state
+let ritualBias = 'neutral';
+let _ritualShownToday = false;
+let _riskSettings = { dailyMaxLoss: 0, maxRiskPerTrade: 2 };
+try { _riskSettings = JSON.parse(_lsGet('risk-settings') || '{}'); _riskSettings.dailyMaxLoss = _riskSettings.dailyMaxLoss||0; _riskSettings.maxRiskPerTrade = _riskSettings.maxRiskPerTrade||2; } catch(e){}
+
+// AI Setup Watch
+let setupWatchActive = false;
+let _setupWatchInterval = null;
+let _setupWatchLastAlert = 0;
+
+// Tilt intervention
+let _tiltAlertShown = false;
+let _tiltPrevState = false;
+
+// Onboarding tour
+let tourActive = false;
+let tourStep = 0;
+const TOUR_STEPS = [
+  { target: '#nav-watch',   title: 'Watchlist',          body: 'Add your favourite symbols here. Click a row to load it on the chart instantly.' },
+  { target: '#btn-aisetups',title: 'AI Best Setups',     body: 'Scan all symbols for high-quality setups. The AI scores and ranks them for you.' },
+  { target: '.rd-tabs',     title: 'AI + Analytics Panel',body: 'The right panel gives you live AI analysis, your analytics dashboard, and news.' },
+  { target: '#chart-tabs-bar', title: 'Multi-Chart Tabs', body: 'Run multiple charts at once. Right-click a tab to colour-code it.' },
+  { target: '#statusbar',   title: 'Status Bar',         body: 'Watch your daily P&L, active alerts, and current market session here.' },
+  { target: '#btn-journal', title: 'Journal',            body: 'Log every trade. The AI automatically coaches you and tracks your patterns.' },
+];
+
+// Tab colour context menu state
+let _tabCtxTabId = null;
+
+// Emotional guard
+let _pendingEmotionTool = null;
+let emotionLog = [];
+try { emotionLog = JSON.parse(_lsGet('emotion-log') || '[]'); } catch(e){ emotionLog=[]; }
+
+// Macro strip dismissal
+let _macroStripDismissed = false;
+
 // ── View state (TradingView model) ───────────────────────────────────────────
 // rightBarIndex: which data index is at the right edge of the canvas (float)
 // barWidth: pixels per bar (float)
@@ -2026,6 +2072,7 @@ function buildJournal(){
         ${e.screenshot?`<img class="jentry-thumb" src="${e.screenshot}" onclick="viewSnap('${e.id}')" title="Click to fullscreen">`:''}
         ${!e.archived?`<div style="margin-top:7px;border-top:1px solid var(--b1);padding-top:7px;display:flex;gap:5px;">
           <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">🔬 AI Autopsy</button>
+          ${e.outcome==='loss'?`<button onclick="event.stopPropagation();whyDidILose('${e.id}')" class="wdil-btn">❓ Why did I lose?</button>`:''}
         </div>
         <div id="autopsy-${e.id}" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:3px;border-left:3px solid var(--am);font-size:11px;line-height:1.7;color:var(--tx2);white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
         `:''}
@@ -11458,12 +11505,29 @@ async function aiComplete(prompt, {
 
   if(!res.ok){
     const msg = data?.error || `HTTP ${res.status}`;
-    throw new Error(`AI: ${msg}`);
+    const err = new Error(`AI: ${msg}`);
+    if(res.status === 429){
+      const rl = res.headers?.get?.('x-ratelimit-reset-requests') || res.headers?.get?.('retry-after');
+      if(rl) err._rateLimitResetMs = _tapParseResetHeader(rl);
+      err._is429 = true;
+    }
+    throw err;
   }
 
   const text = data?.text?.trim() || data?.choices?.[0]?.message?.content?.trim() || '';
   if(!text) throw new Error('AI returned empty response');
   return text;
+}
+
+// Parse Groq/Vercel rate-limit reset header ("1s", "1m30s", or numeric seconds)
+function _tapParseResetHeader(val){
+  if(!val) return 2000;
+  const n = parseFloat(val);
+  if(!isNaN(n)) return Math.ceil(n * 1000);
+  let ms = 0;
+  const m = val.match(/(\d+)m/); if(m) ms += parseInt(m[1]) * 60000;
+  const s = val.match(/(\d+)s/); if(s) ms += parseInt(s[1]) * 1000;
+  return ms || 2000;
 }
 
 async function groqFetch(prompt, options = {}){
@@ -19733,9 +19797,17 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     const barIdx   = bars.length - 1;
     const placementBarsByTf = { '1m': 18, '5m': 16, '15m': 14, '1h': 12, '4h': 10, '1d': 8, '1w': 6, '1M': 4 };
     const halfBars = Math.max(8, placementBarsByTf[targetTf] || 12);
-    const anchorBar = (bars.length - 1) + halfBars;
     const lastClose = bars[barIdx].close;
     const isLong = dir === 'bull';
+
+    // Scan backward from most recent bar to find the latest bar where SL hasn't been hit.
+    // This prevents the drawing from immediately showing "SL Hit" after data refreshes.
+    let validEntryBar = barIdx;
+    for (let i = barIdx; i >= Math.max(0, barIdx - 300); i--) {
+      if (isLong  && bars[i].low  > sl) { validEntryBar = i; break; }
+      if (!isLong && bars[i].high < sl) { validEntryBar = i; break; }
+    }
+    const anchorBar = validEntryBar + halfBars;
     const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
 
     const tradeAlreadyTriggered = (isLong && lastClose >= entry) || (!isLong && lastClose <= entry);
@@ -20608,6 +20680,94 @@ function tapRenderSetupBridge(d, analysisText=''){
 // Popup ✕ just collapses to badge — NEVER deletes the cache.
 const tapAnalysisCache = {};
 
+// ══ AI ANALYSIS — TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP ═══════════════════
+// Cache key: `${sym}|${tf}`  |  TTL: 60 s  |  Queue delay: 2 s (grows on 429)
+const TAP_AI_TTL      = 60_000;
+const TAP_AI_INTERVAL = 2_000;
+
+// tapAiTTLCache[key] = { result: string, ts: number }
+const tapAiTTLCache = {};
+
+// tapAiInflight[key] = { promise: Promise<string>, resolve, reject }
+const tapAiInflight  = {};
+
+// FIFO queue items: { key, execFn, resolve, reject }
+const tapAiQueue     = [];
+let   tapAiQueueBusy  = false;
+let   tapAiNextDelay  = TAP_AI_INTERVAL;  // extended by 429 reset header
+
+// One pending request per tab (per-user guard)
+let   tapAiUserKey    = null;
+
+// Live countdown interval handle (cleared on modal close / result)
+let   _tapAiCountdownTimer = null;
+
+function _tapAiCacheKey(sym, tf){ return `${sym}|${tf}`; }
+
+function _tapAiCacheGet(sym, tf){
+  const k = _tapAiCacheKey(sym, tf);
+  const e = tapAiTTLCache[k];
+  if(!e) return null;
+  if(Date.now() - e.ts > TAP_AI_TTL){ delete tapAiTTLCache[k]; return null; }
+  return e;
+}
+
+// Returns one of:
+//   { cached: true,   result, ageMs }
+//   { inFlight: true, promise }
+//   { queued: true,   promise, position }
+// Throws { _userPending: true } if this tab already has a queued/in-flight request.
+function _tapAiEnqueue(sym, tf, execFn){
+  const key = _tapAiCacheKey(sym, tf);
+
+  // 1. TTL cache hit
+  const hit = _tapAiCacheGet(sym, tf);
+  if(hit) return { cached: true, result: hit.result, ageMs: Date.now() - hit.ts };
+
+  // 2. In-flight dedup — attach to existing promise
+  if(tapAiInflight[key]) return { inFlight: true, promise: tapAiInflight[key].promise };
+
+  // 3. Per-user duplicate guard
+  if(tapAiUserKey !== null){
+    const e = new Error('Request already pending');
+    e._userPending = true;
+    throw e;
+  }
+
+  // 4. Enqueue
+  let resolve, reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  tapAiInflight[key] = { promise, resolve, reject };
+  tapAiUserKey = key;
+  tapAiQueue.push({ key, execFn, resolve, reject });
+
+  if(!tapAiQueueBusy) _tapAiProcessQueue();
+  return { queued: true, promise, position: tapAiQueue.length };
+}
+
+async function _tapAiProcessQueue(){
+  if(tapAiQueueBusy || tapAiQueue.length === 0) return;
+  tapAiQueueBusy = true;
+  const item = tapAiQueue.shift();
+  try {
+    const result = await item.execFn();
+    tapAiTTLCache[item.key] = { result, ts: Date.now() };
+    item.resolve(result);
+  } catch(e) {
+    if(e._rateLimitResetMs) tapAiNextDelay = Math.max(e._rateLimitResetMs, TAP_AI_INTERVAL);
+    item.reject(e);
+  } finally {
+    delete tapAiInflight[item.key];
+    if(tapAiUserKey === item.key) tapAiUserKey = null;
+    tapAiQueueBusy = false;
+    if(tapAiQueue.length > 0){
+      const delay = tapAiNextDelay;
+      tapAiNextDelay = TAP_AI_INTERVAL;
+      setTimeout(_tapAiProcessQueue, delay);
+    }
+  }
+}
+
 // ── Analysis lock — persisted to localStorage per symbol ──────────────────────
 // Once an analysis runs for a symbol, it is locked permanently.
 // Key: 'tap-lock-{sym}', Value: JSON {aiResult, ts, entry, sl, tp}
@@ -21094,9 +21254,17 @@ function tapSyncToSymbol(){
 }
 
 function closeTapModal(){
+  clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null;
+  const modalEl = document.getElementById('tap-modal');
+  modalEl.classList.remove('open', 'expanded');
   document.getElementById('tap-modal-bg').classList.remove('open');
-  resetDrag(document.getElementById('tap-modal'));
+  resetDrag(modalEl);
   tapShowBadge();
+}
+
+function tapToggleExpand(){
+  document.getElementById('tap-modal').classList.add('expanded');
+  document.getElementById('tap-expand-row').style.display = 'none';
 }
 
 async function openFullTradeAnalysis(){
@@ -21122,10 +21290,32 @@ async function openFullTradeAnalysis(){
   // Get live trade status (SL hit / TP hit / open / unrealistic)
   const { status, statusCol } = tapTradeStatus(d);
 
+  // Open in compact mode (reset any previous expanded state)
+  const _tapModalEl = document.getElementById('tap-modal');
+  _tapModalEl.classList.remove('expanded');
+  document.getElementById('tap-expand-btn').textContent = 'VIEW FULL ANALYSIS ↓';
   document.getElementById('tap-modal-bg').classList.add('open');
 
+  document.getElementById('tap-expand-row').style.display = '';
+
+  // Reset verdict banner to loading state (always visible)
+  const _vBanner = document.getElementById('tap-verdict-banner');
+  if(_vBanner){
+    _vBanner.style.background    = 'rgba(136,153,176,0.05)';
+    _vBanner.style.borderColor   = 'rgba(136,153,176,0.18)';
+    document.getElementById('tap-verdict-label').textContent = 'ANALYZING TRADE\u2026';
+    document.getElementById('tap-verdict-label').style.color = 'var(--tx3)';
+    document.getElementById('tap-verdict-score').textContent = '\u2014';
+    document.getElementById('tap-verdict-score').style.color = 'var(--tx3)';
+    document.getElementById('tap-verdict-sub').textContent   = 'AI is reviewing your setup';
+    document.getElementById('tap-verdict-sub').style.color   = 'var(--tx3)';
+    document.getElementById('tap-verdict-prob').textContent  = '';
+    document.getElementById('tap-verdict-bar').style.width   = '0%';
+    document.getElementById('tap-verdict-bar').style.background = 'rgba(136,153,176,0.4)';
+  }
+
   // Header
-  document.getElementById('tap-hdr-title').textContent  = `🔬 TRADE ANALYSIS — ${curSym.s}`;
+  document.getElementById('tap-hdr-title').textContent  = `\uD83D\uDD2C TRADE ANALYSIS \u2014 ${curSym.s}`;
   document.getElementById('tap-sym-tf').textContent     = `${curSym.s} · ${curTF}`;
   document.getElementById('tap-journal-sym').textContent = curSym.s;
 
@@ -21160,16 +21350,9 @@ async function openFullTradeAnalysis(){
   document.getElementById('tap-l-rr').textContent       = rr.toFixed(2) + ':1';
   document.getElementById('tap-l-rr-grade').textContent = rr >= 3 ? 'Excellent' : rr >= 2 ? 'Good' : rr >= 1.5 ? 'Acceptable' : 'Poor';
   document.getElementById('tap-l-rr-grade').style.color = rr >= 3 ? 'var(--tl)' : rr >= 2 ? 'var(--am)' : 'var(--rd)';
-  const topScoreEl = document.getElementById('tap-l-ai-score');
+  // topScoreEl/topScoreSubEl kept as stubs — score lives in verdict banner now
+  const topScoreEl    = document.getElementById('tap-l-ai-score');
   const topScoreSubEl = document.getElementById('tap-l-ai-score-sub');
-  if(topScoreEl){
-    topScoreEl.textContent = '...';
-    topScoreEl.style.color = 'var(--tx2)';
-  }
-  if(topScoreSubEl){
-    topScoreSubEl.textContent = 'Analyzing trade';
-    topScoreSubEl.style.color = 'var(--tx3)';
-  }
 
   // Inject status banner
   document.getElementById('tap-status-banner').innerHTML = statusBanner;
@@ -21194,74 +21377,106 @@ async function openFullTradeAnalysis(){
   if(scCp) scCp.style.display='none';
   tapCaptureScreenshot();
 
-  // ── AI — serve cached result if available, otherwise fetch once ──────────────
+  // ── AI — TTL cache (60 s) → in-flight dedup → FIFO queue ────────────────────
   const aiOutEl     = document.getElementById('tap-ai-out');
   const aiLoadingEl = document.getElementById('tap-ai-loading');
+  const _aiTF       = d.tf || curTF;
 
-  if(cached && cached.aiResult){
-    // ── Showing cached result — make it crystal clear this is the saved analysis
-    aiOutEl.textContent = tapDisplayAnalysisText(cached.aiResult);
-    tapRenderVerdictBanner(cached.aiResult);
-    tapRenderSetupBridge(d, cached.aiResult);
+  // Remove any stale age-badge from a previous open
+  document.getElementById('tap-ai-age-badge')?.remove();
+
+  let _enq;
+  try {
+    _enq = _tapAiEnqueue(curSym.s, _aiTF, () => tapGenerateAI(d, rr, status));
+  } catch(e) {
+    if(e._userPending){
+      aiOutEl.innerHTML = `<div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--am);padding:10px 0;">` +
+        `\u23F3 Request already pending \u2014 please wait for the current analysis to finish.</div>`;
+      aiLoadingEl.style.display = 'inline';
+      return;
+    }
+    _tapAiRenderErr(e.message, aiOutEl, aiLoadingEl, topScoreEl, topScoreSubEl);
+    return;
+  }
+
+  if(_enq.cached){
+    // TTL cache hit — instant result, no Groq call
+    const ageSec = Math.round(_enq.ageMs / 1000);
+    aiOutEl.textContent = tapDisplayAnalysisText(_enq.result);
+    tapRenderVerdictBanner(_enq.result);
+    tapRenderSetupBridge(d, _enq.result);
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
-
-    // Prominent "cached result" notice + 1-analysis-per-trade rule explanation
-    let noticeEl = document.getElementById('tap-cached-notice');
-    if(!noticeEl){
-      noticeEl = document.createElement('div');
-      noticeEl.id = 'tap-cached-notice';
-      noticeEl.innerHTML = `
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;
-          background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:8px;">
-          <div style="font-size:18px;line-height:1;margin-top:1px;">🔒</div>
-          <div style="flex:1;">
-            <div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--amber);
-              letter-spacing:.5px;margin-bottom:4px;">ANALYSIS LOCKED — 1 PER SYMBOL</div>
-            <div style="font-family:var(--font-mono);font-size:10px;color:var(--tx2);line-height:1.6;">
-              You have already used your one analysis for <strong style="color:var(--amber);">${curSym.s}</strong>.
-              This result is permanently saved. Placing a new trade on this symbol will always show this analysis.
-              Switch to a different symbol to get a new analysis.
-            </div>
-          </div>
-        </div>`;
-      aiOutEl.parentNode.insertBefore(noticeEl, aiOutEl);
-    }
+    if(topScoreSubEl) topScoreSubEl.textContent = `Last analyzed ${ageSec}s ago`;
+    const ageEl = document.createElement('div');
+    ageEl.id = 'tap-ai-age-badge';
+    ageEl.style.cssText = 'font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);margin-bottom:8px;letter-spacing:.3px;';
+    ageEl.textContent = `\uD83D\uDD50 Last analyzed ${ageSec}s ago \u2014 showing cached result`;
+    aiOutEl.parentNode.insertBefore(ageEl, aiOutEl);
   } else {
-    aiOutEl.innerHTML = `
-      <div class="tap-skel" style="height:13px;width:92%;margin:5px 0;"></div>
-      <div class="tap-skel" style="height:13px;width:78%;margin:5px 0;"></div>
-      <div class="tap-skel" style="height:13px;width:85%;margin:5px 0;"></div>
-      <div class="tap-skel" style="height:13px;width:70%;margin:5px 0;"></div>`;
+    // Queued or in-flight — show skeleton + live position/countdown
+    const initPos = _enq.position || 0;
+    const initEta = initPos > 0 ? initPos * Math.ceil(TAP_AI_INTERVAL / 1000) : 0;
+    aiOutEl.innerHTML = _tapAiQueueHtml(initPos, initEta);
     aiLoadingEl.style.display = 'inline';
+
+    const _aiQueueKey = _tapAiCacheKey(curSym.s, _aiTF);
+    const _aiStarted  = Date.now();
+    clearInterval(_tapAiCountdownTimer);
+    _tapAiCountdownTimer = setInterval(() => {
+      const qEl = document.getElementById('tap-ai-queue-status');
+      if(!qEl){ clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null; return; }
+      const pos = tapAiQueue.findIndex(q => q.key === _aiQueueKey) + 1;
+      if(pos > 0){
+        const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
+        qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
+      } else {
+        const elapsedSec = Math.round((Date.now() - _aiStarted) / 1000);
+        qEl.textContent = `Analyzing\u2026 (${elapsedSec}s)`;
+      }
+    }, 500);
+
     try {
-      const text = await tapGenerateAI(d, rr, status);
+      const text = await _enq.promise;
+      clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null;
       aiOutEl.textContent = tapDisplayAnalysisText(text);
-      // Lock permanently — save to memory cache and localStorage
       if(cached) cached.aiResult = text;
       tapSaveLock(curSym.s, text, d);
       _tapAnchorFill(d);
       tapRenderVerdictBanner(text);
       tapRenderSetupBridge(d, text);
       tapRenderDecisionContext(d);
+      aiLoadingEl.style.display = 'none';
     } catch(e) {
-      const msg = tapCompactTradeAIError(e.message || 'unknown error');
-      aiOutEl.innerHTML =
-        `<div style="color:var(--rd);font-weight:700;margin-bottom:6px;">⚠ AI Analysis Failed</div>` +
-        `<div style="color:var(--am);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;background:var(--bg3);
-          padding:8px 10px;border-radius:3px;border-left:3px solid var(--rd);">${msg}</div>` +
-        `<div style="color:var(--tx3);font-size:11px;margin-top:8px;">Real error from Groq — use this to diagnose.</div>`;
-      if(topScoreEl){
-        topScoreEl.textContent = '—';
-        topScoreEl.style.color = 'var(--rd)';
-      }
-      if(topScoreSubEl){
-        topScoreSubEl.textContent = 'AI failed';
-        topScoreSubEl.style.color = 'var(--rd)';
-      }
+      clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null;
+      _tapAiRenderErr(e.message, aiOutEl, aiLoadingEl, topScoreEl, topScoreSubEl);
     }
-    aiLoadingEl.style.display = 'none';
   }
+}
+
+// ── AI queue UI helpers ────────────────────────────────────────────────────────
+function _tapAiQueueHtml(pos, etaSec){
+  const statusText = pos > 0
+    ? `Position ${pos} \u2014 ready in ~${etaSec}s`
+    : 'Initializing analysis\u2026';
+  return `<div id="tap-ai-queue-status" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;` +
+    `color:var(--tx3);padding:6px 0 10px;letter-spacing:.3px;">${statusText}</div>` +
+    `<div class="tap-skel" style="height:13px;width:92%;margin:5px 0;"></div>` +
+    `<div class="tap-skel" style="height:13px;width:78%;margin:5px 0;"></div>` +
+    `<div class="tap-skel" style="height:13px;width:85%;margin:5px 0;"></div>` +
+    `<div class="tap-skel" style="height:13px;width:70%;margin:5px 0;"></div>`;
+}
+
+function _tapAiRenderErr(rawMsg, aiOutEl, aiLoadingEl, topScoreEl, topScoreSubEl){
+  const msg = tapCompactTradeAIError(rawMsg || 'unknown error');
+  aiOutEl.innerHTML =
+    `<div style="color:var(--rd);font-weight:700;margin-bottom:6px;">\u26A0 AI Analysis Failed</div>` +
+    `<div style="color:var(--am);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;background:var(--bg3);` +
+    `padding:8px 10px;border-radius:3px;border-left:3px solid var(--rd);">${msg}</div>` +
+    `<div style="color:var(--tx3);font-size:11px;margin-top:8px;">Real error from Groq \u2014 use this to diagnose.</div>`;
+  if(topScoreEl){ topScoreEl.textContent = '\u2014'; topScoreEl.style.color = 'var(--rd)'; }
+  if(topScoreSubEl){ topScoreSubEl.textContent = 'AI failed'; topScoreSubEl.style.color = 'var(--rd)'; }
+  if(aiLoadingEl) aiLoadingEl.style.display = 'none';
 }
 
 // ── Mini chart with entry/sl/tp overlaid ──────────────────────────────────────
@@ -21899,13 +22114,18 @@ function tapRenderVerdictBanner(text){
   }
 
   if(!verdict){
-    if(topScoreEl){
-      topScoreEl.textContent = parsedScore !== null ? `${parsedScore}/100` : '—';
-      topScoreEl.style.color = parsedScore !== null ? 'var(--tx)' : 'var(--tx2)';
-    }
-    if(topScoreSubEl){
-      topScoreSubEl.textContent = parsedScore !== null ? scoreSource : 'Score unavailable';
-      topScoreSubEl.style.color = 'var(--tx3)';
+    // No verdict keyword found — show score-only state in banner
+    if(parsedScore !== null){
+      banner.style.background  = 'rgba(136,153,176,0.06)';
+      banner.style.borderColor = 'rgba(136,153,176,0.2)';
+      scoreEl.textContent      = String(parsedScore);
+      scoreEl.style.color      = 'var(--tx)';
+      lbl.textContent          = 'ANALYSIS COMPLETE';
+      lbl.style.color          = 'var(--tx2)';
+      subEl.textContent        = scoreSource;
+      subEl.style.color        = 'var(--tx3)';
+      barEl.style.background   = 'var(--tx3)';
+      setTimeout(() => { barEl.style.width = parsedScore + '%'; }, 60);
     }
     return;
   }
@@ -21914,12 +22134,11 @@ function tapRenderVerdictBanner(text){
   const probPct = structured?.probability ?? (probMatch ? parseInt(probMatch[1]) : null);
   barPct = Math.min(100, Math.max(0, barPct ?? 50));
 
-  banner.style.display     = 'block';
   banner.style.background  = bg;
   banner.style.borderColor = border;
   lbl.textContent          = verdict;
   lbl.style.color          = verdictColor;
-  scoreEl.textContent      = scoreVal !== null ? scoreVal + '/100' : '—';
+  scoreEl.textContent      = scoreVal !== null ? String(scoreVal) : '—';
   scoreEl.style.color      = verdictColor;
   subEl.textContent        = likelihood;
   subEl.style.color        = verdictColor;
@@ -22137,8 +22356,8 @@ Do not wrap it in markdown. Do not add any extra text after it.
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
   return await aiComplete(prompt, {
-    model: 'llama-3.1-8b-instant',
-    max_tokens: 650,
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: 1200,
     temperature: 0.2,
     timeoutMs: 55000,
   });
@@ -23385,3 +23604,906 @@ function _btShowError(msg){
   const btn=document.getElementById('bt-run-btn');
   if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// APEX FX — 20-FEATURE UPGRADE FUNCTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ─── 1. COMMAND PALETTE ──────────────────────────────────────────────────────
+const CMDPAL_COMMANDS = [
+  { icon:'⌕',  label:'Search Symbol',         cat:'Navigate',  action:()=>openModal(),                kbd:'/' },
+  { icon:'📈', label:'New Chart Tab',          cat:'Navigate',  action:()=>createChartTab(curSym?.s||'BTCUSDT', curTF) },
+  { icon:'📋', label:'Open Trade Journal',     cat:'Journal',   action:()=>openJModal(),               kbd:'J' },
+  { icon:'🔬', label:'Open AI Analysis',       cat:'AI',        action:()=>tapAnalyseGate&&tapAnalyseGate() },
+  { icon:'⚡', label:'AI Best Setups',         cat:'AI',        action:()=>{ const b=document.getElementById('btn-aisetups'); if(b)b.click(); } },
+  { icon:'☀', label:'Pre-Market Brief',        cat:'AI',        action:()=>openPremarket() },
+  { icon:'📊', label:'Open Backtester',        cat:'Tools',     action:()=>{ const b=document.getElementById('bt-modal-bg'); if(b){b.style.display='flex';} } },
+  { icon:'⚖', label:'Position Sizer',          cat:'Tools',     action:()=>openPSC(),                  kbd:'P' },
+  { icon:'📷', label:'Take Screenshot',        cat:'Tools',     action:()=>saveChartImage&&saveChartImage() },
+  { icon:'⏮', label:'Toggle Bar Replay',      cat:'Tools',     action:()=>toggleReplay(),              kbd:'R' },
+  { icon:'🧬', label:'Trader DNA Card',        cat:'Analytics', action:()=>openDNACard() },
+  { icon:'📋', label:'Trade Idea Board',       cat:'Tools',     action:()=>openKanban() },
+  { icon:'📊', label:'Session Debrief',        cat:'Analytics', action:()=>openSessionDebrief() },
+  { icon:'☀', label:'Morning Ritual',          cat:'Tools',     action:()=>openRitualModal() },
+  { icon:'⚙', label:'Settings',               cat:'Platform',  action:()=>openSettings(),             kbd:',' },
+  { icon:'?',  label:'Tutorial / Help',        cat:'Platform',  action:()=>openTutorial() },
+  { icon:'🗂', label:'Analytics Tab',          cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(2)'); if(t)t.click(); } },
+  { icon:'📰', label:'News Tab',               cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(3)'); if(t)t.click(); } },
+  { icon:'🔔', label:'Alerts Panel',           cat:'Navigate',  action:()=>toggleOverlay('alerts') },
+  { icon:'👁', label:'Toggle Setup Watch',     cat:'AI',        action:()=>toggleSetupWatch() },
+];
+
+let _cpActiveIdx = 0;
+let _cpFilteredCmds = CMDPAL_COMMANDS;
+
+function openCommandPalette(){
+  const bg = document.getElementById('cmdpal-bg');
+  if(!bg) return;
+  bg.classList.add('open');
+  const inp = document.getElementById('cmdpal-input');
+  if(inp){ inp.value = ''; inp.focus(); }
+  _cpActiveIdx = 0;
+  renderCmdPalResults('');
+}
+
+function closeCommandPalette(){
+  const bg = document.getElementById('cmdpal-bg');
+  if(bg) bg.classList.remove('open');
+}
+
+function renderCmdPalResults(q){
+  const el = document.getElementById('cmdpal-results');
+  if(!el) return;
+  q = (q||'').trim().toLowerCase();
+  // Fuzzy filter
+  let cmds = q
+    ? CMDPAL_COMMANDS.filter(c => c.label.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q))
+    : CMDPAL_COMMANDS;
+  _cpFilteredCmds = cmds;
+  if(_cpActiveIdx >= cmds.length) _cpActiveIdx = 0;
+
+  // Group by category
+  const groups = {};
+  cmds.forEach(c => { if(!groups[c.cat]) groups[c.cat]=[]; groups[c.cat].push(c); });
+
+  // Also include symbol results at top when query looks like a ticker
+  let symHtml = '';
+  if(q.length >= 1){
+    const matchSyms = SYMS.filter(s => s.s.toLowerCase().startsWith(q) || s.n.toLowerCase().includes(q)).slice(0,4);
+    if(matchSyms.length){
+      let flatIdx = 0; // track absolute index for cp-active
+      symHtml = `<div class="cp-section-label">Symbols</div>` +
+        matchSyms.map(s => {
+          const abs = flatIdx++;
+          return `<div class="cp-item${abs===_cpActiveIdx?' cp-active':''}" onclick="selSym('${s.s}');closeCommandPalette();">
+            <span class="cp-item-icon">📈</span>
+            <span class="cp-item-label">${s.s} <span style="color:var(--tx3);font-size:11px;">${s.n}</span></span>
+            <span class="cp-item-cat">${s.t}</span>
+          </div>`;
+        }).join('');
+    }
+  }
+
+  let globalIdx = symHtml ? (symHtml.match(/cp-item/g)||[]).length / 2 : 0;
+  let catHtml = Object.entries(groups).map(([cat, items]) =>
+    `<div class="cp-section-label">${cat}</div>` +
+    items.map(c => {
+      const abs = globalIdx++;
+      return `<div class="cp-item${abs===_cpActiveIdx?' cp-active':''}" onclick="(${c.action.toString()})();closeCommandPalette();">
+        <span class="cp-item-icon">${c.icon}</span>
+        <span class="cp-item-label">${c.label}</span>
+        ${c.kbd?`<span class="cp-item-kbd">${c.kbd}</span>`:''}
+      </div>`;
+    }).join('')
+  ).join('');
+
+  el.innerHTML = (symHtml || '') + (catHtml || (!q?'':
+    `<div style="padding:20px;text-align:center;color:var(--tx3);font-size:12px;">No results for "${q}"</div>`));
+}
+
+function cmdPalKey(e){
+  if(e.key==='Escape'){ closeCommandPalette(); return; }
+  if(e.key==='ArrowDown'){ e.preventDefault(); _cpActiveIdx=Math.min(_cpActiveIdx+1,(_cpFilteredCmds.length||1)-1); renderCmdPalResults(document.getElementById('cmdpal-input')?.value||''); return; }
+  if(e.key==='ArrowUp'){  e.preventDefault(); _cpActiveIdx=Math.max(_cpActiveIdx-1,0); renderCmdPalResults(document.getElementById('cmdpal-input')?.value||''); return; }
+  if(e.key==='Enter'){
+    const active = document.querySelector('#cmdpal-results .cp-active');
+    if(active){ active.click(); return; }
+    const first = document.querySelector('#cmdpal-results .cp-item');
+    if(first) first.click();
+  }
+}
+
+// ─── 2. STATUS BAR UPGRADE ───────────────────────────────────────────────────
+function updateStatusBarStats(){
+  // Daily P&L
+  const today = new Date().toDateString();
+  const todayTrades = journal.filter(e => new Date(e.time).toDateString()===today && e.pl!=null);
+  const dailyPL = todayTrades.reduce((s,e)=>s+e.pl,0);
+  const plEl = document.getElementById('sb-daily-pl');
+  if(plEl){
+    if(todayTrades.length){
+      plEl.style.display='';
+      plEl.textContent = (dailyPL>=0?'+':'')+dailyPL.toFixed(2);
+      plEl.style.color = dailyPL>=0?'var(--tl)':'var(--rd)';
+      plEl.title = `Today's P&L: ${plEl.textContent}`;
+    } else {
+      plEl.style.display='none';
+    }
+  }
+
+  // Alert count
+  const alertEl = document.getElementById('sb-alert-count');
+  if(alertEl && alerts.length){
+    alertEl.style.display='';
+    alertEl.textContent = `🔔 ${alerts.length}`;
+    alertEl.style.color = 'var(--am)';
+  } else if(alertEl){
+    alertEl.style.display='none';
+  }
+
+  // Streak
+  updateStreakBadge();
+
+  // Risk strip
+  updateRiskStrip();
+
+  // RP badges
+  updateRPBadges();
+}
+
+// ─── 3. CHART TAB COLOUR CONTEXT MENU ────────────────────────────────────────
+const TAB_COLOUR_SWATCHES = [
+  { label:'Green',  val:'#00c9a0' },
+  { label:'Blue',   val:'#3d7fff' },
+  { label:'Amber',  val:'#f0a500' },
+  { label:'Red',    val:'#f03060' },
+  { label:'Purple', val:'#9b6dff' },
+  { label:'None',   val:null      },
+];
+
+function openTabContextMenu(e, tabId){
+  e.preventDefault();
+  e.stopPropagation();
+  _tabCtxTabId = tabId;
+  const menu = document.getElementById('tab-ctx-menu');
+  if(!menu) return;
+  // Build swatches
+  const sw = document.getElementById('tab-ctx-swatches');
+  if(sw) sw.innerHTML = TAB_COLOUR_SWATCHES.map(s =>
+    `<div onclick="applyTabColour('${s.val}')" title="${s.label}"
+       style="width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid ${s.val||'rgba(255,255,255,.2)'};background:${s.val||'var(--bg3)'};transition:transform .1s;"
+       onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'"></div>`
+  ).join('');
+  menu.style.display='block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth-200)+'px';
+  menu.style.top  = Math.min(e.clientY, window.innerHeight-150)+'px';
+  const close = (ev) => { if(!menu.contains(ev.target)){ closeTabContextMenu(); document.removeEventListener('click',close); } };
+  setTimeout(()=>document.addEventListener('click',close),10);
+}
+
+function closeTabContextMenu(){
+  const menu = document.getElementById('tab-ctx-menu');
+  if(menu) menu.style.display='none';
+}
+
+function applyTabColour(colour){
+  if(!_tabCtxTabId) return;
+  const tab = chartTabs.find(t=>t.id===_tabCtxTabId);
+  if(tab){ tab.color = colour; renderChartTabs(); saveChartTabs(false); }
+  closeTabContextMenu();
+}
+
+function renameChartTabPrompt(){
+  if(!_tabCtxTabId) return;
+  const tab = chartTabs.find(t=>t.id===_tabCtxTabId);
+  if(!tab) return;
+  const name = prompt('Rename tab:', tab.title||tab.sym);
+  if(name!=null){ tab.title=name; renderChartTabs(); saveChartTabs(false); }
+  closeTabContextMenu();
+}
+
+// ─── 4. SMARTER WATCHLIST SIGNALS ────────────────────────────────────────────
+function getSymbolSignal(s){
+  if(!s) return null;
+  const c = parseFloat(s.c)||0;
+  if(c > 3)  return { icon:'🔥', color:'var(--tl)',  label:'Strong up' };
+  if(c > 1)  return { icon:'▲',  color:'var(--tl)',  label:'Up' };
+  if(c < -3) return { icon:'❄',  color:'var(--rd)',  label:'Strong down' };
+  if(c < -1) return { icon:'▼',  color:'var(--rd)',  label:'Down' };
+  return      { icon:'─',  color:'var(--tx3)', label:'Flat' };
+}
+
+// Patch buildWL to inject signals (called as post-hook via DOMContentLoaded)
+function _buildWLWithSignals(filter){
+  buildWL(filter);
+  // Inject signal icons into each .wl-row
+  document.querySelectorAll('.wl-row[data-sym]').forEach(row=>{
+    const sym = row.dataset.sym;
+    const s = SYMS.find(x=>x.s===sym);
+    if(!s) return;
+    const sig = getSymbolSignal(s);
+    if(!sig) return;
+    // Insert signal span before the right side
+    const rDiv = row.querySelector('.wl-r');
+    if(rDiv && !rDiv.querySelector('.wl-sig')){
+      const sp = document.createElement('span');
+      sp.className='wl-sig';
+      sp.style.cssText=`font-size:10px;color:${sig.color};margin-right:4px;flex-shrink:0;`;
+      sp.textContent=sig.icon;
+      sp.title=sig.label;
+      rDiv.insertBefore(sp, rDiv.firstChild);
+    }
+  });
+}
+
+// ─── 5. RIGHT PANEL TAB BADGES ───────────────────────────────────────────────
+let _rpLastVisitAnalytics = Date.now();
+let _rpLastVisitNews      = Date.now();
+let _rpAnalyticsBadgeCount = 0;
+
+function updateRPBadges(){
+  // Analytics badge: new journal entries since last visit
+  const today = new Date().toDateString();
+  const todayNew = journal.filter(e=> new Date(e.time).toDateString()===today).length;
+  const badge = document.getElementById('rp-badge-analytics');
+  if(badge){ badge.classList.toggle('show', todayNew > 0 && !document.getElementById('rp-analytics')?.classList.contains('on')); }
+}
+
+// ─── 6. PRE-SESSION RITUAL ───────────────────────────────────────────────────
+function openRitualModal(){
+  const bg = document.getElementById('ritual-bg');
+  if(bg) bg.classList.add('open');
+  ritualBias = 'neutral';
+  setRitualBias('neutral');
+  // Reset checkboxes
+  document.querySelectorAll('#ritual-body input[type=checkbox]').forEach(c=>c.checked=false);
+  const ml = document.getElementById('ritual-max-loss');
+  if(ml) ml.value = _riskSettings.dailyMaxLoss || '';
+  ritualCheck();
+}
+
+function closeRitualModal(){
+  const bg = document.getElementById('ritual-bg');
+  if(bg) bg.classList.remove('open');
+}
+
+function setRitualBias(bias){
+  ritualBias = bias;
+  ['bull','bear','neu'].forEach(b=>{
+    const el=document.getElementById('ritual-bias-'+b);
+    if(el) el.classList.toggle('on', b===bias||(b==='neu'&&bias==='neutral'));
+  });
+}
+
+function ritualCheck(){
+  const boxes = document.querySelectorAll('#ritual-body input[type=checkbox]');
+  const total = boxes.length;
+  const ticked = [...boxes].filter(c=>c.checked).length;
+  const pct = total ? (ticked/total)*100 : 0;
+  const fill = document.getElementById('ritual-progress-fill');
+  if(fill) fill.style.width = pct+'%';
+  const btn = document.getElementById('ritual-start-btn');
+  if(btn){
+    btn.disabled = ticked < total;
+    btn.textContent = ticked < total ? `${total-ticked} items remaining…` : '▶ Start Trading Session';
+  }
+}
+
+function ritualComplete(){
+  const ml = document.getElementById('ritual-max-loss');
+  if(ml && ml.value){ _riskSettings.dailyMaxLoss=parseFloat(ml.value)||0; _lsSet('risk-settings',JSON.stringify(_riskSettings)); }
+  _lsSet('ritual-last-shown', new Date().toDateString());
+  _ritualShownToday = true;
+  closeRitualModal();
+  toast('☀ Ready to trade! Good luck today.');
+  updateRiskStrip();
+}
+
+function _maybeShowRitualModal(){
+  if(_ritualShownToday) return;
+  const last = _lsGet('ritual-last-shown');
+  if(last === new Date().toDateString()) return;
+  // Only show if user has at least 1 journal trade (not first-time users confused by it)
+  if(journal.length < 1) return;
+  setTimeout(openRitualModal, 2000);
+  _ritualShownToday = true;
+}
+
+// ─── 7. TILT INTERVENTION (ENHANCED) ─────────────────────────────────────────
+function _enhancedTiltDetector(){
+  const recent = journal.slice(-5).map(e=>e.outcome).filter(o=>o==='win'||o==='loss');
+  const tiltEl = document.getElementById('st-tilt');
+  if(!tiltEl) return;
+  const losses = recent.slice(-3).filter(o=>o==='loss').length;
+  const isTilt = losses >= 2;
+  tiltEl.style.display = isTilt ? '' : 'none';
+  if(isTilt){
+    tiltEl.title = `⚠ ${losses} consecutive losses — consider stepping away`;
+    tiltEl.style.cursor='pointer';
+    tiltEl.onclick=()=>showTiltAlert(losses);
+  }
+  // Auto-show intervention on first detection
+  if(isTilt && !_tiltPrevState && !_tiltAlertShown){
+    _tiltAlertShown=true;
+    showTiltAlert(losses);
+  }
+  if(!isTilt){ _tiltAlertShown=false; }
+  _tiltPrevState=isTilt;
+}
+
+function showTiltAlert(losses){
+  const bg = document.getElementById('tilt-intervention-bg');
+  if(!bg) return;
+  const body = document.getElementById('tilt-intervention-body');
+  if(body) body.textContent = `You've had ${losses} losses in a row. Studies show trading while frustrated increases losses by up to 40%. Take a short break and come back with a clear head.`;
+  bg.classList.add('open');
+}
+
+function dismissTiltAlert(stepAway){
+  const bg = document.getElementById('tilt-intervention-bg');
+  if(bg) bg.classList.remove('open');
+  if(stepAway){ toast('⏸ Session paused. Come back when you\'re ready.'); }
+}
+
+// ─── 8. STREAK IN STATUSBAR ──────────────────────────────────────────────────
+function updateStreakBadge(){
+  const el = document.getElementById('sb-streak');
+  if(!el) return;
+  const closed = [...journal].filter(e=>e.outcome==='win'||e.outcome==='loss');
+  if(!closed.length){ el.style.display='none'; return; }
+  const recent = [...closed];
+  const curType = recent[0].outcome;
+  let streak = 0;
+  for(const e of recent){ if(e.outcome===curType) streak++; else break; }
+  if(streak >= 2){
+    el.style.display='';
+    if(curType==='win'){
+      el.textContent=`🔥 ${streak}W`;
+      el.style.color='var(--tl)';
+      el.title=`${streak} win streak!`;
+    } else {
+      el.textContent=`❄ ${streak}L`;
+      el.style.color='var(--rd)';
+      el.title=`${streak} loss streak — consider a break`;
+    }
+  } else { el.style.display='none'; }
+}
+
+// ─── 9. SESSION DEBRIEF ───────────────────────────────────────────────────────
+function openSessionDebrief(){
+  const bg = document.getElementById('debrief-bg');
+  if(!bg) return;
+  bg.classList.add('open');
+  const today = new Date().toDateString();
+  const todayTrades = journal.filter(e => new Date(e.time).toDateString()===today);
+  const dateEl = document.getElementById('debrief-date');
+  if(dateEl) dateEl.textContent = today;
+
+  // Stats
+  const wins  = todayTrades.filter(e=>e.outcome==='win').length;
+  const losses = todayTrades.filter(e=>e.outcome==='loss').length;
+  const plVals = todayTrades.filter(e=>e.pl!=null).map(e=>e.pl);
+  const netPL  = plVals.reduce((s,v)=>s+v,0);
+  const stats = document.getElementById('debrief-stats');
+  if(stats) stats.innerHTML=[
+    { val: todayTrades.length, lbl:'Trades', col:'var(--tx)' },
+    { val: wins+'W/'+losses+'L', lbl:'Win/Loss', col: wins>=losses?'var(--tl)':'var(--rd)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '—', lbl:'Win Rate', col:'var(--am)' },
+  ].map(s=>`<div class="debrief-stat-card"><div class="debrief-stat-val" style="color:${s.col}">${s.val}</div><div class="debrief-stat-lbl">${s.lbl}</div></div>`).join('');
+
+  const body = document.getElementById('debrief-body');
+  if(!body) return;
+  if(!todayTrades.length){
+    body.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;">No trades logged today.</div>';
+    return;
+  }
+  body.innerHTML='<div style="color:var(--tx3);font-size:11px;">Generating AI debrief…</div>';
+
+  // Build prompt for AI
+  const summary = todayTrades.map(e=>`${e.dir?.toUpperCase()||'?'} ${e.sym} @${e.entry} → exit ${e.exit||'?'} | ${e.outcome||'open'} | P&L: ${e.pl!=null?e.pl.toFixed(2):'?'} | Notes: ${e.note||'none'}`).join('\n');
+  const prompt = `You are a professional trading coach. Here is a trader's session summary for today:\n\n${summary}\n\nProvide a concise session debrief in 3 short paragraphs: (1) what went well, (2) what could be improved, (3) one key lesson for tomorrow. Be specific, encouraging, and honest. Keep total under 150 words.`;
+
+  aiComplete([{role:'user',content:prompt}]).then(text=>{
+    if(body) body.innerHTML=`<div style="white-space:pre-wrap;line-height:1.75;">${text}</div>`;
+  }).catch(err=>{
+    if(body) body.innerHTML=`<div style="color:var(--rd);">Could not generate debrief: ${err.message||err}</div>`;
+  });
+}
+
+function closeSessionDebrief(){
+  const bg = document.getElementById('debrief-bg');
+  if(bg) bg.classList.remove('open');
+}
+
+// ─── 10. TRADER DNA CARD ─────────────────────────────────────────────────────
+function openDNACard(){
+  const bg = document.getElementById('dna-bg');
+  if(!bg) return;
+  bg.classList.add('open');
+
+  const profile = typeof getTraderProfile==='function' ? getTraderProfile() : null;
+  const closed = journal.filter(e=>e.outcome==='win'||e.outcome==='loss');
+  const wins = journal.filter(e=>e.outcome==='win').length;
+  const wr = closed.length ? Math.round(wins/closed.length*100) : 0;
+  const plVals = journal.filter(e=>e.pl!=null).map(e=>e.pl);
+  const netPL = plVals.reduce((s,v)=>s+v,0);
+  const rrVals = journal.filter(e=>e.rr).map(e=>e.rr);
+  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
+
+  // Username
+  const user = typeof supabaseUser!=='undefined' ? supabaseUser : null;
+  const uname = user?.email?.split('@')[0] || 'Trader';
+  const sub = document.getElementById('dna-subtitle');
+  if(sub) sub.textContent = `${closed.length} closed trades · ${journal.length} total`;
+  const uEl = document.getElementById('dna-username');
+  if(uEl) uEl.textContent = uname.charAt(0).toUpperCase()+uname.slice(1);
+
+  // Stats grid
+  const grid = document.getElementById('dna-stats-grid');
+  if(grid) grid.innerHTML = [
+    { val: wr+'%', lbl:'Win Rate', col: wr>=50?'var(--tl)':'var(--rd)' },
+    { val: avgRR==='—'?'—':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+  ].map(s=>`<div class="dna-stat-card"><div class="dna-stat-val" style="color:${s.col}">${s.val}</div><div class="dna-stat-lbl">${s.lbl}</div></div>`).join('');
+
+  // Strengths (top tags by win rate)
+  const tagMap={};
+  journal.filter(e=>(e.outcome==='win'||e.outcome==='loss')&&e.tags?.length).forEach(e=>e.tags.forEach(t=>{
+    if(!tagMap[t]) tagMap[t]={wins:0,total:0};
+    tagMap[t].total++; if(e.outcome==='win') tagMap[t].wins++;
+  }));
+  const tagRows = Object.entries(tagMap).filter(([,v])=>v.total>=2).map(([t,v])=>({t,wr:v.wins/v.total,total:v.total})).sort((a,b)=>b.wr-a.wr);
+
+  const strengthsEl = document.getElementById('dna-strengths');
+  if(strengthsEl) strengthsEl.innerHTML = tagRows.length ? `
+    <div class="dna-section-title">Strongest Setups</div>
+    ${tagRows.slice(0,4).map(r=>`<span class="dna-tag good">${r.t} (${Math.round(r.wr*100)}%)</span>`).join('')}
+  ` : '';
+
+  const weakEl = document.getElementById('dna-weakness');
+  if(weakEl) weakEl.innerHTML = tagRows.length>1 ? `
+    <div class="dna-section-title">Needs Work</div>
+    ${[...tagRows].sort((a,b)=>a.wr-b.wr).slice(0,3).map(r=>`<span class="dna-tag bad">${r.t} (${Math.round(r.wr*100)}%)</span>`).join('')}
+  ` : '';
+
+  // Setup types
+  const setups = {};
+  journal.forEach(e=>{ if(e.setup) setups[e.setup]=(setups[e.setup]||0)+1; });
+  const topSetups = Object.entries(setups).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const setupsEl = document.getElementById('dna-setups');
+  if(setupsEl) setupsEl.innerHTML = topSetups.length ? `
+    <div class="dna-section-title">Favourite Setups</div>
+    ${topSetups.map(([s])=>`<span class="dna-tag">${s}</span>`).join('')}
+  ` : '';
+}
+
+function closeDNACard(){
+  const bg = document.getElementById('dna-bg');
+  if(bg) bg.classList.remove('open');
+}
+
+// ─── 11. RISK DASHBOARD STRIP ────────────────────────────────────────────────
+function updateRiskStrip(){
+  const strip = document.getElementById('risk-strip');
+  if(!strip) return;
+  const maxLoss = _riskSettings.dailyMaxLoss;
+  if(!maxLoss){ strip.style.display='none'; return; }
+
+  const today = new Date().toDateString();
+  const todayLosses = journal.filter(e=>new Date(e.time).toDateString()===today && e.pl!=null && e.pl<0).reduce((s,e)=>s+Math.abs(e.pl),0);
+  const pct = Math.min(100, (todayLosses/maxLoss)*100);
+  const remaining = Math.max(0, maxLoss-todayLosses);
+  const col = pct>80?'var(--rd)':pct>50?'var(--am)':'var(--tl)';
+
+  strip.style.display='flex';
+  strip.innerHTML=`
+    <div class="risk-strip-cell"><span class="rsc-label">DAILY LIMIT</span> <span class="rsc-val" style="color:var(--tx2);">$${maxLoss.toFixed(0)}</span></div>
+    <div class="risk-strip-cell"><span class="rsc-label">USED</span> <span class="rsc-val" style="color:${col};">${pct.toFixed(0)}%</span> <div class="rsc-bar"><div class="rsc-bar-fill" style="width:${pct}%;background:${col};"></div></div></div>
+    <div class="risk-strip-cell"><span class="rsc-label">REMAINING</span> <span class="rsc-val" style="color:${remaining>0?'var(--tl)':'var(--rd)'}">${remaining>0?'$'+remaining.toFixed(0):'STOP'}</span></div>
+    <div class="risk-strip-cell" style="cursor:pointer;" onclick="openRitualModal()" title="Edit limits"><span style="color:var(--tx3);font-size:11px;">⚙</span></div>
+  `;
+  if(pct>=100 && !strip._warned){ strip._warned=true; toast('🛑 Daily loss limit reached — stop trading for today.'); }
+}
+
+// ─── 12. ONBOARDING TOUR ─────────────────────────────────────────────────────
+function startOnboardingTour(){
+  if(_lsGet('tour-completed')) return;
+  tourActive=true; tourStep=0;
+  const ov=document.getElementById('tour-overlay');
+  if(ov){ ov.style.display='block'; ov.classList.add('active'); }
+  _renderTourStep();
+}
+
+function _renderTourStep(){
+  const steps=TOUR_STEPS;
+  const step=steps[tourStep];
+  if(!step){ tourSkip(); return; }
+  const target=document.querySelector(step.target);
+  const ov=document.getElementById('tour-overlay');
+  const tt=document.getElementById('tour-tooltip');
+  if(!ov||!tt) return;
+
+  document.getElementById('tour-title').textContent=step.title;
+  document.getElementById('tour-body').textContent=step.body;
+  document.getElementById('tour-step-label').textContent=`Step ${tourStep+1} of ${steps.length}`;
+  document.getElementById('tour-prev-btn').style.opacity=tourStep===0?'0.3':'1';
+  document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish ✓':'Next →';
+
+  // Spotlight
+  const spot=document.getElementById('tour-spotlight');
+  if(target){
+    const r=target.getBoundingClientRect();
+    const pad=8;
+    spot.style.background='none';
+    spot.style.boxShadow=`0 0 0 9999px rgba(0,0,0,.72), 0 0 0 2px rgba(61,142,255,.6)`;
+    spot.style.position='absolute';
+    spot.style.left=(r.left-pad)+'px';
+    spot.style.top=(r.top-pad)+'px';
+    spot.style.width=(r.width+pad*2)+'px';
+    spot.style.height=(r.height+pad*2)+'px';
+    spot.style.borderRadius='7px';
+    spot.style.pointerEvents='none';
+    // Position tooltip
+    const tW=280, tH=180;
+    let tL=r.right+16, tT=r.top;
+    if(tL+tW>window.innerWidth) tL=r.left-tW-16;
+    if(tT+tH>window.innerHeight) tT=window.innerHeight-tH-16;
+    tt.style.left=Math.max(8,tL)+'px';
+    tt.style.top=Math.max(8,tT)+'px';
+  }
+}
+
+function tourNext(){
+  if(tourStep<TOUR_STEPS.length-1){ tourStep++; _renderTourStep(); }
+  else tourSkip();
+}
+function tourPrev(){ if(tourStep>0){ tourStep--; _renderTourStep(); } }
+function tourSkip(){
+  tourActive=false;
+  const ov=document.getElementById('tour-overlay');
+  if(ov){ ov.style.display='none'; ov.classList.remove('active'); }
+  _lsSet('tour-completed','1');
+}
+
+// ─── 13. TRADE IDEA KANBAN ────────────────────────────────────────────────────
+function openKanban(){
+  const bg=document.getElementById('kanban-bg');
+  if(bg) bg.classList.add('open');
+  renderKanban();
+}
+function closeKanban(){
+  const bg=document.getElementById('kanban-bg');
+  if(bg) bg.classList.remove('open');
+}
+function openAddIdeaForm(){
+  const f=document.getElementById('kanban-add-form');
+  if(f){ f.style.display='block'; document.getElementById('kanban-idea-sym')?.focus(); }
+}
+function saveTradeIdea(){
+  const sym=(document.getElementById('kanban-idea-sym')?.value||'').trim().toUpperCase();
+  const setup=(document.getElementById('kanban-idea-setup')?.value||'').trim();
+  const dir=document.getElementById('kanban-idea-dir')?.value||'long';
+  const notes=(document.getElementById('kanban-idea-notes')?.value||'').trim();
+  if(!sym){ toast('Enter a symbol'); return; }
+  const idea={id:Date.now().toString(),sym,setup,dir,notes,col:'watching',ts:Date.now()};
+  tradeIdeas.unshift(idea);
+  _lsSet('trade-ideas',JSON.stringify(tradeIdeas));
+  document.getElementById('kanban-add-form').style.display='none';
+  ['kanban-idea-sym','kanban-idea-setup','kanban-idea-notes'].forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
+  renderKanban();
+}
+function moveIdeaToCol(id,col){
+  const idea=tradeIdeas.find(t=>t.id===id);
+  if(idea){ idea.col=col; _lsSet('trade-ideas',JSON.stringify(tradeIdeas)); renderKanban(); }
+}
+function deleteTradeIdea(id){
+  tradeIdeas=tradeIdeas.filter(t=>t.id!==id);
+  _lsSet('trade-ideas',JSON.stringify(tradeIdeas));
+  renderKanban();
+}
+function renderKanban(){
+  const board=document.getElementById('kanban-board');
+  if(!board) return;
+  const cols=[
+    {key:'watching',label:'👁 Watching',    col:'var(--bl)'},
+    {key:'ready',   label:'⚡ Ready',        col:'var(--tl)'},
+    {key:'passed',  label:'✓ Passed/Closed', col:'var(--tx3)'},
+  ];
+  board.innerHTML=cols.map(c=>{
+    const ideas=tradeIdeas.filter(t=>t.col===c.key);
+    const cards=ideas.map(idea=>{
+      const otherCols=cols.filter(x=>x.key!==c.key);
+      const moveBtns=otherCols.map(oc=>`<button class="kanban-move-btn" onclick="moveIdeaToCol('${idea.id}','${oc.key}')">→ ${oc.label.split(' ').slice(1).join(' ')}</button>`).join('');
+      const dirBadge=idea.dir==='long'
+        ? `<span style="color:var(--tl);font-size:10px;font-family:monospace;">▲ LONG</span>`
+        : `<span style="color:var(--rd);font-size:10px;font-family:monospace;">▼ SHORT</span>`;
+      return `<div class="kanban-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="kanban-card-sym">${idea.sym}</span>
+          ${dirBadge}
+        </div>
+        ${idea.setup?`<div class="kanban-card-setup">${idea.setup}</div>`:''}
+        ${idea.notes?`<div class="kanban-card-notes">${idea.notes}</div>`:''}
+        <div class="kanban-card-footer">
+          ${moveBtns}
+          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">✕</button>
+        </div>
+      </div>`;
+    }).join('') || `<div style="color:var(--tx3);font-size:11px;text-align:center;padding:12px;opacity:.6;">Empty</div>`;
+    return `<div class="kanban-col">
+      <div class="kanban-col-hdr"><span style="color:${c.col};">${c.label}</span><span style="font-size:10px;color:var(--tx3);">${ideas.length}</span></div>
+      ${cards}
+    </div>`;
+  }).join('');
+}
+
+// ─── 14. PATTERN COMPLETION PROGRESS ─────────────────────────────────────────
+function updatePatternProgress(phase, method){
+  const el=document.getElementById('pattern-progress');
+  if(!el) return;
+  if(!phase||!method){ el.style.display='none'; return; }
+  const flows={
+    breakout:['Structure','Buildup','Break','Retest','Entry'],
+    trend:   ['Trend ID','Pullback','Oversold','Bounce','Entry'],
+    support: ['Zone ID','Test','Rejection','Confirm','Entry'],
+  };
+  const key=Object.keys(flows).find(k=>method.toLowerCase().includes(k)) || 'breakout';
+  const steps=flows[key];
+  const phaseUp=phase.toUpperCase();
+  let activeIdx=steps.findIndex(s=>phaseUp.includes(s.toUpperCase()));
+  if(activeIdx<0) activeIdx=0;
+  el.style.display='flex';
+  el.innerHTML=steps.map((s,i)=>{
+    const isDone=i<activeIdx;
+    const isAct=i===activeIdx;
+    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">›</span>':''}`;
+  }).join('');
+}
+
+// ─── 15. MACRO CONTEXT STRIP ──────────────────────────────────────────────────
+function updateMacroStrip(){
+  const el=document.getElementById('macro-strip');
+  if(!el||_macroStripDismissed) return;
+  // Static macro context — shows session info + bias
+  const sessions=[
+    {name:'Asia',   start:22*60, end:6*60,    col:'#3d7fff'},
+    {name:'London', start:7*60,  end:15*60+30,col:'#00c9a0'},
+    {name:'NY',     start:12*60, end:20*60,   col:'#f0a500'},
+  ];
+  const now=new Date();
+  const utcMins=now.getUTCHours()*60+now.getUTCMinutes();
+  const activeSess=sessions.filter(s=>{
+    const inRange = s.start<s.end ? (utcMins>=s.start&&utcMins<s.end) : (utcMins>=s.start||utcMins<s.end);
+    return inRange;
+  });
+
+  // AI bias if available
+  const biasEl=document.getElementById('ai-bias-hero-label');
+  const bias=biasEl?.textContent||'';
+
+  // PMB brief snippet
+  const copilot=document.getElementById('ai-copilot-brief');
+  const briefText=copilot?.textContent?.slice(0,80)||'';
+
+  const sessHtml=activeSess.length
+    ? activeSess.map(s=>`<span style="color:${s.col};font-weight:700;">${s.name}</span>`).join('+')
+    : '<span style="color:var(--tx3);">Off-hours</span>';
+
+  el.style.display='flex';
+  el.innerHTML=`
+    <div class="macro-pill"><span class="mp-label">SESSION</span>${sessHtml}</div>
+    ${bias?`<div class="macro-pill"><span class="mp-label">BIAS</span><span style="color:var(--am);font-weight:600;">${bias}</span></div>`:''}
+    ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}…</span></div>`:''}
+    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">✕</button>
+  `;
+}
+
+// ─── 16. SYMBOL THEME TINT ────────────────────────────────────────────────────
+const _SYM_TINTS={
+  Crypto: 'rgba(0,212,160,.035)',
+  Stock:  'rgba(61,142,255,.03)',
+  Forex:  'rgba(245,166,35,.03)',
+  Futures:'rgba(155,109,255,.03)',
+  ETF:    'rgba(255,255,255,.015)',
+};
+function applySymbolTint(sym){
+  const s=SYMS.find(x=>x.s===sym);
+  const tint=s?(_SYM_TINTS[s.t]||'transparent'):'transparent';
+  const area=document.getElementById('chart-area');
+  if(area) area.style.background=`radial-gradient(ellipse at 50% 120%, ${tint} 0%, transparent 65%)`;
+}
+
+// ─── 17. EMOTIONAL GUARD ─────────────────────────────────────────────────────
+function openEmotionalGuard(toolId){
+  _pendingEmotionTool=toolId;
+  const bg=document.getElementById('emo-guard-bg');
+  if(bg) bg.classList.add('open');
+  document.querySelectorAll('.emo-btn').forEach(b=>b.classList.remove('on'));
+}
+function dismissEmotionalGuard(){
+  const bg=document.getElementById('emo-guard-bg');
+  if(bg) bg.classList.remove('open');
+  _pendingEmotionTool=null;
+}
+function selectEmotion(emo){
+  document.querySelectorAll('.emo-btn').forEach(b=>b.classList.toggle('on', b.onclick?.toString().includes(emo)));
+  emotionLog.push({emo,ts:Date.now(),sym:curSym?.s||''});
+  _lsSet('emotion-log',JSON.stringify(emotionLog.slice(-100)));
+  // Auto-proceed after selection
+  setTimeout(proceedWithTool, 300);
+}
+function proceedWithTool(){
+  const tool=_pendingEmotionTool;
+  dismissEmotionalGuard();
+  if(tool && typeof setTool==='function') setTool(tool);
+}
+
+// ─── 18. WHY DID I LOSE ───────────────────────────────────────────────────────
+function whyDidILose(entryId){
+  const e=journal.find(j=>j.id===entryId);
+  if(!e){ toast('Trade not found'); return; }
+  const btn=document.querySelector(`#je-${entryId} .wdil-btn`);
+  if(btn){ btn.textContent='Analysing…'; btn.disabled=true; }
+  const prompt=`You are a trading coach. Analyse this losing trade and tell the trader specifically why they likely lost and what to do differently next time:\n\nSymbol: ${e.sym}\nDirection: ${e.dir}\nSetup: ${e.setup||'not specified'}\nEntry: ${e.entry}\nStop Loss: ${e.sl||'not set'}\nExit: ${e.exit||'not set'}\nP&L: ${e.pl!=null?e.pl.toFixed(2):'unknown'}\nNotes: ${e.note||'none'}\nEmotions: ${(e.emotions||[]).join(', ')||'not logged'}\n\nKeep it under 100 words. Be direct, specific, and constructive.`;
+  aiComplete([{role:'user',content:prompt}]).then(text=>{
+    const container=document.getElementById(`autopsy-${entryId}`);
+    if(container){ container.style.display='block'; container.textContent='❓ WHY I LOST: '+text; container.style.borderLeftColor='var(--rd)'; }
+    if(btn){ btn.textContent='✓ Done'; btn.style.opacity='.5'; }
+  }).catch(err=>{
+    if(btn){ btn.textContent='Why did I lose?'; btn.disabled=false; }
+    toast('Could not analyse: '+err.message);
+  });
+}
+
+// ─── 19. AI SETUP WATCH MODE ──────────────────────────────────────────────────
+function toggleSetupWatch(){
+  setupWatchActive=!setupWatchActive;
+  _lsSet('setup-watch-active',setupWatchActive?'1':'');
+  _updateSetupWatchUI();
+  if(setupWatchActive){
+    toast('👁 Setup Watch active — AI will alert you when a setup forms');
+    if(!_setupWatchInterval) _setupWatchInterval=setInterval(_checkSetupWatch, 120000);
+  } else {
+    toast('Setup Watch off');
+    if(_setupWatchInterval){ clearInterval(_setupWatchInterval); _setupWatchInterval=null; }
+  }
+}
+
+function _updateSetupWatchUI(){
+  // Update btn-aisetups indicator
+  const btn=document.getElementById('btn-aisetups');
+  if(!btn) return;
+  let ind=btn.querySelector('#setup-watch-indicator');
+  if(setupWatchActive && !ind){
+    ind=document.createElement('span');
+    ind.id='setup-watch-indicator';
+    btn.style.position='relative';
+    btn.appendChild(ind);
+  } else if(!setupWatchActive && ind){
+    ind.remove();
+  }
+}
+
+function _checkSetupWatch(){
+  if(!setupWatchActive||!curSym||!curData?.length) return;
+  const now=Date.now();
+  if(now-_setupWatchLastAlert < 60000) return; // min 1 min between alerts
+  // Check current AI bias
+  const biasEl=document.getElementById('ai-bias-hero-label');
+  const bias=(biasEl?.textContent||'').toLowerCase();
+  if(bias.includes('bullish')||bias.includes('bearish')){
+    _setupWatchLastAlert=now;
+    toast(`⚡ Setup Watch: ${bias.toUpperCase()} signal on ${curSym.s} ${curTF}`);
+  }
+}
+
+// ─── 20. SMARTER WATCHLIST (buildWL hook) ─────────────────────────────────────
+// Hook called after buildWL to inject signal badges
+function _postBuildWLHook(){
+  document.querySelectorAll('.wl-row[data-sym]').forEach(row=>{
+    if(row.querySelector('.wl-sig')) return; // already injected
+    const sym=row.dataset.sym;
+    const s=SYMS.find(x=>x.s===sym);
+    if(!s) return;
+    const sig=getSymbolSignal(s);
+    if(!sig) return;
+    const rDiv=row.querySelector('.wl-r');
+    if(rDiv){
+      const sp=document.createElement('span');
+      sp.className='wl-sig';
+      sp.style.cssText=`font-size:10px;color:${sig.color};margin-right:3px;flex-shrink:0;`;
+      sp.textContent=sig.icon;
+      sp.title=sig.label;
+      rDiv.insertBefore(sp, rDiv.firstChild);
+    }
+  });
+}
+
+// ─── WIRE UP MODIFICATIONS ────────────────────────────────────────────────────
+// Override updateTiltDetector to use enhanced version
+if(typeof updateTiltDetector==='function') window.updateTiltDetector=_enhancedTiltDetector;
+
+// buildJournal post-hook: add status bar stats
+const _origBuildJournal = typeof buildJournal==='function' ? buildJournal : null;
+if(_origBuildJournal){
+  window.buildJournal = function(){
+    _origBuildJournal.apply(this, arguments);
+    updateStatusBarStats();
+  };
+}
+
+// buildWL post-hook
+const _origBuildWL = typeof buildWL==='function' ? buildWL : null;
+if(_origBuildWL){
+  window.buildWL = function(filter){
+    _origBuildWL.apply(this, arguments);
+    _postBuildWLHook();
+  };
+}
+
+// selSym/loadSym post-hook for symbol tint
+const _origSelSym = typeof selSym==='function' ? selSym : null;
+if(_origSelSym){
+  window.selSym = function(s){
+    _origSelSym.apply(this, arguments);
+    applySymbolTint(s);
+  };
+}
+
+// DOMContentLoaded init
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Ritual modal (delayed so app loads first)
+  setTimeout(_maybeShowRitualModal, 3000);
+
+  // Setup watch restore
+  if(_lsGet('setup-watch-active')){
+    setupWatchActive=true;
+    _updateSetupWatchUI();
+    _setupWatchInterval=setInterval(_checkSetupWatch, 120000);
+  }
+
+  // Onboarding tour (first-time users only)
+  if(!_lsGet('tour-completed') && !_lsGet('journal')){ setTimeout(startOnboardingTour, 4000); }
+
+  // Macro strip update
+  setTimeout(updateMacroStrip, 1500);
+
+  // Initial status bar
+  setTimeout(updateStatusBarStats, 500);
+
+  // Chart tab colours: patch renderChartTabs after load
+  const orig=window.renderChartTabs;
+  if(orig && orig!==renderChartTabsWithColour){
+    window.renderChartTabs=function(){
+      orig.apply(this,arguments);
+      // Add right-click and colour accents
+      document.querySelectorAll('.chart-tab[data-id]').forEach(el=>{
+        const id=el.dataset.id;
+        if(!id) return;
+        if(!el._ctxBound){ el._ctxBound=true; el.addEventListener('contextmenu',e=>openTabContextMenu(e,id)); }
+        const tab=chartTabs.find(t=>String(t.id)===String(id));
+        if(tab&&tab.color){
+          let acc=el.querySelector('.ct-accent');
+          if(!acc){ acc=document.createElement('div'); acc.className='ct-accent'; el.appendChild(acc); }
+          acc.style.background=tab.color;
+        }
+      });
+    };
+  }
+});
+
+// Override Cmd+K to open command palette
+(function(){
+  // Re-bind Cmd+K — find existing listener section and override via capture
+  document.addEventListener('keydown', e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='k'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openCommandPalette();
+    }
+  }, true); // capture phase runs before existing handlers
+})();
+
+// Update status bar + macro strip on a slower interval
+setInterval(()=>{ updateStatusBarStats(); updateMacroStrip(); }, 30000);
