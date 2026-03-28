@@ -659,6 +659,10 @@ function getInds(){
 }
 let alerts=[], journal=[];
 
+// ── AI Chart Overlay state ────────────────────────────────────────────────────
+let _aiOverlayData   = null;   // last buildAIPanel result
+let aiOverlayEnabled = (_lsGet('ai-overlay-on') !== '0'); // default ON
+
 // ══════════════════════════════════════════════════════════════════════════════
 // APEX FX — 20-FEATURE UPGRADE STATE
 // ══════════════════════════════════════════════════════════════════════════════
@@ -686,12 +690,11 @@ let _tiltPrevState = false;
 let tourActive = false;
 let tourStep = 0;
 const TOUR_STEPS = [
-  { target: '#nav-watch',   title: 'Watchlist',          body: 'Add your favourite symbols here. Click a row to load it on the chart instantly.' },
-  { target: '#btn-aisetups',title: 'AI Best Setups',     body: 'Scan all symbols for high-quality setups. The AI scores and ranks them for you.' },
-  { target: '.rd-tabs',     title: 'AI + Analytics Panel',body: 'The right panel gives you live AI analysis, your analytics dashboard, and news.' },
-  { target: '#chart-tabs-bar', title: 'Multi-Chart Tabs', body: 'Run multiple charts at once. Right-click a tab to colour-code it.' },
-  { target: '#statusbar',   title: 'Status Bar',         body: 'Watch your daily P&L, active alerts, and current market session here.' },
-  { target: '#btn-journal', title: 'Journal',            body: 'Log every trade. The AI automatically coaches you and tracks your patterns.' },
+  { target: '#nav-watch',      title: 'Watchlist',           body: 'Add your favourite symbols here. Click a row to load it on the chart instantly.' },
+  { target: '#btn-aisetups',   title: 'AI Best Setups',      body: 'Scan all symbols for high-quality setups. The AI scores and ranks them for you.' },
+  { target: '.rd-tabs',        title: 'AI + Analytics Panel', body: 'The right panel gives you live AI analysis, your analytics dashboard, and news.' },
+  { target: '#chart-tabs-bar', title: 'Multi-Chart Tabs',    body: 'Run multiple charts at once. Right-click a tab to colour-code it.' },
+  { target: '#tb-journal-btn', title: 'Trade Journal',       body: 'Log every trade. The AI automatically coaches you and tracks your patterns.' },
 ];
 
 // Tab colour context menu state
@@ -1054,6 +1057,7 @@ let aiCache = {}; // key: sym+tf → {pats, sr, bias, top}
 function buildAIPanel(force=false){
   const key = curSym.s + '_' + curTF;
   if(!force && aiCache[key]){
+    _aiOverlayData = aiCache[key];
     renderAIPanel(aiCache[key]);
     renderLiveCopilot(aiCache[key], force);
     return;
@@ -1073,8 +1077,11 @@ function buildAIPanel(force=false){
   // Only cache when we have enough real bars — placeholder / thin data must not
   // poison the cache and block fresh pattern detection after real data loads.
   if(data.length >= 50) aiCache[key] = result;
+  // Store for chart overlay
+  _aiOverlayData = result;
   renderAIPanel(result);
   renderLiveCopilot(result, force);
+  draw(); // repaint so overlay reflects latest analysis
 }
 
 const aiCopilotCache = {};
@@ -12044,6 +12051,9 @@ function _drawImmediate(){
 
   // ── Drawings ──────────────────────────────────────────────────────────────
   renderDrawings(ctx, W, H, barX, py, yToPrice);
+
+  // ── AI Chart Overlay ──────────────────────────────────────────────────────
+  renderAIOverlay(ctx, W, H, py, barX, C);
 
   // Crosshair
   // ── Replay overlay: cutoff line + hover line when picking ────────────────
@@ -24107,11 +24117,12 @@ function updateRiskStrip(){
 }
 
 // ─── 12. ONBOARDING TOUR ─────────────────────────────────────────────────────
-function startOnboardingTour(){
-  if(_lsGet('tour-completed')) return;
+function startOnboardingTour(force){
+  if(!force && _lsGet('tour-completed')) return;
+  _lsSet('tour-completed',''); // clear so it re-plays
   tourActive=true; tourStep=0;
   const ov=document.getElementById('tour-overlay');
-  if(ov){ ov.style.display='block'; ov.classList.add('active'); }
+  if(ov){ ov.style.display='flex'; ov.classList.add('active'); }
   _renderTourStep();
 }
 
@@ -24130,12 +24141,11 @@ function _renderTourStep(){
   document.getElementById('tour-prev-btn').style.opacity=tourStep===0?'0.3':'1';
   document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish ✓':'Next →';
 
-  // Spotlight
+  // Spotlight + tooltip positioning
   const spot=document.getElementById('tour-spotlight');
   if(target){
     const r=target.getBoundingClientRect();
     const pad=8;
-    spot.style.background='none';
     spot.style.boxShadow=`0 0 0 9999px rgba(0,0,0,.72), 0 0 0 2px rgba(61,142,255,.6)`;
     spot.style.position='absolute';
     spot.style.left=(r.left-pad)+'px';
@@ -24144,13 +24154,25 @@ function _renderTourStep(){
     spot.style.height=(r.height+pad*2)+'px';
     spot.style.borderRadius='7px';
     spot.style.pointerEvents='none';
-    // Position tooltip
-    const tW=280, tH=180;
-    let tL=r.right+16, tT=r.top;
-    if(tL+tW>window.innerWidth) tL=r.left-tW-16;
-    if(tT+tH>window.innerHeight) tT=window.innerHeight-tH-16;
-    tt.style.left=Math.max(8,tL)+'px';
-    tt.style.top=Math.max(8,tT)+'px';
+    // Smart tooltip positioning — prefer right of target, then left, then below
+    const tW=280, tH=190, margin=16;
+    const vw=window.innerWidth, vh=window.innerHeight;
+    let tL, tT;
+    if(r.right+margin+tW <= vw){
+      // Place to the right
+      tL=r.right+margin;
+      tT=Math.min(Math.max(margin, r.top), vh-tH-margin);
+    } else if(r.left-margin-tW >= 0){
+      // Place to the left
+      tL=r.left-margin-tW;
+      tT=Math.min(Math.max(margin, r.top), vh-tH-margin);
+    } else {
+      // Place below (for top-bar elements)
+      tL=Math.min(Math.max(margin, r.left), vw-tW-margin);
+      tT=r.bottom+margin;
+    }
+    tt.style.left=tL+'px';
+    tt.style.top=tT+'px';
   }
 }
 
@@ -24466,8 +24488,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Onboarding tour (first-time users only)
   if(!_lsGet('tour-completed') && !_lsGet('journal')){ setTimeout(startOnboardingTour, 4000); }
 
-  // Macro strip update
-  setTimeout(updateMacroStrip, 1500);
 
   // Initial status bar
   setTimeout(updateStatusBarStats, 500);
@@ -24505,5 +24525,215 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }, true); // capture phase runs before existing handlers
 })();
 
-// Update status bar + macro strip on a slower interval
-setInterval(()=>{ updateStatusBarStats(); updateMacroStrip(); }, 30000);
+// Update status bar on a slower interval
+setInterval(()=>{ updateStatusBarStats(); }, 30000);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AI CHART OVERLAY
+// Draws S/R levels, bias badge, and top pattern label directly on the canvas.
+// ══════════════════════════════════════════════════════════════════════════════
+
+function toggleAIOverlay(){
+  aiOverlayEnabled = !aiOverlayEnabled;
+  _lsSet('ai-overlay-on', aiOverlayEnabled ? '1' : '0');
+  const btn = document.getElementById('sb-ai-overlay-btn');
+  if(btn){
+    if(aiOverlayEnabled){
+      btn.style.background = 'rgba(61,142,255,.18)';
+      btn.style.borderColor = 'rgba(61,142,255,.55)';
+      btn.style.color       = 'var(--bl)';
+      btn.textContent       = '⬡ AI Overlay';
+    } else {
+      btn.style.background = 'rgba(255,255,255,.04)';
+      btn.style.borderColor = 'rgba(255,255,255,.1)';
+      btn.style.color       = 'var(--tx3)';
+      btn.textContent       = '⬡ AI Overlay';
+    }
+  }
+  draw();
+}
+
+// Sync button visual to current state on load
+function _syncAIOverlayBtn(){
+  const btn = document.getElementById('sb-ai-overlay-btn');
+  if(!btn) return;
+  if(!aiOverlayEnabled){
+    btn.style.background  = 'rgba(255,255,255,.04)';
+    btn.style.borderColor = 'rgba(255,255,255,.1)';
+    btn.style.color       = 'var(--tx3)';
+  }
+}
+
+function renderAIOverlay(ctx, W, H, py, barX, C){
+  if(!aiOverlayEnabled || !_aiOverlayData) return;
+  const { sr, bias, top, pats } = _aiOverlayData;
+  if(!sr) return;
+
+  const last = curData?.[curData.length - 1];
+  if(!last) return;
+
+  ctx.save();
+  // rightEdge = visible chart area (excludes right panel + price axis)
+  const _rPanelW = typeof R_PANEL_OFFSET !== 'undefined' ? R_PANEL_OFFSET : 280;
+  const rightEdge = W - _rPanelW - 4; // stay inside the visible chart area
+
+  const currentPrice = last.close;
+
+  // ── Support levels (below current price, closest first) ───────────────────
+  const supportLevels = (sr.support || [])
+    .filter(p => isFinite(p) && p < currentPrice && py(p) >= 0 && py(p) <= H)
+    .sort((a, b) => b - a)   // highest first = closest to current price
+    .slice(0, 3);
+
+  supportLevels.forEach((price, i) => {
+    const y = py(price);
+    const alpha = i === 0 ? 0.7 : 0.4;
+
+    // Dashed line
+    ctx.strokeStyle = `rgba(0,201,160,${alpha})`;
+    ctx.lineWidth   = i === 0 ? 1.5 : 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rightEdge, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label pill at right side of visible chart
+    const label = 'S  ' + fP(price);
+    ctx.font = 'bold 9px monospace';
+    const tw  = ctx.measureText(label).width;
+    const lx  = rightEdge - tw - 12;
+    ctx.fillStyle = `rgba(0,201,160,${alpha})`;
+    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 4, y - 1);
+  });
+
+  // ── Resistance levels (above current price, closest first) ────────────────
+  const resistanceLevels = (sr.resistance || [])
+    .filter(p => isFinite(p) && p > currentPrice && py(p) >= 0 && py(p) <= H)
+    .sort((a, b) => a - b)   // lowest first = closest to current price
+    .slice(0, 3);
+
+  resistanceLevels.forEach((price, i) => {
+    const y = py(price);
+    const alpha = i === 0 ? 0.7 : 0.4;
+
+    ctx.strokeStyle = `rgba(240,48,96,${alpha})`;
+    ctx.lineWidth   = i === 0 ? 1.5 : 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rightEdge, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label pill at right side of visible chart
+    const label = 'R  ' + fP(price);
+    ctx.font = 'bold 9px monospace';
+    const tw  = ctx.measureText(label).width;
+    const lx  = rightEdge - tw - 12;
+    ctx.fillStyle = `rgba(240,48,96,${alpha})`;
+    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 4, y - 1);
+  });
+
+  // ── Bias badge (top-right of chart, before price axis) ───────────────────
+  if(bias){
+    const biasCol  = bias === 'BULLISH' ? 'rgba(0,201,160,' : bias === 'BEARISH' ? 'rgba(240,48,96,' : 'rgba(240,165,0,';
+    const biasIcon = bias === 'BULLISH' ? '▲' : bias === 'BEARISH' ? '▼' : '─';
+    const biasText = biasIcon + ' ' + bias;
+    ctx.font = 'bold 10px monospace';
+    const bw = ctx.measureText(biasText).width + 14;
+    const bx = rightEdge - bw - 4;
+    const by = 8;
+    // Badge background
+    ctx.fillStyle = biasCol + '0.18)';
+    _roundRect(ctx, bx, by, bw, 18, 4);
+    ctx.fill();
+    ctx.strokeStyle = biasCol + '0.45)';
+    ctx.lineWidth = 1;
+    _roundRect(ctx, bx, by, bw, 18, 4);
+    ctx.stroke();
+    // Badge text
+    ctx.fillStyle = biasCol + '1)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(biasText, bx + bw / 2, by + 9);
+  }
+
+  // ── Pattern list stacked below bias badge ────────────────────────────────
+  if(pats && pats.length){
+    const topPats = [...pats].sort((a, b) => b.conf - a.conf).slice(0, 3);
+    let stackY = bias ? 34 : 8; // start below bias badge if shown
+    topPats.forEach(p => {
+      const patCol = p.dir === 'bull' ? 'rgba(0,201,160,' : p.dir === 'bear' ? 'rgba(240,48,96,' : 'rgba(240,165,0,';
+      const icon   = p.dir === 'bull' ? '▲' : p.dir === 'bear' ? '▼' : '─';
+      const confPct = Math.round((p.conf || 0) * 100);
+      const patText = icon + ' ' + p.name + '  ' + confPct + '%';
+      ctx.font = '9px monospace';
+      const pw = ctx.measureText(patText).width + 10;
+      const px2 = rightEdge - pw - 4;
+      const py2 = stackY;
+      ctx.fillStyle = patCol + '0.1)';
+      _roundRect(ctx, px2, py2, pw, 15, 3);
+      ctx.fill();
+      ctx.strokeStyle = patCol + '0.3)';
+      ctx.lineWidth = 0.75;
+      _roundRect(ctx, px2, py2, pw, 15, 3);
+      ctx.stroke();
+      ctx.fillStyle = patCol + '0.85)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(patText, px2 + pw / 2, py2 + 7.5);
+      stackY += 18;
+    });
+  }
+
+  // ── Arrow on the most recent bar showing direction ────────────────────────
+  if(bias && curData && curData.length){
+    const lastBar = curData[curData.length - 1];
+    const bx2    = barX(curData.length - 1);
+    if(bx2 >= 0 && bx2 <= rightEdge){
+      const isUp  = bias === 'BULLISH';
+      const isDown= bias === 'BEARISH';
+      if(isUp || isDown){
+        const arrowY = isUp ? py(lastBar.high) - 10 : py(lastBar.low) + 10;
+        const col    = isUp ? 'rgba(0,201,160,.9)' : 'rgba(240,48,96,.9)';
+        ctx.font      = 'bold 11px monospace';
+        ctx.fillStyle = col;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isUp ? '▲' : '▼', bx2, arrowY);
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+// Helper: draw a rounded rectangle path
+function _roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Sync button state after DOM is ready
+document.addEventListener('DOMContentLoaded', () => { setTimeout(_syncAIOverlayBtn, 200); });
