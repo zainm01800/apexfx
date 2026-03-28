@@ -13016,8 +13016,8 @@ function handleDrawMousedown(sx, sy, e){
         dragStartY        = sy;
         dragSnapshot      = JSON.parse(JSON.stringify(selectedDrawing));
         // If user clicks a long/short drawing, make it the active analysis target
-        // Skip the popup for AI mentor example drawings
-        if((drawings[i].type==='long'||drawings[i].type==='short') && drawings[i]!==_tapDrawing && !drawings[i].isMentorExample){
+        // Skip the popup for AI mentor examples and temporary refinement suggestions
+        if((drawings[i].type==='long'||drawings[i].type==='short') && drawings[i]!==_tapDrawing && !drawings[i].isMentorExample && !drawings[i]._tapRefinement){
           _tapDrawing = drawings[i];
           showTradeAnalysisPopup(drawings[i], false); // re-open with this drawing's lock
         }
@@ -13299,7 +13299,7 @@ function handleDrawMousemove(sx, sy){
       case 'arrow':{ d.bar=s.bar+dBar; d.price=s.price+dPrice; break; }
     }
     draw();
-    if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
     return;
   }
 
@@ -13349,7 +13349,7 @@ function handleDrawMousemove(sx, sy){
         d.pts=s.pts.map(p=>({bar:p.bar+dBar,price:p.price+dPrice})); break;
     }
     draw();
-    if(d.type==='long'||d.type==='short') tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
     return;
   }
 
@@ -15214,6 +15214,24 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         if(rrStr){
           ctx.fillStyle=rr>=2?'#00c9a0':'#f0a500';
           ctx.fillText(rrStr, bx+4, (ey+tpy)/2+3);
+        }
+        // "AI Refined" badge for refinement suggestions placed via Show on Chart
+        if(d._refinementLabel){
+          const badge = '★ AI REFINED SETUP';
+          ctx.font = 'bold 9px ui-monospace,monospace';
+          const bw = ctx.measureText(badge).width + 12;
+          const bh = 15;
+          const bxPos = bx + 4;
+          const byPos = tpy + (isLong ? -18 : 14);
+          ctx.fillStyle = isLong ? 'rgba(0,201,160,.22)' : 'rgba(240,48,96,.22)';
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(bxPos, byPos, bw, bh, 3)
+            : ctx.rect(bxPos, byPos, bw, bh);
+          ctx.fill();
+          ctx.strokeStyle = entryCol; ctx.lineWidth = 0.8; ctx.setLineDash([]);
+          ctx.strokeRect(bxPos, byPos, bw, bh);
+          ctx.fillStyle = entryCol; ctx.textAlign = 'left';
+          ctx.fillText(badge, bxPos + 6, byPos + 10);
         }
         break;
       }
@@ -17970,7 +17988,7 @@ function initContextMenus(){
         selectedDrawings = [hit];
         draw();
         showAppContextMenu([
-          (hit.type === 'long' || hit.type === 'short') ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
+          (hit.type === 'long' || hit.type === 'short') && !hit._tapRefinement ? { label:'Open Trade Analysis', action:() => showTradeAnalysisPopup(hit, true) } : null,
           { label:'Duplicate drawing', action:() => duplicateDrawing(hit) },
           { label:'Bring to front', action:() => bringDrawingToFront(hit) },
           { label:'Send to back', action:() => sendDrawingToBack(hit) },
@@ -20735,71 +20753,71 @@ function tapRenderSetupBridge(d, analysisText=''){
 
 
 
-// ── Show refinement annotations on the main chart ────────────────────────────
+// ── Show refinement as a proper long/short trade tool on the main chart ───────
 function tapShowRefinementOnChart(){
   if(!_tapDrawing || !curData?.length) return;
-  const d   = _tapDrawing;
-  const n   = curData.length;
-  const atrV = calcATR(curData);
-  const atr  = atrV[n-1] || Math.abs(d.price - d.sl) * 0.8;
-  const sr   = detectSR(curData);
+  const d      = _tapDrawing;
+  const n      = curData.length;
+  const atrV   = calcATR(curData);
+  const atr    = atrV[n-1] || Math.abs(d.price - d.sl) * 0.8;
+  const sr     = detectSR(curData);
   const isLong = d.type === 'long';
   const barNow = n - 1;
 
-  // Remove old refinement annotations
+  // Remove any existing refinement tool so we don't stack up multiples
   drawings = drawings.filter(x => !x._tapRefinement);
 
-  // ── Suggested entry: nearest S/R within 3% of current entry on the correct side ─
+  // ── Suggested entry: nearest S/R within 3% of current entry, correct side ──
   let suggestedEntry = null;
   if(isLong){
     const candidates = sr.support.filter(s => s < d.price && s > d.price * 0.97);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>b-a)[0];
+    if(candidates.length) suggestedEntry = candidates.sort((a,b) => b-a)[0];
   } else {
     const candidates = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b)=>a-b)[0];
+    if(candidates.length) suggestedEntry = candidates.sort((a,b) => a-b)[0];
   }
-  // If no S/R found, suggest ATR-snapped level
+  // Fallback: half ATR from current entry
   if(!suggestedEntry) suggestedEntry = isLong ? d.price - atr * 0.5 : d.price + atr * 0.5;
 
   // ── Suggested SL: 1.5× ATR beyond suggested entry ─────────────────────────
   const suggestedSL = isLong ? suggestedEntry - atr * 1.5 : suggestedEntry + atr * 1.5;
 
-  // ── Suggested TP: 2.5:1 R:R from suggested entry → suggested SL ──────────
-  const riskAmt = Math.abs(suggestedEntry - suggestedSL);
+  // ── Suggested TP: 2.5:1 R:R from suggested entry ──────────────────────────
+  const riskAmt    = Math.abs(suggestedEntry - suggestedSL);
   const suggestedTP = isLong ? suggestedEntry + riskAmt * 2.5 : suggestedEntry - riskAmt * 2.5;
 
-  const addLine = (price, label, color, dash=false) => {
-    if(!isFinite(price)) return;
-    drawings.push({ type:'hline', price, color, label,
-      dash, lineWidth:1.5, _tapRefinement:true, _noSave:true, bar:barNow });
+  // ── Build a proper long/short drawing — same format as user-placed tools ───
+  const halfBars = defaultTradeToolHalfBars(curTF);
+  // Place the box centred on the current bar so it's clearly visible
+  const refinementDraw = {
+    type:         isLong ? 'long' : 'short',
+    bar:          barNow + halfBars,           // right-anchored at current bar
+    price:        suggestedEntry,
+    sl:           suggestedSL,
+    tp:           suggestedTP,
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, curTF),
+    tf:           curTF,
+    id:           'tap-refine-' + Date.now(),
+    _tapRefinement: true,                      // marks it as temporary
+    _noSave:        true,                      // excluded from localStorage
+    _refinementLabel: true,                    // tells renderer to show "AI Refined" badge
   };
 
-  // Draw the 3 suggested level lines
-  addLine(suggestedEntry, `Refined Entry · ${fP(suggestedEntry)}`, '#3d8eff', false);
-  addLine(suggestedSL,    `Refined SL · ${fP(suggestedSL)}`,     '#f03060', true);
-  addLine(suggestedTP,    `Refined TP · ${fP(suggestedTP)}`,     '#00c9a0', true);
-
-  // Annotation text block at the entry bar position
-  const textLabel = isLong
-    ? `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`
-    : `Better entry: ${fP(suggestedEntry)}\nSL: ${fP(suggestedSL)}  TP: ${fP(suggestedTP)}\nR:R 1:2.5 · ${atr>0?('ATR x1.5 stop'):'ATR stop'}`;
-  drawings.push({
-    type:'text', bar: barNow - 4, price: suggestedEntry,
-    text: textLabel, color:'#3d8eff', fontSize:10,
-    _tapRefinement:true, _noSave:true
-  });
-
+  drawings.push(refinementDraw);
   draw();
-  toast('📍 Refinement shown on chart — dashed lines = suggested levels');
 
-  // Auto-remove after 60 seconds so the chart doesn't stay cluttered
-  setTimeout(()=>{
+  const rr = (riskAmt > 0 ? (riskAmt * 2.5 / riskAmt).toFixed(2) : '2.50');
+  toast(`📍 AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
+
+  // Auto-remove after 90 seconds to keep chart clean
+  setTimeout(() => {
     drawings = drawings.filter(x => !x._tapRefinement);
     draw();
-  }, 60000);
+  }, 90000);
 }
 
-// Clear refinement annotations manually
+// Clear refinement tool manually (e.g. if user re-clicks Show on Chart)
 function tapClearRefinement(){
   drawings = drawings.filter(x => !x._tapRefinement);
   draw();
