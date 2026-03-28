@@ -468,8 +468,6 @@
 
         <!-- Trade analysis float (now rendered at app level, see below) -->
 
-        <!-- Macro context strip -->
-        <div id="macro-strip" style="display:none;"></div>
         <!-- Pattern completion progress -->
         <div id="pattern-progress" style="display:none;"></div>
 
@@ -516,6 +514,7 @@
       <span id="sb-bars" style="color:var(--tx3);"></span>
       <span id="st-pattern" style="display:none;color:var(--amber);font-size:11px;margin-left:6px;"></span>
       <span id="st-tilt" style="display:none;color:var(--rd);font-size:11px;margin-left:6px;">⚠ Tilt Risk</span>
+      <button id="sb-ai-overlay-btn" onclick="toggleAIOverlay()" title="Toggle AI chart annotations" style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 8px;background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.3);color:var(--bl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;transition:all .15s;">⬡ AI Overlay</button>
       <span id="st-replay" style="display:none;align-items:center;gap:4px;margin-left:6px;">
         <span id="st-replay-txt" style="color:var(--amber);font-size:11px;font-weight:700;"></span>
         <button id="st-replay-play" onclick="replayTogglePlay()" style="display:none;padding:2px 6px;background:rgba(0,201,160,.15);border:1px solid rgba(0,201,160,.4);color:var(--tl);font-size:10px;font-weight:700;border-radius:3px;cursor:pointer;font-family:monospace;">▶</button>
