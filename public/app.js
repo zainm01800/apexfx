@@ -24117,11 +24117,12 @@ function updateRiskStrip(){
 }
 
 // ─── 12. ONBOARDING TOUR ─────────────────────────────────────────────────────
-function startOnboardingTour(){
-  if(_lsGet('tour-completed')) return;
+function startOnboardingTour(force){
+  if(!force && _lsGet('tour-completed')) return;
+  _lsSet('tour-completed',''); // clear so it re-plays
   tourActive=true; tourStep=0;
   const ov=document.getElementById('tour-overlay');
-  if(ov){ ov.style.display='block'; ov.classList.add('active'); }
+  if(ov){ ov.style.display='flex'; ov.classList.add('active'); }
   _renderTourStep();
 }
 
@@ -24572,72 +24573,77 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
   if(!last) return;
 
   ctx.save();
-  const rightEdge = W - (typeof _priceSidebarW !== 'undefined' ? _priceSidebarW : 56); // leave room for price axis
+  // rightEdge = visible chart area (excludes right panel + price axis)
+  const _rPanelW = typeof R_PANEL_OFFSET !== 'undefined' ? R_PANEL_OFFSET : 280;
+  const rightEdge = W - _rPanelW - 4; // stay inside the visible chart area
 
-  // ── Support levels ────────────────────────────────────────────────────────
+  const currentPrice = last.close;
+
+  // ── Support levels (below current price, closest first) ───────────────────
   const supportLevels = (sr.support || [])
-    .filter(p => isFinite(p) && py(p) >= 0 && py(p) <= H)
-    .sort((a, b) => b - a)   // highest first (closest to price)
+    .filter(p => isFinite(p) && p < currentPrice && py(p) >= 0 && py(p) <= H)
+    .sort((a, b) => b - a)   // highest first = closest to current price
     .slice(0, 3);
 
   supportLevels.forEach((price, i) => {
     const y = py(price);
-    const alpha = i === 0 ? 0.55 : 0.3;
+    const alpha = i === 0 ? 0.7 : 0.4;
 
     // Dashed line
     ctx.strokeStyle = `rgba(0,201,160,${alpha})`;
-    ctx.lineWidth   = i === 0 ? 1 : 0.75;
-    ctx.setLineDash([5, 4]);
+    ctx.lineWidth   = i === 0 ? 1.5 : 1;
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(rightEdge, y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Label pill at left edge
-    if(i < 2){
-      const label = 'S  ' + fP(price);
-      ctx.font = 'bold 9px monospace';
-      const tw  = ctx.measureText(label).width;
-      ctx.fillStyle = `rgba(0,201,160,${alpha * 0.9})`;
-      ctx.fillRect(4, y - 9, tw + 8, 12);
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, 8, y - 3);
-    }
+    // Label pill at right side of visible chart
+    const label = 'S  ' + fP(price);
+    ctx.font = 'bold 9px monospace';
+    const tw  = ctx.measureText(label).width;
+    const lx  = rightEdge - tw - 12;
+    ctx.fillStyle = `rgba(0,201,160,${alpha})`;
+    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 4, y - 1);
   });
 
-  // ── Resistance levels ─────────────────────────────────────────────────────
+  // ── Resistance levels (above current price, closest first) ────────────────
   const resistanceLevels = (sr.resistance || [])
-    .filter(p => isFinite(p) && py(p) >= 0 && py(p) <= H)
-    .sort((a, b) => a - b)   // lowest first (closest to price)
+    .filter(p => isFinite(p) && p > currentPrice && py(p) >= 0 && py(p) <= H)
+    .sort((a, b) => a - b)   // lowest first = closest to current price
     .slice(0, 3);
 
   resistanceLevels.forEach((price, i) => {
     const y = py(price);
-    const alpha = i === 0 ? 0.55 : 0.3;
+    const alpha = i === 0 ? 0.7 : 0.4;
 
     ctx.strokeStyle = `rgba(240,48,96,${alpha})`;
-    ctx.lineWidth   = i === 0 ? 1 : 0.75;
-    ctx.setLineDash([5, 4]);
+    ctx.lineWidth   = i === 0 ? 1.5 : 1;
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(rightEdge, y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    if(i < 2){
-      const label = 'R  ' + fP(price);
-      ctx.font = 'bold 9px monospace';
-      const tw  = ctx.measureText(label).width;
-      ctx.fillStyle = `rgba(240,48,96,${alpha * 0.9})`;
-      ctx.fillRect(4, y - 9, tw + 8, 12);
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, 8, y - 3);
-    }
+    // Label pill at right side of visible chart
+    const label = 'R  ' + fP(price);
+    ctx.font = 'bold 9px monospace';
+    const tw  = ctx.measureText(label).width;
+    const lx  = rightEdge - tw - 12;
+    ctx.fillStyle = `rgba(240,48,96,${alpha})`;
+    _roundRect(ctx, lx, y - 8, tw + 8, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx + 4, y - 1);
   });
 
   // ── Bias badge (top-right of chart, before price axis) ───────────────────
