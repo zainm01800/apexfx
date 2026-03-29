@@ -523,24 +523,6 @@ function placePendingAISetupOnActiveChart(tab){
     entryBar: placement.entryBar,
   }, curData, tf);
 
-  if(stateInfo.state === 'EXPIRED'){
-    delete tab._pendingAISPlacement;
-    toast('This AI setup has expired for its timeframe, so it was not placed as a live setup.');
-    return false;
-  }
-
-  if(stateInfo.state === 'MISSED'){
-    delete tab._pendingAISPlacement;
-    toast('This AI setup is already missed on the current chart, so it was not placed as a fresh pending trade.');
-    return false;
-  }
-
-  if(stateInfo.state === 'ACTIVE' || stateInfo.state === 'COMPLETED' || stateInfo.state === 'STOPPED'){
-    delete tab._pendingAISPlacement;
-    toast('This AI setup is no longer a fresh pending entry on its original timeframe.');
-    return false;
-  }
-
   if(placement.setupKey){
     const existing = drawings.find(d => d._aisSetupKey && d._aisSetupKey === placement.setupKey);
     if(existing){
@@ -567,6 +549,11 @@ function placePendingAISetupOnActiveChart(tab){
   rightBarIndex = tab.rightBarIndex;
   priceHi = null;
   priceLo = null;
+  if(stateInfo.state === 'ACTIVE') toast('This setup is already active, so it was opened on chart in active state.');
+  else if(stateInfo.state === 'MISSED') toast('This setup is already missed, so it was opened on chart as missed context.');
+  else if(stateInfo.state === 'EXPIRED') toast('This setup has expired on its original timeframe, so it was opened as expired context.');
+  else if(stateInfo.state === 'COMPLETED') toast('This setup already completed, so it was opened on chart as completed context.');
+  else if(stateInfo.state === 'STOPPED') toast('This setup already stopped out, so it was opened on chart as stopped context.');
   delete tab._pendingAISPlacement;
   return true;
 }
