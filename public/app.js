@@ -449,30 +449,118 @@ function normalizeChartViewportForCurrentData(preferLatest = false){
     priceLo = null;
   }
 }
+function tapBuildSetupContextMeta(meta = {}, placement = {}){
+  return {
+    ...meta,
+    source: meta.source || 'ai-setups',
+    sym: meta.sym || placement.sym || curSym?.s,
+    tf: meta.tf || placement.tf || curTF,
+    dir: meta.dir || placement.dir || null,
+    originalEntry: Number.isFinite(Number(meta.originalEntry)) ? Number(meta.originalEntry) : Number(placement.entry),
+    originalSL: Number.isFinite(Number(meta.originalSL)) ? Number(meta.originalSL) : Number(placement.sl),
+    originalTP: Number.isFinite(Number(meta.originalTP)) ? Number(meta.originalTP) : Number(placement.target),
+    originalScore: Number.isFinite(Number(meta.originalScore)) ? Number(meta.originalScore) : Number(meta.score),
+    originalPattern: meta.originalPattern || meta.patLabel || 'Structure',
+    originalRationale: meta.originalRationale || meta.idea || '',
+    originalStructureContext: meta.originalStructureContext || '',
+  };
+}
+
+function tapBuildPlacedTradeDrawing(levels, stateInfo, tf, extras = {}){
+  const isLong = levels.dir === 'bull' || levels.dir === 'long';
+  const dp = levels.entry < 1 ? 5 : levels.entry < 10 ? 4 : levels.entry < 100 ? 3 : 2;
+  const halfBars = Math.max(5, levels.halfBars || setupVisualHalfBars(tf));
+  const anchorBase = stateInfo.state === 'PENDING'
+    ? Math.max((stateInfo.data?.length || curData.length) - 1, stateInfo.entryBar ?? 0)
+    : (stateInfo.triggerBar ?? stateInfo.entryBar ?? ((stateInfo.data?.length || curData.length) - 1));
+  const anchorBar = anchorBase + halfBars;
+  const setupMeta = tapBuildSetupContextMeta(levels.meta || {}, levels);
+  const createdBarIndex = Number.isFinite(levels.createdBarIndex) ? Math.round(levels.createdBarIndex) : (stateInfo.entryBar ?? Math.max(0, (stateInfo.data?.length || curData.length) - 1));
+  const createdCandleTime = Number.isFinite(levels.createdCandleTime)
+    ? Number(levels.createdCandleTime)
+    : (stateInfo.data?.[Math.max(0, Math.min((stateInfo.data?.length || 1) - 1, createdBarIndex))]?.time ?? (stateInfo.data?.[stateInfo.data?.length - 1]?.time ?? 0));
+  const expiryBars = Number.isFinite(levels.expiryBars) ? Math.max(1, Math.round(levels.expiryBars)) : setupExpiryBars(tf);
+  const expectedHoldBars = Number.isFinite(levels.expectedHoldBars) ? Math.max(1, Math.round(levels.expectedHoldBars)) : setupExpectedHoldBars(tf);
+  return {
+    type: isLong ? 'long' : 'short',
+    bar: anchorBar,
+    price: +Number(levels.entry).toFixed(dp),
+    sl: +Number(levels.sl).toFixed(dp),
+    tp: +Number(levels.target).toFixed(dp),
+    halfBars,
+    halfDuration: halfBarsToSecs(halfBars, tf),
+    tf,
+    id: levels.id || `ais-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+    _aisSetupKey: levels.setupKey || null,
+    _aisPlaced: true,
+    _aisMeta: setupMeta,
+    _originTf: tf,
+    _originSym: levels.sym || curSym?.s,
+    _setupTf: tf,
+    _setupSym: levels.sym || curSym?.s,
+    _entryBarSource: stateInfo.entryBar,
+    _triggerBarSource: stateInfo.triggerBar,
+    _tradeState: stateInfo.state,
+    _tradeStateReason: stateInfo.reason,
+    _createdBarIndex: createdBarIndex,
+    _createdCandleTime: createdCandleTime,
+    _expiryBars: expiryBars,
+    _expectedHoldBars: expectedHoldBars,
+    _ageBarsAtPlacement: stateInfo.ageBars ?? 0,
+  };
+}
+
 function placePendingAISetupOnActiveChart(tab){
   if(!tab?._pendingAISPlacement || !curData?.length) return false;
   const placement = tab._pendingAISPlacement;
-  const isLong = placement.dir === 'bull';
-  const dp = placement.entry < 1 ? 5 : placement.entry < 10 ? 4 : placement.entry < 100 ? 3 : 2;
-  const halfBars = Math.max(8, placement.halfBars || defaultTradeToolHalfBars(curTF));
-  const anchorBar = (curData.length - 1) + halfBars;
+  const tf = placement.tf || curTF;
+  const stateInfo = tapClassifyTradeLevels({
+    dir: placement.dir,
+    entry: placement.entry,
+    sl: placement.sl,
+    tp: placement.target,
+    halfBars: placement.halfBars || defaultTradeToolHalfBars(tf),
+    entryBar: placement.entryBar,
+  }, curData, tf);
+
+  if(stateInfo.state === 'EXPIRED'){
+    delete tab._pendingAISPlacement;
+    toast('This AI setup has expired for its timeframe, so it was not placed as a live setup.');
+    return false;
+  }
+
+  if(stateInfo.state === 'MISSED'){
+    delete tab._pendingAISPlacement;
+    toast('This AI setup is already missed on the current chart, so it was not placed as a fresh pending trade.');
+    return false;
+  }
+
+  if(stateInfo.state === 'ACTIVE' || stateInfo.state === 'COMPLETED' || stateInfo.state === 'STOPPED'){
+    delete tab._pendingAISPlacement;
+    toast('This AI setup is no longer a fresh pending entry on its original timeframe.');
+    return false;
+  }
+
+  if(placement.setupKey){
+    const existing = drawings.find(d => d._aisSetupKey && d._aisSetupKey === placement.setupKey);
+    if(existing){
+      rightBarIndex = existing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+      priceHi = null;
+      priceLo = null;
+      delete tab._pendingAISPlacement;
+      return true;
+    }
+  }
 
   drawings = drawings.filter(d => !d._aisPlaced);
-  const drawing = {
-    type: isLong ? 'long' : 'short',
-    bar: anchorBar,
-    price: +placement.entry.toFixed(dp),
-    sl: +placement.sl.toFixed(dp),
-    tp: +placement.target.toFixed(dp),
-    halfBars,
-    halfDuration: halfBarsToSecs(halfBars, curTF),
-    _aisPlaced: true,
-    _aisMeta: placement.meta || null,
-  };
+  const drawing = tapBuildPlacedTradeDrawing({
+    ...placement,
+    sym: placement.sym || curSym?.s,
+  }, { ...stateInfo, data: curData }, tf);
   drawings.push(drawing);
   saveDrawings(curSym.s, curTF);
   tab.drawings = drawings.map(drawingToTime);
-  tab.rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+  tab.rightBarIndex = drawing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
   tab.priceHi = null;
   tab.priceLo = null;
   tab.updatedAt = Date.now();
@@ -12523,6 +12611,34 @@ function defaultTradeToolHalfBars(tf){
     '1M': 5,
   })[tf] || 8;
 }
+function setupExpectedHoldBars(tf){
+  return ({
+    '1m': 10,
+    '5m': 14,
+    '15m': 18,
+    '1h': 24,
+    '4h': 20,
+    '1d': 16,
+    '1w': 12,
+    '1M': 10,
+  })[tf] || 16;
+}
+function setupExpiryBars(tf){
+  return ({
+    '1m': 18,
+    '5m': 24,
+    '15m': 32,
+    '1h': 40,
+    '4h': 48,
+    '1d': 34,
+    '1w': 22,
+    '1M': 14,
+  })[tf] || 28;
+}
+function setupVisualHalfBars(tf){
+  const expected = setupExpectedHoldBars(tf);
+  return Math.max(5, Math.min(defaultTradeToolHalfBars(tf), Math.round(expected / 2)));
+}
 function defaultTradeToolMinRiskPct(tf){
   return ({
     '1m': 0.0035,
@@ -15263,7 +15379,11 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         }
         // "AI Refined" badge for refinement suggestions placed via Show on Chart
         if(d._refinementLabel){
-          const badge = '★ AI REFINED SETUP';
+          const badge = d._refinementMode === 'management'
+            ? `★ AI MANAGE · ${tapTradeStateLabel(d._refinementState || 'ACTIVE').toUpperCase()}`
+            : d._refinementMode === 'reentry'
+              ? '★ AI RE-ENTRY SETUP'
+              : `★ AI REFINED · ${tapTradeStateLabel(d._refinementState || 'PENDING').toUpperCase()}`;
           ctx.font = 'bold 9px ui-monospace,monospace';
           const bw = ctx.measureText(badge).width + 12;
           const bh = 15;
@@ -15278,6 +15398,23 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.strokeRect(bxPos, byPos, bw, bh);
           ctx.fillStyle = entryCol; ctx.textAlign = 'left';
           ctx.fillText(badge, bxPos + 6, byPos + 10);
+        }
+        if(d._tradeState && d._tradeState !== 'PENDING'){
+          const stateBadge = `STATE · ${tapTradeStateLabel(d._tradeState).toUpperCase()}`;
+          ctx.font = 'bold 8px ui-monospace,monospace';
+          const sw = ctx.measureText(stateBadge).width + 10;
+          const sh = 14;
+          const sx = bx + 4;
+          const sy = ey + (isLong ? 14 : -22);
+          ctx.fillStyle = 'rgba(8,11,22,0.88)';
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(sx, sy, sw, sh, 3) : ctx.rect(sx, sy, sw, sh);
+          ctx.fill();
+          ctx.strokeStyle = tapTradeStateColor(d._tradeState);
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(sx, sy, sw, sh);
+          ctx.fillStyle = tapTradeStateColor(d._tradeState);
+          ctx.fillText(stateBadge, sx + 5, sy + 10);
         }
         break;
       }
@@ -18689,8 +18826,6 @@ function saveTopbarInds(){
   if(ovInds && ovInds.style.display !== 'none') renderIndList(_indSearchQ());
 }
 function saveCustomInds(){ _lsSet('custom-inds', JSON.stringify(customIndicators)); }
-function saveAnalyticsHidden(){ _lsSet('analytics-hidden', JSON.stringify([...analyticsHidden])); }
-
 // Patch saveJournal
 function saveJournal(){
   try{
@@ -19887,19 +20022,37 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
       entry,
       sl,
       target,
-      halfBars: defaultTradeToolHalfBars(targetTf),
+      sym,
+      tf: targetTf,
+      setupKey: _aisSetupKey,
+      id: `ais-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+      halfBars: setupVisualHalfBars(targetTf),
+      entryBar: null,
+      createdBarIndex: null,
+      createdCandleTime: null,
+      expiryBars: setupExpiryBars(targetTf),
+      expectedHoldBars: setupExpectedHoldBars(targetTf),
       meta: setupRef ? {
         source: 'ai-setups',
         sym: setupRef.sym,
         tf: setupRef.tf,
         dir: setupRef.dir,
         score: setupRef.score,
+        originalScore: setupRef.score,
         conf: setupRef.conf,
         rr: setupRef.rr,
         patLabel: setupRef.patLabel || 'Structure',
+        originalPattern: setupRef.patLabel || 'Structure',
         movePct: setupRef.movePct,
         tfAgree: setupRef.tfAgree,
         idea: setupRef.aiIdea || '',
+        originalRationale: setupRef.aiIdea || '',
+        originalEntry: entry,
+        originalSL: sl,
+        originalTP: target,
+        originalStructureContext: `${setupRef.patLabel || 'Structure'} on ${setupRef.tf}`,
+        expiryBars: setupExpiryBars(targetTf),
+        expectedHoldBars: setupExpectedHoldBars(targetTf),
       } : null,
     };
     targetTab.updatedAt = Date.now();
@@ -19907,109 +20060,9 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     saveChartTabs(false);
   }
   switchChartTab(targetTabId, true, { focusLatest: true });
-
-  const doPlace = () => {
-    // Use real Binance data if available in cache, otherwise use curData
-    const realBars = dataCache[sym+'_'+targetTf];
-    const bars = (realBars && realBars.length > 0) ? realBars : curData;
-    if(!bars.length) return;
-
-    // ── Idempotent: if this exact setup is already drawn, just scroll to it ──
-    const existing = drawings.find(d => d._aisSetupKey === _aisSetupKey);
-    if (existing) {
-      rightBarIndex = existing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
-      priceHi = null; priceLo = null;
-      syncActiveChartTabRuntimeState(true);
-      draw();
-      return;
-    }
-
-    const barIdx   = bars.length - 1;
-    const placementBarsByTf = { '1m': 18, '5m': 16, '15m': 14, '1h': 12, '4h': 10, '1d': 8, '1w': 6, '1M': 4 };
-    const halfBars = Math.max(8, placementBarsByTf[targetTf] || 12);
-    const lastClose = bars[barIdx].close;
-    const isLong = dir === 'bull';
-
-    // Scan backward from most recent bar to find the latest bar where SL hasn't been hit.
-    // This prevents the drawing from immediately showing "SL Hit" after data refreshes.
-    let validEntryBar = barIdx;
-    for (let i = barIdx; i >= Math.max(0, barIdx - 300); i--) {
-      if (isLong  && bars[i].low  > sl) { validEntryBar = i; break; }
-      if (!isLong && bars[i].high < sl) { validEntryBar = i; break; }
-    }
-    const anchorBar = validEntryBar + halfBars;
-    const dp        = entry < 1 ? 5 : entry < 10 ? 4 : entry < 100 ? 3 : 2;
-
-    const tradeAlreadyTriggered = (isLong && lastClose >= entry) || (!isLong && lastClose <= entry);
-    if(false && tradeAlreadyTriggered){
-      toast('Setup already triggered — opening only fresh pending setups on chart');
-      return;
-    }
-
-    // Remove any previous AI-placed drawings for this symbol
-    drawings = drawings.filter(d => !d._aisPlaced);
-
-    // Clear any existing lock for this symbol so fresh AI runs
-    delete tapAnalysisCache[sym];
-    try{ _lsDel('tap-lock-'+sym); }catch(e){}
-
-    const drawing = {
-      type: isLong ? 'long' : 'short',
-      bar:  anchorBar,
-      price: +entry.toFixed(dp),
-      sl:    +sl.toFixed(dp),
-      tp:    +target.toFixed(dp),
-      halfBars,
-      halfDuration: halfBarsToSecs(halfBars, targetTf),
-      _aisPlaced: true,
-      _aisSetupKey,  // stable key — prevents re-placement on repeat clicks
-      _aisMeta: setupRef ? {
-        source: 'ai-setups',
-        sym: setupRef.sym,
-        tf: setupRef.tf,
-        dir: setupRef.dir,
-        score: setupRef.score,
-        conf: setupRef.conf,
-        rr: setupRef.rr,
-        patLabel: setupRef.patLabel || 'Structure',
-        movePct: setupRef.movePct,
-        tfAgree: setupRef.tfAgree,
-        idea: setupRef.aiIdea || '',
-      } : null,
-    };
-    drawings.push(drawing);
-    saveDrawings(curSym.s, curTF);
-    if(targetTab){
-      targetTab.drawings = drawings.map(drawingToTime);
-      targetTab.updatedAt = Date.now();
-    }
-
-    rightBarIndex = anchorBar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
-    priceHi = null; priceLo = null;
-    syncActiveChartTabRuntimeState(true);
-    saveChartTabs(false);
-    draw();
-    toast(`${sym} ${targetTf.toUpperCase()} setup opened in a new chart tab`);
-  };
-
-  const waitForReady = (attempts) => {
-    const tabIsReady =
-      activeChartTabId === targetTabId &&
-      curSym?.s === sym &&
-      curTF === targetTf &&
-      curData?.length &&
-      !(chartTransitionState.loading && chartTransitionState.tabId === targetTabId);
-    if(tabIsReady){
-      doPlace();
-      return;
-    }
-    if(attempts <= 0){
-      toast('Could not open AI setup on chart');
-      return;
-    }
-    setTimeout(() => waitForReady(attempts - 1), 160);
-  };
-  waitForReady(30);
+  delete tapAnalysisCache[sym];
+  try{ _lsDel('tap-lock-'+sym); }catch(e){}
+  toast(`${sym} ${targetTf.toUpperCase()} setup opened in a new chart tab`);
 }
 
 function aisSetProgress(pct, lbl){
@@ -20542,10 +20595,66 @@ function tapParseStructuredAnalysis(text){
   }
 }
 
+function tapParseLabeledJSON(text, marker){
+  const raw = String(text || '');
+  const upperMarker = String(marker || '').toUpperCase() + ':';
+  const markerIdx = raw.toUpperCase().lastIndexOf(upperMarker);
+  if(markerIdx < 0) return null;
+  const afterMarker = raw.slice(markerIdx);
+  const braceStart = afterMarker.indexOf('{');
+  if(braceStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let jsonEnd = -1;
+  for(let i = braceStart; i < afterMarker.length; i++){
+    const ch = afterMarker[i];
+    if(escaped){ escaped = false; continue; }
+    if(ch === '\\'){ escaped = true; continue; }
+    if(ch === '"'){ inString = !inString; continue; }
+    if(inString) continue;
+    if(ch === '{') depth++;
+    if(ch === '}'){
+      depth--;
+      if(depth === 0){
+        jsonEnd = i;
+        break;
+      }
+    }
+  }
+  if(jsonEnd < 0) return null;
+  try{
+    return JSON.parse(afterMarker.slice(braceStart, jsonEnd + 1));
+  }catch(e){
+    return null;
+  }
+}
+
+function tapParseRefinementJSON(text){
+  const parsed = tapParseLabeledJSON(text, 'REFINEMENT_JSON');
+  if(!parsed || typeof parsed !== 'object') return null;
+  const out = { ...parsed };
+  ['entry','sl','tp','managed_stop','partial_tp'].forEach(k => {
+    if(out[k] == null || out[k] === '') out[k] = null;
+    else {
+      const v = Number(out[k]);
+      out[k] = Number.isFinite(v) ? v : null;
+    }
+  });
+  out.tradeState = String(out.tradeState || '').toUpperCase();
+  out.refinementType = String(out.refinementType || '').toLowerCase();
+  out.reason = String(out.reason || '').trim();
+  out.stateNote = String(out.stateNote || '').trim();
+  out.trail_stop = out.trail_stop == null ? '' : String(out.trail_stop).trim();
+  out.keepOriginalTarget = !!out.keepOriginalTarget;
+  return out;
+}
+
 function tapDisplayAnalysisText(text){
   return String(text || '')
     .replace(/\n?METHOD_JSON:\s*\{[^\n]*\}/gi, '')
-    .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}\s*$/i, '')
+    .replace(/\n?REFINEMENT_JSON:\s*\{[^\n]*\}/gi, '')
+    .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}/gi, '')
     .trim();
 }
 
@@ -20800,12 +20909,31 @@ function tapRenderSetupBridge(d, analysisText=''){
   const comp = tapBuildComparison(setupMeta, metrics);
   const scanScore = comp?.scanScore;
   const tradeScore = comp?.tradeScore ?? tapGetRenderedTradeScore();
+  const tradeState = getTradeState(d, tapGetDataForSymTF(tapGetTradeSourceSym(d), tapGetTradeSourceTF(d)));
+  const refinement = tapParseRefinementJSON(analysisText || '');
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
       <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '—'}</div>
     </div>`;
-  const betterLabel = tradeScore !== null && tradeScore < 60 ? 'Better version' : 'Next refinement';
+  const betterLabel = tradeState.state === 'ACTIVE'
+    ? 'Trade management'
+    : tradeState.state === 'MISSED'
+      ? 'Re-entry decision'
+      : tradeState.state === 'EXPIRED'
+        ? 'Expired setup'
+      : (tradeState.state === 'COMPLETED' || tradeState.state === 'STOPPED')
+        ? 'Post-trade context'
+        : (tradeScore !== null && tradeScore < 60 ? 'Better version' : 'Next refinement');
+  const actionLabel = tradeState.state === 'ACTIVE'
+    ? 'Manage on Chart'
+    : tradeState.state === 'MISSED'
+      ? 'Re-entry on Chart'
+      : tradeState.state === 'EXPIRED'
+        ? 'Expired'
+      : (tradeState.state === 'COMPLETED' || tradeState.state === 'STOPPED')
+        ? 'Review State'
+        : 'Show on Chart';
 
   wrap.style.display = 'block';
   out.innerHTML = `
@@ -20813,6 +20941,7 @@ function tapRenderSetupBridge(d, analysisText=''){
       ${scorePill('Scan Score', scanScore !== null ? `${scanScore}/100` : '—', 'var(--green)')}
       ${scorePill('Trade Score', tradeScore !== null ? `${tradeScore}/100` : 'Pending', tradeScore !== null ? (tradeScore >= 75 ? 'var(--tl)' : tradeScore >= 55 ? 'var(--am)' : 'var(--rd)') : 'var(--tx2)')}
       ${scorePill('Setup Type', (setupMeta.patLabel || 'Structure').split(' ').slice(0,3).join(' '), 'var(--tx)')}
+      ${scorePill('Trade State', tapTradeStateLabel(tradeState.state), tapTradeStateColor(tradeState.state))}
     </div>
     <div style="display:grid;gap:8px;">
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
@@ -20832,10 +20961,11 @@ function tapRenderSetupBridge(d, analysisText=''){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;">${betterLabel}</div>
           <button onclick="tapShowRefinementOnChart()" style="background:rgba(0,201,160,.13);border:1px solid rgba(0,201,160,.35);border-radius:4px;color:var(--tl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 9px;cursor:pointer;letter-spacing:.3px;white-space:nowrap;display:flex;align-items:center;gap:4px;">
-            <span>📍</span><span>Show on Chart</span>
+            <span>📍</span><span>${actionLabel}</span>
           </button>
         </div>
-        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${refinement?.reason || comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
+        <div style="font-size:10px;color:${tapTradeStateColor(tradeState.state)};margin-top:6px;">${refinement?.stateNote || tradeState.reason}</div>
       </div>
     </div>`;
 }
@@ -20843,7 +20973,7 @@ function tapRenderSetupBridge(d, analysisText=''){
 
 
 // ── Show refinement as a proper long/short trade tool on the main chart ───────
-function tapShowRefinementOnChart(){
+function tapShowRefinementOnChartLegacy(){
   if(!_tapDrawing || !curData?.length) return;
   const d      = _tapDrawing;
   const n      = curData.length;
@@ -20964,6 +21094,201 @@ function tapShowRefinementOnChart(){
     drawings = drawings.filter(x => !x._tapRefinement);
     draw();
   }, 90000);
+}
+
+async function tapEnsureTradeContextOnChart(sym, tf){
+  if(curSym?.s === sym && curTF === tf && curData?.length) return true;
+  const tab = chartTabs.find(t => t.id === activeChartTabId);
+  if(tab){
+    tab.sym = sym;
+    tab.tf = tf;
+    tab.title = _chartTabTitle(sym, tf);
+    tab.updatedAt = Date.now();
+    renderChartTabs();
+    saveChartTabs(false);
+  }
+  curTF = tf;
+  syncTimeframeButtons();
+  await loadSym(sym);
+  return curSym?.s === sym && curTF === tf && curData?.length;
+}
+
+function tapIsDirectionallyValidRefinement(isLong, entry, sl, tp){
+  if(!Number.isFinite(entry) || !Number.isFinite(sl) || !Number.isFinite(tp)) return false;
+  return isLong ? (sl < entry && tp > entry) : (sl > entry && tp < entry);
+}
+
+function tapPlaceRefinementDrawing(drawing, sourceState, mode, message){
+  drawings = drawings.filter(x => !x._tapRefinement);
+  drawing._tapRefinement = true;
+  drawing._noSave = true;
+  drawing._refinementLabel = true;
+  drawing._refinementMode = mode;
+  drawing._refinementState = sourceState;
+  drawings.push(drawing);
+  rightBarIndex = drawing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+  priceHi = null;
+  priceLo = null;
+  draw();
+  if(message) toast(message);
+  setTimeout(() => {
+    drawings = drawings.filter(x => !x._tapRefinement);
+    draw();
+  }, 90000);
+}
+
+async function tapShowRefinementOnChart(){
+  if(!_tapDrawing) return;
+  const d = _tapDrawing;
+  const sym = tapGetTradeSourceSym(d);
+  const tf = tapGetTradeSourceTF(d);
+  const ready = await tapEnsureTradeContextOnChart(sym, tf);
+  if(!ready || !curData?.length){
+    toast('Could not load the original setup timeframe for refinement.');
+    return;
+  }
+
+  const analysisData = tapGetDataForSymTF(sym, tf) || curData;
+  const stateInfo = getTradeState(d, analysisData);
+  const analysisText = tapAnalysisCache[sym]?.aiResult || tapAnalysisCache[curSym.s]?.aiResult || '';
+  const refinement = tapParseRefinementJSON(analysisText);
+  const setupMeta = tapBuildSetupContextMeta(tapGetSetupContext(d) || d._aisMeta || {}, {
+    sym,
+    tf,
+    dir: d.type === 'long' ? 'bull' : 'bear',
+    entry: d.price,
+    sl: d.sl,
+    target: d.tp,
+  });
+
+  if(!refinement){
+    toast('No structured refinement was returned for this trade yet.');
+    return;
+  }
+
+  const effectiveState = stateInfo.state;
+  const isLong = d.type === 'long';
+  const atrVals = calcATR(analysisData);
+  const atr = atrVals?.[atrVals.length - 1] || Math.abs(d.price - d.sl) || d.price * 0.01;
+  const preserveWindow = Math.max(Math.abs(d.price - d.sl) * 2, atr * 2.5);
+
+  if(effectiveState === 'COMPLETED' || effectiveState === 'STOPPED'){
+    selectedDrawing = d;
+    draw();
+    toast(effectiveState === 'COMPLETED'
+      ? 'This trade already completed. Refinement is locked to post-trade review only.'
+      : 'This trade already stopped out. Refinement is locked to post-trade review only.');
+    return;
+  }
+
+  if(effectiveState === 'MISSED'){
+    if(refinement.refinementType !== 'pullback_reentry' || !tapIsDirectionallyValidRefinement(isLong, refinement.entry, refinement.sl, refinement.tp)){
+      toast('Original setup is missed. No valid pullback re-entry was returned.');
+      return;
+    }
+    const reentryState = tapClassifyTradeLevels({
+      type: d.type,
+      entry: refinement.entry,
+      sl: refinement.sl,
+      tp: refinement.tp,
+      halfBars: setupVisualHalfBars(tf),
+      entryBar: Math.max(0, analysisData.length - Math.max(50, defaultTradeToolHalfBars(tf) * 3)),
+    }, analysisData, tf);
+    if(reentryState.state !== 'PENDING'){
+      toast('AI re-entry idea is no longer pending on the chart, so it was not placed.');
+      return;
+    }
+    const drawing = tapBuildPlacedTradeDrawing({
+      dir: isLong ? 'bull' : 'bear',
+      entry: refinement.entry,
+      sl: refinement.sl,
+      target: refinement.tp,
+      halfBars: setupVisualHalfBars(tf),
+      meta: { ...setupMeta, refinementType:'pullback_reentry', refinementReason: refinement.reason },
+      sym,
+      tf,
+      id: `tap-refine-${Date.now()}`,
+      createdBarIndex: Math.max(0, analysisData.length - 1),
+      createdCandleTime: analysisData[analysisData.length - 1]?.time,
+      expiryBars: setupExpiryBars(tf),
+      expectedHoldBars: setupExpectedHoldBars(tf),
+    }, { ...reentryState, data: analysisData }, tf);
+    tapPlaceRefinementDrawing(drawing, effectiveState, 'reentry', `AI pullback re-entry placed on ${sym} ${tf.toUpperCase()}`);
+    return;
+  }
+
+  if(effectiveState === 'EXPIRED'){
+    toast('Original setup has expired for its timeframe, so no live refinement was placed.');
+    return;
+  }
+
+  if(effectiveState === 'ACTIVE'){
+    const managedStop = Number.isFinite(refinement.managed_stop) ? refinement.managed_stop : d.sl;
+    const managedTp = refinement.keepOriginalTarget ? d.tp : (Number.isFinite(refinement.partial_tp) ? refinement.partial_tp : d.tp);
+    if(!tapIsDirectionallyValidRefinement(isLong, d.price, managedStop, managedTp)){
+      toast('Trade is active. No valid management levels were returned.');
+      return;
+    }
+    const drawing = tapBuildPlacedTradeDrawing({
+      dir: isLong ? 'bull' : 'bear',
+      entry: d.price,
+      sl: managedStop,
+      target: managedTp,
+      halfBars: d.halfBars || setupVisualHalfBars(tf),
+      meta: { ...setupMeta, refinementType:'trade_management', refinementReason: refinement.reason, trailStop: refinement.trail_stop || '' },
+      sym,
+      tf,
+      id: `tap-manage-${Date.now()}`,
+      createdBarIndex: stateInfo.createdBarIndex ?? stateInfo.entryBar ?? Math.max(0, analysisData.length - 1),
+      createdCandleTime: stateInfo.createdCandleTime ?? analysisData[Math.max(0, Math.min(analysisData.length - 1, stateInfo.entryBar ?? (analysisData.length - 1)))]?.time,
+      expiryBars: stateInfo.expiryBars ?? setupExpiryBars(tf),
+      expectedHoldBars: stateInfo.expectedHoldBars ?? setupExpectedHoldBars(tf),
+    }, { ...stateInfo, data: analysisData }, tf);
+    tapPlaceRefinementDrawing(drawing, effectiveState, 'management', `AI trade management overlay placed — ${refinement.reason || 'updated risk plan'}`);
+    return;
+  }
+
+  const refinedEntry = Number.isFinite(refinement.entry) ? refinement.entry : d.price;
+  const refinedSL = Number.isFinite(refinement.sl) ? refinement.sl : d.sl;
+  const refinedTP = refinement.keepOriginalTarget ? d.tp : (Number.isFinite(refinement.tp) ? refinement.tp : d.tp);
+  if(!tapIsDirectionallyValidRefinement(isLong, refinedEntry, refinedSL, refinedTP)){
+    toast('AI refinement did not return a valid pending entry structure.');
+    return;
+  }
+  if(Math.abs(refinedEntry - d.price) > preserveWindow){
+    toast('Refinement was rejected because it drifted too far from the original setup context.');
+    return;
+  }
+  const refinedState = tapClassifyTradeLevels({
+    type: d.type,
+    entry: refinedEntry,
+    sl: refinedSL,
+    tp: refinedTP,
+    halfBars: setupVisualHalfBars(tf),
+    entryBar: stateInfo.entryBar,
+  }, analysisData, tf);
+  if(refinedState.state !== 'PENDING'){
+    toast(refinedState.state === 'ACTIVE'
+      ? 'AI refinement would already be active on the chart, so it was not shown as a fresh pending setup.'
+      : 'AI refinement is no longer a valid pending setup on the chart.');
+    return;
+  }
+  const drawing = tapBuildPlacedTradeDrawing({
+    dir: isLong ? 'bull' : 'bear',
+    entry: refinedEntry,
+    sl: refinedSL,
+    target: refinedTP,
+    halfBars: setupVisualHalfBars(tf),
+      meta: { ...setupMeta, refinementType:'pending_refinement', refinementReason: refinement.reason },
+      sym,
+      tf,
+      id: `tap-refine-${Date.now()}`,
+      createdBarIndex: stateInfo.createdBarIndex ?? stateInfo.entryBar ?? Math.max(0, analysisData.length - 1),
+      createdCandleTime: stateInfo.createdCandleTime ?? analysisData[Math.max(0, Math.min(analysisData.length - 1, stateInfo.entryBar ?? (analysisData.length - 1)))]?.time,
+      expiryBars: stateInfo.expiryBars ?? setupExpiryBars(tf),
+      expectedHoldBars: stateInfo.expectedHoldBars ?? setupExpectedHoldBars(tf),
+    }, { ...refinedState, data: analysisData }, tf);
+  tapPlaceRefinementDrawing(drawing, effectiveState, 'pending', `AI refined pending setup placed on ${sym} ${tf.toUpperCase()}`);
 }
 
 // Clear refinement tool manually (e.g. if user re-clicks Show on Chart)
@@ -21495,13 +21820,9 @@ function _tapAnchorFill(d){
   const btn = document.getElementById('tap-anchor-btn');
   btn.className = isLong ? '' : 'bear';
 
-  // Only allow analysis for valid/relevant trade states
-  const notTriggered   = status.includes('Not Triggered');
-  const invalidPlace   = status.includes('Invalid Placement');
-  if(notTriggered || invalidPlace){
-    // Trade was placed in the past but price never reached entry — not analysable
+  const stateInfo = getTradeState(d);
+  if(stateInfo.state === 'MISSED' || stateInfo.state === 'EXPIRED'){
     btn.style.display   = 'none';
-    // Show an explanatory note instead
     let noteEl = document.getElementById('tap-anchor-note');
     if(!noteEl){
       noteEl = document.createElement('div');
@@ -21510,19 +21831,163 @@ function _tapAnchorFill(d){
       btn.parentNode.insertBefore(noteEl, btn);
     }
     noteEl.style.display = 'block';
-    noteEl.textContent   = invalidPlace ? '⛔ This placement is not valid — price has already moved past this level. Place the trade at a current or future price.' : '⚠ Price never reached this entry — move the trade to a valid level to analyse.';
+    noteEl.textContent   = stateInfo.state === 'EXPIRED'
+      ? '⌛ This setup expired for its original timeframe, so it will not be analysed as a fresh live entry.'
+      : '⚠ This setup is already missed on the chart, so it will not be analysed as a fresh live entry.';
   } else {
     btn.style.display = '';
     const noteEl = document.getElementById('tap-anchor-note');
     if(noteEl) noteEl.style.display = 'none';
     const cached = tapAnalysisCache[curSym.s];
     btn.textContent = (cached && cached.aiResult) ? '🔬 View Analysis' : 
-                      status.includes('Future') ? '🔮 Predict This Trade' : '🔬 Analyse This Trade';
+                      stateInfo.state === 'PENDING' ? '🔮 Predict This Trade' : '🔬 Analyse This Trade';
   }
 }
 
 // ── Determine if the trade (from its bar forward) hit SL, hit TP, or is open ──
-function tapTradeStatus(d){
+function tapGetTradeSourceTF(d, fallbackTf = curTF){
+  return d?._originTf || d?._setupTf || d?.tf || d?._aisMeta?.tf || fallbackTf || curTF || '1d';
+}
+
+function tapGetTradeSourceSym(d, fallbackSym = curSym?.s){
+  return d?._originSym || d?._setupSym || d?._aisMeta?.sym || fallbackSym || curSym?.s || SYMS[0].s;
+}
+
+function tapGetDataForSymTF(sym, tf){
+  if(sym === curSym?.s && tf === curTF && curData?.length) return curData;
+  return dataCache[sym+'_'+tf] || dataCache[sym+'_'+tf+'_mtf'] || null;
+}
+
+function tapTimeToBarInSeries(ts, data){
+  if(!Array.isArray(data) || !data.length || !Number.isFinite(ts)) return -1;
+  let lo = 0, hi = data.length - 1, ans = -1;
+  while(lo <= hi){
+    const mid = (lo + hi) >> 1;
+    const barTime = Number(data[mid]?.time);
+    if(!Number.isFinite(barTime)){ lo = mid + 1; continue; }
+    if(barTime <= ts){ ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return ans >= 0 ? ans : 0;
+}
+
+function tapTradeStateLabel(state){
+  return ({ PENDING:'Pending', ACTIVE:'Active', COMPLETED:'Completed', STOPPED:'Stopped', MISSED:'Missed', EXPIRED:'Expired' })[state] || 'Unknown';
+}
+
+function tapTradeStateColor(state){
+  return ({ PENDING:'var(--bl)', ACTIVE:'var(--am)', COMPLETED:'var(--tl)', STOPPED:'var(--rd)', MISSED:'var(--tx2)', EXPIRED:'var(--tx3)' })[state] || 'var(--tx2)';
+}
+
+function tapClassifyTradeLevels(spec, data, tf){
+  if(!Array.isArray(data) || !data.length){
+    return { state:'MISSED', reason:'No data available for this timeframe.', entryBar:-1, triggerBar:null, resolutionBar:null };
+  }
+  const entry = Number(spec?.entry);
+  const sl = Number(spec?.sl);
+  const tp = Number(spec?.tp);
+  const isLong = spec?.type === 'long' || spec?.dir === 'bull' || spec?.dir === 'long';
+  const halfBars = Math.max(4, Number(spec?.halfBars) || defaultTradeToolHalfBars(tf));
+  const createdBarIndex = Number.isFinite(spec?.createdBarIndex)
+    ? Math.round(spec.createdBarIndex)
+    : (Number.isFinite(spec?.entryBar) ? Math.round(spec.entryBar) : null);
+  const createdCandleTime = Number.isFinite(spec?.createdCandleTime) ? Number(spec.createdCandleTime) : null;
+  const expiryBars = Math.max(1, Number(spec?.expiryBars) || setupExpiryBars(tf));
+  const expectedHoldBars = Math.max(1, Number(spec?.expectedHoldBars) || setupExpectedHoldBars(tf));
+  const n = data.length;
+  if(!Number.isFinite(entry) || !Number.isFinite(sl) || !Number.isFinite(tp)){
+    return { state:'MISSED', reason:'Setup levels are incomplete.', entryBar:-1, triggerBar:null, resolutionBar:null };
+  }
+
+  let entryBar = Number.isFinite(spec?.entryBar) ? Math.round(spec.entryBar) : null;
+  if(entryBar == null && Number.isFinite(spec?.time)) entryBar = tapTimeToBarInSeries(Number(spec.time), data);
+  if(entryBar == null && Number.isFinite(spec?.bar)) entryBar = Math.round(Number(spec.bar) - halfBars);
+  if(entryBar == null) entryBar = Math.max(0, n - Math.max(120, halfBars * 6));
+
+  const clampedEntryBar = Math.max(0, entryBar);
+  if(entryBar >= n){
+    return { state:'PENDING', reason:'Entry is still ahead of the current chart and has not triggered yet.', entryBar, triggerBar:null, resolutionBar:null, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+  }
+
+  let triggerBar = null;
+  for(let i = clampedEntryBar; i < n; i++){
+    const bar = data[i];
+    if(isLong ? bar.low <= entry : bar.high >= entry){
+      triggerBar = i;
+      break;
+    }
+  }
+
+  if(triggerBar != null){
+    for(let i = triggerBar; i < n; i++){
+      const bar = data[i];
+      if(isLong){
+        if(bar.low <= sl) return { state:'STOPPED', reason:'Entry triggered and stop loss was hit before target.', entryBar:clampedEntryBar, triggerBar, resolutionBar:i, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+        if(bar.high >= tp) return { state:'COMPLETED', reason:'Entry triggered and take profit was reached.', entryBar:clampedEntryBar, triggerBar, resolutionBar:i, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+      } else {
+        if(bar.high >= sl) return { state:'STOPPED', reason:'Entry triggered and stop loss was hit before target.', entryBar:clampedEntryBar, triggerBar, resolutionBar:i, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+        if(bar.low <= tp) return { state:'COMPLETED', reason:'Entry triggered and take profit was reached.', entryBar:clampedEntryBar, triggerBar, resolutionBar:i, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+      }
+    }
+    return { state:'ACTIVE', reason:'Entry has triggered and the trade is still live.', entryBar:clampedEntryBar, triggerBar, resolutionBar:null, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+  }
+
+  const atrVals = calcATR(data);
+  const atr = atrVals?.[atrVals.length - 1] || Math.abs(entry - sl) || entry * 0.01;
+  const riskDist = Math.max(Math.abs(entry - sl), atr * 0.45, Math.abs(entry) * 0.0025);
+  const movedThreshold = Math.max(riskDist * 0.65, atr * 0.75, Math.abs(entry) * 0.0035);
+  const lookbackSlice = data.slice(clampedEntryBar);
+  const maxHigh = Math.max(...lookbackSlice.map(b => b.high));
+  const minLow = Math.min(...lookbackSlice.map(b => b.low));
+  const currentPrice = data[n-1]?.close ?? entry;
+  const recentWindow = data.slice(Math.max(clampedEntryBar, n - Math.max(6, halfBars)));
+  const recentLow = Math.min(...recentWindow.map(b => b.low));
+  const recentHigh = Math.max(...recentWindow.map(b => b.high));
+  const staleBars = Math.max(0, n - 1 - clampedEntryBar);
+  const ageBars = Number.isFinite(createdBarIndex) ? Math.max(0, (n - 1) - createdBarIndex) : staleBars;
+  if(ageBars > expiryBars){
+    return { state:'EXPIRED', reason:`Setup exceeded its ${tf.toUpperCase()} validity window (${ageBars} bars old / ${expiryBars} bar expiry).`, entryBar:clampedEntryBar, triggerBar:null, resolutionBar:null, halfBars, currentPrice, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars, ageBars };
+  }
+  const movedAway = isLong
+    ? ((maxHigh - entry) >= movedThreshold && recentLow > entry + movedThreshold * 0.12)
+    : ((entry - minLow) >= movedThreshold && recentHigh < entry - movedThreshold * 0.12);
+  const staleAndGone = staleBars > Math.max(halfBars * 4, 36) &&
+    (isLong ? currentPrice > entry + movedThreshold * 0.35 : currentPrice < entry - movedThreshold * 0.35);
+
+  if(movedAway || staleAndGone){
+    return { state:'MISSED', reason:'Price moved away from the original entry without giving a valid fill.', entryBar:clampedEntryBar, triggerBar:null, resolutionBar:null, halfBars, currentPrice, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars, ageBars };
+  }
+
+  return { state:'PENDING', reason:'Entry has not triggered yet and the original setup is still pending.', entryBar:clampedEntryBar, triggerBar:null, resolutionBar:null, halfBars, currentPrice, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars, ageBars };
+}
+
+function getTradeState(d, data){
+  const tf = tapGetTradeSourceTF(d);
+  const sym = tapGetTradeSourceSym(d);
+  const analysisData = data || tapGetDataForSymTF(sym, tf) || curData;
+  const halfBars = Math.max(4, d?.halfBars || defaultTradeToolHalfBars(tf));
+  const entryBar = Number.isFinite(d?._entryBarSource)
+    ? Math.round(d._entryBarSource)
+    : (Number.isFinite(d?.time) ? tapTimeToBarInSeries(Number(d.time), analysisData) : (Number.isFinite(d?.bar) ? Math.round(Number(d.bar) - halfBars) : null));
+  const info = tapClassifyTradeLevels({
+    type: d?.type,
+    dir: d?.type === 'long' ? 'long' : 'short',
+    entry: d?.price,
+    sl: d?.sl,
+    tp: d?.tp,
+    bar: d?.bar,
+    time: d?.time,
+    entryBar,
+    halfBars,
+    createdBarIndex: d?._createdBarIndex,
+    createdCandleTime: d?._createdCandleTime,
+    expiryBars: d?._expiryBars,
+    expectedHoldBars: d?._expectedHoldBars,
+  }, analysisData, tf);
+  return { ...info, tf, sym, data:analysisData, isLong:d?.type === 'long' };
+}
+
+function tapTradeStatusLegacy(d){
   if(!curData.length) return { status:'', statusCol:'' };
   const isLong   = d.type === 'long';
   const n        = curData.length;
@@ -21600,6 +22065,28 @@ function tapTradeStatus(d){
 }
 
 // ── Show the floating popup (anchored top-right of chart-area) ────────────────
+function tapTradeStatus(d){
+  const info = getTradeState(d);
+  const curPrice = Number(info.currentPrice);
+  if(info.state === 'COMPLETED') return { status:'✓ TP Hit', statusCol:'var(--tl)' };
+  if(info.state === 'STOPPED') return { status:'✗ SL Hit', statusCol:'var(--rd)' };
+  if(info.state === 'MISSED') return { status:'Missed Setup', statusCol:'var(--tx2)' };
+  if(info.state === 'EXPIRED') return { status:'Expired Setup', statusCol:'var(--tx3)' };
+  if(info.state === 'PENDING'){
+    const dist = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
+      ? Math.abs(curPrice - d.price) / d.price * 100
+      : 0;
+    return { status:`⏳ Pending (${dist.toFixed(1)}% away)`, statusCol:'var(--bl)' };
+  }
+  const openPnl = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
+    ? (info.isLong ? (curPrice - d.price) / d.price * 100 : (d.price - curPrice) / d.price * 100)
+    : 0;
+  return {
+    status:`Open ${openPnl >= 0 ? '+' : ''}${openPnl.toFixed(2)}%`,
+    statusCol: openPnl >= 0 ? 'var(--tl)' : 'var(--rd)'
+  };
+}
+
 function showTradeAnalysisPopup(d, freshPlacement=false){
   _tapDrawing = d;
   
@@ -23338,6 +23825,7 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   const traderProfile = getTraderProfile();
   const drawingCtx = buildDrawingsContext(d, analysisData);
   const thesisCtx = buildThesisPromptContext(curSym.s);
+  const tradeStateInfo = getTradeState(d, analysisData);
 
   const setupMeta    = tapGetSetupContext(d);
   const setupCtx     = setupMeta ? `
@@ -23346,7 +23834,11 @@ Originating Setup Context:
   Discovery Score: ${setupMeta.score ?? 'n/a'}/100
   Scan Confidence: ${setupMeta.conf ?? 'n/a'}/100
   Setup Type: ${setupMeta.patLabel || 'Structure'}
+  Original Timeframe: ${setupMeta.tf || drawingTF}
+  Original Entry / SL / TP: ${isFinite(setupMeta.originalEntry) ? fP(setupMeta.originalEntry) : fP(d.price)} / ${isFinite(setupMeta.originalSL) ? fP(setupMeta.originalSL) : fP(d.sl)} / ${isFinite(setupMeta.originalTP) ? fP(setupMeta.originalTP) : fP(d.tp)}
+  Expected Hold / Expiry: ${setupMeta.expectedHoldBars ?? setupExpectedHoldBars(setupMeta.tf || drawingTF)} bars / ${setupMeta.expiryBars ?? setupExpiryBars(setupMeta.tf || drawingTF)} bars
   Scanner Summary: ${(setupMeta.idea || `${setupMeta.patLabel || 'Setup'} found on ${setupMeta.tf || drawingTF}.`).replace(/\s+/g, ' ').trim()}
+  Original Structure Context: ${(setupMeta.originalStructureContext || `${setupMeta.patLabel || 'Structure'} aligned with ${setupMeta.tf || drawingTF}`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
   const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
@@ -23399,7 +23891,8 @@ Entry Price: ${fP(d.price)} (${((d.price - curPrice)/curPrice*100).toFixed(2)}% 
 Stop Loss: ${fP(d.sl)}
 Take Profit: ${fP(d.tp)}
 Direction: ${isLong ? 'LONG' : 'SHORT'}
-Trade State: ${tradeState}
+Trade State: ${tradeStateInfo.state}
+Setup Age: ${tradeStateInfo.ageBars ?? 'n/a'} bars old | Expiry Window: ${tradeStateInfo.expiryBars ?? setupExpiryBars(drawingTF)} bars | Expected Hold: ${tradeStateInfo.expectedHoldBars ?? setupExpectedHoldBars(drawingTF)} bars
 Risk/Reward: 1:${rr.toFixed(2)}
 ATR(14): ${fP(atr)} — stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}× ATR
 
@@ -23457,6 +23950,11 @@ What are the 2–3 most important reasons this trade could fail? Be direct.
 
 8. SUGGESTED IMPROVEMENTS
 If the trade has weaknesses, suggest a better version of the same setup with improved entry, stop, and target logic. If it is strong, confirm the levels are appropriate.
+Important state rules:
+  - If Trade State = PENDING: refine the existing pending setup normally.
+  - If Trade State = ACTIVE: do not invent a new entry; switch to trade-management ideas only (better stop, partial TP, trail-stop logic).
+  - If Trade State = MISSED: do not pretend the original entry is still valid; either propose one clean pullback re-entry or explicitly reject the setup.
+  - If Trade State = COMPLETED or STOPPED: do not output a live refinement; explain that the trade is finished and focus on review context.
 
 9. PROBABILITY ESTIMATE
 Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Use a precise number (e.g. 61%, 73%, 44%) — not a round estimate. Explain your reasoning in one sentence.
@@ -23496,7 +23994,16 @@ SCORECARD_JSON: {"entry_quality":<0-28 integer>,"stop_placement":<0-26 integer>,
 IMPORTANT: combined_score must equal entry_quality + stop_placement + risk_reward_logic + technical_confluence. Do not wrap in markdown.
 Then on the very next line output exactly:
 METHOD_JSON: {"method":"<exact method name from the list>","confidence":<0-100 integer>,"signals":["<signal1>","<signal2>","<signal3>"],"method_verdict":"<one sentence evaluation from that method's perspective>"}
-Do not add any text after METHOD_JSON.
+Then on the very next line output exactly:
+REFINEMENT_JSON: {"tradeState":"<PENDING|ACTIVE|MISSED|EXPIRED|COMPLETED|STOPPED>","refinementType":"<pending_refinement|trade_management|pullback_reentry|reject|post_trade_review>","entry":<number|null>,"sl":<number|null>,"tp":<number|null>,"managed_stop":<number|null>,"partial_tp":<number|null>,"trail_stop":"<short instruction or empty string>","keepOriginalTarget":<true|false>,"reason":"<one sentence refinement summary>","stateNote":"<one sentence explaining why this state changes the action>"}
+Rules for REFINEMENT_JSON:
+  - tradeState must match the real trade state.
+  - For ACTIVE, entry must be null and refinementType must be trade_management.
+  - For MISSED, only use pullback_reentry if the move has not already replayed on chart; otherwise use reject.
+  - For EXPIRED, use reject or post_trade_review; do not output a live setup.
+  - For COMPLETED or STOPPED, use post_trade_review with entry/sl/tp all null.
+  - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
+Do not add any text after REFINEMENT_JSON.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
 
