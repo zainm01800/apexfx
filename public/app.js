@@ -11764,8 +11764,8 @@ async function aiComplete(prompt, {
     const msg = data?.error || `HTTP ${res.status}`;
     const err = new Error(`AI: ${msg}`);
     if(res.status === 429){
-      const rl = res.headers?.get?.('x-ratelimit-reset-requests') || res.headers?.get?.('retry-after');
-      if(rl) err._rateLimitResetMs = _tapParseResetHeader(rl);
+      const rl = data?.retryAfterMs || res.headers?.get?.('x-ratelimit-reset-requests') || res.headers?.get?.('retry-after');
+      if(rl) err._rateLimitResetMs = typeof rl === 'number' ? rl : _tapParseResetHeader(rl);
       err._is429 = true;
     }
     throw err;
@@ -21721,6 +21721,7 @@ const tapAiInflight  = {};
 const tapAiQueue     = [];
 let   tapAiQueueBusy  = false;
 let   tapAiNextDelay  = TAP_AI_INTERVAL;  // extended by 429 reset header
+let   tapAiCooldownUntil = 0;
 
 // One pending request per tab (per-user guard)
 let   tapAiUserKey    = null;
@@ -21775,16 +21776,27 @@ async function _tapAiProcessQueue(){
   if(tapAiQueueBusy || tapAiQueue.length === 0) return;
   tapAiQueueBusy = true;
   const item = tapAiQueue.shift();
+  let requeued = false;
   try {
     const result = await item.execFn();
     tapAiTTLCache[item.key] = { result, ts: Date.now() };
+    tapAiCooldownUntil = 0;
     item.resolve(result);
   } catch(e) {
-    if(e._rateLimitResetMs) tapAiNextDelay = Math.max(e._rateLimitResetMs, TAP_AI_INTERVAL);
-    item.reject(e);
+    if(e._rateLimitResetMs){
+      const delay = Math.max(e._rateLimitResetMs, TAP_AI_INTERVAL);
+      tapAiNextDelay = delay;
+      tapAiCooldownUntil = Date.now() + delay;
+      tapAiQueue.unshift(item);
+      requeued = true;
+    } else {
+      item.reject(e);
+    }
   } finally {
-    delete tapAiInflight[item.key];
-    if(tapAiUserKey === item.key) tapAiUserKey = null;
+    if(!requeued){
+      delete tapAiInflight[item.key];
+      if(tapAiUserKey === item.key) tapAiUserKey = null;
+    }
     tapAiQueueBusy = false;
     if(tapAiQueue.length > 0){
       const delay = tapAiNextDelay;
@@ -22657,9 +22669,19 @@ async function openFullTradeAnalysis(){
     clearInterval(_tapAiCountdownTimer);
     _tapAiCountdownTimer = setInterval(() => {
       const qEl = document.getElementById('tap-ai-queue-status');
+      const rlEl = document.getElementById('tap-ai-rate-limit');
       if(!qEl){ clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null; return; }
       const pos = tapAiQueue.findIndex(q => q.key === _aiQueueKey) + 1;
-      if(pos > 0){
+      const cooldownLeft = tapAiCooldownUntil > Date.now() ? Math.ceil((tapAiCooldownUntil - Date.now()) / 1000) : 0;
+      if(rlEl){
+        rlEl.style.display = cooldownLeft > 0 ? 'block' : 'none';
+        if(cooldownLeft > 0) rlEl.textContent = `Groq limit reached — retrying automatically in ~${cooldownLeft}s`;
+      }
+      if(cooldownLeft > 0){
+        qEl.textContent = pos > 0
+          ? `Queued for retry — position ${pos}`
+          : `Waiting for Groq cooldown…`;
+      } else if(pos > 0){
         const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
         qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
       } else {
@@ -22726,8 +22748,15 @@ function _tapAiQueueHtml(pos, etaSec){
   const statusText = pos > 0
     ? `Position ${pos} \u2014 ready in ~${etaSec}s`
     : 'Initializing analysis\u2026';
+  const cooldownSec = tapAiCooldownUntil > Date.now()
+    ? Math.ceil((tapAiCooldownUntil - Date.now()) / 1000)
+    : 0;
+  const waitText = cooldownSec > 0
+    ? `<div id="tap-ai-rate-limit" style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:var(--am);padding:0 0 8px;letter-spacing:.3px;">Groq limit reached \u2014 retrying automatically in ~${cooldownSec}s</div>`
+    : '';
   return `<div id="tap-ai-queue-status" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;` +
-    `color:var(--tx3);padding:6px 0 10px;letter-spacing:.3px;">${statusText}</div>` +
+    `color:var(--tx3);padding:6px 0 6px;letter-spacing:.3px;">${statusText}</div>` +
+    waitText +
     `<div class="tap-skel" style="height:13px;width:92%;margin:5px 0;"></div>` +
     `<div class="tap-skel" style="height:13px;width:78%;margin:5px 0;"></div>` +
     `<div class="tap-skel" style="height:13px;width:85%;margin:5px 0;"></div>` +
