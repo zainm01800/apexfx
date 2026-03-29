@@ -20805,24 +20805,50 @@ function tapShowRefinementOnChart(){
   // Remove any existing refinement tool so we don't stack up multiples
   drawings = drawings.filter(x => !x._tapRefinement);
 
-  // ── Suggested entry: nearest S/R within 3% of current entry, correct side ──
-  let suggestedEntry = null;
-  if(isLong){
-    const candidates = sr.support.filter(s => s < d.price && s > d.price * 0.97);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b) => b-a)[0];
-  } else {
-    const candidates = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
-    if(candidates.length) suggestedEntry = candidates.sort((a,b) => a-b)[0];
+  // ── Step 1: Try to parse AI-suggested levels from the analysis text ───────
+  const _analysisText = tapAnalysisCache[curSym.s]?.aiResult || '';
+  let suggestedEntry = null, suggestedSL = null, suggestedTP = null;
+
+  if(_analysisText){
+    // Extract section 8 (SUGGESTED IMPROVEMENTS) for the most relevant price hints
+    const _improvSection = _analysisText.match(/8\.\s*SUGGESTED IMPROVEMENTS[\s\S]*?(?=\n9\.|\n10\.|\nSCORECARD|$)/i)?.[0] || _analysisText;
+    // Price must be within 8% of the original entry to be considered valid
+    const _validateP = p => { const v = parseFloat(p); return !isNaN(v) && v > d.price * 0.92 && v < d.price * 1.08 ? v : null; };
+    const _entryM = _improvSection.match(/(?:entry|enter|short|long)\s+(?:at|around|near|@)\s*([0-9]+\.?[0-9]{0,5})/i);
+    const _slM    = _improvSection.match(/(?:stop[- ]?loss|stop|sl)\s+(?:at|above|below|around|@)\s*([0-9]+\.?[0-9]{0,5})/i);
+    const _tpM    = _improvSection.match(/(?:take[- ]?profit|target|tp)\s+(?:at|around|@)\s*([0-9]+\.?[0-9]{0,5})/i);
+    if(_entryM) suggestedEntry = _validateP(_entryM[1]);
+    if(_slM)    suggestedSL    = _validateP(_slM[1]);
+    if(_tpM)    suggestedTP    = _validateP(_tpM[1]);
   }
-  // Fallback: half ATR from current entry
-  if(!suggestedEntry) suggestedEntry = isLong ? d.price - atr * 0.5 : d.price + atr * 0.5;
 
-  // ── Suggested SL: 1.5× ATR beyond suggested entry ─────────────────────────
-  const suggestedSL = isLong ? suggestedEntry - atr * 1.5 : suggestedEntry + atr * 1.5;
+  // ── Step 2: Fill gaps — always stay within the original trade's concept ────
+  // Entry: AI suggestion → nearest S/R close to original entry → original entry
+  if(!suggestedEntry){
+    if(isLong){
+      const cands = sr.support.filter(s => s < d.price && s > d.price * 0.97);
+      suggestedEntry = cands.length ? cands.sort((a,b) => b-a)[0] : d.price;
+    } else {
+      const cands = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
+      suggestedEntry = cands.length ? cands.sort((a,b) => a-b)[0] : d.price;
+    }
+  }
 
-  // ── Suggested TP: 2.5:1 R:R from suggested entry ──────────────────────────
-  const riskAmt    = Math.abs(suggestedEntry - suggestedSL);
-  const suggestedTP = isLong ? suggestedEntry + riskAmt * 2.5 : suggestedEntry - riskAmt * 2.5;
+  // SL: AI suggestion → same proportional distance as original SL → ATR-based
+  if(!suggestedSL){
+    const origSlDist = Math.abs(d.price - d.sl);
+    suggestedSL = isLong ? suggestedEntry - origSlDist : suggestedEntry + origSlDist;
+  }
+
+  // ── KEY FIX: TP always stays anchored to the original trade's target ───────
+  // The refinement improves entry/SL precision — it never changes the trade idea.
+  // Only use a parsed AI suggestion if it's in the same direction as the original TP.
+  const _origTpInDirection = isLong ? d.tp > d.price : d.tp < d.price;
+  if(!suggestedTP || (isLong ? suggestedTP <= suggestedEntry : suggestedTP >= suggestedEntry)){
+    suggestedTP = _origTpInDirection ? d.tp : (isLong ? suggestedEntry + Math.abs(suggestedEntry - suggestedSL) * 2.5 : suggestedEntry - Math.abs(suggestedEntry - suggestedSL) * 2.5);
+  }
+
+  const riskAmt = Math.abs(suggestedEntry - suggestedSL);
 
   // ── Build a proper long/short drawing — same format as user-placed tools ───
   const halfBars = defaultTradeToolHalfBars(curTF);
@@ -20845,7 +20871,7 @@ function tapShowRefinementOnChart(){
   drawings.push(refinementDraw);
   draw();
 
-  const rr = (riskAmt > 0 ? (riskAmt * 2.5 / riskAmt).toFixed(2) : '2.50');
+  const rr = riskAmt > 0 ? (Math.abs(suggestedTP - suggestedEntry) / riskAmt).toFixed(2) : '—';
   toast(`📍 AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
 
   // Auto-remove after 90 seconds to keep chart clean
