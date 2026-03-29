@@ -221,26 +221,26 @@ const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
   // p values = approximate prices as of March 2026 — used only as placeholder
   // while real Binance data loads. Updated from live market.
-  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:87000,  c:2.88},
-  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:2000,   c:1.44},
-  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:135,    c:4.22},
-  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:610,    c:0.95},
-  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:2.20,   c:1.10},
-  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.17,   c:3.20},
-  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.72,   c:1.80},
-  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:22,     c:2.10},
-  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:14,     c:1.50},
-  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:4.80,   c:0.80},
-  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.38,   c:2.30},
-  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:8.50,   c:1.60},
-  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:105,    c:0.70},
-  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:5.50,   c:1.20},
-  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:4.20,   c:2.40},
-  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:3.20,   c:3.50},
-  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:5.80,   c:2.10},
-  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:12.50,  c:1.80},
-  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.55,   c:2.40},
-  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.90,   c:1.90},
+  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:66400,  c:0},
+  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:1990,   c:0},
+  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:82,     c:0},
+  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:608,    c:0},
+  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:1.32,   c:0},
+  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.090,  c:0},
+  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.241,  c:0},
+  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:8.64,   c:0},
+  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:8.42,   c:0},
+  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:1.26,   c:0},
+  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.379,  c:0},
+  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:3.36,   c:0},
+  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:53.5,   c:0},
+  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:1.64,   c:0},
+  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:1.23,   c:0},
+  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:0.846,  c:0},
+  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:0.918,  c:0},
+  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:2.80,   c:0},
+  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.089,  c:0},
+  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.101,  c:0},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
@@ -787,26 +787,26 @@ function switchChartTab(id, skipSave, options = {}){
   });
 }
 
-// Fetch live prices from Binance on startup to update placeholder values
+// Fetch live prices from Binance for all SYMS — runs on startup and every 30s
 async function refreshSymPrices(){
   try{
-    const pairs = SYMS.map(s => s.s.replace('/','').replace('USD','USDT'));
-    const res = await fetch('https://api.binance.com/api/v3/ticker/price');
+    const pairs = SYMS.map(s => '"' + s.s.replace('/','').replace('USD','USDT') + '"');
+    const url = 'https://api.binance.com/api/v3/ticker/price?symbols=[' + pairs.join(',') + ']';
+    const res = await fetch(url);
     if(!res.ok) return;
     const data = await res.json();
+    if(!Array.isArray(data)) return;
     const map = {};
     data.forEach(d => { map[d.symbol] = parseFloat(d.price); });
     SYMS.forEach(s => {
       const key = s.s.replace('/','').replace('USD','USDT');
-      if(map[key]) s.p = map[key];
+      const newPrice = map[key];
+      if(!newPrice) return;
+      const prev = s.p || newPrice;
+      s.c = +((newPrice - prev) / prev * 100).toFixed(2);
+      s.p = newPrice;
     });
-    // Update current symbol's placeholder if we haven't loaded real data yet
-    if(curData.length <= 300 && curSym){
-      const key = curSym.s.replace('/','').replace('USD','USDT');
-      if(map[key]){
-        curSym.p = map[key];
-      }
-    }
+    buildWL();
   }catch(e){}
 }
 
@@ -19103,6 +19103,9 @@ window.addEventListener('load', () => {
   });
   updateSessionCountdown();
   updateTiltDetector();
+  // Fetch accurate prices for all watchlist symbols on startup, then every 30s
+  setTimeout(refreshSymPrices, 1500);
+  setInterval(refreshSymPrices, 30000);
 });
 
 
