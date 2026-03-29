@@ -86,7 +86,10 @@ export default async function handler(req) {
       if (rl) errHeaders['x-ratelimit-reset-requests'] = rl;
       const ra = res.headers.get('retry-after');
       if (ra) errHeaders['retry-after'] = ra;
-      return new Response(JSON.stringify({ error: msg }), { status: res.status, headers: errHeaders });
+      const retryAfterMs = rl
+        ? (/^\d+(\.\d+)?$/.test(rl) ? Math.ceil(Number(rl) * 1000) : null)
+        : (ra ? (/^\d+(\.\d+)?$/.test(ra) ? Math.ceil(Number(ra) * 1000) : null) : null);
+      return new Response(JSON.stringify({ error: msg, retryAfterMs }), { status: res.status, headers: errHeaders });
     }
 
     const text = data.choices?.[0]?.message?.content || '';
@@ -96,4 +99,3 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
   }
 }
-
