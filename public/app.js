@@ -22506,6 +22506,12 @@ function tapSetLocalAnalysisHistory(arr) {
   try { _lsSet('apex-analyses', JSON.stringify(arr.slice(0, 120))); } catch(e) {}
 }
 
+// ── Normalise symbol to the format used in the historical scan database ───────
+// App uses 'BTC/USD', scan saved 'BTC-USD' — normalise before any DB query
+function _tapNormSym(sym) {
+  return (sym || '').replace('/', '-');
+}
+
 // ── Cross-timeframe similarity weight ─────────────────────────────────────────
 // Short TFs (1m/5m) have thin history so we cast a wider cross-TF net.
 // Same-TF matches are always preferred; cross-TF matches are slightly discounted.
@@ -22551,7 +22557,7 @@ async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
         _supa.from('apex_analyses')
           .select('id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected')
           .eq('user_id', 'anonymous')
-          .eq('symbol', symbol)          // historical data filtered to same symbol
+          .eq('symbol', _tapNormSym(symbol)) // historical data filtered to same symbol
           .order('created_at', { ascending: false })
           .limit(120),
       ]);
@@ -22681,7 +22687,7 @@ async function tapFetchHistoricalStats(symbol, tf, direction) {
       .from('apex_analyses')
       .select('outcome, method_detected')
       .eq('user_id', 'anonymous')
-      .eq('symbol', symbol)
+      .eq('symbol', _tapNormSym(symbol))
       .eq('timeframe', tf)
       .eq('direction', direction)
       .neq('outcome', 'pending');
@@ -22914,7 +22920,7 @@ Originating Setup Context:
   const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
 
   // ── Historical stats: fetch BEFORE building prompt so scores reflect real data ─
-  const _histStats = await tapFetchHistoricalStats(curSym.s, drawingTF, isLong ? 'long' : 'short').catch(() => null);
+  const _histStats = await tapFetchHistoricalStats(_tapNormSym(curSym.s), drawingTF, isLong ? 'long' : 'short').catch(() => null);
   const _histCtxForPrompt = _histStats && _histStats.count >= 10
     ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${curSym.s} ${drawingTF} ${isLong?'long':'short'} setups scanned):
   Overall win rate: ${_histStats.winRate}% (${_histStats.tpCount} TP hit, ${_histStats.slCount} SL hit)` +
