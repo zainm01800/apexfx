@@ -22003,11 +22003,38 @@ function tapClassifyTradeLevels(spec, data, tf){
   let entryBar = Number.isFinite(spec?.entryBar) ? Math.round(spec.entryBar) : null;
   if(entryBar == null && Number.isFinite(spec?.time)) entryBar = tapTimeToBarInSeries(Number(spec.time), data);
   if(entryBar == null && Number.isFinite(spec?.bar)) entryBar = Math.round(Number(spec.bar) - halfBars);
-  if(entryBar == null) entryBar = Math.max(0, n - Math.max(120, halfBars * 6));
+  // Search entire available history when no entry bar is known — prevents "Missed Setup" false positives
+  // for setups where the trigger happened before the default 120-bar lookback window
+  if(entryBar == null) entryBar = 0;
 
   const clampedEntryBar = Math.max(0, entryBar);
   if(entryBar >= n){
     return { state:'PENDING', reason:'Entry is still ahead of the current chart and has not triggered yet.', entryBar, triggerBar:null, resolutionBar:null, halfBars, currentPrice:data[n-1]?.close ?? entry, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+  }
+
+  // Fast-path: if current price has already passed the TP (and didn't hit SL first from entry bar),
+  // report COMPLETED — catches setups where the trigger and TP happened very quickly together
+  const currentPriceNow = data[n-1]?.close ?? entry;
+  if(isLong && currentPriceNow >= tp && currentPriceNow > entry){
+    // Make sure SL wasn't hit from start of window first
+    let slHitFirst = false;
+    for(let i = clampedEntryBar; i < n; i++){
+      if(data[i].low <= sl){ slHitFirst = true; break; }
+      if(data[i].low <= entry || data[i].high >= tp) break;
+    }
+    if(!slHitFirst) {
+      return { state:'COMPLETED', reason:'Entry triggered and take profit was reached.', entryBar:clampedEntryBar, triggerBar:clampedEntryBar, resolutionBar:n-1, halfBars, currentPrice:currentPriceNow, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+    }
+  }
+  if(!isLong && currentPriceNow <= tp && currentPriceNow < entry){
+    let slHitFirst = false;
+    for(let i = clampedEntryBar; i < n; i++){
+      if(data[i].high >= sl){ slHitFirst = true; break; }
+      if(data[i].high >= entry || data[i].low <= tp) break;
+    }
+    if(!slHitFirst) {
+      return { state:'COMPLETED', reason:'Entry triggered and take profit was reached.', entryBar:clampedEntryBar, triggerBar:clampedEntryBar, resolutionBar:n-1, halfBars, currentPrice:currentPriceNow, createdBarIndex, createdCandleTime, expiryBars, expectedHoldBars };
+    }
   }
 
   let triggerBar = null;
