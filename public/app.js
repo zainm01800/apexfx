@@ -221,26 +221,26 @@ const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
   // p values = approximate prices as of March 2026 — used only as placeholder
   // while real Binance data loads. Updated from live market.
-  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:70963,  c:2.88},
-  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:1910,   c:1.44},
-  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:87,    c:4.22},
-  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:654,    c:0.95},
-  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:1.39,   c:1.10},
-  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.096,   c:3.20},
-  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.26,   c:1.80},
-  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:9.57,     c:2.10},
-  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:9.04,     c:1.50},
-  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:2.81,   c:0.80},
-  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.23,   c:2.30},
-  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:7.91,   c:1.60},
-  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:96,     c:0.70},
-  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:4.5,   c:1.20},
-  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:3.8,   c:2.40},
-  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:1.73,   c:3.50},
-  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:0.92,   c:2.10},
-  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:3.08,     c:1.80},
-  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.1,   c:2.40},
-  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.123,   c:1.90},
+  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:87000,  c:2.88},
+  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:2000,   c:1.44},
+  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:135,    c:4.22},
+  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:610,    c:0.95},
+  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:2.20,   c:1.10},
+  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.17,   c:3.20},
+  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.72,   c:1.80},
+  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:22,     c:2.10},
+  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:14,     c:1.50},
+  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:4.80,   c:0.80},
+  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.38,   c:2.30},
+  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:8.50,   c:1.60},
+  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:105,    c:0.70},
+  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:5.50,   c:1.20},
+  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:4.20,   c:2.40},
+  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:3.20,   c:3.50},
+  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:5.80,   c:2.10},
+  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:12.50,  c:1.80},
+  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.55,   c:2.40},
+  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.90,   c:1.90},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
@@ -11459,10 +11459,39 @@ function updateSessionCountdown(){
 
 // ══ ALERTS ═══════════════════════════════════════════════════════════════════
 function addAlert(){
-  const p=prompt(`Price alert for ${curSym.s}\nCurrent: $${fP(curData[curData.length-1]?.close||curSym.p)}\n\nTarget price:`);
-  if(!p||isNaN(p))return;
-  const cur=curData[curData.length-1]?.close||0;
-  const alert={id:Math.random().toString(36).slice(2),sym:curSym.s,price:parseFloat(p).toFixed(4),cond:parseFloat(p)>cur?'above':'below',triggered:false};
+  const curPrice = fP(curData[curData.length-1]?.close || curSym.p);
+  // Use in-app modal instead of browser prompt()
+  const bg = document.createElement('div');
+  bg.id = 'alert-input-bg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:2000;display:flex;align-items:center;justify-content:center;';
+  bg.innerHTML = `
+    <div style="background:rgba(14,18,26,.98);border:1px solid var(--b2);border-radius:12px;padding:20px 22px;width:280px;box-shadow:0 24px 60px rgba(0,0,0,.8);">
+      <div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:4px;">Price Alert · ${curSym.s}</div>
+      <div style="font-size:10px;color:var(--tx3);margin-bottom:14px;">Current: $${curPrice}</div>
+      <input id="alert-price-input" type="number" step="any" placeholder="Target price"
+        style="width:100%;background:var(--bg3);border:1px solid var(--b2);color:var(--tx);font-size:13px;padding:8px 10px;border-radius:6px;outline:none;box-sizing:border-box;font-family:ui-monospace,'SF Mono',monospace;">
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button onclick="_alertInputCancel()" style="flex:1;padding:7px;background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--tx2);font-size:11px;border-radius:6px;cursor:pointer;">Cancel</button>
+        <button onclick="_alertInputConfirm()" style="flex:1;padding:7px;background:rgba(0,212,160,.12);border:1px solid rgba(0,212,160,.3);color:var(--tl);font-size:11px;border-radius:6px;cursor:pointer;font-weight:600;">Set Alert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+  setTimeout(() => document.getElementById('alert-price-input')?.focus(), 50);
+  document.getElementById('alert-price-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') _alertInputConfirm();
+    if (e.key === 'Escape') _alertInputCancel();
+  });
+}
+function _alertInputCancel(){
+  document.getElementById('alert-input-bg')?.remove();
+}
+function _alertInputConfirm(){
+  const inp = document.getElementById('alert-price-input');
+  const p = inp?.value?.trim();
+  document.getElementById('alert-input-bg')?.remove();
+  if(!p || isNaN(p)) return;
+  const cur = curData[curData.length-1]?.close || 0;
+  const alert = {id:Math.random().toString(36).slice(2),sym:curSym.s,price:parseFloat(p).toFixed(4),cond:parseFloat(p)>cur?'above':'below',triggered:false};
   alerts.push(alert);
   try{_lsSet('alerts',JSON.stringify(alerts));}catch(e){}
   buildAlertsPanel();
@@ -11499,6 +11528,7 @@ function buildAlertsPanel(){
 // ══ NEWS PANEL ════════════════════════════════════════════════════════════════
 // ══ NEWS PANEL ════════════════════════════════════════════════════════════════
 let newsCache = {};
+let _newsFetchAbort = null; // AbortController for in-flight news request
 
 // ── Groq key rotation ─────────────────────────────────────────────────────────
 // ── AI provider keys ─────────────────────────────────────────────────────────
@@ -11647,10 +11677,10 @@ function parseRSSXML(xmlText){
 }
 
 // Fetch news via our secure /api/news Vercel serverless function
-async function fetchNewsFromAPI(sym, type) {
+async function fetchNewsFromAPI(sym, type, signal) {
   const url = `/api/news?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`;
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const r = await fetch(url, { signal: signal || AbortSignal.timeout(10000) });
     if (!r.ok) return null;
     const data = await r.json();
     if (!Array.isArray(data) || !data.length) return null;
@@ -11687,10 +11717,17 @@ async function fetchNews(sym, name){
   if(newsCache[sym] && Date.now()-newsCache[sym].ts < 300000){
     renderNews(newsCache[sym].items, sym); return;
   }
+  // Abort any previous in-flight request
+  if(_newsFetchAbort){ try{ _newsFetchAbort.abort(); }catch(e){} }
+  _newsFetchAbort = new AbortController();
+  const _myAbort = _newsFetchAbort;
   el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching latest news...</div>';
 
   const type = symType(sym);
-  const headlines = await fetchNewsFromAPI(sym, type);
+  const headlines = await fetchNewsFromAPI(sym, type, _myAbort.signal);
+
+  // Bail if a newer request has started (symbol changed while fetching)
+  if(_myAbort.signal.aborted) return;
 
   if(!headlines || !headlines.length){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
@@ -16137,6 +16174,7 @@ async function loadSym(sym){
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
       setSrcStatus('● live','var(--tl)');
       connectLiveTick(sym, curSym.t);
+      setTimeout(() => tapScanCurrentChart().catch(() => {}), 2000); // incremental scan in background
       endChartTransition(requestTabId, requestSeq, true);
     } else {
       if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
@@ -16741,8 +16779,7 @@ function buildWL(filter=''){
     html=`<div style="padding:24px 12px;text-align:center;line-height:1.8;">
       <div style="font-size:18px;margin-bottom:6px;">📋</div>
       <div style="color:var(--tx2);font-size:10px;font-weight:600;margin-bottom:3px;">Watchlist is empty</div>
-      <div style="color:var(--tx3);font-size:11px;margin-bottom:12px;">Search and add symbols to track them here</div>
-      <button onclick="openModal()" style="padding:5px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:10px;border-radius:3px;cursor:pointer;font-family:monospace;">+ Add Symbol</button>
+      <div style="color:var(--tx3);font-size:11px;">Search and add symbols to track them here</div>
     </div>`;
   } else {
     for(const[cat,syms]of Object.entries(cats)){
@@ -19831,6 +19868,7 @@ function closeAISetups(){
 
 function aisOpenChart(sym, dir, entry, sl, target, tf){
   closeAISetups();
+  if (_activeOverlay) closeOverlay(); // close scanner / any open side panel
 
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
@@ -20822,19 +20860,53 @@ function tapShowRefinementOnChart(){
     if(_tpM)    suggestedTP    = _validateP(_tpM[1]);
   }
 
-  // ── Step 2: Fill gaps — always stay within the original trade's concept ────
-  // Entry: AI suggestion → nearest S/R close to original entry → original entry
-  if(!suggestedEntry){
-    if(isLong){
-      const cands = sr.support.filter(s => s < d.price && s > d.price * 0.97);
-      suggestedEntry = cands.length ? cands.sort((a,b) => b-a)[0] : d.price;
-    } else {
-      const cands = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
-      suggestedEntry = cands.length ? cands.sort((a,b) => a-b)[0] : d.price;
+  // ── Step 1b: Use RAG winning setups to compute historically-optimal entry/SL ─
+  // Filter similar past setups that actually hit TP — average their offsets
+  if(!suggestedEntry || !suggestedSL){
+    const _ragWinners = _tapLastRagMatches.filter(m =>
+      m.outcome === 'tp_hit' &&
+      m.entry_price != null && m.sl_price != null &&
+      m.direction === (isLong ? 'long' : 'short') &&
+      m.similarity > 0.70
+    );
+    if(_ragWinners.length >= 2){
+      // Average entry offset % relative to their own entry (normalised)
+      const entryOffsets = _ragWinners.map(m => (m.entry_price - d.price) / d.price);
+      const avgOffset    = entryOffsets.reduce((s, v) => s + v, 0) / entryOffsets.length;
+      const ragEntry     = d.price * (1 + avgOffset);
+      // Average SL distance % from entry
+      const slDists = _ragWinners.map(m => Math.abs(m.sl_price - m.entry_price) / m.entry_price);
+      const avgSlDist = slDists.reduce((s, v) => s + v, 0) / slDists.length;
+      // Only apply if RAG suggests a meaningful (but not extreme) adjustment
+      if(avgSlDist > 0.001 && avgSlDist < 0.15){
+        if(!suggestedEntry) suggestedEntry = ragEntry;
+        if(!suggestedSL){
+          const slAmount = suggestedEntry * avgSlDist;
+          suggestedSL = isLong ? suggestedEntry - slAmount : suggestedEntry + slAmount;
+        }
+      }
     }
   }
 
-  // SL: AI suggestion → same proportional distance as original SL → ATR-based
+  // ── Step 2: Fill remaining gaps with S/R fallback ────────────────────────────
+  // Entry: nearest S/R that IMPROVES price (lower for long, higher for short)
+  // For LONG: want to enter LOWER (at support) — better price
+  // For SHORT: want to enter HIGHER (at resistance) — better price
+  if(!suggestedEntry){
+    if(isLong){
+      const cands = sr.support.filter(s => s < d.price && s > d.price * 0.98);
+      suggestedEntry = cands.length ? cands.sort((a,b) => b-a)[0] : d.price;
+    } else {
+      const candsAbove = sr.resistance.filter(r => r > d.price && r < d.price * 1.02);
+      if(candsAbove.length){
+        suggestedEntry = candsAbove.sort((a,b) => a-b)[0];
+      } else {
+        suggestedEntry = d.price;
+      }
+    }
+  }
+
+  // SL: AI suggestion → RAG-derived → same proportional distance as original SL
   if(!suggestedSL){
     const origSlDist = Math.abs(d.price - d.sl);
     suggestedSL = isLong ? suggestedEntry - origSlDist : suggestedEntry + origSlDist;
@@ -20885,6 +20957,319 @@ function tapShowRefinementOnChart(){
 function tapClearRefinement(){
   drawings = drawings.filter(x => !x._tapRefinement);
   draw();
+}
+
+// ══ INCREMENTAL LIVE SCAN ══════════════════════════════════════════════════════
+// Runs in the browser background after each chart load.
+// Detects setups on recent bars using the same 10 methods as the historical scan,
+// computes outcomes from OHLCV (no Groq needed), and stores to Supabase so the
+// RAG system always has fresh data for the current symbol/timeframe.
+
+function _scanFindSR(bars, i, lookback = 30) {
+  const slice = bars.slice(Math.max(0, i - lookback), i);
+  const support = [], resistance = [];
+  for (let j = 1; j < slice.length - 1; j++) {
+    if (slice[j].low  < slice[j-1].low  && slice[j].low  < slice[j+1].low)  support.push(slice[j].low);
+    if (slice[j].high > slice[j-1].high && slice[j].high > slice[j+1].high) resistance.push(slice[j].high);
+  }
+  return { support, resistance };
+}
+
+function _scanCalcOutcome(bars, setupBar, entry, sl, tp, dir, maxBars = 50) {
+  for (let i = setupBar + 1; i < Math.min(bars.length, setupBar + maxBars + 1); i++) {
+    const b = bars[i];
+    if (dir === 'long') {
+      if (b.low  <= sl) return 'sl_hit';
+      if (b.high >= tp) return 'tp_hit';
+    } else {
+      if (b.high >= sl) return 'sl_hit';
+      if (b.low  <= tp) return 'tp_hit';
+    }
+  }
+  return 'pending';
+}
+
+function _scanBuildFV(bars, i, dir, rr, slAtr, atr, patConf, patAligns, srProx) {
+  const rsiV = calcRSI(bars);
+  const s20  = calcSMA(bars, 20);
+  const s50  = calcSMA(bars, 50);
+  const mV   = calcMACD(bars);
+  const rsi  = rsiV[i] ?? 50;
+  const m20  = s20[i] ?? 0;
+  const m50  = s50[i] ?? 0;
+  const mH   = mV[i]?.hist ?? 0;
+  const recent = bars.slice(Math.max(0, i - 19), i + 1);
+  const avgVol = recent.reduce((s, b) => s + b.volume, 0) / recent.length;
+  const volR   = avgVol > 0 ? bars[i].volume / avgVol : 1;
+  return [
+    rsi / 100,
+    (m20 > 0 && m50 > 0) ? (m20 > m50 ? 1 : 0) : 0.5,
+    dir === 'long' ? 1 : 0,
+    Math.min(rr / 4, 1),
+    Math.min(slAtr / 3, 1),
+    Math.max(0, Math.min(1, patConf)),
+    patAligns,
+    Math.max(0, Math.min(1, srProx)),
+    Math.min(volR / 3, 1),
+    mH > 0 ? 1 : 0,
+    atr > 0 ? Math.min(Math.abs(mH) / atr, 1) : 0,
+    rsi > 50 ? 1 : 0,
+  ];
+}
+
+function _scanICT(bars, i, atr) {
+  if (i < 4) return [];
+  const b0 = bars[i - 2], b2 = bars[i];
+  const setups = [];
+  if (b0.high < b2.low && b2.close > b2.open) {
+    const entry = (b2.low + b0.high) / 2, sl = b0.high - atr * 0.3;
+    const tp = entry + (entry - sl) * 2.5;
+    const sr = _scanFindSR(bars, i);
+    const all = [...sr.support, ...sr.resistance];
+    const nsr = all.length ? Math.min(...all.map(v => Math.abs(v - entry))) / (atr * 2) : 1;
+    setups.push({ dir: 'long',  entry, sl, tp, method: 'ICT', patConf: 0.72, patAligns: 1, srProx: 1 - Math.min(nsr, 1) });
+  }
+  if (b0.low > b2.high && b2.close < b2.open) {
+    const entry = (b2.high + b0.low) / 2, sl = b0.low + atr * 0.3;
+    const tp = entry - (sl - entry) * 2.5;
+    const sr = _scanFindSR(bars, i);
+    const all = [...sr.support, ...sr.resistance];
+    const nsr = all.length ? Math.min(...all.map(v => Math.abs(v - entry))) / (atr * 2) : 1;
+    setups.push({ dir: 'short', entry, sl, tp, method: 'ICT', patConf: 0.72, patAligns: 0, srProx: 1 - Math.min(nsr, 1) });
+  }
+  return setups;
+}
+
+function _scanSMC(bars, i, atr) {
+  if (i < 20) return [];
+  const slice = bars.slice(i - 20, i);
+  const swingH = Math.max(...slice.map(b => b.high));
+  const swingL = Math.min(...slice.map(b => b.low));
+  const cur = bars[i], setups = [];
+  if (cur.close > swingH && bars[i-1].close < swingH) {
+    const entry = cur.close, sl = swingL > entry - atr * 3 ? swingL : entry - atr * 2;
+    setups.push({ dir: 'long',  entry, sl, tp: entry + (entry - sl) * 2, method: 'SMC', patConf: 0.68, patAligns: 1, srProx: 0.8 });
+  }
+  if (cur.close < swingL && bars[i-1].close > swingL) {
+    const entry = cur.close, sl = swingH < entry + atr * 3 ? swingH : entry + atr * 2;
+    setups.push({ dir: 'short', entry, sl, tp: entry - (sl - entry) * 2, method: 'SMC', patConf: 0.68, patAligns: 0, srProx: 0.8 });
+  }
+  return setups;
+}
+
+function _scanSupplyDemand(bars, i, atr) {
+  if (i < 5) return [];
+  const base = bars[i-3], move = bars[i-2], retest = bars[i];
+  const baseSize = Math.abs(base.close - base.open);
+  const moveSize = Math.abs(move.close - move.open);
+  const setups = [];
+  if (moveSize > baseSize * 2 && moveSize > atr * 1.5) {
+    if (move.close < move.open && retest.low <= base.high && retest.close >= base.low) {
+      const entry = base.high, sl = base.low - atr * 0.2;
+      setups.push({ dir: 'long',  entry, sl, tp: entry + (entry - sl) * 2.5, method: 'Supply & Demand', patConf: 0.75, patAligns: 1, srProx: 0.9 });
+    }
+    if (move.close > move.open && retest.high >= base.low && retest.close <= base.high) {
+      const entry = base.low, sl = base.high + atr * 0.2;
+      setups.push({ dir: 'short', entry, sl, tp: entry - (sl - entry) * 2.5, method: 'Supply & Demand', patConf: 0.75, patAligns: 0, srProx: 0.9 });
+    }
+  }
+  return setups;
+}
+
+function _scanSR(bars, i, atr) {
+  if (i < 30) return [];
+  const sr = _scanFindSR(bars, i, 30), cur = bars[i], setups = [];
+  for (const sup of sr.support) {
+    if (Math.abs(cur.close - sup) < atr * 0.5 && cur.close > sup) {
+      const sl = sup - atr * 0.5;
+      setups.push({ dir: 'long',  entry: cur.close, sl, tp: cur.close + (cur.close - sl) * 2, method: 'Support & Resistance', patConf: 0.65, patAligns: 1, srProx: 0.95 });
+    }
+  }
+  for (const res of sr.resistance) {
+    if (Math.abs(cur.close - res) < atr * 0.5 && cur.close < res) {
+      const sl = res + atr * 0.5;
+      setups.push({ dir: 'short', entry: cur.close, sl, tp: cur.close - (sl - cur.close) * 2, method: 'Support & Resistance', patConf: 0.65, patAligns: 0, srProx: 0.95 });
+    }
+  }
+  return setups.slice(0, 1);
+}
+
+function _scanMATrend(bars, i, atr) {
+  if (i < 50) return [];
+  const s20 = calcSMA(bars, 20), s50 = calcSMA(bars, 50);
+  if (!s20[i] || !s50[i]) return [];
+  const cur = bars[i], prev = bars[i-1], setups = [];
+  if (s20[i] > s50[i] && prev.close < s20[i-1] && cur.close > s20[i]) {
+    const sl = s50[i] > cur.close - atr * 2 ? s50[i] : cur.close - atr * 2;
+    setups.push({ dir: 'long',  entry: cur.close, sl, tp: cur.close + (cur.close - sl) * 2, method: 'MA / Trend Following', patConf: 0.62, patAligns: 1, srProx: 0.7 });
+  }
+  if (s20[i] < s50[i] && prev.close > s20[i-1] && cur.close < s20[i]) {
+    const sl = s50[i] < cur.close + atr * 2 ? s50[i] : cur.close + atr * 2;
+    setups.push({ dir: 'short', entry: cur.close, sl, tp: cur.close - (sl - cur.close) * 2, method: 'MA / Trend Following', patConf: 0.62, patAligns: 0, srProx: 0.7 });
+  }
+  return setups;
+}
+
+function _scanPriceAction(bars, i, atr) {
+  if (i < 3) return [];
+  const b = bars[i], setups = [];
+  const body = Math.abs(b.close - b.open);
+  const upper = b.high - Math.max(b.close, b.open);
+  const lower = Math.min(b.close, b.open) - b.low;
+  if (lower > body * 2 && lower > upper * 2 && body > 0) {
+    const sl = b.low - atr * 0.2;
+    setups.push({ dir: 'long',  entry: b.close, sl, tp: b.close + (b.close - sl) * 2, method: 'Price Action', patConf: 0.7, patAligns: 1, srProx: 0.75 });
+  }
+  if (upper > body * 2 && upper > lower * 2 && body > 0) {
+    const sl = b.high + atr * 0.2;
+    setups.push({ dir: 'short', entry: b.close, sl, tp: b.close - (sl - b.close) * 2, method: 'Price Action', patConf: 0.7, patAligns: 0, srProx: 0.75 });
+  }
+  return setups;
+}
+
+function _scanBreakout(bars, i, atr) {
+  if (i < 20) return [];
+  const slice = bars.slice(i - 20, i);
+  const boxH = Math.max(...slice.map(b => b.high));
+  const boxL = Math.min(...slice.map(b => b.low));
+  if (boxH - boxL > atr * 5) return []; // not a tight box
+  const cur = bars[i], avgVol5 = bars.slice(i-5,i).reduce((s,b)=>s+b.volume,0)/5;
+  const setups = [];
+  if (cur.close > boxH && cur.volume > avgVol5 * 1.5) {
+    setups.push({ dir: 'long',  entry: cur.close, sl: boxH - atr * 0.3, tp: cur.close + (boxH - boxL), method: 'Breakout', patConf: 0.7, patAligns: 1, srProx: 0.85 });
+  }
+  if (cur.close < boxL && cur.volume > avgVol5 * 1.5) {
+    setups.push({ dir: 'short', entry: cur.close, sl: boxL + atr * 0.3, tp: cur.close - (boxH - boxL), method: 'Breakout', patConf: 0.7, patAligns: 0, srProx: 0.85 });
+  }
+  return setups;
+}
+
+function _scanFibonacci(bars, i, atr) {
+  if (i < 30) return [];
+  const slice = bars.slice(i - 30, i);
+  const swingH = Math.max(...slice.map(b => b.high));
+  const swingL = Math.min(...slice.map(b => b.low));
+  const range = swingH - swingL;
+  if (range < atr * 3) return [];
+  const fib618 = swingH - range * 0.618;
+  const cur = bars[i], setups = [];
+  if (Math.abs(cur.close - fib618) < atr * 0.5) {
+    setups.push({ dir: 'long',  entry: cur.close, sl: fib618 - atr * 0.5, tp: swingH, method: 'Fibonacci', patConf: 0.68, patAligns: 1, srProx: 0.85 });
+  }
+  if (Math.abs(cur.close - (swingH - range * 0.382)) < atr * 0.5 && cur.close < fib618) {
+    const sl = swingH - range * 0.382 + atr * 0.5;
+    setups.push({ dir: 'short', entry: cur.close, sl, tp: swingL, method: 'Fibonacci', patConf: 0.65, patAligns: 0, srProx: 0.8 });
+  }
+  return setups;
+}
+
+function _scanRSIMomentum(bars, i, atr) {
+  if (i < 20) return [];
+  const rsiV = calcRSI(bars);
+  const rsi = rsiV[i];
+  if (rsi == null) return [];
+  const cur = bars[i], setups = [];
+  if (rsi < 32 && bars[i-1].close < cur.close) {
+    const sl = cur.low - atr * 0.5;
+    setups.push({ dir: 'long',  entry: cur.close, sl, tp: cur.close + (cur.close - sl) * 2, method: 'RSI / Momentum', patConf: 0.65, patAligns: 1, srProx: 0.7 });
+  }
+  if (rsi > 68 && bars[i-1].close > cur.close) {
+    const sl = cur.high + atr * 0.5;
+    setups.push({ dir: 'short', entry: cur.close, sl, tp: cur.close - (sl - cur.close) * 2, method: 'RSI / Momentum', patConf: 0.65, patAligns: 0, srProx: 0.7 });
+  }
+  return setups;
+}
+
+function _scanWyckoff(bars, i, atr) {
+  if (i < 30) return [];
+  const slice = bars.slice(i - 30, i);
+  const swingL = Math.min(...slice.map(b => b.low));
+  const swingH = Math.max(...slice.map(b => b.high));
+  const cur = bars[i], prev = bars[i-1], setups = [];
+  if (prev.low < swingL && cur.close > swingL && cur.close > cur.open) {
+    const sl = prev.low - atr * 0.2;
+    setups.push({ dir: 'long',  entry: cur.close, sl, tp: cur.close + (cur.close - sl) * 2.5, method: 'Wyckoff', patConf: 0.72, patAligns: 1, srProx: 0.9 });
+  }
+  if (prev.high > swingH && cur.close < swingH && cur.close < cur.open) {
+    const sl = prev.high + atr * 0.2;
+    setups.push({ dir: 'short', entry: cur.close, sl, tp: cur.close - (sl - cur.close) * 2.5, method: 'Wyckoff', patConf: 0.72, patAligns: 0, srProx: 0.9 });
+  }
+  return setups;
+}
+
+const _SCAN_DETECTORS = [_scanICT, _scanSMC, _scanSupplyDemand, _scanSR, _scanMATrend,
+                         _scanPriceAction, _scanBreakout, _scanFibonacci, _scanRSIMomentum, _scanWyckoff];
+
+async function tapScanCurrentChart() {
+  if (_tapScanInFlight) return; // prevent concurrent runs (race condition guard)
+  if (!_supa || !curData?.length || curData.length < 60) return;
+  const sym = _tapNormSym(curSym?.s || '');
+  const tf  = curTF;
+  if (!sym || sym === 'unknown') return;
+
+  // Cooldown per tf — daily chart scans once per day, intraday scans hourly
+  const lsKey = `tap_iscan_${sym}_${tf}`;
+  const lastScan = parseInt(localStorage.getItem(lsKey) || '0');
+  const now = Date.now();
+  const cooldownMs = { '1d': 86400000, '4h': 43200000, '1h': 14400000,
+                       '30m': 7200000, '15m': 3600000, '5m': 1800000, '1m': 900000 }[tf] || 3600000;
+  if (now - lastScan < cooldownMs) return;
+  // Set flag synchronously before any await — prevents all concurrent callers from passing cooldown
+  _tapScanInFlight = true;
+  localStorage.setItem(lsKey, String(now));
+
+  const bars = curData;
+  const n    = bars.length;
+  const atrV = calcATR(bars);
+
+  // Only scan recent bars so we don't duplicate the historical scan data
+  const scanBars = Math.min(150, Math.floor(n * 0.2));
+  const startBar = Math.max(55, n - scanBars);
+  const allSetups = [];
+
+  for (let i = startBar; i < n - 5; i++) {
+    const atr = atrV[i] || 0.001;
+    for (const detect of _SCAN_DETECTORS) {
+      try {
+        for (const s of detect(bars, i, atr)) {
+          if (!isFinite(s.entry) || !isFinite(s.sl) || !isFinite(s.tp)) continue;
+          const outcome = _scanCalcOutcome(bars, i, s.entry, s.sl, s.tp, s.dir);
+          const rr      = Math.abs(s.tp - s.entry) / (Math.abs(s.sl - s.entry) || 0.001);
+          const slAtr   = Math.abs(s.entry - s.sl) / (atr || 0.001);
+          const fv      = _scanBuildFV(bars, i, s.dir, rr, slAtr, atr, s.patConf, s.patAligns, s.srProx);
+          allSetups.push({
+            id: `iscan-${sym}-${tf}-${s.method.replace(/[\s/&]+/g,'-')}-${bars[i].time}-${allSetups.length}`,
+            user_id: 'anonymous', symbol: sym, timeframe: tf,
+            direction: s.dir, feature_vector: fv,
+            analysis_text: `${s.method} ${s.dir} detected on ${sym} ${tf}`,
+            method_detected: s.method, outcome,
+            entry_price: +s.entry.toFixed(5),
+            sl_price:    +s.sl.toFixed(5),
+            tp_price:    +s.tp.toFixed(5),
+            created_at: new Date(bars[i].time * 1000).toISOString(),
+          });
+        }
+      } catch(e) { /* skip bad bar */ }
+    }
+  }
+
+  if (!allSetups.length) { _tapScanInFlight = false; return; }
+
+  // Upload in batches — upsert so re-runs don't duplicate
+  const BATCH = 50;
+  let stored = 0;
+  try {
+    for (let i = 0; i < allSetups.length; i += BATCH) {
+      try {
+        const { error } = await _supa.from('apex_analyses')
+          .upsert(allSetups.slice(i, i + BATCH), { onConflict: 'id', ignoreDuplicates: true });
+        if (!error) stored += Math.min(BATCH, allSetups.length - i);
+      } catch(e) { /* Supabase unavailable */ }
+    }
+    if (stored > 0) console.log(`[ApexFX] Incremental scan: +${stored} setups for ${sym} ${tf}`);
+  } finally {
+    _tapScanInFlight = false;
+  }
 }
 
 // ══ TRADE ANALYSIS POPUP ══════════════════════════════════════════════════════
@@ -21032,6 +21417,8 @@ function tapHasLock(sym){
 }
 
 let _tapDrawing = null;  // drawing currently in popup/modal
+let _tapLastRagMatches = []; // RAG matches from last tapGenerateAI — used by refinement
+let _tapScanInFlight = false; // guard against concurrent incremental scans
 
 // ── Blocked toast — shown when user tries to place a second trade on same symbol ──
 function tapShowBlockedToast(){
@@ -21613,6 +22000,9 @@ async function openFullTradeAnalysis(){
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
     if(topScoreSubEl) topScoreSubEl.textContent = 'Locked analysis — click Re-analyse to refresh';
+    // Pre-fetch RAG matches in background so "Show on Chart" refinement works
+    const _fv = tapExtractFeatureVector(d, curData);
+    if(_fv) tapSearchSimilarAnalyses(_fv, curSym.s, _aiTF).then(m => { _tapLastRagMatches = m; }).catch(() => {});
     // Inject age badge + Re-analyse button
     const ageEl = document.createElement('div');
     ageEl.id = 'tap-ai-age-badge';
@@ -21653,6 +22043,9 @@ async function openFullTradeAnalysis(){
     aiLoadingEl.style.display = 'none';
     if(cached) cached.aiResult = _enq.result;
     if(topScoreSubEl) topScoreSubEl.textContent = `Last analyzed ${ageSec}s ago`;
+    // Pre-fetch RAG matches so "Show on Chart" refinement works from cached path
+    const _fv2 = tapExtractFeatureVector(d, curData);
+    if(_fv2) tapSearchSimilarAnalyses(_fv2, curSym.s, _aiTF).then(m => { _tapLastRagMatches = m; }).catch(() => {});
     const ageEl = document.createElement('div');
     ageEl.id = 'tap-ai-age-badge';
     ageEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
@@ -22572,20 +22965,21 @@ async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
   if (_supa) {
     try {
       // Fetch both in parallel — your personal data + the historical library
+      const _sel = 'id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected,entry_price,sl_price,tp_price';
       const [personalRes, historicalRes] = await Promise.all([
         _currentUserId
           ? _supa.from('apex_analyses')
-              .select('id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected')
+              .select(_sel)
               .eq('user_id', _currentUserId)
               .order('created_at', { ascending: false })
               .limit(80)
           : { data: [] },
         _supa.from('apex_analyses')
-          .select('id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected')
+          .select(_sel)
           .eq('user_id', 'anonymous')
           .eq('symbol', _tapNormSym(symbol)) // historical data filtered to same symbol
           .order('created_at', { ascending: false })
-          .limit(120),
+          .limit(200),
       ]);
 
       const localIds = new Set(candidates.map(a => a.id));
@@ -22957,6 +23351,7 @@ Originating Setup Context:
   // ── RAG: Extract feature vector and search similar past analyses ──────────────
   const _ragFeatureVec = tapExtractFeatureVector(d, analysisData);
   const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, curSym.s, drawingTF) : [];
+  _tapLastRagMatches   = _ragMatches; // Cache for tapShowRefinementOnChart
   const _ragBest       = _ragMatches[0];
 
   // Tier 1 (≥0.93 similarity, non-failed) — return stored analysis directly (FREE)
@@ -23107,6 +23502,10 @@ Always remain objective. Do not guarantee outcomes or provide financial advice.`
     const _mj    = tapParseMethodJSON(_result);
     tapStoreAnalysis(d, _ragFeatureVec, _result, _sc, curSym.s, drawingTF, _mj?.method || null).catch(() => {});
   }
+
+  // Run incremental scan after any analysis — keeps RAG database fresh for both
+  // manually drawn trades and scanner-selected trades
+  setTimeout(() => tapScanCurrentChart().catch(() => {}), 1000);
 
   return _result;
 }
