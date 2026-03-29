@@ -21955,6 +21955,9 @@ async function openFullTradeAnalysis(){
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
     if(topScoreSubEl) topScoreSubEl.textContent = 'Locked analysis — click Re-analyse to refresh';
+    // Pre-fetch RAG matches in background so "Show on Chart" refinement works
+    const _fv = tapExtractFeatureVector(d, curData);
+    if(_fv) tapSearchSimilarAnalyses(_fv, curSym.s, _aiTF).then(m => { _tapLastRagMatches = m; }).catch(() => {});
     // Inject age badge + Re-analyse button
     const ageEl = document.createElement('div');
     ageEl.id = 'tap-ai-age-badge';
@@ -21995,6 +21998,9 @@ async function openFullTradeAnalysis(){
     aiLoadingEl.style.display = 'none';
     if(cached) cached.aiResult = _enq.result;
     if(topScoreSubEl) topScoreSubEl.textContent = `Last analyzed ${ageSec}s ago`;
+    // Pre-fetch RAG matches so "Show on Chart" refinement works from cached path
+    const _fv2 = tapExtractFeatureVector(d, curData);
+    if(_fv2) tapSearchSimilarAnalyses(_fv2, curSym.s, _aiTF).then(m => { _tapLastRagMatches = m; }).catch(() => {});
     const ageEl = document.createElement('div');
     ageEl.id = 'tap-ai-age-badge';
     ageEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
@@ -23451,6 +23457,10 @@ Always remain objective. Do not guarantee outcomes or provide financial advice.`
     const _mj    = tapParseMethodJSON(_result);
     tapStoreAnalysis(d, _ragFeatureVec, _result, _sc, curSym.s, drawingTF, _mj?.method || null).catch(() => {});
   }
+
+  // Run incremental scan after any analysis — keeps RAG database fresh for both
+  // manually drawn trades and scanner-selected trades
+  setTimeout(() => tapScanCurrentChart().catch(() => {}), 1000);
 
   return _result;
 }
