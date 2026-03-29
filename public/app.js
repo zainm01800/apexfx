@@ -16186,9 +16186,14 @@ function setupEvents(){
 // ── Live WebSocket tick ────────────────────────────────────────────────────────
 let liveWS = null;
 let liveWSSym = null;
+let _liveWSReconnectTimer = null;
+let _liveWSIntentionalClose = false;
 
 async function connectLiveTick(sym, type){
+  _liveWSIntentionalClose = true;
+  clearTimeout(_liveWSReconnectTimer);
   if(liveWS){ try{ liveWS.close(); }catch(e){} liveWS=null; }
+  _liveWSIntentionalClose = false;
   // Only Finnhub WS supports stocks + forex; crypto uses Binance WS
   if(type==='Crypto'){
     const pair = sym.replace('/','').toLowerCase()+'t'; // BTC/USD → btcusdt
@@ -16203,6 +16208,14 @@ async function connectLiveTick(sym, type){
       }catch(err){}
     };
     liveWS.onerror = ()=>{};
+    liveWS.onclose = () => {
+      if(_liveWSIntentionalClose) return; // we switched symbol — don't reconnect
+      if(sym !== liveWSSym) return;       // stale handler — symbol already changed
+      setSrcStatus('⟳ reconnecting…','var(--tx2)');
+      _liveWSReconnectTimer = setTimeout(() => {
+        if(sym === liveWSSym) connectLiveTick(sym, type);
+      }, 3000);
+    };
   }
 }
 
