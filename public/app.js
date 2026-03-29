@@ -221,26 +221,26 @@ const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
   // p values = approximate prices as of March 2026 — used only as placeholder
   // while real Binance data loads. Updated from live market.
-  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:70963,  c:2.88},
-  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:1910,   c:1.44},
-  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:87,    c:4.22},
-  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:654,    c:0.95},
-  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:1.39,   c:1.10},
-  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.096,   c:3.20},
-  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.26,   c:1.80},
-  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:9.57,     c:2.10},
-  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:9.04,     c:1.50},
-  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:2.81,   c:0.80},
-  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.23,   c:2.30},
-  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:7.91,   c:1.60},
-  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:96,     c:0.70},
-  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:4.5,   c:1.20},
-  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:3.8,   c:2.40},
-  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:1.73,   c:3.50},
-  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:0.92,   c:2.10},
-  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:3.08,     c:1.80},
-  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.1,   c:2.40},
-  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.123,   c:1.90},
+  {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:87000,  c:2.88},
+  {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:2000,   c:1.44},
+  {s:'SOL/USD',  n:'Solana',        e:'CRYPTO', t:'Crypto', p:135,    c:4.22},
+  {s:'BNB/USD',  n:'BNB',           e:'CRYPTO', t:'Crypto', p:610,    c:0.95},
+  {s:'XRP/USD',  n:'XRP',           e:'CRYPTO', t:'Crypto', p:2.20,   c:1.10},
+  {s:'DOGE/USD', n:'Dogecoin',      e:'CRYPTO', t:'Crypto', p:0.17,   c:3.20},
+  {s:'ADA/USD',  n:'Cardano',       e:'CRYPTO', t:'Crypto', p:0.72,   c:1.80},
+  {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:22,     c:2.10},
+  {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:14,     c:1.50},
+  {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:4.80,   c:0.80},
+  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.38,   c:2.30},
+  {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:8.50,   c:1.60},
+  {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:105,    c:0.70},
+  {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:5.50,   c:1.20},
+  {s:'TON/USD',  n:'Toncoin',       e:'CRYPTO', t:'Crypto', p:4.20,   c:2.40},
+  {s:'SUI/USD',  n:'Sui',           e:'CRYPTO', t:'Crypto', p:3.20,   c:3.50},
+  {s:'APT/USD',  n:'Aptos',         e:'CRYPTO', t:'Crypto', p:5.80,   c:2.10},
+  {s:'INJ/USD',  n:'Injective',     e:'CRYPTO', t:'Crypto', p:12.50,  c:1.80},
+  {s:'ARB/USD',  n:'Arbitrum',      e:'CRYPTO', t:'Crypto', p:0.55,   c:2.40},
+  {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.90,   c:1.90},
 ];
 
 // ══ STATE ════════════════════════════════════════════════════════════════════
@@ -11459,10 +11459,39 @@ function updateSessionCountdown(){
 
 // ══ ALERTS ═══════════════════════════════════════════════════════════════════
 function addAlert(){
-  const p=prompt(`Price alert for ${curSym.s}\nCurrent: $${fP(curData[curData.length-1]?.close||curSym.p)}\n\nTarget price:`);
-  if(!p||isNaN(p))return;
-  const cur=curData[curData.length-1]?.close||0;
-  const alert={id:Math.random().toString(36).slice(2),sym:curSym.s,price:parseFloat(p).toFixed(4),cond:parseFloat(p)>cur?'above':'below',triggered:false};
+  const curPrice = fP(curData[curData.length-1]?.close || curSym.p);
+  // Use in-app modal instead of browser prompt()
+  const bg = document.createElement('div');
+  bg.id = 'alert-input-bg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:2000;display:flex;align-items:center;justify-content:center;';
+  bg.innerHTML = `
+    <div style="background:rgba(14,18,26,.98);border:1px solid var(--b2);border-radius:12px;padding:20px 22px;width:280px;box-shadow:0 24px 60px rgba(0,0,0,.8);">
+      <div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:4px;">Price Alert · ${curSym.s}</div>
+      <div style="font-size:10px;color:var(--tx3);margin-bottom:14px;">Current: $${curPrice}</div>
+      <input id="alert-price-input" type="number" step="any" placeholder="Target price"
+        style="width:100%;background:var(--bg3);border:1px solid var(--b2);color:var(--tx);font-size:13px;padding:8px 10px;border-radius:6px;outline:none;box-sizing:border-box;font-family:ui-monospace,'SF Mono',monospace;">
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button onclick="_alertInputCancel()" style="flex:1;padding:7px;background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--tx2);font-size:11px;border-radius:6px;cursor:pointer;">Cancel</button>
+        <button onclick="_alertInputConfirm()" style="flex:1;padding:7px;background:rgba(0,212,160,.12);border:1px solid rgba(0,212,160,.3);color:var(--tl);font-size:11px;border-radius:6px;cursor:pointer;font-weight:600;">Set Alert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+  setTimeout(() => document.getElementById('alert-price-input')?.focus(), 50);
+  document.getElementById('alert-price-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') _alertInputConfirm();
+    if (e.key === 'Escape') _alertInputCancel();
+  });
+}
+function _alertInputCancel(){
+  document.getElementById('alert-input-bg')?.remove();
+}
+function _alertInputConfirm(){
+  const inp = document.getElementById('alert-price-input');
+  const p = inp?.value?.trim();
+  document.getElementById('alert-input-bg')?.remove();
+  if(!p || isNaN(p)) return;
+  const cur = curData[curData.length-1]?.close || 0;
+  const alert = {id:Math.random().toString(36).slice(2),sym:curSym.s,price:parseFloat(p).toFixed(4),cond:parseFloat(p)>cur?'above':'below',triggered:false};
   alerts.push(alert);
   try{_lsSet('alerts',JSON.stringify(alerts));}catch(e){}
   buildAlertsPanel();
@@ -11499,6 +11528,7 @@ function buildAlertsPanel(){
 // ══ NEWS PANEL ════════════════════════════════════════════════════════════════
 // ══ NEWS PANEL ════════════════════════════════════════════════════════════════
 let newsCache = {};
+let _newsFetchAbort = null; // AbortController for in-flight news request
 
 // ── Groq key rotation ─────────────────────────────────────────────────────────
 // ── AI provider keys ─────────────────────────────────────────────────────────
@@ -11647,10 +11677,10 @@ function parseRSSXML(xmlText){
 }
 
 // Fetch news via our secure /api/news Vercel serverless function
-async function fetchNewsFromAPI(sym, type) {
+async function fetchNewsFromAPI(sym, type, signal) {
   const url = `/api/news?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`;
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const r = await fetch(url, { signal: signal || AbortSignal.timeout(10000) });
     if (!r.ok) return null;
     const data = await r.json();
     if (!Array.isArray(data) || !data.length) return null;
@@ -11687,10 +11717,17 @@ async function fetchNews(sym, name){
   if(newsCache[sym] && Date.now()-newsCache[sym].ts < 300000){
     renderNews(newsCache[sym].items, sym); return;
   }
+  // Abort any previous in-flight request
+  if(_newsFetchAbort){ try{ _newsFetchAbort.abort(); }catch(e){} }
+  _newsFetchAbort = new AbortController();
+  const _myAbort = _newsFetchAbort;
   el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching latest news...</div>';
 
   const type = symType(sym);
-  const headlines = await fetchNewsFromAPI(sym, type);
+  const headlines = await fetchNewsFromAPI(sym, type, _myAbort.signal);
+
+  // Bail if a newer request has started (symbol changed while fetching)
+  if(_myAbort.signal.aborted) return;
 
   if(!headlines || !headlines.length){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
@@ -16742,8 +16779,7 @@ function buildWL(filter=''){
     html=`<div style="padding:24px 12px;text-align:center;line-height:1.8;">
       <div style="font-size:18px;margin-bottom:6px;">📋</div>
       <div style="color:var(--tx2);font-size:10px;font-weight:600;margin-bottom:3px;">Watchlist is empty</div>
-      <div style="color:var(--tx3);font-size:11px;margin-bottom:12px;">Search and add symbols to track them here</div>
-      <button onclick="openModal()" style="padding:5px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:10px;border-radius:3px;cursor:pointer;font-family:monospace;">+ Add Symbol</button>
+      <div style="color:var(--tx3);font-size:11px;">Search and add symbols to track them here</div>
     </div>`;
   } else {
     for(const[cat,syms]of Object.entries(cats)){
@@ -19832,6 +19868,7 @@ function closeAISetups(){
 
 function aisOpenChart(sym, dir, entry, sl, target, tf){
   closeAISetups();
+  if (_activeOverlay) closeOverlay(); // close scanner / any open side panel
 
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
@@ -21164,6 +21201,7 @@ const _SCAN_DETECTORS = [_scanICT, _scanSMC, _scanSupplyDemand, _scanSR, _scanMA
                          _scanPriceAction, _scanBreakout, _scanFibonacci, _scanRSIMomentum, _scanWyckoff];
 
 async function tapScanCurrentChart() {
+  if (_tapScanInFlight) return; // prevent concurrent runs (race condition guard)
   if (!_supa || !curData?.length || curData.length < 60) return;
   const sym = _tapNormSym(curSym?.s || '');
   const tf  = curTF;
@@ -21176,6 +21214,8 @@ async function tapScanCurrentChart() {
   const cooldownMs = { '1d': 86400000, '4h': 43200000, '1h': 14400000,
                        '30m': 7200000, '15m': 3600000, '5m': 1800000, '1m': 900000 }[tf] || 3600000;
   if (now - lastScan < cooldownMs) return;
+  // Set flag synchronously before any await — prevents all concurrent callers from passing cooldown
+  _tapScanInFlight = true;
   localStorage.setItem(lsKey, String(now));
 
   const bars = curData;
@@ -21213,19 +21253,23 @@ async function tapScanCurrentChart() {
     }
   }
 
-  if (!allSetups.length) return;
+  if (!allSetups.length) { _tapScanInFlight = false; return; }
 
   // Upload in batches — upsert so re-runs don't duplicate
   const BATCH = 50;
   let stored = 0;
-  for (let i = 0; i < allSetups.length; i += BATCH) {
-    try {
-      const { error } = await _supa.from('apex_analyses')
-        .upsert(allSetups.slice(i, i + BATCH), { onConflict: 'id', ignoreDuplicates: true });
-      if (!error) stored += Math.min(BATCH, allSetups.length - i);
-    } catch(e) { /* Supabase unavailable */ }
+  try {
+    for (let i = 0; i < allSetups.length; i += BATCH) {
+      try {
+        const { error } = await _supa.from('apex_analyses')
+          .upsert(allSetups.slice(i, i + BATCH), { onConflict: 'id', ignoreDuplicates: true });
+        if (!error) stored += Math.min(BATCH, allSetups.length - i);
+      } catch(e) { /* Supabase unavailable */ }
+    }
+    if (stored > 0) console.log(`[ApexFX] Incremental scan: +${stored} setups for ${sym} ${tf}`);
+  } finally {
+    _tapScanInFlight = false;
   }
-  if (stored > 0) console.log(`[ApexFX] Incremental scan: +${stored} setups for ${sym} ${tf}`);
 }
 
 // ══ TRADE ANALYSIS POPUP ══════════════════════════════════════════════════════
@@ -21374,6 +21418,7 @@ function tapHasLock(sym){
 
 let _tapDrawing = null;  // drawing currently in popup/modal
 let _tapLastRagMatches = []; // RAG matches from last tapGenerateAI — used by refinement
+let _tapScanInFlight = false; // guard against concurrent incremental scans
 
 // ── Blocked toast — shown when user tries to place a second trade on same symbol ──
 function tapShowBlockedToast(){
