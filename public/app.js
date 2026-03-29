@@ -20823,14 +20823,23 @@ function tapShowRefinementOnChart(){
   }
 
   // ── Step 2: Fill gaps — always stay within the original trade's concept ────
-  // Entry: AI suggestion → nearest S/R close to original entry → original entry
+  // Entry: AI suggestion → nearest S/R that IMPROVES the entry → original entry
+  // For LONG: want to enter LOWER (at support) — better price
+  // For SHORT: want to enter HIGHER (at resistance) — better price
   if(!suggestedEntry){
     if(isLong){
-      const cands = sr.support.filter(s => s < d.price && s > d.price * 0.97);
+      // Find support below current entry but not too far (within 2%)
+      const cands = sr.support.filter(s => s < d.price && s > d.price * 0.98);
       suggestedEntry = cands.length ? cands.sort((a,b) => b-a)[0] : d.price;
     } else {
-      const cands = sr.resistance.filter(r => r > d.price && r < d.price * 1.03);
-      suggestedEntry = cands.length ? cands.sort((a,b) => a-b)[0] : d.price;
+      // Find resistance ABOVE current entry (within 2%) for a better short entry
+      const candsAbove = sr.resistance.filter(r => r > d.price && r < d.price * 1.02);
+      if(candsAbove.length){
+        suggestedEntry = candsAbove.sort((a,b) => a-b)[0]; // nearest resistance above
+      } else {
+        // No resistance above — keep original entry rather than moving it lower
+        suggestedEntry = d.price;
+      }
     }
   }
 
