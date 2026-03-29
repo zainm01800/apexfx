@@ -507,6 +507,76 @@ function tapBuildPlacedTradeDrawing(levels, stateInfo, tf, extras = {}){
     _expiryBars: expiryBars,
     _expectedHoldBars: expectedHoldBars,
     _ageBarsAtPlacement: stateInfo.ageBars ?? 0,
+    _projectedFromState: extras.projectedFromState || null,
+    _projectionKind: extras.projectionKind || null,
+    _originalTradeState: extras.originalTradeState || stateInfo.state,
+  };
+}
+
+function tapProjectFutureAISPlacement(placement, stateInfo, data, tf){
+  if(!Array.isArray(data) || !data.length) return null;
+  const isLong = placement.dir === 'bull' || placement.dir === 'long';
+  const last = data[data.length - 1];
+  const atrSeries = calcATR(data);
+  const atr = Math.max(1e-9, atrSeries?.[atrSeries.length - 1] || Math.abs(Number(placement.entry) - Number(placement.sl)) || Math.abs(last.close) * 0.005);
+  const sr = detectSR(data);
+  const origRisk = Math.max(Math.abs(Number(placement.entry) - Number(placement.sl)), atr * 0.8);
+  const origRR = Math.max(1.3, Math.min(4, Math.abs(Number(placement.target) - Number(placement.entry)) / Math.max(origRisk, 1e-9) || 2));
+  const recentSlice = data.slice(Math.max(0, data.length - Math.max(16, setupVisualHalfBars(tf) * 2)));
+  const recentLow = Math.min(...recentSlice.map(b => b.low));
+  const recentHigh = Math.max(...recentSlice.map(b => b.high));
+  const entryGap = Math.max(atr * 0.45, Math.abs(last.close) * 0.0015);
+  const futureOffset = Math.max(2, Math.round(setupVisualHalfBars(tf) * 0.55));
+  const supportCandidates = (sr.support || [])
+    .filter(v => v < last.close - entryGap && v > last.close - Math.max(origRisk * 2.2, atr * 4))
+    .sort((a,b) => b - a);
+  const resistanceCandidates = (sr.resistance || [])
+    .filter(v => v > last.close + entryGap && v < last.close + Math.max(origRisk * 2.2, atr * 4))
+    .sort((a,b) => a - b);
+
+  let entry = null;
+  let sl = null;
+  let tp = null;
+
+  if(isLong){
+    entry = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 0.7, origRisk * 0.45), recentLow + atr * 0.4);
+    if(!(entry < last.close - entryGap)) return null;
+    sl = Math.min(entry - Math.max(atr * 0.9, origRisk * 0.8), recentLow - atr * 0.2);
+    if(!(sl < entry)) sl = entry - Math.max(atr * 0.9, origRisk * 0.8);
+    tp = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 1.4, origRisk * origRR), entry + Math.abs(entry - sl) * origRR);
+    if(!(tp > entry)) tp = entry + Math.abs(entry - sl) * Math.max(1.8, origRR);
+  } else {
+    entry = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 0.7, origRisk * 0.45), recentHigh - atr * 0.4);
+    if(!(entry > last.close + entryGap)) return null;
+    sl = Math.max(entry + Math.max(atr * 0.9, origRisk * 0.8), recentHigh + atr * 0.2);
+    if(!(sl > entry)) sl = entry + Math.max(atr * 0.9, origRisk * 0.8);
+    tp = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 1.4, origRisk * origRR), entry - Math.abs(entry - sl) * origRR);
+    if(!(tp < entry)) tp = entry - Math.abs(entry - sl) * Math.max(1.8, origRR);
+  }
+
+  if(!Number.isFinite(entry) || !Number.isFinite(sl) || !Number.isFinite(tp)) return null;
+  if(isLong ? !(sl < entry && tp > entry) : !(sl > entry && tp < entry)) return null;
+
+  const meta = {
+    ...(placement.meta || {}),
+    projectedFromState: stateInfo.state,
+    refinementType: 'projected_reentry',
+    refinementReason: `Original ${stateInfo.state.toLowerCase()} setup on ${tf.toUpperCase()} was converted into a fresh same-timeframe pullback continuation idea.`,
+    originalTradeState: stateInfo.state,
+  };
+
+  return {
+    ...placement,
+    entry,
+    sl,
+    target: tp,
+    entryBar: data.length - 1 + futureOffset,
+    createdBarIndex: data.length - 1,
+    createdCandleTime: Number(last.time) || Date.now(),
+    expiryBars: setupExpiryBars(tf),
+    expectedHoldBars: setupExpectedHoldBars(tf),
+    halfBars: setupVisualHalfBars(tf),
+    meta,
   };
 }
 
@@ -514,7 +584,7 @@ function placePendingAISetupOnActiveChart(tab){
   if(!tab?._pendingAISPlacement || !curData?.length) return false;
   const placement = tab._pendingAISPlacement;
   const tf = placement.tf || curTF;
-  const stateInfo = tapClassifyTradeLevels({
+  const originalStateInfo = tapClassifyTradeLevels({
     dir: placement.dir,
     entry: placement.entry,
     sl: placement.sl,
@@ -522,6 +592,9 @@ function placePendingAISetupOnActiveChart(tab){
     halfBars: placement.halfBars || defaultTradeToolHalfBars(tf),
     entryBar: placement.entryBar,
   }, curData, tf);
+  let placementToDraw = placement;
+  let stateInfo = originalStateInfo;
+  let projectedFromState = null;
 
   if(placement.setupKey){
     const existing = drawings.find(d => d._aisSetupKey && d._aisSetupKey === placement.setupKey);
@@ -534,11 +607,44 @@ function placePendingAISetupOnActiveChart(tab){
     }
   }
 
+  if(originalStateInfo.state !== 'PENDING'){
+    const projectedPlacement = tapProjectFutureAISPlacement(placement, originalStateInfo, curData, tf);
+    if(!projectedPlacement){
+      delete tab._pendingAISPlacement;
+      toast(`This ${originalStateInfo.state.toLowerCase()} setup could not be converted into a valid future re-entry on ${tf.toUpperCase()}.`);
+      return false;
+    }
+    const projectedState = tapClassifyTradeLevels({
+      dir: projectedPlacement.dir,
+      entry: projectedPlacement.entry,
+      sl: projectedPlacement.sl,
+      tp: projectedPlacement.target,
+      halfBars: projectedPlacement.halfBars || setupVisualHalfBars(tf),
+      entryBar: projectedPlacement.entryBar,
+      createdBarIndex: projectedPlacement.createdBarIndex,
+      createdCandleTime: projectedPlacement.createdCandleTime,
+      expiryBars: projectedPlacement.expiryBars,
+      expectedHoldBars: projectedPlacement.expectedHoldBars,
+    }, curData, tf);
+    if(projectedState.state !== 'PENDING'){
+      delete tab._pendingAISPlacement;
+      toast(`This ${originalStateInfo.state.toLowerCase()} setup does not have a clean future re-entry yet on ${tf.toUpperCase()}.`);
+      return false;
+    }
+    placementToDraw = projectedPlacement;
+    stateInfo = projectedState;
+    projectedFromState = originalStateInfo.state;
+  }
+
   drawings = drawings.filter(d => !d._aisPlaced);
   const drawing = tapBuildPlacedTradeDrawing({
-    ...placement,
-    sym: placement.sym || curSym?.s,
-  }, { ...stateInfo, data: curData }, tf);
+    ...placementToDraw,
+    sym: placementToDraw.sym || curSym?.s,
+  }, { ...stateInfo, data: curData }, tf, {
+    projectedFromState,
+    projectionKind: projectedFromState ? 'future_reentry' : null,
+    originalTradeState: originalStateInfo.state,
+  });
   drawings.push(drawing);
   saveDrawings(curSym.s, curTF);
   tab.drawings = drawings.map(drawingToTime);
@@ -549,11 +655,7 @@ function placePendingAISetupOnActiveChart(tab){
   rightBarIndex = tab.rightBarIndex;
   priceHi = null;
   priceLo = null;
-  if(stateInfo.state === 'ACTIVE') toast('This setup is already active, so it was opened on chart in active state.');
-  else if(stateInfo.state === 'MISSED') toast('This setup is already missed, so it was opened on chart as missed context.');
-  else if(stateInfo.state === 'EXPIRED') toast('This setup has expired on its original timeframe, so it was opened as expired context.');
-  else if(stateInfo.state === 'COMPLETED') toast('This setup already completed, so it was opened on chart as completed context.');
-  else if(stateInfo.state === 'STOPPED') toast('This setup already stopped out, so it was opened on chart as stopped context.');
+  if(projectedFromState) toast(`Original ${projectedFromState.toLowerCase()} setup converted into a future ${drawing.type.toUpperCase()} re-entry on ${tf.toUpperCase()}.`);
   delete tab._pendingAISPlacement;
   return true;
 }
