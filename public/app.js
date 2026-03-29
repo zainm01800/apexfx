@@ -22696,18 +22696,31 @@ async function openFullTradeAnalysis(){
     clearInterval(_tapAiCountdownTimer);
     _tapAiCountdownTimer = setInterval(() => {
       const qEl = document.getElementById('tap-ai-queue-status');
-      const rlEl = document.getElementById('tap-ai-rate-limit');
       if(!qEl){ clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null; return; }
       const pos = tapAiQueue.findIndex(q => q.key === _aiQueueKey) + 1;
       const cooldownLeft = tapAiCooldownUntil > Date.now() ? Math.ceil((tapAiCooldownUntil - Date.now()) / 1000) : 0;
-      if(rlEl){
-        rlEl.style.display = cooldownLeft > 0 ? 'block' : 'none';
-        if(cooldownLeft > 0) rlEl.textContent = `Groq limit reached — retrying automatically in ~${cooldownLeft}s`;
+
+      // Ensure rate-limit banner exists in DOM — creates it on first 429 even if skeleton was already shown
+      let rlEl = document.getElementById('tap-ai-rate-limit');
+      if(cooldownLeft > 0 && !rlEl){
+        rlEl = document.createElement('div');
+        rlEl.id = 'tap-ai-rate-limit';
+        rlEl.style.cssText = 'font-family:ui-monospace,"SF Mono",monospace;font-size:10px;color:var(--am);padding:0 0 8px;letter-spacing:.3px;';
+        qEl.parentNode.insertBefore(rlEl, qEl.nextSibling);
       }
+      if(rlEl){
+        if(cooldownLeft > 0){
+          rlEl.style.display = 'block';
+          rlEl.textContent = `Groq rate limited — retrying automatically in ${cooldownLeft}s`;
+        } else {
+          rlEl.style.display = 'none';
+        }
+      }
+
       if(cooldownLeft > 0){
         qEl.textContent = pos > 0
-          ? `Queued for retry — position ${pos}`
-          : `Waiting for Groq cooldown…`;
+          ? `Queued (pos ${pos}) — resuming in ${cooldownLeft}s`
+          : `Rate limited — resuming in ${cooldownLeft}s`;
       } else if(pos > 0){
         const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
         qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
