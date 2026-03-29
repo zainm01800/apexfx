@@ -22751,6 +22751,8 @@ async function openFullTradeAnalysis(){
         }
       }
 
+      const elapsedSec = Math.round((Date.now() - _aiStarted) / 1000);
+
       if(cooldownLeft > 0){
         qEl.textContent = pos > 0
           ? `Queued (pos ${pos}) — resuming in ${cooldownLeft}s`
@@ -22759,8 +22761,25 @@ async function openFullTradeAnalysis(){
         const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
         qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
       } else {
-        const elapsedSec = Math.round((Date.now() - _aiStarted) / 1000);
-        qEl.textContent = `Analyzing\u2026 (${elapsedSec}s)`;
+        qEl.textContent = `Analyzing\u2026 (${elapsedSec}s elapsed)`;
+      }
+
+      // Update compact-view subtitle + progress bar so the user can see it loading
+      const subEl = document.getElementById('tap-verdict-sub');
+      const barEl = document.getElementById('tap-verdict-bar');
+      if(subEl && subEl.textContent.startsWith('AI is reviewing')){
+        if(cooldownLeft > 0){
+          subEl.textContent = `Rate limited — retrying in ${cooldownLeft}s`;
+        } else if(pos > 0){
+          subEl.textContent = `Queued — position ${pos} in line`;
+        } else {
+          subEl.textContent = `AI is reviewing your setup · ${elapsedSec}s`;
+        }
+      }
+      // Animate progress bar: fills to ~90% over 45s then holds until done
+      if(barEl && barEl.style.width !== '100%'){
+        const pct = Math.min(90, Math.round((1 - Math.exp(-elapsedSec / 45)) * 100));
+        barEl.style.width = pct + '%';
       }
     }, 500);
 
