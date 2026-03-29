@@ -19873,6 +19873,8 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
   const targetTf = tf || curTF;
+  // Stable key for this exact setup — used to prevent re-placing on repeat clicks
+  const _aisSetupKey = `${sym}|${dir}|${(+entry).toFixed(5)}|${(+sl).toFixed(5)}|${(+target).toFixed(5)}|${targetTf}`;
   const setupRef = aisSetups.find(x => x.sym === sym && x.tf === targetTf);
   const targetTabId = createChartTab(sym, targetTf);
   const targetTab = chartTabs.find(t => t.id === targetTabId);
@@ -19912,6 +19914,16 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
     const bars = (realBars && realBars.length > 0) ? realBars : curData;
     if(!bars.length) return;
 
+    // ── Idempotent: if this exact setup is already drawn, just scroll to it ──
+    const existing = drawings.find(d => d._aisSetupKey === _aisSetupKey);
+    if (existing) {
+      rightBarIndex = existing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
+      priceHi = null; priceLo = null;
+      syncActiveChartTabRuntimeState(true);
+      draw();
+      return;
+    }
+
     const barIdx   = bars.length - 1;
     const placementBarsByTf = { '1m': 18, '5m': 16, '15m': 14, '1h': 12, '4h': 10, '1d': 8, '1w': 6, '1M': 4 };
     const halfBars = Math.max(8, placementBarsByTf[targetTf] || 12);
@@ -19950,6 +19962,7 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
       halfBars,
       halfDuration: halfBarsToSecs(halfBars, targetTf),
       _aisPlaced: true,
+      _aisSetupKey,  // stable key — prevents re-placement on repeat clicks
       _aisMeta: setupRef ? {
         source: 'ai-setups',
         sym: setupRef.sym,
