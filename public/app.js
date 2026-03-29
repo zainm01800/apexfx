@@ -231,7 +231,7 @@ const SYMS=[
   {s:'AVAX/USD', n:'Avalanche',     e:'CRYPTO', t:'Crypto', p:8.64,   c:0},
   {s:'LINK/USD', n:'Chainlink',     e:'CRYPTO', t:'Crypto', p:8.42,   c:0},
   {s:'DOT/USD',  n:'Polkadot',      e:'CRYPTO', t:'Crypto', p:1.26,   c:0},
-  {s:'MATIC/USD',n:'Polygon',       e:'CRYPTO', t:'Crypto', p:0.379,  c:0},
+  {s:'POL/USD',  n:'Polygon (POL)',  e:'CRYPTO', t:'Crypto', p:0.092,  c:0},
   {s:'UNI/USD',  n:'Uniswap',       e:'CRYPTO', t:'Crypto', p:3.36,   c:0},
   {s:'LTC/USD',  n:'Litecoin',      e:'CRYPTO', t:'Crypto', p:53.5,   c:0},
   {s:'ATOM/USD', n:'Cosmos',        e:'CRYPTO', t:'Crypto', p:1.64,   c:0},
