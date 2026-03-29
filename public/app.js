@@ -12815,6 +12815,33 @@ document.addEventListener('keydown', e=>{
     saveDrawings(curSym.s,curTF);
     selectedDrawing=null; selectedDrawings=[]; draw();
   }
+  // Arrow keys — nudge selected drawing 1 bar left/right, or small price step up/down
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='ArrowUp'||e.key==='ArrowDown') && selectedDrawing){
+    e.preventDefault();
+    const d = selectedDrawing;
+    const dBar  = e.key==='ArrowLeft' ? -1 : e.key==='ArrowRight' ? 1 : 0;
+    const priceStep = ((priceHi||0)-(priceLo||0)) / 200 || (d.price||1) * 0.001;
+    const dPrice = e.key==='ArrowUp' ? priceStep : e.key==='ArrowDown' ? -priceStep : 0;
+    // shift bar position for all drawing types
+    if(dBar !== 0){
+      if(d.bar  !== undefined) d.bar  += dBar;
+      if(d.bar1 !== undefined) d.bar1 += dBar;
+      if(d.bar2 !== undefined) d.bar2 += dBar;
+    }
+    // shift price for all drawing types
+    if(dPrice !== 0){
+      if(d.price  !== undefined) d.price  += dPrice;
+      if(d.price1 !== undefined) d.price1 += dPrice;
+      if(d.price2 !== undefined) d.price2 += dPrice;
+      if(d.priceHigh !== undefined) d.priceHigh += dPrice;
+      if(d.priceLow  !== undefined) d.priceLow  += dPrice;
+      // trade tool levels move together
+      if(d.sl !== undefined) d.sl += dPrice;
+      if(d.tp !== undefined) d.tp += dPrice;
+    }
+    saveDrawings(curSym.s, curTF);
+    draw();
+  }
 });
 
 function clearDrawings(){
@@ -21183,22 +21210,17 @@ function tapShowRefinementOnChartLegacy(){
     halfDuration: halfBarsToSecs(halfBars, curTF),
     tf:           curTF,
     id:           'tap-refine-' + Date.now(),
-    _tapRefinement: true,                      // marks it as temporary
-    _noSave:        true,                      // excluded from localStorage
+    _tapRefinement: true,                      // replaced when a new refinement is placed
     _refinementLabel: true,                    // tells renderer to show "AI Refined" badge
   };
 
+  drawings = drawings.filter(x => !x._tapRefinement); // replace any prior refinement
   drawings.push(refinementDraw);
+  saveDrawings(curSym.s, curTF);
   draw();
 
   const rr = riskAmt > 0 ? (Math.abs(suggestedTP - suggestedEntry) / riskAmt).toFixed(2) : '—';
   toast(`📍 AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
-
-  // Auto-remove after 90 seconds to keep chart clean
-  setTimeout(() => {
-    drawings = drawings.filter(x => !x._tapRefinement);
-    draw();
-  }, 90000);
 }
 
 async function tapEnsureTradeContextOnChart(sym, tf){
@@ -21226,20 +21248,16 @@ function tapIsDirectionallyValidRefinement(isLong, entry, sl, tp){
 function tapPlaceRefinementDrawing(drawing, sourceState, mode, message){
   drawings = drawings.filter(x => !x._tapRefinement);
   drawing._tapRefinement = true;
-  drawing._noSave = true;
   drawing._refinementLabel = true;
   drawing._refinementMode = mode;
   drawing._refinementState = sourceState;
   drawings.push(drawing);
+  saveDrawings(curSym.s, curTF);
   rightBarIndex = drawing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
   priceHi = null;
   priceLo = null;
   draw();
   if(message) toast(message);
-  setTimeout(() => {
-    drawings = drawings.filter(x => !x._tapRefinement);
-    draw();
-  }, 90000);
 }
 
 async function tapShowRefinementOnChart(){
