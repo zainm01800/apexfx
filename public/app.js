@@ -541,16 +541,16 @@ function tapProjectFutureAISPlacement(placement, stateInfo, data, tf){
   if(isLong){
     entry = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 0.7, origRisk * 0.45), recentLow + atr * 0.4);
     if(!(entry < last.close - entryGap)) return null;
-    sl = Math.min(entry - Math.max(atr * 0.9, origRisk * 0.8), recentLow - atr * 0.2);
-    if(!(sl < entry)) sl = entry - Math.max(atr * 0.9, origRisk * 0.8);
-    tp = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 1.4, origRisk * origRR), entry + Math.abs(entry - sl) * origRR);
+    sl = Math.min(entry - Math.max(atr * 1.5, origRisk * 1.0), recentLow - atr * 0.5);
+    if(!(sl < entry)) sl = entry - Math.max(atr * 1.5, origRisk * 1.0);
+    tp = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 2.5, origRisk * origRR), entry + Math.abs(entry - sl) * origRR);
     if(!(tp > entry)) tp = entry + Math.abs(entry - sl) * Math.max(1.8, origRR);
   } else {
     entry = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 0.7, origRisk * 0.45), recentHigh - atr * 0.4);
     if(!(entry > last.close + entryGap)) return null;
-    sl = Math.max(entry + Math.max(atr * 0.9, origRisk * 0.8), recentHigh + atr * 0.2);
-    if(!(sl > entry)) sl = entry + Math.max(atr * 0.9, origRisk * 0.8);
-    tp = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 1.4, origRisk * origRR), entry - Math.abs(entry - sl) * origRR);
+    sl = Math.max(entry + Math.max(atr * 1.5, origRisk * 1.0), recentHigh + atr * 0.5);
+    if(!(sl > entry)) sl = entry + Math.max(atr * 1.5, origRisk * 1.0);
+    tp = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 2.5, origRisk * origRR), entry - Math.abs(entry - sl) * origRR);
     if(!(tp < entry)) tp = entry - Math.abs(entry - sl) * Math.max(1.8, origRR);
   }
 
