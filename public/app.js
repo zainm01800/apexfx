@@ -12664,9 +12664,11 @@ function drawingFromTime(d) {
 function _drawKey(sym,tf){ return `drawings-${sym}`; }
 function saveDrawings(sym,tf){
   try{
-    // Exclude temporary refinement/overlay annotations (_noSave) from persistence
     const portable = drawings.filter(d => !d._noSave).map(drawingToTime);
     _lsSet(_drawKey(sym,tf), JSON.stringify(portable));
+    // Keep in-memory tab.drawings in sync so tab switches don't lose unsaved drawings
+    const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+    if(activeTab && curSym?.s === sym) activeTab.drawings = portable;
   }catch(e){}
   // Use cached AI panel data — force=false prevents Groq re-calls on drawing move/save
   if(curSym?.s === sym && curTF === tf) buildAIPanel(false);
