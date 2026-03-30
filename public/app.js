@@ -758,7 +758,7 @@ function switchChartTab(id, skipSave, options = {}){
     if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    if(options.focusLatest || datasetChanged){
+    if(options.focusLatest){
       rightBarIndex = curData.length + 5;
       priceHi = null;
       priceLo = null;
@@ -767,7 +767,7 @@ function switchChartTab(id, skipSave, options = {}){
       priceHi = tab.priceHi ?? null;
       priceLo = tab.priceLo ?? null;
     }
-    normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
+    normalizeChartViewportForCurrentData(!!options.focusLatest);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     placePendingAISetupOnActiveChart(tab);
     drawingWIP = null;
