@@ -1141,10 +1141,13 @@ function getXAxisTick(d, prev, tf){
 // ══ AI PATTERN RECOGNITION ════════════════════════════════════════════════════
 function detectSR(data){
   const support=[],resistance=[];
-  for(let i=2;i<data.length-2;i++){
-    if(data[i].low<data[i-1].low&&data[i].low<data[i-2].low&&data[i].low<data[i+1].low&&data[i].low<data[i+2].low)
+  // Use a 3-bar lookback on each side (6-bar window) for more significant swing highs/lows
+  for(let i=3;i<data.length-3;i++){
+    if(data[i].low<data[i-1].low&&data[i].low<data[i-2].low&&data[i].low<data[i-3].low&&
+       data[i].low<data[i+1].low&&data[i].low<data[i+2].low&&data[i].low<data[i+3].low)
       support.push(data[i].low);
-    if(data[i].high>data[i-1].high&&data[i].high>data[i-2].high&&data[i].high>data[i+1].high&&data[i].high>data[i+2].high)
+    if(data[i].high>data[i-1].high&&data[i].high>data[i-2].high&&data[i].high>data[i-3].high&&
+       data[i].high>data[i+1].high&&data[i].high>data[i+2].high&&data[i].high>data[i+3].high)
       resistance.push(data[i].high);
   }
   const cluster=(levels,thr=0.005)=>{
@@ -21373,11 +21376,20 @@ async function tapShowRefinementOnChart(){
   }
 
   const refinedEntry = Number.isFinite(refinement.entry) ? refinement.entry : d.price;
-  const refinedSL = Number.isFinite(refinement.sl) ? refinement.sl : d.sl;
+  let refinedSL = Number.isFinite(refinement.sl) ? refinement.sl : d.sl;
   const refinedTP = refinement.keepOriginalTarget ? d.tp : (Number.isFinite(refinement.tp) ? refinement.tp : d.tp);
   if(!tapIsDirectionallyValidRefinement(isLong, refinedEntry, refinedSL, refinedTP)){
     toast('AI refinement did not return a valid pending entry structure.');
     return;
+  }
+  // Reject refinements that significantly worsen R:R — must be ≥1.5:1 and not below 80% of original
+  const origRR  = Math.abs(d.tp - d.price) / Math.max(Math.abs(d.sl - d.price), 1e-9);
+  const refRR   = Math.abs(refinedTP - refinedEntry) / Math.max(Math.abs(refinedSL - refinedEntry), 1e-9);
+  const minRR   = Math.max(1.5, origRR * 0.8);
+  if(refRR < minRR){
+    // Widen SL to hit minimum R:R instead of rejecting — keep the refined entry/TP
+    const neededRisk = Math.abs(refinedTP - refinedEntry) / minRR;
+    refinedSL = isLong ? refinedEntry - neededRisk : refinedEntry + neededRisk;
   }
   const refinedState = tapClassifyTradeLevels({
     type: d.type,
@@ -24211,6 +24223,9 @@ Rules for REFINEMENT_JSON:
   - For EXPIRED, use reject or post_trade_review; do not output a live setup.
   - For COMPLETED or STOPPED, use post_trade_review with entry/sl/tp all null.
   - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
+  - SL PLACEMENT RULE: Always place the stop loss BEYOND the nearest significant swing high (for shorts) or swing low (for longs) from the S/R levels provided — not just ATR-based. The SL must clear that structural level by at least 0.2× ATR so a wick cannot clip it. A tight SL that sits inside a S/R zone will be stopped out by normal volatility.
+  - R:R RULE: The refined R:R must be at least 1.5:1. Do not tighten the stop or move the target closer if doing so drops R:R below 1.5:1. If you cannot achieve 1.5:1 with a structurally sound SL, widen the TP instead.
+  - IMPROVEMENT RULE: Only output a refined entry/sl/tp if the refinement genuinely improves on the original. If the original levels are already optimal, set keepOriginalTarget:true and adjust only what is necessary.
 Do not add any text after REFINEMENT_JSON.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
