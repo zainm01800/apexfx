@@ -21295,7 +21295,6 @@ async function tapShowRefinementOnChart(){
   const isLong = d.type === 'long';
   const atrVals = calcATR(analysisData);
   const atr = atrVals?.[atrVals.length - 1] || Math.abs(d.price - d.sl) || d.price * 0.01;
-  const preserveWindow = Math.max(Math.abs(d.price - d.sl) * 2, atr * 2.5);
 
   if(effectiveState === 'COMPLETED' || effectiveState === 'STOPPED'){
     selectedDrawing = d;
@@ -21378,10 +21377,6 @@ async function tapShowRefinementOnChart(){
   const refinedTP = refinement.keepOriginalTarget ? d.tp : (Number.isFinite(refinement.tp) ? refinement.tp : d.tp);
   if(!tapIsDirectionallyValidRefinement(isLong, refinedEntry, refinedSL, refinedTP)){
     toast('AI refinement did not return a valid pending entry structure.');
-    return;
-  }
-  if(Math.abs(refinedEntry - d.price) > preserveWindow){
-    toast('Refinement was rejected because it drifted too far from the original setup context.');
     return;
   }
   const refinedState = tapClassifyTradeLevels({
