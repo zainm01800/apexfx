@@ -1672,8 +1672,8 @@ function renderAIPanel(r){
     _hero.style.background = bias==='BULLISH'?'rgba(0,201,160,.05)':bias==='BEARISH'?'rgba(240,48,96,.05)':'rgba(245,166,35,.05)';
     _heroLabel.textContent = bias + ' BIAS';
     _heroLabel.style.color = _hCol;
-    _heroSub.textContent = top ? `Top signal: ${top.name} Â· ${(top.conf*100).toFixed(0)}% conf Â· ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
-    if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'â–²':bias==='BEARISH'?'â–¼':'â—†';
+    _heroSub.textContent = top ? `Top signal: ${top.name} · ${(top.conf*100).toFixed(0)}% conf · ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
+    if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
     if(_heroIcon) _heroIcon.style.color = _hCol;
   }
 }
@@ -2269,12 +2269,12 @@ function buildJournal(){
         ${(e.tags&&e.tags.length)?`<div style="margin-bottom:5px;">${e.tags.map(t=>`<span style="font-size:11px;padding:1px 5px;border-radius:8px;background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.25);color:var(--bl);margin-right:3px;font-family:monospace;">${t}</span>`).join('')}</div>`:''}
         ${(e.patterns&&e.patterns.length)?`<div style="margin-bottom:5px;">${e.patterns.map(p=>`<span style="font-size:11px;padding:1px 4px;border-radius:2px;background:var(--bg5);color:var(--am);margin-right:3px;">${p}</span>`).join('')}</div>`:''}
         ${e.note?`<div style="font-size:11px;color:var(--tx2);font-style:italic;margin-bottom:4px;line-height:1.4;">"${e.note}"</div>`:''}
-        ${e.lessons?`<div style="font-size:11px;color:var(--tl);margin-bottom:4px;line-height:1.4;">ðŸ’¡ ${e.lessons}</div>`:''}
+        ${e.lessons?`<div style="font-size:11px;color:var(--tl);margin-bottom:4px;line-height:1.4;">Tip: ${e.lessons}</div>`:''}
         <div style="font-size:11px;color:var(--tx2);">${new Date(e.time).toLocaleString()}</div>
         ${e.screenshot?`<img class="jentry-thumb" src="${e.screenshot}" onclick="viewSnap('${e.id}')" title="Click to fullscreen">`:''}
         ${!e.archived?`<div style="margin-top:7px;border-top:1px solid var(--b1);padding-top:7px;display:flex;gap:5px;">
-          <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">ðŸ”¬ AI Autopsy</button>
-          ${e.outcome==='loss'?`<button onclick="event.stopPropagation();whyDidILose('${e.id}')" class="wdil-btn">â“ Why did I lose?</button>`:''}
+          <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">AI Autopsy</button>
+          ${e.outcome==='loss'?`<button onclick="event.stopPropagation();whyDidILose('${e.id}')" class="wdil-btn">Why did I lose?</button>`:''}
         </div>
         <div id="autopsy-${e.id}" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:3px;border-left:3px solid var(--am);font-size:11px;line-height:1.7;color:var(--tx2);white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
         `:''}
@@ -24083,7 +24083,7 @@ function tapRenderMethodBadge(analysisText) {
     'Wyckoff':           { bg: 'rgba(139,92,246,.15)',  border: 'rgba(139,92,246,.45)',  text: '#a78bfa' },
   };
   const col = methodColors[mj.method] || { bg: 'rgba(136,153,176,.12)', border: 'rgba(136,153,176,.35)', text: 'var(--tx2)' };
-  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' Â· ') : '';
+  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' · ') : '';
 
   const badge = document.createElement('div');
   badge.id = 'tap-method-badge';
@@ -24093,7 +24093,7 @@ function tapRenderMethodBadge(analysisText) {
     `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${mj.method_verdict ? '6px' : '0'};">` +
       `<div style="display:flex;align-items:center;gap:8px;">` +
         `<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:.5px;color:${col.text};">` +
-          `ðŸ“Š ${mj.method.toUpperCase()}</span>` +
+          `${mj.method.toUpperCase()}</span>` +
         (signals ? `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${signals}</span>` : '') +
       `</div>` +
       `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '—'}% match</span>` +
@@ -24133,8 +24133,8 @@ async function tapRenderHistoricalStatsBadge(d) {
           `<div style="height:100%;width:${stats.winRate}%;border-radius:2px;background:${wrCol};"></div>` +
         `</div>` +
         `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">` +
-          `${stats.tpCount} TP hit Â· ${stats.slCount} SL hit` +
-          (stats.topMethod ? ` Â· Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
+          `${stats.tpCount} TP hit · ${stats.slCount} SL hit` +
+          (stats.topMethod ? ` · Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
         `</span>` +
       `</div>` +
     `</div>`;
@@ -24144,9 +24144,9 @@ async function tapRenderHistoricalStatsBadge(d) {
 
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
-  // Use the TF the drawing was placed on â€” fall back to curTF if not stored
+  // Use the TF the drawing was placed on — fall back to curTF if not stored
   const drawingTF = d.tf || tapAnalysisCache[curSym.s]?.tf || curTF;
-  // Use the data for that specific TF from cache â€” fall back to curData
+  // Use the data for that specific TF from cache — fall back to curData
   const analysisData = (drawingTF === curTF)
     ? curData
     : (dataCache[curSym.s+'_'+drawingTF] || curData);
@@ -24154,20 +24154,20 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const pats   = detectPatterns(analysisData);
   const sr     = detectSR(analysisData);
   const rsiV   = calcRSI(analysisData);
-  const rsi    = rsiV[n-1]?.toFixed(1) || 'â€”';
+  const rsi    = rsiV[n-1]?.toFixed(1) || '—';
   const atrV   = calcATR(analysisData);
   const atr    = atrV[n-1] || 0;
   const sma20  = calcSMA(analysisData, 20);
   const sma50  = calcSMA(analysisData, 50);
   const macdV  = calcMACD(analysisData);
   const lastMACD = macdV[n-1];
-  const macdLine = lastMACD?.macd?.toFixed(5) || 'â€”';
-  const macdSig  = lastMACD?.signal?.toFixed(5) || 'â€”';
-  const macdHist = lastMACD?.hist?.toFixed(5) || 'â€”';
+  const macdLine = lastMACD?.macd?.toFixed(5) || '—';
+  const macdSig  = lastMACD?.signal?.toFixed(5) || '—';
+  const macdHist = lastMACD?.hist?.toFixed(5) || '—';
   const macdDir  = lastMACD?.hist > 0 ? 'Bullish momentum' : lastMACD?.hist < 0 ? 'Bearish momentum' : 'Neutral';
   const ema9V  = calcEMA(analysisData,9);  const ema9last  = ema9V[n-1];
   const ema21V = calcEMA(analysisData,21); const ema21last = ema21V[n-1];
-  const last3bars = analysisData.slice(-3).map(b => `${b.close>b.open?'Bullish':'Bearish'} (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' â†’ ');
+  const last3bars = analysisData.slice(-3).map(b => `${b.close>b.open?'Bullish':'Bearish'} (O:${fP(b.open)} H:${fP(b.high)} L:${fP(b.low)} C:${fP(b.close)})`).join(' → ');
   const topPats    = [...pats].sort((a,b)=>b.conf-a.conf).slice(0,2).map(p=>p.name);
   const tp     = (b) => (b.high + b.low + b.close) / 3;  // typical price helper
   const recentMove = n >= 6 ? ((tp(analysisData[n-1]) - tp(analysisData[n-6])) / tp(analysisData[n-6]) * 100).toFixed(2) : '0';
@@ -24233,10 +24233,10 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   const priceVsSma50 = sma50val ? (curPrice > sma50val ? `above SMA50 (${fP(sma50val)})` : `below SMA50 (${fP(sma50val)})`) : '';
   const entryVsSma   = sma20val ? (d.price > sma20val ? `above SMA20` : `below SMA20`) : '';
   const allPatsStr   = pats.length ? pats.map(p=>`${p.name} (${(p.conf*100).toFixed(0)}% conf, ${p.dir})`).join(', ') : 'none';
-  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED â€” STOPPED OUT' :
-                       tradeStatus?.includes('TP Hit') ? 'COMPLETED â€” TARGET HIT' :
+  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED — STOPPED OUT' :
+                       tradeStatus?.includes('TP Hit') ? 'COMPLETED — TARGET HIT' :
                        tradeStatus?.includes('Open')   ? 'ACTIVE / OPEN' :
-                       isFuture                        ? 'PENDING â€” NOT YET TRIGGERED' :
+                       isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
   const traderProfile = getTraderProfile();
   const drawingCtx = buildDrawingsContext(d, analysisData);
@@ -24278,20 +24278,20 @@ Originating Setup Context:
   // Tier 1 (â‰¥0.93 similarity, non-failed) â€” return stored analysis directly (FREE)
   if (_ragBest?.similarity >= 0.93 && _ragBest.analysis_text && _ragBest.outcome !== 'sl_hit') {
     const _simPct = (_ragBest.similarity * 100).toFixed(0);
-    const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? 'âœ“ TP Hit historically'
-                        : _ragBest.outcome === 'sl_hit' ? 'âœ— SL Hit historically' : 'Outcome pending';
-    const _ragNote = `\n\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n` +
-      `ðŸ§  RETRIEVED FROM SIMILAR PAST ANALYSIS Â· ${_simPct}% match\n` +
-      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} Â· ${_outcomeLabel}\n` +
-      `(No new Groq call â€” saved from your analysis history)`;
+    const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? 'TP hit historically'
+                        : _ragBest.outcome === 'sl_hit' ? 'SL hit historically' : 'Outcome pending';
+    const _ragNote = `\n\n-----------------------------------------\n` +
+      `Retrieved from similar past analysis · ${_simPct}% match\n` +
+      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} · ${_outcomeLabel}\n` +
+      `(No new Groq call — saved from your analysis history)`;
     return _ragBest.analysis_text + _ragNote;
   }
 
   // Tier 2 (0.75â€“0.92) â€” inject as few-shot context into the prompt
   const _ragCtx = (_ragBest?.similarity >= 0.75 && _ragBest.analysis_text)
-    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state Â· outcome: ${_ragBest.outcome || 'pending'}):\n` +
+    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state · outcome: ${_ragBest.outcome || 'pending'}):\n` +
       _ragBest.analysis_text.slice(0, 600) +
-      `\n[Apply similar reasoning â€” but re-evaluate with the live data above]\n`
+      `\n[Apply similar reasoning — but re-evaluate with the live data above]\n`
     : '';
 
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade â€” not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
@@ -25326,7 +25326,7 @@ const btState = {
 
 function openBacktester(){
   document.getElementById('bt-bg').classList.add('open');
-  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || 'â€”'} Â· ${curTF}`;
+  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '—'} · ${curTF}`;
   _btRenderBuilder();
 }
 function closeBacktester(){ document.getElementById('bt-bg').classList.remove('open'); }
@@ -25608,7 +25608,7 @@ function _btRenderResults({trades,equityCurve,stats}){
     <div class="bt-stats-grid">
       <div class="bt-stat"><div class="bt-stat-val" style="${pc(totalRetPct,true)}">${sign(totalRetPct)}${totalRetPct.toFixed(1)}%</div><div class="bt-stat-label">Net Return</div></div>
       <div class="bt-stat"><div class="bt-stat-val" style="color:${winRate>=50?'#00c9a0':'#ff4d6a'}">${winRate.toFixed(0)}%</div><div class="bt-stat-label">Win Rate</div></div>
-      <div class="bt-stat"><div class="bt-stat-val" style="color:${pf>=1?'#00c9a0':'#ff4d6a'}">${isFinite(pf)?pf.toFixed(2):'âˆž'}</div><div class="bt-stat-label">Profit Factor</div></div>
+      <div class="bt-stat"><div class="bt-stat-val" style="color:${pf>=1?'#00c9a0':'#ff4d6a'}">${isFinite(pf)?pf.toFixed(2):'∞'}</div><div class="bt-stat-label">Profit Factor</div></div>
       <div class="bt-stat"><div class="bt-stat-val" style="${pc(exp,true)}">${sign(exp)}${exp.toFixed(2)}R</div><div class="bt-stat-label">Expectancy</div></div>
       <div class="bt-stat"><div class="bt-stat-val">${n}</div><div class="bt-stat-label">Trades</div></div>
       <div class="bt-stat"><div class="bt-stat-val" style="color:#ff4d6a">-${maxDDPct.toFixed(1)}%</div><div class="bt-stat-label">Max Drawdown</div></div>
@@ -25621,15 +25621,15 @@ function _btRenderResults({trades,equityCurve,stats}){
     </div>
     <div class="bt-results-hdr" style="margin-top:14px">EQUITY CURVE</div>
     <canvas id="bt-eq-canvas" height="120" style="width:100%;display:block"></canvas>
-    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades Â· $${Math.round(startCapital).toLocaleString()} â†’ $${Math.round(finalEquity).toLocaleString()}</span></div>
+    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades · $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
     <div class="bt-trade-table">
       <div class="bt-trade-hdr"><span>#</span><span>Dir</span><span>Entry</span><span>Exit</span><span>Result</span><span>R</span><span>P&amp;L</span></div>
       <div class="bt-trade-rows">${trades.slice(0,300).map((t,i)=>{
         const rc=t.rMult>0?'#00c9a0':'#ff4d6a';
-        const res=t.reason==='tp'?'âœ“ TP':t.reason==='sl'?'âœ— SL':'â¸ Open';
+        const res=t.reason==='tp'?'TP':t.reason==='sl'?'SL':'Open';
         return `<div class="bt-trade-row ${t.rMult>0?'win':'loss'}">
           <span style="color:var(--tx3)">${i+1}</span>
-          <span style="color:${t.dir==='long'?'#00c9a0':'#ff4d6a'}">${t.dir==='long'?'â–²':'â–¼'} ${t.dir}</span>
+          <span style="color:${t.dir==='long'?'#00c9a0':'#ff4d6a'}">${t.dir==='long'?'▲':'▼'} ${t.dir}</span>
           <span>${fP(t.entry)}</span>
           <span>${fP(t.exitPrice)}</span>
           <span>${res}</span>
@@ -25974,7 +25974,7 @@ function ritualCheck(){
   const btn = document.getElementById('ritual-start-btn');
   if(btn){
     btn.disabled = ticked < total;
-    btn.textContent = ticked < total ? `${total-ticked} items remainingâ€¦` : 'â–¶ Start Trading Session';
+    btn.textContent = ticked < total ? `${total-ticked} items remaining...` : 'Start Trading Session';
   }
 }
 
@@ -25984,7 +25984,7 @@ function ritualComplete(){
   _lsSet('ritual-last-shown', new Date().toDateString());
   _ritualShownToday = true;
   closeRitualModal();
-  toast('â˜€ Ready to trade! Good luck today.');
+  toast('Ready to trade. Good luck today.');
   updateRiskStrip();
 }
 
@@ -26077,8 +26077,8 @@ function openSessionDebrief(){
   if(stats) stats.innerHTML=[
     { val: todayTrades.length, lbl:'Trades', col:'var(--tx)' },
     { val: wins+'W/'+losses+'L', lbl:'Win/Loss', col: wins>=losses?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : 'â€”', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : 'â€”', lbl:'Win Rate', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '—', lbl:'Win Rate', col:'var(--am)' },
   ].map(s=>`<div class="debrief-stat-card"><div class="debrief-stat-val" style="color:${s.col}">${s.val}</div><div class="debrief-stat-lbl">${s.lbl}</div></div>`).join('');
 
   const body = document.getElementById('debrief-body');
@@ -26090,7 +26090,7 @@ function openSessionDebrief(){
   body.innerHTML='<div style="color:var(--tx3);font-size:11px;">Generating AI debriefâ€¦</div>';
 
   // Build prompt for AI
-  const summary = todayTrades.map(e=>`${e.dir?.toUpperCase()||'?'} ${e.sym} @${e.entry} â†’ exit ${e.exit||'?'} | ${e.outcome||'open'} | P&L: ${e.pl!=null?e.pl.toFixed(2):'?'} | Notes: ${e.note||'none'}`).join('\n');
+  const summary = todayTrades.map(e=>`${e.dir?.toUpperCase()||'?'} ${e.sym} @${e.entry} → exit ${e.exit||'?'} | ${e.outcome||'open'} | P&L: ${e.pl!=null?e.pl.toFixed(2):'?'} | Notes: ${e.note||'none'}`).join('\n');
   const prompt = `You are a professional trading coach. Here is a trader's session summary for today:\n\n${summary}\n\nProvide a concise session debrief in 3 short paragraphs: (1) what went well, (2) what could be improved, (3) one key lesson for tomorrow. Be specific, encouraging, and honest. Keep total under 150 words.`;
 
   aiComplete([{role:'user',content:prompt}]).then(text=>{
@@ -26118,7 +26118,7 @@ function openDNACard(){
   const plVals = journal.filter(e=>e.pl!=null).map(e=>e.pl);
   const netPL = plVals.reduce((s,v)=>s+v,0);
   const rrVals = journal.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : 'â€”';
+  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
 
   // Username
   const user = typeof supabaseUser!=='undefined' ? supabaseUser : null;
@@ -26132,8 +26132,8 @@ function openDNACard(){
   const grid = document.getElementById('dna-stats-grid');
   if(grid) grid.innerHTML = [
     { val: wr+'%', lbl:'Win Rate', col: wr>=50?'var(--tl)':'var(--rd)' },
-    { val: avgRR==='â€”'?'â€”':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : 'â€”', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: avgRR==='—'?'—':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
   ].map(s=>`<div class="dna-stat-card"><div class="dna-stat-val" style="color:${s.col}">${s.val}</div><div class="dna-stat-lbl">${s.lbl}</div></div>`).join('');
 
   // Strengths (top tags by win rate)
@@ -26218,7 +26218,7 @@ function _renderTourStep(){
   document.getElementById('tour-body').textContent=step.body;
   document.getElementById('tour-step-label').textContent=`Step ${tourStep+1} of ${steps.length}`;
   document.getElementById('tour-prev-btn').style.opacity=tourStep===0?'0.3':'1';
-  document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish âœ“':'Next â†’';
+  document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish':'Next';
 
   // Spotlight + tooltip positioning
   const spot=document.getElementById('tour-spotlight');
@@ -26315,10 +26315,10 @@ function renderKanban(){
     const ideas=tradeIdeas.filter(t=>t.col===c.key);
     const cards=ideas.map(idea=>{
       const otherCols=cols.filter(x=>x.key!==c.key);
-      const moveBtns=otherCols.map(oc=>`<button class="kanban-move-btn" onclick="moveIdeaToCol('${idea.id}','${oc.key}')">â†’ ${oc.label.split(' ').slice(1).join(' ')}</button>`).join('');
+      const moveBtns=otherCols.map(oc=>`<button class="kanban-move-btn" onclick="moveIdeaToCol('${idea.id}','${oc.key}')">Move to ${oc.label.split(' ').slice(1).join(' ')}</button>`).join('');
       const dirBadge=idea.dir==='long'
-        ? `<span style="color:var(--tl);font-size:10px;font-family:monospace;">â–² LONG</span>`
-        : `<span style="color:var(--rd);font-size:10px;font-family:monospace;">â–¼ SHORT</span>`;
+        ? `<span style="color:var(--tl);font-size:10px;font-family:monospace;">▲ LONG</span>`
+        : `<span style="color:var(--rd);font-size:10px;font-family:monospace;">▼ SHORT</span>`;
       return `<div class="kanban-card">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span class="kanban-card-sym">${idea.sym}</span>
@@ -26328,7 +26328,7 @@ function renderKanban(){
         ${idea.notes?`<div class="kanban-card-notes">${idea.notes}</div>`:''}
         <div class="kanban-card-footer">
           ${moveBtns}
-          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">âœ•</button>
+          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">×</button>
         </div>
       </div>`;
     }).join('') || `<div style="color:var(--tx3);font-size:11px;text-align:center;padding:12px;opacity:.6;">Empty</div>`;
@@ -26358,7 +26358,7 @@ function updatePatternProgress(phase, method){
   el.innerHTML=steps.map((s,i)=>{
     const isDone=i<activeIdx;
     const isAct=i===activeIdx;
-    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'âœ“ ':isAct?'â—‰ ':'â—‹ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">â€º</span>':''}`;
+    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">›</span>':''}`;
   }).join('');
 }
 
@@ -26366,7 +26366,7 @@ function updatePatternProgress(phase, method){
 function updateMacroStrip(){
   const el=document.getElementById('macro-strip');
   if(!el||_macroStripDismissed) return;
-  // Static macro context â€” shows session info + bias
+  // Static macro context — shows session info + bias
   const sessions=[
     {name:'Asia',   start:22*60, end:6*60,    col:'#3d7fff'},
     {name:'London', start:7*60,  end:15*60+30,col:'#00c9a0'},
@@ -26395,8 +26395,8 @@ function updateMacroStrip(){
   el.innerHTML=`
     <div class="macro-pill"><span class="mp-label">SESSION</span>${sessHtml}</div>
     ${bias?`<div class="macro-pill"><span class="mp-label">BIAS</span><span style="color:var(--am);font-weight:600;">${bias}</span></div>`:''}
-    ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}â€¦</span></div>`:''}
-    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">âœ•</button>
+    ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}...</span></div>`:''}
+    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">×</button>
   `;
 }
 
@@ -26711,7 +26711,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
   if(bias && bias !== 'NEUTRAL'){
     const isUp  = bias === 'BULLISH';
     const col   = isUp ? 'rgba(0,201,160,' : 'rgba(240,48,96,';
-    const icon  = isUp ? 'â–²' : 'â–¼';
+    const icon  = isUp ? '▲' : '▼';
     const text  = icon + ' ' + (isUp ? 'Bullish' : 'Bearish');
     ctx.font = 'bold 9px monospace';
     const tw = ctx.measureText(text).width;
@@ -26740,7 +26740,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
       ctx.fillStyle = col;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(isUp ? 'â–²' : 'â–¼', bx2, arrowY);
+      ctx.fillText(isUp ? '▲' : '▼', bx2, arrowY);
     }
   }
 
