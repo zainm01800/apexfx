@@ -456,6 +456,9 @@ function tapBuildSetupContextMeta(meta = {}, placement = {}){
     sym: meta.sym || placement.sym || curSym?.s,
     tf: meta.tf || placement.tf || curTF,
     dir: meta.dir || placement.dir || null,
+    originalMethod: meta.originalMethod || meta.methodHint || meta.method || placement.originalMethod || placement.methodHint || placement.method || '',
+    methodHint: meta.methodHint || meta.originalMethod || meta.method || placement.methodHint || placement.originalMethod || placement.method || '',
+    methodCandidates: Array.isArray(meta.methodCandidates) ? meta.methodCandidates.slice(0, 4) : (Array.isArray(placement.methodCandidates) ? placement.methodCandidates.slice(0, 4) : []),
     originalEntry: Number.isFinite(Number(meta.originalEntry)) ? Number(meta.originalEntry) : Number(placement.entry),
     originalSL: Number.isFinite(Number(meta.originalSL)) ? Number(meta.originalSL) : Number(placement.sl),
     originalTP: Number.isFinite(Number(meta.originalTP)) ? Number(meta.originalTP) : Number(placement.target),
@@ -464,6 +467,255 @@ function tapBuildSetupContextMeta(meta = {}, placement = {}){
     originalRationale: meta.originalRationale || meta.idea || '',
     originalStructureContext: meta.originalStructureContext || '',
   };
+}
+
+function tapNormalizeMethodName(method){
+  const raw = String(method || '').trim();
+  if(!raw) return '';
+  const key = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const map = {
+    'ict': 'ICT',
+    'smc': 'SMC',
+    'smart money concepts': 'SMC',
+    'supply & demand': 'Supply & Demand',
+    'supply and demand': 'Supply & Demand',
+    'support & resistance': 'Support & Resistance',
+    'support and resistance': 'Support & Resistance',
+    's&r': 'Support & Resistance',
+    'ma / trend following': 'MA / Trend Following',
+    'ma trend following': 'MA / Trend Following',
+    'trend following': 'MA / Trend Following',
+    'price action': 'Price Action',
+    'breakout': 'Breakout',
+    'fibonacci': 'Fibonacci',
+    'rsi / momentum': 'RSI / Momentum',
+    'rsi momentum': 'RSI / Momentum',
+    'wyckoff': 'Wyckoff',
+  };
+  return map[key] || raw;
+}
+
+function tapMethodFromPatternLabel(label){
+  const text = String(label || '').toLowerCase();
+  if(!text) return '';
+  if(/fair value gap|fvg|order block|ob\b|imbalance/.test(text)) return 'ICT';
+  if(/choch|bos\b|break of structure|market structure shift|liquidity/.test(text)) return 'SMC';
+  if(/supply|demand/.test(text)) return 'Supply & Demand';
+  if(/support|resistance|bounce|rejection/.test(text)) return 'Support & Resistance';
+  if(/breakout|triangle|compression|range break|flag/.test(text)) return 'Breakout';
+  if(/pullback|trend|continuation|ema|moving average|bullish structure|bearish structure/.test(text)) return 'MA / Trend Following';
+  if(/engulf|pin bar|pinbar|hammer|shooting star|inside bar|doji/.test(text)) return 'Price Action';
+  if(/fib|retracement|golden zone/.test(text)) return 'Fibonacci';
+  if(/rsi|momentum|overbought|oversold|divergence/.test(text)) return 'RSI / Momentum';
+  if(/spring|upthrust|accumulation|distribution|wyckoff/.test(text)) return 'Wyckoff';
+  return '';
+}
+
+function tapInferMethodCandidates(d, data, extras = {}){
+  if(!Array.isArray(data) || !data.length) return { primary: '', candidates: [], summary: 'No method evidence available.' };
+  const isLong = d?.type === 'long' || d?.dir === 'long' || d?.dir === 'bull';
+  const dir = isLong ? 'long' : 'short';
+  const entry = Number(d?.price ?? d?.entry);
+  const sl = Number(d?.sl);
+  const tp = Number(d?.tp ?? d?.target);
+  const atrSeries = calcATR(data);
+  const safeAtr = Math.max(1e-9, atrSeries?.[Math.max(0, data.length - 1)] || Math.abs(entry - sl) || Math.abs(entry || data[data.length - 1]?.close || 1) * 0.003);
+  const scores = {};
+  const reasons = {};
+  const add = (method, pts, reason) => {
+    const name = tapNormalizeMethodName(method);
+    if(!name || !Number.isFinite(pts) || pts <= 0) return;
+    scores[name] = (scores[name] || 0) + pts;
+    if(reason){
+      reasons[name] = reasons[name] || [];
+      if(!reasons[name].includes(reason) && reasons[name].length < 3) reasons[name].push(reason);
+    }
+  };
+  const setupMeta = extras.setupMeta || {};
+  const seeded = tapNormalizeMethodName(setupMeta.originalMethod || setupMeta.methodHint || setupMeta.method || extras.methodHint || tapMethodFromPatternLabel(extras.patLabel));
+  if(seeded) add(seeded, 4.5, 'Original setup context already pointed to this method.');
+
+  const anchorBars = [...new Set([
+    Number.isFinite(d?.bar) ? Math.max(1, Math.min(data.length - 1, Math.round(d.bar))) : null,
+    data.length - 1,
+    data.length - 2,
+    data.length - 3
+  ].filter(v => Number.isFinite(v) && v >= 1))];
+
+  for(const idx of anchorBars){
+    const atrAtIdx = Math.max(1e-9, atrSeries?.[idx] || safeAtr);
+    for(const detector of _SCAN_DETECTORS){
+      let matches = [];
+      try { matches = detector(data, idx, atrAtIdx) || []; } catch(e) { matches = []; }
+      matches.filter(s => String(s?.dir || '').toLowerCase() === dir).forEach(s => {
+        const detectorEntry = Number(s.entry);
+        const detectorSL = Number(s.sl);
+        const detectorTP = Number(s.tp);
+        const entryFit = Number.isFinite(entry) && Number.isFinite(detectorEntry)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorEntry - entry) / Math.max(atrAtIdx * 1.4, Math.abs(entry) * 0.003)))
+          : 0.55;
+        const slFit = Number.isFinite(sl) && Number.isFinite(detectorSL)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorSL - sl) / Math.max(atrAtIdx * 1.7, Math.abs(sl || detectorSL) * 0.003)))
+          : 0.45;
+        const tpFit = Number.isFinite(tp) && Number.isFinite(detectorTP)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorTP - tp) / Math.max(atrAtIdx * 2.2, Math.abs(tp || detectorTP) * 0.004)))
+          : 0.35;
+        const pts = 1.8 + entryFit * 2.6 + slFit * 1.4 + tpFit * 1.0;
+        add(s.method, pts, `Scanner-style ${tapNormalizeMethodName(s.method)} logic matched near the setup anchor.`);
+      });
+    }
+  }
+
+  const patternMethod = tapMethodFromPatternLabel(extras.patLabel || setupMeta.patLabel || setupMeta.originalPattern);
+  if(patternMethod) add(patternMethod, 2.8, 'The detected pattern label matches this method best.');
+
+  const sr = detectSR(data);
+  const nearestS = sr.support.filter(v => v <= entry).sort((a,b) => b - a)[0];
+  const nearestR = sr.resistance.filter(v => v >= entry).sort((a,b) => a - b)[0];
+  const srDist = isLong ? Math.abs((nearestS ?? entry) - entry) : Math.abs((nearestR ?? entry) - entry);
+  if(Number.isFinite(srDist) && srDist <= safeAtr * 0.35){
+    add('Support & Resistance', 1.1, 'Entry sits very close to a horizontal reaction level.');
+  }
+
+  const ema9 = calcEMA(data, 9), ema21 = calcEMA(data, 21), sma20 = calcSMA(data, 20), sma50 = calcSMA(data, 50);
+  const maStack = [ema9[data.length - 1], ema21[data.length - 1], sma20[data.length - 1], sma50[data.length - 1]].filter(Number.isFinite);
+  const nearMa = maStack.some(v => Math.abs(v - entry) <= safeAtr * 0.4);
+  const bullishTrend = ema9[data.length - 1] > ema21[data.length - 1] && sma20[data.length - 1] >= sma50[data.length - 1];
+  const bearishTrend = ema9[data.length - 1] < ema21[data.length - 1] && sma20[data.length - 1] <= sma50[data.length - 1];
+  if(nearMa && ((isLong && bullishTrend) || (!isLong && bearishTrend))){
+    add('MA / Trend Following', 2.4, 'Entry is sitting near aligned moving averages inside the trend direction.');
+  }
+
+  try{
+    const structure = analyzeMarketStructure?.(data) || null;
+    const pullback = detectTrendPullback(data, structure);
+    if(pullback?.detected) add('MA / Trend Following', 2.1, 'Trend pullback structure is present on this chart.');
+    const sweep = detectLiquiditySweep(data);
+    if(sweep?.detected) add('SMC', 2.2, 'A liquidity sweep / displacement pattern is visible.');
+    const conso = detectConsolidation(data);
+    const last = data[data.length - 1];
+    if(conso?.isConsolidating || (last && (last.close > conso?.upper || last.close < conso?.lower))){
+      add('Breakout', 1.9, 'The market is coiling or breaking from a consolidation range.');
+    }
+  }catch(e){}
+
+  const rsiSeries = calcRSI(data);
+  const rsi = rsiSeries?.[data.length - 1];
+  if(Number.isFinite(rsi) && ((isLong && rsi < 35) || (!isLong && rsi > 65))){
+    add('RSI / Momentum', 1.7, 'Momentum is at an extreme that fits an RSI-based setup.');
+  }
+
+  const ranked = Object.entries(scores)
+    .map(([method, score]) => ({ method, score: Math.round(score * 10) / 10, reasons: reasons[method] || [] }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 4);
+  const primary = ranked[0]?.method || seeded || 'Support & Resistance';
+  const summary = ranked.length
+    ? ranked.map((row, idx) => `${idx + 1}. ${row.method} (${row.score}) — ${(row.reasons[0] || 'closest fit from the current structure')}`).join(' | ')
+    : `1. ${primary} — generic fallback only`;
+  return { primary, candidates: ranked, summary };
+}
+
+const TAP_MTF_ORDER = ['1m','5m','15m','1h','4h','1d','1w','1M'];
+const TAP_MTF_BARS = { '1m': 220, '5m': 220, '15m': 220, '1h': 220, '4h': 220, '1d': 220, '1w': 180, '1M': 120 };
+
+function tapGetProfessionalTFPlan(baseTf){
+  const idx = Math.max(0, TAP_MTF_ORDER.indexOf(baseTf));
+  return {
+    higher: idx < TAP_MTF_ORDER.length - 1 ? TAP_MTF_ORDER[idx + 1] : null,
+    lower: idx > 0 ? TAP_MTF_ORDER[idx - 1] : null,
+  };
+}
+
+async function tapLoadTFDataForAnalysis(sym, tf){
+  if(!sym || !tf) return null;
+  const cached = tapGetDataForSymTF(sym, tf);
+  if(Array.isArray(cached) && cached.length >= 20) return cached;
+  try{
+    return await genDataForTF(sym, tf, TAP_MTF_BARS[tf] || 220);
+  }catch(e){
+    return cached || null;
+  }
+}
+
+function tapSummariseTFSnapshot(data, tf, trade){
+  if(!Array.isArray(data) || data.length < 20) return null;
+  const isLong = trade?.type === 'long' || trade?.dir === 'long' || trade?.dir === 'bull';
+  const last = data[data.length - 1];
+  const structure = analyzeMarketStructure(data);
+  const pats = detectPatterns(data);
+  const sr = detectSR(data);
+  const atrSeries = calcATR(data);
+  const atr = Math.max(1e-9, atrSeries?.[atrSeries.length - 1] || Math.abs(last.close) * 0.004);
+  const rsiSeries = calcRSI(data);
+  const rsi = Number(rsiSeries?.[rsiSeries.length - 1] ?? NaN);
+  const ema9 = calcEMA(data, 9), ema21 = calcEMA(data, 21), sma20 = calcSMA(data, 20), sma50 = calcSMA(data, 50);
+  const emaBull = Number.isFinite(ema9[data.length - 1]) && Number.isFinite(ema21[data.length - 1]) ? ema9[data.length - 1] > ema21[data.length - 1] : null;
+  const smaBull = Number.isFinite(sma20[data.length - 1]) && Number.isFinite(sma50[data.length - 1]) ? sma20[data.length - 1] > sma50[data.length - 1] : null;
+  const trendBias = structure?.trend === 'uptrend_structure' ? 'bull'
+    : structure?.trend === 'downtrend_structure' ? 'bear'
+    : ((emaBull === true && smaBull !== false) ? 'bull' : (emaBull === false && smaBull !== true ? 'bear' : 'neutral'));
+  const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0] || null;
+  const tradeDirMatches = trendBias === 'neutral' ? 0 : ((isLong && trendBias === 'bull') || (!isLong && trendBias === 'bear') ? 1 : -1);
+  const nearestSupport = sr.support.filter(v => v < last.close).sort((a,b)=>b-a)[0] ?? null;
+  const nearestResistance = sr.resistance.filter(v => v > last.close).sort((a,b)=>a-b)[0] ?? null;
+  const rangeSlice = data.slice(-20);
+  const swingHigh = Math.max(...rangeSlice.map(b=>b.high));
+  const swingLow = Math.min(...rangeSlice.map(b=>b.low));
+  const confluences = [];
+  const conflicts = [];
+  if(tradeDirMatches > 0) confluences.push(`${tf} trend aligns with the trade direction`);
+  if(tradeDirMatches < 0) conflicts.push(`${tf} trend conflicts with the trade direction`);
+  if(topPat?.dir === (isLong ? 'bull' : 'bear')) confluences.push(`${tf} top pattern supports the trade`);
+  else if(topPat?.dir && topPat.dir !== 'neut') conflicts.push(`${tf} top pattern leans against the trade`);
+  if(Number.isFinite(rsi)){
+    if(isLong && rsi < 38) confluences.push(`${tf} RSI is reset enough for upside continuation`);
+    if(!isLong && rsi > 62) confluences.push(`${tf} RSI is elevated enough for downside continuation`);
+    if(isLong && rsi > 72) conflicts.push(`${tf} RSI is stretched on the long side`);
+    if(!isLong && rsi < 28) conflicts.push(`${tf} RSI is stretched on the short side`);
+  }
+  return {
+    tf,
+    trendBias,
+    structure: structure?.trend || 'neutral',
+    topPattern: topPat ? `${topPat.name} (${Math.round((topPat.conf || 0) * 100)}%)` : 'none',
+    rsi: Number.isFinite(rsi) ? +rsi.toFixed(1) : null,
+    atr,
+    nearestSupport,
+    nearestResistance,
+    swingHigh,
+    swingLow,
+    confluences,
+    conflicts,
+    summary: `${tf}: ${trendBias === 'bull' ? 'bullish' : trendBias === 'bear' ? 'bearish' : 'neutral'} structure (${String(structure?.trend || 'neutral').replace(/_/g,' ')}), top pattern ${topPat ? topPat.name : 'none'}, RSI ${Number.isFinite(rsi) ? rsi.toFixed(1) : 'n/a'}, support ${nearestSupport ? fP(nearestSupport) : 'n/a'}, resistance ${nearestResistance ? fP(nearestResistance) : 'n/a'}.`
+  };
+}
+
+async function tapBuildProfessionalMTFContext(sym, baseTf, trade, baseData){
+  const plan = tapGetProfessionalTFPlan(baseTf);
+  const base = tapSummariseTFSnapshot(baseData, baseTf, trade);
+  const [higherData, lowerData] = await Promise.all([
+    plan.higher ? tapLoadTFDataForAnalysis(sym, plan.higher) : Promise.resolve(null),
+    plan.lower ? tapLoadTFDataForAnalysis(sym, plan.lower) : Promise.resolve(null),
+  ]);
+  const higher = plan.higher ? tapSummariseTFSnapshot(higherData, plan.higher, trade) : null;
+  const lower = plan.lower ? tapSummariseTFSnapshot(lowerData, plan.lower, trade) : null;
+  const allConfluences = [...(higher?.confluences || []), ...(base?.confluences || []), ...(lower?.confluences || [])];
+  const allConflicts = [...(higher?.conflicts || []), ...(base?.conflicts || []), ...(lower?.conflicts || [])];
+  let verdict = 'mixed';
+  if((higher?.trendBias && base?.trendBias) && higher.trendBias === base.trendBias && base.trendBias !== 'neutral'){
+    verdict = lower?.trendBias && lower.trendBias !== base.trendBias ? 'aligned_but_execution_mixed' : 'aligned';
+  } else if(higher?.trendBias && base?.trendBias && higher.trendBias !== 'neutral' && base.trendBias !== 'neutral' && higher.trendBias !== base.trendBias){
+    verdict = 'conflicted';
+  }
+  const summary = verdict === 'aligned'
+    ? `Top-down confluence is strong: ${higher?.tf || baseTf} and ${baseTf} are aligned, and ${lower?.tf || baseTf} is mainly being used for execution timing.`
+    : verdict === 'aligned_but_execution_mixed'
+      ? `Higher and trade timeframes align, but the lower timeframe execution tape is mixed, so timing matters more than the raw idea.`
+      : verdict === 'conflicted'
+        ? `Higher timeframe bias and trade timeframe structure are not fully aligned, so this setup should be treated with more caution.`
+        : `Timeframe alignment is mixed, so the trade should rely on the cleanest structure and execution confirmation only.`;
+  return { base, higher, lower, verdict, confluences: allConfluences, conflicts: allConflicts, summary };
 }
 
 function tapBuildPlacedTradeDrawing(levels, stateInfo, tf, extras = {}){
@@ -976,7 +1228,7 @@ const FBASE = 'https://finnhub.io/api/v1';
 // TF_RES removed â€” Yahoo Finance no longer used
 const TF_FROM={'1m':7,'5m':60,'15m':60,'1h':729,'1d':3649,'1w':3649,'1M':3649};
 // Binance TF map for crypto
-const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','1d':'1d','1w':'1w','1M':'1M'};
+const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d','1w':'1w','1M':'1M'};
 
 try{alerts=JSON.parse(localStorage.getItem('apex-alerts'))||[];}catch(e){alerts=[];}
 let watchlist=new Set();
@@ -20482,6 +20734,9 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
         sym: setupRef.sym,
         tf: setupRef.tf,
         dir: setupRef.dir,
+        methodHint: setupRef.methodHint || '',
+        originalMethod: setupRef.methodHint || '',
+        methodCandidates: Array.isArray(setupRef.methodCandidates) ? setupRef.methodCandidates.slice(0, 4) : [],
         score: setupRef.score,
         originalScore: setupRef.score,
         conf: setupRef.conf,
@@ -20583,6 +20838,13 @@ async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
     rr: Number(rr),
     dir,
   });
+  const methodHintInfo = tapInferMethodCandidates({
+    dir,
+    entry,
+    sl,
+    tp: target,
+    bar: primary.n - 1,
+  }, primary.data, { patLabel });
   let score = conf;
   if(primary.topPat) score+=primary.topPat.conf*15;
   if(higher?.topPat?.dir===dir) score+=5;
@@ -20598,6 +20860,8 @@ async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
     dailyData:primary.data, atr, tfAgree,
     keyLevel: dir==='bull'?primary.nearestS:primary.nearestR,
     memoryFit,
+    methodHint: methodHintInfo.primary,
+    methodCandidates: methodHintInfo.candidates,
   };
 }
 
@@ -21220,6 +21484,7 @@ function tapBuildComparison(setupMeta, metrics){
   const scannerSaw = setupMeta.idea
     ? String(setupMeta.idea).replace(/\s+/g, ' ').trim()
     : `${setupMeta.patLabel || 'Setup'} on ${setupMeta.tf || curTF} with ${setupMeta.conf ?? setupMeta.score ?? 'n/a'} confidence.`;
+  const methodLens = setupMeta?.originalMethod ? ` Original method context: ${setupMeta.originalMethod}.` : '';
   const profile = getTraderProfile?.();
   const personalLens = profile?.total
     ? (profile.weaknesses?.[0]
@@ -21257,7 +21522,7 @@ function tapBuildComparison(setupMeta, metrics){
     better = 'Look for a cleaner entry closer to support/resistance, a stop placed beyond structure, and a target that restores a stronger reward-to-risk balance.';
   }
   const action = tapParseActionJSON(metrics?.sourceText || '') || null;
-  return { scanScore, tradeScore, scannerSaw: scannerSaw + personalLens, confirmed, changed, better, action };
+  return { scanScore, tradeScore, scannerSaw: scannerSaw + methodLens + personalLens, confirmed, changed, better, action };
 }
 function tapGetRenderedTradeScore(){
   const scoreEl = document.getElementById('tap-verdict-score');
@@ -24228,12 +24493,15 @@ async function tapFetchHistoricalStats(symbol, tf, direction) {
 
 // â”€â”€ Parse METHOD_JSON line from analysis text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function tapParseMethodJSON(text) {
-  if (!text) return null;
-  try {
-    const m = text.match(/METHOD_JSON:\s*(\{[^\n]+\})/);
-    if (!m) return null;
-    return JSON.parse(m[1]);
-  } catch(e) { return null; }
+  const parsed = tapParseLabeledJSON(text, 'METHOD_JSON');
+  if(!parsed || typeof parsed !== 'object') return null;
+  const method = tapNormalizeMethodName(parsed.method);
+  return {
+    method: method || String(parsed.method || '').trim(),
+    confidence: Number.isFinite(Number(parsed.confidence)) ? Math.max(0, Math.min(100, Math.round(Number(parsed.confidence)))) : null,
+    signals: Array.isArray(parsed.signals) ? parsed.signals.map(v => String(v || '').trim()).filter(Boolean).slice(0, 4) : [],
+    method_verdict: String(parsed.method_verdict || '').trim(),
+  };
 }
 
 // â”€â”€ Render method badge in the TAP panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -24321,10 +24589,12 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
   // Use the TF the drawing was placed on — fall back to curTF if not stored
   const drawingTF = d.tf || tapAnalysisCache[curSym.s]?.tf || curTF;
+  const analysisSym = tapGetTradeSourceSym(d, curSym.s);
   // Use the data for that specific TF from cache — fall back to curData
   const analysisData = (drawingTF === curTF)
     ? curData
-    : (dataCache[curSym.s+'_'+drawingTF] || curData);
+    : (dataCache[analysisSym+'_'+drawingTF] || dataCache[analysisSym+'_'+drawingTF+'_mtf'] || curData);
+  const mtfContext = await tapBuildProfessionalMTFContext(analysisSym, drawingTF, d, analysisData);
   const n      = analysisData.length;
   const pats   = detectPatterns(analysisData);
   const sr     = detectSR(analysisData);
@@ -24346,7 +24616,7 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const topPats    = [...pats].sort((a,b)=>b.conf-a.conf).slice(0,2).map(p=>p.name);
   const tp     = (b) => (b.high + b.low + b.close) / 3;  // typical price helper
   const recentMove = n >= 6 ? ((tp(analysisData[n-1]) - tp(analysisData[n-6])) / tp(analysisData[n-6]) * 100).toFixed(2) : '0';
-  const symTrades  = journal.filter(j=>j.sym===curSym.s&&j.outcome);
+  const symTrades  = journal.filter(j=>j.sym===analysisSym&&j.outcome);
   const symWR      = symTrades.length ? Math.round(symTrades.filter(j=>j.outcome==='win').length/symTrades.length*100)+'%' : 'n/a';
   const trend      = sma20[n-1] && sma50[n-1] ? (sma20[n-1] > sma50[n-1] ? 'Bullish' : 'Bearish') : 'N/A';
   // curPrice = typical price of last bar; also note the wick extremes
@@ -24425,6 +24695,7 @@ Originating Setup Context:
   Discovery Score: ${setupMeta.score ?? 'n/a'}/100
   Scan Confidence: ${setupMeta.conf ?? 'n/a'}/100
   Setup Type: ${setupMeta.patLabel || 'Structure'}
+  Original Method Hint: ${setupMeta.originalMethod || setupMeta.methodHint || 'n/a'}
   Original Timeframe: ${setupMeta.tf || drawingTF}
   Original Entry / SL / TP: ${isFinite(setupMeta.originalEntry) ? fP(setupMeta.originalEntry) : fP(d.price)} / ${isFinite(setupMeta.originalSL) ? fP(setupMeta.originalSL) : fP(d.sl)} / ${isFinite(setupMeta.originalTP) ? fP(setupMeta.originalTP) : fP(d.tp)}
   Expected Hold / Expiry: ${setupMeta.expectedHoldBars ?? setupExpectedHoldBars(setupMeta.tf || drawingTF)} bars / ${setupMeta.expiryBars ?? setupExpiryBars(setupMeta.tf || drawingTF)} bars
@@ -24433,7 +24704,7 @@ Originating Setup Context:
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
   const personalFit = buildTraderMemoryFit({
-    sym: curSym.s,
+    sym: analysisSym,
     tf: drawingTF,
     patLabel: setupMeta?.patLabel || d?._setupPattern || '',
     rr,
@@ -24441,11 +24712,29 @@ Originating Setup Context:
   }, traderProfile);
   const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}. Current setup fit: ${personalFit.summary} (score adjustment ${personalFit.delta >= 0 ? '+' : ''}${personalFit.delta}).`;
   const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
+  const methodHintInfo = tapInferMethodCandidates(d, analysisData, {
+    setupMeta,
+    patLabel: setupMeta?.patLabel || d?._setupPattern || topPats[0] || '',
+    methodHint: setupMeta?.originalMethod || setupMeta?.methodHint || '',
+  });
+  const methodHintCtx = methodHintInfo?.candidates?.length
+    ? `Method evidence hints (strong guidance, but override only if the live chart clearly contradicts it): ${methodHintInfo.summary}.`
+    : `Method evidence hints: original context suggests ${setupMeta?.originalMethod || setupMeta?.methodHint || 'no strong method bias'}, but you must still verify against the live chart.`;
+  const mtfPromptCtx = `
+TOP-DOWN MULTI-TIMEFRAME CONTEXT
+Professional workflow: use the higher timeframe for directional bias and major structure, the original trade timeframe for setup quality, and the lower timeframe for execution timing.
+Overall alignment: ${mtfContext.summary}
+Higher timeframe (${mtfContext.higher?.tf || 'n/a'}): ${mtfContext.higher ? mtfContext.higher.summary : 'Not available.'}
+Trade timeframe (${drawingTF}): ${mtfContext.base ? mtfContext.base.summary : 'Not available.'}
+Execution timeframe (${mtfContext.lower?.tf || 'n/a'}): ${mtfContext.lower ? mtfContext.lower.summary : 'Not available.'}
+Confluences: ${mtfContext.confluences.length ? mtfContext.confluences.join(' | ') : 'No strong multi-timeframe confluences found.'}
+Conflicts: ${mtfContext.conflicts.length ? mtfContext.conflicts.join(' | ') : 'No major multi-timeframe conflicts found.'}
+`;
 
   // â”€â”€ Historical stats: fetch BEFORE building prompt so scores reflect real data â”€
-  const _histStats = await tapFetchHistoricalStats(_tapNormSym(curSym.s), drawingTF, isLong ? 'long' : 'short').catch(() => null);
+  const _histStats = await tapFetchHistoricalStats(_tapNormSym(analysisSym), drawingTF, isLong ? 'long' : 'short').catch(() => null);
   const _histCtxForPrompt = _histStats && _histStats.count >= 10
-    ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${curSym.s} ${drawingTF} ${isLong?'long':'short'} setups scanned):
+    ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${analysisSym} ${drawingTF} ${isLong?'long':'short'} setups scanned):
   Overall win rate: ${_histStats.winRate}% (${_histStats.tpCount} TP hit, ${_histStats.slCount} SL hit)` +
       (_histStats.topMethod ? `\n  Best performing method on this pair/TF: ${_histStats.topMethod} with ${_histStats.methodWinRate}% win rate` : '') +
       `\n  IMPORTANT: Use this historical win rate as a STRONG input to your Technical Confluence score and your Probability Estimate. A ${_histStats.winRate}% base rate for this setup type should anchor your probability â€” adjust up/down based on how well this specific trade aligns with the best-performing conditions.`
@@ -24453,7 +24742,7 @@ Originating Setup Context:
 
   // â”€â”€ RAG: Extract feature vector and search similar past analyses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _ragFeatureVec = tapExtractFeatureVector(d, analysisData);
-  const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, curSym.s, drawingTF) : [];
+  const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, analysisSym, drawingTF) : [];
   _tapLastRagMatches   = _ragMatches; // Cache for tapShowRefinementOnChart
   const _ragBest       = _ragMatches[0];
 
@@ -24482,7 +24771,7 @@ Be forensic, objective, and blunt. The trader does not need encouragement â€�
 You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.${outcomeCtx}
 
 INPUT DATA:
-Asset: ${curSym.s} (${curSym.n})
+Asset: ${analysisSym} (${curSym.n})
 Timeframe: ${drawingTF} (trade placed on this timeframe)
 Current Price: ${fP(curPrice)}
 Entry Price: ${fP(d.price)} (${((d.price - curPrice)/curPrice*100).toFixed(2)}% from current)
@@ -24496,7 +24785,7 @@ ATR(14): ${fP(atr)} â€” stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}�
 
 Market Structure:
   Short-term trend (SMA20): ${sma20val&&curPrice?(curPrice>sma20val?'Bullish â€” price above SMA20 '+fP(sma20val):'Bearish â€” price below SMA20 '+fP(sma20val)):'N/A'}
-  Higher TF trend (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish â€” price above SMA50 '+fP(sma50val):'Bearish â€” price below SMA50 '+fP(sma50val)):'N/A'}
+  Broader trend filter on trade TF (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish â€” price above SMA50 '+fP(sma50val):'Bearish â€” price below SMA50 '+fP(sma50val)):'N/A'}
   Nearest support below entry: ${nearestS?fP(nearestS):'None detected'}
   Nearest resistance above entry: ${nearestR?fP(nearestR):'None detected'}
   All S/R levels: ${sr.support.slice(0,3).map(fP).join(', ')||'None'} (S) | ${sr.resistance.slice(0,3).map(fP).join(', ')||'None'} (R)
@@ -24510,15 +24799,24 @@ Indicators:
 Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
 Patterns: ${allPatsStr.slice(0, 220)}
-Trader's historical win rate on ${curSym.s}: ${symWR}
+Trader's historical win rate on ${analysisSym}: ${symWR}
 ${traderCtx}
 ${drawingStateCtx}
+${methodHintCtx}
 ${setupCtx}${_histCtxForPrompt}
+${mtfPromptCtx}
 -----------------------------
 TRADE VALIDATION PROCESS
 
 PERSONALISATION RULE
 Use trader memory as a real weighting input, not a decorative note. If this setup matches the trader's stronger conditions, say so. If it clashes with their repeated mistakes, say so clearly and let that affect the scoring.
+
+TOP-DOWN RULE
+Analyse this like a professional trader:
+- Higher timeframe = directional bias and major structure
+- Original trade timeframe = setup quality and structural validity
+- Lower timeframe = execution timing and trigger quality
+If those three disagree, say so clearly and let that reduce the execution score.
 
 0. DISCOVERY VS EXECUTION
 First decide whether the market idea itself is valid, then decide whether these exact levels are good enough to trade. Keep those two judgments clearly separated throughout the answer.
@@ -24570,6 +24868,13 @@ Identify which single trading methodology this trade most closely follows, based
 - HOW the stop is placed (beyond structure? ATR-based? below/above a zone? tight arbitrary?)
 - WHAT the take profit targets (liquidity pool? opposing S/R? MA extension? Fibonacci extension? next structure?)
 - Any other signals (displacement candles, BOS/CHoCH, RSI extreme, MA crossover)
+
+IMPORTANT METHOD RULES:
+- Do NOT default to Support & Resistance just because support and resistance levels exist on the chart. Every chart has levels.
+- Choose Support & Resistance only when the actual entry logic is primarily a horizontal level reaction or level flip.
+- If a more specific method clearly fits better (Breakout, MA / Trend Following, Price Action, Fibonacci, RSI / Momentum, ICT, SMC, Supply & Demand, Wyckoff), choose that instead.
+- If the setup originated from a scanner/original method hint, preserve that method unless the live chart evidence clearly contradicts it.
+- Prefer the most specific rule set that explains the entry, stop, and target together — not the safest generic label.
 
 Choose exactly ONE method from this list:
   â€¢ ICT â€” entry at Fair Value Gap or Order Block; SL below/above OB; TP at liquidity pool or previous high/low; displacement candles present
