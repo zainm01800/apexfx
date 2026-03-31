@@ -261,7 +261,7 @@ function _chartTabTitle(sym, tf){
   return sym ? `${sym}${tf ? ` ${String(tf).toUpperCase()}` : ''}` : 'Chart';
 }
 function _chartTabMeta(tab){
-  return `${tab.tf || '1d'} Â· ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
+  return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
 }
 function _chartTabSnapshot(){
   return {
@@ -348,7 +348,7 @@ function renderChartTabs(){
     const isActive = tab.id === activeChartTabId;
     const title = tab.title || _chartTabTitle(tab.sym, tab.tf);
     const meta  = _chartTabMeta(tab);
-    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">Ã—</button></div>`;
+    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button></div>`;
   }).join('');
   if(el.innerHTML !== desired) el.innerHTML = desired;
   const activeEl = el.querySelector('.chart-tab.active');
@@ -1523,7 +1523,7 @@ function renderAIPanel(r){
       <div class="pat-card">
         <div class="pat-name">
           ${p.name}
-          <span class="pat-badge pat-${p.dir}">${p.dir==='bull'?'â–² BULL':p.dir==='bear'?'â–¼ BEAR':'â— NEUT'}</span>
+          <span class="pat-badge pat-${p.dir}">${p.dir==='bull'?'▲ BULL':p.dir==='bear'?'▼ BEAR':'● NEUT'}</span>
         </div>
         <div class="pat-conf-bar"><div class="pat-fill" style="width:${p.conf*100}%;background:${p.dir==='bull'?'var(--tl)':p.dir==='bear'?'var(--rd)':'var(--am)'}"></div></div>
         <div style="font-size:11px;color:var(--tx2);margin-bottom:4px;">Confidence ${(p.conf*100).toFixed(0)}%</div>
@@ -1542,15 +1542,15 @@ function renderAIPanel(r){
   }
 
   const col = bias==='BULLISH'?'var(--tl)':bias==='BEARISH'?'var(--rd)':'var(--am)';
-  const biasEmoji = bias==='BULLISH'?'â–²':bias==='BEARISH'?'â–¼':'â—†';
+  const biasEmoji = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
   document.getElementById('ai-signal').innerHTML=`
     <div style="background:${bias==='BULLISH'?'rgba(0,201,160,.08)':bias==='BEARISH'?'rgba(240,48,96,.08)':'rgba(245,166,35,.08)'};border-radius:6px;padding:8px 10px;border-left:3px solid ${col};margin-bottom:4px;">
       <div style="font-weight:800;font-size:14px;color:${col};letter-spacing:.5px;">${biasEmoji} ${bias}</div>
-      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} Â· ${bulls} bull / ${bears} bear</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} · ${bulls} bull / ${bears} bear</div>
     </div>
     ${top?`<div style="font-size:10px;color:var(--tx3);padding:2px 0;">Top: <span style="color:var(--tx2);">${top.name}</span> <span style="color:${col};">${(top.conf*100).toFixed(0)}%</span></div>`:''}`;
 
-  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`ðŸ¤– ${top.name} Â· ${(top.conf*100).toFixed(0)}% conf`; } }
+  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`AI ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
 
   // â”€â”€ TREND STRENGTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if(n >= 50){
@@ -1572,11 +1572,11 @@ function renderAIPanel(r){
         <div style="font-weight:700;font-size:11px;color:${trendCol};margin-bottom:6px;">${trendLabel}</div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span style="color:var(--tx2)">EMA alignment</span>
-          <span style="color:${trendCol}">${aligned==='bull'?'8>21>50 â–²':aligned==='bear'?'8<21<50 â–¼':'Mixed'}</span>
+          <span style="color:${trendCol}">${aligned==='bull'?'8>21>50 ▲':aligned==='bear'?'8<21<50 ▼':'Mixed'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
           <span style="color:var(--tx2)">Price vs EMA21</span>
-          <span style="color:${aboveBelow==='above'?'var(--tl)':'var(--rd)'}">${aboveBelow==='above'?'Above â–²':'Below â–¼'}</span>
+          <span style="color:${aboveBelow==='above'?'var(--tl)':'var(--rd)'}">${aboveBelow==='above'?'Above ▲':'Below ▼'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
           <span style="color:var(--tx2)">20-bar position</span>
@@ -1882,7 +1882,7 @@ function jmCalcRR(){
   const sl   =parseFloat(document.getElementById('jm-sl').value);
   const tp   =parseFloat(document.getElementById('jm-tp').value);
   const rrEl = document.getElementById('jm-rr-val');
-  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='â€”'; return; }
+  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='—'; return; }
   const risk   = Math.abs(entry-sl);
   const reward = Math.abs(tp-entry);
   const rr     = reward/risk;
@@ -1917,7 +1917,7 @@ function jmSnapLoad(input){
   const file = input?.files?.[0];
   if(!file || !file.type.startsWith('image/')) return;
   const r = new FileReader();
-  r.onload = ev => { jSnapData = ev.target.result; jmRenderSnap(); toast('ðŸ“· Image attached'); };
+  r.onload = ev => { jSnapData = ev.target.result; jmRenderSnap(); toast('Image attached'); };
   r.readAsDataURL(file);
   // Reset so same file can be re-selected
   input.value = '';
@@ -1932,8 +1932,8 @@ function jmSnapClick(){
     requestAnimationFrame(()=>{
       const snap = captureChart();
       modal.style.visibility = '';
-      if(snap){ jSnapData=snap; jmRenderSnap(); toast('ðŸ“· Chart captured'); }
-      else { toast('âŒ Screenshot failed â€” try Upload instead'); }
+      if(snap){ jSnapData=snap; jmRenderSnap(); toast('Chart captured'); }
+      else { toast('Screenshot failed — try Upload instead'); }
     });
   });
 }
@@ -2569,8 +2569,8 @@ function renderAnalyticsHero(){
     || 'The platform will start surfacing your strongest pattern once more closed trades are logged.';
   const stats = [
     { label:'Closed Trades', value: p?.total || 0, color:'var(--tx)' },
-    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : 'â€”', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
-    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : 'â€”', color:'var(--am)' },
+    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '—', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
+    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '—', color:'var(--am)' },
     { label:'Thesis', value: thesis ? thesisState.label : 'None', color: thesis ? thesisState.color : 'var(--tx3)' },
   ];
   el.innerHTML = `
@@ -2802,7 +2802,7 @@ function renderTraderProfileWidget(){
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;">
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Closed Trades</div><div style="font-size:18px;color:var(--tx);font-weight:700;">${p.total}</div></div>
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Win Rate</div><div style="font-size:18px;color:${p.winRate >= 50 ? 'var(--tl)' : 'var(--am)'};font-weight:700;">${p.winRate}%</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : 'â€”'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '—'}</div></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${chips}</div>
     <div style="display:grid;gap:8px;margin-bottom:8px;">
@@ -2829,7 +2829,7 @@ function renderTraderProfileWidget(){
     </div>
     <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
       <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Before your next trade</div>
-      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `â€¢ ${x}`).join('<br>')}</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `• ${x}`).join('<br>')}</div>
     </div>`;
 }
 function renderThesisTrackerWidget(){
@@ -2844,14 +2844,14 @@ function renderThesisTrackerWidget(){
   const st = _thesisStatus(thesis, lastPrice);
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} Â· ${thesis.tf || curTF}</div>
+      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} · ${thesis.tf || curTF}</div>
       <div style="padding:3px 8px;border-radius:999px;border:1px solid var(--b1);background:var(--bg3);font-size:10px;color:${st.color};font-family:ui-monospace,'SF Mono',monospace;">${st.label}</div>
     </div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px;">${thesis.statement || 'No thesis statement saved.'}</div>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;">
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : 'â€”'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : 'â€”'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : 'â€”'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '—'}</div></div>
     </div>
     <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;">Focus: ${thesis.focus || 'No follow-through note saved.'}</div>
     <div style="display:flex;gap:6px;">
@@ -2877,10 +2877,10 @@ function renderReplayLabWidget(){
       ${recent.map(s => `
         <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
           <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
-            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} Â· ${s.method || 'Replay'}</span>
+            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} · ${s.method || 'Replay'}</span>
             <span style="font-size:11px;color:${s.overall >= 75 ? 'var(--tl)' : s.overall >= 60 ? 'var(--am)' : 'var(--rd)'};font-family:ui-monospace,'SF Mono',monospace;">${s.overall}/100</span>
           </div>
-          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} Â· ${_fmtAgo(s.createdAt)}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} · ${_fmtAgo(s.createdAt)}</div>
           <div style="font-size:11px;color:var(--tx2);line-height:1.5;">${(s.notes || []).slice(0,2).join(' ')}</div>
         </div>`).join('')}
     </div>`;
@@ -2899,7 +2899,7 @@ function buildWLBars(){
   const avgW = wins.length   ? wins.reduce((a,b)=>a+b,0)/wins.length     : 0;
   const avgL = losses.length ? Math.abs(losses.reduce((a,b)=>a+b,0)/losses.length) : 0;
   const maxVal = Math.max(avgW, avgL, 0.01);
-  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : 'â€”';
+  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : '—';
   const ratioCol = parseFloat(ratio) >= 1 ? 'var(--tl)' : 'var(--rd)';
 
   el.innerHTML = `
@@ -2917,7 +2917,7 @@ function buildWLBars(){
     </div>
     <div style="font-size:11px;font-family:monospace;color:var(--tx3);text-align:center;">
       Win/Loss ratio: <span style="color:${ratioCol};font-weight:700;">${ratio}</span>
-      <span style="color:var(--tx3);"> Â· ${wins.length}W / ${losses.length}L</span>
+      <span style="color:var(--tx3);"> · ${wins.length}W / ${losses.length}L</span>
     </div>`;
 }
 
@@ -2941,7 +2941,7 @@ function buildStreakStats(){
     for(const e of recent){ if(e.outcome===curType) curStreak++; else break; }
   }
   const curCol  = curType==='win'?'var(--tl)':'var(--rd)';
-  const curIcon = curType==='win'?'ðŸ”¥':'â„';
+  const curIcon = curType==='win'?'Hot':'Cold';
   const card = (label, val, col, sub='') =>
     `<div style="flex:1;min-width:70px;padding:6px 8px;background:var(--bg3);border-radius:4px;border-top:2px solid ${col};">
       <div style="font-size:16px;font-weight:800;color:${col};font-family:monospace;">${val}</div>
@@ -2950,8 +2950,8 @@ function buildStreakStats(){
     </div>`;
   el.innerHTML =
     card('Current',`${curIcon} ${curStreak}`,curCol,curType||'') +
-    card('Best Win','ðŸ† '+bestW,'var(--tl)','streak') +
-    card('Best Loss','ðŸ’€ '+bestL,'var(--rd)','streak');
+    card('Best Win','Best '+bestW,'var(--tl)','streak') +
+    card('Best Loss','Worst '+bestL,'var(--rd)','streak');
 }
 
 // â”€â”€ Tag Performance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
