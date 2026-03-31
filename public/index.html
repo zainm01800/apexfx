@@ -849,24 +849,24 @@
     <div class="rp-body" id="rp-journal" style="display:none!important">
       <div id="j-stats-bar" style="grid-template-columns:repeat(5,1fr);">
         <div class="j-stat"><div class="j-stat-lbl">Trades</div><div class="j-stat-val" id="jst-total">0</div></div>
-        <div class="j-stat"><div class="j-stat-lbl">Win %</div><div class="j-stat-val" id="jst-wr" style="color:var(--green)">—</div></div>
-        <div class="j-stat"><div class="j-stat-lbl">Avg R:R</div><div class="j-stat-val" id="jst-rr" style="color:var(--amber)">—</div></div>
-        <div class="j-stat"><div class="j-stat-lbl">Total P&L</div><div class="j-stat-val" id="jst-pl">—</div></div>
-        <div class="j-stat"><div class="j-stat-lbl">Best</div><div class="j-stat-val" id="jst-best" style="color:var(--green)">—</div></div>
+        <div class="j-stat"><div class="j-stat-lbl">Win %</div><div class="j-stat-val" id="jst-wr" style="color:var(--green)">&mdash;</div></div>
+        <div class="j-stat"><div class="j-stat-lbl">Avg R:R</div><div class="j-stat-val" id="jst-rr" style="color:var(--amber)">&mdash;</div></div>
+        <div class="j-stat"><div class="j-stat-lbl">Total P&L</div><div class="j-stat-val" id="jst-pl">&mdash;</div></div>
+        <div class="j-stat"><div class="j-stat-lbl">Best</div><div class="j-stat-val" id="jst-best" style="color:var(--green)">&mdash;</div></div>
       </div>
       <div style="padding:5px 6px 0;border-bottom:1px solid var(--line);">
         <div style="display:flex;gap:4px;margin-bottom:5px;">
           <div style="flex:1;position:relative;">
-            <span style="position:absolute;left:7px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--tx3);pointer-events:none;">⌕</span>
+            <span style="position:absolute;left:7px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--tx3);pointer-events:none;">Search</span>
             <input id="j-search" placeholder="Search journal..." oninput="buildJournal()" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--line);color:var(--tx);font-size:10px;padding:5px 7px 5px 22px;border-radius:var(--r);outline:none;font-family:var(--font-mono);" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--line)'">
           </div>
           <button onclick="openJModal()" style="padding:5px 10px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);color:var(--amber);font-size:10px;border-radius:var(--r);cursor:pointer;font-weight:600;white-space:nowrap;">+ New</button>
-          <button onclick="captureToJournal()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;" title="Capture chart">📷</button>
-          <button onclick="exportJournal()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;" title="Export CSV">⬇</button>
+          <button onclick="captureToJournal()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;" title="Capture chart">Capture</button>
+          <button onclick="exportJournal()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);font-size:10px;border-radius:var(--r);cursor:pointer;" title="Export CSV">Export</button>
         </div>
         <div style="display:flex;gap:0;margin-bottom:0;">
-          <button id="j-mode-live" onclick="jSetMode('live')" style="flex:1;padding:4px;font-size:11px;font-family:var(--font-mono);font-weight:700;background:var(--bg3);border:1px solid var(--line);border-bottom:none;border-radius:var(--r) 0 0 0;color:var(--amber);cursor:pointer;letter-spacing:.5px;">📓 JOURNAL</button>
-          <button id="j-mode-archive" onclick="jSetMode('archive')" style="flex:1;padding:4px;font-size:11px;font-family:var(--font-mono);font-weight:700;background:var(--bg2);border:1px solid var(--line);border-left:none;border-bottom:none;border-radius:0 var(--r) 0 0;color:var(--tx3);cursor:pointer;letter-spacing:.5px;">🗂 ARCHIVE</button>
+          <button id="j-mode-live" onclick="jSetMode('live')" style="flex:1;padding:4px;font-size:11px;font-family:var(--font-mono);font-weight:700;background:var(--bg3);border:1px solid var(--line);border-bottom:none;border-radius:var(--r) 0 0 0;color:var(--amber);cursor:pointer;letter-spacing:.5px;">Journal</button>
+          <button id="j-mode-archive" onclick="jSetMode('archive')" style="flex:1;padding:4px;font-size:11px;font-family:var(--font-mono);font-weight:700;background:var(--bg2);border:1px solid var(--line);border-left:none;border-bottom:none;border-radius:0 var(--r) 0 0;color:var(--tx3);cursor:pointer;letter-spacing:.5px;">Archive</button>
         </div>
       </div>
       <div id="j-filter-bar">

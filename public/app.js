@@ -205,15 +205,15 @@ let _elCache = {}; // Cached DOM element references
 
 // â•â• BUILTIN INDICATORS (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const BUILTIN_INDS = [
-  {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'ðŸ“ˆ'},
-  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9, 21 & 200)',  icon:'ðŸ“ˆ'},
-  {id:'bb',      name:'BB',       desc:'Bollinger Bands (20, 2)',              icon:'ã€°'},
-  {id:'vwap',    name:'VWAP',     desc:'Volume Weighted Average Price',        icon:'ðŸ’¹'},
-  {id:'vol',     name:'Volume',   desc:'Volume histogram sub-panel',           icon:'ðŸ“Š'},
-  {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'ðŸ“‰'},
-  {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'ã€°'},
-  {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'ðŸ“‰'},
-  {id:'sessions',name:'Sessions', desc:'Trading session bands â€” Asia Â· London Â· NY', icon:'ðŸŒ'},
+  {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
+  {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9, 21 & 200)',  icon:'📈'},
+  {id:'bb',      name:'BB',       desc:'Bollinger Bands (20, 2)',              icon:'〰'},
+  {id:'vwap',    name:'VWAP',     desc:'Volume Weighted Average Price',        icon:'💹'},
+  {id:'vol',     name:'Volume',   desc:'Volume histogram sub-panel',           icon:'📊'},
+  {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'📉'},
+  {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'〰'},
+  {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'📉'},
+  {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
 ];
 
 // â•â• SYMBOLS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1720,10 +1720,10 @@ function captureChart(){
   }catch(e){ console.error('captureChart:', e); return null; }
 }
 
-// Standalone ðŸ“· button â€” capture then open journal modal pre-loaded with snap
+// Standalone 📷 button — capture then open journal modal pre-loaded with snap
 function captureToJournal(){
   const snap = captureChart();
-  if(!snap){ toast('âŒ Screenshot failed â€” make sure a chart is loaded'); return; }
+  if(!snap){ toast('✖ Screenshot failed — make sure a chart is loaded'); return; }
   jSnapData = snap;
   openJModal();
 }
@@ -1748,7 +1748,7 @@ function openJModal(editEntry){
   jSnapData = editEntry?.screenshot || null;
 
   const price = curData.length ? curData[curData.length-1].close : curSym.p;
-  document.getElementById('jm-title-lbl').textContent = jEditId ? 'âœï¸ Edit Entry' : 'ðŸ““ New Trade Entry';
+  document.getElementById('jm-title-lbl').textContent = jEditId ? '✏️ Edit Entry' : '📓 New Trade Entry';
   document.getElementById('jm-sym').value   = editEntry?.sym  || curSym.s;
   document.getElementById('jm-tf').value    = editEntry?.tf   || curTF;
   document.getElementById('jm-entry').value = editEntry?.entry || fP(price);
@@ -1785,7 +1785,7 @@ function openJModal(editEntry){
       // Auto-detect outcome by walking candles after entry bar and seeing which level is touched first
       let autoOutcome = '';
       let autoExit    = fP(td.tp);
-      // td.bar is a float data index â€” floor it and clamp to valid range
+      // td.bar is a float data index — floor it and clamp to valid range
       const entryBarIdx = Math.min(Math.floor(td.bar ?? 0), curData.length - 1);
       const startBar    = Math.max(0, entryBarIdx + 1);
       const isLong      = td.dir === 'long';
@@ -1795,7 +1795,7 @@ function openJModal(editEntry){
         const tpHit = isLong ? c.high >= td.tp : c.low  <= td.tp;
         const slHit = isLong ? c.low  <= td.sl : c.high >= td.sl;
         if(slHit && tpHit){
-          // Both hit same candle â€” prior candle's close direction tells us which way price was moving
+          // Both hit same candle — prior candle's close direction tells us which way price was moving
           const prevClose = i > 0 ? curData[i-1]?.close : td.entry;
           const movingDown = prevClose > c.open;
           if(isLong){
@@ -1813,7 +1813,7 @@ function openJModal(editEntry){
       // Still no hit = trade still open, leave exit as TP target
       document.getElementById('jm-exit').value    = autoExit;
       document.getElementById('jm-outcome').value = autoOutcome;
-      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry  Â·  filled from ' + td.dir.toUpperCase() + ' tool';
+      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry · filled from ' + td.dir.toUpperCase() + ' tool';
     }
   }
 
@@ -2002,7 +2002,7 @@ function saveJEntry(){
   }
 
   saveJournal(); buildJournal(); closeJModal();
-  toast(`ðŸ““ ${dir.toUpperCase()} logged Â· ${e2.sym} @ $${fP(entry)}`);
+  toast(`📓 ${dir.toUpperCase()} logged · ${e2.sym} @ $${fP(entry)}`);
 }
 
 // saveJournal / loadJournal defined in account system (namespaced)
@@ -2013,11 +2013,11 @@ let _snapPreviewFilename = '';
 
 function saveChartImage(){
   const snap = captureChart();
-  if(!snap){ toast('âŒ Screenshot failed'); return; }
+  if(!snap){ toast('✖ Screenshot failed'); return; }
   _snapPreviewData = snap;
   _snapPreviewFilename = `apexfx-${curSym.s}-${curTF}-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.jpg`;
   document.getElementById('snap-preview-img').src = snap;
-  document.getElementById('snap-preview-title').textContent = `ðŸ“· ${curSym.s} Â· ${curTF}`;
+  document.getElementById('snap-preview-title').textContent = `📷 ${curSym.s} · ${curTF}`;
   document.getElementById('snap-copy-badge').style.display = 'none';
   document.getElementById('snap-preview-bg').classList.add('open');
 }
@@ -2033,7 +2033,7 @@ function snapDoSave(){
   a.href = _snapPreviewData;
   a.download = _snapPreviewFilename;
   a.click();
-  toast(`â¬‡ Saved Â· ${_snapPreviewFilename}`);
+  toast(`⬇ Saved · ${_snapPreviewFilename}`);
   closeSnapPreview();
 }
 
@@ -2051,12 +2051,12 @@ async function snapDoCopy(){
     await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
     document.getElementById('snap-copy-badge').style.display = 'block';
     setTimeout(()=>{ document.getElementById('snap-copy-badge').style.display='none'; }, 2500);
-    toast('âŽ˜ Screenshot copied to clipboard');
+    toast('Screenshot copied to clipboard');
   }catch(e){
-    // Final fallback â€” open in new tab so user can right-click â†’ copy
+    // Final fallback — open in new tab so user can right-click → copy
     const w = window.open();
     w.document.write(`<img src="${_snapPreviewData}" style="max-width:100%">`);
-    toast('âš  Clipboard blocked â€” image opened in new tab (right-click â†’ Copy)');
+    toast('⚠ Clipboard blocked — image opened in new tab (right-click → Copy)');
   }
 }
 
@@ -2074,7 +2074,7 @@ function deleteJournalEntry(id){
   showConfirm(`Delete journal entry?`, `"${label}" will be permanently removed.`, ()=>{
     journal = journal.filter(e=>e.id!==id);
     saveJournal(); buildJournal();
-    toast('ðŸ—‘ Entry deleted');
+    toast('🗑 Entry deleted');
   });
 }
 
@@ -2143,7 +2143,7 @@ function exportJournal(){
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download=`apexfx-journal-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
-  toast('â¬‡ Journal exported');
+  toast('⬇ Journal exported');
 }
 
 // â”€â”€ Build journal list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2157,17 +2157,17 @@ function buildJournal(){
   const wins   = liveEntries.filter(e=>e.outcome==='win').length;
   const closed = liveEntries.filter(e=>e.outcome==='win'||e.outcome==='loss').length;
   const rrVals = liveEntries.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : 'â€”';
+  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
   const plVals = liveEntries.filter(e=>e.pl!=null).map(e=>e.pl);
   const totalPL= plVals.reduce((a,b)=>a+b,0);
   const bestPL = plVals.length ? Math.max(...plVals) : null;
   document.getElementById('jst-total').textContent = liveEntries.length;
-  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : 'â€”';
-  document.getElementById('jst-rr').textContent    = avgRR==='â€”' ? 'â€”' : '1:'+avgRR;
+  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : '—';
+  document.getElementById('jst-rr').textContent    = avgRR==='—' ? '—' : '1:'+avgRR;
   const plEl=document.getElementById('jst-pl');
-  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'â€”'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
+  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'—'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
   const bestEl=document.getElementById('jst-best');
-  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'â€”'; }
+  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'—'; }
 
   drawEquityCurve();
   if(document.getElementById('rp-analytics')?.classList.contains('on')) buildAnalytics();
@@ -2204,7 +2204,7 @@ function buildJournal(){
   if(!visible.length){
     el.innerHTML=`<div style="padding:18px 10px;font-size:10px;color:var(--tx3);text-align:center;">${
       jMode==='archive'
-        ? 'ðŸ—‚ No archived trades yet.<br>Toggle <b style="color:var(--bl)">Archive mode</b> when logging a trade.'
+        ? '🗂 No archived trades yet.<br>Toggle <b style="color:var(--bl)">Archive mode</b> when logging a trade.'
         : searchQ
           ? `No entries match "<b style="color:var(--am)">${searchQ}</b>"`
           : 'No entries yet.<br>Click <b style="color:var(--am)">+ New</b> to start.'
@@ -2229,13 +2229,13 @@ function buildJournal(){
     const gL     = group.entries.filter(e=>e.outcome==='loss').length;
     const hasPL  = group.entries.some(e=>e.pl!=null);
     const plCol  = gPL>0?'var(--tl)':gPL<0?'var(--rd)':'var(--tx3)';
-    const plBit  = hasPL ? ` Â· <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
-    const wlBit  = (gW||gL) ? ` Â· <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
+    const plBit  = hasPL ? ` · <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
+    const wlBit  = (gW||gL) ? ` · <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
 
     const entriesHTML = group.entries.map(e=>{
       const plColor     = !e.pl ? 'var(--tx2)' : e.pl>0 ? 'var(--tl)' : 'var(--rd)';
       const plTxt       = e.pl!=null ? (e.pl>=0?'+':'')+e.pl.toFixed(2) : '';
-      const outcomeIcon = e.outcome==='win'?'âœ“':e.outcome==='loss'?'âœ—':e.outcome==='be'?'â‰ˆ':'';
+      const outcomeIcon = e.outcome==='win'?'✓':e.outcome==='loss'?'✕':e.outcome==='be'?'≈':'';
       const outcomeCol  = e.outcome==='win'?'var(--tl)':e.outcome==='loss'?'var(--rd)':'var(--am)';
       const dispName    = e.entryName || `${e.sym} ${(e.dir||'').toUpperCase()} @ $${fP(e.entry||0)}`;
       const archBadge   = e.archived ? `<span style="font-size:11px;padding:1px 4px;border-radius:8px;background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.2);color:var(--bl);font-family:monospace;margin-left:3px;">archive</span>` : '';
@@ -2248,8 +2248,8 @@ function buildJournal(){
         <div style="display:flex;align-items:center;gap:7px;flex-shrink:0;">
           ${plTxt?`<span style="font-family:monospace;font-size:10px;font-weight:700;color:${plColor}">${plTxt}</span>`:''}
           ${outcomeIcon?`<span style="font-size:10px;color:${outcomeCol};font-weight:700;">${outcomeIcon}</span>`:''}
-          <button onclick="event.stopPropagation();openJModal(journal.find(j=>j.id==='${e.id}'))" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Edit">âœ</button>
-          <button onclick="event.stopPropagation();deleteJournalEntry('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Delete">âœ•</button>
+          <button onclick="event.stopPropagation();openJModal(journal.find(j=>j.id==='${e.id}'))" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Edit">✎</button>
+          <button onclick="event.stopPropagation();deleteJournalEntry('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Delete">✕</button>
         </div>
       </div>
       <div class="jentry-body" id="jeb-${e.id}" style="display:none;">
@@ -21247,7 +21247,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
-      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? 'â€”'}</div>
+      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '—'}</div>
     </div>`;
   const betterLabel = tradeState.state === 'ACTIVE'
     ? 'Trade management'
@@ -23691,25 +23691,25 @@ function tapRenderVerdictBanner(text){
     scoreVal = scoreVal ?? 68; likelihood='Moderate likelihood of success'; barPct=scoreVal;
   } else if(structuredVerdict.includes('RISKY SETUP') || structuredVerdict === 'RISKY' || zone.includes('RISKY SETUP') || zone.includes('RISKY')){
     verdict='RISKY SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood â€” proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood — proceed with caution'; barPct=scoreVal;
   } else if(structuredVerdict.includes('AVOID TRADE') || structuredVerdict === 'AVOID' || zone.includes('AVOID TRADE') || zone.includes('AVOID')){
     verdict='AVOID TRADE'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
     scoreVal = scoreVal ?? 18; likelihood='Do not trade this setup'; barPct=scoreVal;
   } else if(zone.includes('A+ SETUP')){
     verdict='A+ SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 95; likelihood='Excellent â€” high likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 95; likelihood='Excellent — high likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('A SETUP')){
     verdict='A SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 80; likelihood='Strong â€” good likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 80; likelihood='Strong — good likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('B SETUP')){
     verdict='B SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 60; likelihood='Moderate â€” proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 60; likelihood='Moderate — proceed with caution'; barPct=scoreVal;
   } else if(zone.includes('C SETUP')){
     verdict='C SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 35; likelihood='Weak â€” high risk of failure'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 35; likelihood='Weak — high risk of failure'; barPct=scoreVal;
   } else if(zone.includes('INVALID SETUP')){
     verdict='INVALID SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid â€” do not trade'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid — do not trade'; barPct=scoreVal;
   }
 
   if(!verdict){
@@ -24096,7 +24096,7 @@ function tapRenderMethodBadge(analysisText) {
           `ðŸ“Š ${mj.method.toUpperCase()}</span>` +
         (signals ? `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${signals}</span>` : '') +
       `</div>` +
-      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? 'â€”'}% match</span>` +
+      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '—'}% match</span>` +
     `</div>` +
     (mj.method_verdict ? `<div style="font-size:10px;color:var(--tx2);line-height:1.5;">${mj.method_verdict}</div>` : '');
 
