@@ -20,7 +20,7 @@
     <button id="auth-close" onclick="closeAuthOverlay()" title="Close">×</button>
     <div id="auth-logo">
       <div id="auth-logo-text">APEX<span>FX</span></div>
-      <div id="auth-logo-sub">PROFESSIONAL TRADING TERMINAL</div>
+      <div id="auth-logo-sub">AI TRADING WORKSPACE</div>
     </div>
     <div id="auth-tabs">
       <div class="auth-tab active" id="auth-tab-login" onclick="authShowTab('login')">SIGN IN</div>
@@ -79,7 +79,7 @@
     </div>
   </div>
   <div style="margin-top:16px;font-size:11px;font-family:var(--font-mono);color:var(--tx3);text-align:center;line-height:1.8;">
-    All data stored locally in your browser · No servers · No cloud sync
+    Explore in guest mode first · Sign in later to sync your workspace and progress
   </div>
 </div>
 
@@ -555,20 +555,27 @@
       </div>
 
       <!-- Active strategy pill (shown once method selected) -->
-      <div id="mentor-strategy-pill" style="display:none;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:7px;">
+      <div id="mentor-strategy-pill" style="display:none;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:7px;min-width:0;">
           <span id="mentor-strategy-dot" style="width:6px;height:6px;border-radius:50%;background:var(--pu);flex-shrink:0;"></span>
           <span id="mentor-strategy-name" style="color:var(--tx2);font-size:11px;font-weight:500;"></span>
         </div>
-        <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:10px;padding:2px 5px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--tx3);border-radius:4px;cursor:pointer;">
-          <option value="">Change...</option>
-          <option value="breakout">Breakout</option>
-          <option value="trend">Trend Following</option>
-          <option value="support_resistance">Support & Resistance</option>
-          <option value="pullback">Pullback</option>
-          <option value="range">Range</option>
-          <option value="liquidity">Liquidity Sweep</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <select id="mentor-guidance-level" onchange="setMentorGuidanceLevel(this.value)" style="font-size:10px;padding:2px 5px;border:1px solid rgba(0,201,160,0.18);background:rgba(0,201,160,0.08);color:var(--tl);border-radius:4px;cursor:pointer;">
+            <option value="beginner">Beginner</option>
+            <option value="standard" selected>Standard</option>
+            <option value="advanced">Advanced</option>
+          </select>
+          <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:10px;padding:2px 5px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--tx3);border-radius:4px;cursor:pointer;">
+            <option value="">Change...</option>
+            <option value="breakout">Breakout</option>
+            <option value="trend">Trend Following</option>
+            <option value="support_resistance">Support & Resistance</option>
+            <option value="pullback">Pullback</option>
+            <option value="range">Range</option>
+            <option value="liquidity">Liquidity Sweep</option>
+          </select>
+        </div>
       </div>
 
       <div id="mentor-phase-banner" style="display:none;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);">
@@ -652,6 +659,7 @@
 
         <!-- ── TRADE COMPLETION ─────────────────────────────────────────── -->
         <div id="trade-completion-controls" style="display:none;padding:12px 14px;">
+          <div id="mentor-session-recap" style="display:none;margin-bottom:8px;padding:10px 12px;background:rgba(61,142,255,0.08);border:1px solid rgba(61,142,255,0.16);border-radius:8px;"></div>
           <button id="btn-show-annotations" onclick="toggleMentorDebriefAnnotations()" style="width:100%;padding:9px;margin-bottom:8px;background:linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08));border:1px solid rgba(139,92,246,0.35);border-radius:7px;color:#a78bfa;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.3px;transition:all .15s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.65)'" onmouseout="this.style.borderColor=mentorState._debriefAnnotationsVisible?'rgba(139,92,246,0.7)':'rgba(139,92,246,0.35)'">📍 Show Annotations</button>
           <button onclick="continueReplayAfterTradeCompletion()" style="width:100%;padding:10px;background:linear-gradient(135deg,rgba(0,212,160,0.2),rgba(0,212,160,0.08));border:1px solid rgba(0,212,160,0.35);border-radius:7px;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.3px;transition:all .15s;" onmouseover="this.style.borderColor='rgba(0,212,160,0.6)'" onmouseout="this.style.borderColor='rgba(0,212,160,0.35)'">▶ Continue Replay</button>
         </div>
@@ -760,6 +768,23 @@
 
     <!-- AI tab -->
     <div class="rp-body on" id="rp-ai">
+      <div class="ai-role-strip">
+        <div class="ai-role-card ai-role-card-live">
+          <div class="ai-role-kicker">Live read</div>
+          <div class="ai-role-title">AI Copilot</div>
+          <div class="ai-role-copy">Explains what the chart is doing right now.</div>
+        </div>
+        <div class="ai-role-card">
+          <div class="ai-role-kicker">Discovery</div>
+          <div class="ai-role-title">AI Setups</div>
+          <div class="ai-role-copy">Finds markets and ideas worth opening.</div>
+        </div>
+        <div class="ai-role-card">
+          <div class="ai-role-kicker">Decision</div>
+          <div class="ai-role-title">Trade Analysis</div>
+          <div class="ai-role-copy">Checks whether this exact entry is actually good.</div>
+        </div>
+      </div>
       <!-- Bias hero strip — updated by renderAIPanel every time data refreshes -->
       <div id="ai-bias-hero" style="display:none;margin:6px 6px 2px;padding:10px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);cursor:default;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -775,7 +800,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--b1);">
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--tx);">Chart-aware market briefing</div>
-            <div id="ai-copilot-status" style="font-size:10px;color:var(--tx3);margin-top:3px;">Reading the current chart…</div>
+            <div id="ai-copilot-status" style="font-size:10px;color:var(--tx3);margin-top:3px;">This is your live read, not a trade trigger by itself.</div>
           </div>
           <button id="ai-copilot-refresh" onclick="refreshLiveCopilot(true)" style="padding:4px 10px;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.22);color:var(--bl);font-size:10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Refresh</button>
         </div>
@@ -790,7 +815,7 @@
           <div id="ai-copilot-ai" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;font-size:11px;color:var(--tx2);line-height:1.65;">Generating deeper chart explanation…</div>
         </div>
       </div>
-      <div class="sec-title">Decision View</div>
+      <div class="sec-title">Execution Context</div>
       <div class="ai-decision-grid">
         <div class="ai-panel-card ai-panel-card-accent">
           <div class="ai-panel-label">AI Signal</div>
@@ -809,7 +834,7 @@
           <div id="ai-levels" class="ai-panel-body" style="margin:0;"></div>
         </div>
       </div>
-      <div class="sec-title">Deep Detail</div>
+      <div class="sec-title">Deeper Read</div>
       <div class="ai-detail-card">
         <div class="ai-panel-label">Pattern Recognition</div>
         <div id="ai-patterns"></div>
@@ -862,11 +887,18 @@
     <!-- Analytics tab -->
     <div class="rp-body" id="rp-analytics" style="overflow-y:auto;flex-direction:column;">
       <div style="padding:6px 8px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <span style="font-family:var(--font-mono);font-size:11px;color:var(--tx2);letter-spacing:.5px;">ANALYTICS</span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--tx2);letter-spacing:.5px;">TRADER GROWTH</span>
         <button onclick="toggleAnalyticsCustomise()" id="analytics-customise-btn" style="padding:2px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2);border-radius:3px;cursor:pointer;font-family:var(--font-mono);" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--tx2)'">Customise</button>
       </div>
       <div id="analytics-customise-panel" style="display:none;padding:8px;background:var(--bg3);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:5px;flex-shrink:0;"></div>
       <div id="analytics-widgets" style="display:flex;flex-direction:column;">
+        <div class="analytics-stage">
+          <div class="analytics-intro-card">
+            <div class="analytics-intro-kicker">What this tab is for</div>
+            <div class="analytics-intro-title">Review patterns. Improve decisions. Build your edge.</div>
+            <div class="analytics-intro-copy">Use this area after trades and after replay sessions. It is meant to teach you how you trade over time, not to replace the live chart read.</div>
+          </div>
+        </div>
         <div class="analytics-stage analytics-stage-hero">
           <div class="sec-title" style="padding-top:12px;">Performance Snapshot</div>
           <div id="analytics-hero-card" class="analytics-hero-card"></div>
