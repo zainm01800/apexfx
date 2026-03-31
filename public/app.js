@@ -2739,6 +2739,91 @@ function getTraderProfile(force){
   }
   return saveTraderProfileSnapshot(false);
 }
+function _normSetupKey(v){
+  return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function _setupKeysMatch(a, b){
+  const left = _normSetupKey(a);
+  const right = _normSetupKey(b);
+  if(!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+function buildTraderMemoryFit(setupLike, profile){
+  const p = profile || getTraderProfile?.();
+  if(!p?.total){
+    return {
+      delta: 0,
+      band: 'neutral',
+      reasons: [],
+      cautions: [],
+      summary: 'Trader memory is still building.',
+      nextActionBias: 'validate',
+    };
+  }
+  const setup = setupLike || {};
+  const reasons = [];
+  const cautions = [];
+  let delta = 0;
+  const liveSession = _sessionBucketFromTime(Date.now());
+  const rr = Number(setup.rr);
+
+  if(p.bestSymbol?.key && setup.sym === p.bestSymbol.key){
+    delta += 8;
+    reasons.push(`matches your strongest symbol (${p.bestSymbol.key})`);
+  }
+  if(p.bestTf?.key && setup.tf === p.bestTf.key){
+    delta += 6;
+    reasons.push(`lines up with your best timeframe (${p.bestTf.key})`);
+  }
+  if(p.bestSetup?.key && _setupKeysMatch(setup.patLabel || setup.setupType, p.bestSetup.key)){
+    delta += 6;
+    reasons.push(`resembles your strongest setup type (${p.bestSetup.key})`);
+  }
+  if(p.bestSession?.key && liveSession === p.bestSession.key){
+    delta += 3;
+    reasons.push(`current session matches your strongest window (${p.bestSession.key})`);
+  }
+  if(Number.isFinite(rr) && p.avgRR != null){
+    if(rr >= p.avgRR + 0.3){
+      delta += 3;
+      reasons.push(`reward-to-risk is stronger than your average`);
+    } else if(rr < Math.max(1.5, p.avgRR - 0.35)){
+      delta -= 5;
+      cautions.push(`reward-to-risk is weaker than your normal edge`);
+    }
+  }
+  if(p.recentLosses >= 4){
+    delta -= 4;
+    cautions.push(`recent form is shaky, so this needs cleaner confirmation`);
+  }
+  if(p.weaknesses?.[0]){
+    const weakness = String(p.weaknesses[0]);
+    if(/session/i.test(weakness) && p.bestSession?.key && liveSession !== p.bestSession.key){
+      delta -= 2;
+      cautions.push(`this is outside your strongest session`);
+    }
+    if(/R:R|reward/i.test(weakness) && Number.isFinite(rr) && rr < 2){
+      delta -= 2;
+      cautions.push(`your history suggests being stricter on lower R:R trades`);
+    }
+  }
+
+  delta = Math.max(-12, Math.min(12, delta));
+  const band = delta >= 8 ? 'strong_fit'
+    : delta >= 3 ? 'good_fit'
+    : delta <= -6 ? 'poor_fit'
+    : delta < 0 ? 'cautious_fit'
+    : 'neutral';
+  const summary = reasons.length
+    ? `${reasons.slice(0, 2).join(' · ')}${cautions.length ? ` · Watch-out: ${cautions[0]}` : ''}`
+    : (cautions[0] || 'No strong personal fit signal yet.');
+  const nextActionBias = band === 'poor_fit' || band === 'cautious_fit'
+    ? 'extra_confirmation'
+    : band === 'strong_fit'
+      ? 'aggressive_validation'
+      : 'validate';
+  return { delta, band, reasons, cautions, summary, nextActionBias };
+}
 function getCurrentThesis(sym){
   const key = sym || curSym?.s;
   return key ? thesisStore[key] || null : null;
@@ -4734,6 +4819,7 @@ let mentorState = {
   _annCache: null, // { setupBar, method, drawings: [...] }
   _debriefAnnotationsVisible: false,
   guidanceLevel: 'standard',
+  lessonFocus: 'general',
 };
 
 function mentorGuidanceLevelMeta(){
@@ -4798,12 +4884,51 @@ function mentorFormatInsights(insights){
     .map(line => `<div style="margin-bottom:8px;line-height:1.55;color:var(--tx2);font-size:11px;">${String(line).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)
     .join('');
   const meta = mentorGuidanceLevelMeta();
+  const focusMeta = mentorLessonFocusMeta();
   const modeCard = `
     <div style="margin-bottom:10px;padding:8px 9px;border-radius:8px;background:rgba(155,109,255,0.07);border:1px solid rgba(155,109,255,0.16);">
       <div style="font-size:10px;color:var(--purple);font-family:var(--font-mono);letter-spacing:.06em;margin-bottom:4px;">${meta.title}</div>
       <div style="font-size:10.5px;line-height:1.5;color:var(--tx3);">${meta.note}</div>
+      <div style="font-size:10px;line-height:1.45;color:var(--tx3);margin-top:4px;">Lesson focus: ${focusMeta.label}. ${focusMeta.note}</div>
     </div>`;
   return modeCard + formatted;
+}
+function mentorLessonFocusMeta(){
+  const focus = mentorState.lessonFocus || 'general';
+  const map = {
+    general:   { label:'General focus', note:'Balanced coaching across structure, timing, and risk.' },
+    structure: { label:'Structure focus', note:'Bias the teaching toward trend, levels, and market structure.' },
+    patience:  { label:'Patience focus', note:'Bias the teaching toward waiting, confirmation, and avoiding forced trades.' },
+    entries:   { label:'Entry focus', note:'Bias the teaching toward entry precision and trigger quality.' },
+    risk:      { label:'Risk focus', note:'Bias the teaching toward stops, targets, and reward-to-risk discipline.' },
+    liquidity: { label:'Liquidity focus', note:'Bias the teaching toward sweeps, reclaims, and reaction levels.' },
+  };
+  return map[focus] || map.general;
+}
+function setMentorLessonFocus(focus){
+  const next = ['general','structure','patience','entries','risk','liquidity'].includes(focus) ? focus : 'general';
+  mentorState.lessonFocus = next;
+  try{ _prefsSet('mentor-lesson-focus', next); }catch(e){
+    try{ _lsSet('mentor-lesson-focus', next); }catch(_){}
+  }
+  const el = document.getElementById('mentor-lesson-focus');
+  if(el && el.value !== next) el.value = next;
+  if(mentorState.enabled){
+    toast(`Mentor lesson focus: ${mentorLessonFocusMeta().label}`);
+    updateMentorUI();
+  }
+}
+function mentorLessonFocusPrompt(){
+  const focus = mentorState.lessonFocus || 'general';
+  const map = {
+    general: 'Keep the coaching balanced between structure, timing, and risk.',
+    structure: 'Prioritise structure: trend quality, key levels, support/resistance, and why the setup fits the chart.',
+    patience: 'Prioritise patience: waiting, confirmation, not chasing, and what must happen before acting.',
+    entries: 'Prioritise entry quality: trigger candle, level precision, and whether the placement is early, late, or clean.',
+    risk: 'Prioritise risk management: stop logic, target logic, reward-to-risk, and capital protection.',
+    liquidity: 'Prioritise liquidity concepts: sweeps, stop hunts, reclaim levels, reaction zones, and where resting orders likely sat.',
+  };
+  return map[focus] || map.general;
 }
 
 function mentorBuildLessonRecap(trade, outcome, replayScorecard){
@@ -4818,7 +4943,9 @@ function mentorBuildLessonRecap(trade, outcome, replayScorecard){
     general: 'General lesson'
   }[method] || method;
   const profile = getTraderProfile?.();
-  const focus = profile?.checklist?.[0] || 'Keep waiting for cleaner confirmation before committing to the next trade.';
+  const focus = mentorState.lessonFocus && mentorState.lessonFocus !== 'general'
+    ? mentorLessonFocusPrompt()
+    : (profile?.checklist?.[0] || 'Keep waiting for cleaner confirmation before committing to the next trade.');
   const note = replayScorecard?.notes?.[0] || (outcome === 'take_profit'
     ? 'The structure and management held together well enough for the idea to play out.'
     : outcome === 'stop_loss'
@@ -8207,11 +8334,19 @@ function enableMentorFromPopup() {
       methodSelection.style.display = 'block';
     }
     const guidanceSel = document.getElementById('mentor-guidance-level');
+    const focusSel = document.getElementById('mentor-lesson-focus');
     const savedGuidance = (() => {
       try{ return _prefsGet('mentor-guidance-level', 'standard'); }catch(e){ return 'standard'; }
     })();
+    const savedFocus = (() => {
+      try{ return _prefsGet('mentor-lesson-focus', 'general'); }catch(e){
+        try{ return _lsGet('mentor-lesson-focus') || 'general'; }catch(_){ return 'general'; }
+      }
+    })();
     mentorState.guidanceLevel = ['beginner','standard','advanced'].includes(savedGuidance) ? savedGuidance : 'standard';
+    mentorState.lessonFocus = ['general','structure','patience','entries','risk','liquidity'].includes(savedFocus) ? savedFocus : 'general';
     if(guidanceSel) guidanceSel.value = mentorState.guidanceLevel;
+    if(focusSel) focusSel.value = mentorState.lessonFocus;
 
     updateMentorUI();
   }, 250);
@@ -10054,6 +10189,7 @@ async function _mentorAISetupAnalysis(setupDetection, barIndex) {
   if (!ctx) return null;
   const guidance = mentorGuidanceLevelMeta();
   const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   const methodDescriptions = {
     breakout:           'breakout from consolidation â€” body close beyond zone, volume > 20-bar avg, measured-move target',
@@ -10111,6 +10247,7 @@ SETUP: ${setupDetection.setup?.replace(/_/g,' ')} ${setupDetection.direction?.to
 ${verdictLine}
 ${histNote}
 ${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 ${toneInstruction}
 
@@ -10138,6 +10275,7 @@ async function _mentorAITradePlacement(trade, barIndex, _genAtCall) {
   if (!ctx) return null;
   const guidance = mentorGuidanceLevelMeta();
   const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   // Stale guard â€” if setup changed while Groq was processing, discard
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
@@ -10174,6 +10312,7 @@ Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trad
 ${verdictLine}
 ${volNote2}
 ${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 Recent bars:
 ${ctx.ohlcvStr}
@@ -10203,6 +10342,7 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall)
   if (!ctx) return null;
   const guidance = mentorGuidanceLevelMeta();
   const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   // Stale guard â€” discard if a new setup started while Groq was processing
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
@@ -10250,6 +10390,7 @@ ${verdictLine}
 ${weaknessLine}
 ${volNote3}
 ${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 Price action â€” last 30 bars (Bar 1 = oldest, Bar 30 = most recent):
 ${ctx.ohlcvStr}
@@ -10283,8 +10424,9 @@ async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
   const barsAway = setupBar - currentBar;
   const setupName = (setupDetection.setup || 'setup').replace(/_/g,' ');
   const guidance = mentorGuidanceLevelMeta();
+  const lessonFocus = mentorLessonFocusPrompt();
 
-  const prompt = `Trading mentor hint â€” ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}.
+  const prompt = `Trading mentor hint â€” ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}. Lesson focus: ${lessonFocus}
 
 Write one short sentence (${guidance.detail === 'tight' ? 'max 14 words' : guidance.detail === 'full' ? 'max 24 words' : 'max 20 words'}) â€” what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
 
@@ -11354,6 +11496,7 @@ window.toggleMentor = toggleMentor;
 window.mentorDecision = mentorDecision;
 window.mentorHint = mentorHint;
 window.setMentorGuidanceLevel = setMentorGuidanceLevel;
+window.setMentorLessonFocus = setMentorLessonFocus;
 window.updateMentor = updateMentor;
 window.showMentorPopup = showMentorPopup;
 window.closeMentorPopup = closeMentorPopup;
@@ -20431,22 +20574,30 @@ async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const target  = dir==='bull' ? +(entry+tgtDist).toFixed(price<10?4:2) : +(entry-tgtDist).toFixed(price<10?4:2);
   const rr      = (tgtDist/slDist).toFixed(1);
 
+  const patLabel = primary.topPat?primary.topPat.name
+    :(higher?.topPat?higher.topPat.name+` (${higherTF})`:(dir==='bull'?'Bullish Structure':'Bearish Structure'));
+  const memoryFit = buildTraderMemoryFit({
+    sym: sym.s,
+    tf,
+    patLabel,
+    rr: Number(rr),
+    dir,
+  });
   let score = conf;
   if(primary.topPat) score+=primary.topPat.conf*15;
   if(higher?.topPat?.dir===dir) score+=5;
-  score = Math.min(100,Math.round(score));
-
-  const patLabel = primary.topPat?primary.topPat.name
-    :(higher?.topPat?higher.topPat.name+` (${higherTF})`:(dir==='bull'?'Bullish Structure':'Bearish Structure'));
+  const discoveryScore = Math.min(100,Math.round(score));
+  score = Math.min(100, Math.max(0, Math.round(discoveryScore + memoryFit.delta)));
 
   return {
     sym:sym.s, name:sym.n, type:sym.t, exchange:sym.e,
-    tf, dir, conf, score, rr,
+    tf, dir, conf, score, rr, discoveryScore,
     price, entry, sl, target,
     patLabel, movePct:+primary.movePct.toFixed(2),
     rsi:primary.rsi?+primary.rsi.toFixed(1):null,
     dailyData:primary.data, atr, tfAgree,
     keyLevel: dir==='bull'?primary.nearestS:primary.nearestR,
+    memoryFit,
   };
 }
 
@@ -20612,29 +20763,37 @@ function aisBuildSelectionReason(s){
   else if (s.rsi && (s.rsi < 30 || s.rsi > 70)) reasons.push('RSI extreme');
   if (Math.abs(s.movePct) >= 0.8) reasons.push('active momentum');
   if (s.patLabel) reasons.push(s.patLabel.toLowerCase());
-  return reasons.length ? reasons.slice(0, 3).join(' Â· ') : 'pattern, structure, and momentum context';
+  if(s.memoryFit?.delta > 0 && s.memoryFit.reasons?.[0]) reasons.push(`personal edge: ${s.memoryFit.reasons[0]}`);
+  if(s.memoryFit?.delta < 0 && s.memoryFit.cautions?.[0]) reasons.push(`personal caution: ${s.memoryFit.cautions[0]}`);
+  return reasons.length ? reasons.slice(0, 3).join(' · ') : 'pattern, structure, and momentum context';
 }
 
 function aisBuildPersonalFit(s){
-  const profile = getTraderProfile?.();
-  if(!profile?.total) return 'Personal fit builds as you journal more trades.';
-  const notes = [];
-  if(profile.bestSymbol?.key && profile.bestSymbol.key === s.sym) notes.push('matches your strongest symbol');
-  if(profile.bestTf?.key && profile.bestTf.key === s.tf) notes.push('lines up with your best timeframe');
-  if(profile.bestSetup?.key && s.patLabel && s.patLabel.toLowerCase().includes(String(profile.bestSetup.key).toLowerCase())) notes.push('resembles one of your stronger setup types');
-  if(profile.weaknesses?.[0]) notes.push(`watch-out: ${profile.weaknesses[0]}`);
-  return notes.length ? notes.slice(0,2).join(' · ') : 'No strong personal edge signal yet — treat this like a neutral opportunity.';
+  const fit = s.memoryFit || buildTraderMemoryFit(s);
+  if(!fit || fit.band === 'neutral') return fit?.summary || 'No strong personal edge signal yet — treat this like a neutral opportunity.';
+  return fit.summary;
+}
+
+function aisBuildNextAction(s){
+  const fit = s.memoryFit || buildTraderMemoryFit(s);
+  if(fit.nextActionBias === 'extra_confirmation'){
+    return 'Open the chart, but demand extra confirmation before treating this as a live trade.';
+  }
+  if(fit.nextActionBias === 'aggressive_validation'){
+    return 'Open the chart and validate execution quickly — this already matches one of your stronger conditions.';
+  }
+  return 'Open the chart, then use Trade Analysis to decide whether this exact entry is still good.';
 }
 
 function aisCardHTML(s, rank){
   const cid      = `${s.sym}-${s.tf}`;
   const rankCls  = rank===0?'r1':rank===1?'r2':rank===2?'r3':'rn';
   const dirCls   = s.dir;
-  const dirLabel = s.dir==='bull'?'â–² LONG':'â–¼ SHORT';
+  const dirLabel = s.dir==='bull'?'▲ LONG':'▼ SHORT';
   const confCol  = s.conf>=75?'var(--tl)':s.conf>=55?'var(--am)':'var(--rd)';
   const confBar  = s.conf>=75?'#00c9a0':s.conf>=55?'#f0a500':'#f03060';
   const chgCol   = s.movePct>=0?'var(--tl)':'var(--rd)';
-  const rsiNote  = s.rsi?(s.rsi>70?'âš  Overbought':s.rsi<30?'âš¡ Oversold':`RSI ${s.rsi}`):'';
+  const rsiNote  = s.rsi?(s.rsi>70?'Overbought':s.rsi<30?'Oversold':`RSI ${s.rsi}`):'';
   const rrNum    = parseFloat(s.rr);
   const rrCol    = rrNum>=3?'var(--tl)':rrNum>=2?'var(--am)':'var(--tx2)';
   const patternTag = (s.patLabel || 'Structure').split(' ').slice(0,2).join(' ');
@@ -20683,14 +20842,14 @@ function aisCardHTML(s, rank){
         Personal fit: ${aisBuildPersonalFit(s)}
       </div>
       <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;margin-top:4px;">
-        Next step: open the chart, then use Trade Analysis to decide whether this exact entry is still good.
+        Next step: ${aisBuildNextAction(s)}
       </div>
     </div>
     <div class="ais-tags">${tags.map(t=>`<span class="ais-tag">${t}</span>`).join('')}</div>
     <div class="ais-cta">
-      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart â€º</button>
+      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart</button>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} Â· Score ${s.score}</span>
+        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} · Score ${s.score}</span>
         <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:var(--tx3);">Scanned ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
       </div>
     </div>
@@ -20761,13 +20920,8 @@ function aisGenerateIdea(s){
   const tfCtx = s.tfAgree >= 2
     ? 'Higher timeframe is aligned in the same direction, adding confluence.'
     : 'Higher timeframe is mixed â€” treat this as a lower-confluence read.';
-  const personalCtx = profile?.total
-    ? (
-        profile.bestSymbol?.key === s.sym ? ' This also lines up with one of your stronger symbols.' :
-        profile.bestTf?.key === s.tf ? ' This matches one of your better timeframes.' :
-        profile.weaknesses?.[0] ? ` Personal caution: ${profile.weaknesses[0]}` : ''
-      )
-    : '';
+  const fit = s.memoryFit || buildTraderMemoryFit(s, profile);
+  const personalCtx = fit?.summary ? ` ${fit.summary}.` : '';
 
   // Pattern-specific setup line
   const setupTemplates = {
@@ -20813,13 +20967,19 @@ function aisGenerateIdea(s){
   };
   const waitLine = waitTemplates[s.dir] ||
     `Confirmation is needed before acting â€” watch for a decisive candle close in the ${dir} direction.`;
+  const actionLine = fit?.nextActionBias === 'extra_confirmation'
+    ? 'Treat this as watchlist-quality first. Only elevate it if price confirms cleanly at the level.'
+    : fit?.nextActionBias === 'aggressive_validation'
+      ? 'This deserves a quicker execution check because it lines up with one of your stronger conditions.'
+      : 'Use Trade Analysis next if you want to judge the exact entry, stop, and target.';
 
-  // Return in the same format the rest of the code expects (Setup: / Why: / Levels: / Wait:)
+  // Return in the same format the rest of the code expects.
   return Promise.resolve([
     `Setup: ${setupLine}`,
     `Why: ${whyLine}`,
     `Levels: ${levelsLine}`,
     `Wait: ${waitLine}`,
+    `Action: ${actionLine}`,
   ].join('\n'));
 }
 
@@ -20840,14 +21000,14 @@ function formatAISIdea(text){
     .map(line => line.trim())
     .filter(Boolean)
     .map(line => line.replace(/^\d+\.\s*/, ''))
-    .slice(0, 4);
+    .slice(0, 5);
 
   if (!lines.length) {
     return '<div style="color:var(--tx3);">AI summary unavailable.</div>';
   }
 
   return lines.map(line => {
-    const match = line.match(/^(Setup|Why|Levels|Wait)\s*:\s*(.+)$/i);
+    const match = line.match(/^(Setup|Why|Levels|Wait|Action)\s*:\s*(.+)$/i);
     if (!match) {
       return `<div style="margin-bottom:6px;color:var(--tx2);">${escapeHtml(line)}</div>`;
     }
@@ -20976,12 +21136,23 @@ function tapParseRefinementJSON(text){
   out.keepOriginalTarget = !!out.keepOriginalTarget;
   return out;
 }
+function tapParseActionJSON(text){
+  const parsed = tapParseLabeledJSON(text, 'ACTION_JSON');
+  if(!parsed || typeof parsed !== 'object') return null;
+  return {
+    nextAction: String(parsed.nextAction || '').trim().toLowerCase(),
+    urgency: String(parsed.urgency || '').trim().toLowerCase(),
+    reason: String(parsed.reason || '').trim(),
+    focus: String(parsed.focus || '').trim(),
+  };
+}
 
 function tapDisplayAnalysisText(text){
   return String(text || '')
     .replace(/\n?METHOD_JSON:\s*\{[^\n]*\}/gi, '')
     .replace(/\n?REFINEMENT_JSON:\s*\{[^\n]*\}/gi, '')
     .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}/gi, '')
+    .replace(/\n?ACTION_JSON:\s*\{[^\n]*\}/gi, '')
     .trim();
 }
 
@@ -20990,6 +21161,7 @@ function tapExtractTradeMetrics(text){
   const structured = tapParseStructuredAnalysis(source);
   if (structured) {
     return {
+      sourceText: source,
       entryQuality: structured.entry_quality ?? null,
       stopPlacement: structured.stop_placement ?? null,
       riskReward: structured.risk_reward_logic ?? null,
@@ -21026,6 +21198,7 @@ function tapExtractTradeMetrics(text){
   else if (verdictZone.includes('C SETUP')) fallbackCombined = 35;
   else if (verdictZone.includes('AVOID TRADE') || verdictZone.includes('AVOID') || verdictZone.includes('INVALID SETUP')) fallbackCombined = 18;
   return {
+    sourceText: source,
     entryQuality: getScore('Entry Quality'),
     stopPlacement: getScore('Stop Placement'),
     riskReward: getScore('Risk/Reward Logic'),
@@ -21083,8 +21256,8 @@ function tapBuildComparison(setupMeta, metrics){
   if (!better && tradeScore !== null && tradeScore < 60) {
     better = 'Look for a cleaner entry closer to support/resistance, a stop placed beyond structure, and a target that restores a stronger reward-to-risk balance.';
   }
-
-  return { scanScore, tradeScore, scannerSaw: scannerSaw + personalLens, confirmed, changed, better };
+  const action = tapParseActionJSON(metrics?.sourceText || '') || null;
+  return { scanScore, tradeScore, scannerSaw: scannerSaw + personalLens, confirmed, changed, better, action };
 }
 function tapGetRenderedTradeScore(){
   const scoreEl = document.getElementById('tap-verdict-score');
@@ -21244,6 +21417,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   const tradeScore = comp?.tradeScore ?? tapGetRenderedTradeScore();
   const tradeState = getTradeState(d, tapGetDataForSymTF(tapGetTradeSourceSym(d), tapGetTradeSourceTF(d)));
   const refinement = tapParseRefinementJSON(analysisText || '');
+  const action = comp?.action || tapParseActionJSON(analysisText || '');
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
@@ -21299,6 +21473,7 @@ function tapRenderSetupBridge(d, analysisText=''){
         </div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${refinement?.reason || comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
         <div style="font-size:10px;color:${tapTradeStateColor(tradeState.state)};margin-top:6px;">${refinement?.stateNote || tradeState.reason}</div>
+        ${action?.reason ? `<div style="font-size:10px;color:var(--tx3);margin-top:6px;">Next action: ${action.reason}</div>` : ''}
       </div>
     </div>`;
 }
@@ -24257,7 +24432,14 @@ Originating Setup Context:
   Original Structure Context: ${(setupMeta.originalStructureContext || `${setupMeta.patLabel || 'Structure'} aligned with ${setupMeta.tf || drawingTF}`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
-  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
+  const personalFit = buildTraderMemoryFit({
+    sym: curSym.s,
+    tf: drawingTF,
+    patLabel: setupMeta?.patLabel || d?._setupPattern || '',
+    rr,
+    dir: isLong ? 'bull' : 'bear',
+  }, traderProfile);
+  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}. Current setup fit: ${personalFit.summary} (score adjustment ${personalFit.delta >= 0 ? '+' : ''}${personalFit.delta}).`;
   const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
 
   // â”€â”€ Historical stats: fetch BEFORE building prompt so scores reflect real data â”€
@@ -24421,9 +24603,20 @@ Rules for REFINEMENT_JSON:
   - For MISSED, only use pullback_reentry if the move has not already replayed on chart; otherwise use reject.
   - For EXPIRED, use reject or post_trade_review; do not output a live setup.
   - For COMPLETED or STOPPED, use post_trade_review with entry/sl/tp all null.
-  - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
+ - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
   - SL PLACEMENT RULE: Always place the stop loss BEYOND the nearest significant swing high (for shorts) or swing low (for longs) from the S/R levels provided â€” not just ATR-based. The SL must clear that structural level by at least 0.2Ã— ATR so a wick cannot clip it. A tight SL that sits inside a S/R zone will be stopped out by normal volatility.
   - R:R RULE: The refined R:R must be at least 1.5:1. Do not tighten the stop or move the target closer if doing so drops R:R below 1.5:1. If you cannot achieve 1.5:1 with a structurally sound SL, widen the TP instead.
+
+13. ACTION_JSON
+On the very next line after REFINEMENT_JSON, output exactly:
+ACTION_JSON: {"nextAction":"<wait|validate_now|manage_trade|look_for_reentry|review_only|skip>","urgency":"<low|medium|high>","reason":"<one sentence on the best next move for the trader>","focus":"<entry|confirmation|risk|management|review>"}
+Rules for ACTION_JSON:
+  - PENDING strong/acceptable setups should usually be validate_now or wait.
+  - ACTIVE setups must be manage_trade.
+  - MISSED setups should usually be look_for_reentry or skip.
+  - EXPIRED setups should be skip or review_only.
+  - COMPLETED and STOPPED setups must be review_only.
+  - The reason must respect trader memory. If the setup clashes with the trader's weak habits, say that.
   - IMPROVEMENT RULE: Only output a refined entry/sl/tp if the refinement genuinely improves on the original. If the original levels are already optimal, set keepOriginalTarget:true and adjust only what is necessary.
 Do not add any text after REFINEMENT_JSON.
 

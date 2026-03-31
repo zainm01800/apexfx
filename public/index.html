@@ -566,6 +566,14 @@
             <option value="standard" selected>Standard</option>
             <option value="advanced">Advanced</option>
           </select>
+          <select id="mentor-lesson-focus" onchange="setMentorLessonFocus(this.value)" style="font-size:10px;padding:2px 5px;border:1px solid rgba(155,109,255,0.2);background:rgba(155,109,255,0.08);color:var(--purple);border-radius:4px;cursor:pointer;">
+            <option value="general">General</option>
+            <option value="structure">Structure</option>
+            <option value="patience">Patience</option>
+            <option value="entries">Entries</option>
+            <option value="risk">Risk</option>
+            <option value="liquidity">Liquidity</option>
+          </select>
           <select id="trading-method-select" onchange="changeTradingMethod(this.value)" style="font-size:10px;padding:2px 5px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--tx3);border-radius:4px;cursor:pointer;">
             <option value="">Change...</option>
             <option value="breakout">Breakout</option>
