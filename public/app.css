@@ -1210,6 +1210,34 @@ position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
 /* ─── ANALYTICS ──────────────────────────────────────────────────────────── */
 .analytics-stage{padding:0 8px;}
 .analytics-stage-hero{padding-top:2px;}
+.analytics-intro-card{
+  margin:10px 0 2px;
+  padding:12px;
+  border-radius:12px;
+  border:1px solid rgba(61,142,255,.18);
+  background:
+    radial-gradient(circle at top right, rgba(61,142,255,.16), transparent 42%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+.analytics-intro-kicker{
+  font-family:var(--font-mono);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  color:var(--bl);
+  margin-bottom:5px;
+}
+.analytics-intro-title{
+  font-size:13px;
+  font-weight:700;
+  color:var(--tx);
+  margin-bottom:5px;
+}
+.analytics-intro-copy{
+  font-size:11px;
+  color:var(--tx2);
+  line-height:1.65;
+}
 .analytics-hero-card{
   margin:0 0 10px;
   padding:12px;
@@ -1262,6 +1290,43 @@ position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
 .analytics-focus-card .analytics-card-label{color:var(--amber);}
 .analytics-strength-card .analytics-card-label{color:var(--green);}
 .analytics-card-copy{font-size:11px;color:var(--tx2);line-height:1.65;}
+.ai-role-strip{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+  padding:8px 8px 2px;
+}
+.ai-role-card{
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.03);
+}
+.ai-role-card-live{
+  background:
+    radial-gradient(circle at top right, rgba(0,212,160,.14), transparent 45%),
+    rgba(255,255,255,.03);
+  border-color:rgba(0,212,160,.18);
+}
+.ai-role-kicker{
+  font-family:var(--font-mono);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  color:var(--tx3);
+  margin-bottom:4px;
+}
+.ai-role-title{
+  font-size:12px;
+  font-weight:700;
+  color:var(--tx);
+  margin-bottom:4px;
+}
+.ai-role-copy{
+  font-size:11px;
+  color:var(--tx2);
+  line-height:1.55;
+}
 .sf-btn{padding:2px 7px;font-size:11px;border-radius:3px;border:1px solid var(--line);
   background:var(--bg3);color:var(--tx2);cursor:pointer;font-family:var(--font-mono);}
 .sf-btn.on{background:rgba(245,166,35,.1);color:var(--amber);border-color:rgba(245,166,35,.3);}
