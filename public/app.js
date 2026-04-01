@@ -2799,6 +2799,7 @@ function buildAnalytics(){
   buildDrawdownCurve();
   buildRRDist();
   buildMonthlyPL();
+  checkEmptyWidgets();
 }
 
 let traderProfileCache = null;
@@ -27050,6 +27051,137 @@ if(_origSelSym){
   };
 }
 
+// ══ COLLAPSIBLE SIDEBAR SECTIONS ════════════════════════════════════════════
+
+const WIDGET_EMPTY_IDS = {
+  profile:   'trader-profile-card',
+  thesis:    'thesis-tracker-card',
+  replaylab: 'replay-lab-card',
+  psych:     'psych-chart',
+  setup:     'setup-chart',
+  tod:       'tod-heatmap',
+  wl:        'wl-bars',
+  streak:    'streak-stats',
+  tags:      'tag-chart',
+  dow:       'dow-chart',
+  sym:       'sym-chart',
+};
+
+function checkEmptyWidgets(){
+  // Hide widgets whose primary data container has no rendered content,
+  // but never un-hide widgets the user has explicitly hidden via Customise
+  for(const [wid, cid] of Object.entries(WIDGET_EMPTY_IDS)){
+    const content = document.getElementById(cid);
+    const widget  = document.querySelector(`[data-widget="${wid}"]`);
+    if(!content || !widget) continue;
+    if(analyticsHidden?.has(wid)) continue; // respect user's choice
+    const isEmpty = content.children.length === 0 && content.innerText.trim() === '';
+    if(isEmpty) widget.style.display = 'none';
+    // don't force-show — applyAnalyticsVisibility already handled that
+  }
+  // Show/hide analytics-stage section titles if all their widgets are hidden
+  document.querySelectorAll('#analytics-widgets .analytics-stage').forEach(stage => {
+    // Collect all widget siblings between this stage and the next
+    let el = stage.nextElementSibling;
+    const widgets = [];
+    while(el && !el.classList.contains('analytics-stage')){
+      if(el.hasAttribute('data-widget')) widgets.push(el);
+      el = el.nextElementSibling;
+    }
+    if(widgets.length > 0){
+      const allHidden = widgets.every(w => w.style.display === 'none');
+      stage.style.display = allHidden ? 'none' : '';
+    }
+  });
+}
+
+let _collapsibleInitDone = false;
+function initCollapsibleSections(){
+  if(_collapsibleInitDone) return;
+  _collapsibleInitDone = true;
+
+  // ── Analytics: each data-widget ──────────────────────────────────────────
+  document.querySelectorAll('#analytics-widgets [data-widget]').forEach(widget => {
+    const id = widget.getAttribute('data-widget');
+    widget.style.position = 'relative';
+
+    // Wrap all current children in a collapsible body
+    const body = document.createElement('div');
+    body.className = 'widget-collapse-body';
+    Array.from(widget.children).forEach(c => body.appendChild(c));
+    widget.appendChild(body);
+
+    // Floating toggle button in top-right corner
+    const btn = document.createElement('button');
+    btn.className = 'widget-toggle-btn';
+    btn.textContent = '▾';
+    btn.title = 'Collapse';
+    widget.insertBefore(btn, body);
+
+    // Restore saved collapse state
+    if(localStorage.getItem('wc_' + id) === '1'){
+      body.style.display = 'none';
+      btn.textContent = '▸';
+      btn.title = 'Expand';
+    }
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      btn.textContent = collapsed ? '▾' : '▸';
+      btn.title = collapsed ? 'Collapse' : 'Expand';
+      localStorage.setItem('wc_' + id, collapsed ? '0' : '1');
+    });
+  });
+
+  // ── AI tab: sec-title sections ────────────────────────────────────────────
+  const aiPanel = document.getElementById('rp-ai');
+  if(!aiPanel) return;
+  aiPanel.querySelectorAll('.sec-title').forEach(title => {
+    const raw = title.textContent.trim();
+    const sid = 'ais_' + raw.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    // Collect siblings until next sec-title
+    const siblings = [];
+    let next = title.nextElementSibling;
+    while(next && !next.classList.contains('sec-title')){
+      siblings.push(next);
+      next = next.nextElementSibling;
+    }
+    if(!siblings.length) return;
+
+    // Wrap siblings in collapsible body
+    const body = document.createElement('div');
+    body.className = 'widget-collapse-body';
+    title.parentNode.insertBefore(body, siblings[0]);
+    siblings.forEach(s => body.appendChild(s));
+
+    // Arrow appended to title text
+    const arrow = document.createElement('span');
+    arrow.className = 'widget-collapse-arrow';
+    arrow.textContent = '▾';
+    title.style.display = 'flex';
+    title.style.justifyContent = 'space-between';
+    title.style.alignItems = 'center';
+    title.style.cursor = 'pointer';
+    title.style.userSelect = 'none';
+    title.appendChild(arrow);
+
+    if(localStorage.getItem('wc_' + sid) === '1'){
+      body.style.display = 'none';
+      arrow.textContent = '▸';
+    }
+
+    title.addEventListener('click', () => {
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      arrow.textContent = collapsed ? '▾' : '▸';
+      localStorage.setItem('wc_' + sid, collapsed ? '0' : '1');
+    });
+  });
+}
+
 // DOMContentLoaded init
 document.addEventListener('DOMContentLoaded', ()=>{
   // Ritual modal (delayed so app loads first)
@@ -27065,6 +27197,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Onboarding tour (first-time users only)
   if(!_lsGet('tour-completed') && !_lsGet('journal')){ setTimeout(startOnboardingTour, 4000); }
 
+  // Collapsible sidebar sections
+  initCollapsibleSections();
 
   // Initial status bar
   setTimeout(updateStatusBarStats, 500);
