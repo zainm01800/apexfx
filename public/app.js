@@ -12545,7 +12545,12 @@ function renderNews(items, sym){
 // â•â• CANVAS CHART â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function sizeCanvases(){
   const area=_el('chart-area');
-  const W=area.clientWidth, totalH=area.clientHeight;
+  // Use main-col.clientWidth to break the circular dependency where canvas
+  // flex-shrink:0 keeps inflating area.clientWidth after a window resize.
+  // main-col is position:absolute;inset:0 so it always reflects true viewport width.
+  const mainCol=_el('main-col');
+  const W=(mainCol&&mainCol.clientWidth>0)?mainCol.clientWidth:area.clientWidth;
+  const totalH=area.clientHeight;
   const volH=showVol?68:0, rsiH=showRSI?74:0;
   const macdH=showMACD?74:0, stochH=showStoch?74:0;
   const mainH=Math.max(100,totalH-volH-rsiH-macdH-stochH);
