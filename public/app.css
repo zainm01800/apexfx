@@ -2700,3 +2700,21 @@ body.is-dragging { user-select: none; }
   width:40px;
 }
 .rsc-bar-fill{height:100%;border-radius:2px;transition:width .4s ease;}
+
+/* ── Collapsible sidebar sections ─────────────────────────────────────── */
+.widget-toggle-btn{
+  position:absolute;top:8px;right:6px;
+  background:none;border:none;
+  color:var(--tx3);font-size:9px;
+  cursor:pointer;padding:2px 4px;z-index:2;
+  line-height:1;border-radius:3px;
+  transition:color .15s,background .15s;
+}
+.widget-toggle-btn:hover{color:var(--tx);background:var(--bg3);}
+.widget-collapse-body{overflow:hidden;}
+.widget-collapse-arrow{
+  font-size:9px;color:var(--tx3);
+  flex-shrink:0;margin-left:6px;
+  transition:color .15s;
+}
+.sec-title:hover .widget-collapse-arrow{color:var(--tx2);}
