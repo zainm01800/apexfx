@@ -776,22 +776,10 @@
 
     <!-- AI tab -->
     <div class="rp-body on" id="rp-ai">
-      <div class="ai-role-strip">
-        <div class="ai-role-card ai-role-card-live">
-          <div class="ai-role-kicker">Live read</div>
-          <div class="ai-role-title">AI Copilot</div>
-          <div class="ai-role-copy">Explains what the chart is doing right now.</div>
-        </div>
-        <div class="ai-role-card">
-          <div class="ai-role-kicker">Discovery</div>
-          <div class="ai-role-title">AI Setups</div>
-          <div class="ai-role-copy">Finds markets and ideas worth opening.</div>
-        </div>
-        <div class="ai-role-card">
-          <div class="ai-role-kicker">Decision</div>
-          <div class="ai-role-title">Trade Analysis</div>
-          <div class="ai-role-copy">Checks whether this exact entry is actually good.</div>
-        </div>
+      <div class="ai-role-pills">
+        <button class="ai-role-pill ai-role-pill-live" onclick="refreshLiveCopilot(false)">AI Copilot</button>
+        <button class="ai-role-pill" onclick="openAISetups()">AI Setups</button>
+        <button class="ai-role-pill" onclick="openFullTradeAnalysis()">Trade Analysis</button>
       </div>
       <!-- Bias hero strip — updated by renderAIPanel every time data refreshes -->
       <div id="ai-bias-hero" style="display:none;margin:6px 6px 2px;padding:10px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);cursor:default;">
@@ -812,7 +800,10 @@
           </div>
           <button id="ai-copilot-refresh" onclick="refreshLiveCopilot(true)" style="padding:4px 10px;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.22);color:var(--bl);font-size:10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Refresh</button>
         </div>
-        <div id="ai-copilot-brief" style="padding:12px;font-size:11px;color:var(--tx2);line-height:1.65;"></div>
+        <div style="position:relative;">
+          <div id="ai-copilot-brief" style="padding:12px 12px 4px;font-size:11px;color:var(--tx2);line-height:1.65;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;"></div>
+          <button id="ai-copilot-expand" onclick="(function(){var b=document.getElementById('ai-copilot-brief');var btn=document.getElementById('ai-copilot-expand');var expanded=b.style.webkitLineClamp==='unset';b.style.webkitLineClamp=expanded?'3':'unset';b.style.overflow=expanded?'hidden':'visible';btn.textContent=expanded?'Read more ↓':'Show less ↑';})()" style="display:block;width:100%;padding:2px 12px 8px;background:none;border:none;color:var(--tx3);font-size:10px;font-family:ui-monospace,'SF Mono',monospace;cursor:pointer;text-align:left;letter-spacing:.3px;">Read more ↓</button>
+        </div>
         <div style="padding:0 12px 12px;">
           <div id="ai-copilot-changes" style="display:grid;gap:8px;"></div>
         </div>
@@ -900,13 +891,6 @@
       </div>
       <div id="analytics-customise-panel" style="display:none;padding:8px;background:var(--bg3);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:5px;flex-shrink:0;"></div>
       <div id="analytics-widgets" style="display:flex;flex-direction:column;">
-        <div class="analytics-stage">
-          <div class="analytics-intro-card">
-            <div class="analytics-intro-kicker">What this tab is for</div>
-            <div class="analytics-intro-title">Review patterns. Improve decisions. Build your edge.</div>
-            <div class="analytics-intro-copy">Use this area after trades and after replay sessions. It is meant to teach you how you trade over time, not to replace the live chart read.</div>
-          </div>
-        </div>
         <div class="analytics-stage analytics-stage-hero">
           <div class="sec-title" style="padding-top:12px;">Performance Snapshot</div>
           <div id="analytics-hero-card" class="analytics-hero-card"></div>
