@@ -1090,7 +1090,7 @@ position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
 .clbl{font-family:var(--font-mono);font-size:10px;color:var(--tx2);letter-spacing:.5px;margin-bottom:2px;}
 .cval{font-family:var(--font-mono);font-size:12px;color:var(--tx);}
 .sec-title{font-family:var(--font-mono);font-size:10px;letter-spacing:1.2px;color:var(--tx2);
-  padding:6px 10px 3px;text-transform:uppercase;}
+  padding:10px 10px 4px;text-transform:uppercase;}
 
 /* AI panel */
 .ai-hero-card{
@@ -1149,15 +1149,15 @@ position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
 .ai-decision-grid{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:6px;
+  gap:8px;
   padding:0 6px 6px;
 }
 .ai-panel-card,
 .ai-detail-card{
   background:rgba(17,24,32,0.78);
   border:1px solid rgba(255,255,255,.07);
-  border-radius:8px;
-  padding:8px;
+  border-radius:10px;
+  padding:10px;
 }
 .ai-panel-card-accent{
   border-color:rgba(245,166,35,.18);
@@ -1290,41 +1290,18 @@ position:absolute;right:0;top:0;bottom:var(--statusbar-h,22px);width:280px;
 .analytics-focus-card .analytics-card-label{color:var(--amber);}
 .analytics-strength-card .analytics-card-label{color:var(--green);}
 .analytics-card-copy{font-size:11px;color:var(--tx2);line-height:1.65;}
-.ai-role-pills{
-  display:flex;
-  gap:6px;
-  padding:8px 8px 4px;
+.ai-role-strip{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+  padding:8px 8px 2px;
 }
-.ai-role-pill{
-  flex:1;
-  padding:5px 6px;
-  border-radius:6px;
-  border:1px solid rgba(255,255,255,.08);
-  background:rgba(255,255,255,.04);
-  color:var(--tx2);
-  font-size:10px;
-  font-family:var(--font-mono);
-  font-weight:600;
-  letter-spacing:.3px;
-  cursor:pointer;
-  white-space:nowrap;
-  transition:background .15s,border-color .15s,color .15s;
+.ai-role-card{
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.03);
 }
-.ai-role-pill:hover{
-  background:rgba(255,255,255,.08);
-  border-color:rgba(255,255,255,.16);
-  color:var(--tx);
-}
-.ai-role-pill-live{
-  border-color:rgba(0,212,160,.25);
-  background:rgba(0,212,160,.07);
-  color:var(--green);
-}
-.ai-role-pill-live:hover{
-  background:rgba(0,212,160,.14);
-  border-color:rgba(0,212,160,.4);
-}
-/* keep old card styles in case referenced elsewhere */
 .ai-role-card-live{
   background:
     radial-gradient(circle at top right, rgba(0,212,160,.14), transparent 45%),

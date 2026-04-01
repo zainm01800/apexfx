@@ -776,10 +776,22 @@
 
     <!-- AI tab -->
     <div class="rp-body on" id="rp-ai">
-      <div class="ai-role-pills">
-        <button class="ai-role-pill ai-role-pill-live" onclick="refreshLiveCopilot(false)">AI Copilot</button>
-        <button class="ai-role-pill" onclick="openAISetups()">AI Setups</button>
-        <button class="ai-role-pill" onclick="openFullTradeAnalysis()">Trade Analysis</button>
+      <div class="ai-role-strip">
+        <div class="ai-role-card ai-role-card-live">
+          <div class="ai-role-kicker">Live read</div>
+          <div class="ai-role-title">AI Copilot</div>
+          <div class="ai-role-copy">Explains what the chart is doing right now.</div>
+        </div>
+        <div class="ai-role-card">
+          <div class="ai-role-kicker">Discovery</div>
+          <div class="ai-role-title">AI Setups</div>
+          <div class="ai-role-copy">Finds markets and ideas worth opening.</div>
+        </div>
+        <div class="ai-role-card">
+          <div class="ai-role-kicker">Decision</div>
+          <div class="ai-role-title">Trade Analysis</div>
+          <div class="ai-role-copy">Checks whether this exact entry is actually good.</div>
+        </div>
       </div>
       <!-- Bias hero strip — updated by renderAIPanel every time data refreshes -->
       <div id="ai-bias-hero" style="display:none;margin:6px 6px 2px;padding:10px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);cursor:default;">
@@ -792,26 +804,26 @@
         </div>
       </div>
       <div class="sec-title">LIVE AI COPILOT</div>
-      <div style="margin:4px 6px 6px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;overflow:hidden;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--b1);">
+      <div style="margin:4px 6px 8px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--b1);">
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--tx);">Chart-aware market briefing</div>
-            <div id="ai-copilot-status" style="font-size:10px;color:var(--tx3);margin-top:2px;">Live read — not a trade trigger.</div>
+            <div id="ai-copilot-status" style="font-size:10px;color:var(--tx3);margin-top:3px;">This is your live read, not a trade trigger by itself.</div>
           </div>
-          <button id="ai-copilot-refresh" onclick="refreshLiveCopilot(true)" style="padding:3px 9px;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.22);color:var(--bl);font-size:10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;flex-shrink:0;">Refresh</button>
+          <button id="ai-copilot-refresh" onclick="refreshLiveCopilot(true)" style="padding:4px 10px;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.22);color:var(--bl);font-size:10px;border-radius:999px;cursor:pointer;font-family:ui-monospace,'SF Mono',monospace;">Refresh</button>
         </div>
-        <div id="ai-copilot-brief" style="padding:8px 10px;font-size:11px;color:var(--tx2);line-height:1.65;"></div>
-        <div style="padding:0 10px 8px;">
-          <div id="ai-copilot-changes" style="display:grid;gap:6px;"></div>
+        <div id="ai-copilot-brief" style="padding:12px;font-size:11px;color:var(--tx2);line-height:1.65;"></div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-changes" style="display:grid;gap:8px;"></div>
         </div>
-        <div style="padding:0 10px 8px;">
-          <div id="ai-copilot-actions" style="display:grid;gap:6px;"></div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-actions" style="display:grid;gap:8px;"></div>
         </div>
-        <div style="padding:0 10px 8px;">
-          <div id="ai-copilot-ai" style="padding:8px 10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:6px;font-size:11px;color:var(--tx2);line-height:1.65;">Generating deeper chart explanation…</div>
+        <div style="padding:0 12px 12px;">
+          <div id="ai-copilot-ai" style="padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;font-size:11px;color:var(--tx2);line-height:1.65;">Generating deeper chart explanation…</div>
         </div>
       </div>
-      <div class="sec-title">Context & Levels</div>
+      <div class="sec-title">Execution Context</div>
       <div class="ai-decision-grid">
         <div class="ai-panel-card ai-panel-card-accent">
           <div class="ai-panel-label">AI Signal</div>
@@ -830,11 +842,12 @@
           <div id="ai-levels" class="ai-panel-body" style="margin:0;"></div>
         </div>
       </div>
+      <div class="sec-title">Deeper Read</div>
       <div class="ai-detail-card">
         <div class="ai-panel-label">Pattern Recognition</div>
         <div id="ai-patterns"></div>
       </div>
-      <div class="ai-detail-card" style="margin-top:6px;">
+      <div class="ai-detail-card" style="margin-top:8px;">
         <div class="ai-panel-label">Volatility & Range</div>
         <div id="ai-stats" class="ai-panel-body" style="margin:0;"></div>
       </div>
