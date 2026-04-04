@@ -349,13 +349,6 @@
   <!-- ── MAIN COLUMN ───────────────────────────────────────────────────── -->
   <div id="main-col">
 
-    <!-- ACTIVATION BANNER -->
-    <div id="activation-banner" style="display:none;">
-      <span id="activation-banner-text"></span>
-      <button class="act-btn" id="activation-banner-btn"></button>
-      <button class="act-dismiss" onclick="document.getElementById('activation-banner').style.display='none'" title="Dismiss">✕</button>
-    </div>
-
     <!-- COMMAND BAR -->
     <div id="cmd-bar">
 
@@ -865,6 +858,11 @@
 
     <!-- Journal tab -->
     <div class="rp-body" id="rp-journal" style="display:none!important">
+      <div id="activation-banner" style="display:none;">
+        <span id="activation-banner-text"></span>
+        <button class="act-btn" id="activation-banner-btn"></button>
+        <button class="act-dismiss" onclick="document.getElementById('activation-banner').style.display='none'" title="Dismiss">✕</button>
+      </div>
       <div id="j-stats-bar" style="grid-template-columns:repeat(6,1fr);">
         <div class="j-stat"><div class="j-stat-lbl">Trades</div><div class="j-stat-val" id="jst-total">0</div></div>
         <div class="j-stat"><div class="j-stat-lbl">Win %</div><div class="j-stat-val" id="jst-wr" style="color:var(--green)">&mdash;</div></div>
