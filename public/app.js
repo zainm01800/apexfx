@@ -1,6 +1,6 @@
 ﻿// Extracted from inline <script> blocks in index.html
 
-// â”€â”€ OVERLAY PANEL + NAV GLUE SCRIPT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OVERLAY PANEL + NAV GLUE SCRIPT ─────────────────────────────────────────
 // Overlay panel controller
 let _activeOverlay = null;
 let _overlayLocked = false;
@@ -9,14 +9,14 @@ function toggleOverlay(name) {
   const panel = document.getElementById('overlay-panel');
   const titles = {watch:'Watchlist',alerts:'Price Alerts',scanner:'AI Scanner',draw:'Drawing Tools',inds:'Indicators'};
 
-  // Locked + same panel clicked â†’ unlock and close
+  // Locked + same panel clicked → unlock and close
   if (_overlayLocked && _activeOverlay === name) {
     _overlayLocked = false;
     closeOverlay();
     return;
   }
 
-  // Unlocked + same panel clicked â†’ close
+  // Unlocked + same panel clicked → close
   if (!_overlayLocked && _activeOverlay === name) {
     closeOverlay();
     return;
@@ -113,17 +113,17 @@ function _updateLockBtn() {
   if (_overlayLocked) {
     btn.classList.add('pinned');
     btn.title = 'Unpin panel';
-    btn.textContent = 'âŠŸ';
+    btn.textContent = '⊟';
   } else {
     btn.classList.remove('pinned');
     btn.title = 'Pin panel open';
-    btn.textContent = 'âŠž';
+    btn.textContent = '⊞';
   }
 }
 
 // Click-outside: close panel if open and not pinned
 document.addEventListener('mousedown', function(e) {
-  if (_overlayLocked) return;           // pinned â€” never auto-close
+  if (_overlayLocked) return;           // pinned — never auto-close
   if (!_activeOverlay) return;          // already closed
   const panel = document.getElementById('overlay-panel');
   const nav   = document.getElementById('nav');
@@ -136,7 +136,7 @@ document.addEventListener('mousedown', function(e) {
 const _origScanResults = document.getElementById('scan-results-inner');
 
 // Map old IDs used by scanner JS to new locations
-// scanner-results â†’ scan-results-inner
+// scanner-results → scan-results-inner
 Object.defineProperty(document, '_scannerResultsEl', {
   get: () => _origScanResults
 });
@@ -153,9 +153,9 @@ updateStatusTime();
 
 
 
-// â”€â”€â”€ Extracted from index.html â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Extracted from index.html ────────────────────────────────────────────
 
-// â•â• SUPABASE AUTHENTICATION VARIABLES (declared first to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SUPABASE AUTHENTICATION VARIABLES (declared first to prevent hoisting issues) ������������������������������������������
 const SUPA_URL  = 'https://ksxznauzvlsgfghvpeew.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzeHpuYXV6dmxzZ2ZnaHZwZWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0ODg4MjIsImV4cCI6MjA4OTA2NDgyMn0.B5a2zl8Vr_Q51fB9_Pv1Q8SXnh41xELgJkrRu0BEkEk';
 
@@ -164,11 +164,11 @@ let _currentUserId  = null; // Supabase auth UUID
 let _supaReady      = false;
 let _supa           = null;
 
-// â•â• AUTO-SAVE VARIABLES (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AUTO-SAVE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let _autoSaveInterval = null;
 
-// â•â• WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const _writeQueue = {}; // key â†’ value (latest wins)
+// �� WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
+const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
 let _cloudSyncState = { status:'offline', message:'Local only', lastOkAt:0 };
 // Circuit breaker: after 3 consecutive RLS/permission failures, stop hammering Supabase.
@@ -197,13 +197,13 @@ function updateCloudSyncBadge(state = {}){
   }
 }
 
-// â•â• DRAWING VARIABLES (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� DRAWING VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let drawings = []; // completed drawings
 
-// â•â• DOM CACHE VARIABLES (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� DOM CACHE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let _elCache = {}; // Cached DOM element references
 
-// â•â• BUILTIN INDICATORS (declared early to prevent hoisting issues) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� BUILTIN INDICATORS (declared early to prevent hoisting issues) ������������������������������������������
 const BUILTIN_INDS = [
   {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
   {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9, 21 & 200)',  icon:'📈'},
@@ -213,13 +213,13 @@ const BUILTIN_INDS = [
   {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'📉'},
   {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'〰'},
   {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'📉'},
-  {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
+  {id:'sessions',name:'Sessions', desc:'Trading session bands � Asia � London � NY', icon:'🌍'},
 ];
 
-// â•â• SYMBOLS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SYMBOLS ������������������������������������������������������������������
 const SYMS=[
-  // â”€â”€ Crypto (via Binance â€” free, commercial use permitted) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // p values = approximate prices as of March 2026 â€” used only as placeholder
+  // ── Crypto (via Binance — free, commercial use permitted) ────────────────
+  // p values = approximate prices as of March 2026 — used only as placeholder
   // while real Binance data loads. Updated from live market.
   {s:'BTC/USD',  n:'Bitcoin',       e:'CRYPTO', t:'Crypto', p:66400,  c:0},
   {s:'ETH/USD',  n:'Ethereum',      e:'CRYPTO', t:'Crypto', p:1990,   c:0},
@@ -243,7 +243,7 @@ const SYMS=[
   {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.101,  c:0},
 ];
 
-// â•â• STATE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� STATE ��������������������������������������������������������������������
 let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
 let chartTabs = [];
 let activeChartTabId = null;
@@ -261,7 +261,7 @@ function _chartTabTitle(sym, tf){
   return sym ? `${sym}${tf ? ` ${String(tf).toUpperCase()}` : ''}` : 'Chart';
 }
 function _chartTabMeta(tab){
-  return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
+  return `${tab.tf || '1d'} � ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
 }
 function _chartTabSnapshot(){
   return {
@@ -348,7 +348,7 @@ function renderChartTabs(){
     const isActive = tab.id === activeChartTabId;
     const title = tab.title || _chartTabTitle(tab.sym, tab.tf);
     const meta  = _chartTabMeta(tab);
-    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button></div>`;
+    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">�</button></div>`;
   }).join('');
   if(el.innerHTML !== desired) el.innerHTML = desired;
   const activeEl = el.querySelector('.chart-tab.active');
@@ -415,7 +415,7 @@ function resetChartInteractionState(){
 function clampChartTabRightIndex(savedIndex, dataLen){
   const fallback = dataLen + 5;
   if(!dataLen) return Math.max(1, Number(savedIndex) || fallback);
-  // null / undefined / 0 all mean "no saved position â†’ show latest"
+  // null / undefined / 0 all mean "no saved position → show latest"
   const val = Number(savedIndex);
   if(!Number.isFinite(val) || val <= 0) return fallback;
   return Math.max(1, Math.min(val, dataLen + 40));
@@ -611,8 +611,8 @@ function tapInferMethodCandidates(d, data, extras = {}){
     .slice(0, 4);
   const primary = ranked[0]?.method || seeded || 'Support & Resistance';
   const summary = ranked.length
-    ? ranked.map((row, idx) => `${idx + 1}. ${row.method} (${row.score}) — ${(row.reasons[0] || 'closest fit from the current structure')}`).join(' | ')
-    : `1. ${primary} — generic fallback only`;
+    ? ranked.map((row, idx) => `${idx + 1}. ${row.method} (${row.score}) � ${(row.reasons[0] || 'closest fit from the current structure')}`).join(' | ')
+    : `1. ${primary} � generic fallback only`;
   return { primary, candidates: ranked, summary };
 }
 
@@ -1039,7 +1039,7 @@ function switchChartTab(id, skipSave, options = {}){
   });
 }
 
-// Fetch live prices from Binance for all SYMS â€” runs on startup and every 30s
+// Fetch live prices from Binance for all SYMS — runs on startup and every 30s
 async function refreshSymPrices(){
   try{
     const pairs = SYMS.map(s => '"' + s.s.replace('/','').replace('USD','USDT') + '"');
@@ -1062,7 +1062,7 @@ async function refreshSymPrices(){
   }catch(e){}
 }
 
-// â”€â”€ Indicator cache â€” invalidated when curData changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Indicator cache — invalidated when curData changes ────────────────────────
 let _indCache = null;
 let _indCacheKey = '';   // "dataLength_dataLastTime_flags"
 function _getIndCacheKey(){
@@ -1093,13 +1093,13 @@ function getInds(){
 }
 let alerts=[], journal=[];
 
-// â”€â”€ AI Chart Overlay state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI Chart Overlay state ────────────────────────────────────────────────────
 let _aiOverlayData   = null;   // last buildAIPanel result
 let aiOverlayEnabled = (_lsGet('ai-overlay-on') !== '0'); // default ON
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// APEX FX â€” 20-FEATURE UPGRADE STATE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
+// APEX FX — 20-FEATURE UPGRADE STATE
+// ������������������������������������������������������������������������������
 
 // Trade Idea Board
 let tradeIdeas = [];
@@ -1142,7 +1142,7 @@ try { emotionLog = JSON.parse(_lsGet('emotion-log') || '[]'); } catch(e){ emotio
 // Macro strip dismissal
 let _macroStripDismissed = false;
 
-// â”€â”€ View state (TradingView model) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── View state (TradingView model) ───────────────────────────────────────────
 // rightBarIndex: which data index is at the right edge of the canvas (float)
 // barWidth: pixels per bar (float)
 // priceHi / priceLo: visible price range (null = auto-fit)
@@ -1151,7 +1151,7 @@ let barWidth = 8;        // pixels per bar
 let priceHi = null;      // null = auto
 let priceLo = null;
 
-// â”€â”€ Mouse / drag state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mouse / drag state ────────────────────────────────────────────────────────
 let mouseX = -1, mouseY = -1;
 let uiScale = 1;
 
@@ -1181,10 +1181,10 @@ let showEMA=false, showVWAP=false, showMACD=false, showStoch=false;
 
 // Which indicators are pinned to the topbar (persisted)
 const DEFAULT_TOPBAR_INDS = ['sma','vol','rsi','sessions'];
-// Start with defaults â€” overwritten by doLogin() once the user's namespace is known
+// Start with defaults — overwritten by doLogin() once the user's namespace is known
 let topbarInds = DEFAULT_TOPBAR_INDS.slice();
 
-// â”€â”€ Indicator on/off state â€” persisted separately from topbar pin list â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Indicator on/off state — persisted separately from topbar pin list ────────
 // This is the source of truth for whether each indicator is visible on the chart.
 const DEFAULT_IND_ACTIVE = {sma:true,bb:false,ema:false,vwap:false,vol:true,rsi:true,macd:false,stoch:false,sessions:true};
 let indActive = {...DEFAULT_IND_ACTIVE};
@@ -1207,7 +1207,7 @@ function applyIndActive(){
 }
 // saveTopbarInds / saveCustomInds defined in account system below
 
-// â”€â”€ Custom Indicator Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Custom Indicator Engine ───────────────────────────────────────────────────
 let customIndicators = [];
 try{ customIndicators = JSON.parse(localStorage.getItem('apex-custom-inds')||'[]'); }catch(e){ customIndicators=[]; }
 // (saveCustomInds defined in account system)
@@ -1216,7 +1216,7 @@ let smaCols=['#3d7fff','#f0a500'];
 let newsCacheDuration=1800000;
 
 const VOL_MAP={'1m':.004,'5m':.007,'15m':.011,'1h':.014,'1d':.018,'1w':.038,'1M':.08};
-// API key fetched securely from server â€” never exposed in browser source
+// API key fetched securely from server — never exposed in browser source
 let API_KEY = '';
 const FBASE = 'https://finnhub.io/api/v1';
 (async () => {
@@ -1225,7 +1225,7 @@ const FBASE = 'https://finnhub.io/api/v1';
     if (r.ok) { const d = await r.json(); if (d.token) API_KEY = d.token; }
   } catch(e) {}
 })();
-// TF_RES removed â€” Yahoo Finance no longer used
+// TF_RES removed — Yahoo Finance no longer used
 const TF_FROM={'1m':7,'5m':60,'15m':60,'1h':729,'1d':3649,'1w':3649,'1M':3649};
 // Binance TF map for crypto
 const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d','1w':'1w','1M':'1M'};
@@ -1238,8 +1238,8 @@ function addToWatchlist(sym){watchlist.add(sym);saveWatchlist();buildWL();filter
 function removeFromWatchlist(sym){watchlist.delete(sym);saveWatchlist();buildWL();}
 // journal loaded via loadJournal() after function is defined
 
-// â•â• DATA & INDICATORS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Seeded RNG â€” same seed always produces same sequence
+// �� DATA & INDICATORS ��������������������������������������������������������
+// Seeded RNG — same seed always produces same sequence
 function seededRng(seed){
   let s = seed;
   return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
@@ -1249,7 +1249,7 @@ function seededRng(seed){
 const dataCache = {};
 
 function genData(base, bars=300, vol=0.018){
-  // No cache â€” always generate fresh placeholder so real fetch can replace it
+  // No cache — always generate fresh placeholder so real fetch can replace it
 
   // Seed from symbol string so each symbol gets unique but consistent data
   const tfHash = curTF.split('').reduce((a,c)=>a+c.charCodeAt(0)*c.charCodeAt(0),0);
@@ -1276,7 +1276,7 @@ function genData(base, bars=300, vol=0.018){
     const l = +(Math.min(o,cl)-rng()*vol*o*.5).toFixed(4);
     d.push({time:t, open:o, high:h, low:l, close:cl, volume:Math.floor(rng()*60e6+2e6)});
   }
-  // Don't cache fake data â€” only real fetched data goes in dataCache
+  // Don't cache fake data — only real fetched data goes in dataCache
   return d;
 }
 const calcSMA=(d,n)=>{
@@ -1359,9 +1359,9 @@ function fDate(ts){
   return d.toLocaleDateString([],{month:'short',day:'numeric'});
 }
 
-// â”€â”€ TradingView-style x-axis tick system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TradingView-style x-axis tick system ─────────────────────────────────────
 // Each bar gets the "most significant" label tier it represents.
-// Tiers (highest â†’ lowest): year, month, day, hour, minute
+// Tiers (highest → lowest): year, month, day, hour, minute
 // A lower tier is only shown if no higher tier fired at that bar.
 // Labels are only placed when enough pixels separate them from the last placed label.
 function getXAxisTick(d, prev, tf){
@@ -1390,7 +1390,7 @@ function getXAxisTick(d, prev, tf){
   return null;
 }
 
-// â•â• AI PATTERN RECOGNITION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AI PATTERN RECOGNITION ����������������������������������������������������
 function detectSR(data){
   const support=[],resistance=[];
   // Use a 3-bar lookback on each side (6-bar window) for more significant swing highs/lows
@@ -1405,7 +1405,7 @@ function detectSR(data){
   const cluster=(levels,thr=0.005)=>{
     const out=[];
     levels.sort((a,b)=>a-b);
-    // Keep ALL distinct clusters â€” callers filter by price side to find nearest
+    // Keep ALL distinct clusters — callers filter by price side to find nearest
     levels.forEach(l=>{if(!out.find(x=>Math.abs(x-l)/l<thr))out.push(l);});
     return out;
   };
@@ -1425,9 +1425,9 @@ function detectPatterns(data){
   // Golden / Death cross
   if(sma20[n-1]&&sma50[n-1]&&sma20[n-2]&&sma50[n-2]){
     if(sma20[n-1]>sma50[n-1]&&sma20[n-2]<=sma50[n-2])
-      pats.push({name:'Golden Cross',conf:.87,dir:'bull',desc:'SMA20 crossed above SMA50 â€” classic bullish trend reversal with strong historical follow-through.'});
+      pats.push({name:'Golden Cross',conf:.87,dir:'bull',desc:'SMA20 crossed above SMA50 — classic bullish trend reversal with strong historical follow-through.'});
     if(sma20[n-1]<sma50[n-1]&&sma20[n-2]>=sma50[n-2])
-      pats.push({name:'Death Cross',conf:.82,dir:'bear',desc:'SMA20 crossed below SMA50 â€” bearish signal. Watch for continuation lower.'});
+      pats.push({name:'Death Cross',conf:.82,dir:'bear',desc:'SMA20 crossed below SMA50 — bearish signal. Watch for continuation lower.'});
   }
   // Bullish/Bearish engulfing
   if(prev.close<prev.open&&last.close>last.open&&last.open<prev.close&&last.close>prev.open)
@@ -1436,7 +1436,7 @@ function detectPatterns(data){
     pats.push({name:'Bearish Engulfing',conf:.74,dir:'bear',desc:'Red candle engulfs prior green. High-probability reversal at resistance.'});
   // Doji
   if(Math.abs(last.close-last.open)<(last.high-last.low)*0.1)
-    pats.push({name:'Doji',conf:.61,dir:'neut',desc:'Open and close nearly equal â€” indecision between bulls and bears. Watch for directional break.'});
+    pats.push({name:'Doji',conf:.61,dir:'neut',desc:'Open and close nearly equal — indecision between bulls and bears. Watch for directional break.'});
   // Hammer
   const bodySize=Math.abs(last.close-last.open);
   const lowerWick=Math.min(last.open,last.close)-last.low;
@@ -1445,24 +1445,24 @@ function detectPatterns(data){
   // Shooting Star
   const upperWick=last.high-Math.max(last.open,last.close);
   if(upperWick>bodySize*2&&last.close<last.open)
-    pats.push({name:'Shooting Star',conf:.69,dir:'bear',desc:'Upper shadow shows rejection of higher prices. Bears asserting control â€” watch for follow-through.'});
+    pats.push({name:'Shooting Star',conf:.69,dir:'bear',desc:'Upper shadow shows rejection of higher prices. Bears asserting control — watch for follow-through.'});
   // Volume breakout
   if(last.volume>avgVol*2&&last.close>last.open)
-    pats.push({name:'Volume Breakout',conf:.79,dir:'bull',desc:`Volume ${(last.volume/avgVol).toFixed(1)}x above 20-day avg. Institutional participation likely â€” high conviction move.`});
+    pats.push({name:'Volume Breakout',conf:.79,dir:'bull',desc:`Volume ${(last.volume/avgVol).toFixed(1)}x above 20-day avg. Institutional participation likely — high conviction move.`});
   // RSI
   if(lastRSI&&lastRSI<30)
-    pats.push({name:'RSI Oversold',conf:.65,dir:'bull',desc:`RSI at ${lastRSI.toFixed(1)} â€” oversold. Mean reversion opportunity if price finds support here.`});
+    pats.push({name:'RSI Oversold',conf:.65,dir:'bull',desc:`RSI at ${lastRSI.toFixed(1)} — oversold. Mean reversion opportunity if price finds support here.`});
   if(lastRSI&&lastRSI>70)
-    pats.push({name:'RSI Overbought',conf:.63,dir:'bear',desc:`RSI at ${lastRSI.toFixed(1)} â€” overbought. Watch for exhaustion candle or pullback.`});
+    pats.push({name:'RSI Overbought',conf:.63,dir:'bear',desc:`RSI at ${lastRSI.toFixed(1)} — overbought. Watch for exhaustion candle or pullback.`});
   // S/R proximity
   const sr=detectSR(data);
-  // Use full bar range (lowâ†’high) for proximity â€” a wick touch of a level counts
+  // Use full bar range (low→high) for proximity — a wick touch of a level counts
   const nearS=sr.support.filter(s=>last.low<=s*1.015&&last.high>=s*0.985);
   const nearR=sr.resistance.filter(r=>last.high>=r*0.985&&last.low<=r*1.015);
-  if(nearS.length)pats.push({name:'At Support',conf:.72,dir:'bull',desc:`Bar range touching support at ${fP(nearS[0])} â€” wick confirmation. High R/R long if it holds.`});
-  if(nearR.length)pats.push({name:'At Resistance',conf:.70,dir:'bear',desc:`Bar range touching resistance at ${fP(nearR[0])} â€” wick rejection possible. Watch for bearish follow-through.`});
+  if(nearS.length)pats.push({name:'At Support',conf:.72,dir:'bull',desc:`Bar range touching support at ${fP(nearS[0])} — wick confirmation. High R/R long if it holds.`});
+  if(nearR.length)pats.push({name:'At Resistance',conf:.70,dir:'bear',desc:`Bar range touching resistance at ${fP(nearR[0])} — wick rejection possible. Watch for bearish follow-through.`});
 
-  // â”€â”€ EMA trend alignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── EMA trend alignment ──────────────────────────────────────────────────
   // Add a trend pattern so the AI Signal reflects the actual directional bias
   // even when no individual candle pattern fires.
   const ema8v  = calcEMA(data, 8);
@@ -1470,26 +1470,26 @@ function detectPatterns(data){
   const ema50v = calcSMA(data, 50);
   if(ema8v[n-1] && ema21v[n-1] && ema50v[n-1]){
     if(ema8v[n-1]>ema21v[n-1] && ema21v[n-1]>ema50v[n-1]){
-      pats.push({name:'Uptrend',conf:.75,dir:'bull',desc:'EMAs fanned bullish (8>21>50) â€” price is trending up with momentum alignment. Favour long setups at support.'});
+      pats.push({name:'Uptrend',conf:.75,dir:'bull',desc:'EMAs fanned bullish (8>21>50) — price is trending up with momentum alignment. Favour long setups at support.'});
     } else if(ema8v[n-1]<ema21v[n-1] && ema21v[n-1]<ema50v[n-1]){
-      pats.push({name:'Downtrend',conf:.75,dir:'bear',desc:'EMAs fanned bearish (8<21<50) â€” price is in a confirmed downtrend. Favour short setups at resistance or wait for structural reversal.'});
+      pats.push({name:'Downtrend',conf:.75,dir:'bear',desc:'EMAs fanned bearish (8<21<50) — price is in a confirmed downtrend. Favour short setups at resistance or wait for structural reversal.'});
     }
   }
-  // â”€â”€ Consecutive candle run â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Consecutive candle run ─────────────────────────────────────────────────
   // 4+ consecutive same-direction candles = momentum signature
   if(n>=5){
     const last5=data.slice(-5);
     const allGreen=last5.every(d=>d.close>d.open);
     const allRed  =last5.every(d=>d.close<d.open);
-    if(allGreen) pats.push({name:'5-Bar Bull Run',conf:.66,dir:'bull',desc:'5 consecutive green candles â€” sustained buying pressure. Watch for exhaustion or continuation from support.'});
-    if(allRed)   pats.push({name:'5-Bar Bear Run',conf:.66,dir:'bear',desc:'5 consecutive red candles â€” sustained selling pressure. Watch for climax candle or continuation from resistance.'});
+    if(allGreen) pats.push({name:'5-Bar Bull Run',conf:.66,dir:'bull',desc:'5 consecutive green candles — sustained buying pressure. Watch for exhaustion or continuation from support.'});
+    if(allRed)   pats.push({name:'5-Bar Bear Run',conf:.66,dir:'bear',desc:'5 consecutive red candles — sustained selling pressure. Watch for climax candle or continuation from resistance.'});
   }
 
   return pats;
 }
 
-// â•â• AI PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-let aiCache = {}; // key: sym+tf â†’ {pats, sr, bias, top}
+// �� AI PANEL ������������������������������������������������������������������
+let aiCache = {}; // key: sym+tf → {pats, sr, bias, top}
 
 function buildAIPanel(force=false){
   const key = curSym.s + '_' + curTF;
@@ -1499,7 +1499,7 @@ function buildAIPanel(force=false){
     renderLiveCopilot(aiCache[key], force);
     return;
   }
-  // Always use raw curData (not heikin â€” that's just a display mode)
+  // Always use raw curData (not heikin — that's just a display mode)
   const data = curData;
   if(!data.length) return;
 
@@ -1511,7 +1511,7 @@ function buildAIPanel(force=false){
   const top   = [...pats].sort((a,b)=>b.conf-a.conf)[0];
 
   const result = {pats, sr, bulls, bears, bias, top};
-  // Only cache when we have enough real bars â€” placeholder / thin data must not
+  // Only cache when we have enough real bars — placeholder / thin data must not
   // poison the cache and block fresh pattern detection after real data loads.
   if(data.length >= 50) aiCache[key] = result;
   // Store for chart overlay
@@ -1689,12 +1689,12 @@ async function aiCopilotFetchExplanation(state, force=false){
   const cacheKey = `${state.key}::${drawSig}`;
   if(!force && aiCopilotCache[cacheKey]){
     outEl.innerHTML = aiCopilotRenderAIText(aiCopilotCache[cacheKey].text);
-    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · use Trade Analysis for exact entries`;
+    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} � use Trade Analysis for exact entries`;
     return;
   }
   if(aiCopilotInFlight[cacheKey]) return;
   aiCopilotInFlight[cacheKey] = true;
-  statusEl.textContent = 'Reading the chart now · use Trade Analysis when you need a trade verdict';
+  statusEl.textContent = 'Reading the chart now � use Trade Analysis when you need a trade verdict';
   outEl.innerHTML = 'Building a deeper live chart read...';
   try{
     const prompt = `You are the live AI copilot inside a trading platform. Explain the current chart in plain English for the trader who is looking at it right now.
@@ -1720,19 +1720,19 @@ Chart notes: ${state.drawCtx.notes.length ? state.drawCtx.notes.join(' | ') : 'n
 Trader memory: ${state.profile?.total ? formatTraderProfileForAI(state.profile) : 'not enough data yet'}
 
 Do not give financial advice. Do not use markdown. Keep the tone calm, clear, and practical.`;
-  // Inject historical win-rate context if available (no Groq cost â€” pure DB lookup)
+  // Inject historical win-rate context if available (no Groq cost — pure DB lookup)
   let _histCtx = '';
   try {
     const _hStats = _supa ? await tapFetchHistoricalStats(state.sym || curSym?.s, state.tf || curTF, state.bias === 'Bullish' ? 'long' : 'short') : null;
     if (_hStats && _hStats.count >= 10) {
-      _histCtx = ` Historical data: ${_hStats.count} similar ${state.sym} ${state.tf} setups scanned â€” ${_hStats.winRate}% win rate.` +
+      _histCtx = ` Historical data: ${_hStats.count} similar ${state.sym} ${state.tf} setups scanned — ${_hStats.winRate}% win rate.` +
         (_hStats.topMethod ? ` Best performing method: ${_hStats.topMethod} (${_hStats.methodWinRate}%).` : '');
     }
   } catch(e) {}
     const text = await groqFetch(prompt + _histCtx, { max_tokens: 220, temperature: 0.2, timeoutMs: 20000 });
     aiCopilotCache[cacheKey] = { text, ts: Date.now() };
     outEl.innerHTML = aiCopilotRenderAIText(text);
-    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · use Trade Analysis for exact entries`;
+    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} � use Trade Analysis for exact entries`;
   }catch(e){
     outEl.innerHTML = `Deeper AI explanation unavailable right now. The live briefing above is still current.&nbsp;
       <button onclick="refreshLiveCopilot(true)"
@@ -1742,7 +1742,7 @@ Do not give financial advice. Do not use markdown. Keep the tone calm, clear, an
         onmouseout="this.style.background='rgba(99,102,241,.12)'">
         Retry
       </button>`;
-    statusEl.textContent = 'Live briefing ready · use Trade Analysis if you need a trade-level verdict';
+    statusEl.textContent = 'Live briefing ready � use Trade Analysis if you need a trade-level verdict';
   } finally {
     delete aiCopilotInFlight[cacheKey];
   }
@@ -1798,13 +1798,13 @@ function renderAIPanel(r){
   document.getElementById('ai-signal').innerHTML=`
     <div style="background:${bias==='BULLISH'?'rgba(0,201,160,.08)':bias==='BEARISH'?'rgba(240,48,96,.08)':'rgba(245,166,35,.08)'};border-radius:6px;padding:8px 10px;border-left:3px solid ${col};margin-bottom:4px;">
       <div style="font-weight:800;font-size:14px;color:${col};letter-spacing:.5px;">${biasEmoji} ${bias}</div>
-      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} · ${bulls} bull / ${bears} bear</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} � ${bulls} bull / ${bears} bear</div>
     </div>
     ${top?`<div style="font-size:10px;color:var(--tx3);padding:2px 0;">Top: <span style="color:var(--tx2);">${top.name}</span> <span style="color:${col};">${(top.conf*100).toFixed(0)}%</span></div>`:''}`;
 
-  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`AI ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
+  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`AI ${top.name} � ${(top.conf*100).toFixed(0)}% conf`; } }
 
-  // â”€â”€ TREND STRENGTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── TREND STRENGTH ──────────────────────────────────────────────────────────
   if(n >= 50){
     const ema8  = calcEMA(data, 8);
     const ema21 = calcEMA(data, 21);
@@ -1842,7 +1842,7 @@ function renderAIPanel(r){
     document.getElementById('ai-trend').innerHTML='<div style="font-size:11px;color:var(--tx2);padding:4px 0;">Need 50+ bars for trend analysis.</div>';
   }
 
-  // â”€â”€ VOLATILITY & RANGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── VOLATILITY & RANGE ──────────────────────────────────────────────────────
   if(n >= 20){
     const last = data[n-1];
     // Average True Range (14)
@@ -1883,7 +1883,7 @@ function renderAIPanel(r){
       </div>`;
   }
 
-  // â”€â”€ NEAREST LEVELS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── NEAREST LEVELS ──────────────────────────────────────────────────────────
   if(n >= 5){
     const price = (data[n-1].high + data[n-1].low + data[n-1].close) / 3;  // typical price for level proximity
     const allLevels = [
@@ -1905,14 +1905,14 @@ function renderAIPanel(r){
       <div style="background:var(--bg3);border-radius:4px;padding:6px 10px;font-size:10px;">
         ${above.map(l=>row(l,true)).join('')}
         <div style="display:flex;justify-content:center;padding:4px 0;border-bottom:1px solid var(--b1);">
-          <span style="font-size:11px;color:var(--am);font-family:monospace;font-weight:700;">â–¶ ${fP(price)}</span>
+          <span style="font-size:11px;color:var(--am);font-family:monospace;font-weight:700;">▶ ${fP(price)}</span>
         </div>
         ${below.map(l=>row(l,false)).join('')}
         ${above.length===0&&below.length===0?'<div style="color:var(--tx3);font-size:11px;text-align:center;padding:6px 0;">No nearby levels detected</div>':''}
       </div>`;
   }
 
-  // â”€â”€ Update bias hero strip at top of AI tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Update bias hero strip at top of AI tab ─────────────────────────────
   const _hero = document.getElementById('ai-bias-hero');
   const _heroLabel = document.getElementById('ai-bias-hero-label');
   const _heroSub   = document.getElementById('ai-bias-hero-sub');
@@ -1924,21 +1924,21 @@ function renderAIPanel(r){
     _hero.style.background = bias==='BULLISH'?'rgba(0,201,160,.05)':bias==='BEARISH'?'rgba(240,48,96,.05)':'rgba(245,166,35,.05)';
     _heroLabel.textContent = bias + ' BIAS';
     _heroLabel.style.color = _hCol;
-    _heroSub.textContent = top ? `Top signal: ${top.name} · ${(top.conf*100).toFixed(0)}% conf · ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
+    _heroSub.textContent = top ? `Top signal: ${top.name} � ${(top.conf*100).toFixed(0)}% conf � ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
     if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
     if(_heroIcon) _heroIcon.style.color = _hCol;
   }
   updateWorkflowStrip();
 }
 
-// â•â• JOURNAL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� JOURNAL ������������������������������������������������������������������
 let jEditId = null;      // null = new, string = editing existing
 let jSnapData = null;    // base64 screenshot stored in modal
 let jFilterMode = 'all';
 let jMode = 'live';      // 'live' | 'archive'
 let jArchiveToggled = false; // tracks archive toggle state in modal
 
-// â”€â”€ Capture chart to base64 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Capture chart to base64 ──────────────────────────────────────────────────
 function captureChart(){
   try{
     const mainC = _el('main-canvas');
@@ -1967,22 +1967,22 @@ function captureChart(){
     // watermark
     if(isSettingEnabled('scWater', true)){
     ctx2.fillStyle = 'rgba(240,165,0,.6)'; ctx2.font = 'bold 11px monospace'; ctx2.textAlign = 'right';
-    ctx2.fillText(`APEX FX Â· ${curSym.s} Â· ${curTF} Â· ${new Date().toLocaleString()}`, W-8, H-6); }
+    ctx2.fillText(`APEX FX · ${curSym.s} · ${curTF} · ${new Date().toLocaleString()}`, W-8, H-6); }
 
     return out.toDataURL('image/jpeg', .92);
   }catch(e){ console.error('captureChart:', e); return null; }
 }
 
-// Standalone 📷 button — capture then open journal modal pre-loaded with snap
+// Standalone 📷 button � capture then open journal modal pre-loaded with snap
 function captureToJournal(){
   const snap = captureChart();
-  if(!snap){ toast('✖ Screenshot failed — make sure a chart is loaded'); return; }
+  if(!snap){ toast('✖ Screenshot failed � make sure a chart is loaded'); return; }
   jSnapData = snap;
   openJModal();
 }
 
-// â”€â”€ Journal modal open/close â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Detect long/short tool drawing and return its data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Journal modal open/close ─────────────────────────────────────────────────
+// ── Detect long/short tool drawing and return its data ───────────────────────
 function getDrawingTradeData(){
   // Find the most recently placed long or short drawing
   const d = [...drawings].reverse().find(d => d.type === 'long' || d.type === 'short');
@@ -2018,7 +2018,7 @@ function openJModal(editEntry){
   const nameEl = document.getElementById('jm-entry-name');
   if(nameEl) nameEl.value = editEntry?.entryName || '';
 
-  // Archive toggle â€” inherit from current mode or existing entry
+  // Archive toggle — inherit from current mode or existing entry
   const isArchive = editEntry ? !!editEntry.archived : (jMode === 'archive');
   jArchiveToggled = isArchive;
   _updateArchiveToggleUI(isArchive);
@@ -2026,7 +2026,7 @@ function openJModal(editEntry){
   // Direction buttons
   let dir = editEntry?.dir || 'long';
 
-  // â”€â”€ Auto-fill from long/short drawing tool if opening a new entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Auto-fill from long/short drawing tool if opening a new entry ──────────
   if(!jEditId){
     const td = getDrawingTradeData();
     if(td){
@@ -2038,7 +2038,7 @@ function openJModal(editEntry){
       // Auto-detect outcome by walking candles after entry bar and seeing which level is touched first
       let autoOutcome = '';
       let autoExit    = fP(td.tp);
-      // td.bar is a float data index — floor it and clamp to valid range
+      // td.bar is a float data index � floor it and clamp to valid range
       const entryBarIdx = Math.min(Math.floor(td.bar ?? 0), curData.length - 1);
       const startBar    = Math.max(0, entryBarIdx + 1);
       const isLong      = td.dir === 'long';
@@ -2048,7 +2048,7 @@ function openJModal(editEntry){
         const tpHit = isLong ? c.high >= td.tp : c.low  <= td.tp;
         const slHit = isLong ? c.low  <= td.sl : c.high >= td.sl;
         if(slHit && tpHit){
-          // Both hit same candle — prior candle's close direction tells us which way price was moving
+          // Both hit same candle � prior candle's close direction tells us which way price was moving
           const prevClose = i > 0 ? curData[i-1]?.close : td.entry;
           const movingDown = prevClose > c.open;
           if(isLong){
@@ -2066,7 +2066,7 @@ function openJModal(editEntry){
       // Still no hit = trade still open, leave exit as TP target
       document.getElementById('jm-exit').value    = autoExit;
       document.getElementById('jm-outcome').value = autoOutcome;
-      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry · filled from ' + td.dir.toUpperCase() + ' tool';
+      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry � filled from ' + td.dir.toUpperCase() + ' tool';
     }
   }
 
@@ -2135,7 +2135,7 @@ function jmCalcRR(){
   const sl   =parseFloat(document.getElementById('jm-sl').value);
   const tp   =parseFloat(document.getElementById('jm-tp').value);
   const rrEl = document.getElementById('jm-rr-val');
-  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='—'; return; }
+  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='�'; return; }
   const risk   = Math.abs(entry-sl);
   const reward = Math.abs(tp-entry);
   const rr     = reward/risk;
@@ -2144,7 +2144,7 @@ function jmCalcRR(){
   document.getElementById('jm-pl-bar').style.display='flex';
 }
 
-// â”€â”€ Screenshot helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Screenshot helpers ───────────────────────────────────────────────────────
 function jmRenderSnap(){
   const img  = document.getElementById('jm-snap-img');
   const ph   = document.getElementById('jm-snap-placeholder');
@@ -2177,7 +2177,7 @@ function jmSnapLoad(input){
 }
 
 function jmSnapClick(){
-  if(jSnapData) return; // delete button clears it â€” clicking img area does nothing
+  if(jSnapData) return; // delete button clears it — clicking img area does nothing
   // Briefly hide modal so chart is visible for capture
   const modal = document.getElementById('jmodal-bg');
   modal.style.visibility = 'hidden';
@@ -2186,7 +2186,7 @@ function jmSnapClick(){
       const snap = captureChart();
       modal.style.visibility = '';
       if(snap){ jSnapData=snap; jmRenderSnap(); toast('Chart captured'); }
-      else { toast('Screenshot failed — try Upload instead'); }
+      else { toast('Screenshot failed � try Upload instead'); }
     });
   });
 }
@@ -2213,7 +2213,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 
-// â”€â”€ Save entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Save entry ───────────────────────────────────────────────────────────────
 function saveJEntry(){
   const dir     = document.getElementById('jm-dir-long').classList.contains('on')?'long':'short';
   const entry   = parseFloat(document.getElementById('jm-entry').value)||0;
@@ -2255,7 +2255,7 @@ function saveJEntry(){
   }
 
   saveJournal(); buildJournal(); closeJModal();
-  toast(`📓 ${dir.toUpperCase()} logged · ${e2.sym} @ $${fP(entry)}`);
+  toast(`📓 ${dir.toUpperCase()} logged � ${e2.sym} @ $${fP(entry)}`);
 }
 
 // saveJournal / loadJournal defined in account system (namespaced)
@@ -2270,7 +2270,7 @@ function saveChartImage(){
   _snapPreviewData = snap;
   _snapPreviewFilename = `apexfx-${curSym.s}-${curTF}-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.jpg`;
   document.getElementById('snap-preview-img').src = snap;
-  document.getElementById('snap-preview-title').textContent = `📷 ${curSym.s} · ${curTF}`;
+  document.getElementById('snap-preview-title').textContent = `📷 ${curSym.s} � ${curTF}`;
   document.getElementById('snap-copy-badge').style.display = 'none';
   document.getElementById('snap-preview-bg').classList.add('open');
 }
@@ -2286,7 +2286,7 @@ function snapDoSave(){
   a.href = _snapPreviewData;
   a.download = _snapPreviewFilename;
   a.click();
-  toast(`⬇ Saved · ${_snapPreviewFilename}`);
+  toast(`⬇ Saved � ${_snapPreviewFilename}`);
   closeSnapPreview();
 }
 
@@ -2306,10 +2306,10 @@ async function snapDoCopy(){
     setTimeout(()=>{ document.getElementById('snap-copy-badge').style.display='none'; }, 2500);
     toast('Screenshot copied to clipboard');
   }catch(e){
-    // Final fallback — open in new tab so user can right-click → copy
+    // Final fallback � open in new tab so user can right-click → copy
     const w = window.open();
     w.document.write(`<img src="${_snapPreviewData}" style="max-width:100%">`);
-    toast('⚠ Clipboard blocked — image opened in new tab (right-click → Copy)');
+    toast('⚠ Clipboard blocked � image opened in new tab (right-click → Copy)');
   }
 }
 
@@ -2331,7 +2331,7 @@ function deleteJournalEntry(id){
   });
 }
 
-// â”€â”€ Reusable confirm dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Reusable confirm dialog ───────────────────────────────────────────────────
 function showConfirm(title, message, onConfirm){
   document.getElementById('confirm-title').textContent   = title;
   document.getElementById('confirm-message').textContent = message;
@@ -2342,7 +2342,7 @@ function closeConfirm(){
   document.getElementById('confirm-bg').classList.remove('open');
 }
 
-// â”€â”€ Journal mode (live / archive) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Journal mode (live / archive) ────────────────────────────────────────────
 function jSetMode(mode){
   jMode = mode;
   const live    = document.getElementById('j-mode-live');
@@ -2371,7 +2371,7 @@ function _updateArchiveToggleUI(on){
   if(label)  label.style.color = on ? 'var(--bl)' : 'var(--tx3)';
 }
 
-// â”€â”€ Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Filter ───────────────────────────────────────────────────────────────────
 function jFilter(btn, mode){
   jFilterMode=mode;
   document.querySelectorAll('.j-filter-btn').forEach(b=>b.classList.remove('on'));
@@ -2379,7 +2379,7 @@ function jFilter(btn, mode){
   buildJournal();
 }
 
-// â”€â”€ Export CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Export CSV ───────────────────────────────────────────────────────────────
 function exportJournal(){
   if(!journal.length){ toast('No entries to export'); return; }
   const headers=['Date','Symbol','TF','Direction','Entry','Exit','Size','P&L','R:R','SL','TP','Setup','Outcome','Emotions','Tags','Patterns','Notes','Lessons'];
@@ -2399,7 +2399,7 @@ function exportJournal(){
   toast('⬇ Journal exported');
 }
 
-// â”€â”€ Build journal list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Build journal list ────────────────────────────────────────────────────────
 function buildJournal(){
   // Partition live vs archive
   const liveEntries    = journal.filter(e=>!e.archived);
@@ -2410,20 +2410,20 @@ function buildJournal(){
   const wins   = liveEntries.filter(e=>e.outcome==='win').length;
   const closed = liveEntries.filter(e=>e.outcome==='win'||e.outcome==='loss').length;
   const rrVals = liveEntries.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
+  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '�';
   const plVals = liveEntries.filter(e=>e.pl!=null).map(e=>e.pl);
   const totalPL= plVals.reduce((a,b)=>a+b,0);
   const bestPL = plVals.length ? Math.max(...plVals) : null;
   document.getElementById('jst-total').textContent = liveEntries.length;
-  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : '—';
-  document.getElementById('jst-rr').textContent    = avgRR==='—' ? '—' : '1:'+avgRR;
+  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : '�';
+  document.getElementById('jst-rr').textContent    = avgRR==='�' ? '�' : '1:'+avgRR;
   const plEl=document.getElementById('jst-pl');
-  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'—'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
+  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'�'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
   const bestEl=document.getElementById('jst-best');
-  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'—'; }
+  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'�'; }
   const { score: planScore } = computePlanScore();
   const scoreEl=document.getElementById('jst-score');
-  if(scoreEl){ scoreEl.textContent=planScore!=null?planScore:'—'; scoreEl.style.color=planScore==null?'':(planScore>=80?'var(--tl)':planScore>=55?'var(--am)':'var(--rd)'); }
+  if(scoreEl){ scoreEl.textContent=planScore!=null?planScore:'�'; scoreEl.style.color=planScore==null?'':(planScore>=80?'var(--tl)':planScore>=55?'var(--am)':'var(--rd)'); }
   updateActivationBanner();
 
   drawEquityCurve();
@@ -2486,8 +2486,8 @@ function buildJournal(){
     const gL     = group.entries.filter(e=>e.outcome==='loss').length;
     const hasPL  = group.entries.some(e=>e.pl!=null);
     const plCol  = gPL>0?'var(--tl)':gPL<0?'var(--rd)':'var(--tx3)';
-    const plBit  = hasPL ? ` · <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
-    const wlBit  = (gW||gL) ? ` · <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
+    const plBit  = hasPL ? ` � <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
+    const wlBit  = (gW||gL) ? ` � <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
 
     const entriesHTML = group.entries.map(e=>{
       const plColor     = !e.pl ? 'var(--tx2)' : e.pl>0 ? 'var(--tl)' : 'var(--rd)';
@@ -2566,7 +2566,7 @@ function logTrade(dir){
   openJModal();
 }
 
-// â•â• EQUITY CURVE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� EQUITY CURVE �������������������������������������������������������������
 function drawEquityCurve(){
   const c = document.getElementById('j-equity');
   if(!c) return;
@@ -2633,7 +2633,7 @@ function drawEquityCurve(){
   ctx.fillText((last>=0?'+':'')+last.toFixed(2), W-4, 10);
 }
 
-// â•â• MONTHLY HEATMAP â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� MONTHLY HEATMAP �����������������������������������������������������������
 function drawMonthHeatmap(){
   const el = document.getElementById('j-heatmap');
   if(!el) return;
@@ -2694,7 +2694,7 @@ function drawMonthHeatmap(){
 
 
 
-// â•â• ANALYTICS WIDGET VISIBILITY â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� ANALYTICS WIDGET VISIBILITY �����������������������������������������������
 const ANALYTICS_WIDGETS = [
   ['coach',   'AI Coach'],
   ['edge',    'Edge Profiler'],
@@ -2775,7 +2775,7 @@ function toggleAnalyticsCustomise(){
   }
 }
 
-// â•â• ANALYTICS ENGINE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� ANALYTICS ENGINE ����������������������������������������������������������
 
 let setupFilterMode = 'all';
 function setupFilter(btn, mode){
@@ -2828,8 +2828,8 @@ function renderAnalyticsHero(){
     || 'The platform will start surfacing your strongest pattern once more closed trades are logged.';
   const stats = [
     { label:'Closed Trades', value: p?.total || 0, color:'var(--tx)' },
-    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '—', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
-    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '—', color:'var(--am)' },
+    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '�', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
+    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '�', color:'var(--am)' },
     { label:'Thesis', value: thesis ? thesisState.label : 'None', color: thesis ? thesisState.color : 'var(--tx3)' },
   ];
   el.innerHTML = `
@@ -3074,7 +3074,7 @@ function buildTraderMemoryFit(setupLike, profile){
     : delta < 0 ? 'cautious_fit'
     : 'neutral';
   const summary = reasons.length
-    ? `${reasons.slice(0, 2).join(' · ')}${cautions.length ? ` · Watch-out: ${cautions[0]}` : ''}`
+    ? `${reasons.slice(0, 2).join(' � ')}${cautions.length ? ` � Watch-out: ${cautions[0]}` : ''}`
     : (cautions[0] || 'No strong personal fit signal yet.');
   const nextActionBias = band === 'poor_fit' || band === 'cautious_fit'
     ? 'extra_confirmation'
@@ -3146,7 +3146,7 @@ function renderTraderProfileWidget(){
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;">
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Closed Trades</div><div style="font-size:18px;color:var(--tx);font-weight:700;">${p.total}</div></div>
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Win Rate</div><div style="font-size:18px;color:${p.winRate >= 50 ? 'var(--tl)' : 'var(--am)'};font-weight:700;">${p.winRate}%</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '�'}</div></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${chips}</div>
     <div style="display:grid;gap:8px;margin-bottom:8px;">
@@ -3173,7 +3173,7 @@ function renderTraderProfileWidget(){
     </div>
     <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
       <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Before your next trade</div>
-      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `• ${x}`).join('<br>')}</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `� ${x}`).join('<br>')}</div>
     </div>`;
 }
 function renderThesisTrackerWidget(){
@@ -3188,14 +3188,14 @@ function renderThesisTrackerWidget(){
   const st = _thesisStatus(thesis, lastPrice);
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} · ${thesis.tf || curTF}</div>
+      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} � ${thesis.tf || curTF}</div>
       <div style="padding:3px 8px;border-radius:999px;border:1px solid var(--b1);background:var(--bg3);font-size:10px;color:${st.color};font-family:ui-monospace,'SF Mono',monospace;">${st.label}</div>
     </div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px;">${thesis.statement || 'No thesis statement saved.'}</div>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;">
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '—'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '—'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '�'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '�'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '�'}</div></div>
     </div>
     <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;">Focus: ${thesis.focus || 'No follow-through note saved.'}</div>
     <div style="display:flex;gap:6px;">
@@ -3221,17 +3221,17 @@ function renderReplayLabWidget(){
       ${recent.map(s => `
         <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
           <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
-            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} · ${s.method || 'Replay'}</span>
+            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} � ${s.method || 'Replay'}</span>
             <span style="font-size:11px;color:${s.overall >= 75 ? 'var(--tl)' : s.overall >= 60 ? 'var(--am)' : 'var(--rd)'};font-family:ui-monospace,'SF Mono',monospace;">${s.overall}/100</span>
           </div>
-          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} · ${_fmtAgo(s.createdAt)}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} � ${_fmtAgo(s.createdAt)}</div>
           <div style="font-size:11px;color:var(--tx2);line-height:1.5;">${(s.notes || []).slice(0,2).join(' ')}</div>
         </div>`).join('')}
     </div>`;
 }
 
 
-// â”€â”€ Avg Winner vs Avg Loser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Avg Winner vs Avg Loser ───────────────────────────────────────────────────
 function buildWLBars(){
   const el = document.getElementById('wl-bars');
   if(!el) return;
@@ -3243,7 +3243,7 @@ function buildWLBars(){
   const avgW = wins.length   ? wins.reduce((a,b)=>a+b,0)/wins.length     : 0;
   const avgL = losses.length ? Math.abs(losses.reduce((a,b)=>a+b,0)/losses.length) : 0;
   const maxVal = Math.max(avgW, avgL, 0.01);
-  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : '—';
+  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : '�';
   const ratioCol = parseFloat(ratio) >= 1 ? 'var(--tl)' : 'var(--rd)';
 
   el.innerHTML = `
@@ -3261,11 +3261,11 @@ function buildWLBars(){
     </div>
     <div style="font-size:11px;font-family:monospace;color:var(--tx3);text-align:center;">
       Win/Loss ratio: <span style="color:${ratioCol};font-weight:700;">${ratio}</span>
-      <span style="color:var(--tx3);"> · ${wins.length}W / ${losses.length}L</span>
+      <span style="color:var(--tx3);"> � ${wins.length}W / ${losses.length}L</span>
     </div>`;
 }
 
-// â”€â”€ Streak Tracker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Streak Tracker ────────────────────────────────────────────────────────────
 function buildStreakStats(){
   const el = document.getElementById('streak-stats');
   if(!el) return;
@@ -3298,7 +3298,7 @@ function buildStreakStats(){
     card('Best Loss','Worst '+bestL,'var(--rd)','streak');
 }
 
-// â”€â”€ Tag Performance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tag Performance ───────────────────────────────────────────────────────────
 function buildTagChart(){
   const el = document.getElementById('tag-chart');
   if(!el) return;
@@ -3321,7 +3321,7 @@ function buildTagChart(){
   el.innerHTML = rows.map(r=>{
     const pct=Math.round(r.wr*100);
     const col=pct>=60?'var(--tl)':pct>=45?'var(--am)':'var(--rd)';
-    const plTxt=r.avgPL!==0?` Â· ${r.avgPL>=0?'+':''}${r.avgPL.toFixed(2)}`:'';
+    const plTxt=r.avgPL!==0?` · ${r.avgPL>=0?'+':''}${r.avgPL.toFixed(2)}`:'';
     return `<div style="display:flex;flex-direction:column;gap:2px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;font-family:monospace;">
         <span style="color:var(--tx)">${r.t}</span>
@@ -3334,7 +3334,7 @@ function buildTagChart(){
   }).join('');
 }
 
-// â”€â”€ Day of Week P&L â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Day of Week P&L ───────────────────────────────────────────────────────────
 function buildDOWChart(){
   const el = document.getElementById('dow-chart');
   if(!el) return;
@@ -3360,14 +3360,14 @@ function buildDOWChart(){
         <div style="width:${pct.toFixed(1)}%;height:100%;background:${col};border-radius:3px;transition:width .5s;"></div>
       </div>
       <div style="width:56px;text-align:right;font-size:11px;font-family:monospace;color:${col};font-weight:${t.count?'700':'400'};">
-        ${t.count?sign+t.total.toFixed(2):'â€”'}
+        ${t.count?sign+t.total.toFixed(2):'—'}
       </div>
       <div style="width:22px;font-size:11px;color:var(--tx2);font-family:monospace;">${t.count?`(${t.count})`:''}</div>
     </div>`;
   }).join('');
 }
 
-// â”€â”€ Symbol Breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Symbol Breakdown ──────────────────────────────────────────────────────────
 function buildSymChart(){
   const el = document.getElementById('sym-chart');
   if(!el) return;
@@ -3402,7 +3402,7 @@ function buildSymChart(){
   }).join('');
 }
 
-// â”€â”€ Drawdown Curve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drawdown Curve ────────────────────────────────────────────────────────────
 function buildDrawdownCurve(){
   const c=document.getElementById('dd-canvas');
   if(!c) return;
@@ -3432,7 +3432,7 @@ function buildDrawdownCurve(){
   ctx.fillText('Max DD: -'+maxDD.toFixed(2), W-4, H-3);
 }
 
-// â”€â”€ R:R Distribution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── R:R Distribution ──────────────────────────────────────────────────────────
 function buildRRDist(){
   const c=document.getElementById('rr-canvas');
   if(!c) return;
@@ -3463,7 +3463,7 @@ function buildRRDist(){
   ctx.beginPath(); ctx.moveTo(oneX,0); ctx.lineTo(oneX,H-12); ctx.stroke(); ctx.setLineDash([]);
 }
 
-// â”€â”€ Monthly P&L Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Monthly P&L Bar Chart ─────────────────────────────────────────────────────
 function buildMonthlyPL(){
   const c=document.getElementById('monthly-canvas');
   if(!c) return;
@@ -3504,12 +3504,12 @@ function buildMonthlyPL(){
   });
 }
 
-// â”€â”€ Psychology: win rate by emotion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Psychology: win rate by emotion ──────────────────────────────────────────
 function buildPsychChart(){
   const el = document.getElementById('psych-chart');
   if(!el) return;
 
-  const emos = ['ðŸ˜Œ Calm','ðŸ’ª Confident','ðŸŽ¯ Focused','ðŸ˜¤ Frustrated','ðŸ˜¨ Fearful','ðŸ¤‘ Greedy','ðŸ˜° Anxious','ðŸ˜´ Tired'];
+  const emos = ['😌 Calm','💪 Confident','🎯 Focused','😤 Frustrated','😨 Fearful','🤑 Greedy','😰 Anxious','😴 Tired'];
   const closed = journal.filter(e => e.outcome === 'win' || e.outcome === 'loss');
 
   if(closed.length < 2){
@@ -3527,14 +3527,14 @@ function buildPsychChart(){
   }).filter(Boolean).sort((a,b) => b.wr - a.wr);
 
   if(!stats.length){
-    el.innerHTML = '<div style="color:var(--tx3);font-size:11px;text-align:center;padding:10px;">No emotion data yet â€” tag emotions when logging trades</div>';
+    el.innerHTML = '<div style="color:var(--tx3);font-size:11px;text-align:center;padding:10px;">No emotion data yet — tag emotions when logging trades</div>';
     return;
   }
 
   el.innerHTML = stats.map(s => {
     const pct = Math.round(s.wr * 100);
     const barCol = pct >= 60 ? 'var(--tl)' : pct >= 45 ? 'var(--am)' : 'var(--rd)';
-    const plTxt = s.avgPL != 0 ? ` Â· avg ${s.avgPL >= 0 ? '+' : ''}${s.avgPL.toFixed(2)}` : '';
+    const plTxt = s.avgPL != 0 ? ` · avg ${s.avgPL >= 0 ? '+' : ''}${s.avgPL.toFixed(2)}` : '';
     return `<div style="display:flex;flex-direction:column;gap:2px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;font-family:monospace;">
         <span style="color:var(--tx)">${s.emo}</span>
@@ -3547,7 +3547,7 @@ function buildPsychChart(){
   }).join('');
 }
 
-// â”€â”€ Setup breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Setup breakdown ───────────────────────────────────────────────────────────
 function buildSetupChart(){
   const el = document.getElementById('setup-chart');
   if(!el) return;
@@ -3560,8 +3560,8 @@ function buildSetupChart(){
 
   // Build grouping key
   const key = e => {
-    if(setupFilterMode === 'sym') return `${e.setup} Â· ${e.sym}`;
-    if(setupFilterMode === 'tf')  return `${e.setup} Â· ${e.tf}`;
+    if(setupFilterMode === 'sym') return `${e.setup} · ${e.sym}`;
+    if(setupFilterMode === 'tf')  return `${e.setup} · ${e.tf}`;
     return e.setup;
   };
 
@@ -3604,7 +3604,7 @@ function buildSetupChart(){
   }).join('');
 }
 
-// â”€â”€ Time-of-day heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Time-of-day heatmap ───────────────────────────────────────────────────────
 function buildTODHeatmap(){
   const el = document.getElementById('tod-heatmap');
   if(!el) return;
@@ -3665,7 +3665,7 @@ function buildTODHeatmap(){
           const r = Math.round(160 + intensity * 95);
           bg = `rgba(${r},30,50,${0.2 + intensity*0.6})`;
         }
-        title = `${day} ${h}:00 UTC Â· ${arr.length} trade${arr.length>1?'s':''} Â· avg ${avg>=0?'+':''}${avg.toFixed(2)}`;
+        title = `${day} ${h}:00 UTC · ${arr.length} trade${arr.length>1?'s':''} · avg ${avg>=0?'+':''}${avg.toFixed(2)}`;
         txt = arr.length > 0 ? String(arr.length) : '';
       }
       table += `<td title="${title}" style="width:${cellW}px;height:${cellH}px;background:${bg};border:1px solid var(--bg);border-radius:2px;text-align:center;color:rgba(255,255,255,.5);cursor:default;vertical-align:middle;">${txt}</td>`;
@@ -3676,12 +3676,12 @@ function buildTODHeatmap(){
   el.innerHTML = table;
 }
 
-// â”€â”€ AI Journal Coach â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Shared AI cache â€” keyed by widget id, stores {hash, text} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI Journal Coach ──────────────────────────────────────────────────────────
+// ── Shared AI cache — keyed by widget id, stores {hash, text} ────────────────
 const aiReportCache = {};
 
 function journalHash(){
-  // A cheap fingerprint of current journal state â€” id+outcome+pl of each entry
+  // A cheap fingerprint of current journal state — id+outcome+pl of each entry
   return journal.map(e=>e.id+':'+(e.outcome||'')+(e.pl!=null?e.pl.toFixed(2):'')).join('|');
 }
 
@@ -3696,7 +3696,7 @@ function aiWidgetSetGenerated(id, text, accentColor){
   idle.style.display = 'none';
   body.style.display = 'block';
   // Remove any stale badge, replace controls with just a minimise button
-  controls.innerHTML = `<button onclick="aiWidgetToggle('${id}')" id="${id}-toggle-btn" style="font-size:11px;padding:2px 8px;background:transparent;border:1px solid var(--b2);color:var(--tx3);border-radius:3px;cursor:pointer;font-family:monospace;transition:all .15s;" onmouseover="this.style.borderColor='${accentColor}';this.style.color='${accentColor}'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx3)'">â–² Minimise</button>`;
+  controls.innerHTML = `<button onclick="aiWidgetToggle('${id}')" id="${id}-toggle-btn" style="font-size:11px;padding:2px 8px;background:transparent;border:1px solid var(--b2);color:var(--tx3);border-radius:3px;cursor:pointer;font-family:monospace;transition:all .15s;" onmouseover="this.style.borderColor='${accentColor}';this.style.color='${accentColor}'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx3)'">▲ Minimise</button>`;
 }
 
 function aiWidgetToggle(id){
@@ -3706,19 +3706,19 @@ function aiWidgetToggle(id){
   if(!body) return;
   const isVisible = body.style.display !== 'none';
   if(isVisible){
-    // Minimise: hide result, hide idle button row too â€” widget is now compact
+    // Minimise: hide result, hide idle button row too — widget is now compact
     body.style.display = 'none';
     if(idle) idle.style.display = 'none';
-    if(btn)  btn.textContent = 'â–¼ Expand';
+    if(btn)  btn.textContent = '▼ Expand';
   } else {
     // Expand: show result only (not the generate button)
     body.style.display = 'block';
     if(idle) idle.style.display = 'none';
-    if(btn)  btn.textContent = 'â–² Minimise';
+    if(btn)  btn.textContent = '▲ Minimise';
   }
 }
 
-// Called after every journal save â€” mark stale reports with a dot indicator only.
+// Called after every journal save — mark stale reports with a dot indicator only.
 // Does NOT regenerate or delete existing results.
 function invalidateAIReports(){
   const h  = journalHash();
@@ -3729,7 +3729,7 @@ function invalidateAIReports(){
   ['coach','edge','session','weekly'].forEach(id=>{
     const cached = aiReportCache[id];
     if(!cached) return;
-    if(cached.hash === hashes[id]) return; // still fresh â€” nothing to do
+    if(cached.hash === hashes[id]) return; // still fresh — nothing to do
     // Mark stale with a small passive indicator (no clickable re-run)
     const ctrl = document.getElementById(id+'-controls');
     if(ctrl && !ctrl.querySelector('.stale-dot')){
@@ -3737,7 +3737,7 @@ function invalidateAIReports(){
       dot.className = 'stale-dot';
       dot.title = 'Journal has changed since this report was generated';
       dot.style.cssText = 'font-size:11px;padding:1px 5px;border-radius:8px;background:rgba(240,165,0,.1);color:var(--am);font-family:monospace;border:1px solid rgba(240,165,0,.3);margin-right:4px;';
-      dot.textContent = 'â— outdated';
+      dot.textContent = '� outdated';
       ctrl.insertBefore(dot, ctrl.firstChild);
     }
   });
@@ -3764,14 +3764,14 @@ function checkWeeklyLock(){
     const needed = 2 - closed.length;
     const msgEl  = document.getElementById('weekly-locked-msg');
     const fromDate = new Date(cutoff).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
-    if(msgEl) msgEl.innerHTML = `Requires <b style="color:var(--am)">2+ closed trades</b> since ${fromDate}.<br>You have <b style="color:var(--tx2)">${closed.length}</b> â€” log <b style="color:var(--am)">${needed} more</b> to unlock.`;
+    if(msgEl) msgEl.innerHTML = `Requires <b style="color:var(--am)">2+ closed trades</b> since ${fromDate}.<br>You have <b style="color:var(--tx2)">${closed.length}</b> — log <b style="color:var(--am)">${needed} more</b> to unlock.`;
     lockEl.style.display = 'block';
     genBtn.style.display  = 'none';
   }
 }
 
-// â•â• AI REPORT HISTORY LOG â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Persistent storage for all AI session/weekly reports â€” keyed by date string
+// �� AI REPORT HISTORY LOG ������������������������������������������������������
+// Persistent storage for all AI session/weekly reports — keyed by date string
 // Structure: aiHistoryLog = { daily: [ {date, dateKey, text} ], weekly: [ {weekKey, label, text} ] }
 let aiHistoryLog = { daily:[], weekly:[] };
 try {
@@ -3801,12 +3801,12 @@ function logDailyReport(text){
 // Call after a successful weekly report generation
 function logWeeklyReport(text){
   const now    = new Date();
-  // Week label: "Mon 3 Mar â€“ Sun 9 Mar 2026"
+  // Week label: "Mon 3 Mar – Sun 9 Mar 2026"
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); // Sunday
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
   const fmtOpts   = {month:'short',day:'numeric'};
   const weekKey   = weekStart.toISOString().slice(0,10);
-  const weekLabel = `${weekStart.toLocaleDateString([],fmtOpts)} â€“ ${weekEnd.toLocaleDateString([],{...fmtOpts,year:'numeric'})}`;
+  const weekLabel = `${weekStart.toLocaleDateString([],fmtOpts)} – ${weekEnd.toLocaleDateString([],{...fmtOpts,year:'numeric'})}`;
   // Replace any existing entry for this week
   aiHistoryLog.weekly = aiHistoryLog.weekly.filter(w=>w.weekKey!==weekKey);
   aiHistoryLog.weekly.unshift({ weekKey, label:weekLabel, text, savedAt:Date.now() });
@@ -3822,7 +3822,7 @@ function toggleAiHistory(){
   if(!body) return;
   const open = body.style.display!=='none';
   body.style.display = open ? 'none' : 'block';
-  if(chev) chev.textContent = open ? 'â–¼' : 'â–²';
+  if(chev) chev.textContent = open ? '▼' : '▲';
   if(!open) refreshAiHistoryPanel();
 }
 
@@ -3856,13 +3856,13 @@ function refreshAiHistoryPanel(){
     <div style="margin-bottom:6px;border:1px solid var(--b2);border-radius:3px;overflow:hidden;">
       <div onclick="toggleHistoryEntry('daily-${i}')" style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg3);cursor:pointer;">
         <span style="font-size:11px;font-family:monospace;font-weight:700;color:var(--bl);">${d.label}</span>
-        <span style="font-size:11px;font-family:monospace;color:var(--tx3);">â–¼</span>
+        <span style="font-size:11px;font-family:monospace;color:var(--tx3);">▼</span>
       </div>
       <div id="history-daily-${i}" style="display:none;padding:8px;font-size:11px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;background:var(--bg);border-top:1px solid var(--b1);">${d.text}</div>
     </div>`).join('');
   }
 
-  // Weekly â€” check for entries that can be merged into one weekly block
+  // Weekly — check for entries that can be merged into one weekly block
   if(!aiHistoryLog.weekly.length){
     weeklyEl.innerHTML = '<div style="padding:12px 8px;text-align:center;font-size:11px;font-family:monospace;color:var(--tx3);">No weekly reports yet.<br>Generate a Weekly Report to see it here.</div>';
   } else {
@@ -3871,7 +3871,7 @@ function refreshAiHistoryPanel(){
 }
 
 function _renderWeeklyHistoryCard(w, i){
-  // Check if this weekly entry has been consolidated (â‰¥7 daily entries in its week)
+  // Check if this weekly entry has been consolidated (≥7 daily entries in its week)
   const weekStart = new Date(w.weekKey);
   const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+7);
   const dailyInWeek = aiHistoryLog.daily.filter(d=>{
@@ -3888,7 +3888,7 @@ function _renderWeeklyHistoryCard(w, i){
         <span style="font-size:11px;font-family:monospace;font-weight:600;color:var(--tx2);">Week of ${w.label}</span>
         ${badge}
       </div>
-      <span style="font-size:11px;font-family:monospace;color:var(--tx3);">â–¼</span>
+      <span style="font-size:11px;font-family:monospace;color:var(--tx3);">▼</span>
     </div>
     <div id="history-weekly-${i}" style="display:none;padding:8px;font-size:11px;line-height:1.65;color:var(--tx2);white-space:pre-wrap;background:var(--bg);border-top:1px solid var(--b1);">${w.text}</div>
   </div>`;
@@ -3903,7 +3903,7 @@ function toggleHistoryEntry(key){
   const parent = el.previousElementSibling;
   if(parent){
     const chev = parent.querySelector('span:last-child');
-    if(chev) chev.textContent = open ? 'â–¼' : 'â–²';
+    if(chev) chev.textContent = open ? '▼' : '▲';
   }
 }
 
@@ -3918,7 +3918,7 @@ async function runAICoach(){
 
   const idle = document.getElementById('coach-idle');
   const btn  = idle?.querySelector('button');
-  if(btn){ btn.textContent = 'â³ Analysing...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Analysing...'; btn.disabled = true; }
 
   const live    = journal.filter(e=>!e.archived);
   const closed  = live.filter(e => e.outcome === 'win' || e.outcome === 'loss');
@@ -3944,11 +3944,11 @@ Avg winner: +${avgWinVal} | Avg loser: ${avgLossVal}
 Entries: ${JSON.stringify(summary)}
 
 Provide a coaching analysis with these exact sections (use these headers):
-ðŸ“Š KEY STATS â€” 2-3 bullet points with the most important numbers
-ðŸ”´ BIGGEST WEAKNESS â€” 1 specific pattern hurting performance (with evidence from data)
-ðŸŸ¢ BIGGEST STRENGTH â€” 1 specific pattern working well
-ðŸ§  PSYCHOLOGY â€” what the emotion/tag data reveals about their mindset
-âš¡ #1 ACTION â€” one single specific thing to do differently starting tomorrow
+📊 KEY STATS — 2-3 bullet points with the most important numbers
+🔴 BIGGEST WEAKNESS — 1 specific pattern hurting performance (with evidence from data)
+🟢 BIGGEST STRENGTH — 1 specific pattern working well
+🧠 PSYCHOLOGY — what the emotion/tag data reveals about their mindset
+⚡ #1 ACTION — one single specific thing to do differently starting tomorrow
 
 Keep each section to 2-3 lines max. Be direct. No fluff.`;
 
@@ -3958,11 +3958,11 @@ Keep each section to 2-3 lines max. Be direct. No fluff.`;
     aiWidgetSetGenerated('coach', text, 'var(--am)');
   } catch(e) {
     if(btn){ btn.textContent = 'Run Analysis'; btn.disabled = false; }
-    toast('âš  AI Coach unavailable');
+    toast('⚠ AI Coach unavailable');
   }
 }
 
-// â”€â”€ AI Trade Autopsy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI Trade Autopsy ─────────────────────────────────────────────────────────
 async function runAutopsy(id, btn){
   const e = journal.find(j=>j.id===id);
   if(!e){ toast('Entry not found'); return; }
@@ -3973,11 +3973,11 @@ async function runAutopsy(id, btn){
   // If already loaded, toggle visibility
   if(out.dataset.loaded==='1'){
     out.style.display = out.style.display==='none' ? 'block' : 'none';
-    btn.textContent = out.style.display==='none' ? 'ðŸ”¬ AI Autopsy' : 'ðŸ”¼ Hide Autopsy';
+    btn.textContent = out.style.display==='none' ? '🔬 AI Autopsy' : '🔼 Hide Autopsy';
     return;
   }
 
-  btn.textContent = 'â³ Analysing...'; btn.disabled = true;
+  btn.textContent = '�� Analysing...'; btn.disabled = true;
   out.style.display = 'block';
   out.textContent = 'Running autopsy...';
 
@@ -4012,31 +4012,31 @@ ${setupWR!=null?`Historical win rate with "${e.setup}" setup: ${setupWR}% (${set
 Nearest support at time: ${nearestS} | Nearest resistance: ${nearestR}
 
 Write a trade autopsy with these 4 sections (keep each to 2-3 lines):
-ðŸŽ¯ ENTRY QUALITY â€” was the entry well-timed? Was stop placement logical relative to structure?
-ðŸ“‰ EXECUTION â€” did they follow the plan? Was exit early/late? Did emotions affect the trade?
-ðŸ“Š EDGE ALIGNMENT â€” does this trade match their historically profitable setups and conditions?
-ðŸ’¡ KEY LESSON â€” one specific, actionable improvement for the next time this setup appears`;
+🎯 ENTRY QUALITY — was the entry well-timed? Was stop placement logical relative to structure?
+📉 EXECUTION — did they follow the plan? Was exit early/late? Did emotions affect the trade?
+📊 EDGE ALIGNMENT — does this trade match their historically profitable setups and conditions?
+💡 KEY LESSON — one specific, actionable improvement for the next time this setup appears`;
 
   try {
     const text = await groqFetch(prompt);
     out.textContent = text;
     out.dataset.loaded = '1';
-    btn.textContent = 'ðŸ”¼ Hide Autopsy';
+    btn.textContent = '🔼 Hide Autopsy';
   } catch(err) {
         out.textContent = 'AI unavailable right now. Please try again in a moment.';
-    btn.textContent = 'ðŸ”¬ AI Autopsy';
+    btn.textContent = '🔬 AI Autopsy';
   }
   btn.disabled = false;
 }
 
-// â•â• EDGE PROFILER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� EDGE PROFILER ������������������������������������������������������������
 async function runEdgeProfiler(){
   const idle = document.getElementById('edge-idle');
   const btn  = idle?.querySelector('button');
 
   const closed = journal.filter(e=>!e.archived && (e.outcome==='win'||e.outcome==='loss'));
   if(closed.length < 5){
-    if(btn){ btn.textContent = 'âš  Need 5+ closed trades'; btn.disabled = true; setTimeout(()=>{ btn.textContent='Profile My Edge'; btn.disabled=false; },2500); }
+    if(btn){ btn.textContent = '⚠ Need 5+ closed trades'; btn.disabled = true; setTimeout(()=>{ btn.textContent='Profile My Edge'; btn.disabled=false; },2500); }
     return;
   }
 
@@ -4046,7 +4046,7 @@ async function runEdgeProfiler(){
     return;
   }
 
-  if(btn){ btn.textContent = 'â³ Profiling...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Profiling...'; btn.disabled = true; }
 
   const bySetup={}, bySym={}, byTF={}, byDir={long:[],short:[]}, byEmo={};
   closed.forEach(e=>{
@@ -4081,11 +4081,11 @@ By Emotion at entry:
 ${Object.entries(byEmo).map(([k,v])=>`${k}: ${Math.round(v.w/(v.w+v.l)*100)}% WR (${v.w+v.l} trades)`).join('\n')||'No emotion data'}
 
 Write an EDGE PROFILE with these sections:
-ðŸ† YOUR A+ SETUP â€” the single highest-probability combination (setup + symbol + direction + timeframe) with exact stats
-ðŸ“ˆ WHERE YOU MAKE MONEY â€” top 3 conditions that consistently produce winners
-ðŸ“‰ WHERE YOU LOSE MONEY â€” top 2-3 conditions that destroy your edge (avoid these)
-ðŸ§  PSYCHOLOGICAL EDGE â€” your best emotional state for trading, backed by data
-âš¡ IMMEDIATE ACTION â€” one specific filter to add to your trade selection starting now`;
+�� YOUR A+ SETUP — the single highest-probability combination (setup + symbol + direction + timeframe) with exact stats
+📈 WHERE YOU MAKE MONEY — top 3 conditions that consistently produce winners
+📉 WHERE YOU LOSE MONEY — top 2-3 conditions that destroy your edge (avoid these)
+🧠 PSYCHOLOGICAL EDGE — your best emotional state for trading, backed by data
+⚡ IMMEDIATE ACTION — one specific filter to add to your trade selection starting now`;
 
   try {
     const text = await groqFetch(prompt);
@@ -4093,11 +4093,11 @@ Write an EDGE PROFILE with these sections:
     aiWidgetSetGenerated('edge', text, 'var(--tl)');
   } catch(err) {
     if(btn){ btn.textContent = 'Profile My Edge'; btn.disabled = false; }
-    toast('âš  Edge Profiler unavailable');
+    toast('⚠ Edge Profiler unavailable');
   }
 }
 
-// â•â• POST-SESSION SUMMARY â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� POST-SESSION SUMMARY ������������������������������������������������������
 async function runSessionSummary(){
   const idle = document.getElementById('session-idle');
   const btn  = idle?.querySelector('button');
@@ -4105,7 +4105,7 @@ async function runSessionSummary(){
   const cutoff = Date.now() - 86400000;
   const today  = journal.filter(e=>!e.archived && e.time >= cutoff);
   if(!today.length){
-    if(btn){ btn.textContent = 'âš  No trades today'; btn.disabled = true; setTimeout(()=>{ btn.textContent='Generate Summary'; btn.disabled=false; },2500); }
+    if(btn){ btn.textContent = '⚠ No trades today'; btn.disabled = true; setTimeout(()=>{ btn.textContent='Generate Summary'; btn.disabled=false; },2500); }
     return;
   }
 
@@ -4115,7 +4115,7 @@ async function runSessionSummary(){
     return;
   }
 
-  if(btn){ btn.textContent = 'â³ Writing summary...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Writing summary...'; btn.disabled = true; }
 
   const closed  = today.filter(e=>e.outcome==='win'||e.outcome==='loss');
   const wins    = closed.filter(e=>e.outcome==='win').length;
@@ -4127,7 +4127,7 @@ async function runSessionSummary(){
   const allEmos = today.flatMap(e=>e.emotions||[]);
   const emoFreq = {}; allEmos.forEach(em=>{ emoFreq[em]=(emoFreq[em]||0)+1; });
   const topEmo  = Object.entries(emoFreq).sort((a,b)=>b[1]-a[1]).map(([k])=>k).slice(0,3);
-  const tradeList = today.map(e=>`${e.sym} ${e.dir?.toUpperCase()} @ $${fP(e.entry||0)} â†’ $${fP(e.exit||0)} | ${e.outcome||'open'} | P&L: ${e.pl!=null?(e.pl>=0?'+':'')+e.pl.toFixed(2):'open'} | Setup: ${e.setup||'â€”'} | Emotions: ${(e.emotions||[]).join(', ')||'none'}`).join('\n');
+  const tradeList = today.map(e=>`${e.sym} ${e.dir?.toUpperCase()} @ $${fP(e.entry||0)} → $${fP(e.exit||0)} | ${e.outcome||'open'} | P&L: ${e.pl!=null?(e.pl>=0?'+':'')+e.pl.toFixed(2):'open'} | Setup: ${e.setup||'—'} | Emotions: ${(e.emotions||[]).join(', ')||'none'}`).join('\n');
 
   const prompt = `You are a trading performance coach. Write a concise end-of-session debrief for a trader. Be honest, warm but direct.
 
@@ -4141,11 +4141,11 @@ Trade log:
 ${tradeList}
 
 Write a post-session summary with these sections (2-3 lines each, conversational tone):
-ðŸ“‹ SESSION SNAPSHOT â€” quick summary of how the day went in plain English
-âœ… BEST DECISION â€” the single best thing they did today (specific trade or behaviour)
-âŒ BIGGEST MISTAKE â€” the single worst decision and why it matters
-ðŸ§  MENTAL GAME â€” how emotions played out across the session and what it signals
-ðŸŒ… TOMORROW â€” one specific intention or rule to carry into the next session`;
+📋 SESSION SNAPSHOT — quick summary of how the day went in plain English
+✅ BEST DECISION — the single best thing they did today (specific trade or behaviour)
+�� BIGGEST MISTAKE — the single worst decision and why it matters
+🧠 MENTAL GAME — how emotions played out across the session and what it signals
+🌅 TOMORROW — one specific intention or rule to carry into the next session`;
 
   try {
     const text = await groqFetch(prompt);
@@ -4154,11 +4154,11 @@ Write a post-session summary with these sections (2-3 lines each, conversational
     logDailyReport(text);
   } catch(err) {
     if(btn){ btn.textContent = 'Generate Summary'; btn.disabled = false; }
-    toast('âš  Session Summary unavailable');
+    toast('⚠ Session Summary unavailable');
   }
 }
 
-// â•â• WEEKLY PERFORMANCE REPORT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� WEEKLY PERFORMANCE REPORT ������������������������������������������������
 async function runWeeklyReport(){
   const idle = document.getElementById('weekly-idle');
   const btn  = document.getElementById('weekly-generate-btn');
@@ -4167,7 +4167,7 @@ async function runWeeklyReport(){
   const week   = journal.filter(e=>!e.archived && e.time >= cutoff);
   const closed = week.filter(e=>e.outcome==='win'||e.outcome==='loss');
 
-  // Hard gate â€” button should already be hidden, but double-check
+  // Hard gate — button should already be hidden, but double-check
   if(closed.length < 2){ checkWeeklyLock(); return; }
 
   const h = week.map(e=>e.id+':'+(e.outcome||'')+(e.pl!=null?e.pl.toFixed(2):'')).join('|');
@@ -4176,7 +4176,7 @@ async function runWeeklyReport(){
     return;
   }
 
-  if(btn){ btn.textContent = 'â³ Generating...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Generating...'; btn.disabled = true; }
 
   const wins      = closed.filter(e=>e.outcome==='win').length;
   const plVals    = closed.filter(e=>e.pl!=null).map(e=>e.pl);
@@ -4214,12 +4214,12 @@ Setup performance this week:
 ${setupStr}
 
 Write a WEEKLY REPORT with these sections:
-ðŸ“Š WEEK AT A GLANCE â€” 3-4 bullet points with the headline numbers and what they mean
-ðŸ“ˆ WHAT WORKED â€” top 2 things that generated the most profit or highest quality trades
-ðŸ“‰ WHAT DIDN'T WORK â€” top 2 things that cost money or represented poor process
-ðŸ” PATTERNS TO NOTE â€” any recurring behaviour (good or bad) across the week
-ðŸ“… NEXT WEEK FOCUS â€” 3 specific, measurable intentions for the coming week
-â­ TRADER GRADE â€” give the week a grade (A/B/C/D) with a one-line rationale
+📊 WEEK AT A GLANCE — 3-4 bullet points with the headline numbers and what they mean
+📈 WHAT WORKED — top 2 things that generated the most profit or highest quality trades
+📉 WHAT DIDN'T WORK — top 2 things that cost money or represented poor process
+� PATTERNS TO NOTE — any recurring behaviour (good or bad) across the week
+📅 NEXT WEEK FOCUS — 3 specific, measurable intentions for the coming week
+� TRADER GRADE — give the week a grade (A/B/C/D) with a one-line rationale
 
 Keep it professional but human. This is a weekly review, not a punishment.`;
 
@@ -4230,7 +4230,7 @@ Keep it professional but human. This is a weekly review, not a punishment.`;
     logWeeklyReport(text);
   } catch(err) {
     if(btn){ btn.textContent = 'Generate Report'; btn.disabled = false; }
-    toast('âš  Weekly Report unavailable');
+    toast('⚠ Weekly Report unavailable');
   }
 }
 
@@ -4258,7 +4258,7 @@ async function runPretradeCheck(){
 
   function wr(arr){ if(!arr.length) return null; return Math.round(arr.filter(e=>e.outcome==='win').length/arr.length*100); }
 
-  // Build insights locally (no AI call needed for speed â€” happens on every field change)
+  // Build insights locally (no AI call needed for speed — happens on every field change)
   const insights = [];
 
   if(byBoth.length >= 2){
@@ -4297,13 +4297,13 @@ async function runPretradeCheck(){
   if(todTrades.length >= 2){
     const w = wr(todTrades);
     const col = w >= 55 ? '#00c9a0' : w <= 40 ? '#f03060' : '#f0a500';
-    insights.push(`<span style="color:${col}">This time of day (Â±1h): <b>${w}% win rate</b> (${todTrades.length} trades)</span>`);
+    insights.push(`<span style="color:${col}">This time of day (±1h): <b>${w}% win rate</b> (${todTrades.length} trades)</span>`);
   }
 
   // Tilt warning
   const last3 = relevant.slice(0,3);
   const recentLosses = last3.filter(e=>e.outcome==='loss').length;
-  if(recentLosses >= 2) insights.push(`<span style="color:#f03060">âš  ${recentLosses} of your last 3 closed trades were losses â€” tilt risk is high</span>`);
+  if(recentLosses >= 2) insights.push(`<span style="color:#f03060">⚠ ${recentLosses} of your last 3 closed trades were losses — tilt risk is high</span>`);
 
   if(!insights.length){ wrap.style.display='none'; return; }
 
@@ -4311,7 +4311,7 @@ async function runPretradeCheck(){
   wrap.style.display = 'block';
 }
 
-// â”€â”€ Deep AI Pre-Trade Check (on-demand) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Deep AI Pre-Trade Check (on-demand) ──────────────────────────────────────
 async function runDynamicPretradeAI(){
   const btn = document.getElementById('pretrade-ai-btn');
   const out  = document.getElementById('pretrade-ai-out');
@@ -4325,7 +4325,7 @@ async function runDynamicPretradeAI(){
   const sl    = parseFloat(document.getElementById('jm-sl')?.value)    || null;
   const tp    = parseFloat(document.getElementById('jm-tp')?.value)    || null;
 
-  btn.textContent = 'â³'; btn.disabled = true;
+  btn.textContent = '��'; btn.disabled = true;
   out.style.display = 'block';
   out.textContent = 'Running deep pre-trade check...';
 
@@ -4367,7 +4367,7 @@ async function runDynamicPretradeAI(){
   const avgVol20   = data.slice(-20).reduce((s,b)=>s+b.volume,0)/20;
   const volStatus  = last?.volume?(last.volume>avgVol20?'Above average (strong conviction)':'Below average (weak conviction)'):'N/A';
 
-  const prompt = `You are an experienced trading mentor teaching a student how to think through a trade on a live chart. You must be educational, structured, and interactive â€“ not just giving a verdict.
+  const prompt = `You are an experienced trading mentor teaching a student how to think through a trade on a live chart. You must be educational, structured, and interactive – not just giving a verdict.
 
 CHART & TRADE CONTEXT:
 Asset: ${sym}
@@ -4385,7 +4385,7 @@ Trend & Structure:
 - Resistance levels: ${srZones.resistance.slice(0,4).map(fP).join(', ')||'None detected'}
 
 Indicators:
-- RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' â€” Overbought':lastRSI<30?' â€” Oversold':' â€” Neutral'):''}
+- RSI(14): ${lastRSI?.toFixed(2)||'N/A'}${lastRSI?(lastRSI>70?' — Overbought':lastRSI<30?' — Oversold':' — Neutral'):''}
 - MACD: ${macdStatus}
 - Moving averages: ${maStatus}
 - Volume: ${volStatus}
@@ -4401,7 +4401,7 @@ Trader Historical Edge:
 - ${simWR!=null?'Win rate on '+sym+' '+dir+': '+simWR+'% ('+similar.length+' trades)':'No prior history on this symbol/direction'}
 - ${setupWR!=null?'Win rate with "'+setup+'" setup: '+setupWR+'% ('+bySetup.length+' trades)':'No specific data for this setup'}
 - Avg winning R:R historically: 1:${minRR}
-- Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' â€” possible tilt risk':''}
+- Recent form: ${recentLosses} of last 3 closed trades were losses${recentLosses>=2?' — possible tilt risk':''}
  - Trader memory: ${formatTraderProfileForAI(profile)}
 
 Chart Intent Context:
@@ -4441,20 +4441,20 @@ Act as an interactive trade tutorial assistant. Explain this specific setup step
 - Mention whether you would wait for extra confirmation (and what exactly that would be).
 
 8. INTERACTIVE CHECK-IN
-- Ask the user 1â€“2 questions to make them think, for example:
-  â€¢ "Looking at these levels, where do YOU see the next resistance?"
-  â€¢ "Would you be more comfortable entering now or waiting for a close above/below a key level? Why?"
+- Ask the user 1–2 questions to make them think, for example:
+  • "Looking at these levels, where do YOU see the next resistance?"
+  • "Would you be more comfortable entering now or waiting for a close above/below a key level? Why?"
 - Do NOT answer these questions yourself; leave them open for the user.
 
 FORMATTING RULES:
 - Use the headings exactly as above (1. MARKET STRUCTURE, 2. KEY LEVELS, etc.).
-- Under each heading, use 2â€“4 short bullet points.
-- Keep the whole answer concise and readable â€“ no long walls of text.`;
+- Under each heading, use 2–4 short bullet points.
+- Keep the whole answer concise and readable – no long walls of text.`;
 
   try {
     const text = await groqFetch(prompt);
 
-    // â”€â”€ Parse verdict and score from AI response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Parse verdict and score from AI response ──────────────────────────────
     const textUpper = text.toUpperCase();
 
     // Detect verdict
@@ -4475,8 +4475,8 @@ FORMATTING RULES:
     const likelihood = score === null ? null
       : score >= 80 ? 'High likelihood of success'
       : score >= 60 ? 'Moderate likelihood of success'
-      : score >= 40 ? 'Lower likelihood â€” proceed with caution'
-      : 'Poor setup â€” high risk of failure';
+      : score >= 40 ? 'Lower likelihood — proceed with caution'
+      : 'Poor setup — high risk of failure';
 
     // Render verdict banner
     const banner  = document.getElementById('pretrade-verdict-banner');
@@ -4491,7 +4491,7 @@ FORMATTING RULES:
       banner.style.borderColor = verdictBorder;
       lbl.textContent          = verdict;
       lbl.style.color          = verdictColor;
-      scoreEl.textContent      = score !== null ? score + '/100' : 'â€”';
+      scoreEl.textContent      = score !== null ? score + '/100' : '—';
       scoreEl.style.color      = verdictColor;
       subEl.textContent        = likelihood || 'See full analysis below';
       subEl.style.color        = verdictColor;
@@ -4504,12 +4504,12 @@ FORMATTING RULES:
     if(textEl) textEl.textContent = text;
 
     out.style.display = 'block';
-    btn.textContent = 'ðŸ”„ Re-check';
+    btn.textContent = '🔄 Re-check';
   } catch(err) {
     const textEl = document.getElementById('pretrade-ai-text');
 if(textEl) textEl.textContent = 'AI unavailable right now. Please try again in a moment.';
     out.style.display = 'block';
-    btn.textContent = 'âš¡ Deep Check';
+    btn.textContent = '⚡ Deep Check';
   }
   btn.disabled = false;
 }
@@ -4591,7 +4591,7 @@ function calcPSC(){
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
       <span style="color:var(--tx3)">Direction</span>
-      <span style="color:${isLong?'var(--tl)':'var(--rd)'};font-weight:700">${isLong?'â–² LONG':'â–¼ SHORT'}</span>
+      <span style="color:${isLong?'var(--tl)':'var(--rd)'};font-weight:700">${isLong?'▲ LONG':'▼ SHORT'}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
       <span style="color:var(--tx3)">Risk amount</span>
@@ -4617,7 +4617,7 @@ function calcPSC(){
     ${rrHtml}`;
 }
 
-// â•â• SESSION HIGHLIGHTER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SESSION HIGHLIGHTER ������������������������������������������������������
 let showSessions = false;
 try{ showSessions = JSON.parse(localStorage.getItem('apex-sessions')||'false'); }catch(e){}
 
@@ -4631,7 +4631,7 @@ function toggleSessions(){
   syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   draw();
-  toast(showSessions ? 'ðŸŒ Sessions ON â€” London Â· NY Â· Asia' : 'ðŸŒ Sessions OFF');
+  toast(showSessions ? '� Sessions ON — London · NY · Asia' : '� Sessions OFF');
 }
 
 // Draw trading session highlight bands onto ctx for the visible bars
@@ -4677,7 +4677,7 @@ function drawSessions(ctx, data, firstBar, lastBar, barX, H){
   });
 }
 
-// â•â• BAR REPLAY MODE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� BAR REPLAY MODE ����������������������������������������������������������
 // Design: chart is NEVER locked. curData always holds the full dataset.
 // replayCutoff = data index of the last visible bar (bars after it are dimmed).
 // Phase 1 (picking): move mouse to hover over the bar you want to start from,
@@ -4706,7 +4706,7 @@ function toggleReplay(){
 }
 
 function triggerReplayRescan() {
-  // CRITICAL: Never interrupt setup_detected or later states â€” the injected
+  // CRITICAL: Never interrupt setup_detected or later states — the injected
   // upcomingSetup from _mfLaunch must survive until the early warning fires.
   const protectedStates = ['setup_detected', 'preview', 'setup_wait', 'trade_monitoring', 'trade_result', 'trade_completed'];
   if (protectedStates.includes(mentorState.lifecycleState)) {
@@ -4727,17 +4727,17 @@ function triggerReplayRescan() {
     const _scanAnalysis = mentorState.analysis;
     const _trendLabel = _scanAnalysis?.structure?.trend?.replace(/_/g,' ') || null;
     mentorState.currentInsights = [
-      `ðŸ” Scanning for ${_methodName} setups...`,
+      `� Scanning for ${_methodName} setups...`,
       _trendLabel ? `Current market structure: ${_trendLabel}.` : 'Reading market structure...',
       'The mentor will pause the replay the moment a qualifying setup appears.'
     ];
-    mentorState.currentQuestion = 'Keep advancing bars â€” the mentor will highlight the next opportunity when conditions align.';
+    mentorState.currentQuestion = 'Keep advancing bars — the mentor will highlight the next opportunity when conditions align.';
   })();
   updateMentorUI();
   setTimeout(() => { updateMentor(); }, 100);
 }
 
-/** Called by the "Pick Earlier Bar" mentor button â€” restarts replay in bar-picking mode */
+/** Called by the "Pick Earlier Bar" mentor button — restarts replay in bar-picking mode */
 function startReplayPicking(){
   // Reset mentor to method-selection so the user can pick a fresh start bar
   setMentorState('method_selection', 'pick-earlier-bar restart');
@@ -4748,7 +4748,7 @@ function startReplayPicking(){
 
 function startReplay(){
   if(!curData || curData.length <= 1) {
-    toast('âš  No data available for replay - load a symbol first');
+    toast('⚠ No data available for replay - load a symbol first');
     return;
   }
   
@@ -4761,7 +4761,7 @@ function startReplay(){
   _syncAllDockedBtns();
   updateReplayStatus();
   draw();
-  toast('â® Replay â€” hover to pick start bar, then click');
+  toast('�� Replay — hover to pick start bar, then click');
   
   // Clear the flag after a short delay
   setTimeout(() => {
@@ -4787,7 +4787,7 @@ function stopReplay(){
   const _rbtn2=document.getElementById('btn-replay'); if(_rbtn2) _rbtn2.classList.remove('on');
   _syncAllDockedBtns();
   draw();
-  toast('â¹ Replay ended');
+  toast('�� Replay ended');
 }
 
 // Force reset replay state (for debugging)
@@ -4804,7 +4804,7 @@ function forceResetReplay(){
   _syncAllDockedBtns();
   updateReplayStatus();
   draw();
-  toast('ðŸ”„ Replay state reset');
+  toast('🔄 Replay state reset');
 }
 
 // Make it globally accessible for debugging
@@ -4815,7 +4815,7 @@ window.getReplayState = () => ({ replayMode, replayPicking, replayCutoff, replay
 // Scroll rightBarIndex so the replay cutoff bar is visible with context bars to
 // the right. Called whenever replayCutoff is set or the line is dragged.
 function _replayScrollToBar(bar) {
-  // If we're paused showing a setup preview, don't scroll â€” the view is
+  // If we're paused showing a setup preview, don't scroll — the view is
   // intentionally showing the future entry bar and we don't want it overridden.
   if (mentorState._freezeScrollForPreview) return;
 
@@ -4849,7 +4849,7 @@ function replayPickBar(barIndex){
     triggerReplayRescan();
   }
   
-  toast('â–¶ Replay set â€” Space to play/pause Â· â†’ to step Â· Esc to exit');
+  toast('▶ Replay set — Space to play/pause · → to step · Esc to exit');
   
   // Update AI Mentor when replay starts
   if (mentorState.enabled) {
@@ -4868,7 +4868,7 @@ function replayStep(n){
   updateReplayStatus();
   draw();
 
-  // Refresh setup annotations on every step â€” forward OR backward.
+  // Refresh setup annotations on every step — forward OR backward.
   // Works in both setup_detected (approaching trade) and trade_monitoring (during trade).
   const _lc = mentorState.lifecycleState;
   if (_lc === 'setup_detected' && mentorState.upcomingSetup) {
@@ -4890,9 +4890,9 @@ function replayStep(n){
     monitorExampleTrade(replayCutoff);
   }
   
-  // Update AI Mentor â€” bar-based throttle is more deterministic than time-based.
+  // Update AI Mentor — bar-based throttle is more deterministic than time-based.
   // Run every 3 bars during active states (fast feedback), every 8 bars when scanning
-  // (expensive path â€” scan window runs here).
+  // (expensive path — scan window runs here).
   if (mentorState.enabled) {
     const lc = mentorState.lifecycleState;
     const activeState = lc === 'setup_detected' || lc === 'setup_wait' ||
@@ -4909,19 +4909,19 @@ function replayStep(n){
 function replayTogglePlay(){
   if(!replayMode || replayPicking) return;
   if(!curData || curData.length <= 1) {
-    toast('âš  No data available for replay');
+    toast('⚠ No data available for replay');
     return;
   }
   if(replayTimer){
     clearInterval(replayTimer);
     replayTimer = null;
-    updateReplayStatus(); draw(); toast('â¸ Paused');
+    updateReplayStatus(); draw(); toast('�� Paused');
   } else {
     // Clear freeze so scroll follows replay naturally once user presses play
     mentorState._freezeScrollForPreview = false;
     // Check if already at the end
     if(replayCutoff >= curData.length - 1) {
-      toast('â¹ Already at end â€” Esc to exit');
+      toast('�� Already at end — Esc to exit');
       return;
     }
     replayTimer = setInterval(()=>{
@@ -4933,7 +4933,7 @@ function replayTogglePlay(){
         if(replayCutoff >= curData.length - 1){
           clearInterval(replayTimer); replayTimer = null
           updateReplayStatus(); draw(); // Ensure final state is rendered
-          toast('â¹ Replay complete â€” Esc to exit');
+          toast('�� Replay complete — Esc to exit');
           return;
         }
         replayStep(1);
@@ -4945,14 +4945,14 @@ function replayTogglePlay(){
           e.message.includes('Maximum call stack')
         )) {
           // Stop on critical errors
-          console.error('ðŸš¨ Critical replay error - stopping replay');
+          console.error('🚨 Critical replay error - stopping replay');
           clearInterval(replayTimer); replayTimer = null;
           updateReplayStatus(); draw(); // Ensure UI is consistent
-          toast('âš  Replay error - stopped: ' + (e.message || 'Unknown error'));
+          toast('⚠ Replay error - stopped: ' + (e.message || 'Unknown error'));
         }
       }
     }, replaySpeed);
-    updateReplayStatus(); draw(); toast('â–¶ Playing');
+    updateReplayStatus(); draw(); toast('▶ Playing');
   }
 }
 
@@ -4969,11 +4969,11 @@ function updateReplayStatus(){
   wrap.style.display = replayMode ? 'flex' : 'none';
   if(!txt) return;
   if(replayPicking){
-    txt.textContent = 'â® PICK START BAR';
+    txt.textContent = '�� PICK START BAR';
     if(play){ play.style.display='none'; }
   } else {
     if(!curData || curData.length <= 1) {
-      txt.textContent = 'REPLAY â€” No data';
+      txt.textContent = 'REPLAY — No data';
       if(play){ play.style.display='none'; }
       return;
     }
@@ -4981,7 +4981,7 @@ function updateReplayStatus(){
     txt.textContent = `REPLAY  ${replayCutoff}/${curData.length - 1}  (${pct}%)`;
     if(play){
       play.style.display='';
-      play.textContent = replayTimer ? 'â¸' : 'â–¶';
+      play.textContent = replayTimer ? '��' : '▶';
       play.style.color = replayTimer ? 'var(--rd)' : 'var(--tl)';
       play.style.borderColor = replayTimer ? 'rgba(240,48,96,.4)' : 'rgba(0,201,160,.4)';
       play.style.background  = replayTimer ? 'rgba(240,48,96,.15)' : 'rgba(0,201,160,.15)';
@@ -5002,14 +5002,14 @@ function replayHoverBar(){
   ));
 }
 
-// â•â• AI TRADING MENTOR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AI TRADING MENTOR �����������������������������������������������������������
 // Real-time trading coach for Bar Replay mode - analyzes only current and past data
 
 let mentorState = {
   enabled: false,
   _aiGeneration: 0,        // incremented on each new setup to invalidate stale AI responses
   _lastMentorUpdateBar: -99, // bar-based throttle for updateMentor() calls
-  _lastAnnStateKey: null,    // annotation state key â€” skip redraw if nothing changed
+  _lastAnnStateKey: null,    // annotation state key — skip redraw if nothing changed
   _analysisCache: null,      // cached analyzeMarketData result
   currentBar: -1,
   analysis: null,
@@ -5018,7 +5018,7 @@ let mentorState = {
   waitingForTrade: false,
   currentSetup: null,
   // New quality filtering properties
-  cooldownCandles: 0, // No cooldown â€” strict detection criteria prevent over-trading
+  cooldownCandles: 0, // No cooldown — strict detection criteria prevent over-trading
   lastMarketStructure: 'unknown',
   confluenceScore: 0,
   setupQuality: 'none', // 'high', 'medium', 'low', 'none'
@@ -5074,7 +5074,7 @@ let mentorState = {
   setupCache: new Map(), // Key: "barIndex_tradingMethod", Value: setupDetection result
   cacheEnabled: true, // Enable setup caching for consistency
 
-  // Annotation cache â€” drawings computed once per setup, restored on scroll
+  // Annotation cache — drawings computed once per setup, restored on scroll
   _annCache: null, // { setupBar, method, drawings: [...] }
   _debriefAnnotationsVisible: false,
   guidanceLevel: 'standard',
@@ -5239,7 +5239,7 @@ function clearMentorSessionRecap(){
   el.innerHTML = '';
 }
 
-// â”€â”€ Centralised state transition helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Centralised state transition helper ──────────────────────────────────────
 // Using this instead of direct `mentorState.lifecycleState = x` ensures that
 // dependent fields are always synced and invalid transitions are caught early.
 const VALID_TRANSITIONS = {
@@ -5261,7 +5261,7 @@ function mentorPhaseMeta(){
   if (mentorState.exampleTradeActive && state === 'no_setup_found') state = 'trade_monitoring';
   const map = {
     method_selection: { pill:'SETUP', status:'Choose a strategy', note:'Pick the style you want to practice so the mentor can teach one clear playbook at a time.', color:'var(--pu)' },
-    scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:`Scanning for ${(()=>{const m={breakout:'Breakout',trend:'Trend Following',support_resistance:'S&R',pullback:'Pullback',range:'Range',liquidity:'Liquidity Sweep'};return m[mentorState.selectedTradingMethod]||'setup';})()}  criteria â€” checking structure, confluence, and timing.`, color:'var(--bl)' },
+    scanning:         { pill:'SCANNING', status:'Looking for a clean lesson', note:`Scanning for ${(()=>{const m={breakout:'Breakout',trend:'Trend Following',support_resistance:'S&R',pullback:'Pullback',range:'Range',liquidity:'Liquidity Sweep'};return m[mentorState.selectedTradingMethod]||'setup';})()}  criteria — checking structure, confluence, and timing.`, color:'var(--bl)' },
     no_setup_found:   { pill:'WAITING', status:'No clean setup yet', note:'Nothing worth forcing right now. That is part of the lesson too.', color:'var(--tx2)' },
     waiting:          { pill:'WAITING', status:'Letting the chart develop', note:'The mentor is waiting for clearer price action before stepping in.', color:'var(--am)' },
     setup_detected:   { pill:'HEADS UP', status:'A setup is approaching', note:'An opportunity is ahead. Watch how the context builds before the trade is ready.', color:'var(--bl)' },
@@ -5302,7 +5302,7 @@ function mentorRecoverMissingSetup(actionLabel){
   mentorState.lockedInsights = [];
   mentorState.lockedQuestion = '';
   mentorState.currentInsights = ['The earlier setup is no longer available. That can happen if price moved on while you were reviewing it.'];
-  mentorState.currentQuestion = 'No problem â€” the mentor is rescanning for the next clean teaching example.';
+  mentorState.currentQuestion = 'No problem — the mentor is rescanning for the next clean teaching example.';
   updateMentorUI();
 }
 
@@ -5312,9 +5312,9 @@ function setMentorState(newState, reason) {
 
   const allowed = VALID_TRANSITIONS[cur];
   if (allowed && !allowed.includes(newState)) {
-    // Invalid transition â€” log for debugging but allow it rather than breaking
+    // Invalid transition — log for debugging but allow it rather than breaking
     if (typeof console !== 'undefined')
-      console.warn(`[Mentor] Invalid state transition: ${cur} â†’ ${newState} (${reason||''})`);
+      console.warn(`[Mentor] Invalid state transition: ${cur} → ${newState} (${reason||''})`);
   }
 
   mentorState.lifecycleState = newState;
@@ -5339,11 +5339,11 @@ function setMentorState(newState, reason) {
 
 
 
-// â•â• MENTOR REPLAY CONTROL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� MENTOR REPLAY CONTROL �����������������������������������������������������������
 
 function pauseReplayForSetup() {
   if (!replayMode) return;
-  // Don't interrupt manual scrubbing â€” the user is deliberately moving through bars.
+  // Don't interrupt manual scrubbing — the user is deliberately moving through bars.
   // The setup panel will still show; they can read it and press Space when ready.
   if (_replayLineDragging || isPanning) return;
   if (!replayTimer) return; // already paused (manual stepping via arrow keys etc.)
@@ -5353,7 +5353,7 @@ function pauseReplayForSetup() {
   mentorState.setupPausedReplay = true;
   updateReplayStatus();
   draw();
-  toast('â¸ Setup found â€” replay paused');
+  toast('�� Setup found — replay paused');
 }
 
 function resumeReplayAfterSetup(autoPlay = false) {
@@ -5367,7 +5367,7 @@ function resumeReplayAfterSetup(autoPlay = false) {
     updateReplayStatus();
     draw();
   } else {
-    toast('â–¶ Replay ready â€” press Space to continue');
+    toast('▶ Replay ready — press Space to continue');
   }
 }
 
@@ -5399,8 +5399,8 @@ function dismissSetupMessage() {
   const _dismissDir   = _dismissSetup?.direction || null;
   const _dismissQual  = _dismissSetup?.quality    || null;
   mentorState.currentInsights = [
-    `â†© Back to scanning for ${_dismissLabel} setups.`,
-    _dismissDir && _dismissQual ? `Last setup was a ${_dismissQual} ${_dismissDir} opportunity â€” watch for similar conditions.` : 'Keep the replay running â€” the mentor will flag the next opportunity.',
+    `↩ Back to scanning for ${_dismissLabel} setups.`,
+    _dismissDir && _dismissQual ? `Last setup was a ${_dismissQual} ${_dismissDir} opportunity — watch for similar conditions.` : 'Keep the replay running — the mentor will flag the next opportunity.',
   ];
   mentorState.currentQuestion = 'Advance bars to continue. The mentor will pause again when the next qualifying setup appears.';
   updateMentorUI();
@@ -5429,12 +5429,12 @@ function addRealtimeUpdate(currentBar) {
   // Generate update based on price behavior
   if (Math.abs(priceChange) > 0.01) {
     if (priceChange > 0) {
-      update = "â€¢ Price approaching breakout level";
+      update = "• Price approaching breakout level";
     } else {
-      update = "â€¢ Price moving away from setup level";
+      update = "• Price moving away from setup level";
     }
   } else {
-    update = "â€¢ Price consolidating around setup zone";
+    update = "• Price consolidating around setup zone";
   }
   
   // Setup-specific updates
@@ -5442,21 +5442,21 @@ function addRealtimeUpdate(currentBar) {
     const method = mentorState.selectedTradingMethod || setupData.setup || '';
     switch (method) {
       case 'breakout': case 'range_breakout':
-        return currentPrice > previousPrice ? 'â€¢ Momentum building toward breakout' : 'â€¢ Waiting for breakout confirmation candle';
+        return currentPrice > previousPrice ? '• Momentum building toward breakout' : '• Waiting for breakout confirmation candle';
       case 'support_resistance': case 'support_bounce':
-        return currentPrice > previousPrice ? 'â€¢ Bounce momentum building' : 'â€¢ Testing support â€” watching for rejection wick';
+        return currentPrice > previousPrice ? '• Bounce momentum building' : '• Testing support — watching for rejection wick';
       case 'resistance_rejection':
-        return currentPrice < previousPrice ? 'â€¢ Rejection confirming' : 'â€¢ Price challenging resistance';
+        return currentPrice < previousPrice ? '• Rejection confirming' : '• Price challenging resistance';
       case 'trend': case 'flag_continuation': case 'structure_continuation':
-        return currentPrice > previousPrice ? 'â€¢ Trend resumption in progress' : 'â€¢ Pullback continuing â€” watching for reversal signal';
+        return currentPrice > previousPrice ? '• Trend resumption in progress' : '• Pullback continuing — watching for reversal signal';
       case 'pullback': case 'trend_pullback':
-        return currentPrice < previousPrice ? 'â€¢ Pullback deepening â€” approaching entry zone' : 'â€¢ Pullback stalling â€” possible reversal forming';
+        return currentPrice < previousPrice ? '• Pullback deepening — approaching entry zone' : '• Pullback stalling — possible reversal forming';
       case 'range':
-        return Math.abs(currentPrice - previousPrice) < (curData?.[currentBar]?.high - curData?.[currentBar]?.low) * 0.3 ? 'â€¢ Price consolidating at range boundary' : 'â€¢ Boundary test in progress';
+        return Math.abs(currentPrice - previousPrice) < (curData?.[currentBar]?.high - curData?.[currentBar]?.low) * 0.3 ? '• Price consolidating at range boundary' : '• Boundary test in progress';
       case 'liquidity': case 'liquidity_sweep':
-        return currentPrice > previousPrice ? 'â€¢ Displacement candle forming â€” institutional move' : 'â€¢ Sweep developing â€” watching for reversal';
+        return currentPrice > previousPrice ? '• Displacement candle forming — institutional move' : '• Sweep developing — watching for reversal';
       default:
-        return currentPrice > previousPrice ? 'â€¢ Price moving in favour of setup' : 'â€¢ Price pulling back â€” watching for support';
+        return currentPrice > previousPrice ? '• Price moving in favour of setup' : '• Price pulling back — watching for support';
     }
   })();
   update = methodHint;
@@ -5498,7 +5498,7 @@ function updateLockedMentorUI() {
   if (mentorState.exampleTradeActive && mentorState.tradeMonitoringUpdates.length > 0) {
     insightsEl.innerHTML += `
       <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1);">
-        <div style="color:var(--amber);font-size:10px;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;">ðŸ“Š LIVE TRADE</div>
+        <div style="color:var(--amber);font-size:10px;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;">📊 LIVE TRADE</div>
         ${mentorState.tradeMonitoringUpdates.map(u =>
           `<div style="margin-bottom:5px;line-height:1.4;color:var(--tx3);font-size:11px;">${u.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
         ).join('')}
@@ -5601,7 +5601,7 @@ function activateExampleTrade(setupData, currentBar) {
   const exampleTrade = generateExampleTrade(setupData, currentBar);
   
   if (!exampleTrade) {
-    console.error('âŒ Failed to generate example trade');
+    console.error('�� Failed to generate example trade');
     return;
   }
   
@@ -5617,46 +5617,46 @@ function monitorExampleTrade(currentBar) {
 
   const trade = mentorState.exampleTrade;
 
-  // â”€â”€ Pre-entry phase: educate while candles approach the entry line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pre-entry phase: educate while candles approach the entry line ──────────
   if (currentBar < trade.barIndex) {
     const barsToEntry = trade.barIndex - currentBar;
     let commentary;
     if (barsToEntry > 8) {
-      commentary = `â³ ${barsToEntry} candles until entry @ ${trade.entry.toFixed(4)} â€” watch price approaching the level`;
+      commentary = `�� ${barsToEntry} candles until entry @ ${trade.entry.toFixed(4)} — watch price approaching the level`;
     } else if (barsToEntry > 3) {
-      commentary = `ðŸ”” Entry approaching in ~${barsToEntry} candles â€” price is converging on the entry zone`;
+      commentary = `🔔 Entry approaching in ~${barsToEntry} candles — price is converging on the entry zone`;
     } else if (barsToEntry > 1) {
-      commentary = `âš¡ Entry imminent â€” next ${barsToEntry} candles will determine if price reaches the entry`;
+      commentary = `⚡ Entry imminent — next ${barsToEntry} candles will determine if price reaches the entry`;
     } else {
-      commentary = `ðŸŽ¯ Entry candle forming â€” watch this candle closely`;
+      commentary = `🎯 Entry candle forming — watch this candle closely`;
     }
     // Update at most once per bar
     const lastUpdate = mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1];
     if (lastUpdate !== commentary) {
       mentorState.tradeMonitoringUpdates = [commentary];
-      mentorState.lockedQuestion = 'â–¶ Replay running â€” watch the trade unfold live...';
+      mentorState.lockedQuestion = '▶ Replay running — watch the trade unfold live...';
       updateLockedMentorUI();
     }
     return;
   }
 
-  // â”€â”€ Entry bar reached â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Entry bar reached ────────────────────────────────────────────────────
   if (trade.pendingEntry) {
     trade.pendingEntry = false;
     const dirLabel = trade.direction === 'long' ? 'LONG' : 'SHORT';
     mentorState.tradeMonitoringUpdates = [
-      `âœ… Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
-      `ðŸ›¡ï¸ Stop Loss active @ ${trade.stopLoss.toFixed(4)}`,
-      `ðŸ† Target @ ${trade.takeProfit.toFixed(4)} â€” R:R ${trade.riskReward?.toFixed(1) || '?'}:1`,
+      `✅ Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
+      `🛡� Stop Loss active @ ${trade.stopLoss.toFixed(4)}`,
+      `�� Target @ ${trade.takeProfit.toFixed(4)} — R:R ${trade.riskReward?.toFixed(1) || '?'}:1`,
     ];
-    mentorState.lockedQuestion = 'ðŸ“Š Trade is live â€” watching for TP or SL...';
+    mentorState.lockedQuestion = '📊 Trade is live — watching for TP or SL...';
     updateLockedMentorUI();
   }
 
   // Realistic execution model:
-  //   SL â€” triggered by a wick (low for longs, high for shorts), same as real markets
-  //   TP â€” requires a close beyond the target (confirms the move)
-  // Check SL wick FIRST â€” if a candle wicks through the SL and closes above (for longs),
+  //   SL — triggered by a wick (low for longs, high for shorts), same as real markets
+  //   TP — requires a close beyond the target (confirms the move)
+  // Check SL wick FIRST — if a candle wicks through the SL and closes above (for longs),
   // the trade is still stopped out at the SL price.
   const bar = curData[currentBar];
   const currentClose  = bar.close;
@@ -5712,30 +5712,30 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   let update;
 
   if (pnlR >= 1.4) {
-    update = `ðŸ† Almost there! Price is ${pctToTP.toFixed(0)}% of the way to TP â€” holding strong`;
+    update = `�� Almost there! Price is ${pctToTP.toFixed(0)}% of the way to TP — holding strong`;
   } else if (pnlR >= 0.8) {
-    update = `âœ… Trade at +${pnlR.toFixed(1)}R â€” well into profit, target within reach`;
+    update = `✅ Trade at +${pnlR.toFixed(1)}R — well into profit, target within reach`;
   } else if (pnlR >= 0.3) {
-    update = `ðŸ“ˆ Trade progressing: +${pnlR.toFixed(1)}R â€” ${pctToTP.toFixed(0)}% to target${momentum ? ', momentum positive' : ''}`;
+    update = `📈 Trade progressing: +${pnlR.toFixed(1)}R — ${pctToTP.toFixed(0)}% to target${momentum ? ', momentum positive' : ''}`;
   } else if (pnlR >= 0) {
-    update = `ðŸ“Š Just above entry â€” trade open, watching for momentum to build`;
+    update = `📊 Just above entry — trade open, watching for momentum to build`;
   } else if (pnlR >= -0.5) {
-    update = `âš ï¸ Price pulled back to ${pnlR.toFixed(1)}R â€” normal in any trade, stop loss is protecting the position`;
+    update = `⚠� Price pulled back to ${pnlR.toFixed(1)}R — normal in any trade, stop loss is protecting the position`;
   } else {
-    update = `ðŸ”´ Near stop loss (${pnlR.toFixed(1)}R) â€” price testing the invalidation level`;
+    update = `🔴 Near stop loss (${pnlR.toFixed(1)}R) — price testing the invalidation level`;
   }
 
-  // Wick proximity warning â€” alert if the wick is getting close to SL even if close is not
+  // Wick proximity warning — alert if the wick is getting close to SL even if close is not
   const _wickBar = curData && replayCutoff >= 0 ? curData[replayCutoff] : null;
   if (_wickBar && trade.direction === 'long') {
     const wickDistToSL = (_wickBar.low - trade.stopLoss) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `âš ï¸ Wick approaching SL â€” low @ ${fP(_wickBar.low)}, stop @ ${fP(trade.stopLoss)}`;
+      update = `⚠� Wick approaching SL — low @ ${fP(_wickBar.low)}, stop @ ${fP(trade.stopLoss)}`;
     }
   } else if (_wickBar && trade.direction === 'short') {
     const wickDistToSL = (trade.stopLoss - _wickBar.high) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `âš ï¸ Wick approaching SL â€” high @ ${fP(_wickBar.high)}, stop @ ${fP(trade.stopLoss)}`;
+      update = `⚠� Wick approaching SL — high @ ${fP(_wickBar.high)}, stop @ ${fP(trade.stopLoss)}`;
     }
   }
 
@@ -5744,7 +5744,7 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   const lastEmoji = last ? (last.match(/^[\S]+/)?.[0] || '') : '';
   const newEmoji  = update.match(/^[\S]+/)?.[0] || '';
   if (lastEmoji && newEmoji && lastEmoji === newEmoji) {
-    // Same category â€” replace the last entry so we don't stack e.g. three "ðŸ† Almost there!" lines
+    // Same category — replace the last entry so we don't stack e.g. three "�� Almost there!" lines
     mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1] = update;
   } else if (update !== last) {
     mentorState.tradeMonitoringUpdates.push(update);
@@ -5754,13 +5754,13 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
     // Update the locked question too so the amber text stays relevant
     if (mentorState.messageLocked) {
       const rLabel = pnlR >= 0 ? `+${pnlR.toFixed(1)}R` : `${pnlR.toFixed(1)}R`;
-      mentorState.lockedQuestion = `ðŸ“Š Trade running â€” P&L: ${rLabel} | TP @ ${trade.takeProfit.toFixed(4)}`;
+      mentorState.lockedQuestion = `📊 Trade running — P&L: ${rLabel} | TP @ ${trade.takeProfit.toFixed(4)}`;
       updateLockedMentorUI();
     }
   }
 }
 
-// â•â• STRUCTURED TRADE REVIEW GENERATOR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� STRUCTURED TRADE REVIEW GENERATOR ����������������������������������������������������������������
 
 function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade = false) {
   if (!trade || !curData) return null;
@@ -5820,7 +5820,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   }
   
   review.sections.push({
-    title: 'ðŸŽ¯ ENTRY REASONING',
+    title: '🎯 ENTRY REASONING',
     content: entryReasoning
   });
   
@@ -5850,7 +5850,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   slReasoning += ` The ${slPercent}% stop distance provided adequate room for normal market volatility while protecting capital if the structure broke.`;
   
   review.sections.push({
-    title: 'ðŸ›¡ï¸ STOP LOSS PLACEMENT',
+    title: '🛡� STOP LOSS PLACEMENT',
     content: slReasoning
   });
   
@@ -5870,17 +5870,17 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   } else if (method === 'trend') {
     tpReasoning += ` For trend trading, the initial target is the prior ${direction === 'long' ? 'swing high' : 'swing low'} (minimum), with the measured-move extension as the optimal target if momentum continues.`;
   } else if (method === 'support_resistance') {
-    tpReasoning += ` For S&R trading, the target is the next significant tested level where price has historically reversed â€” the reward must justify the risk before entry.`;
+    tpReasoning += ` For S&R trading, the target is the next significant tested level where price has historically reversed — the reward must justify the risk before entry.`;
   } else if (method === 'pullback') {
     tpReasoning += ` For pullback trading, the minimum target is the prior swing high (for longs). A measured-move extension is the optimal target if the trend is still early-to-mid stage.`;
   } else if (method === 'range') {
-    tpReasoning += ` For range trading, the target is the opposing boundary of the range. Avoid holding through the midpoint if price stalls there â€” it often acts as a temporary magnet.`;
+    tpReasoning += ` For range trading, the target is the opposing boundary of the range. Avoid holding through the midpoint if price stalls there — it often acts as a temporary magnet.`;
   } else if (method === 'liquidity') {
     tpReasoning += ` For liquidity trading, the target is the opposing liquidity pool. If sell-side liquidity (SSL) was swept, the next target is buy-side liquidity (BSL) above the recent equal highs.`;
   }
   
   review.sections.push({
-    title: 'ðŸŽ¯ TAKE PROFIT TARGET',
+    title: '🎯 TAKE PROFIT TARGET',
     content: tpReasoning
   });
   
@@ -5898,7 +5898,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   rmReasoning += ` Risk was controlled by sizing the position appropriately relative to account balance, ensuring that even if the stop loss was hit, the loss would be a small percentage of total capital.`;
   
   review.sections.push({
-    title: 'âš–ï¸ RISK MANAGEMENT',
+    title: '⚖� RISK MANAGEMENT',
     content: rmReasoning
   });
   
@@ -5928,7 +5928,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   }
   
   review.sections.push({
-    title: 'ðŸ“Š TRADE EXECUTION ANALYSIS',
+    title: '📊 TRADE EXECUTION ANALYSIS',
     content: executionAnalysis
   });
   
@@ -5953,32 +5953,32 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   const isCryptoAsset = _isCrypto();
   if (method === 'breakout') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto Breakout lesson: false breakouts are endemic in crypto due to thin liquidity. The retest of the broken level is not optional â€” it is the entry. Require 1.5Ã— volume on the breakout candle and 3+ boundary touches on the zone before trading it.`
+      ? ` Crypto Breakout lesson: false breakouts are endemic in crypto due to thin liquidity. The retest of the broken level is not optional — it is the entry. Require 1.5× volume on the breakout candle and 3+ boundary touches on the zone before trading it.`
       : ` Breakout key lesson: the best breakouts come from tight, well-formed consolidation zones with decreasing volatility. Volume expansion at the breakout candle is the single most important confirmation signal.`;
   } else if (method === 'trend') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto Trend lesson: timeframes are compressed in crypto â€” a 4H trend behaves like a weekly trend in forex. Monitor perpetual funding rates: high positive funding in an uptrend signals overleveraged longs and raises pullback probability even when structure looks intact.`
+      ? ` Crypto Trend lesson: timeframes are compressed in crypto — a 4H trend behaves like a weekly trend in forex. Monitor perpetual funding rates: high positive funding in an uptrend signals overleveraged longs and raises pullback probability even when structure looks intact.`
       : ` Trend key lesson: identify the trend phase (early/middle/late) before sizing your position. Early-trend pullbacks offer the best entries; late-trend entries near extended structure carry the most reversal risk.`;
   } else if (method === 'support_resistance') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto S&R lesson: round numbers ($50k, $100k, $3000) are the most powerful S&R levels in crypto â€” stops concentrate there and larger players know it. Require 3+ touches minimum and look for the sweep-then-reverse pattern (liquidity grab) before treating the level as confirmed support or resistance.`
-      : ` S&R key lesson: a level gains strength with each reaction but weakens with repeated testing. The confirmation candle (rejection wick, engulfing, reclaim) is non-negotiable â€” never pre-empt the reaction.`;
+      ? ` Crypto S&R lesson: round numbers ($50k, $100k, $3000) are the most powerful S&R levels in crypto — stops concentrate there and larger players know it. Require 3+ touches minimum and look for the sweep-then-reverse pattern (liquidity grab) before treating the level as confirmed support or resistance.`
+      : ` S&R key lesson: a level gains strength with each reaction but weakens with repeated testing. The confirmation candle (rejection wick, engulfing, reclaim) is non-negotiable — never pre-empt the reaction.`;
   } else if (method === 'pullback') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto Pullback lesson: shallow 25â€“38% retracements are common in crypto as momentum traders re-enter quickly. Check perpetual funding: heavily positive funding = wait for a deeper pullback (50â€“61.8%) before entering longs. The 15m/1H in crypto functions like the 1H/4H in forex.`
-      : ` Pullback key lesson: the HTF trend must be intact before trading pullbacks. A complex (ABC) pullback is still valid â€” patience at the confluence zone, combined with a clear trigger candle, is the edge.`;
+      ? ` Crypto Pullback lesson: shallow 25–38% retracements are common in crypto as momentum traders re-enter quickly. Check perpetual funding: heavily positive funding = wait for a deeper pullback (50–61.8%) before entering longs. The 15m/1H in crypto functions like the 1H/4H in forex.`
+      : ` Pullback key lesson: the HTF trend must be intact before trading pullbacks. A complex (ABC) pullback is still valid — patience at the confluence zone, combined with a clear trigger candle, is the edge.`;
   } else if (method === 'range') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto Range lesson: the 24/7 market means range boundaries drift across Asia/London/NY sessions. Weekend ranges are notorious â€” they are frequently broken violently on Monday opens. Require 3 boundary touches per side and never hold a range trade into the weekend.`
-      : ` Range key lesson: ranges resolve into breakouts. Watch for coiling action (LH/HL inside the range) near the boundaries â€” when volume expands and price closes outside, the breakout framework takes over.`;
+      ? ` Crypto Range lesson: the 24/7 market means range boundaries drift across Asia/London/NY sessions. Weekend ranges are notorious — they are frequently broken violently on Monday opens. Require 3 boundary touches per side and never hold a range trade into the weekend.`
+      : ` Range key lesson: ranges resolve into breakouts. Watch for coiling action (LH/HL inside the range) near the boundaries — when volume expands and price closes outside, the breakout framework takes over.`;
   } else if (method === 'liquidity') {
     learningTakeaway += isCryptoAsset
-      ? ` Crypto Liquidity lesson: liquidity sweeps are the single most reliable pattern in crypto because larger players deliberately engineer them in a lightly regulated, thin market. The displacement candle after the sweep is fast â€” have your entry ready before the sweep candle closes. The target is always the opposing liquidity pool.`
-      : ` Liquidity key lesson: the sequence is Accumulation â†’ Manipulation (sweep) â†’ Distribution. Never enter during the manipulation phase â€” wait for the displacement candle after the sweep that confirms the reversal direction.`;
+      ? ` Crypto Liquidity lesson: liquidity sweeps are the single most reliable pattern in crypto because larger players deliberately engineer them in a lightly regulated, thin market. The displacement candle after the sweep is fast — have your entry ready before the sweep candle closes. The target is always the opposing liquidity pool.`
+      : ` Liquidity key lesson: the sequence is Accumulation → Manipulation (sweep) → Distribution. Never enter during the manipulation phase — wait for the displacement candle after the sweep that confirms the reversal direction.`;
   }
   
   review.sections.push({
-    title: 'ðŸŽ“ LEARNING TAKEAWAY',
+    title: '🎓 LEARNING TAKEAWAY',
     content: learningTakeaway
   });
   
@@ -6041,19 +6041,19 @@ function handleTradeCompletion(outcome, currentBar) {
   const isWin = outcome === 'take_profit';
   const replayScorecard = mentorRecordReplayScorecard(trade, outcome, currentBar);
   const outcomeHeader = isWin
-    ? 'ðŸŽ‰ TAKE PROFIT REACHED âœ…'
-    : outcome === 'stop_loss' ? 'â›” STOP LOSS HIT' : 'â±ï¸ TRADE EXPIRED';
+    ? '🎉 TAKE PROFIT REACHED ✅'
+    : outcome === 'stop_loss' ? '⛔ STOP LOSS HIT' : '��� TRADE EXPIRED';
 
   // Immediate placeholder while AI debrief loads
   mentorState.lockedMessage  = 'trade_completed';
   mentorState.lockedInsights = [
     outcomeHeader,
-    replayScorecard ? `Replay scorecard: ${replayScorecard.overall}/100 â€” Structure ${replayScorecard.structure}, Patience ${replayScorecard.patience}, Execution ${replayScorecard.execution}.` : 'Replay scorecard unavailable.',
+    replayScorecard ? `Replay scorecard: ${replayScorecard.overall}/100 — Structure ${replayScorecard.structure}, Patience ${replayScorecard.patience}, Execution ${replayScorecard.execution}.` : 'Replay scorecard unavailable.',
     'AI is preparing your debrief...'
   ];
   mentorState.lockedQuestion = isWin
-    ? 'ðŸŽ“ Great result! Reviewing what made this setup work...'
-    : 'ðŸŽ“ Learning opportunity â€” reviewing what happened...';
+    ? '🎓 Great result! Reviewing what made this setup work...'
+    : '🎓 Learning opportunity — reviewing what happened...';
   setMentorState('trade_completed', 'trade finished');
   mentorState.tradeMonitoringUpdates = [];
   renderMentorSessionRecap(trade, outcome, replayScorecard);
@@ -6066,7 +6066,7 @@ function handleTradeCompletion(outcome, currentBar) {
   const _p3Gen = mentorState._aiGeneration;
   _mentorAIPostTradeDebrief(trade, outcome, currentBar, _p3Gen).then(debrief => {
     if (mentorState.lifecycleState !== 'trade_completed') return;
-    if (mentorState._aiGeneration !== _p3Gen) return; // stale â€” new setup started
+    if (mentorState._aiGeneration !== _p3Gen) return; // stale — new setup started
     if (debrief) {
       mentorState.lockedInsights = [outcomeHeader, ...debrief.split('\n').filter(l => l.trim())];
     } else {
@@ -6079,20 +6079,20 @@ function handleTradeCompletion(outcome, currentBar) {
     }
     if (replayScorecard) {
       const rest = mentorState.lockedInsights.filter((line, idx) => !(idx === 0 && line === outcomeHeader));
-      mentorState.lockedInsights = [outcomeHeader, `Replay scorecard: ${replayScorecard.overall}/100 â€” ${replayScorecard.notes[0]}`, ...rest];
+      mentorState.lockedInsights = [outcomeHeader, `Replay scorecard: ${replayScorecard.overall}/100 — ${replayScorecard.notes[0]}`, ...rest];
     }
     mentorState.lockedQuestion = isWin
-      ? 'ðŸŽ“ Ready to find another setup? Hit "Continue Replay".'
-      : 'ðŸŽ“ Every loss is data. Hit "Continue Replay" to keep going.';
+      ? '🎓 Ready to find another setup? Hit "Continue Replay".'
+      : '🎓 Every loss is data. Hit "Continue Replay" to keep going.';
     renderMentorSessionRecap(trade, outcome, replayScorecard);
     updateLockedMentorUI();
   });
 
-  console.log('ðŸ Trade completed:', outcome);
+  console.log('� Trade completed:', outcome);
 }
 
 function continueReplayAfterTradeCompletion() {
-  // â”€â”€ Full state reset for next trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Full state reset for next trade ─────────────────────────────────────
   // Annotation state
   mentorState._tradeSetupData           = null;
   mentorState._lastAnnotateBar          = null;
@@ -6105,7 +6105,7 @@ function continueReplayAfterTradeCompletion() {
   // Reset show-annotations button
   const _saBtn = document.getElementById('btn-show-annotations');
   if (_saBtn) {
-    _saBtn.textContent = 'ðŸ“ Show Annotations';
+    _saBtn.textContent = '� Show Annotations';
     _saBtn.style.opacity = '1';
     _saBtn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
     _saBtn.style.borderColor = 'rgba(139,92,246,0.35)';
@@ -6152,8 +6152,8 @@ function continueReplayAfterTradeCompletion() {
 
   // Use setMentorState so dependent fields sync correctly
   setMentorState('scanning', 'trade completed');
-  mentorState.currentInsights = ['ðŸ” Scanning for the next setup...'];
-  mentorState.currentQuestion = 'Watch the chart â€” the mentor will highlight the next opportunity.';
+  mentorState.currentInsights = ['� Scanning for the next setup...'];
+  mentorState.currentQuestion = 'Watch the chart — the mentor will highlight the next opportunity.';
 
   updateMentorUI();
 
@@ -6164,24 +6164,24 @@ function continueReplayAfterTradeCompletion() {
   }
 }
 
-// â•â• SHARED MENTOR TRADE LEVEL CALCULATOR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SHARED MENTOR TRADE LEVEL CALCULATOR ������������������������������������������������������������
 // Proper trade construction:
-//   1. SL first â€” placed at the nearest structural swing low/high within 2Ã—ATR,
+//   1. SL first — placed at the nearest structural swing low/high within 2×ATR,
 //      giving a sensible, tight stop that reflects real invalidation.
-//   2. TP second â€” the first future close that achieves at least 1.5:1 R:R.
+//   2. TP second — the first future close that achieves at least 1.5:1 R:R.
 //      If price never reaches 1.5:1, we try 1:1 as an absolute minimum.
 //      If even that can't be reached, return null (setup rejected).
 //
-// Monitoring (monitorExampleTrade) checks CLOSE prices only â€” wicks on the chart
+// Monitoring (monitorExampleTrade) checks CLOSE prices only — wicks on the chart
 // are visual reference only and will never stop out the AI trade.
 function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles) {
   const atr = calculateATR(barIndex, 14) || (entryPrice * 0.01);
   if (!futureCandles || futureCandles.length < 5) return null;
 
-  // â”€â”€ Step 1: Structural SL from the last 10 bars of history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Step 1: Structural SL from the last 10 bars of history ───────────────
   // Find the nearest significant swing low (for longs) or swing high (for shorts)
-  // within the last 10 bars. Cap at 2.0Ã—ATR â€” wide enough to respect real structure
-  // (the validator's 2.5Ã—ATR upper limit provides the outer bound).
+  // within the last 10 bars. Cap at 2.0×ATR — wide enough to respect real structure
+  // (the validator's 2.5×ATR upper limit provides the outer bound).
   let structuralStop = null;
   const lookback = Math.min(10, barIndex);
   if (curData && barIndex >= lookback) {
@@ -6190,7 +6190,7 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
       for (let k = barIndex - lookback; k <= barIndex; k++) {
         if (curData[k] && curData[k].low < swingLow) swingLow = curData[k].low;
       }
-      // SL just below the swing low â€” cap at 2.0Ã—ATR to stay practical
+      // SL just below the swing low — cap at 2.0×ATR to stay practical
       structuralStop = swingLow * 0.999;
       if (entryPrice - structuralStop > atr * 2.0) {
         structuralStop = entryPrice - atr * 2.0;
@@ -6206,7 +6206,7 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
       }
     }
   }
-  // Fallback: 1Ã—ATR stop
+  // Fallback: 1×ATR stop
   if (!structuralStop) {
     structuralStop = direction === 'long'
       ? entryPrice - atr
@@ -6217,10 +6217,10 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
   const riskDistance = Math.abs(entryPrice - stopLoss);
   if (riskDistance < 0.0001) return null;
 
-  // â”€â”€ Step 2: TP = first future close that hits â‰¥2.5:1 R:R â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Step 2: TP = first future close that hits ≥2.5:1 R:R ─────────────────
   // Walk future candles and find the first close that achieves the target.
   // Aim for 2.5:1, fall back to 2:1, then 1.5:1 as the absolute minimum.
-  // Anything below 1.5:1 is rejected â€” fees + spread make it unprofitable.
+  // Anything below 1.5:1 is rejected — fees + spread make it unprofitable.
   const minRRLevels = [2.5, 2.0, 1.5];
   let takeProfit = null;
 
@@ -6234,12 +6234,12 @@ function computeMentorTradeLevels(direction, entryPrice, barIndex, futureCandles
       const c = futureCandles[i];
 
       // SL check: use the wick (low for longs, high for shorts).
-      // Stops are triggered by wicks in real trading â€” if a wick hits the SL
+      // Stops are triggered by wicks in real trading — if a wick hits the SL
       // before TP is reached by close, this trade would have been stopped out.
       const slHitByWick = direction === 'long'
         ? c.low  <= stopLoss
         : c.high >= stopLoss;
-      if (slHitByWick) break; // SL hit â€” this R:R level is not achievable
+      if (slHitByWick) break; // SL hit — this R:R level is not achievable
 
       // TP check: use the close price.
       // We require a close beyond the target so the trade is confirmed.
@@ -6293,7 +6293,7 @@ function calculateATR(barIndex, period = 14) {
   return sum / trueRanges.length;
 }
 
-// â•â• REPLAY MODE TRADE DETECTION & AI REVIEW â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� REPLAY MODE TRADE DETECTION & AI REVIEW �����������������������������������������������������������
 
 function detectReplayTradePlacement() {
   // Only detect trades in replay mode with mentor enabled
@@ -6305,12 +6305,12 @@ function detectReplayTradePlacement() {
   if (currentDrawing && currentDrawing !== mentorState.lastDetectedDrawing) {
     mentorState.lastDetectedDrawing = currentDrawing;
     
-    console.log('ðŸŽ¯ Replay trade detected:', currentDrawing);
+    console.log('🎯 Replay trade detected:', currentDrawing);
     
     // Handle trade placement based on current lifecycle state
     if (mentorState.lifecycleState === 'setup_wait') {
       // User placed trade during setup wait - switch to trade monitoring
-      console.log('ðŸŽ¯ Trade placed during setup wait, switching to trade monitoring');
+      console.log('🎯 Trade placed during setup wait, switching to trade monitoring');
       mentorState.monitoredTrade = currentDrawing;
       setMentorState('trade_monitoring', 'user trade detected during setup wait');
       
@@ -6331,13 +6331,13 @@ function detectReplayTradePlacement() {
 function disableNormalTradeAnalysis() {
   // Flag that we're in replay training mode
   mentorState.replayTrainingMode = true;
-  console.log('ðŸš« Normal trade analysis disabled for replay training');
+  console.log('🚫 Normal trade analysis disabled for replay training');
 }
 
 function reviewReplayTrade(tradeData) {
   if (!tradeData || !replayMode) return;
   
-  console.log('ðŸ¤– AI Mentor reviewing replay trade:', tradeData);
+  console.log('🤖 AI Mentor reviewing replay trade:', tradeData);
   
   // Get market data up to current replay candle
   const dataForAnalysis = curData.slice(0, replayCutoff + 1);
@@ -6557,12 +6557,12 @@ function generateTrainingSuggestions(review, tradeData, analysis) {
 }
 
 function displayTradeReview(review, tradeData) {
-  // Only display during DEBRIEF phase â€” suppress during live trade to avoid confusing self-contradicting AI review
+  // Only display during DEBRIEF phase — suppress during live trade to avoid confusing self-contradicting AI review
   if (mentorState.lifecycleState !== 'trade_completed') return;
   let reviewHTML = `
     <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:8px;padding:16px;margin:12px 0;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="font-weight:600;color:var(--purple);">ðŸ¤– AI Mentor Review</span>
+        <span style="font-weight:600;color:var(--purple);">🤖 AI Mentor Review</span>
         <span style="padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${
           review.overall === 'GOOD' ? 'var(--green)' : 
           review.overall === 'ACCEPTABLE' ? 'var(--amber)' : 'var(--red)'
@@ -6582,7 +6582,7 @@ function displayTradeReview(review, tradeData) {
   if (review.strengths.length > 0) {
     reviewHTML += `
       <div style="margin-bottom:12px;">
-        <strong style="color:var(--green);">âœ… Strengths:</strong>
+        <strong style="color:var(--green);">✅ Strengths:</strong>
         <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
           ${review.strengths.map(s => `<li>${s}</li>`).join('')}
         </ul>
@@ -6593,7 +6593,7 @@ function displayTradeReview(review, tradeData) {
   if (review.weaknesses.length > 0) {
     reviewHTML += `
       <div style="margin-bottom:12px;">
-        <strong style="color:var(--red);">âš ï¸ Areas for Improvement:</strong>
+        <strong style="color:var(--red);">⚠� Areas for Improvement:</strong>
         <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
           ${review.weaknesses.map(w => `<li>${w}</li>`).join('')}
         </ul>
@@ -6604,7 +6604,7 @@ function displayTradeReview(review, tradeData) {
   if (review.suggestions.length > 0) {
     reviewHTML += `
       <div style="margin-bottom:12px;">
-        <strong style="color:var(--purple);">ðŸ“š Training Suggestions:</strong>
+        <strong style="color:var(--purple);">📚 Training Suggestions:</strong>
         <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
           ${review.suggestions.map(s => `<li>${s}</li>`).join('')}
         </ul>
@@ -6640,7 +6640,7 @@ function closeTradeReview() {
   showMentorMessage('Continue your replay training. AI will alert you to new setups.');
 }
 
-// â•â• TRADING METHOD FILTERING â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� TRADING METHOD FILTERING �����������������������������������������������������������
 
 function changeTradingMethod(newMethod) {
   const methodNames = {
@@ -6655,7 +6655,7 @@ function changeTradingMethod(newMethod) {
   if (!newMethod) {
     mentorState.selectedTradingMethod = null;
     mentorState.tradingMethodSelected = false;
-    mentorState.currentInsights = ['ðŸ“š No strategy selected â€” pick one to begin.'];
+    mentorState.currentInsights = ['📚 No strategy selected — pick one to begin.'];
     mentorState.currentQuestion = 'Choose a trading style from the dropdown above.';
     updateMentorUI();
     return;
@@ -6663,7 +6663,7 @@ function changeTradingMethod(newMethod) {
 
   const methodDisplayName = methodNames[newMethod] || newMethod;
 
-  // â”€â”€ Pause replay immediately so we don't scan mid-switch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pause replay immediately so we don't scan mid-switch ─────────────────
   const wasPlaying = !!(replayMode && replayTimer);
   if (wasPlaying) {
     clearInterval(replayTimer);
@@ -6671,15 +6671,15 @@ function changeTradingMethod(newMethod) {
     updateReplayStatus();
   }
 
-  // â”€â”€ Show switching state in panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Show switching state in panel ─────────────────────────────────────────
   mentorState.currentInsights = [
-    `ðŸ”„ Switching to ${methodDisplayName}...`,
-    `â¸ Replay paused while strategy resets.`,
+    `🔄 Switching to ${methodDisplayName}...`,
+    `�� Replay paused while strategy resets.`,
   ];
   mentorState.currentQuestion = 'Clearing old state and rescanning for new setups...';
   updateMentorUI();
 
-  // â”€â”€ Reset all mentor state for the new method â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Reset all mentor state for the new method ─────────────────────────────
   mentorState._tradeSetupData    = null;
   mentorState._lastAnnotateBar   = null;
   mentorState._lastAnnStateKey = null; mentorState._annCache = null;
@@ -6697,9 +6697,9 @@ function changeTradingMethod(newMethod) {
   const mfSel = document.getElementById('mf-method-select');
   if (mfSel) mfSel.value = newMethod;
 
-  // â”€â”€ Small delay so UI updates are visible, then rescan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Small delay so UI updates are visible, then rescan ───────────────────
   setTimeout(() => {
-    mentorState.currentInsights = [`ðŸŽ¯ ${methodDisplayName} â€” scanning for setups...`];
+    mentorState.currentInsights = [`🎯 ${methodDisplayName} — scanning for setups...`];
     mentorState.currentQuestion = 'Looking for setups that meet the strict criteria for this strategy.';
     updateMentorUI();
 
@@ -6717,16 +6717,16 @@ function changeTradingMethod(newMethod) {
     }
   }, 200);
 
-  toast(`ðŸŽ¯ Strategy â†’ ${methodDisplayName}`);
+  toast(`🎯 Strategy → ${methodDisplayName}`);
 }
 
 function resetMentorStateForStrategyChange() {
-  console.log('ðŸ”„ Resetting mentor state for strategy change');
+  console.log('🔄 Resetting mentor state for strategy change');
   
   // Clear setup cache to ensure fresh detection (no old losing trades)
   if (mentorState.setupCache) {
     mentorState.setupCache.clear();
-    console.log('ðŸ—‘ï¸ Setup cache cleared');
+    console.log('🗑� Setup cache cleared');
   }
   
   // Cancel any active setup
@@ -6770,7 +6770,7 @@ function resetMentorStateForStrategyChange() {
     mentorState.setupPausedReplay = false;
     const replayBtn = document.getElementById('replay-play-btn');
     if (replayBtn) {
-      replayBtn.innerHTML = 'â¸ï¸';
+      replayBtn.innerHTML = '���';
     }
   }
 }
@@ -6781,8 +6781,8 @@ function filterSetupByTradingMethod(setupDetection, selectedMethod) {
   return setupDetection;
 }
 
-// â•â• PASS 1: DETERMINISTIC TRADE VALIDATOR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Pipeline: normalize â†’ detect mode â†’ validate â†’ score â†’ verdict
+// �� PASS 1: DETERMINISTIC TRADE VALIDATOR ������������������������������������������������
+// Pipeline: normalize → detect mode → validate → score → verdict
 // This layer makes a deterministic decision BEFORE the LLM is involved.
 // The LLM in Phase 1/2/3 narrates a verdict that has already been computed here.
 
@@ -6849,7 +6849,7 @@ function mentorValidateTrade(trade) {
     return { valid: false, category: 'invalid_data', reason: 'No valid entry price', details: {} };
   }
 
-  // No future data â€” pass through, cannot validate
+  // No future data — pass through, cannot validate
   if (!futureCandles || futureCandles.length < 5) {
     return { valid: true, category: 'insufficient_data', reason: 'Insufficient future data', details: {} };
   }
@@ -6860,30 +6860,30 @@ function mentorValidateTrade(trade) {
       reason: 'Future price action moves against the trade direction', details: {} };
   }
 
-  // R:R floor â€” minimum 1.0
+  // R:R floor — minimum 1.0
   if (rr < 1.0) {
     return { valid: false, category: 'poor_rr',
       reason: `R:R of ${rr.toFixed(2)}:1 is below the 1:1 minimum`, details: { rr } };
   }
 
-  // SL width sanity â€” too tight (< 0.3Ã—ATR) or too wide (> 2.5Ã—ATR)
+  // SL width sanity — too tight (< 0.3×ATR) or too wide (> 2.5×ATR)
   const slWidth = atr > 0 ? riskDistance / atr : 1;
   if (atr > 0 && slWidth < 0.3) {
     return { valid: false, category: 'sl_too_tight',
-      reason: `Stop loss is too tight (${slWidth.toFixed(2)}Ã—ATR) â€” will be wicked out`, details: { slWidth } };
+      reason: `Stop loss is too tight (${slWidth.toFixed(2)}×ATR) — will be wicked out`, details: { slWidth } };
   }
   if (atr > 0 && slWidth > 2.5) {
     return { valid: false, category: 'sl_too_wide',
-      reason: `Stop loss is too wide (${slWidth.toFixed(2)}Ã—ATR) â€” poor capital efficiency`, details: { slWidth } };
+      reason: `Stop loss is too wide (${slWidth.toFixed(2)}×ATR) — poor capital efficiency`, details: { slWidth } };
   }
 
   // Confluence floor
   if (confluence < 2) {
     return { valid: false, category: 'low_confluence',
-      reason: `Only ${confluence} confluence factor(s) â€” minimum 2 required`, details: { confluence } };
+      reason: `Only ${confluence} confluence factor(s) — minimum 2 required`, details: { confluence } };
   }
 
-  // Chased entry: first candle already blasted 1.5Ã—ATR beyond entry in trade direction
+  // Chased entry: first candle already blasted 1.5×ATR beyond entry in trade direction
   if (futureCandles.length > 0 && atr > 0) {
     const fc = futureCandles[0];
     const chased = direction === 'long'
@@ -6891,12 +6891,12 @@ function mentorValidateTrade(trade) {
       : fc.close < entryPrice - atr * 1.5;
     if (chased) {
       return { valid: false, category: 'chased_entry',
-        reason: 'Entry is too late â€” the initial move has already closed strongly beyond entry', details: {} };
+        reason: 'Entry is too late — the initial move has already closed strongly beyond entry', details: {} };
     }
   }
 
   return { valid: true, category: 'valid',
-    reason: `Valid setup â€” R:R ${rr.toFixed(2)}:1`, details: { rr, slWidth } };
+    reason: `Valid setup — R:R ${rr.toFixed(2)}:1`, details: { rr, slWidth } };
 }
 
 function mentorScoreTrade(trade) {
@@ -6919,7 +6919,7 @@ function mentorScoreTrade(trade) {
   const qualMap = { none: 0, low: 20, medium: 50, high: 80, excellent: 100 };
   const structureScore = qualMap[quality] ?? 50;
 
-  // timingScore: optimal SL = 0.6â€“1.2Ã—ATR
+  // timingScore: optimal SL = 0.6–1.2×ATR
   let timingScore = 50;
   if (atr > 0 && riskDistance) {
     const w = riskDistance / atr;
@@ -6973,10 +6973,10 @@ function mentorGenerateVerdict(trade, validation, scores) {
 
   if (rr !== null) {
     if (rr >= 2.5) strengths.push(`Favorable R:R of ${rr.toFixed(1)}:1`);
-    else if (rr < 1.5) weaknesses.push(`Low R:R of ${rr.toFixed(1)}:1 â€” target minimum 2:1`);
+    else if (rr < 1.5) weaknesses.push(`Low R:R of ${rr.toFixed(1)}:1 — target minimum 2:1`);
   }
   if (confluence >= 3) strengths.push(`${confluence} confluence factors align`);
-  else if (confluence < 2) weaknesses.push('Low confluence â€” wait for more factors');
+  else if (confluence < 2) weaknesses.push('Low confluence — wait for more factors');
 
   if (quality === 'high' || quality === 'excellent') strengths.push('Clean structural setup');
   else if (quality === 'low' || quality === 'none')  weaknesses.push('Weak structural quality');
@@ -6984,8 +6984,8 @@ function mentorGenerateVerdict(trade, validation, scores) {
   if (timingScore >= 75) strengths.push('Well-timed entry with proportionate stop');
   else if (timingScore < 50) weaknesses.push('Entry timing or stop placement needs work');
 
-  if (validation.category === 'sl_too_tight') weaknesses.push('Stop too tight â€” vulnerable to market noise');
-  if (validation.category === 'sl_too_wide')  weaknesses.push('Stop too wide â€” reduces position sizing efficiency');
+  if (validation.category === 'sl_too_tight') weaknesses.push('Stop too tight — vulnerable to market noise');
+  if (validation.category === 'sl_too_wide')  weaknesses.push('Stop too wide — reduces position sizing efficiency');
 
   let timing = 'On-time';
   if (validation.category === 'chased_entry')     timing = 'Late/Chased';
@@ -6993,7 +6993,7 @@ function mentorGenerateVerdict(trade, validation, scores) {
 
   const adviceMap = {
     Strong:  'High-quality setup. Size according to your risk rules and execute the plan.',
-    Decent:  'Acceptable setup â€” look for one additional confluence factor before entering full size.',
+    Decent:  'Acceptable setup — look for one additional confluence factor before entering full size.',
     Weak:    'This setup lacks key characteristics. A cleaner entry point is likely around the corner.',
     Reject:  validation.reason || 'Setup does not meet minimum trade criteria. Pass on this one.',
   };
@@ -7010,7 +7010,7 @@ function mentorGenerateVerdict(trade, validation, scores) {
   };
 }
 
-// â”€â”€ Public entry point that replaces validateSetupWithFutureData â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Public entry point that replaces validateSetupWithFutureData ──────────────
 // Returns the full Pass 1 result. The `valid` / `reason` / `riskReward` /
 // `stopLoss` / `takeProfit` fields are preserved for backward-compat callers.
 function runMentorValidatorPass1(setupDetection, barIndex, fullData) {
@@ -7036,7 +7036,7 @@ function runMentorValidatorPass1(setupDetection, barIndex, fullData) {
   };
 }
 
-// â•â• REPLAY KNOWLEDGE ADVANTAGE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� REPLAY KNOWLEDGE ADVANTAGE �����������������������������������������������������������
 
 function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
   if (!replayMode || !fullData || fullData.length <= currentBar + 5) {
@@ -7046,12 +7046,12 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
 }
 
 
-// â•â• CASE HISTORY ENGINE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� CASE HISTORY ENGINE ������������������������������������������������������������������
 // Stores past analysis cases in IndexedDB and retrieves similar ones for future analysis.
-// This makes the system more grounded over time â€” not by training the AI, but by
+// This makes the system more grounded over time — not by training the AI, but by
 // supplying structured historical context at analysis time.
 
-// â”€â”€ Storage layer (IndexedDB, abstracted) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Storage layer (IndexedDB, abstracted) ────────────────────────────────────────────────
 const CaseDB = (() => {
   const DB_NAME    = 'apexfx_cases';
   const DB_VERSION = 1;
@@ -7123,7 +7123,7 @@ const CaseDB = (() => {
   return { save, loadAll, updateOutcome, count };
 })();
 
-// â”€â”€ Supabase â†” IndexedDB dual-storage helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Supabase ↔ IndexedDB dual-storage helpers ────────────────────────────────
 // Supabase is primary (cloud, per-user). IndexedDB is the offline fallback.
 // Column names use snake_case to match Postgres conventions.
 
@@ -7229,7 +7229,7 @@ async function updateCaseOutcome(id, metrics) {
   }
 }
 
-// â”€â”€ Feature extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Feature extraction ───────────────────────────────────────────────────────────────────
 // Produces a machine-comparable structured snapshot of current market conditions.
 function buildChartFeatures(barIndex, setupDetection, pass1Result) {
   const data = curData ? curData.slice(0, barIndex + 1) : [];
@@ -7279,7 +7279,7 @@ function buildChartFeatures(barIndex, setupDetection, pass1Result) {
   // Distance from nearest key level (SMA20 as proxy) in ATR units
   const distanceFromKeyLevel = (sma20 && atr > 0) ? Math.abs(close - sma20) / atr : null;
 
-  // Structure quality: numeric (0â€“4)
+  // Structure quality: numeric (0–4)
   const qualMap = { excellent: 4, high: 3, medium: 2, low: 1, none: 0 };
   const structureQuality = qualMap[setupDetection?.quality] ?? 2;
 
@@ -7312,7 +7312,7 @@ function buildChartFeatures(barIndex, setupDetection, pass1Result) {
   };
 }
 
-// â”€â”€ Case builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Case builder ─────────────────────────────────────────────────────────────────────────
 function buildAnalysisCase(setupDetection, barIndex, mode, pass1Result) {
   if (!curData || !curData[barIndex]) return null;
 
@@ -7363,7 +7363,7 @@ function buildAnalysisCase(setupDetection, barIndex, mode, pass1Result) {
   };
 }
 
-// â”€â”€ Outcome measurement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Outcome measurement ──────────────────────────────────────────────────────────────────
 function measureReplayOutcome(caseObj, tradeOutcome) {
   const isWin  = tradeOutcome === 'take_profit';
   const entry  = caseObj.entryZone?.entry;
@@ -7386,9 +7386,9 @@ function measureReplayOutcome(caseObj, tradeOutcome) {
   };
 }
 
-// â”€â”€ Similarity engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Similarity engine ────────────────────────────────────────────────────────────────────
 function scoreSimilarity(a, b) {
-  // Deterministic weighted score 0â€“100. No ML.
+  // Deterministic weighted score 0–100. No ML.
   let score = 0;
   if (a.method     && b.method     && a.method     === b.method)     score += 25;
   if (a.marketType && b.marketType && a.marketType === b.marketType) score += 10;
@@ -7417,7 +7417,7 @@ function findSimilarCases(currentCase, allCases, limit = 5) {
     .slice(0, limit);
 }
 
-// â”€â”€ Historical AI context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Historical AI context ────────────────────────────────────────────────────────────────
 function buildHistoricalContext(similarCases) {
   if (!similarCases?.length) return '';
   const total  = similarCases.length;
@@ -7428,16 +7428,16 @@ function buildHistoricalContext(similarCases) {
   const lines = similarCases.slice(0, 3).map(c => {
     const outcome = c.outcomeMetrics?.hitTarget ? 'reached target'
       : c.outcomeMetrics?.hitStop ? 'stopped out' : 'outcome unknown';
-    return `  â€¢ ${c.symbol} ${c.timeframe} â€” ${(c.setupType || '').replace(/_/g,' ')} ${c.direction} [${c.verdict || '?'}] â€” ${outcome} (${c._similarity}% match)`;
+    return `  • ${c.symbol} ${c.timeframe} — ${(c.setupType || '').replace(/_/g,' ')} ${c.direction} [${c.verdict || '?'}] — ${outcome} (${c._similarity}% match)`;
   }).join('\n');
 
-  return `HISTORICAL CONTEXT â€” ${total} similar past setup${total !== 1 ? 's' : ''} on record:
+  return `HISTORICAL CONTEXT — ${total} similar past setup${total !== 1 ? 's' : ''} on record:
 Win rate: ${winPct}% (${wins} wins / ${losses} losses / ${total - wins - losses} unresolved)
 ${lines}
-Consider whether the current setup looks stronger or weaker than these past cases. Do not treat past outcomes as guaranteed â€” use them as reference only.`;
+Consider whether the current setup looks stronger or weaker than these past cases. Do not treat past outcomes as guaranteed — use them as reference only.`;
 }
 
-// â”€â”€ Calibration stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Calibration stats ────────────────────────────────────────────────────────────────────
 async function getCalibrationStats() {
   const cases    = await loadAnalysisCases();
   const measured = cases.filter(c => c.outcomeStatus === 'measured');
@@ -7454,7 +7454,7 @@ async function getCalibrationStats() {
   }));
 }
 
-// â”€â”€ UI renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── UI renderer ──────────────────────────────────────────────────────────────────────────
 function renderHistorySection(similarCases, calibration) {
   const el = document.getElementById('mentor-history-section');
   if (!el) return;
@@ -7469,19 +7469,19 @@ function renderHistorySection(similarCases, calibration) {
 
   const caseRows = similarCases.slice(0, 4).map(c => {
     const outcome = c.outcomeMetrics?.hitTarget
-      ? `<span style="color:var(--green);font-weight:600;font-size:10px;">âœ“ Target</span>`
+      ? `<span style="color:var(--green);font-weight:600;font-size:10px;">✓ Target</span>`
       : c.outcomeMetrics?.hitStop
-      ? `<span style="color:var(--rd);font-weight:600;font-size:10px;">âœ— Stopped</span>`
-      : `<span style="color:var(--tx3);font-size:10px;">â€” pending</span>`;
+      ? `<span style="color:var(--rd);font-weight:600;font-size:10px;">✗ Stopped</span>`
+      : `<span style="color:var(--tx3);font-size:10px;">— pending</span>`;
     const vColor = { Strong:'var(--green)', Decent:'var(--amber)', Weak:'var(--amber)', Reject:'var(--rd)' }[c.verdict] || 'var(--tx3)';
     const setup  = (c.setupType || '').replace(/_/g,' ');
     return `<div class="mh-case-row">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1px;">
-        <span style="color:var(--tx2);font-size:10.5px;">${c.symbol} ${c.timeframe} Â· ${setup}</span>
+        <span style="color:var(--tx2);font-size:10.5px;">${c.symbol} ${c.timeframe} · ${setup}</span>
         <span class="mh-sim-badge">${c._similarity}%</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="color:${vColor};font-size:10px;">${c.verdict || 'â€”'} Â· ${c.direction}</span>
+        <span style="color:${vColor};font-size:10px;">${c.verdict || '—'} · ${c.direction}</span>
         ${outcome}
       </div>
     </div>`;
@@ -7497,7 +7497,7 @@ function renderHistorySection(similarCases, calibration) {
       <div style="display:flex;align-items:center;gap:6px;">
         ${winPct !== null ? `<span style="color:${winColor};font-size:10.5px;font-weight:600;">${winPct}% win</span>` : ''}
         <span style="color:var(--tx3);font-size:10px;">${total} case${total !== 1 ? 's' : ''}</span>
-        <span class="mh-chevron">â–¾</span>
+        <span class="mh-chevron">▾</span>
       </div>
     </div>
     <div class="mh-body">
@@ -7506,7 +7506,7 @@ function renderHistorySection(similarCases, calibration) {
     </div>`;
 }
 
-// â”€â”€ Integration hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Integration hooks ────────────────────────────────────────────────────────────────────
 mentorState._currentCase          = null;
 mentorState._historySimilarCases  = null;
 
@@ -7537,7 +7537,7 @@ function caseHistoryOnTradeComplete(tradeOutcome) {
 }
 
 
-// â•â• STRUCTURED SETUP DETECTION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� STRUCTURED SETUP DETECTION �����������������������������������������������������������
 
 function detectStructuredSetups(data, barIndex, _methodOverride) {
   // _methodOverride lets callers (like the scanner) specify a method without
@@ -7557,7 +7557,7 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
   const current   = data[barIndex];
   const structure = analyzeMarketStructure(data);
 
-  // â”€â”€ Run ONLY the detectors relevant to the selected method â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Run ONLY the detectors relevant to the selected method ───────────────
   // This prevents cross-contamination (e.g. a liquidity sweep being shown
   // when the user selected Pullback) and avoids unnecessary computation.
   let candidates = [];
@@ -7634,13 +7634,13 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
     case 'range': {
       // Range trading: confirm price is IN a range, then look for boundary reactions
       const conso = detectConsolidation(data);
-      if (!conso.isConsolidating) break; // not a range environment â€” skip
+      if (!conso.isConsolidating) break; // not a range environment — skip
 
-      // Range must be wide enough to trade (at least 3Ã—ATR for meaningful R:R)
+      // Range must be wide enough to trade (at least 3×ATR for meaningful R:R)
       const rangeAtr = _atrRaw(data, 14) || 1;
       if ((conso.upper - conso.lower) < rangeAtr * 3) break;
 
-      // Price near lower boundary â†’ long setup
+      // Price near lower boundary → long setup
       const current = data[data.length - 1];
       const nearLower = Math.abs(current.close - conso.lower) / (conso.upper - conso.lower) < 0.20;
       const nearUpper = Math.abs(current.close - conso.upper) / (conso.upper - conso.lower) > 0.80;
@@ -7669,7 +7669,7 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
     }
 
     default: {
-      // No method selected â€” run all detectors, pick best
+      // No method selected — run all detectors, pick best
       const consolidation = detectConsolidation(data);
       if (consolidation.isConsolidating && isBreakingOut(current, consolidation)) {
         const dir = current.close > consolidation.upper ? 'long' : 'short';
@@ -7692,7 +7692,7 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
     }
   }
 
-  // â”€â”€ Quality gate: must meet minimum confluence of 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Quality gate: must meet minimum confluence of 2 ──────────────────────
   // (strict detection already filters most noise; this removes the weakest hits)
   candidates = candidates.filter(s => s.confluence >= 2);
 
@@ -7716,7 +7716,7 @@ function detectStructuredSetups(data, barIndex, _methodOverride) {
   return result;
 }
 
-// â”€â”€ Asset-aware price unit helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Asset-aware price unit helper ────────────────────────────────────────────
 // Returns 'pts' for crypto/indices, 'pips' for forex, so debrief text is accurate.
 function _mentorPriceUnit() {
   if (_isCrypto()) return 'pts';
@@ -7725,14 +7725,14 @@ function _mentorPriceUnit() {
   if (/^(SPX|NAS|DOW|DAX|FTSE|NIKKEI|GOLD|SILVER|XAU|XAG)/.test(sym)) return 'pts';
   return 'pips'; // default for forex
 }
-// â”€â”€ Crypto-awareness helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Crypto-awareness helper ──────────────────────────────────────────────────
 // Returns true when the loaded symbol is a crypto asset. Used throughout the
 // detection functions to apply crypto-specific adjustments:
 //  - Looser breakout body threshold (noisier, higher false-breakout rate)
 //  - Higher volume confirmation bar for breakouts (need stronger signal)
 //  - More aggressive liquidity sweep detection (thinner books, engineered sweeps)
 //  - Shorter pullback tolerance (moves compress timeframes)
-//  - 24/7 market â†’ no session bias, so range boundaries checked more strictly
+//  - 24/7 market → no session bias, so range boundaries checked more strictly
 function _isCrypto() {
   return !!(curSym && curSym.t === 'Crypto');
 }
@@ -7740,21 +7740,21 @@ function _isCrypto() {
 // Price-relative round number check.
 // Instead of fixed modulo ($1000, $100, $10) which fails at all price scales,
 // we compute the nearest "significant round" as a % of price magnitude.
-// e.g. BTC $70k â†’ nearest $5k multiple; ETH $3k â†’ nearest $250; DOGE $0.12 â†’ nearest $0.05
+// e.g. BTC $70k → nearest $5k multiple; ETH $3k → nearest $250; DOGE $0.12 → nearest $0.05
 function _isPriceRelativeRound(price) {
   if (!price || price <= 0) return false;
   const magnitude = Math.pow(10, Math.floor(Math.log10(price)));
-  // Test multiples of 0.5Ã—, 1Ã—, 2Ã—, 5Ã— the magnitude
+  // Test multiples of 0.5×, 1×, 2×, 5× the magnitude
   const candidates = [magnitude * 0.5, magnitude, magnitude * 2, magnitude * 5];
   // A level is "round" if it's within 0.5% of any candidate round number
   return candidates.some(round => round > 0 && Math.abs(price - Math.round(price / round) * round) / price < 0.005);
 }
 
-// â•â• METHODOLOGY-STRICT DETECTION FUNCTIONS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� METHODOLOGY-STRICT DETECTION FUNCTIONS ��������������������������������������������������
 // Each function enforces the real criteria from the trading methodology document.
-// Strict criteria replace the 80-candle cooldown â€” bad setups are rejected here, not timed out.
+// Strict criteria replace the 80-candle cooldown — bad setups are rejected here, not timed out.
 
-// â”€â”€ Shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Shared helpers ──────────────────────────────────────────────────────────
 function _ema(data, period) {
   if (data.length < period) return null;
   const k = 2 / (period + 1);
@@ -7780,11 +7780,11 @@ function _atrRaw(data, period) {
   return sum / period;
 }
 
-// â”€â”€ 1. BREAKOUT: consolidation zone + decisive close + volume expansion â”€â”€â”€â”€â”€â”€
+// ── 1. BREAKOUT: consolidation zone + decisive close + volume expansion ──────
 function detectConsolidation(data) {
   if (data.length < 15) return { isConsolidating: false };
   const crypto = _isCrypto();
-  // Exclude the last candle from the consolidation window â€” it may be the breakout candle
+  // Exclude the last candle from the consolidation window — it may be the breakout candle
   // and would inflate the range or count as a boundary touch incorrectly.
   // Require at least 8 bars in the zone for a tradeable consolidation.
   const lookback = data.slice(-21, -1); // 20 bars, excluding current
@@ -7795,7 +7795,7 @@ function detectConsolidation(data) {
   const mid = (hi + lo) / 2;
   const rangePercent = (hi - lo) / mid * 100;
 
-  // Crypto: allow wider consolidation (up to 6% â€” crypto volatility is higher)
+  // Crypto: allow wider consolidation (up to 6% — crypto volatility is higher)
   // but require 3 boundary touches (higher false-breakout rate demands tighter zones)
   const maxRange    = crypto ? 6   : 4;
   const minTouches  = crypto ? 3   : 2;
@@ -7820,7 +7820,7 @@ function isBreakingOut(current, consolidation) {
   const bodyBot = Math.min(current.open, current.close);
   const bodySize = Math.abs(current.close - current.open);
   const candleRange = current.high - current.low;
-  // Crypto: require stronger body (60%+ of range) â€” noisier market, more fakeouts
+  // Crypto: require stronger body (60%+ of range) — noisier market, more fakeouts
   const minBodyRatio = crypto ? 0.60 : 0.50;
   if (candleRange > 0 && bodySize / candleRange < minBodyRatio) return false;
   // Close must be clearly outside the zone
@@ -7838,7 +7838,7 @@ function calculateBreakoutConfluence(current, consolidation, structure) {
   const candleRange = current.high - current.low || 1;
   const minBody = crypto ? 0.60 : 0.50;
   if (bodySize / candleRange >= minBody) c++;
-  // 2. Volume confirmation â€” crypto needs higher bar (1.5Ã— avg, not 1.2Ã—)
+  // 2. Volume confirmation — crypto needs higher bar (1.5× avg, not 1.2×)
   //    because crypto retail volume is noisy and a genuine breakout needs real conviction
   const volThreshold = crypto ? 1.5 : 1.2;
   if (current.volume > (consolidation.avgVolume||1) * volThreshold) c++;
@@ -7850,7 +7850,7 @@ function calculateBreakoutConfluence(current, consolidation, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 2. FLAG/TREND: strong impulse + low-vol pullback + EMA still fanned â”€â”€â”€â”€â”€
+// ── 2. FLAG/TREND: strong impulse + low-vol pullback + EMA still fanned ─────
 function detectFlagPattern(data, structure) {
   if (data.length < 25 || !structure || structure.trend === 'neutral') return { detected: false };
   const isUp = structure.trend.includes('up');
@@ -7858,14 +7858,14 @@ function detectFlagPattern(data, structure) {
   if (!atr) return { detected: false };
   const current = data[data.length - 1];
 
-  // Try multiple flag lengths (5â€“20 bar flags are all valid)
+  // Try multiple flag lengths (5–20 bar flags are all valid)
   for (const flagLen of [5, 8, 12, 16, 20]) {
     if (data.length < flagLen + 15) continue;
     const impulse     = data.slice(-(flagLen + 15), -flagLen);
     const flag        = data.slice(-flagLen);
     if (impulse.length < 8) continue;
 
-    // Impulse: strong directional move > 2Ã—ATR
+    // Impulse: strong directional move > 2×ATR
     const impulseMag = Math.abs(impulse[impulse.length-1].close - impulse[0].close);
     if (impulseMag < atr * 2) continue;
 
@@ -7873,7 +7873,7 @@ function detectFlagPattern(data, structure) {
     const impulseUp = impulse[impulse.length-1].close > impulse[0].close;
     if (isUp !== impulseUp) continue;
 
-    // Flag must retrace 10â€“50% of impulse (real pullback, not sideways drift)
+    // Flag must retrace 10–50% of impulse (real pullback, not sideways drift)
     const flagHigh   = Math.max(...flag.map(d => d.high));
     const flagLow    = Math.min(...flag.map(d => d.low));
     const flagRetrace = isUp
@@ -7886,7 +7886,7 @@ function detectFlagPattern(data, structure) {
     const volFlag    = flag.reduce((s,d) => s+(d.volume||0), 0) / flag.length;
     if (volFlag >= volImpulse) continue;
 
-    // EMA20 still fanned â€” price above (bull) or below (bear) EMA
+    // EMA20 still fanned — price above (bull) or below (bear) EMA
     const ema20 = _ema(data, 20);
     if (isUp  && current.close < ema20) continue;
     if (!isUp && current.close > ema20) continue;
@@ -7907,14 +7907,14 @@ function calculateFlagConfluence(flag, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 3. SUPPORT BOUNCE: level with 2+ prior touches + confirmation candle â”€â”€â”€â”€â”€
+// ── 3. SUPPORT BOUNCE: level with 2+ prior touches + confirmation candle ─────
 function detectSupportBounce(data) {
   if (data.length < 30) return { detected: false };
   const atr    = _atrRaw(data, 14);
   if (!atr) return { detected: false };
   const crypto = _isCrypto();
 
-  // Crypto: look back further â€” 24/7 market has more price history to establish levels
+  // Crypto: look back further — 24/7 market has more price history to establish levels
   const lookbackSize = crypto ? 50 : 30;
   const lookback = data.slice(-lookbackSize);
   const current  = data[data.length - 1];
@@ -7930,7 +7930,7 @@ function detectSupportBounce(data) {
         isSwing = false; break;
       }
     }
-    // Minimum significance: swing must be at least 1Ã—ATR below surrounding bars
+    // Minimum significance: swing must be at least 1×ATR below surrounding bars
     if (isSwing) {
       const surroundHigh = Math.min(lookback[i-1].low, lookback[i+1].low);
       if (surroundHigh - lookback[i].low >= atr * 0.8) {
@@ -7953,8 +7953,8 @@ function detectSupportBounce(data) {
     const lowerWick = bodyBot - current.low;
     const bodySize  = bodyTop - bodyBot || atr * 0.1;
 
-    // Crypto: require larger rejection wick relative to body (1.5Ã— for crypto vs 1Ã— standard)
-    // â€” thin books mean stop hunts are common; we need a clear wick for a real bounce
+    // Crypto: require larger rejection wick relative to body (1.5× for crypto vs 1× standard)
+    // — thin books mean stop hunts are common; we need a clear wick for a real bounce
     const minWickRatio = crypto ? 1.5 : 1.0;
     const isRejection  = lowerWick > bodySize * minWickRatio && current.close > prev.close;
     if (!isRejection) continue;
@@ -7979,7 +7979,7 @@ function calculateSupportConfluence(support, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 4. RESISTANCE REJECTION: level with 2+ touches + rejection candle â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 4. RESISTANCE REJECTION: level with 2+ touches + rejection candle ────────
 function detectResistanceRejection(data) {
   if (data.length < 30) return { detected: false };
   const atr    = _atrRaw(data, 14);
@@ -8044,7 +8044,7 @@ function calculateResistanceConfluence(resistance, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 5. TREND PULLBACK: HTF trend intact + retrace to 38â€“61.8% Fib + EMA â”€â”€â”€â”€â”€
+// ── 5. TREND PULLBACK: HTF trend intact + retrace to 38–61.8% Fib + EMA ─────
 function detectTrendPullback(data, structure) {
   if (data.length < 30 || !structure || structure.trend === 'neutral') return { detected: false };
   const isUp   = structure.trend.includes('up');
@@ -8061,8 +8061,8 @@ function detectTrendPullback(data, structure) {
     ? (swingHigh - current.close) / swingSize
     : (current.close - swingLow) / swingSize;
 
-  // Crypto: accept 25%â€“65% retracements â€” moves are faster and shallower pullbacks
-  // are common because momentum traders re-enter quickly. Traditional: 30%â€“65%.
+  // Crypto: accept 25%–65% retracements — moves are faster and shallower pullbacks
+  // are common because momentum traders re-enter quickly. Traditional: 30%–65%.
   const minRetrace = crypto ? 0.25 : 0.30;
   if (retrace < minRetrace || retrace > 0.65) return { detected: false };
 
@@ -8072,7 +8072,7 @@ function detectTrendPullback(data, structure) {
   if (!ema20) return { detected: false };
 
   // EMA zone: ATR-based tolerance adapts to current volatility rather than % of price.
-  // When the market is quiet (low ATR), the zone is tighter â€” catches only real EMA tests.
+  // When the market is quiet (low ATR), the zone is tighter — catches only real EMA tests.
   // When volatile (high ATR), the zone widens naturally so valid pullbacks aren't missed.
   const emaZoneTol = crypto ? atr * 0.5 : atr * 0.4;
   const emaInZone  = Math.abs(current.close - ema20) < emaZoneTol;
@@ -8113,7 +8113,7 @@ function calculatePullbackConfluence(pullback, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 6. RANGE: 2â€“3 touches each boundary + range wide enough for 2:1 â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 6. RANGE: 2–3 touches each boundary + range wide enough for 2:1 ─────────
 function detectRangeBreakout(data, consolidation) {
   if (!consolidation.isConsolidating) return { detected: false };
   if (data.length < 2) return { detected: false };
@@ -8124,7 +8124,7 @@ function detectRangeBreakout(data, consolidation) {
   // Crypto needs stronger volume surge to confirm a real breakout (24/7 market has more noise)
   const volMultiplier  = crypto ? 1.5 : 1.3;
   const volExpansion   = current.volume > avgVol * volMultiplier;
-  // Require a meaningful body â€” not just a wick poking out
+  // Require a meaningful body — not just a wick poking out
   const body           = Math.abs(current.close - current.open);
   const bodyRatio      = atr ? body / atr : 0;
   const minBodyRatio   = crypto ? 0.35 : 0.3;
@@ -8150,7 +8150,7 @@ function calculateRangeBreakoutConfluence(breakout, structure) {
   return Math.min(c, 4);
 }
 
-// â”€â”€ 7. LIQUIDITY SWEEP: wick beyond swing high/low + displacement close â”€â”€â”€â”€â”€
+// ── 7. LIQUIDITY SWEEP: wick beyond swing high/low + displacement close ─────
 function detectLiquiditySweep(data) {
   if (data.length < 20) return { detected: false };
   const atr = _atrRaw(data, 14);
@@ -8158,7 +8158,7 @@ function detectLiquiditySweep(data) {
   const crypto = _isCrypto();
 
   const lookbackSize = crypto ? 30 : 20;
-  // Exclude the sweep candle AND current from lookback â€” they define the sweep, not the level
+  // Exclude the sweep candle AND current from lookback — they define the sweep, not the level
   const lookback    = data.slice(-lookbackSize - 2, -2);
   const sweepCandle = data[data.length - 2];
   const current     = data[data.length - 1];
@@ -8173,7 +8173,7 @@ function detectLiquiditySweep(data) {
   const highTests = lookback.filter(d => Math.abs(d.high - priorHigh) < levelTolerance).length;
   if (lowTests < 2 && highTests < 2) return { detected: false }; // not a significant level
 
-  // Displacement candle needs a real body â€” 0.6Ã—ATR minimum ensures it's genuine
+  // Displacement candle needs a real body — 0.6×ATR minimum ensures it's genuine
   // institutional flow, not a small bounce that quickly reverses
   const minDisplacementBody = atr * 0.6;
 
@@ -8184,7 +8184,7 @@ function detectLiquiditySweep(data) {
 
   if (wickBelowLow && displacedUp) {
     const wickDepth = priorLow - sweepCandle.low;
-    // Minimum wick depth: 0.3Ã—ATR for crypto (was 0 â€” too loose), 0.2Ã—ATR for traditional
+    // Minimum wick depth: 0.3×ATR for crypto (was 0 — too loose), 0.2×ATR for traditional
     const minWickDepth = crypto ? atr * 0.3 : atr * 0.2;
     if (wickDepth >= minWickDepth && lowTests >= 2) {
       return { detected: true, quality: 'high', direction: 'long',
@@ -8214,21 +8214,21 @@ function calculateLiquiditySweepConfluence(sweep, structure) {
   let c = 1;
   if (sweep.quality === 'high') c++;
   if (sweep.wickDepth && sweep.wickDepth > 0) c++;
-  // Crypto: liquidity sweep gets a bonus point â€” it's the most reliable pattern
+  // Crypto: liquidity sweep gets a bonus point — it's the most reliable pattern
   // in crypto due to the frequency of deliberate stop hunts by larger players
   if (crypto) c++;
   else if (structure && structure.trend !== 'neutral') c++;
   return Math.min(c, 4);
 }
 
-// â”€â”€ 8. STRUCTURE (higher low / lower high) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 8. STRUCTURE (higher low / lower high) ───────────────────────────────────
 function detectStructureSetup(data, structure) {
   if (!structure || structure.trend === 'neutral' || data.length < 20) return { detected: false };
   const crypto = _isCrypto();
   const isUp   = structure.trend.includes('up');
   const atr    = _atrRaw(data, 14);
   if (!atr) return { detected: false };
-  // Crypto: look back 25 bars â€” more price history needed to confirm structure on volatile assets
+  // Crypto: look back 25 bars — more price history needed to confirm structure on volatile assets
   const lookbackSize = crypto ? 25 : 20;
   const lookback = data.slice(-lookbackSize);
   // Find the last 3 swing lows (for uptrend) or swing highs (for downtrend)
@@ -8250,14 +8250,14 @@ function detectStructureSetup(data, structure) {
   if (pivots.length < 2) return { detected: false };
   const last = pivots[pivots.length - 1];
   const prev = pivots[pivots.length - 2];
-  // Structural shift must be meaningful â€” crypto needs slightly looser minimum
+  // Structural shift must be meaningful — crypto needs slightly looser minimum
   // because ATR itself is larger, but we don't want to reject real crypto structures
   const minShift = crypto ? atr * 0.4 : atr * 0.5;
   const isValid = isUp
     ? (last.price > prev.price + minShift)
     : (last.price < prev.price - minShift);
   if (!isValid) return { detected: false };
-  // Current bar must be close to the pivot â€” crypto gets wider tolerance (more volatile wicks)
+  // Current bar must be close to the pivot — crypto gets wider tolerance (more volatile wicks)
   const nearTolerance = crypto ? atr * 0.7 : atr * 0.5;
   const current   = data[data.length - 1];
   const nearPivot = Math.abs(current.close - last.price) < nearTolerance;
@@ -8459,7 +8459,7 @@ function analyzeMarketStructure(data) {
   else if (higherHighs <= 1 && higherLows <= 1) trend = 'downtrend_structure';
   else trend = 'range_structure';
   
-  console.log('ðŸ” Market structure analysis:', { trend, higherHighs, higherLows });
+  console.log('� Market structure analysis:', { trend, higherHighs, higherLows });
   
   return { trend };
 }
@@ -8488,7 +8488,7 @@ function toggleMentor() {
     // Clear cache when enabling to ensure fresh detection
     if (mentorState.setupCache) {
       mentorState.setupCache.clear();
-      console.log('ðŸ—‘ï¸ Setup cache cleared on mentor enable');
+      console.log('🗑� Setup cache cleared on mentor enable');
     }
     
     panel.style.display = 'block';
@@ -8514,7 +8514,7 @@ function showMentorPopup() {
     if (!localStorage.getItem('mentor-popup-seen')) {
       popup.style.display = 'block';
     } else {
-      // Skip popup for returning users â€” go straight to enabling
+      // Skip popup for returning users — go straight to enabling
       enableMentorFromPopup();
       return;
     }
@@ -8574,7 +8574,7 @@ function enableMentorFromPopup() {
     mentorState.tradeResultData = null;
     mentorState.selectedTradingMethod = null;
     mentorState.tradingMethodSelected = false;
-    mentorState.currentInsights = ['ðŸ¤– AI Trading Mentor is now active'];
+    mentorState.currentInsights = ['🤖 AI Trading Mentor is now active'];
     mentorState.currentQuestion = 'Please select your preferred trading style to begin...';
 
     const panel = document.getElementById('ai-mentor-panel');
@@ -8613,7 +8613,7 @@ function enableMentorFromPopup() {
 
 function selectTradingMethod(method) {
   if (mentorState.exampleTradeActive) {
-    showToast('Strategy locked â€” finish this lesson first, then change strategy.', 'info');
+    showToast('Strategy locked — finish this lesson first, then change strategy.', 'info');
     return;
   }
   mentorState.selectedTradingMethod = method;
@@ -8627,7 +8627,7 @@ function selectTradingMethod(method) {
     const price = curData[bar]?.close;
     if (price) {
       _clearMentorAnnotationsSilent();
-      _addMentorArrow(bar, price, `ðŸŽ¯ ${method} strategy active`, 'down', false);
+      _addMentorArrow(bar, price, `🎯 ${method} strategy active`, 'down', false);
       _addMentorLabel(bar, price, [`Strategy: ${method}`, 'Scanning for setups...']);
       if (typeof draw === 'function') draw();
     }
@@ -8649,10 +8649,10 @@ function selectTradingMethod(method) {
     'liquidity': 'Liquidity Sweep'
   };
 
-  mentorState.currentInsights = [`ðŸ“š Now teaching: ${methodNames[method]}`];
+  mentorState.currentInsights = [`📚 Now teaching: ${methodNames[method]}`];
   mentorState.currentQuestion = 'Analyzing market data for ' + methodNames[method].toLowerCase() + ' opportunities...';
 
-  // Always trigger a fresh scan in replay mode â€” previously this was gated on
+  // Always trigger a fresh scan in replay mode — previously this was gated on
   // lifecycleState being 'no_setup_found' or 'waiting', but by this point it had
   // already been set to 'scanning', so the condition was always false and neither
   // triggerReplayRescan() nor updateMentor() ever ran on first click.
@@ -8662,7 +8662,7 @@ function selectTradingMethod(method) {
     updateMentorUI();
   }
 
-  toast(`ðŸ“š Teaching ${methodNames[method]} strategy`);
+  toast(`📚 Teaching ${methodNames[method]} strategy`);
 }
 
 // Chart Tool Functions for Trade Placement
@@ -8671,7 +8671,7 @@ function activateLongTool() {
   document.getElementById('mentor-trade-prompt').style.display = 'none';
   
   // Show loading message
-  showMentorMessage('ðŸ”§ Long tool activated. Click on the chart to place your trade with entry, stop loss, and take profit.');
+  showMentorMessage('🔧 Long tool activated. Click on the chart to place your trade with entry, stop loss, and take profit.');
   
   // Here you would integrate with the actual chart tool system
   // For now, we'll simulate the tool activation
@@ -8680,10 +8680,10 @@ function activateLongTool() {
     try {
       const chart = window.tvWidget.chart();
       const toolbar = chart.createStudy('Long Position');
-      showMentorMessage('âœ… Long tool ready! Place your trade on the chart.');
+      showMentorMessage('✅ Long tool ready! Place your trade on the chart.');
     } catch (error) {
       // Fallback to manual trade entry
-      showMentorMessage('ðŸ“Š Please place a Long position manually using the chart tools, then click here when done.');
+      showMentorMessage('📊 Please place a Long position manually using the chart tools, then click here when done.');
       setTimeout(() => {
         showManualTradeEntry('long');
       }, 2000);
@@ -8698,17 +8698,17 @@ function activateShortTool() {
   document.getElementById('mentor-trade-prompt').style.display = 'none';
   
   // Show loading message
-  showMentorMessage('ðŸ”§ Short tool activated. Click on the chart to place your trade with entry, stop loss, and take profit.');
+  showMentorMessage('🔧 Short tool activated. Click on the chart to place your trade with entry, stop loss, and take profit.');
   
   // Here you would integrate with the actual chart tool system
   if (window.tvWidget && window.tvWidget.chart()) {
     try {
       const chart = window.tvWidget.chart();
       const toolbar = chart.createStudy('Short Position');
-      showMentorMessage('âœ… Short tool ready! Place your trade on the chart.');
+      showMentorMessage('✅ Short tool ready! Place your trade on the chart.');
     } catch (error) {
       // Fallback to manual trade entry
-      showMentorMessage('ðŸ“Š Please place a Short position manually using the chart tools, then click here when done.');
+      showMentorMessage('📊 Please place a Short position manually using the chart tools, then click here when done.');
       setTimeout(() => {
         showManualTradeEntry('short');
       }, 2000);
@@ -8722,7 +8722,7 @@ function skipTradeSetup() {
   mentorState.waitingForTrade = false;
   mentorState.currentSetup = null;
   document.getElementById('mentor-trade-prompt').style.display = 'none';
-  showMentorMessage('â­ï¸ Trade setup skipped. Continue monitoring for better opportunities.');
+  showMentorMessage('��� Trade setup skipped. Continue monitoring for better opportunities.');
 }
 
 function showManualTradeEntry(direction) {
@@ -8734,7 +8734,7 @@ function showManualTradeEntry(direction) {
   // Create a simple manual entry form
   const manualEntryHtml = `
     <div style="background:var(--bg2);border:1px solid var(--purple);border-radius:6px;padding:12px;margin-top:12px;">
-      <div style="color:var(--tx1);font-weight:600;margin-bottom:8px;">ðŸ“ Manual ${direction.toUpperCase()} Entry</div>
+      <div style="color:var(--tx1);font-weight:600;margin-bottom:8px;">� Manual ${direction.toUpperCase()} Entry</div>
       <div style="color:var(--tx2);font-size:11px;margin-bottom:8px;">
         Current Price: $${currentPrice.toFixed(2)}
       </div>
@@ -8802,7 +8802,7 @@ function processTradePlacement(trade) {
 function cancelManualEntry() {
   mentorState.waitingForTrade = false;
   document.getElementById('mentor-trade-prompt').style.display = 'none';
-  showMentorMessage('âŒ Trade entry cancelled.');
+  showMentorMessage('�� Trade entry cancelled.');
 }
 
 function analyzePlacedTrade(trade) {
@@ -8859,16 +8859,16 @@ function evaluateEntryQuality(trade, analysis) {
   const entryPrice = trade.entryPrice;
   const priceDiff = Math.abs(entryPrice - currentPrice) / currentPrice;
 
-  // Check if entry is at current price â€” continuous score based on exact distance
+  // Check if entry is at current price — continuous score based on exact distance
   if (priceDiff < 0.001) {
-    score += Math.round(17 + (1 - priceDiff / 0.001) * 5); // 17â€“22
-    feedback.push('âœ… Entry at current market price');
+    score += Math.round(17 + (1 - priceDiff / 0.001) * 5); // 17–22
+    feedback.push('✅ Entry at current market price');
   } else if (priceDiff < 0.005) {
-    score += Math.round(7 + (1 - priceDiff / 0.005) * 6); // 7â€“13
-    feedback.push('âš ï¸ Entry close to current price');
+    score += Math.round(7 + (1 - priceDiff / 0.005) * 6); // 7–13
+    feedback.push('⚠� Entry close to current price');
   } else {
     score -= Math.round(3 + Math.min(12, priceDiff * 800)); // proportional penalty
-    feedback.push('âŒ Entry far from current price');
+    feedback.push('�� Entry far from current price');
   }
 
   // Check if entry aligns with recent price action
@@ -8880,33 +8880,33 @@ function evaluateEntryQuality(trade, analysis) {
   if (trade.direction === 'long') {
     const distFromLow = Math.abs(entryPrice - recentLow) / rangeSize;
     if (entryPrice <= recentLow * 1.01) {
-      score += Math.round(12 + (1 - distFromLow) * 5); // 12â€“17
-      feedback.push('âœ… Entry near recent low');
+      score += Math.round(12 + (1 - distFromLow) * 5); // 12–17
+      feedback.push('✅ Entry near recent low');
     } else if (entryPrice > recentHigh) {
-      score -= Math.round(8 + distFromLow * 4); // 8â€“12 penalty
-      feedback.push('âŒ Entry above recent high');
+      score -= Math.round(8 + distFromLow * 4); // 8–12 penalty
+      feedback.push('�� Entry above recent high');
     }
   } else {
     const distFromHigh = Math.abs(recentHigh - entryPrice) / rangeSize;
     if (entryPrice >= recentHigh * 0.99) {
-      score += Math.round(12 + (1 - distFromHigh) * 5); // 12â€“17
-      feedback.push('âœ… Entry near recent high');
+      score += Math.round(12 + (1 - distFromHigh) * 5); // 12–17
+      feedback.push('✅ Entry near recent high');
     } else if (entryPrice < recentLow) {
       score -= Math.round(8 + distFromHigh * 4);
-      feedback.push('âŒ Entry below recent low');
+      feedback.push('�� Entry below recent low');
     }
   }
 
-  // Check volume confirmation â€” continuous based on relative volume
+  // Check volume confirmation — continuous based on relative volume
   if (analysis.volume === 'very_high') {
     score += 14;
-    feedback.push('âœ… High volume supports entry');
+    feedback.push('✅ High volume supports entry');
   } else if (analysis.volume === 'high') {
     score += 11;
-    feedback.push('âœ… Above-average volume at entry');
+    feedback.push('✅ Above-average volume at entry');
   } else if (analysis.volume === 'low') {
     score -= 6;
-    feedback.push('âš ï¸ Low volume â€” entry conviction is weak');
+    feedback.push('⚠� Low volume — entry conviction is weak');
   }
 
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
@@ -8921,20 +8921,20 @@ function evaluateStopLoss(trade, analysis) {
   const risk = trade.risk;
   const atr = analysis.atr || 0.02;
 
-  // Check stop loss distance â€” continuous based on ATR ratio
+  // Check stop loss distance — continuous based on ATR ratio
   const riskPercent = risk / entryPrice;
   const atrRatio = riskPercent / Math.max(atr, 0.0001);
   if (atrRatio >= 1.2 && atrRatio <= 2.5) {
     // Ideal zone: score based on how close to sweet spot (1.85x ATR)
     const deviation = Math.abs(atrRatio - 1.85) / 1.85;
-    score += Math.round(22 - deviation * 13); // 17â€“22
-    feedback.push('âœ… Stop loss at appropriate distance');
+    score += Math.round(22 - deviation * 13); // 17–22
+    feedback.push('✅ Stop loss at appropriate distance');
   } else if (atrRatio < 1.2) {
-    score -= Math.round(12 + (1.2 - atrRatio) / 1.2 * 8); // 12â€“20 penalty
-    feedback.push('âŒ Stop loss too tight');
+    score -= Math.round(12 + (1.2 - atrRatio) / 1.2 * 8); // 12–20 penalty
+    feedback.push('�� Stop loss too tight');
   } else {
-    score -= Math.round(7 + (atrRatio - 2.5) * 3); // 7â€“13 penalty
-    feedback.push('âš ï¸ Stop loss too wide');
+    score -= Math.round(7 + (atrRatio - 2.5) * 3); // 7–13 penalty
+    feedback.push('⚠� Stop loss too wide');
   }
 
   // Check logical placement
@@ -8942,22 +8942,22 @@ function evaluateStopLoss(trade, analysis) {
     const recentLow = Math.min(...curData.slice(Math.max(0, mentorState.currentBar - 10), mentorState.currentBar + 1).map(bar => bar.low));
     const bufferPct = (recentLow - stopLoss) / recentLow;
     if (stopLoss < recentLow) {
-      score += Math.round(11 + Math.min(5, bufferPct * 300)); // 11â€“16
-      feedback.push('âœ… Stop loss below recent support');
+      score += Math.round(11 + Math.min(5, bufferPct * 300)); // 11–16
+      feedback.push('✅ Stop loss below recent support');
     } else {
       const overshoot = Math.round((stopLoss - recentLow) / recentLow * 100);
       score -= Math.round(5 + overshoot * 2);
-      feedback.push('âš ï¸ Stop loss above recent support');
+      feedback.push('⚠� Stop loss above recent support');
     }
   } else {
     const recentHigh = Math.max(...curData.slice(Math.max(0, mentorState.currentBar - 10), mentorState.currentBar + 1).map(bar => bar.high));
     const bufferPct = (stopLoss - recentHigh) / recentHigh;
     if (stopLoss > recentHigh) {
       score += Math.round(11 + Math.min(5, bufferPct * 300));
-      feedback.push('âœ… Stop loss above recent resistance');
+      feedback.push('✅ Stop loss above recent resistance');
     } else {
       score -= Math.round(5 + Math.abs(bufferPct) * 200);
-      feedback.push('âš ï¸ Stop loss below recent resistance');
+      feedback.push('⚠� Stop loss below recent resistance');
     }
   }
 
@@ -8970,19 +8970,19 @@ function evaluateRiskManagement(trade, analysis) {
 
   const riskRewardRatio = trade.riskRewardRatio;
 
-  // Check risk/reward ratio â€” continuous based on actual ratio
+  // Check risk/reward ratio — continuous based on actual ratio
   if (riskRewardRatio >= 2) {
-    score += Math.round(26 + Math.min(8, (riskRewardRatio - 2) * 5)); // 26â€“34
-    feedback.push('âœ… Excellent risk/reward ratio');
+    score += Math.round(26 + Math.min(8, (riskRewardRatio - 2) * 5)); // 26–34
+    feedback.push('✅ Excellent risk/reward ratio');
   } else if (riskRewardRatio >= 1.5) {
-    score += Math.round(16 + (riskRewardRatio - 1.5) * 20); // 16â€“26
-    feedback.push('âœ… Good risk/reward ratio');
+    score += Math.round(16 + (riskRewardRatio - 1.5) * 20); // 16–26
+    feedback.push('✅ Good risk/reward ratio');
   } else if (riskRewardRatio >= 1) {
-    score += Math.round(6 + (riskRewardRatio - 1) * 20); // 6â€“16
-    feedback.push('âš ï¸ Minimum acceptable risk/reward ratio');
+    score += Math.round(6 + (riskRewardRatio - 1) * 20); // 6–16
+    feedback.push('⚠� Minimum acceptable risk/reward ratio');
   } else {
-    score -= Math.round(14 + (1 - riskRewardRatio) * 12); // 14â€“26 penalty
-    feedback.push('âŒ Poor risk/reward ratio');
+    score -= Math.round(14 + (1 - riskRewardRatio) * 12); // 14–26 penalty
+    feedback.push('�� Poor risk/reward ratio');
   }
 
   // Check position size relative to ATR
@@ -8991,11 +8991,11 @@ function evaluateRiskManagement(trade, analysis) {
   const atrRatio = riskPercent / Math.max(atr, 0.0001);
 
   if (atrRatio <= 2) {
-    score += Math.round(17 + (1 - atrRatio / 2) * 5); // 17â€“22 â€” tighter is slightly better
-    feedback.push('âœ… Reasonable position size');
+    score += Math.round(17 + (1 - atrRatio / 2) * 5); // 17–22 — tighter is slightly better
+    feedback.push('✅ Reasonable position size');
   } else {
     score -= Math.round(7 + (atrRatio - 2) * 4); // growing penalty for large risk
-    feedback.push('âš ï¸ Large position size');
+    feedback.push('⚠� Large position size');
   }
 
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
@@ -9008,7 +9008,7 @@ function evaluateTrendAlignment(trade, analysis) {
   const trend = analysis.trend;
   const direction = trade.direction;
 
-  // Check trend alignment â€” use actual SMA values for a continuous component
+  // Check trend alignment — use actual SMA values for a continuous component
   const n = curData?.length || 1;
   const sma20 = calcSMA(curData, 20);
   const sma50 = calcSMA(curData, 50);
@@ -9020,28 +9020,28 @@ function evaluateTrendAlignment(trade, analysis) {
 
   if (direction === 'long' && (trend === 'uptrend' || trend === 'strong_uptrend')) {
     const momentum = Math.min(1, Math.abs(lastPrice - sma20val) / (sma20val * 0.05));
-    score += Math.round(34 + momentum * 8); // 34â€“42
-    feedback.push('âœ… Trade aligned with uptrend');
+    score += Math.round(34 + momentum * 8); // 34–42
+    feedback.push('✅ Trade aligned with uptrend');
   } else if (direction === 'short' && (trend === 'downtrend' || trend === 'strong_downtrend')) {
     const momentum = Math.min(1, Math.abs(lastPrice - sma20val) / (sma20val * 0.05));
     score += Math.round(34 + momentum * 8);
-    feedback.push('âœ… Trade aligned with downtrend');
+    feedback.push('✅ Trade aligned with downtrend');
   } else if (trend === 'neutral') {
     score += Math.round(7 + (smaBias === 'mixed' ? 3 : 0));
-    feedback.push('âš ï¸ Trading in ranging market');
+    feedback.push('⚠� Trading in ranging market');
   } else {
     score -= Math.round(17 + (smaBias !== 'mixed' ? 4 : 0));
-    feedback.push('âŒ Trade against trend');
+    feedback.push('�� Trade against trend');
   }
 
-  // Check market structure â€” reward aligned structure confirmation
+  // Check market structure — reward aligned structure confirmation
   const structure = analysis.structure;
   if (structure === 'uptrend_structure' && direction === 'long') {
-    score += Math.round(8 + (smaBias === 'bull' ? 3 : 0)); // 8â€“11
-    feedback.push('âœ… Higher highs and lows structure');
+    score += Math.round(8 + (smaBias === 'bull' ? 3 : 0)); // 8–11
+    feedback.push('✅ Higher highs and lows structure');
   } else if (structure === 'downtrend_structure' && direction === 'short') {
     score += Math.round(8 + (smaBias === 'bear' ? 3 : 0));
-    feedback.push('âœ… Lower highs and lows structure');
+    feedback.push('✅ Lower highs and lows structure');
   }
 
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
@@ -9092,7 +9092,7 @@ function displayTradeAnalysis(trade, evaluation, judgement, judgementColor) {
   
   // Show explanation
   setTimeout(() => {
-    showMentorMessage(`ðŸ“Š ${judgement}: ${generateTradeExplanation(trade, evaluation, analysis)}`);
+    showMentorMessage(`📊 ${judgement}: ${generateTradeExplanation(trade, evaluation, analysis)}`);
   }, 1000);
 }
 
@@ -9123,13 +9123,13 @@ function generateTradeExplanation(trade, evaluation, analysis) {
   
   // Overall assessment
   if (score >= 80) {
-    sections.push(`ðŸŸ¢ **TRADE ANALYSIS: STRONG SETUP**`);
+    sections.push(`🟢 **TRADE ANALYSIS: STRONG SETUP**`);
     sections.push(`This trade demonstrates solid technical analysis with a score of ${score}/100.`);
   } else if (score >= 60) {
-    sections.push(`ðŸŸ¡ **TRADE ANALYSIS: ACCEPTABLE WITH RISKS**`);
+    sections.push(`🟡 **TRADE ANALYSIS: ACCEPTABLE WITH RISKS**`);
     sections.push(`This trade has potential but carries risks with a score of ${score}/100.`);
   } else {
-    sections.push(`ðŸ”´ **TRADE ANALYSIS: WEAK SETUP**`);
+    sections.push(`🔴 **TRADE ANALYSIS: WEAK SETUP**`);
     sections.push(`This trade has significant issues with a score of ${score}/100.`);
   }
   sections.push('');
@@ -9155,7 +9155,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
       entryReasoning += `is positioned within the recent trading range between ${swingLow.toFixed(4)} and ${swingHigh.toFixed(4)}.`;
     }
   }
-  sections.push(`ðŸŽ¯ **ENTRY REASONING**`);
+  sections.push(`🎯 **ENTRY REASONING**`);
   sections.push(entryReasoning);
   sections.push('');
   
@@ -9181,7 +9181,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
       slAnalysis += ` Consider moving it above the recent swing high at ${swingHigh.toFixed(4)} to align with the structural invalidation point.`;
     }
   }
-  sections.push(`ðŸ›¡ï¸ **STOP LOSS PLACEMENT**`);
+  sections.push(`🛡� **STOP LOSS PLACEMENT**`);
   sections.push(slAnalysis);
   sections.push('');
   
@@ -9197,7 +9197,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
   } else {
     tpAnalysis += ` This R:R ratio is below recommended levels. Consider extending targets or finding setups with better risk-to-reward potential.`;
   }
-  sections.push(`ðŸŽ¯ **TAKE PROFIT TARGET**`);
+  sections.push(`🎯 **TAKE PROFIT TARGET**`);
   sections.push(tpAnalysis);
   sections.push('');
   
@@ -9211,7 +9211,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
     rmAnalysis = `Risk management needs improvement. Focus on placing stops at true structural invalidation points and ensuring minimum 1.5:1 R:R ratios.`;
   }
   rmAnalysis += ` With proper position sizing, even if this trade hits the stop, the loss represents only a small portion of total capital.`;
-  sections.push(`âš–ï¸ **RISK MANAGEMENT**`);
+  sections.push(`⚖� **RISK MANAGEMENT**`);
   sections.push(rmAnalysis);
   sections.push('');
   
@@ -9224,18 +9224,18 @@ function generateTradeExplanation(trade, evaluation, analysis) {
   } else {
     trendAnalysis = `The trade may be fighting against the prevailing trend. Consider waiting for setups that align better with the market direction.`;
   }
-  sections.push(`ðŸ“ˆ **TREND ALIGNMENT**`);
+  sections.push(`📈 **TREND ALIGNMENT**`);
   sections.push(trendAnalysis);
   sections.push('');
   
   // 6. LEARNING TAKEAWAY
   let takeaway = '';
   if (score >= 80) {
-    takeaway = `âœ… **Key Takeaway:** This trade demonstrates proper application of technical principles. Continue seeking setups with similar characteristics: clear structure, logical invalidation points, and favorable risk-to-reward ratios.`;
+    takeaway = `✅ **Key Takeaway:** This trade demonstrates proper application of technical principles. Continue seeking setups with similar characteristics: clear structure, logical invalidation points, and favorable risk-to-reward ratios.`;
   } else if (score >= 60) {
-    takeaway = `âš ï¸ **Key Takeaway:** While this trade may work, focus on improving ${evaluation.riskManagement && evaluation.riskManagement.score < 70 ? 'risk management' : 'trend alignment'} in future setups. Patience in waiting for higher-quality opportunities pays off.`;
+    takeaway = `⚠� **Key Takeaway:** While this trade may work, focus on improving ${evaluation.riskManagement && evaluation.riskManagement.score < 70 ? 'risk management' : 'trend alignment'} in future setups. Patience in waiting for higher-quality opportunities pays off.`;
   } else {
-    takeaway = `ðŸŽ“ **Key Takeaway:** This trade has significant issues. Focus on: (1) Waiting for clear confirmation before entry, (2) Placing stops at true structural levels, (3) Only trading when R:R is at least 1.5:1, (4) Trading with the trend, not against it.`;
+    takeaway = `🎓 **Key Takeaway:** This trade has significant issues. Focus on: (1) Waiting for clear confirmation before entry, (2) Placing stops at true structural levels, (3) Only trading when R:R is at least 1.5:1, (4) Trading with the trend, not against it.`;
   }
   
   // Add method-specific guidance from methodology
@@ -9246,13 +9246,13 @@ function generateTradeExplanation(trade, evaluation, analysis) {
   } else if (method === 'support_resistance') {
     takeaway += ` S&R focus: count the number of prior reactions at this level and check for Fibonacci confluence (38.2%, 50%, 61.8%). More confluence = higher quality. The confirmation candle is your entry trigger.`;
   } else if (method === 'pullback') {
-    takeaway += ` Pullback focus: categorise pullback depth (shallow 20â€“38%, standard 38â€“50%, deep 50â€“61.8%) and check volume is contracting during the pullback. Volume expansion on the resumption candle is your green light.`;
+    takeaway += ` Pullback focus: categorise pullback depth (shallow 20–38%, standard 38–50%, deep 50–61.8%) and check volume is contracting during the pullback. Volume expansion on the resumption candle is your green light.`;
   } else if (method === 'range') {
-    takeaway += ` Range focus: ensure you have at least 2â€“3 boundary touches on both sides before trading the range. The midpoint is a no-trade zone. If price breaks outside on volume, abandon the range thesis immediately.`;
+    takeaway += ` Range focus: ensure you have at least 2–3 boundary touches on both sides before trading the range. The midpoint is a no-trade zone. If price breaks outside on volume, abandon the range thesis immediately.`;
   } else if (method === 'liquidity') {
     takeaway += ` Liquidity focus: mark the Order Block (last opposite-colour candle before the impulse) and any Fair Value Gaps on your chart. These are the institutional footprints that confirm the sweep was intentional.`;
   }
-  sections.push(`ðŸŽ“ **LEARNING TAKEAWAY**`);
+  sections.push(`🎓 **LEARNING TAKEAWAY**`);
   sections.push(takeaway);
   
   return sections.join('\n');
@@ -9313,7 +9313,7 @@ function provideTradeOutcomeFeedback(trade, outcome, finalPrice) {
       trade.entryPrice - finalPrice;
     const profitPercent = (profit / trade.entryPrice * 100).toFixed(2);
     
-    message = `ðŸŽ¯ Trade completed successfully! Profit: ${profitPercent}% (${mentorState.tradeHistory[mentorState.tradeHistory.length - 1].barsHeld} bars)`;
+    message = `🎯 Trade completed successfully! Profit: ${profitPercent}% (${mentorState.tradeHistory[mentorState.tradeHistory.length - 1].barsHeld} bars)`;
     
     // Add learning points
     if (trade.evaluation.overallScore >= 80) {
@@ -9327,7 +9327,7 @@ function provideTradeOutcomeFeedback(trade, outcome, finalPrice) {
       finalPrice - trade.entryPrice;
     const lossPercent = (loss / trade.entryPrice * 100).toFixed(2);
     
-    message = `â›” Trade hit stop loss. Loss: ${lossPercent}% (${mentorState.tradeHistory[mentorState.tradeHistory.length - 1].barsHeld} bars)`;
+    message = `⛔ Trade hit stop loss. Loss: ${lossPercent}% (${mentorState.tradeHistory[mentorState.tradeHistory.length - 1].barsHeld} bars)`;
     
     // Add learning points
     if (trade.evaluation.overallScore < 60) {
@@ -9356,7 +9356,7 @@ function showDetailedOutcomeAnalysis(trade, outcome) {
   const barsHeld = lastTrade.barsHeld;
   
   let outcomeColor = outcome === 'take_profit' ? 'var(--green)' : 'var(--red)';
-  let outcomeText = outcome === 'take_profit' ? 'âœ… Profit Target Hit' : 'âŒ Stop Loss Hit';
+  let outcomeText = outcome === 'take_profit' ? '✅ Profit Target Hit' : '�� Stop Loss Hit';
   
   const outcomeDetails = `
     <div style="margin-bottom:8px;">
@@ -9390,27 +9390,27 @@ function generateLearningPoints(trade, outcome, barsHeld) {
   
   if (outcome === 'take_profit') {
     if (trade.evaluation.trendAlignment.score >= 80) {
-      points.push('âœ… Trend alignment was key to success');
+      points.push('✅ Trend alignment was key to success');
     }
     if (trade.evaluation.riskRewardRatio >= 2) {
-      points.push('âœ… Good risk/reward paid off');
+      points.push('✅ Good risk/reward paid off');
     }
     if (barsHeld < 10) {
-      points.push('ðŸš€ Quick profit shows strong momentum');
+      points.push('🚀 Quick profit shows strong momentum');
     } else {
-      points.push('â±ï¸ Patience allowed the setup to play out');
+      points.push('��� Patience allowed the setup to play out');
     }
   } else {
     if (trade.evaluation.trendAlignment.score < 60) {
-      points.push('âŒ Fighting the trend was costly');
+      points.push('�� Fighting the trend was costly');
     }
     if (trade.evaluation.stopLossPlacement.score < 60) {
-      points.push('ðŸ“ Stop loss placement could be improved');
+      points.push('� Stop loss placement could be improved');
     }
     if (barsHeld < 5) {
-      points.push('âš¡ Quick rejection shows strong opposition');
+      points.push('⚡ Quick rejection shows strong opposition');
     } else {
-      points.push('ðŸ“‰ Gradual failure suggests changing market conditions');
+      points.push('📉 Gradual failure suggests changing market conditions');
     }
   }
   
@@ -9512,11 +9512,11 @@ function makeMentorDraggable() {
   document.addEventListener('touchmove', drag);
 }
 
-// â•â• TRADE LIFECYCLE STATE HANDLERS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� TRADE LIFECYCLE STATE HANDLERS �����������������������������������������������������������
 
 function handleSetupWaitState(currentBar) {
   // If the message is locked or a trade is already active, preserve the state.
-  // The user is reading the setup panel â€” never auto-invalidate while it's shown.
+  // The user is reading the setup panel — never auto-invalidate while it's shown.
   if (mentorState.messageLocked || mentorState.exampleTradeActive) {
     addRealtimeUpdate(currentBar);
     updateLockedMentorUI();
@@ -9538,7 +9538,7 @@ function handleSetupWaitState(currentBar) {
     mentorState.setupWaitStart = null;
     mentorState.setupWaitData = null;
     mentorState.messageLocked = false;
-    mentorState.currentInsights = ['âŒ Setup no longer valid'];
+    mentorState.currentInsights = ['�� Setup no longer valid'];
     mentorState.currentQuestion = 'Resuming market scanning...';
     updateMentorUI();
     return;
@@ -9579,11 +9579,11 @@ function handleSetupDetectedState(currentBar) {
   const barsUntilSetup  = setupBar - currentBar;
   const setupData       = mentorState.upcomingSetup.setup;
 
-  // â”€â”€ Guard: user manually stepped/dragged PAST the setup bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Guard: user manually stepped/dragged PAST the setup bar ─────────────
   // If barsUntilSetup <= 0 but earlyWarning never fired (user jumped ahead),
   // trigger the early warning immediately so they still see the trade popup.
   if (barsUntilSetup <= 0 && !mentorState.earlyWarningShown) {
-    // Jump directly into the early warning flow â€” treat currentBar as the entry moment
+    // Jump directly into the early warning flow — treat currentBar as the entry moment
     // by overwriting barsUntilSetup so the block below fires
     // We set the "bar" to currentBar+1 so the early warning triggers on next call
     mentorState.upcomingSetup.bar = currentBar + 1;
@@ -9599,9 +9599,9 @@ function handleSetupDetectedState(currentBar) {
     return;
   }
 
-  // â”€â”€ Guard: user stepped FAR past the setup without resolving it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Guard: user stepped FAR past the setup without resolving it ──────────
   if (barsUntilSetup < -10 && mentorState.earlyWarningShown) {
-    // Setup is long past â€” if no trade was placed, go back to scanning
+    // Setup is long past — if no trade was placed, go back to scanning
     if (!mentorState.exampleTradeActive && !mentorState.messageLocked) {
       setMentorState('scanning', 'setup passed without action');
       mentorState.upcomingSetup     = null;
@@ -9614,7 +9614,7 @@ function handleSetupDetectedState(currentBar) {
 
 
 
-  // â”€â”€ Early question: pause ~25 bars before the setup bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Early question: pause ~25 bars before the setup bar ─────────────────
   // 25 bars gives enough space to:
   //   1. Show the full setup context in history via annotations
   //   2. Draw the trade tool at the FUTURE entry bar (visible but not reached)
@@ -9628,7 +9628,7 @@ function handleSetupDetectedState(currentBar) {
     const entryPrice = curData[entryBar]?.open;
 
     // Always recompute levels fresh at question-time using the current wick-based
-    // validation logic â€” never reuse scanner-cached levels which may have been
+    // validation logic — never reuse scanner-cached levels which may have been
     // computed with old close-only logic and could produce invalid trades.
     const futureFromEntry = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
     const prelevels = (futureFromEntry.length >= 5 && entryPrice)
@@ -9636,7 +9636,7 @@ function handleSetupDetectedState(currentBar) {
       : null;
 
     if (!prelevels) {
-      // Can't place a valid trade here â€” skip silently and keep scanning
+      // Can't place a valid trade here — skip silently and keep scanning
       mentorState.earlyWarningShown = false;
       mentorState.upcomingSetup = null;
       setMentorState('scanning', 'preview levels invalid');
@@ -9653,7 +9653,7 @@ function handleSetupDetectedState(currentBar) {
 
     // Show immediate placeholder while AI analysis loads
     const dir       = setupData.direction || 'long';
-    const dirEmoji  = dir === 'long' ? 'ðŸ“ˆ' : 'ðŸ“‰';
+    const dirEmoji  = dir === 'long' ? '📈' : '📉';
     const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
     mentorState.lockedInsights  = [
       `${dirEmoji} Previewing a ${setupName.replace(/_/g,' ')} setup`,
@@ -9676,7 +9676,7 @@ function handleSetupDetectedState(currentBar) {
 
     if (replayMode) pauseReplayForSetup();
 
-    // â”€â”€ Annotate historical setup context only â€” NO trade tool yet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Annotate historical setup context only — NO trade tool yet ──────────
     // The trade tool is drawn when the user clicks "Show Me The Trade".
     // Here we only show the chart annotations explaining WHY the setup is valid.
     setTimeout(() => {
@@ -9684,7 +9684,7 @@ function handleSetupDetectedState(currentBar) {
       mentorState._freezeScrollForPreview = true;
       const mc = document.getElementById('main-canvas');
       const visibleBars = mc ? mc.width / barWidth : 100;
-      // Position so the entry bar is visible to the right â€” user can see where
+      // Position so the entry bar is visible to the right — user can see where
       // price is heading without the trade tool being placed yet
       rightBarIndex = Math.round(entryBar + visibleBars * 0.30);
 
@@ -9695,7 +9695,7 @@ function handleSetupDetectedState(currentBar) {
 
     updateLockedMentorUI();
 
-    // Fetch AI analysis asynchronously â€” gated by a 30s wall-clock cooldown so
+    // Fetch AI analysis asynchronously — gated by a 30s wall-clock cooldown so
     // rapid setup transitions during fast replay don't stack up Groq calls.
     const _genAtCall = mentorState._aiGeneration;
     const _phase1Now = Date.now();
@@ -9704,7 +9704,7 @@ function handleSetupDetectedState(currentBar) {
 
     const _applyPhase1Analysis = (analysis) => {
       if (!mentorState.messageLocked) return;
-      if (mentorState._aiGeneration !== _genAtCall) return; // stale â€” new setup started
+      if (mentorState._aiGeneration !== _genAtCall) return; // stale — new setup started
       if (analysis) {
         mentorState.lockedInsights = analysis.split('\n').filter(l => l.trim());
       } else {
@@ -9716,7 +9716,7 @@ function handleSetupDetectedState(currentBar) {
         ];
       }
       mentorState.lockedQuestion =
-        `A potential ${setupName} setup is forming. Choose â€œWatch Demoâ€ for a guided walkthrough or â€œLet Me Tryâ€ to place the idea yourself.`;
+        `A potential ${setupName} setup is forming. Choose “Watch Demo� for a guided walkthrough or “Let Me Try� to place the idea yourself.`;
       updateLockedMentorUI();
     };
 
@@ -9724,20 +9724,20 @@ function handleSetupDetectedState(currentBar) {
       mentorState._lastPhase1CallAt = _phase1Now;
       _mentorAISetupAnalysis(setupData, currentBar).then(_applyPhase1Analysis);
     } else {
-      // Cooldown active â€” use structured fallback immediately (no API call)
+      // Cooldown active — use structured fallback immediately (no API call)
       _applyPhase1Analysis(null);
     }
     return;
   }
 
-  // â”€â”€ If early warning already shown but replay was resumed (Let Me Try path)
-  //    and setup bar is now reached â€” transition to setup_wait normally
+  // ── If early warning already shown but replay was resumed (Let Me Try path)
+  //    and setup bar is now reached — transition to setup_wait normally
   if (currentBar >= setupBar) {
     mentorState.earlyWarningShown = false;
     mentorState.upcomingSetup = null;
 
     // If the user already clicked "Show Me The Trade" (exampleTradeActive),
-    // don't re-trigger the panel â€” just let trade monitoring continue.
+    // don't re-trigger the panel — just let trade monitoring continue.
     if (mentorState.exampleTradeActive) return;
 
     const shown = generateSetupMessageWithExampleTrade(setupData, currentBar);
@@ -9813,7 +9813,7 @@ function _buildSetupDetectedMessage(currentBar) {
   // Only redraw annotations when:
   //   (a) Stage advances (new confluences to reveal), OR
   //   (b) User scrubs BACKWARD (future annotations must disappear)
-  // Never redraw on every forward candle â€” annotations lock once placed.
+  // Never redraw on every forward candle — annotations lock once placed.
   const lastStage = mentorState._lastAnnotateStage || 0;
   const lastBar   = mentorState._lastAnnotateBar   || 9999;
   const scrubBack = currentBar < lastBar - 1;
@@ -9826,7 +9826,7 @@ function _buildSetupDetectedMessage(currentBar) {
     mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
     _mentorAnnotateSetup(mentorState.upcomingSetup.setup, currentBar, setupBar);
   } else if (!mentorState._lastAnnotateBar) {
-    // First time â€” always draw stage 1
+    // First time — always draw stage 1
     mentorState._lastAnnotateBar   = currentBar;
     mentorState._lastAnnotateStage = annStage;
     mentorState._tradeSetupData = { setup: mentorState.upcomingSetup.setup, setupBar, anchorBar: currentBar };
@@ -9835,7 +9835,7 @@ function _buildSetupDetectedMessage(currentBar) {
 
   // Progressive panel messages that match the annotation steps
   const step = barsAway > 35 ? 1 : barsAway > 20 ? 2 : 3;
-  const dirHint = direction === 'long' ? 'ðŸ“ˆ Bias: LONG' : direction === 'short' ? 'ðŸ“‰ Bias: SHORT' : '';
+  const dirHint = direction === 'long' ? '📈 Bias: LONG' : direction === 'short' ? '📉 Bias: SHORT' : '';
 
   const stepMessages = {
     1: {
@@ -9868,7 +9868,7 @@ function _buildSetupDetectedMessage(currentBar) {
   mentorState.currentInsights = msg.insights.filter(Boolean);
   mentorState.currentQuestion = msg.question;
 
-  // Fetch AI proximity hint (cached â€” one call only)
+  // Fetch AI proximity hint (cached — one call only)
   const upcomingSetup = mentorState.upcomingSetup;
   if (upcomingSetup && barsAway <= 30 && !mentorState._proximityHintCache) {
     _mentorAIProximityHint(upcomingSetup.setup, upcomingSetup.bar, currentBar).then(hint => {
@@ -9876,7 +9876,7 @@ function _buildSetupDetectedMessage(currentBar) {
       if (hint) {
         mentorState.currentInsights = [
           ...msg.insights.filter(Boolean),
-          `ðŸ’¬ ${hint.trim()}`,
+          `💬 ${hint.trim()}`,
         ];
         updateMentorUI();
       }
@@ -9931,13 +9931,13 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   }[method] || method;
 
   if (foundBar < 0) {
-    // Nothing found even in 500-bar lookahead â€” show restart button (use raw HTML string so the button renders)
+    // Nothing found even in 500-bar lookahead — show restart button (use raw HTML string so the button renders)
     mentorState.currentInsights = `
-      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">ðŸ” Scanning for a <strong>${methodLabel}</strong> setup...</div>
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">� Scanning for a <strong>${methodLabel}</strong> setup...</div>
       <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:12px;">No qualifying setup found within the remaining replay data.</div>
       <button onclick="startReplayPicking()" style="padding:6px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:#a5b4fc;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;margin-right:8px;"
         onmouseover="this.style.background='rgba(99,102,241,.22)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">
-        â† Pick Earlier Bar
+        � Pick Earlier Bar
       </button>
       <span style="font-size:10px;color:var(--tx3);">or try a different strategy</span>
     `;
@@ -9947,32 +9947,32 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
 
   const barsAway = foundBar - currentBar;
 
-  // Give a deliberately vague hint â€” ranges, not exact numbers
+  // Give a deliberately vague hint — ranges, not exact numbers
   let proximity;
-  if      (barsAway <= 25)  proximity = 'very close â€” the mentor will pause replay shortly';
-  else if (barsAway <= 60)  proximity = 'approaching â€” roughly 25â€“60 candles ahead';
-  else if (barsAway <= 120) proximity = 'forming â€” somewhere in the next 60â€“120 candles';
-  else if (barsAway <= 250) proximity = 'developing â€” estimated 120â€“250 candles ahead';
-  else                      proximity = 'distant â€” well ahead in the replay session';
+  if      (barsAway <= 25)  proximity = 'very close — the mentor will pause replay shortly';
+  else if (barsAway <= 60)  proximity = 'approaching — roughly 25–60 candles ahead';
+  else if (barsAway <= 120) proximity = 'forming — somewhere in the next 60–120 candles';
+  else if (barsAway <= 250) proximity = 'developing — estimated 120–250 candles ahead';
+  else                      proximity = 'distant — well ahead in the replay session';
 
   const directionHint = (() => {
     try {
       const sd = detectStructuredSetups(curData.slice(0, foundBar + 1), foundBar,
                    method !== 'none' ? method : undefined);
-      if (sd.direction === 'long')  return 'ðŸ“ˆ Potential long opportunity forming.';
-      if (sd.direction === 'short') return 'ðŸ“‰ Potential short opportunity forming.';
+      if (sd.direction === 'long')  return '📈 Potential long opportunity forming.';
+      if (sd.direction === 'short') return '📉 Potential short opportunity forming.';
     } catch(e) {}
     return '';
   })();
 
   mentorState.currentInsights = [
-    `ðŸ” Scanning for ${methodLabel} criteria...`,
+    `� Scanning for ${methodLabel} criteria...`,
     `A qualifying setup is ${proximity}.`,
     directionHint,
   ].filter(Boolean);
 
   mentorState.currentQuestion =
-    'Keep the replay running â€” the mentor will pause when the setup begins to materialise. You can also continue manually.';
+    'Keep the replay running — the mentor will pause when the setup begins to materialise. You can also continue manually.';
 }
 
 function getAdaptiveScanWindow() {
@@ -9994,7 +9994,7 @@ function getAdaptiveScanWindow() {
   return Math.floor((window.min + window.max) / 2); // Use average
 }
 
-// Cache for last window scan â€” avoids re-running 4000 detection calls every bar
+// Cache for last window scan — avoids re-running 4000 detection calls every bar
 let _scanCache = { bar: -1, result: null, method: null };
 
 function scanForSetupsInWindow(currentBar) {
@@ -10016,9 +10016,9 @@ function scanForSetupsInWindow(currentBar) {
   let bestSetup    = { setup: 'none', quality: 'none', confluence: 0 };
   let bestSetupBar = -1;
 
-  // Step every 2 bars â€” detection functions look back 20-50 bars so nothing meaningful
+  // Step every 2 bars — detection functions look back 20-50 bars so nothing meaningful
   // can form and disappear within 2 bars. This halves the scan cost immediately.
-  // Exit early when a high-confluence (3+) setup is found â€” scanning further only
+  // Exit early when a high-confluence (3+) setup is found — scanning further only
   // finds marginally different setups, not worthwhile at O(n) cost.
   for (let bar = windowStart; bar <= windowEnd; bar += 2) {
     try {
@@ -10033,7 +10033,7 @@ function scanForSetupsInWindow(currentBar) {
       if (sd.confluence > bestSetup.confluence) {
         bestSetup    = sd;
         bestSetupBar = bar;
-        if (bestSetup.confluence >= 3) break; // good enough â€” stop scanning
+        if (bestSetup.confluence >= 3) break; // good enough — stop scanning
       }
     } catch (e) { /* skip bad bar */ }
   }
@@ -10094,7 +10094,7 @@ function generateTradeSuccessExplanation() {
   const review = generateStructuredTradeReview(simulatedTrade, outcome, currentBar, isUserTrade);
   
   if (!review) {
-    console.error('âŒ Failed to generate structured review');
+    console.error('�� Failed to generate structured review');
     return;
   }
   
@@ -10103,21 +10103,21 @@ function generateTradeSuccessExplanation() {
   
   // Header based on outcome
   if (result.outcome === 'win') {
-    insights.push('ðŸŽ‰ **TRADE COMPLETED SUCCESSFULLY**');
-    insights.push(`âœ… Take profit reached at ${result.takeProfit.toFixed(4)}`);
-    insights.push(`ðŸ“ˆ Profit: ${result.profit.toFixed(2)} ${_mentorPriceUnit()}`);
-    insights.push(`â±ï¸ Duration: ${result.duration} bars`);
-    insights.push(`ðŸ“Š Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
+    insights.push('🎉 **TRADE COMPLETED SUCCESSFULLY**');
+    insights.push(`✅ Take profit reached at ${result.takeProfit.toFixed(4)}`);
+    insights.push(`📈 Profit: ${result.profit.toFixed(2)} ${_mentorPriceUnit()}`);
+    insights.push(`��� Duration: ${result.duration} bars`);
+    insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
   } else if (result.outcome === 'loss') {
-    insights.push('ðŸ“Š **TRADE COMPLETED WITH LOSS**');
-    insights.push(`âŒ Stop loss hit at ${result.stopLoss.toFixed(4)}`);
-    insights.push(`ðŸ“‰ Loss: ${Math.abs(result.profit).toFixed(2)} ${_mentorPriceUnit()}`);
-    insights.push(`â±ï¸ Duration: ${result.duration} bars`);
-    insights.push(`ðŸ“Š Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
+    insights.push('📊 **TRADE COMPLETED WITH LOSS**');
+    insights.push(`�� Stop loss hit at ${result.stopLoss.toFixed(4)}`);
+    insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} ${_mentorPriceUnit()}`);
+    insights.push(`��� Duration: ${result.duration} bars`);
+    insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
   } else {
-    insights.push('â±ï¸ **TRADE EXPIRED**');
-    insights.push('ðŸ“Š Neither target reached within expected timeframe');
-    insights.push(`â±ï¸ Duration: ${result.duration} bars`);
+    insights.push('��� **TRADE EXPIRED**');
+    insights.push('📊 Neither target reached within expected timeframe');
+    insights.push(`��� Duration: ${result.duration} bars`);
   }
   
   // Add structured educational sections
@@ -10131,11 +10131,11 @@ function generateTradeSuccessExplanation() {
   // Build question based on outcome
   let question = '';
   if (result.outcome === 'win') {
-    question = 'ðŸŽ“ **Excellent trade execution!** This structured review shows why the setup worked. Ready to find another opportunity?';
+    question = '🎓 **Excellent trade execution!** This structured review shows why the setup worked. Ready to find another opportunity?';
   } else if (result.outcome === 'loss') {
-    question = 'ðŸŽ“ **Important learning opportunity!** Review the analysis above to understand what happened. Ready to continue scanning?';
+    question = '🎓 **Important learning opportunity!** Review the analysis above to understand what happened. Ready to continue scanning?';
   } else {
-    question = 'ðŸŽ“ **This trade expired without reaching targets.** Sometimes markets move sideways. Ready to continue?';
+    question = '🎓 **This trade expired without reaching targets.** Sometimes markets move sideways. Ready to continue?';
   }
   
   // Update mentor state
@@ -10159,19 +10159,19 @@ function pauseReplayForTradeCompletion() {
     // Update replay button to show paused state
     const replayBtn = document.getElementById('replay-play-btn');
     if (replayBtn) {
-      replayBtn.innerHTML = 'â–¶ï¸';
+      replayBtn.innerHTML = '▶�';
     }
     
-    toast('â¸ï¸ Auto-paused - trade completed successfully');
+    toast('��� Auto-paused - trade completed successfully');
   }
 }
 
 // NOTE: the authoritative continueReplayAfterTradeCompletion is defined earlier
 // in the file (the first definition). This second definition was a stale duplicate
 // that won via JS hoisting and didn't reset the annotation/cache state, causing
-// annotations to not appear on the second trade. Removed â€” first definition handles all.
+// annotations to not appear on the second trade. Removed — first definition handles all.
 
-// â•â• LIFECYCLE HELPER FUNCTIONS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� LIFECYCLE HELPER FUNCTIONS �����������������������������������������������������������
 
 function isSetupStillValid(currentBar) {
   if (!mentorState.setupWaitData || !curData) return false;
@@ -10345,9 +10345,9 @@ function generateTradeMonitoringCommentary(currentBar) {
     Math.abs(trade.takeProfit - currentPrice) / entryPrice;
   
   if (distanceToSL < 0.01) {
-    commentary.push("âš ï¸ Price is approaching stop loss level.");
+    commentary.push("⚠� Price is approaching stop loss level.");
   } else if (distanceToTP < 0.01) {
-    commentary.push("ðŸŽ¯ Price is approaching take profit level.");
+    commentary.push("🎯 Price is approaching take profit level.");
   }
   
   mentorState.currentInsights = commentary;
@@ -10363,34 +10363,34 @@ function generateTradeResultEvaluation(tradeResult) {
   let evaluation = [];
   
   if (outcome === 'take_profit') {
-    evaluation.push("ðŸŽ¯ Trade Outcome: Take Profit Reached.");
+    evaluation.push("🎯 Trade Outcome: Take Profit Reached.");
     evaluation.push("The setup performed as expected and reached the target.");
     
     // Evaluate entry timing
     const entryQuality = trade.evaluation?.entryQuality?.score || 70;
     if (entryQuality >= 80) {
-      evaluation.push("âœ… Entry timing was excellent with good risk management.");
+      evaluation.push("✅ Entry timing was excellent with good risk management.");
     } else {
-      evaluation.push("âš ï¸ Entry could have been optimized for better timing.");
+      evaluation.push("⚠� Entry could have been optimized for better timing.");
     }
     
   } else {
-    evaluation.push("â›” Trade Outcome: Stop Loss Hit.");
+    evaluation.push("⛔ Trade Outcome: Stop Loss Hit.");
     evaluation.push("The setup failed and price moved against the position.");
     
     // Analyze what went wrong
-    evaluation.push("ðŸ“‹ Review: Market conditions may have changed after entry.");
-    evaluation.push("ðŸ’¡ Learning: Consider waiting for stronger confirmation in similar setups.");
+    evaluation.push("📋 Review: Market conditions may have changed after entry.");
+    evaluation.push("💡 Learning: Consider waiting for stronger confirmation in similar setups.");
   }
   
   mentorState.currentInsights = evaluation;
   mentorState.currentQuestion = "Trade completed. Returning to market scanning...";
 }
 
-// â•â• AI-POWERED MENTOR ENGINE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AI-POWERED MENTOR ENGINE �������������������������������������������������
 // Replaces hardcoded string analysis with real Groq AI responses.
 // Three phases:  (1) Setup analysis  (2) Live trade narration  (3) Post-trade debrief
-// The client-side detection still decides WHEN to pause â€” Groq decides WHAT to say.
+// The client-side detection still decides WHEN to pause — Groq decides WHAT to say.
 
 // Build a compact market snapshot (last N bars of OHLCV + key indicators) to send to Groq.
 // Kept small so it fits in the model's context without wasting tokens.
@@ -10413,7 +10413,7 @@ function _buildMentorContext(barIndex, numBars = 20) {
   const ema21   = ema21arr[n]?.toFixed(4) || 'N/A';
   const isCrypto = _isCrypto();
 
-  // â”€â”€ Volatility regime: compare recent 5-bar ATR to 20-bar ATR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Volatility regime: compare recent 5-bar ATR to 20-bar ATR ────────────
   // Tells the AI whether stops need extra room and whether breakouts are genuine
   let volRegime = 'stable';
   if (data.length >= 20) {
@@ -10441,7 +10441,7 @@ function _buildMentorContext(barIndex, numBars = 20) {
   };
 }
 
-// Phase 1 â€” Setup analysis: called when the mentor pauses 15 bars before a setup.
+// Phase 1 — Setup analysis: called when the mentor pauses 15 bars before a setup.
 // Returns a short AI-written breakdown of why this setup qualifies.
 async function _mentorAISetupAnalysis(setupDetection, barIndex) {
   const ctx = _buildMentorContext(barIndex, 25);
@@ -10451,25 +10451,25 @@ async function _mentorAISetupAnalysis(setupDetection, barIndex) {
   const lessonFocus = mentorLessonFocusPrompt();
 
   const methodDescriptions = {
-    breakout:           'breakout from consolidation â€” body close beyond zone, volume > 20-bar avg, measured-move target',
-    trend:              'trend continuation (flag/pullback) â€” impulse > 2Ã—ATR, low-vol pullback, EMA still fanned',
-    support_resistance: 'S&R reaction â€” 2+ tested level, rejection wick > body, confirmation candle required',
-    pullback:           'pullback to 38â€“62% Fib zone with EMA confluence, volume contracting, trigger candle needed',
-    range:              'range boundary reaction â€” 3+ boundary touches, midpoint avoidance, coiling before breakout',
-    liquidity:          'liquidity sweep â€” wick beyond swing H/L, displacement candle after sweep, target opposing pool',
+    breakout:           'breakout from consolidation — body close beyond zone, volume > 20-bar avg, measured-move target',
+    trend:              'trend continuation (flag/pullback) — impulse > 2×ATR, low-vol pullback, EMA still fanned',
+    support_resistance: 'S&R reaction — 2+ tested level, rejection wick > body, confirmation candle required',
+    pullback:           'pullback to 38–62% Fib zone with EMA confluence, volume contracting, trigger candle needed',
+    range:              'range boundary reaction — 3+ boundary touches, midpoint avoidance, coiling before breakout',
+    liquidity:          'liquidity sweep — wick beyond swing H/L, displacement candle after sweep, target opposing pool',
   };
   const methodDesc = methodDescriptions[ctx.method] || ctx.method;
   const cryptoNote = ctx.isCrypto
-    ? 'Asset type: CRYPTO â€” liquidity sweeps are deliberate stop hunts, false breakouts common, round numbers are key S&R, funding rates affect trend continuation.'
+    ? 'Asset type: CRYPTO — liquidity sweeps are deliberate stop hunts, false breakouts common, round numbers are key S&R, funding rates affect trend continuation.'
     : '';
 
   const volNote = ctx.volRegime === 'expanding'
-    ? 'VOLATILITY NOTE: ATR is expanding â€” stops need more room and breakouts can overshoot before reversing.'
+    ? 'VOLATILITY NOTE: ATR is expanding — stops need more room and breakouts can overshoot before reversing.'
     : ctx.volRegime === 'contracting'
-    ? 'VOLATILITY NOTE: ATR is contracting â€” price is coiling, a sharp move could come from either direction.'
+    ? 'VOLATILITY NOTE: ATR is contracting — price is coiling, a sharp move could come from either direction.'
     : '';
 
-  // Pass 1 verdict context â€” LLM narrates the decision, not makes it
+  // Pass 1 verdict context — LLM narrates the decision, not makes it
   const v = setupDetection.validation?.verdict;
   const verdictLine = v ? `VALIDATOR VERDICT: ${v.verdict} (score ${v.qualityScore}/100) | R:R ${setupDetection.validation.riskReward?.toFixed(2) || '?'}:1 | ${v.timing}
 STRENGTHS: ${v.strengths.join('; ') || 'none noted'}
@@ -10478,26 +10478,26 @@ WEAKNESSES: ${v.weaknesses.join('; ') || 'none noted'}` : '';
   // Historical context from similar past setups
   const historicalContext = buildHistoricalContext(mentorState._historySimilarCases || []);
   const histNote = historicalContext
-    ? `HISTORICAL CONTEXT:\n${historicalContext}\nFactor the historical win rate into your tone â€” if past similar setups performed well, reflect that confidence.`
+    ? `HISTORICAL CONTEXT:\n${historicalContext}\nFactor the historical win rate into your tone — if past similar setups performed well, reflect that confidence.`
     : '';
   const traderMemoryNote = traderProfile?.total
     ? `TRADER MEMORY:\n${formatTraderProfileForAI(traderProfile)}\nUse this to tailor the teaching angle and the main caution for this student.`
     : '';
 
-  // Verdict-specific voice â€” each verdict has a genuinely different personality
+  // Verdict-specific voice — each verdict has a genuinely different personality
   const toneInstruction = !v ? '' :
-    v.verdict === 'Strong'  ? `VOICE: You're confident. This is a clean setup. Be direct â€” tell the student exactly what to look for and why it's high-probability. Don't hedge unnecessarily.` :
+    v.verdict === 'Strong'  ? `VOICE: You're confident. This is a clean setup. Be direct — tell the student exactly what to look for and why it's high-probability. Don't hedge unnecessarily.` :
     v.verdict === 'Decent'  ? `VOICE: Cautiously optimistic. The setup is valid but not perfect. Name the one thing holding it back, then explain why it's still worth watching.` :
-    v.verdict === 'Weak'    ? `VOICE: Honest mentor. The setup is borderline. Don't sugarcoat â€” the student deserves to know this is marginal. Explain what's missing and what would make it better.` :
+    v.verdict === 'Weak'    ? `VOICE: Honest mentor. The setup is borderline. Don't sugarcoat — the student deserves to know this is marginal. Explain what's missing and what would make it better.` :
                               `VOICE: Straightforward. Tell the student to pass on this one and exactly why.`;
 
-  const prompt = `You are a senior trading mentor briefing a student in real time. Sound like a real person â€” direct, specific, zero waffle.
+  const prompt = `You are a senior trading mentor briefing a student in real time. Sound like a real person — direct, specific, zero waffle.
 
 ${ctx.sym} | ${ctx.tf} | ${ctx.assetType} | Method: ${ctx.method} (${methodDesc})
 ${cryptoNote}
 ${volNote}
 
-PRICE DATA â€” last 25 bars (Bar 1 = oldest, Bar 25 = now):
+PRICE DATA — last 25 bars (Bar 1 = oldest, Bar 25 = now):
 ${ctx.ohlcvStr}
 
 INDICATORS: Price ${ctx.price} | ATR ${ctx.atr} | RSI ${ctx.rsi} | EMA9 ${ctx.ema9} | EMA21 ${ctx.ema21} | SMA20 ${ctx.sma20} | SMA50 ${ctx.sma50}
@@ -10512,13 +10512,13 @@ ${toneInstruction}
 
 Write ${guidance.detail === 'full' ? '5' : '4'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'Each is one punchy sentence (max 16 words).' : guidance.detail === 'full' ? 'Each is one clear teaching sentence (max 26 words).' : 'Each is one punchy sentence (max 20 words).' } Blank line between each.
 
-ðŸ” What triggered this setup â€” name the specific price action or pattern you saw
-ðŸ“ The exact level that matters and why it's significant (use the actual price number)
-ðŸ‘€ What needs to happen next to confirm the move is real
-âš ï¸ The one thing that would kill this trade â€” be specific about the price or condition
-${guidance.detail === 'full' ? 'ðŸ§  One teaching takeaway that helps the student recognise this setup again' : ''}
+� What triggered this setup — name the specific price action or pattern you saw
+� The exact level that matters and why it's significant (use the actual price number)
+👀 What needs to happen next to confirm the move is real
+⚠� The one thing that would kill this trade — be specific about the price or condition
+${guidance.detail === 'full' ? '🧠 One teaching takeaway that helps the student recognise this setup again' : ''}
 
-No intro sentence. No summary line. Start with ðŸ”.`;
+No intro sentence. No summary line. Start with �.`;
 
   try {
     return await groqFetch(prompt);
@@ -10527,7 +10527,7 @@ No intro sentence. No summary line. Start with ðŸ”.`;
   }
 }
 
-// Phase 2 â€” Trade placement briefing: called when AI places the trade levels.
+// Phase 2 — Trade placement briefing: called when AI places the trade levels.
 // Returns a short AI explanation of the specific entry, SL and TP chosen.
 async function _mentorAITradePlacement(trade, barIndex, _genAtCall) {
   const ctx = _buildMentorContext(barIndex, 15);
@@ -10536,7 +10536,7 @@ async function _mentorAITradePlacement(trade, barIndex, _genAtCall) {
   const traderProfile = getTraderProfile?.();
   const lessonFocus = mentorLessonFocusPrompt();
 
-  // Stale guard â€” if setup changed while Groq was processing, discard
+  // Stale guard — if setup changed while Groq was processing, discard
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
 
   // Pass 1 verdict context so LLM narrates the decision, not makes it
@@ -10548,15 +10548,15 @@ ${p1.verdict.weaknesses.length ? `WATCH OUT: ${p1.verdict.weaknesses.join('; ')}
     : '';
 
   const volNote2 = ctx.volRegime === 'expanding'
-    ? 'VOLATILITY: ATR expanding â€” the stop placement at ' + trade.stopLoss.toFixed(4) + ' needs to account for wider wicks than usual.'
+    ? 'VOLATILITY: ATR expanding — the stop placement at ' + trade.stopLoss.toFixed(4) + ' needs to account for wider wicks than usual.'
     : ctx.volRegime === 'contracting'
-    ? 'VOLATILITY: ATR contracting â€” price is tight, which makes this entry cleaner but watch for a false start.'
+    ? 'VOLATILITY: ATR contracting — price is tight, which makes this entry cleaner but watch for a false start.'
     : '';
 
   const toneNote = p1?.verdict?.verdict === 'Strong'
     ? 'VOICE: Confident. Walk the student through this like it\'s a textbook trade. Name what\'s working.'
     : p1?.verdict?.verdict === 'Decent'
-    ? 'VOICE: Measured. The trade is on â€” but flag the one gap or risk without making the student second-guess the whole thing.'
+    ? 'VOICE: Measured. The trade is on — but flag the one gap or risk without making the student second-guess the whole thing.'
     : p1?.verdict?.verdict === 'Weak'
     ? 'VOICE: Honest. Explain the trade levels clearly, but make sure the student understands this is borderline and why.'
     : 'VOICE: Clear and factual.';
@@ -10564,7 +10564,7 @@ ${p1.verdict.weaknesses.length ? `WATCH OUT: ${p1.verdict.weaknesses.join('; ')}
     ? `TRADER MEMORY: ${formatTraderProfileForAI(traderProfile)} Use this to point out whether this kind of placement fits or clashes with the student's habits.`
     : '';
 
-  const prompt = `You are a senior trading mentor. The student just clicked "show me the trade." Walk them through it like a real person â€” tight, specific, no fluff.
+  const prompt = `You are a senior trading mentor. The student just clicked "show me the trade." Walk them through it like a real person — tight, specific, no fluff.
 
 ${ctx.sym} ${ctx.tf} | ${trade.direction.toUpperCase()} | ${ctx.method} strategy
 Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)} | R:R: ${trade.riskReward.toFixed(2)}:1 | ATR: ${ctx.atr}
@@ -10580,12 +10580,12 @@ ${toneNote}
 
 Write ${guidance.detail === 'full' ? '4' : '3'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'One sentence each (max 16 words).' : guidance.detail === 'full' ? 'One clear sentence each (max 24 words).' : 'One sentence each (max 20 words).' } Blank line between each.
 
-ðŸŽ¯ Why this entry at ${trade.entry.toFixed(4)} â€” what price structure or signal put us here
-ðŸ›¡ï¸ Why the stop is at ${trade.stopLoss.toFixed(4)} â€” what level structurally breaks the trade idea
-ðŸ† What ${trade.takeProfit.toFixed(4)} represents â€” name the structure, measured move, or liquidity level
-${guidance.detail === 'full' ? 'ðŸ§  One reminder about what this student personally tends to get right or wrong in trades like this' : ''}
+🎯 Why this entry at ${trade.entry.toFixed(4)} — what price structure or signal put us here
+🛡� Why the stop is at ${trade.stopLoss.toFixed(4)} — what level structurally breaks the trade idea
+�� What ${trade.takeProfit.toFixed(4)} represents — name the structure, measured move, or liquidity level
+${guidance.detail === 'full' ? '🧠 One reminder about what this student personally tends to get right or wrong in trades like this' : ''}
 
-No intro. Start with ðŸŽ¯.`;
+No intro. Start with 🎯.`;
 
   try {
     return await groqFetch(prompt);
@@ -10594,7 +10594,7 @@ No intro. Start with ðŸŽ¯.`;
   }
 }
 
-// Phase 3 â€” Post-trade debrief: called when trade hits TP or SL.
+// Phase 3 — Post-trade debrief: called when trade hits TP or SL.
 // Returns educational commentary on what worked or what failed.
 async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall) {
   const ctx = _buildMentorContext(currentBar, 30);
@@ -10603,7 +10603,7 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall)
   const traderProfile = getTraderProfile?.();
   const lessonFocus = mentorLessonFocusPrompt();
 
-  // Stale guard â€” discard if a new setup started while Groq was processing
+  // Stale guard — discard if a new setup started while Groq was processing
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
 
   const isWin    = outcome === 'take_profit';
@@ -10615,35 +10615,35 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall)
     ? `PRE-TRADE SCORES: Quality ${p1.scores.qualityScore}/100 | R:R score ${p1.scores.rrScore} | Confluence ${p1.scores.confluenceScore} | Structure ${p1.scores.structureScore} | Timing ${p1.scores.timingScore}`
     : '';
   const verdictLine = p1?.verdict
-    ? `PRE-TRADE VERDICT: ${p1.verdict.verdict} â€” ${p1.verdict.advice}`
+    ? `PRE-TRADE VERDICT: ${p1.verdict.verdict} — ${p1.verdict.advice}`
     : '';
   const weaknessLine = p1?.verdict?.weaknesses?.length
     ? `PRE-TRADE WEAKNESSES FLAGGED: ${p1.verdict.weaknesses.join('; ')}`
     : '';
 
   const barRefInstruction = !isWin
-    ? `IMPORTANT: Reference specific bars from the price data above by number (e.g. "Bar 22 showed a long wick rejecting the level" or "look at Bar 18 â€” that's where momentum stalled"). This makes the debrief concrete and actionable.`
+    ? `IMPORTANT: Reference specific bars from the price data above by number (e.g. "Bar 22 showed a long wick rejecting the level" or "look at Bar 18 — that's where momentum stalled"). This makes the debrief concrete and actionable.`
     : '';
 
   const volNote3 = ctx.volRegime === 'expanding'
-    ? `Volatility was expanding during this trade (ATR ${ctx.atr}) â€” factor that into your SL assessment.`
+    ? `Volatility was expanding during this trade (ATR ${ctx.atr}) — factor that into your SL assessment.`
     : ctx.volRegime === 'contracting'
-    ? `Volatility was contracting during this trade â€” tight price action meant signals were cleaner.`
+    ? `Volatility was contracting during this trade — tight price action meant signals were cleaner.`
     : '';
 
   const toneInstruction3 = isWin
-    ? `VOICE: Positive reinforcement. Celebrate what worked â€” name the specific confluences that delivered. Then give one thing to sharpen for next time. Be a coach, not just a commentator.`
+    ? `VOICE: Positive reinforcement. Celebrate what worked — name the specific confluences that delivered. Then give one thing to sharpen for next time. Be a coach, not just a commentator.`
     : weaknessLine
-    ? `VOICE: Honest and constructive. The pre-trade analysis already flagged weaknesses. If they contributed to the loss, say so directly â€” don't soften it. Frame it as: "we knew this risk going in, here's what it looked like in the bars." Every losing trade is data.`
+    ? `VOICE: Honest and constructive. The pre-trade analysis already flagged weaknesses. If they contributed to the loss, say so directly — don't soften it. Frame it as: "we knew this risk going in, here's what it looked like in the bars." Every losing trade is data.`
     : `VOICE: Constructive mentor. Don't catastrophise, but don't sugarcoat either. Find the specific moment in the price data where the trade broke down and name it. Give one actionable rule to take away.`;
   const traderMemoryNote = traderProfile?.total
     ? `TRADER MEMORY: ${formatTraderProfileForAI(traderProfile)} Use this to connect the lesson back to the student's real strengths or repeated mistakes.`
     : '';
 
-  const prompt = `You are a senior trading mentor. The student just finished a trade. Debrief them like a real coach â€” specific, honest, grounded in what the price actually did.
+  const prompt = `You are a senior trading mentor. The student just finished a trade. Debrief them like a real coach — specific, honest, grounded in what the price actually did.
 
-${ctx.sym} ${ctx.tf} | ${isWin ? 'âœ… WIN' : 'âŒ LOSS'} | ${setupType} setup | ${ctx.method} strategy
-Entry ${trade.entry.toFixed(4)} â†’ SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1 | ATR ${ctx.atr}
+${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN' : '�� LOSS'} | ${setupType} setup | ${ctx.method} strategy
+Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1 | ATR ${ctx.atr}
 ${scoreLine}
 ${verdictLine}
 ${weaknessLine}
@@ -10651,7 +10651,7 @@ ${volNote3}
 ${traderMemoryNote}
 LESSON FOCUS: ${lessonFocus}
 
-Price action â€” last 30 bars (Bar 1 = oldest, Bar 30 = most recent):
+Price action — last 30 bars (Bar 1 = oldest, Bar 30 = most recent):
 ${ctx.ohlcvStr}
 
 ${toneInstruction3}
@@ -10659,13 +10659,13 @@ ${barRefInstruction}
 
 Write ${guidance.detail === 'full' ? '5' : '4'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'One punchy sentence each (max 18 words).' : guidance.detail === 'full' ? 'One clear coaching sentence each (max 26 words).' : 'One punchy sentence each (max 22 words).' } Blank line between each.
 
-${isWin ? 'âœ…' : 'âŒ'} Did the core ${setupType} thesis play out â€” what specifically confirmed or broke it?
-ðŸ“Š Name the strongest confluence in this trade and whether it actually mattered to the outcome
-ðŸ’¡ One specific, actionable rule the student should take away from this trade
-âš–ï¸ Was the stop at ${trade.stopLoss.toFixed(4)} structurally correct â€” or should it have been placed differently?
-${guidance.detail === 'full' ? "ðŸ§  One note tying this lesson back to the student's own trading habits" : ''}
+${isWin ? '✅' : '��'} Did the core ${setupType} thesis play out — what specifically confirmed or broke it?
+📊 Name the strongest confluence in this trade and whether it actually mattered to the outcome
+💡 One specific, actionable rule the student should take away from this trade
+⚖� Was the stop at ${trade.stopLoss.toFixed(4)} structurally correct — or should it have been placed differently?
+${guidance.detail === 'full' ? "🧠 One note tying this lesson back to the student's own trading habits" : ''}
 
-No intro. Start with ${isWin ? 'âœ…' : 'âŒ'}.`;
+No intro. Start with ${isWin ? '✅' : '��'}.`;
 
   try {
     return await groqFetch(prompt);
@@ -10674,7 +10674,7 @@ No intro. Start with ${isWin ? 'âœ…' : 'âŒ'}.`;
   }
 }
 
-// Phase 0 â€” Proximity message: short AI hint while approaching the setup.
+// Phase 0 — Proximity message: short AI hint while approaching the setup.
 // Cached per setup so it's only fetched once.
 async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
   if (mentorState._proximityHintCache) return mentorState._proximityHintCache;
@@ -10685,9 +10685,9 @@ async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
   const guidance = mentorGuidanceLevelMeta();
   const lessonFocus = mentorLessonFocusPrompt();
 
-  const prompt = `Trading mentor hint â€” ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}. Lesson focus: ${lessonFocus}
+  const prompt = `Trading mentor hint — ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}. Lesson focus: ${lessonFocus}
 
-Write one short sentence (${guidance.detail === 'tight' ? 'max 14 words' : guidance.detail === 'full' ? 'max 24 words' : 'max 20 words'}) â€” what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
+Write one short sentence (${guidance.detail === 'tight' ? 'max 14 words' : guidance.detail === 'full' ? 'max 24 words' : 'max 20 words'}) — what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
 
   try {
     const hint = await groqFetch(prompt);
@@ -10706,7 +10706,7 @@ function updateMentor() {
   // Check if we have data to analyze
   if (!curData || curData.length === 0) {
     if (mentorState.currentInsights) {
-      mentorState.currentInsights = ['ðŸ”„ Loading market data...'];
+      mentorState.currentInsights = ['🔄 Loading market data...'];
       mentorState.currentQuestion = 'Waiting for data to become available...';
       updateMentorUI();
     }
@@ -10728,7 +10728,7 @@ function updateMentor() {
     if (barsSinceNoSetup > 0 && mentorState._noSetupFoundBar > 0) {
       // Update the message with the current bar so distance counts down live
       _buildNoSetupMessage(currentBar, mentorState._noSetupFoundBar, mentorState.selectedTradingMethod || 'none');
-      // Transition to setup_detected when within 25 bars â€” matches the early warning
+      // Transition to setup_detected when within 25 bars — matches the early warning
       // threshold so the pause fires promptly instead of 20 bars after "very close" appears.
       const barsToSetup = mentorState._noSetupFoundBar - currentBar;
       if (barsToSetup <= 25) {
@@ -10739,7 +10739,7 @@ function updateMentor() {
           enterSetupDetectedState({ setup: sd, bar: currentBar, windowSize: 0 });
           return;
         }
-        // Setup not detected at current bar yet â€” re-scan forward to find exact bar
+        // Setup not detected at current bar yet — re-scan forward to find exact bar
         const ws = scanForSetupsInWindow(currentBar);
         if (ws.setup.setup !== 'none' && ws.bar > currentBar) {
           mentorState._noSetupFoundBar = -1;
@@ -10799,21 +10799,21 @@ function updateMentor() {
       detectReplayTradePlacement();
 
       // Cooldown: minimum 30 bars between setup suggestions.
-      // Return immediately â€” no DOM work, no scan.
+      // Return immediately — no DOM work, no scan.
       const barsSinceLast = currentBar - (mentorState.lastTradeSuggestionBar || -999);
       if (barsSinceLast < 30) {
         updateMentorUIWithCooldown(30 - barsSinceLast);
         return;
       }
 
-      // analyzeMarketData runs EMAs, SMAs, RSI, MACD â€” cache it by bar
+      // analyzeMarketData runs EMAs, SMAs, RSI, MACD — cache it by bar
       if (!mentorState._analysisCache || mentorState._analysisCache.bar !== currentBar) {
         mentorState._analysisCache = { bar: currentBar, data: analyzeMarketData(currentBar) };
       }
       mentorState.analysis = mentorState._analysisCache.data;
       
       if (!mentorState.analysis) {
-        mentorState.currentInsights = ['âš ï¸ Analysis temporarily unavailable'];
+        mentorState.currentInsights = ['⚠� Analysis temporarily unavailable'];
         mentorState.currentQuestion = 'Please try advancing a few more candles...';
         updateMentorUI();
         return;
@@ -10846,7 +10846,7 @@ function updateMentor() {
         }
         
       } catch (error) {
-        console.error('âŒ Setup detection failed:', error);
+        console.error('�� Setup detection failed:', error);
         // NO FALLBACK - AI only places trades with future data validation
         // Set to no setup to prevent invalid trades
         setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
@@ -10862,19 +10862,19 @@ function updateMentor() {
           enterSetupDetectedState(windowScan);
           return;
         } else {
-          // Setup is at current bar â€” pre-validate before committing to setup_wait.
+          // Setup is at current bar — pre-validate before committing to setup_wait.
           // generateSetupMessageWithExampleTrade returns false if trade levels are
           // not achievable; in that case we silently skip and keep scanning.
 
           const shown = generateSetupMessageWithExampleTrade(setupDetection, currentBar);
 
           if (!shown) {
-            // Trade levels not achievable â€” treat as no setup, keep scanning
+            // Trade levels not achievable — treat as no setup, keep scanning
             mentorState.lastTradeSuggestionBar = currentBar;
             return;
           }
 
-          // Panel shown â€” now lock state and pause replay
+          // Panel shown — now lock state and pause replay
           setMentorState('setup_wait', 'live setup detected at current bar');
           mentorState.setupWaitStart = currentBar;
           mentorState.setupWaitData = setupDetection;
@@ -10894,10 +10894,10 @@ function updateMentor() {
         const windowScan = scanForSetupsInWindow(currentBar);
         
         if (windowScan.setup.setup === 'none' || windowScan.bar <= currentBar) {
-          // No setups found ahead â€” enter waiting state
+          // No setups found ahead — enter waiting state
           enterNoSetupState(currentBar);
         } else {
-          // Found a setup AHEAD â€” hide location and enter setup_detected state
+          // Found a setup AHEAD — hide location and enter setup_detected state
           enterSetupDetectedState(windowScan);
         }
       }
@@ -10906,7 +10906,7 @@ function updateMentor() {
     } else {
       // Not enough data yet
       const neededBars = 50 - currentBar;
-      mentorState.currentInsights = [`ðŸ“Š Building analysis data... ${neededBars} more bars needed`];
+      mentorState.currentInsights = [`📊 Building analysis data... ${neededBars} more bars needed`];
       mentorState.currentQuestion = 'Waiting for sufficient data for accurate analysis...';
       updateMentorUI();
     }
@@ -10929,7 +10929,7 @@ function updateMentorUIWithCooldown(candlesRemaining) {
   const analysis = mentorState.analysis;
   const trend = analysis?.structure?.trend?.replace(/_/g, ' ') || null;
   const lines = [
-    `ðŸ” Scanning for ${methodLabel} criteria...`,
+    `� Scanning for ${methodLabel} criteria...`,
     trend ? `Market structure: ${trend}.` : 'Reading market structure...',
     `Next scan in ${candlesRemaining} bar${candlesRemaining !== 1 ? 's' : ''}.`,
   ];
@@ -10950,111 +10950,111 @@ function generateHighQualityTradeInsights(setupDetection) {
   let insights = [];
   let question = '';
 
-  // â”€â”€ Pass 1 verdict badge â€” shown FIRST so it's the headline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 1 verdict badge — shown FIRST so it's the headline ──────────────
   const v = setupDetection.validation?.verdict;
   if (v) {
-    const verdictEmoji = { Strong: 'ðŸŸ¢', Decent: 'ðŸŸ¡', Weak: 'ðŸŸ ', Reject: 'ðŸ”´' }[v.verdict] || 'âšª';
-    insights.push(`${verdictEmoji} <strong>${v.verdict} setup</strong> â€” Score: ${v.qualityScore}/100 Â· ${v.timing}`);
-    if (v.strengths.length)  insights.push(`âœ… ${v.strengths[0]}`);
-    if (v.weaknesses.length) insights.push(`âš ï¸ ${v.weaknesses[0]}`);
+    const verdictEmoji = { Strong: '🟢', Decent: '🟡', Weak: '🟠', Reject: '🔴' }[v.verdict] || '⚪';
+    insights.push(`${verdictEmoji} <strong>${v.verdict} setup</strong> — Score: ${v.qualityScore}/100 · ${v.timing}`);
+    if (v.strengths.length)  insights.push(`✅ ${v.strengths[0]}`);
+    if (v.weaknesses.length) insights.push(`⚠� ${v.weaknesses[0]}`);
   }
 
-  // â”€â”€ Common header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Common header ─────────────────────────────────────────────────────────
   insights.push(`Market structure: ${trend}`);
 
-  // â”€â”€ Method-specific analysis panel text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Method-specific analysis panel text ───────────────────────────────────
   switch (method) {
     case 'breakout': {
       const setupLabel = setupDetection.setup === 'breakout' ? 'breakout' :
                          setupDetection.setup === 'range_breakout' ? 'range breakout' : 'breakout';
-      insights.push(`ðŸ”¥ High-quality ${dir} ${setupLabel} detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`🔥 High-quality ${dir} ${setupLabel} detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoBreakoutNote = _isCrypto()
-        ? ` âš ï¸ Crypto breakout note: false breakouts are far more common in crypto due to thin liquidity. Require a higher volume bar (1.5Ã— avg minimum) and ideally wait for a retest of the broken level before entering â€” chasing the initial candle is a common mistake.`
+        ? ` ⚠� Crypto breakout note: false breakouts are far more common in crypto due to thin liquidity. Require a higher volume bar (1.5× avg minimum) and ideally wait for a retest of the broken level before entering — chasing the initial candle is a common mistake.`
         : '';
-      question = `BREAKOUT SETUP â€” Consolidation zone has been identified preceding this ${dir} move. ` +
+      question = `BREAKOUT SETUP — Consolidation zone has been identified preceding this ${dir} move. ` +
         `Confirm: (1) Is the breakout candle closing decisively above/below the level? ` +
         `(2) Is volume expanding vs the 20-bar average? ` +
         `(3) Is there a clear measured-move target? ` +
-        `Watch for a false breakout â€” look for a retest of the broken level as confirmation before committing.` + cryptoBreakoutNote;
+        `Watch for a false breakout — look for a retest of the broken level as confirmation before committing.` + cryptoBreakoutNote;
       break;
     }
     case 'trend': {
-      insights.push(`ðŸ“ˆ High-quality ${dir} trend setup detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`📈 High-quality ${dir} trend setup detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoTrendNote = _isCrypto()
-        ? ` âš¡ Crypto trend note: crypto trends move faster than forex equivalents â€” a 4H trend can behave like a weekly trend. Watch funding rates on perpetuals: strongly positive funding in an uptrend signals overleveraged longs and increases the probability of a sharp pullback even if structure looks intact.`
+        ? ` ⚡ Crypto trend note: crypto trends move faster than forex equivalents — a 4H trend can behave like a weekly trend. Watch funding rates on perpetuals: strongly positive funding in an uptrend signals overleveraged longs and increases the probability of a sharp pullback even if structure looks intact.`
         : '';
-      question = `TREND SETUP â€” ${trend} trend structure identified. ` +
+      question = `TREND SETUP — ${trend} trend structure identified. ` +
         `Check: (1) Are EMAs fanned in trend direction (20 > 50 > 200 for uptrend)? ` +
         `(2) Is price making Higher Highs / Higher Lows (uptrend) or LH/LL (downtrend)? ` +
         `(3) Is this an early, middle, or late-stage trend? ` +
-        `Only trade pullback entries in the HTF trend direction â€” avoid counter-trend trades unless a confirmed reversal exists.` + cryptoTrendNote;
+        `Only trade pullback entries in the HTF trend direction — avoid counter-trend trades unless a confirmed reversal exists.` + cryptoTrendNote;
       break;
     }
     case 'support_resistance': {
       const srType = dir === 'long' ? 'support bounce' : 'resistance rejection';
-      insights.push(`ðŸŽ¯ High-quality ${srType} detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`🎯 High-quality ${srType} detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoSRNote = _isCrypto()
-        ? ` ðŸ• Crypto S&R note: with no daily open/close, use Asia, London, and NY session highs/lows as your key reference points. Round numbers ($50k, $100k, $3000) act as powerful magnets â€” price often sweeps just beyond them to grab stops before reversing. Require at least 3 touches on crypto; 2 touches is not enough in a 24/7 market.`
+        ? ` � Crypto S&R note: with no daily open/close, use Asia, London, and NY session highs/lows as your key reference points. Round numbers ($50k, $100k, $3000) act as powerful magnets — price often sweeps just beyond them to grab stops before reversing. Require at least 3 touches on crypto; 2 touches is not enough in a 24/7 market.`
         : '';
-      question = `S&R SETUP â€” Key ${dir === 'long' ? 'support' : 'resistance'} level identified. ` +
+      question = `S&R SETUP — Key ${dir === 'long' ? 'support' : 'resistance'} level identified. ` +
         `Check: (1) How many times has price reacted at this level? (more = stronger) ` +
         `(2) Is there Fibonacci confluence (38.2%, 50%, or 61.8%)? ` +
-        `(3) Look for a confirmation candle â€” rejection wick, engulfing, or reclaim of the level. ` +
-        `Stop goes on a confirmed CLOSE beyond the level â€” a wick alone does not invalidate.` + cryptoSRNote;
+        `(3) Look for a confirmation candle — rejection wick, engulfing, or reclaim of the level. ` +
+        `Stop goes on a confirmed CLOSE beyond the level — a wick alone does not invalidate.` + cryptoSRNote;
       break;
     }
     case 'pullback': {
-      insights.push(`â†©ï¸ High-quality ${dir} pullback entry detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`↩� High-quality ${dir} pullback entry detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoPullbackNote = _isCrypto()
-        ? ` âš¡ Crypto pullback note: timeframes are compressed â€” what would be a pullback to the daily EMA in forex can happen in a few 4H candles in crypto. Shallow pullbacks (25â€“38%) are more common because momentum traders re-enter quickly. If perpetual futures funding is heavily positive on a long setup, wait for a deeper pullback before entering.`
+        ? ` ⚡ Crypto pullback note: timeframes are compressed — what would be a pullback to the daily EMA in forex can happen in a few 4H candles in crypto. Shallow pullbacks (25–38%) are more common because momentum traders re-enter quickly. If perpetual futures funding is heavily positive on a long setup, wait for a deeper pullback before entering.`
         : '';
-      question = `PULLBACK SETUP â€” Retracement into trend identified. ` +
+      question = `PULLBACK SETUP — Retracement into trend identified. ` +
         `Check: (1) Is the HTF trend intact? Only enter pullbacks in the trend direction. ` +
-        `(2) What type is this â€” shallow (20â€“38%), standard (38â€“50%), or deep (50â€“61.8%)? ` +
+        `(2) What type is this — shallow (20–38%), standard (38–50%), or deep (50–61.8%)? ` +
         `(3) Is pullback volume decreasing (healthy) or impulsive wide-range candles (reversal warning)? ` +
         `Look for a trigger candle at the pullback zone: pinbar, engulfing, or inside bar break.` + cryptoPullbackNote;
       break;
     }
     case 'range': {
       const rangeEdge = dir === 'long' ? 'support boundary' : 'resistance boundary';
-      insights.push(`ðŸ“Š High-quality range ${dir === 'long' ? 'long' : 'short'} setup at ${rangeEdge}`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`📊 High-quality range ${dir === 'long' ? 'long' : 'short'} setup at ${rangeEdge}`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoRangeNote = _isCrypto()
-        ? ` ðŸŒ Crypto range note: without a daily session close, range boundaries can shift subtly across Asia/London/NY sessions. Weekend ranges are notorious for being broken on the Monday open â€” avoid range trades entered on a Friday close. Require at least 3 touches on each boundary in crypto.`
+        ? ` � Crypto range note: without a daily session close, range boundaries can shift subtly across Asia/London/NY sessions. Weekend ranges are notorious for being broken on the Monday open — avoid range trades entered on a Friday close. Require at least 3 touches on each boundary in crypto.`
         : '';
-      question = `RANGE SETUP â€” Price is at the ${rangeEdge} of a defined range. ` +
-        `Check: (1) Are there 2â€“3 clear touches on both boundaries confirming the range? ` +
-        `(2) Avoid entering at the range midpoint â€” wait for boundary reactions. ` +
+      question = `RANGE SETUP — Price is at the ${rangeEdge} of a defined range. ` +
+        `Check: (1) Are there 2–3 clear touches on both boundaries confirming the range? ` +
+        `(2) Avoid entering at the range midpoint — wait for boundary reactions. ` +
         `(3) Look for coiling action (LH/HL inside range) which precedes a breakout. ` +
         `If price closes outside the range on volume, switch to a breakout framework.` + cryptoRangeNote;
       break;
     }
     case 'liquidity': {
-      insights.push(`ðŸ’§ Liquidity sweep + reversal setup detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`💧 Liquidity sweep + reversal setup detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoLiqNote = _isCrypto()
-        ? ` ðŸŽ¯ Crypto liquidity note: sweeps are far more deliberate and frequent in crypto due to thin order books and less regulation. Large players actively engineer stop hunts around obvious swing highs/lows and round numbers. The displacement candle after the sweep is often fast and strong â€” if you hesitate, you miss it. This is the highest-probability pattern in crypto trading.`
+        ? ` 🎯 Crypto liquidity note: sweeps are far more deliberate and frequent in crypto due to thin order books and less regulation. Large players actively engineer stop hunts around obvious swing highs/lows and round numbers. The displacement candle after the sweep is often fast and strong — if you hesitate, you miss it. This is the highest-probability pattern in crypto trading.`
         : '';
-      question = `LIQUIDITY SWEEP SETUP â€” Institutional stop-hunt pattern identified. ` +
+      question = `LIQUIDITY SWEEP SETUP — Institutional stop-hunt pattern identified. ` +
         `Check: (1) Did price wick beyond a key swing high/low to grab stops, then sharply reverse? ` +
         `(2) Is there an Order Block (last bearish candle before bullish impulse, or vice versa) nearby? ` +
-        `(3) Is there a Fair Value Gap (FVG) â€” 3-candle sequence where wick 1 and wick 3 don't overlap? ` +
+        `(3) Is there a Fair Value Gap (FVG) — 3-candle sequence where wick 1 and wick 3 don't overlap? ` +
         `Entry: after confirmed displacement candle away from the swept level. Target: opposing liquidity pool.` + cryptoLiqNote;
       break;
     }
     default: {
-      insights.push(`ðŸš€ High-quality ${dir} setup detected`);
-      insights.push(`Confluence score: ${conf}/4 â­`);
+      insights.push(`🚀 High-quality ${dir} setup detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       question = `Setup detected in ${trend} market. Confirm structure, key levels, and volume before acting.`;
     }
@@ -11082,7 +11082,7 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
 
   if (!curData) return false;
 
-  // Pre-validate from entryBar (next bar open) â€” mirrors exactly what mentorShowMeTrade does.
+  // Pre-validate from entryBar (next bar open) — mirrors exactly what mentorShowMeTrade does.
   const direction  = setupDetection.direction || 'long';
   const entryBar   = Math.min(currentBar + 1, curData.length - 1);
   const entryPrice = curData[entryBar].open;
@@ -11097,11 +11097,11 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
     return false;
   }
 
-  // Store entryBar for reference â€” do NOT cache _prevalidatedLevels here since
+  // Store entryBar for reference — do NOT cache _prevalidatedLevels here since
   // mentorShowMeTrade always recomputes fresh to avoid stale data issues.
   setupDetection._entryBar = entryBar;
 
-  // All good â€” store pending data and show the panel
+  // All good — store pending data and show the panel
   mentorState.pendingSetupDetection = setupDetection;
   mentorState.pendingSetupBar       = currentBar;
 
@@ -11119,7 +11119,7 @@ function generateSetupMessageWithExampleTrade(setupDetection, currentBar) {
   return true;
 }
 
-// Annotation preference â€” default OFF, annotations shown post-trade via debrief button only
+// Annotation preference — default OFF, annotations shown post-trade via debrief button only
 mentorState.annotationsEnabled = false;
 
 function mentorToggleAnnotations(enable) {
@@ -11154,8 +11154,8 @@ function mentorShowMeTrade() {
   const setupBar  = mentorState.pendingSetupBar;
   const direction = setupData.direction || 'long';
 
-  // â”€â”€ Use pre-validated levels computed when the question was asked â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // The entry bar is the OPEN of the bar AFTER the setup bar â€” already cached.
+  // ── Use pre-validated levels computed when the question was asked ─────────
+  // The entry bar is the OPEN of the bar AFTER the setup bar — already cached.
   const entryBar   = setupData._entryBar ?? Math.min(setupBar + 1, curData.length - 1);
   const entryPrice = curData[entryBar]?.open;
   if (!entryPrice) {
@@ -11163,7 +11163,7 @@ function mentorShowMeTrade() {
     return;
   }
 
-  // Always compute fresh â€” never use cached levels from an earlier scan
+  // Always compute fresh — never use cached levels from an earlier scan
   const futFresh = curData.slice(entryBar + 1, Math.min(entryBar + 51, curData.length));
   const levels = futFresh.length >= 5
     ? computeMentorTradeLevels(direction, entryPrice, entryBar, futFresh)
@@ -11192,7 +11192,7 @@ function mentorShowMeTrade() {
     pendingEntry: replayCutoff < entryBar,
   };
 
-  // â”€â”€ Draw the trade tool immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Draw the trade tool immediately ─────────────────────────────────────────
   // Show it now so the user can see where entry/SL/TP are on the chart.
   // The tool's halfBars is extended to cover from current position to well past entry.
   mentorState._freezeScrollForPreview = false;
@@ -11214,16 +11214,16 @@ function mentorShowMeTrade() {
   const vis2 = mc2 ? mc2.width / barWidth : 80;
   rightBarIndex = Math.round(entryBar + vis2 * 0.25);
 
-  // â”€â”€ Show immediate placeholder, fetch AI explanation async â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Show immediate placeholder, fetch AI explanation async ─────────────────
   const dirLabel  = direction === 'long' ? 'LONG' : 'SHORT';
-  const dirEmoji  = direction === 'long' ? 'ðŸ“ˆ' : 'ðŸ“‰';
+  const dirEmoji  = direction === 'long' ? '📈' : '📉';
   const rrLabel   = rr.toFixed(1);
   const setupName = (setupData.setup || 'trading').replace(/_/g, ' ');
 
   // Include Pass 1 verdict in the trade placement panel
   const _sv = setupData.validation?.verdict;
   const verdictBadge = _sv
-    ? `${{ Strong: 'ðŸŸ¢', Decent: 'ðŸŸ¡', Weak: 'ðŸŸ ', Reject: 'ðŸ”´' }[_sv.verdict] || 'âšª'} ${_sv.verdict} setup (score ${_sv.qualityScore}/100)`
+    ? `${{ Strong: '🟢', Decent: '🟡', Weak: '🟠', Reject: '🔴' }[_sv.verdict] || '⚪'} ${_sv.verdict} setup (score ${_sv.qualityScore}/100)`
     : null;
 
   mentorState.lockedInsights = [
@@ -11242,33 +11242,33 @@ function mentorShowMeTrade() {
   if (complCtrl) complCtrl.style.display = 'none';
 
   setMentorState('trade_monitoring', 'mentor demo trade started');
-  mentorState.setupPausedReplay = true; // keep paused â€” user presses Space to watch
+  mentorState.setupPausedReplay = true; // keep paused — user presses Space to watch
 
   updateLockedMentorUI();
 
-  // Don't auto-play â€” leave replay paused so user can see the trade levels drawn
+  // Don't auto-play — leave replay paused so user can see the trade levels drawn
   // on the chart before the candles arrive. They press Space/Play to continue.
-  toast('â–¶ Trade levels drawn â€” press Space to watch the entry play out');
+  toast('▶ Trade levels drawn — press Space to watch the entry play out');
 
-  // Fetch AI trade placement explanation â€” update panel when ready
+  // Fetch AI trade placement explanation — update panel when ready
   const _p2Gen = mentorState._aiGeneration;
   _mentorAITradePlacement(exampleTrade, entryBar, _p2Gen).then(analysis => {
     if (!mentorState.exampleTradeActive) return;
-    if (mentorState._aiGeneration !== _p2Gen) return; // stale â€” new setup started
+    if (mentorState._aiGeneration !== _p2Gen) return; // stale — new setup started
     if (analysis) {
       mentorState.lockedInsights = [
-        `${dirEmoji} ${dirLabel} â€” Entry: ${entryPrice.toFixed(4)} | SL: ${stopLoss.toFixed(4)} | TP: ${takeProfit.toFixed(4)} (${rrLabel}:1)`,
+        `${dirEmoji} ${dirLabel} — Entry: ${entryPrice.toFixed(4)} | SL: ${stopLoss.toFixed(4)} | TP: ${takeProfit.toFixed(4)} (${rrLabel}:1)`,
         ...analysis.split('\n').filter(l => l.trim()),
       ];
     } else {
       mentorState.lockedInsights = [
         `${dirEmoji} ${dirLabel} entry @ ${entryPrice.toFixed(4)}`,
-        `ðŸ›¡ï¸ Stop Loss @ ${stopLoss.toFixed(4)} â€” structural invalidation level`,
-        `ðŸ† Take Profit @ ${takeProfit.toFixed(4)} â€” ${rrLabel}:1 R:R target`,
-        `ðŸ“Š Watch the candle arrive at the entry line`,
+        `🛡� Stop Loss @ ${stopLoss.toFixed(4)} — structural invalidation level`,
+        `�� Take Profit @ ${takeProfit.toFixed(4)} — ${rrLabel}:1 R:R target`,
+        `📊 Watch the candle arrive at the entry line`,
       ];
     }
-    mentorState.lockedQuestion = 'â–¶ Trade is live â€” watching for TP or SL...';
+    mentorState.lockedQuestion = '▶ Trade is live — watching for TP or SL...';
     updateLockedMentorUI();
   });
 }
@@ -11314,14 +11314,14 @@ function mentorLetMeTry() {
 
 function generateNoSetupMessage() {
   const analysis = mentorState.analysis;
-  console.log('ðŸ¤– generateNoSetupMessage called with analysis:', analysis);
+  console.log('🤖 generateNoSetupMessage called with analysis:', analysis);
   
   let insights = [];
   let question = '';
   
   // Enhanced Market Structure Insights (matching main AI depth)
   if (analysis.structure && analysis.structure.trend) {
-    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')} ðŸš€`);
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')} 🚀`);
   } else {
     insights.push(`Market structure: analyzing...`);
   }
@@ -11381,7 +11381,7 @@ function generateMentorInsights() {
   
   // Enhanced Market Structure Insights (matching main AI depth)
   if (analysis.structure && analysis.structure.trend) {
-    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')} ðŸš€`);
+    insights.push(`Market structure: ${analysis.structure.trend.replace('_', ' ')} 🚀`);
   } else {
     insights.push(`Market structure: analyzing...`);
   }
@@ -11529,14 +11529,14 @@ function updateMentorUI() {
       if (!tradePromptEl.innerHTML.includes('Manual Trade Placement')) {
         tradePromptEl.innerHTML = `
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="color:var(--purple);font-weight:600;">ðŸ“Š Setup Alert!</span>
+            <span style="color:var(--purple);font-weight:600;">📊 Setup Alert!</span>
           </div>
           <p style="color:var(--tx2);margin:0 0 12px 0;line-height:1.4;">
             Use the chart drawing tools to manually place a ${mentorState.currentSetup.direction} trade if you agree with this setup.
           </p>
           <div style="display:flex;gap:8px;align-items:center;">
             <span style="color:var(--tx3);font-size:11px;">Tools:</span>
-            <span style="color:var(--tx2);font-size:11px;">Drawing Tools â†’ Long/Short Position</span>
+            <span style="color:var(--tx2);font-size:11px;">Drawing Tools → Long/Short Position</span>
           </div>
         `;
       }
@@ -11550,7 +11550,7 @@ function updateMentorUI() {
     const bar = curData[mentorState.currentBar];
     if (!bar) { candleInfoEl.textContent = ''; return; }
     const date = new Date(bar.time * 1000);
-    candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} â€¢ ${date.toLocaleDateString()}`;
+    candleInfoEl.textContent = `Candle ${mentorState.currentBar + 1}/${curData.length} • ${date.toLocaleDateString()}`;
   }
 }
 
@@ -11608,12 +11608,12 @@ function mentorHint() {
   if (replayMode && curData && replayCutoff > 0) {
     const ctx = _buildMentorContext(replayCutoff, 10);
     if (ctx) {
-      toast('ðŸ’¬ Asking AI for a hint...');
+      toast('💬 Asking AI for a hint...');
       const isCrypto = _isCrypto();
-      const cryptoLine = isCrypto ? ' This is a crypto asset â€” consider liquidity, round numbers, and 24/7 session dynamics.' : '';
+      const cryptoLine = isCrypto ? ' This is a crypto asset — consider liquidity, round numbers, and 24/7 session dynamics.' : '';
       const prompt = `You are a trading mentor. Give ONE specific, actionable hint (max 20 words) about what to watch on ${ctx.sym} ${ctx.tf} right now for a ${method} setup. Price: ${ctx.price}, RSI: ${ctx.rsi}, EMA9: ${ctx.ema9}.${cryptoLine} No preamble.`;
       groqFetch(prompt).then(hint => {
-        if (hint) toast(`ðŸ’¡ ${hint.trim()}`);
+        if (hint) toast(`💡 ${hint.trim()}`);
       }).catch(() => {});
       return;
     }
@@ -11622,75 +11622,75 @@ function mentorHint() {
   const isCrypto = _isCrypto();
   const hintsByMethod = {
     breakout: [
-      "ðŸ’¡ Breakout: confirm the candle CLOSES beyond the level â€” a wick alone is not a breakout.",
-      "ðŸ’¡ Breakout: volume should be above the 20-bar average at the breakout candle for conviction.",
-      "ðŸ’¡ Breakout: measure the height of the base/pattern and project it from the breakout point for your target.",
-      "ðŸ’¡ Breakout: a retest of the broken level as new support/resistance is often the safest entry.",
-      "ðŸ’¡ Breakout: if price immediately reverses back inside the range, it's a false breakout â€” exit quickly.",
+      "💡 Breakout: confirm the candle CLOSES beyond the level — a wick alone is not a breakout.",
+      "💡 Breakout: volume should be above the 20-bar average at the breakout candle for conviction.",
+      "💡 Breakout: measure the height of the base/pattern and project it from the breakout point for your target.",
+      "💡 Breakout: a retest of the broken level as new support/resistance is often the safest entry.",
+      "💡 Breakout: if price immediately reverses back inside the range, it's a false breakout — exit quickly.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto Breakout: false breakouts are far more common in crypto â€” never chase the initial candle. Wait for a retest.",
-        "ðŸ’¡ Crypto Breakout: require volume 1.5Ã— the 20-bar average on the breakout candle â€” thin books fake out easily.",
-        "ðŸ’¡ Crypto Breakout: the more boundary touches before the breakout, the better â€” 3+ touches means the level is well-known and stops are clustered there.",
+        "💡 Crypto Breakout: false breakouts are far more common in crypto — never chase the initial candle. Wait for a retest.",
+        "💡 Crypto Breakout: require volume 1.5× the 20-bar average on the breakout candle — thin books fake out easily.",
+        "💡 Crypto Breakout: the more boundary touches before the breakout, the better — 3+ touches means the level is well-known and stops are clustered there.",
       ] : []),
     ],
     trend: [
-      "ðŸ’¡ Trend: only trade in the HTF trend direction â€” fighting the trend reduces your win rate significantly.",
-      "ðŸ’¡ Trend: in an uptrend, look for Higher Highs and Higher Lows; a break of the last HL signals weakness.",
-      "ðŸ’¡ Trend: EMAs fanned in order (20 > 50 > 200) confirm a healthy uptrend. Compressed EMAs = no trend.",
-      "ðŸ’¡ Trend: late-stage trends show narrowing swings and shrinking momentum â€” reduce size as the trend ages.",
-      "ðŸ’¡ Trend: pullbacks to the 20 EMA in a strong trend are often the highest probability entries.",
+      "💡 Trend: only trade in the HTF trend direction — fighting the trend reduces your win rate significantly.",
+      "💡 Trend: in an uptrend, look for Higher Highs and Higher Lows; a break of the last HL signals weakness.",
+      "💡 Trend: EMAs fanned in order (20 > 50 > 200) confirm a healthy uptrend. Compressed EMAs = no trend.",
+      "💡 Trend: late-stage trends show narrowing swings and shrinking momentum — reduce size as the trend ages.",
+      "💡 Trend: pullbacks to the 20 EMA in a strong trend are often the highest probability entries.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto Trend: a 4H crypto trend can produce moves equivalent to a weekly trend in forex â€” pace is compressed.",
-        "ðŸ’¡ Crypto Trend: check perpetual futures funding rates. Heavy positive funding in an uptrend = overleveraged longs = higher pullback risk even if structure looks intact.",
-        "ðŸ’¡ Crypto Trend: crypto trends often end with a parabolic blow-off or a sharp liquidity sweep of the last swing high. Reduce size in late-trend conditions.",
+        "💡 Crypto Trend: a 4H crypto trend can produce moves equivalent to a weekly trend in forex — pace is compressed.",
+        "💡 Crypto Trend: check perpetual futures funding rates. Heavy positive funding in an uptrend = overleveraged longs = higher pullback risk even if structure looks intact.",
+        "💡 Crypto Trend: crypto trends often end with a parabolic blow-off or a sharp liquidity sweep of the last swing high. Reduce size in late-trend conditions.",
       ] : []),
     ],
     support_resistance: [
-      "ðŸ’¡ S&R: the more times a level has been tested, the stronger it is â€” but repeated tests also weaken it.",
-      "ðŸ’¡ S&R: a confirmed close BEYOND a level is invalidation â€” a wick through it is not.",
-      "ðŸ’¡ S&R: look for level flips â€” former resistance becoming support after a breakout is a high-quality setup.",
-      "ðŸ’¡ S&R: Fibonacci levels (38.2%, 50%, 61.8%) aligning with S&R create powerful confluence zones.",
-      "ðŸ’¡ S&R: check the distance to the next level â€” if reward-to-risk is less than 1.5:1, skip the trade.",
+      "💡 S&R: the more times a level has been tested, the stronger it is — but repeated tests also weaken it.",
+      "💡 S&R: a confirmed close BEYOND a level is invalidation — a wick through it is not.",
+      "💡 S&R: look for level flips — former resistance becoming support after a breakout is a high-quality setup.",
+      "💡 S&R: Fibonacci levels (38.2%, 50%, 61.8%) aligning with S&R create powerful confluence zones.",
+      "💡 S&R: check the distance to the next level — if reward-to-risk is less than 1.5:1, skip the trade.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto S&R: round numbers ($10k, $50k, $100k) are major levels in crypto â€” stops cluster there making them targets for sweeps.",
-        "ðŸ’¡ Crypto S&R: use Asia/London/NY session highs and lows as your reference points â€” there is no daily candle close the same way as forex.",
-        "ðŸ’¡ Crypto S&R: weekend ranges are frequently broken on the Monday open â€” avoid holding S&R trades over the weekend.",
+        "💡 Crypto S&R: round numbers ($10k, $50k, $100k) are major levels in crypto — stops cluster there making them targets for sweeps.",
+        "💡 Crypto S&R: use Asia/London/NY session highs and lows as your reference points — there is no daily candle close the same way as forex.",
+        "💡 Crypto S&R: weekend ranges are frequently broken on the Monday open — avoid holding S&R trades over the weekend.",
       ] : []),
     ],
     pullback: [
-      "ðŸ’¡ Pullback: always confirm the HTF trend is intact before entering a pullback trade.",
-      "ðŸ’¡ Pullback: a healthy pullback has decreasing volume â€” wide impulsive candles during the pullback suggest reversal.",
-      "ðŸ’¡ Pullback: the 38.2%â€“61.8% Fibonacci zone combined with the 20 EMA is the highest probability entry area.",
-      "ðŸ’¡ Pullback: wait for a trigger candle (pinbar, engulfing, inside bar break) before entering the pullback.",
-      "ðŸ’¡ Pullback: a complex pullback (double pullback / ABC) is still valid â€” don't chase a shallow retracement.",
+      "💡 Pullback: always confirm the HTF trend is intact before entering a pullback trade.",
+      "💡 Pullback: a healthy pullback has decreasing volume — wide impulsive candles during the pullback suggest reversal.",
+      "💡 Pullback: the 38.2%–61.8% Fibonacci zone combined with the 20 EMA is the highest probability entry area.",
+      "💡 Pullback: wait for a trigger candle (pinbar, engulfing, inside bar break) before entering the pullback.",
+      "💡 Pullback: a complex pullback (double pullback / ABC) is still valid — don't chase a shallow retracement.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto Pullback: shallow 25â€“38% retracements are common in strong crypto trends â€” momentum traders re-enter quickly.",
-        "ðŸ’¡ Crypto Pullback: if perpetual funding is heavily positive, wait for a deeper pullback (50â€“61.8%) before entering longs.",
-        "ðŸ’¡ Crypto Pullback: the 15m and 1H timeframes in crypto behave like the 1H and 4H in forex â€” compress your analysis timeframe accordingly.",
+        "💡 Crypto Pullback: shallow 25–38% retracements are common in strong crypto trends — momentum traders re-enter quickly.",
+        "💡 Crypto Pullback: if perpetual funding is heavily positive, wait for a deeper pullback (50–61.8%) before entering longs.",
+        "💡 Crypto Pullback: the 15m and 1H timeframes in crypto behave like the 1H and 4H in forex — compress your analysis timeframe accordingly.",
       ] : []),
     ],
     range: [
-      "ðŸ’¡ Range: never enter at the midpoint of a range â€” wait for a boundary reaction.",
-      "ðŸ’¡ Range: the older and more established the range, the higher the probability of a boundary reaction.",
-      "ðŸ’¡ Range: if price starts coiling (LH/HL inside the range), a breakout is approaching â€” watch volume.",
-      "ðŸ’¡ Range: if price closes outside the range on above-average volume, switch to a breakout framework.",
-      "ðŸ’¡ Range: volume nodes (HVNs) inside the range act as magnets â€” price often stalls at these levels.",
+      "💡 Range: never enter at the midpoint of a range — wait for a boundary reaction.",
+      "💡 Range: the older and more established the range, the higher the probability of a boundary reaction.",
+      "💡 Range: if price starts coiling (LH/HL inside the range), a breakout is approaching — watch volume.",
+      "💡 Range: if price closes outside the range on above-average volume, switch to a breakout framework.",
+      "💡 Range: volume nodes (HVNs) inside the range act as magnets — price often stalls at these levels.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto Range: the 24/7 market means range boundaries shift subtly across sessions â€” re-mark them at the start of each session.",
-        "ðŸ’¡ Crypto Range: weekend ranges are a trap â€” they are frequently broken violently on Monday opens.",
-        "ðŸ’¡ Crypto Range: require 3 boundary touches on each side in crypto before trading the range â€” thin books make 2-touch levels unreliable.",
+        "💡 Crypto Range: the 24/7 market means range boundaries shift subtly across sessions — re-mark them at the start of each session.",
+        "💡 Crypto Range: weekend ranges are a trap — they are frequently broken violently on Monday opens.",
+        "💡 Crypto Range: require 3 boundary touches on each side in crypto before trading the range — thin books make 2-touch levels unreliable.",
       ] : []),
     ],
     liquidity: [
-      "ðŸ’¡ Liquidity: equal highs and equal lows are engineered liquidity targets â€” institutions will hunt them.",
-      "ðŸ’¡ Liquidity: a liquidity sweep wicks beyond a key level, grabs stops, then sharply reverses â€” this is the entry signal.",
-      "ðŸ’¡ Liquidity: Order Blocks are the last opposite-colour candle before a strong impulse â€” price returns to fill orders there.",
-      "ðŸ’¡ Liquidity: a Fair Value Gap (3-candle imbalance) is where price was never traded â€” it is drawn back to fill it.",
-      "ðŸ’¡ Liquidity: the sequence is Accumulation â†’ Manipulation (sweep) â†’ Distribution. Enter after the sweep, not before.",
+      "💡 Liquidity: equal highs and equal lows are engineered liquidity targets — institutions will hunt them.",
+      "💡 Liquidity: a liquidity sweep wicks beyond a key level, grabs stops, then sharply reverses — this is the entry signal.",
+      "💡 Liquidity: Order Blocks are the last opposite-colour candle before a strong impulse — price returns to fill orders there.",
+      "💡 Liquidity: a Fair Value Gap (3-candle imbalance) is where price was never traded — it is drawn back to fill it.",
+      "💡 Liquidity: the sequence is Accumulation → Manipulation (sweep) → Distribution. Enter after the sweep, not before.",
       ...(isCrypto ? [
-        "ðŸ’¡ Crypto Liquidity: sweeps are deliberately engineered by larger players in crypto â€” thin order books make it easy to push price to obvious stop clusters.",
-        "ðŸ’¡ Crypto Liquidity: round numbers in crypto ($50k, $100k, $3000) are prime sweep targets â€” stops concentrate there and are harvested regularly.",
-        "ðŸ’¡ Crypto Liquidity: the displacement candle after a sweep is often very fast in crypto â€” have your entry ready before the sweep completes.",
+        "💡 Crypto Liquidity: sweeps are deliberately engineered by larger players in crypto — thin order books make it easy to push price to obvious stop clusters.",
+        "💡 Crypto Liquidity: round numbers in crypto ($50k, $100k, $3000) are prime sweep targets — stops concentrate there and are harvested regularly.",
+        "💡 Crypto Liquidity: the displacement candle after a sweep is often very fast in crypto — have your entry ready before the sweep completes.",
       ] : []),
     ],
   };
@@ -11731,7 +11731,7 @@ function integrateMentorWithReplay() {
   };
   
   // replayStep already calls updateMentor via its bar-based throttle.
-  // No monkey-patch needed â€” avoids double-firing and setTimeout accumulation.
+  // No monkey-patch needed — avoids double-firing and setTimeout accumulation.
 }
 
 // Initialize mentor integration and draggable functionality
@@ -11761,8 +11761,8 @@ window.showMentorPopup = showMentorPopup;
 window.closeMentorPopup = closeMentorPopup;
 window.enableMentorFromPopup = enableMentorFromPopup;
 
-// â•â• AI TRADE FINDER (embedded in mentor panel) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// The finder lives inside the mentor panel â€” toggled with the ðŸ” Find button.
+// �� AI TRADE FINDER (embedded in mentor panel) ������������������������������
+// The finder lives inside the mentor panel — toggled with the � Find button.
 // Scans the whole chart, lists setups as cards, and launches replay to each one.
 
 let _mfSetups    = [];    // last scan results
@@ -11802,7 +11802,7 @@ function runMentorFinderScan() {
   }
   _mfScanKey = key;
   _mfSetups  = [];
-  // Clear setup cache â€” stale cached results from a different method would cause
+  // Clear setup cache — stale cached results from a different method would cause
   // "no setups found" since the cache key includes the old method name.
   if (mentorState.setupCache) mentorState.setupCache.clear();
 
@@ -11823,8 +11823,8 @@ function runMentorFinderScan() {
   if (scanBtn)  { scanBtn.disabled = true; scanBtn.textContent = 'Scanning...'; }
 
   const total  = curData.length;
-  const step   = 4;    // check every 4th bar (was 3 â€” reduces noise)
-  const minGap = 40;   // minimum 40 bars between reported setups (was 20 â€” prevents clusters)
+  const step   = 4;    // check every 4th bar (was 3 — reduces noise)
+  const minGap = 40;   // minimum 40 bars between reported setups (was 20 — prevents clusters)
   let   i      = 50;
   let   lastFoundBar = -999;
 
@@ -11842,12 +11842,12 @@ function runMentorFinderScan() {
     const end = Math.min(i + 100, total);
     for (; i < end; i += step) {
       try {
-        // Pass method directly as override â€” avoids global state mutation and
+        // Pass method directly as override — avoids global state mutation and
         // cache-key corruption that caused the "no setups found" bug.
         const scanMethod = method || mentorState.selectedTradingMethod || 'breakout';
         const sd = detectStructuredSetups(curData.slice(0, i + 1), i, scanMethod);
 
-        // Only surface HIGH-quality setups â€” confluence >= 3 means at least 3 of 4
+        // Only surface HIGH-quality setups — confluence >= 3 means at least 3 of 4
         // methodology criteria are met. This prevents the scanner from finding a trade
         // every few bars and only shows genuinely valid setups.
         if (sd.setup === 'none' || sd.confluence < 3) continue;
@@ -11877,7 +11877,7 @@ function runMentorFinderScan() {
 
     const pct = Math.round(i / total * 100);
     if (progBar) progBar.style.width = pct + '%';
-    if (progTxt) progTxt.textContent = 'Scanning bar ' + Math.min(i, total) + ' / ' + total + ' â€” ' + _mfSetups.length + ' found so far';
+    if (progTxt) progTxt.textContent = 'Scanning bar ' + Math.min(i, total) + ' / ' + total + ' — ' + _mfSetups.length + ' found so far';
     if (subtitle) subtitle.textContent = 'Scanning... ' + pct + '%';
 
     if (i < total) {
@@ -11921,10 +11921,10 @@ function _mfRenderResults(setups, method) {
   };
 
   list.innerHTML = setups.map((s, idx) => {
-    const dirIcon = s.direction === 'long' ? 'ðŸ“ˆ' : 'ðŸ“‰';
+    const dirIcon = s.direction === 'long' ? '📈' : '📉';
     const dirCol  = s.direction === 'long' ? 'var(--tl)' : 'var(--rd)';
     const qCol    = s.quality === 'high' ? 'var(--tl)' : s.quality === 'medium' ? 'var(--am)' : 'var(--tx3)';
-    const stars   = 'â˜…'.repeat(s.confluence) + 'â˜†'.repeat(Math.max(0, 4 - s.confluence));
+    const stars   = '★'.repeat(s.confluence) + '☆'.repeat(Math.max(0, 4 - s.confluence));
     const lbl     = labels[s.setup] || s.setup.replace(/_/g,' ');
     const rrTxt   = s.levels ? 'R:R ~' + s.levels.rr.toFixed(1) : '';
     const price   = s.price ? ' @ ' + s.price.toFixed(s.price < 10 ? 4 : 2) : '';
@@ -11946,20 +11946,20 @@ function _mfRenderResults(setups, method) {
         <span style="color:var(--am);letter-spacing:1px;">${stars}</span>
         <span style="color:var(--tx3);">${rrTxt}</span>
         <span style="color:var(--tx3);">${price}</span>
-        <span style="margin-left:auto;color:var(--purple);font-weight:700;">â–¶ Go</span>
+        <span style="margin-left:auto;color:var(--purple);font-weight:700;">▶ Go</span>
       </div>
     </div>`;
   }).join('');
 }
 
-// Launch replay to a found setup â€” scroll chart, set method, start replay 25 bars before.
+// Launch replay to a found setup — scroll chart, set method, start replay 25 bars before.
 function _mfLaunch(idx) {
   const setup = _mfSetups[idx];
   if (!setup || !curData) return;
 
   toggleMentorFinder();
 
-  // Start replay 30 bars before the setup bar â€” enough context to read the
+  // Start replay 30 bars before the setup bar — enough context to read the
   // chart and understand why the setup is forming, and to see the question
   // appear naturally as the candles approach.
   const PRE_BARS = 40;
@@ -11967,7 +11967,7 @@ function _mfLaunch(idx) {
 
   if (replayMode) stopReplay();
 
-  // Map setup type â†’ trading method
+  // Map setup type → trading method
   const methodMap = {
     breakout:'breakout', range_breakout:'breakout',
     flag_continuation:'trend', structure_continuation:'trend',
@@ -11981,7 +11981,7 @@ function _mfLaunch(idx) {
   const sel1 = document.getElementById('trading-method-select');
   if (sel1) sel1.value = m;
 
-  // â”€â”€ Reset mentor state completely â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Reset mentor state completely ─────────────────────────────────────────
   mentorState.enabled                = true;
   mentorState.currentBar             = -1;
   mentorState.lastTradeSuggestionBar = -1000;
@@ -12000,11 +12000,11 @@ function _mfLaunch(idx) {
   mentorState.resultExplained        = false;
   if (mentorState.setupCache) mentorState.setupCache.clear();
 
-  // â”€â”€ Pre-inject the known setup as upcomingSetup so the mentor skips â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pre-inject the known setup as upcomingSetup so the mentor skips ────────
   // scanning entirely. When replayCutoff reaches within 15 bars of setup.bar,
   // handleSetupDetectedState fires the early question automatically.
   // Build a minimal setup detection object from what the scanner found.
-  // Do NOT pre-cache levels from the scanner â€” they may have been computed with
+  // Do NOT pre-cache levels from the scanner — they may have been computed with
   // old logic. handleSetupDetectedState will always recompute fresh at question time.
   const injectedSetup = {
     setup:     setup.setup,
@@ -12023,10 +12023,10 @@ function _mfLaunch(idx) {
 
   // Brief scanning message while user reads the chart context
   const setupLabel = setup.setup.replace(/_/g, ' ');
-  const dirEmoji   = setup.direction === 'long' ? 'ðŸ“ˆ' : 'ðŸ“‰';
+  const dirEmoji   = setup.direction === 'long' ? '📈' : '📉';
   mentorState.currentInsights = [
     `${dirEmoji} Navigating to a ${setupLabel} setup`,
-    `Watch the price action develop â€” the mentor will pause and ask you what to do as the setup approaches.`,
+    `Watch the price action develop — the mentor will pause and ask you what to do as the setup approaches.`,
   ];
   mentorState.currentQuestion = 'Use this time to study the chart structure leading up to the setup.';
 
@@ -12037,12 +12037,12 @@ function _mfLaunch(idx) {
   if (methodSel) methodSel.style.display = 'none';
 
   // Position chart so startBar is on the left and setup.bar is visible.
-  // Don't call _replayScrollToBar â€” it uses barWidth which may not be ready yet.
+  // Don't call _replayScrollToBar — it uses barWidth which may not be ready yet.
   // Instead set rightBarIndex so startBar lands at ~20% from the left edge.
   // We use a generous estimate of ~80 visible bars; actual barWidth is set on first draw.
   const estVisibleBars = 80;
   rightBarIndex = Math.min(curData.length - 1 + 10, startBar + estVisibleBars);
-  mentorState._freezeScrollForPreview = false; // not frozen yet â€” will freeze at pause
+  mentorState._freezeScrollForPreview = false; // not frozen yet — will freeze at pause
 
   // Start replay at startBar (no picking phase needed)
   replayMode        = true;
@@ -12068,7 +12068,7 @@ function _mfLaunch(idx) {
     updateMentorUI();
   }, 150);
 
-  toast('â–¶ Replay started â€” play the candles and watch for the setup');
+  toast('▶ Replay started — play the candles and watch for the setup');
 }
 
 window.clearMentorAnnotations = clearMentorAnnotations;
@@ -12080,12 +12080,12 @@ window.launchReplayToSetup   = _mfLaunch;
 
 
 
-// â•â• PRE-TRADE CHECKLIST â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� PRE-TRADE CHECKLIST �������������������������������������������������������
 const DEFAULT_CHECKS = [
   'Trend direction confirmed',
   'Higher timeframe aligned',
   'Entry near key level',
-  'Risk/reward â‰¥ 1:2',
+  'Risk/reward ≥ 1:2',
   'Stop loss defined',
   'Position sized correctly',
   'No major news in 30 min',
@@ -12111,7 +12111,7 @@ function renderChecks(){
     return `<div style="display:flex;align-items:center;gap:7px;">
       <input type="checkbox" id="chk-${i}" ${checked?'checked':''} onchange="checkState[${i}]=this.checked;updateCheckScore();" style="cursor:pointer;accent-color:var(--am);">
       <label for="chk-${i}" style="font-size:10px;color:var(--tx2);cursor:pointer;flex:1;font-family:monospace;">${item}</label>
-      <button onclick="removeCheck(${i})" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Remove">âœ•</button>
+      <button onclick="removeCheck(${i})" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Remove">✕</button>
     </div>`;
   }).join('');
   updateCheckScore();
@@ -12144,7 +12144,7 @@ function updateCheckScore(){
   el.style.color  = col;
 }
 
-// â•â• TILT DETECTOR + SESSION COUNTDOWN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� TILT DETECTOR + SESSION COUNTDOWN ����������������������������������������
 let _recentOutcomes = []; // last few trade outcomes from journal
 
 function updateTiltDetector(){
@@ -12154,7 +12154,7 @@ function updateTiltDetector(){
   const losses = recent.slice(-3).filter(o=>o==='loss').length;
   const isTilt = losses >= 2;
   tiltEl.style.display = isTilt ? '' : 'none';
-  if(isTilt) tiltEl.title = `âš  ${losses} consecutive losses â€” consider stepping away`;
+  if(isTilt) tiltEl.title = `⚠ ${losses} consecutive losses — consider stepping away`;
 }
 
 function updateSessionCountdown(){
@@ -12191,7 +12191,7 @@ function updateSessionCountdown(){
     }
   }
 
-  // Between sessions â€” find next open
+  // Between sessions — find next open
   let nearest = null, nearestMins = 9999;
   for(const sess of sessions){
     const d = minsUntil(sess.start);
@@ -12204,7 +12204,7 @@ function updateSessionCountdown(){
   }
 }
 
-// â•â• ALERTS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� ALERTS �������������������������������������������������������������������
 function addAlert(){
   const curPrice = fP(curData[curData.length-1]?.close || curSym.p);
   // Use in-app modal instead of browser prompt()
@@ -12213,7 +12213,7 @@ function addAlert(){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:2000;display:flex;align-items:center;justify-content:center;';
   bg.innerHTML = `
     <div style="background:rgba(14,18,26,.98);border:1px solid var(--b2);border-radius:12px;padding:20px 22px;width:280px;box-shadow:0 24px 60px rgba(0,0,0,.8);">
-      <div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:4px;">Price Alert Â· ${curSym.s}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:4px;">Price Alert · ${curSym.s}</div>
       <div style="font-size:10px;color:var(--tx3);margin-bottom:14px;">Current: $${curPrice}</div>
       <input id="alert-price-input" type="number" step="any" placeholder="Target price"
         style="width:100%;background:var(--bg3);border:1px solid var(--b2);color:var(--tx);font-size:13px;padding:8px 10px;border-radius:6px;outline:none;box-sizing:border-box;font-family:ui-monospace,'SF Mono',monospace;">
@@ -12242,7 +12242,7 @@ function _alertInputConfirm(){
   alerts.push(alert);
   try{_lsSet('alerts',JSON.stringify(alerts));}catch(e){}
   buildAlertsPanel();
-  toast(`ðŸ”” Alert set Â· ${curSym.s} @ $${alert.price}`);
+  toast(`🔔 Alert set · ${curSym.s} @ $${alert.price}`);
 }
 function deleteAlert(id){alerts=alerts.filter(a=>a.id!==id);try{_lsSet('alerts',JSON.stringify(alerts));}catch(e){}buildAlertsPanel();}
 function checkAlerts(price){
@@ -12252,7 +12252,7 @@ function checkAlerts(price){
       if((a.cond==='above'&&price>=ap)||(a.cond==='below'&&price<=ap)){
         a.triggered=true;
         try{_lsSet('alerts',JSON.stringify(alerts));}catch(e){}
-        toast(`ðŸ”” ALERT HIT Â· ${a.sym} crossed ${a.cond} $${a.price}`);
+        toast(`🔔 ALERT HIT · ${a.sym} crossed ${a.cond} $${a.price}`);
         buildAlertsPanel();
       }
     }
@@ -12266,19 +12266,19 @@ function buildAlertsPanel(){
       <div class="al-dot" style="background:${a.triggered?'var(--rd)':'var(--am)'};"></div>
       <div style="flex:1;">
         <div style="font-family:monospace;font-size:10px;font-weight:700;">${a.sym} @ $${a.price}</div>
-        <div style="font-size:11px;color:var(--tx2);">Crosses ${a.cond} ${a.triggered?'Â· âœ“ Triggered':''}</div>
+        <div style="font-size:11px;color:var(--tx2);">Crosses ${a.cond} ${a.triggered?'· ✓ Triggered':''}</div>
       </div>
-      <button onclick="deleteAlert('${a.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:10px;">âœ•</button>
+      <button onclick="deleteAlert('${a.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:10px;">✕</button>
     </div>`).join('');
 }
 
-// â•â• NEWS PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â•â• NEWS PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� NEWS PANEL ����������������������������������������������������������������
+// �� NEWS PANEL ����������������������������������������������������������������
 let newsCache = {};
 let _newsFetchAbort = null; // AbortController for in-flight news request
 
-// â”€â”€ Groq key rotation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ AI provider keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Groq key rotation ─────────────────────────────────────────────────────────
+// ── AI provider keys ─────────────────────────────────────────────────────────
 // Order: all Groq keys first (fastest), then Gemini Flash as fallback.
 // Add more Groq keys by creating additional free accounts at console.groq.com.
 // Get a Gemini key free at aistudio.google.com (15 RPM, 1M tokens/day).
@@ -12322,12 +12322,12 @@ async function aiComplete(prompt, {
     try { rawText = await res.text(); } catch(e) {}
     const snippet = rawText.replace(/\s+/g, ' ').trim().slice(0, 180);
     if (res.status === 404) {
-      throw new Error(`AI HTTP 404 from ${apiBase || window.location.origin}/api/ai${snippet ? ` â€” ${snippet}` : ''}`);
+      throw new Error(`AI HTTP 404 from ${apiBase || window.location.origin}/api/ai${snippet ? ` — ${snippet}` : ''}`);
     }
     if (res.status === 401 || res.status === 403) {
-      throw new Error(`AI HTTP ${res.status}${snippet ? ` â€” ${snippet}` : ''}`);
+      throw new Error(`AI HTTP ${res.status}${snippet ? ` — ${snippet}` : ''}`);
     }
-    throw new Error(`AI HTTP ${res.status} - invalid response${snippet ? ` â€” ${snippet}` : ''}`);
+    throw new Error(`AI HTTP ${res.status} - invalid response${snippet ? ` — ${snippet}` : ''}`);
   }
 
   if(!res.ok){
@@ -12443,7 +12443,7 @@ async function fetchNewsFromAPI(sym, type, signal) {
 }
 
 function scoreWithGroq(headlines, sym, name){
-  // Client-side keyword sentiment scoring â€” no API call.
+  // Client-side keyword sentiment scoring — no API call.
   // Covers the vast majority of financial headline sentiment accurately.
   const BULLISH_RE = /\b(surge|surged|surging|rally|rallied|rallying|soar|soared|soaring|beat|beats|beats? expectations?|gain|gained|gaining|gains|rise|risen|rising|rose|high|higher|record|upgrade|upgraded|outperform|strong|stronger|strength|bull|bullish|growth|grew|grow|profit|profits|revenue|revenues|beat estimates|above estimates|above expectations|positive|boost|boosted|buy|buyback|dividend|approval|approved|launch|launched|partnership|deal|expansion|expansion|recovery|recover|recovered|rebound|rebounded|momentum|breakout|breakthrough|contract|contracts|win|wins|winning|award|awarded|milestone)\b/i;
   const BEARISH_RE = /\b(crash|crashed|crashing|drop|dropped|dropping|fall|fell|falling|decline|declined|declining|plunge|plunged|plunging|miss|missed|misses|below estimates|below expectations|loss|losses|losing|warn|warning|warned|downgrade|downgraded|underperform|weak|weaker|weakness|bear|bearish|cut|cuts|layoff|layoffs|fired|bankrupt|bankruptcy|debt|default|recall|investigation|probe|fine|fined|penalty|lawsuit|sue|sued|fraud|scandal|concern|concerns|risk|risks|sell|selloff|sell-off|pressure|pressured|headwind|headwinds|deficit|downside|disappoints|disappointed|disappointing|halt|halted|suspended|suspension|violation|regulatory|charges|charged|cost|costs|missed estimates)\b/i;
@@ -12468,7 +12468,7 @@ async function fetchNews(sym, name){
   if(_newsFetchAbort){ try{ _newsFetchAbort.abort(); }catch(e){} }
   _newsFetchAbort = new AbortController();
   const _myAbort = _newsFetchAbort;
-  el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">âŸ³ Fetching latest news...</div>';
+  el.innerHTML='<div style="padding:16px 8px;font-size:10px;color:var(--tx3);text-align:center;">⟳ Fetching latest news...</div>';
 
   const type = symType(sym);
   const headlines = await fetchNewsFromAPI(sym, type, _myAbort.signal);
@@ -12478,10 +12478,10 @@ async function fetchNews(sym, name){
 
   if(!headlines || !headlines.length){
     el.innerHTML=`<div style="padding:16px 10px;font-size:10px;color:var(--tx3);text-align:center;line-height:1.7;">
-      <div style="font-size:18px;margin-bottom:6px;">ðŸ“¡</div>
+      <div style="font-size:18px;margin-bottom:6px;">📡</div>
       <div style="color:var(--tx2);">No news found for ${sym}</div>
-      <div style="font-size:11px;margin-top:4px;color:var(--tx3);">News is temporarily unavailable â€” check back shortly</div>
-      <div style="margin-top:8px;"><button onclick="delete newsCache[curSym.s]; buildInfo();" style="background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;">â†» Retry</button></div>
+      <div style="font-size:11px;margin-top:4px;color:var(--tx3);">News is temporarily unavailable — check back shortly</div>
+      <div style="margin-top:8px;"><button onclick="delete newsCache[curSym.s]; buildInfo();" style="background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;">↻ Retry</button></div>
     </div>`;
     return;
   }
@@ -12505,27 +12505,27 @@ function renderNews(items, sym){
   if(!items?.length){ el.innerHTML='<div style="padding:12px 8px;font-size:10px;color:var(--tx3);">No news found.</div>'; return; }
 
   const colMap = {BULLISH:'#00c9a0', BEARISH:'#f03060', NEUTRAL:'#778899'};
-  const iconMap = {BULLISH:'â–²', BEARISH:'â–¼', NEUTRAL:'â€”'};
+  const iconMap = {BULLISH:'▲', BEARISH:'▼', NEUTRAL:'—'};
   const bullCount = items.filter(i=>i.sentiment==='BULLISH').length;
   const bearCount = items.filter(i=>i.sentiment==='BEARISH').length;
   const allNeutral = bullCount===0 && bearCount===0;
   const overallCol = allNeutral ? '#778899' : bullCount>bearCount ? '#00c9a0' : bearCount>bullCount ? '#f03060' : '#f0a500';
-  const overallLabel = allNeutral ? 'FETCHING SENTIMENTâ€¦' : bullCount>bearCount ? 'BULLISH' : bearCount>bullCount ? 'BEARISH' : 'MIXED';
+  const overallLabel = allNeutral ? 'FETCHING SENTIMENT…' : bullCount>bearCount ? 'BULLISH' : bearCount>bullCount ? 'BEARISH' : 'MIXED';
   const cached = newsCache[sym];
   const fetchedAt = cached ? new Date(cached.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
 
   let html = '<div style="margin:4px 6px 6px;padding:7px 10px;background:var(--bg3);border-radius:4px;border-left:3px solid '+overallCol+';font-size:10px;">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">'
     + '<div style="font-weight:700;color:'+overallCol+';">'+overallLabel+'</div>'
-    + '<button onclick="delete newsCache[\''+sym+'\'];buildInfo();" title="Refresh" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:0;line-height:1;">â†»</button>'
+    + '<button onclick="delete newsCache[\''+sym+'\'];buildInfo();" title="Refresh" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:0;line-height:1;">↻</button>'
     + '</div>'
-    + '<div style="color:var(--tx3);">'+items.length+' articles'+(allNeutral ? '' : ' Â· '+bullCount+'â–² '+bearCount+'â–¼')+'</div>'
+    + '<div style="color:var(--tx3);">'+items.length+' articles'+(allNeutral ? '' : ' · '+bullCount+'▲ '+bearCount+'▼')+'</div>'
     + (fetchedAt ? '<div style="color:var(--tx3);font-size:11px;margin-top:2px;">Updated '+fetchedAt+'</div>' : '')
     + '</div>';
 
   items.forEach(item => {
     const col = colMap[item.sentiment] || colMap.NEUTRAL;
-    const icon = iconMap[item.sentiment] || 'â€”';
+    const icon = iconMap[item.sentiment] || '—';
     const ago = timeAgo(item.date);
     const title = (item.title||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const isLink = !!item.link;
@@ -12548,7 +12548,7 @@ function renderNews(items, sym){
 
 
 
-// â•â• CANVAS CHART â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� CANVAS CHART ��������������������������������������������������������������
 function sizeCanvases(){
   const area=_el('chart-area');
   // Use main-col.clientWidth to break the circular dependency where canvas
@@ -12587,7 +12587,7 @@ function sizeCanvases(){
     if(!p){
       p=document.createElement('div'); p.className='panel'; p.id='ci-panel-'+ind.id;
       const lbl=document.createElement('div'); lbl.className='plbl'; lbl.textContent=ind.name;
-      const btn=document.createElement('button'); btn.className='px-btn'; btn.textContent='âœ•';
+      const btn=document.createElement('button'); btn.className='px-btn'; btn.textContent='✕';
       btn.onclick=()=>indToggle(ind.id);
       const cv=document.createElement('canvas'); cv.id='ci-canvas-'+ind.id;
       p.append(lbl,btn,cv);
@@ -12609,7 +12609,7 @@ function sizeCanvases(){
   }
 }
 
-// CSS var cache â€” avoids getComputedStyle on every draw call
+// CSS var cache — avoids getComputedStyle on every draw call
 let _cssVarCache = {};
 let _cssVarCacheDirty = true;
 function getCSSVar(v){
@@ -12658,7 +12658,7 @@ function _drawImmediate(){
   // Pre-warm CSS var cache once per draw
   _warmCSSVars();
 
-  // â”€â”€ Live CSS-variable colours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Live CSS-variable colours ────────────────────────────────────────────
   const C = {
     bg:   getCSSVar('--bg')  || '#07090e',
     bg2:  getCSSVar('--bg2') || '#0c0e16',
@@ -12676,10 +12676,10 @@ function _drawImmediate(){
   const hex2rgb = h => { h=h.replace('#',''); const n=parseInt(h.length===3?h.split('').map(x=>x+x).join(''):h,16); return [(n>>16)&255,(n>>8)&255,n&255]; };
   const ca = (col,a) => { try{ const [r,g,b]=hex2rgb(col); return `rgba(${r},${g},${b},${a})`; } catch(e){ return col; } };
 
-  // Use cached indicators â€” only recalculated when data or indicator flags change
+  // Use cached indicators — only recalculated when data or indicator flags change
   const {data,sma20,sma50,bbs,rsiVals,ema9,ema21,ema200,vwapVals,macdVals,stochVals} = getInds();
 
-  // â”€â”€ Coordinate helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Coordinate helpers ────────────────────────────────────────────────────
   // barX(i): pixel x of bar i's centre
   const barX = i => W - (rightBarIndex - i) * barWidth;
   // Visible bar range
@@ -12692,7 +12692,7 @@ function _drawImmediate(){
   const visible = data.slice(firstBarOnScreen, lastBarOnScreen + 1);
   if(!visible.length) return;
 
-  // â”€â”€ Price range â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Price range ───────────────────────────────────────────────────────────
   let hi, lo;
   if(priceHi !== null){ hi = priceHi; lo = priceLo; }
   else {
@@ -12720,7 +12720,7 @@ function _drawImmediate(){
     if(isSettingEnabled('scPriceScale', true)){ ctx.fillStyle=C.tx2; ctx.font=`${axisFontPx}px monospace`; ctx.textAlign='right'; ctx.fillText(fP(hi-(hi-lo)/6*i),W-R_PANEL_OFFSET-uiInvariantPx(3,2),y-uiInvariantPx(2,1)); }
   }
 
-  // â”€â”€ TradingView-style x-axis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── TradingView-style x-axis ───────────────────────────────────────────────
   const isSubDay = ['1m','5m','15m','30m','1h','4h'].includes(curTF);
 
   // Min pixel gap before placing the next label (based on a typical label width)
@@ -12746,7 +12746,7 @@ function _drawImmediate(){
 
   ctx.textAlign = 'center';
 
-  // â”€â”€ Pass 1: collect ticks (spacing enforced here, crosshair-independent) â”€â”€â”€
+  // ── Pass 1: collect ticks (spacing enforced here, crosshair-independent) ───
   const xTicks = [];
   let lastTickX = -9999;
   for(let i = firstBarOnScreen; i <= lastBarOnScreen; i++){
@@ -12761,7 +12761,7 @@ function _drawImmediate(){
     lastTickX = x;
   }
 
-  // â”€â”€ Pass 2: draw grid lines (never suppressed by crosshair) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 2: draw grid lines (never suppressed by crosshair) ─────────────
   if(isSettingEnabled('scGrid', true)){
     const showDayBoundaries = isSettingEnabled('scDayBnd', true);
     for(const {x, tick} of xTicks){
@@ -12777,7 +12777,7 @@ function _drawImmediate(){
     }
   }
 
-  // â”€â”€ Pass 3: draw labels (suppressed under crosshair only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 3: draw labels (suppressed under crosshair only) ───────────────
   for(const {x, tick} of xTicks){
     if(!isSettingEnabled('scDayBnd', true) && tick.tier <= 1) continue;
     if(x >= xhLabelL && x <= xhLabelR) continue;
@@ -12860,7 +12860,7 @@ function _drawImmediate(){
     }
   }
 
-  // Visible high / low labels (live â€” based on what's currently on screen)
+  // Visible high / low labels (live — based on what's currently on screen)
   if(isSettingEnabled('scHiLo', true)){
     // Find the actual highest high and lowest low bar in the visible range
     let hiPrice = -Infinity, loPrice = Infinity;
@@ -12873,10 +12873,10 @@ function _drawImmediate(){
     const hiY = py(hiPrice);
     const loY = py(loPrice);
 
-    // High label â€” above the candle, teal
+    // High label — above the candle, teal
     ctx.font = 'bold 9px monospace'; ctx.textAlign = 'left';
-    const hiTxt = 'â–² ' + fP(hiPrice);
-    const loTxt = 'â–¼ ' + fP(loPrice);
+    const hiTxt = '▲ ' + fP(hiPrice);
+    const loTxt = '▼ ' + fP(loPrice);
     // Position label to left or right of the bar so it stays on screen
     const hiLabelX = hiBarX + 6 > W - R_PANEL_OFFSET - 70 ? hiBarX - ctx.measureText(hiTxt).width - 8 : hiBarX + 6;
     const loLabelX = loBarX + 6 > W - R_PANEL_OFFSET - 70 ? loBarX - ctx.measureText(loTxt).width - 8 : loBarX + 6;
@@ -12886,14 +12886,14 @@ function _drawImmediate(){
     ctx.fillText(loTxt, loLabelX, loY + 13);
   }
 
-  // â”€â”€ Drawings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Drawings ──────────────────────────────────────────────────────────────
   renderDrawings(ctx, W, H, barX, py, yToPrice);
 
-  // â”€â”€ AI Chart Overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AI Chart Overlay ──────────────────────────────────────────────────────
   renderAIOverlay(ctx, W, H, py, barX, C);
 
   // Crosshair
-  // â”€â”€ Replay overlay: cutoff line + hover line when picking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Replay overlay: cutoff line + hover line when picking ────────────────
   if(replayMode){
     const hoverIdx = replayHoverBar(); // -1 when not picking
 
@@ -12911,7 +12911,7 @@ function _drawImmediate(){
       ctx.setLineDash([]);
       // Label
       ctx.font = 'bold 9px monospace'; ctx.textAlign='center';
-      const ltxt = 'â–¶ CLICK TO START';
+      const ltxt = '▶ CLICK TO START';
       const lw2  = ctx.measureText(ltxt).width + 12;
       const lx2  = Math.max(lw2/2+2, Math.min(W-lw2/2-2, hoverX));
       ctx.fillStyle='rgba(240,165,0,0.9)'; ctx.fillRect(lx2-lw2/2,4,lw2,15);
@@ -12924,7 +12924,7 @@ function _drawImmediate(){
       const cutoffX = W - (rightBarIndex - replayCutoff) * barWidth;
       const isHoveringLine = Math.abs(mouseX - cutoffX) <= 8;
       ctx.save();
-      // Line â€” brighter and solid when hovered/dragging
+      // Line — brighter and solid when hovered/dragging
       ctx.strokeStyle = (_replayLineDragging || isHoveringLine)
         ? 'rgba(0,201,160,1.0)' : 'rgba(0,201,160,0.65)';
       ctx.lineWidth   = (_replayLineDragging || isHoveringLine) ? 2.5 : 1.5;
@@ -12934,7 +12934,7 @@ function _drawImmediate(){
       ctx.lineTo(Math.floor(cutoffX)+0.5, H);
       ctx.stroke();
       ctx.setLineDash([]);
-      // Drag handle â€” two small horizontal grip bars near the top
+      // Drag handle — two small horizontal grip bars near the top
       if(isHoveringLine || _replayLineDragging){
         const hx = Math.floor(cutoffX) + 0.5;
         const hy = 40;
@@ -12947,7 +12947,7 @@ function _drawImmediate(){
         }
       }
 
-      // Canvas play/pause button â€” centred on the cutoff line, vertically centred
+      // Canvas play/pause button — centred on the cutoff line, vertically centred
       const isPlaying = !!replayTimer;
       const btnR  = 18;  // radius
       const btnX  = Math.min(W - btnR - 6, Math.max(btnR + 6, cutoffX + 2));
@@ -12960,7 +12960,7 @@ function _drawImmediate(){
       // Icon
       ctx.fillStyle = '#07090e';
       ctx.font = 'bold 15px monospace'; ctx.textAlign='center';
-      ctx.fillText(isPlaying ? 'â¸' : 'â–¶', btnX, btnY+5);
+      ctx.fillText(isPlaying ? '��' : '▶', btnX, btnY+5);
 
       // Store button position for click detection
       window._replayBtnX = btnX; window._replayBtnY = btnY; window._replayBtnR = btnR;
@@ -12996,7 +12996,7 @@ function _drawImmediate(){
       const lw = ctx.measureText(timeStr).width + uiInvariantPx(18, 12);
       const lh = uiInvariantPx(20, 16);
       const lx = Math.max(lw/2 + 2, Math.min(W - lw/2 - 2, mouseX));
-      // Erase strip behind label â€” tall enough to cover the axis text at H-3
+      // Erase strip behind label — tall enough to cover the axis text at H-3
       ctx.fillStyle = C.bg3;
       ctx.fillRect(lx - lw/2 - 2, H - lh - 2, lw + 4, lh + 2);
       ctx.fillStyle = C.am;
@@ -13129,7 +13129,7 @@ function _drawImmediate(){
     }
   }
 
-  // â”€â”€ Custom Indicators â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Custom Indicators ──────────────────────────────────────────────────────
   customIndicators.filter(i=>i.visible).forEach(ind=>{
     try{
       const vals = evalIndFormula(ind.formula, data);
@@ -13187,28 +13187,28 @@ function _drawImmediate(){
           cx2.fillText(fP(lv2),3,11);
         }
       }
-    }catch(e){ /* silent â€” bad formula on symbol change */ }
+    }catch(e){ /* silent — bad formula on symbol change */ }
   });
 
   updateChartScrubber();
 }
 
-// â•â• DRAWING TOOLS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� DRAWING TOOLS ��������������������������������������������������������������
 let activeTool = 'cursor';
 let drawingColor = '#f0a500';
 let drawingLineStyle = 'solid';
 let drawingLineWidth = 1;
 
-// â”€â”€ Per-symbol drawing persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ Drawing coordinate helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Per-symbol drawing persistence ───────────────────────────────────────────
+// ── Drawing coordinate helpers ──────────────────────────────────────────────
 // Drawings are stored with Unix timestamps so they transfer across timeframes.
-// bar â†’ time: look up curData[Math.round(bar)].time (clamp to valid range)
+// bar → time: look up curData[Math.round(bar)].time (clamp to valid range)
 function barToTime(bar) {
   if(!curData.length) return 0;
   const i = Math.max(0, Math.min(curData.length-1, Math.round(bar)));
   return curData[i].time;
 }
-// time â†’ bar: binary search in curData for closest bar
+// time → bar: binary search in curData for closest bar
 function timeToBar(time) {
   if(!curData.length) return 0;
   let lo=0, hi=curData.length-1;
@@ -13245,7 +13245,7 @@ function saveDrawings(sym,tf){
     const activeTab = chartTabs.find(t => t.id === activeChartTabId);
     if(activeTab && curSym?.s === sym) activeTab.drawings = portable;
   }catch(e){}
-  // Use cached AI panel data â€” force=false prevents Groq re-calls on drawing move/save
+  // Use cached AI panel data — force=false prevents Groq re-calls on drawing move/save
   if(curSym?.s === sym && curTF === tf) buildAIPanel(false);
 }
 function loadDrawings(sym,tf){
@@ -13260,7 +13260,7 @@ let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
 let channelStage = 0;        // channel needs 3 clicks
 
-// Effective half-width in bars â€” uses stored duration if available for TF-independence
+// Effective half-width in bars — uses stored duration if available for TF-independence
 function effectiveHalfBars(d){ 
   if(d.halfDuration) return secsToHalfBars(d.halfDuration, curTF);
   return d.halfBars || 8;
@@ -13334,7 +13334,7 @@ function buildTimeframeAwareTradeTool(direction, entryPrice, barIndex, tf){
   };
 }
 
-// â”€â”€ Drag / resize state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drag / resize state ──────────────────────────────────────────────────────
 let isDraggingDrawing  = false;  // moving whole drawing
 let isResizingDrawing  = false;  // dragging a handle
 let resizeHandle       = null;   // which handle ('p1','p2','sl','tp','price','bar', etc.)
@@ -13392,7 +13392,7 @@ document.addEventListener('keydown', e=>{
     saveDrawings(curSym.s,curTF);
     selectedDrawing=null; selectedDrawings=[]; draw();
   }
-  // Arrow keys â€” nudge selected drawing 1 bar left/right, or small price step up/down
+  // Arrow keys — nudge selected drawing 1 bar left/right, or small price step up/down
   if((e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='ArrowUp'||e.key==='ArrowDown') && selectedDrawing){
     e.preventDefault();
     const d = selectedDrawing;
@@ -13432,7 +13432,7 @@ function clearDrawings(){
   });
 }
 
-// â”€â”€ Coordinate converters (need barX/py from draw scope, so we use closures stored each frame)
+// ── Coordinate converters (need barX/py from draw scope, so we use closures stored each frame)
 let _barX=null, _py=null, _yToPrice=null, _xToBar=null;
 let _drawW=0, _drawH=0;
 
@@ -13560,7 +13560,7 @@ function _mentorResolveBubblePlacement(ctx, d, opts){
   return { bubbleX, bubbleY, useBottom: !!pl.useBottom };
 }
 
-// â”€â”€ Drawing hit test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drawing hit test ──────────────────────────────────────────────────────────
 function hitTest(d, sx, sy){
   if(!_barX||!_py) return false;
   const TOL = 8;
@@ -13681,7 +13681,7 @@ function hitTest(d, sx, sy){
   return false;
 }
 
-// â”€â”€ Get resize handles for a drawing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Get resize handles for a drawing ─────────────────────────────────────────
 function getHandles(d){
   if(!_barX||!_py) return [];
   switch(d.type){
@@ -13780,7 +13780,7 @@ function getHandles(d){
   }
 }
 
-// â”€â”€ Hit test a specific handle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Hit test a specific handle ────────────────────────────────────────────────
 function hitTestHandle(d, sx, sy){
   const TOL = 11;
   for(const h of getHandles(d)){
@@ -13827,9 +13827,9 @@ function drawingInRect(d, minX, maxX, minY, maxY){
   }
 }
 
-// â”€â”€ Drawing canvas handler (called from setupEvents mousedown/move/up) â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drawing canvas handler (called from setupEvents mousedown/move/up) ────────
 function handleDrawMousedown(sx, sy, e){
-  // â”€â”€ CTRL+DRAG: marquee selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CTRL+DRAG: marquee selection ───────────────────────────────────────────
   if(e.ctrlKey || e.metaKey){
     isMarquee = true;
     marqueeX0 = marqueeX1 = sx;
@@ -13840,7 +13840,7 @@ function handleDrawMousedown(sx, sy, e){
     draw(); return true;
   }
 
-  // â”€â”€ CURSOR MODE: select, drag, resize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CURSOR MODE: select, drag, resize ──────────────────────────────────────
   if(activeTool === 'cursor'){
     // First check: are we clicking a handle on the selected drawing?
     if(selectedDrawing){
@@ -13966,7 +13966,7 @@ function handleDrawMousedown(sx, sy, e){
     
     if (isMentorMode && hasFutureData) {
       // AI MENTOR MODE: Use future data to calculate PERFECT winning trade levels
-      console.log('ðŸ”® AI Mentor: Using future data for perfect trade placement');
+      console.log('🔮 AI Mentor: Using future data for perfect trade placement');
       
       const futureCandles = curData.slice(bar + 1, Math.min(bar + 31, curData.length));
       let highestHigh = price;
@@ -13988,7 +13988,7 @@ function handleDrawMousedown(sx, sy, e){
         tp = lowestLow * 1.002;
       }
       
-      console.log('ðŸ”® AI-calculated perfect levels:', { 
+      console.log('🔮 AI-calculated perfect levels:', { 
         entry: price.toFixed(2), 
         sl: sl.toFixed(2), 
         tp: tp.toFixed(2),
@@ -14033,11 +14033,11 @@ function handleDrawMousedown(sx, sy, e){
       mentorState.lockedQuestion = "Monitoring your trade. Watching position...";
       updateLockedMentorUI();
       
-      console.log('ðŸŽ¯ User guided trade activated:', mentorState.exampleTrade);
+      console.log('🎯 User guided trade activated:', mentorState.exampleTrade);
       return true;
     }
     
-    showTradeAnalysisPopup(drawing, true); // freshPlacement=true â€” don't restore old lock
+    showTradeAnalysisPopup(drawing, true); // freshPlacement=true — don't restore old lock
     return true;
   }
 
@@ -14048,14 +14048,14 @@ function handleDrawMousedown(sx, sy, e){
 }
 
 function handleDrawMousemove(sx, sy){
-  // â”€â”€ Marquee selection drag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Marquee selection drag ──────────────────────────────────────────────────
   if(isMarquee){
     marqueeX1 = sx;
     marqueeY1 = sy;
     draw(); return;
   }
 
-  // â”€â”€ Resizing a handle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Resizing a handle ───────────────────────────────────────────────────────
   if(isResizingDrawing && selectedDrawing && dragSnapshot){
     const bar   = _xToBar   ? _xToBar(sx)   : 0;
     const price = _yToPrice ? _yToPrice(sy)  : 0;
@@ -14158,7 +14158,7 @@ function handleDrawMousemove(sx, sy){
     return;
   }
 
-  // â”€â”€ Dragging whole drawing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Dragging whole drawing ──────────────────────────────────────────────────
   if(isDraggingDrawing && selectedDrawing && dragSnapshot){
     const bar   = _xToBar   ? _xToBar(sx)   : 0;
     const price = _yToPrice ? _yToPrice(sy)  : 0;
@@ -14231,7 +14231,7 @@ function handleDrawMousemove(sx, sy){
 }
 
 function handleDrawMouseup(sx, sy){
-  // â”€â”€ Marquee: commit selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Marquee: commit selection ───────────────────────────────────────────────
   if(isMarquee){
     isMarquee = false;
     const minX=Math.min(marqueeX0,marqueeX1), maxX=Math.max(marqueeX0,marqueeX1);
@@ -14275,8 +14275,8 @@ function handleDrawMouseup(sx, sy){
   draw();
 }
 
-// â”€â”€ Render all drawings onto the chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€ roundRect helper (polyfill for older browsers) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Render all drawings onto the chart ───────────────────────────────────────
+// ── roundRect helper (polyfill for older browsers) ───────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -14288,9 +14288,9 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// â”€â”€ Mentor Annotation System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mentor Annotation System ─────────────────────────────────────────────
 // Draws arrows, highlight boxes, and label callouts on the chart at key
-// setup moments. All annotations are full drawings â€” selectable and deletable
+// setup moments. All annotations are full drawings — selectable and deletable
 // by the user. Cleared per-session via clearMentorAnnotations().
 
 let _mentorAnnotationIds = []; // track IDs so we can clear them
@@ -14299,12 +14299,12 @@ function clearMentorAnnotations() {
   drawings = drawings.filter(d => !d.isMentorAnnotation);
   _mentorAnnotationIds = [];
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
-  // Don't call draw() here â€” caller is responsible for redrawing
+  // Don't call draw() here — caller is responsible for redrawing
   // (avoids premature draw when called mid-annotation inside _mentorAnnotateSetup)
   if (typeof draw === 'function') draw();
 }
 
-// Silent clear â€” no redraw. Used internally before adding new annotations.
+// Silent clear — no redraw. Used internally before adding new annotations.
 function _clearMentorAnnotationsSilent() {
   drawings = drawings.filter(d => !d.isMentorAnnotation);
   _mentorAnnotationIds = [];
@@ -14314,7 +14314,7 @@ function _clearMentorAnnotationsSilent() {
 // direction: 'down' (arrow points down toward candle from above) or 'up'
 function _addMentorArrow(bar, price, label, direction = 'down', highlight = false, explanation = '') {
   const id = 'mentor_ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  // Anchor at the actual structural price â€” no ATR offset so dots sit ON the structure
+  // Anchor at the actual structural price — no ATR offset so dots sit ON the structure
   const drawing = {
     type: 'mentor_arrow',
     bar, price: price,
@@ -14365,16 +14365,16 @@ function _addMentorLabel(bar, price, lines) {
   return id;
 }
 
-// â•â• MENTOR ANNOTATION ENGINE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� MENTOR ANNOTATION ENGINE �������������������������������������������������
 // Universal, clean annotation system.
 // Rules:
-//   â€¢ Max 5 annotations per setup (1 context + 1 key level + 1 confluence + 1 entry + 1 objective)
-//   â€¢ All anchored to real price structures (no floating)
-//   â€¢ All within visible candle range (no off-screen labels)
-//   â€¢ Overlap prevention via label stagger
-//   â€¢ Progressive: Step1(context) â†’ Step2(+levels) â†’ Step3(+confluences)
+//   • Max 5 annotations per setup (1 context + 1 key level + 1 confluence + 1 entry + 1 objective)
+//   • All anchored to real price structures (no floating)
+//   • All within visible candle range (no off-screen labels)
+//   • Overlap prevention via label stagger
+//   • Progressive: Step1(context) → Step2(+levels) → Step3(+confluences)
 
-// â”€â”€ Confluence factor label builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Confluence factor label builder ──────────────────────────────────────────
 // Returns an array of {name, explanation} objects for each confluence factor
 // that was counted when the setup was scored. Used to annotate each factor
 // on the chart so the user can see WHY the setup qualified.
@@ -14390,68 +14390,68 @@ function _buildConfluenceFactors(setupDetection, data, structure, atr, dir, meth
     const candleRange = (current.high - current.low) || 1;
     const minBody = crypto ? 0.60 : 0.50;
     if (bodySize / candleRange >= minBody)
-      factors.push({ name: 'Strong body close', explanation: `The breakout candle closed with ${Math.round(bodySize/candleRange*100)}% of its range as body â€” showing conviction that buyers/sellers committed to the new level, not just a temporary spike.` });
+      factors.push({ name: 'Strong body close', explanation: `The breakout candle closed with ${Math.round(bodySize/candleRange*100)}% of its range as body — showing conviction that buyers/sellers committed to the new level, not just a temporary spike.` });
     const conso = detectConsolidation(data);
     if (current.volume > (conso?.avgVolume || 1) * (crypto ? 1.5 : 1.2))
-      factors.push({ name: 'Volume spike', explanation: `Volume on the breakout candle was ${Math.round(current.volume/(conso?.avgVolume||1)*10)/10}Ã— the consolidation average â€” confirming real participation, not a low-conviction false breakout.` });
+      factors.push({ name: 'Volume spike', explanation: `Volume on the breakout candle was ${Math.round(current.volume/(conso?.avgVolume||1)*10)/10}× the consolidation average — confirming real participation, not a low-conviction false breakout.` });
     if (conso?.upperTouches >= (crypto?4:3) || conso?.lowerTouches >= (crypto?4:3))
-      factors.push({ name: 'Well-tested zone', explanation: `The breakout level had ${Math.max(conso?.upperTouches||0,conso?.lowerTouches||0)} prior touches â€” the more times a level is tested and holds, the stronger the eventual breakout when it finally gives way.` });
+      factors.push({ name: 'Well-tested zone', explanation: `The breakout level had ${Math.max(conso?.upperTouches||0,conso?.lowerTouches||0)} prior touches — the more times a level is tested and holds, the stronger the eventual breakout when it finally gives way.` });
     if (trend && trend !== 'neutral')
-      factors.push({ name: 'Trend aligned', explanation: `The breakout is in the direction of the ${trend.replace(/_/g,' ')} â€” trading with the trend increases the probability that the breakout will follow through rather than snap back.` });
+      factors.push({ name: 'Trend aligned', explanation: `The breakout is in the direction of the ${trend.replace(/_/g,' ')} — trading with the trend increases the probability that the breakout will follow through rather than snap back.` });
 
   } else if (type === 'flag_continuation' || type === 'structure_continuation') {
-    factors.push({ name: 'Impulse + pullback', explanation: `A strong directional impulse followed by a low-volume pullback â€” the classic flag pattern. The impulse shows institutional conviction; the pullback is retail taking profits, creating the entry opportunity.` });
+    factors.push({ name: 'Impulse + pullback', explanation: `A strong directional impulse followed by a low-volume pullback — the classic flag pattern. The impulse shows institutional conviction; the pullback is retail taking profits, creating the entry opportunity.` });
     if (trend.includes('strong'))
-      factors.push({ name: 'Strong trend', explanation: `The higher-timeframe trend is ${trend.replace(/_/g,' ')} â€” strong trends produce the cleanest flag patterns because momentum is high and counter-moves are corrective, not reversal.` });
+      factors.push({ name: 'Strong trend', explanation: `The higher-timeframe trend is ${trend.replace(/_/g,' ')} — strong trends produce the cleanest flag patterns because momentum is high and counter-moves are corrective, not reversal.` });
     const flag = detectFlagPattern(data, structure);
     if (flag?.quality === 'high')
-      factors.push({ name: 'High-quality flag', explanation: `The pullback retraced ${Math.round((flag.retrace||0)*100)}% of the impulse â€” in the ideal 38â€“62% zone. A shallower pullback means weak follow-through; deeper means potential reversal. This depth is optimal.` });
-    factors.push({ name: 'EMA alignment', explanation: `Price is on the correct side of the 20 EMA â€” a basic filter that removes counter-trend setups. When price is above EMA20 in an uptrend, the path of least resistance is up.` });
+      factors.push({ name: 'High-quality flag', explanation: `The pullback retraced ${Math.round((flag.retrace||0)*100)}% of the impulse — in the ideal 38–62% zone. A shallower pullback means weak follow-through; deeper means potential reversal. This depth is optimal.` });
+    factors.push({ name: 'EMA alignment', explanation: `Price is on the correct side of the 20 EMA — a basic filter that removes counter-trend setups. When price is above EMA20 in an uptrend, the path of least resistance is up.` });
 
   } else if (type === 'support_bounce') {
-    factors.push({ name: 'Support bounce', explanation: `Price reached an established support level and showed rejection â€” the foundation of S&R trading. This level has proven it attracts buyers.` });
+    factors.push({ name: 'Support bounce', explanation: `Price reached an established support level and showed rejection — the foundation of S&R trading. This level has proven it attracts buyers.` });
     const sb = detectSupportBounce(data);
     if (sb?.touches >= 3)
-      factors.push({ name: `${sb.touches}Ã— tested support`, explanation: `This support level has been tested ${sb.touches} times without breaking. Each successful test strengthens the level â€” sellers keep trying and failing, which brings more buyers to defend it.` });
+      factors.push({ name: `${sb.touches}× tested support`, explanation: `This support level has been tested ${sb.touches} times without breaking. Each successful test strengthens the level — sellers keep trying and failing, which brings more buyers to defend it.` });
     if (trend.includes('up'))
       factors.push({ name: 'Uptrend confluence', explanation: `The larger trend is up, so bouncing from support aligns with the trend direction. Trading with the trend + from support = double confluence for a long entry.` });
     const level = sb?.supportLevel || 0;
     if (crypto && level > 0 && _isPriceRelativeRound(level))
-      factors.push({ name: 'Round-number level', explanation: `Support sits near a round-number price ($${Math.round(level/1000)*1000 || level.toFixed(0)}). Round numbers attract cluster stops and pending orders from retail traders â€” this concentrates liquidity and reinforces the support zone.` });
+      factors.push({ name: 'Round-number level', explanation: `Support sits near a round-number price ($${Math.round(level/1000)*1000 || level.toFixed(0)}). Round numbers attract cluster stops and pending orders from retail traders — this concentrates liquidity and reinforces the support zone.` });
     else if (sb?.touches >= 4)
-      factors.push({ name: 'Highly tested level', explanation: `Four or more distinct tests that held â€” this is an unusually strong level. When a level holds this many times, large orders are likely protecting it.` });
+      factors.push({ name: 'Highly tested level', explanation: `Four or more distinct tests that held — this is an unusually strong level. When a level holds this many times, large orders are likely protecting it.` });
 
   } else if (type === 'resistance_rejection') {
-    factors.push({ name: 'Resistance rejection', explanation: `Price reached an established resistance level and showed clear rejection â€” the hallmark of an S&R short setup. This level has proven sellers defend it.` });
+    factors.push({ name: 'Resistance rejection', explanation: `Price reached an established resistance level and showed clear rejection — the hallmark of an S&R short setup. This level has proven sellers defend it.` });
     const rr = detectResistanceRejection(data);
     if (rr?.touches >= 3)
-      factors.push({ name: `${rr.touches}Ã— tested resistance`, explanation: `This resistance level has held ${rr.touches} separate times. Each failed breakout attempt adds to the evidence that supply is heavy at this level.` });
+      factors.push({ name: `${rr.touches}× tested resistance`, explanation: `This resistance level has held ${rr.touches} separate times. Each failed breakout attempt adds to the evidence that supply is heavy at this level.` });
     if (trend.includes('down'))
       factors.push({ name: 'Downtrend confluence', explanation: `The larger trend is down, so fading resistance aligns with the dominant direction. Selling into resistance in a downtrend is the highest-probability S&R setup.` });
     if (rr?.touches >= 4)
-      factors.push({ name: 'Highly tested level', explanation: `Four or more tests of this resistance that held â€” an unusually strong ceiling. This many failures to break higher signals significant sell-side pressure.` });
+      factors.push({ name: 'Highly tested level', explanation: `Four or more tests of this resistance that held — an unusually strong ceiling. This many failures to break higher signals significant sell-side pressure.` });
 
   } else if (type === 'trend_pullback') {
     const pb = detectTrendPullback(data, structure);
     factors.push({ name: 'Trend resuming', explanation: `Price pulled back against the ${trend.replace(/_/g,' ')} trend and is now showing signs of resuming. Pullbacks in trends are buy/sell opportunities because the underlying momentum hasn't changed.` });
     if (pb?.retrace) {
       const pct = Math.round(pb.retrace * 100);
-      factors.push({ name: `${pct}% Fibonacci retracement`, explanation: `The pullback retraced ${pct}% of the prior impulse. Fibonacci levels at 38%, 50%, and 62% are where trend pullbacks most often end â€” this hit the optimal zone, increasing the probability the trend resumes from here.` });
+      factors.push({ name: `${pct}% Fibonacci retracement`, explanation: `The pullback retraced ${pct}% of the prior impulse. Fibonacci levels at 38%, 50%, and 62% are where trend pullbacks most often end — this hit the optimal zone, increasing the probability the trend resumes from here.` });
     }
     if (pb?.volContracting)
-      factors.push({ name: 'Volume contracting', explanation: `Volume dried up during the pullback â€” a healthy sign. Low-volume pullbacks mean sellers aren't committed; they're just profit-taking. When volume contracts on the counter-move, the dominant buyers/sellers are still in control.` });
+      factors.push({ name: 'Volume contracting', explanation: `Volume dried up during the pullback — a healthy sign. Low-volume pullbacks mean sellers aren't committed; they're just profit-taking. When volume contracts on the counter-move, the dominant buyers/sellers are still in control.` });
     if (trend.includes('strong'))
-      factors.push({ name: 'Strong trend', explanation: `The underlying trend is ${trend.replace(/_/g,' ')} â€” strong trends produce shallower pullbacks and faster resumptions. More momentum = higher probability that the pullback is corrective, not reversal.` });
+      factors.push({ name: 'Strong trend', explanation: `The underlying trend is ${trend.replace(/_/g,' ')} — strong trends produce shallower pullbacks and faster resumptions. More momentum = higher probability that the pullback is corrective, not reversal.` });
 
   } else if (type === 'liquidity_sweep') {
     const sw = detectLiquiditySweep(data);
-    factors.push({ name: 'Stop hunt detected', explanation: `Price swept below/above a cluster of stops before reversing sharply â€” a liquidity sweep. Smart money engineers these moves to fill large orders at retail traders' expense.` });
+    factors.push({ name: 'Stop hunt detected', explanation: `Price swept below/above a cluster of stops before reversing sharply — a liquidity sweep. Smart money engineers these moves to fill large orders at retail traders' expense.` });
     if (sw?.wickToBodyRatio > 2)
-      factors.push({ name: `${Math.round(sw.wickToBodyRatio)}Ã— rejection wick`, explanation: `The sweep candle has a wick ${Math.round(sw.wickToBodyRatio)}Ã— its body â€” a textbook liquidity grab fingerprint. The larger the wick, the more stops were triggered and the more decisively price reversed.` });
+      factors.push({ name: `${Math.round(sw.wickToBodyRatio)}× rejection wick`, explanation: `The sweep candle has a wick ${Math.round(sw.wickToBodyRatio)}× its body — a textbook liquidity grab fingerprint. The larger the wick, the more stops were triggered and the more decisively price reversed.` });
     if (sw?.volumeSpike)
-      factors.push({ name: 'Volume spike on sweep', explanation: `Volume spiked when the sweep wick formed â€” confirming real institutional order flow, not just a thin-book spike. Volume on the sweep + immediate reversal = strong evidence of smart money activity.` });
+      factors.push({ name: 'Volume spike on sweep', explanation: `Volume spiked when the sweep wick formed — confirming real institutional order flow, not just a thin-book spike. Volume on the sweep + immediate reversal = strong evidence of smart money activity.` });
     if (trend && trend !== 'neutral')
-      factors.push({ name: 'Trend aligned reversal', explanation: `The sweep reversal points back in the direction of the ${trend.replace(/_/g,' ')} â€” sweeps that reverse WITH the trend have the highest follow-through rate.` });
+      factors.push({ name: 'Trend aligned reversal', explanation: `The sweep reversal points back in the direction of the ${trend.replace(/_/g,' ')} — sweeps that reverse WITH the trend have the highest follow-through rate.` });
   }
 
   return factors.slice(0, 4); // cap at 4 factors to avoid annotation clutter
@@ -14466,20 +14466,20 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
     ? Math.max(0, Math.min(replayCutoff, curData.length - 1))
     : Math.max(0, Math.min(anchorBar ?? detBar, curData.length - 1));
 
-  // â”€â”€ Determine current stage based on proximity to setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Determine current stage based on proximity to setup ──────────────────
   // Stage 1 (>25 bars away): structural context only
-  // Stage 2 (â‰¤25 bars away): + key level / zone
-  // Stage 3 (â‰¤12 bars away): + entry signal
+  // Stage 2 (≤25 bars away): + key level / zone
+  // Stage 3 (≤12 bars away): + entry signal
   const barsAway    = Math.max(0, setupBar - liveBar);
   const curStage    = barsAway > 25 ? 1 : barsAway > 12 ? 2 : 3;
 
-  // â”€â”€ Cache check: serve cached drawings if stage hasn't advanced â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cache check: serve cached drawings if stage hasn't advanced ──────────
   // This ensures annotations NEVER disappear when scrolling back.
   // We only recompute when curStage advances beyond what's cached.
   const cache = mentorState._annCache;
   if (cache && cache.setupBar === setupBar && cache.method === method) {
     if (curStage <= cache.stage) {
-      // Stage hasn't advanced â€” restore cached drawings and return
+      // Stage hasn't advanced — restore cached drawings and return
       const existingIds = new Set(drawings.filter(d => d.isMentorAnnotation).map(d => d.id));
       let restored = false;
       for (const cd of cache.drawings) {
@@ -14492,10 +14492,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
       if (restored) draw();
       return;
     }
-    // Stage advanced â€” fall through to recompute with the new stage
+    // Stage advanced — fall through to recompute with the new stage
   }
 
-  // â”€â”€ Compute fresh annotations for the current stage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Compute fresh annotations for the current stage ───────────────────────
   _clearMentorAnnotationsSilent();
   mentorState._lastAnnStateKey = `${setupBar}_${method}`;
 
@@ -14519,9 +14519,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   function inRange(p) { return Number.isFinite(p) && p >= rangeLow - atr && p <= rangeHigh + atr; }
   function isVis(b)   { return Number.isFinite(b) && b >= 0 && b <= visibleUpTo; }
 
-  // Progressive reveal â€” unlocks as user steps closer to the setup
-  const showLevels = curStage >= 2; // key level/zone appears at â‰¤25 bars away
-  const showConf   = curStage >= 3; // entry signal appears at â‰¤12 bars away
+  // Progressive reveal — unlocks as user steps closer to the setup
+  const showLevels = curStage >= 2; // key level/zone appears at ≤25 bars away
+  const showConf   = curStage >= 3; // entry signal appears at ≤12 bars away
 
   // max annotations: 2 at stage 1, 3 at stage 2, 4 at stage 3
   const ann = [];
@@ -14556,7 +14556,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
     ann.push({ type:'arrow', bar, price, label, pointing, highlight:!!highlight, pri:pri||2, candleIndex:ci, explanation:explanation||'' });
   }
 
-  // â”€â”€ Find significant swing points â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Find significant swing points ─────────────────────────────────────────
   function findMajorSwings(type) {
     const strength = 3, minSize = atr * 1.5;
     const raw = [];
@@ -14590,22 +14590,22 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const swingL = findMajorSwings('low');
 
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // STAGE 1 â€” MARKET CONTEXT
+  // ��������������������������������������������������������������������������
+  // STAGE 1 — MARKET CONTEXT
   // Structural swing annotations. Only shown for trend/pullback methods where
   // the swing sequence IS the primary confluence. Breakout, liquidity, range,
   // and S&R methods show their own structural context in Stage 2.
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ��������������������������������������������������������������������������
   const _methodNeedsSwingContext = method === 'trend' || method === 'pullback' ||
     method === 'flag_continuation' || method === 'structure_continuation';
-    // Note: support_resistance intentionally excluded â€” S&R is about price levels,
+    // Note: support_resistance intentionally excluded — S&R is about price levels,
     // not swing sequences. Level touches are shown in Stage 2 instead.
   if (_methodNeedsSwingContext) {
     const tUp = structure.trend?.includes('up');
     const tDn = structure.trend?.includes('down');
     const ctxSwings = (dir==='long' ? swingL : swingH);
 
-    // Show the two most recent structural swings â€” together they prove the trend
+    // Show the two most recent structural swings — together they prove the trend
     const sw1 = ctxSwings.slice(-1)[0];
     const sw2 = ctxSwings.slice(-2)[0];
 
@@ -14615,10 +14615,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
                 : dir==='long'  ? 'Swing low' : 'Swing high';
       addArrow(sw1.bar, sw1.price, lbl,
         dir==='long'?'up':'down', false, 3,
-        tUp&&dir==='long'  ? `Higher low at ${fP(sw1.price)} â€” price made a higher low here, confirming the uptrend. Buyers stepped in before the previous low, showing increasing demand.`
-        : tDn&&dir==='short' ? `Lower high at ${fP(sw1.price)} â€” price failed to reach the previous high, confirming the downtrend. Sellers stepped in earlier, showing increasing supply.`
-        : dir==='long'  ? `Swing low at ${fP(sw1.price)} â€” buyers defended this level and pushed price higher.`
-        :                   `Swing high at ${fP(sw1.price)} â€” sellers defended this level and pushed price lower.`);
+        tUp&&dir==='long'  ? `Higher low at ${fP(sw1.price)} — price made a higher low here, confirming the uptrend. Buyers stepped in before the previous low, showing increasing demand.`
+        : tDn&&dir==='short' ? `Lower high at ${fP(sw1.price)} — price failed to reach the previous high, confirming the downtrend. Sellers stepped in earlier, showing increasing supply.`
+        : dir==='long'  ? `Swing low at ${fP(sw1.price)} — buyers defended this level and pushed price higher.`
+        :                   `Swing high at ${fP(sw1.price)} — sellers defended this level and pushed price lower.`);
     }
 
     if (sw2 && sw1 && Math.abs(sw2.bar - sw1.bar) > 8 && isVis(sw2.bar)) {
@@ -14627,19 +14627,19 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
                  : dir==='long'  ? 'Prior swing low' : 'Prior swing high';
       addArrow(sw2.bar, sw2.price, lbl2,
         dir==='long'?'up':'down', false, 3,
-        tUp&&dir==='long'  ? `Prior higher low at ${fP(sw2.price)} â€” with the more recent higher low, this confirms a series of higher lows. This is the structure of an uptrend.`
-        : tDn&&dir==='short' ? `Prior lower high at ${fP(sw2.price)} â€” with the more recent lower high, confirms a series of lower highs â€” the structure of a downtrend.`
-        : dir==='long'  ? `Prior swing low â€” provides additional context for the support area.`
-        :                   `Prior swing high â€” provides additional context for the resistance area.`);
+        tUp&&dir==='long'  ? `Prior higher low at ${fP(sw2.price)} — with the more recent higher low, this confirms a series of higher lows. This is the structure of an uptrend.`
+        : tDn&&dir==='short' ? `Prior lower high at ${fP(sw2.price)} — with the more recent lower high, confirms a series of lower highs — the structure of a downtrend.`
+        : dir==='long'  ? `Prior swing low — provides additional context for the support area.`
+        :                   `Prior swing high — provides additional context for the resistance area.`);
     }
   } // end _methodNeedsSwingContext
 
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // STAGE 2 â€” KEY LEVEL / ZONE + WHY IT WAS PICKED
+  // ��������������������������������������������������������������������������
+  // STAGE 2 — KEY LEVEL / ZONE + WHY IT WAS PICKED
   // The specific price area the trade is based on.
   // For each method: show the level AND mark the prior touches that validate it.
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ��������������������������������������������������������������������������
   if (showLevels) {
     switch (method) {
 
@@ -14666,14 +14666,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const firstTouch = touchClusters[0] ?? histFrom;
         if (firstTouch < visibleUpTo) {
           addZone(firstTouch, visibleUpTo + 5, level,
-            dir==='long' ? `Support zone â€” ${fP(level)}` : `Resistance zone â€” ${fP(level)}`,
+            dir==='long' ? `Support zone — ${fP(level)}` : `Resistance zone — ${fP(level)}`,
             1,
             dir==='long'
               ? `This level was picked because price bounced here ${touchClusters.length} time${touchClusters.length>1?'s':''} without breaking down. That tells us buyers repeatedly accepted value around ${fP(level)} and were strong enough to push price away each time. In other words, this is support because the market has already proven demand lives here, not because the mentor guessed a number. The more separate tests that hold, the stronger that support story becomes.`
               : `This level was picked because price reversed here ${touchClusters.length} time${touchClusters.length>1?'s':''} instead of continuing higher. That tells us sellers repeatedly defended this area near ${fP(level)} and capped the move. In other words, this is resistance because supply has already shown itself here, not because the mentor guessed a number. The more separate rejections we see, the more trustworthy that ceiling becomes.`);
         }
 
-        // Mark each prior touch as it happened â€” revealed progressively as replay reaches each bar.
+        // Mark each prior touch as it happened — revealed progressively as replay reaches each bar.
         const labels = ['1st test', '2nd test', '3rd test'];
         touchClusters.slice(0, -1).forEach((tb, idx) => {
           if (!isVis(tb)) return;
@@ -14684,8 +14684,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             labels[idx] || `Test ${idx+1}`,
             dir==='long'?'up':'down', false, 2,
             idx === 0
-              ? `First time price reached ${fP(level)} â€” and held. This established the level as significant.`
-              : `Test ${idx+1} â€” level held again. Repeated tests that hold confirm strong interest at this price.`,
+              ? `First time price reached ${fP(level)} — and held. This established the level as significant.`
+              : `Test ${idx+1} — level held again. Repeated tests that hold confirm strong interest at this price.`,
             true); // historical=true: appears when replay reaches this bar, not counted in structural limit
         });
         break;
@@ -14698,16 +14698,16 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const cf = Math.max(histFrom, detectionBar-15);
         if (!isVis(cf) || cf >= visibleUpTo) break;
 
-        addBox(cf, visibleUpTo, conso.lower, conso.upper, `Consolidation â€” ${fP(conso.lower)} to ${fP(conso.upper)}`, 1,
-          `Price has been coiling in this ${Math.round((conso.upper-conso.lower)/atr*10)/10}Ã—ATR range. The longer price compresses, the stronger the eventual breakout. Watch for a close outside this box with volume.`);
+        addBox(cf, visibleUpTo, conso.lower, conso.upper, `Consolidation — ${fP(conso.lower)} to ${fP(conso.upper)}`, 1,
+          `Price has been coiling in this ${Math.round((conso.upper-conso.lower)/atr*10)/10}×ATR range. The longer price compresses, the stronger the eventual breakout. Watch for a close outside this box with volume.`);
 
         const bl = dir==='long' ? conso.upper : conso.lower;
         if (inRange(bl))
           addZone(cf, visibleUpTo+6, bl,
-            dir==='long' ? `Breakout line â€” ${fP(bl)}` : `Breakdown line â€” ${fP(bl)}`,
+            dir==='long' ? `Breakout line — ${fP(bl)}` : `Breakdown line — ${fP(bl)}`,
             1,
-            dir==='long' ? `Upper boundary of the range. A strong close above ${fP(bl)} confirms buyers have overwhelmed sellers â€” this is the entry trigger.`
-                         : `Lower boundary of the range. A strong close below ${fP(bl)} confirms sellers are in control â€” this is the entry trigger.`);
+            dir==='long' ? `Upper boundary of the range. A strong close above ${fP(bl)} confirms buyers have overwhelmed sellers — this is the entry trigger.`
+                         : `Lower boundary of the range. A strong close below ${fP(bl)} confirms sellers are in control — this is the entry trigger.`);
         break;
       }
 
@@ -14727,18 +14727,18 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
 
         if (isVis(anch) && anch<visibleUpTo && inRange(f382) && inRange(f618)) {
           addBox(anch, visibleUpTo+6, Math.min(f382,f618), Math.max(f382,f618),
-            `Pullback zone â€” 38â€“62% Fib`,
+            `Pullback zone — 38–62% Fib`,
             1,
-            `Measured from the swing ${dir==='long'?'high at '+fP(swHi):'low at '+fP(swLo)}. The 38â€“62% zone (${fP(Math.min(f382,f618))}â€“${fP(Math.max(f382,f618))}) is where healthy pullbacks typically end and the trend resumes. This is the optimal entry area.`);
+            `Measured from the swing ${dir==='long'?'high at '+fP(swHi):'low at '+fP(swLo)}. The 38–62% zone (${fP(Math.min(f382,f618))}–${fP(Math.max(f382,f618))}) is where healthy pullbacks typically end and the trend resumes. This is the optimal entry area.`);
         }
 
         const fibAnchorBar   = dir==='long' ? hiI : loI;
         const fibAnchorPrice = dir==='long' ? swHi : swLo;
         if (isVis(fibAnchorBar) && inRange(fibAnchorPrice))
           addArrow(fibAnchorBar, fibAnchorPrice,
-            dir==='long' ? `Swing high â€” ${fP(swHi)}` : `Swing low â€” ${fP(swLo)}`,
+            dir==='long' ? `Swing high — ${fP(swHi)}` : `Swing low — ${fP(swLo)}`,
             dir==='long'?'down':'up', false, 2,
-            `The Fibonacci retracement is measured FROM this ${dir==='long'?'high':'low'}. The 38â€“62% zone below/above it is where the trend is most likely to resume.`);
+            `The Fibonacci retracement is measured FROM this ${dir==='long'?'high':'low'}. The 38–62% zone below/above it is where the trend is most likely to resume.`);
         break;
       }
 
@@ -14749,9 +14749,9 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (!isVis(anch) || anch >= visibleUpTo) break;
 
         addZone(anch, visibleUpTo+4, sw.sweepLevel,
-          `Liquidity pool â€” ${fP(sw.sweepLevel)}`,
+          `Liquidity pool — ${fP(sw.sweepLevel)}`,
           1,
-          `Stop losses from retail traders sat clustered ${dir==='long'?'below':'above'} this level. This was the target â€” price swept through to trigger those stops before reversing. The wick depth of ${fP(sw.wickDepth||atr*0.5)} confirms real stops were hit.`);
+          `Stop losses from retail traders sat clustered ${dir==='long'?'below':'above'} this level. This was the target — price swept through to trigger those stops before reversing. The wick depth of ${fP(sw.wickDepth||atr*0.5)} confirms real stops were hit.`);
         break;
       }
 
@@ -14762,14 +14762,14 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         if (!isVis(anch) || anch >= visibleUpTo) break;
 
         addBox(anch, visibleUpTo+4, conso.lower, conso.upper,
-          `Range â€” ${fP(conso.lower)} to ${fP(conso.upper)}`,
+          `Range — ${fP(conso.lower)} to ${fP(conso.upper)}`,
           1,
-          `Price has been bouncing between these two levels. The range is ${Math.round((conso.upper-conso.lower)/atr*10)/10}Ã—ATR wide. Strategy: enter at the boundaries, target the opposite side, exit before the middle.`);
+          `Price has been bouncing between these two levels. The range is ${Math.round((conso.upper-conso.lower)/atr*10)/10}×ATR wide. Strategy: enter at the boundaries, target the opposite side, exit before the middle.`);
 
         const boundary = dir==='long' ? conso.lower : conso.upper;
         if (inRange(boundary))
           addZone(anch, visibleUpTo+4, boundary,
-            dir==='long' ? `Range bottom â€” ${fP(boundary)}` : `Range top â€” ${fP(boundary)}`,
+            dir==='long' ? `Range bottom — ${fP(boundary)}` : `Range top — ${fP(boundary)}`,
             1,
             dir==='long' ? `The lower boundary where buyers have stepped in each time. A rejection wick here confirms the bounce.`
                          : `The upper boundary where sellers have stepped in each time. A rejection wick here confirms the fade.`);
@@ -14779,11 +14779,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   }
 
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // STAGE 3 â€” ENTRY SIGNAL
+  // ��������������������������������������������������������������������������
+  // STAGE 3 — ENTRY SIGNAL
   // The specific candle behaviour that triggers the trade.
   // Anchored to real OHLC. Explains exactly what to look for.
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ��������������������������������������������������������������������������
   if (showConf) {
     // For stage-3 entry annotations during setup_detected phase,
     // the setup bar may still be in the future so detectionBar fails isVis().
@@ -14803,12 +14803,12 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const ratio = wick/body;
           if (inRange(px))
             addArrow(entryAnchorBar, px,
-              ratio >= 1.5 ? `Rejection wick (${ratio.toFixed(1)}Ã—)`
+              ratio >= 1.5 ? `Rejection wick (${ratio.toFixed(1)}×)`
               : ratio >= 0.7 ? `Reaction candle`
               : `Level test`,
               dir==='long'?'up':'down', true, 1,
               ratio >= 1.5
-                ? `The wick is ${ratio.toFixed(1)}Ã— the candle body â€” a strong rejection signal. Price was forcefully pushed back from ${fP(dir==='long'?dc.low:dc.high)}, confirming buyers${dir==='long'?'':'/sellers'} are defending this level aggressively.`
+                ? `The wick is ${ratio.toFixed(1)}× the candle body — a strong rejection signal. Price was forcefully pushed back from ${fP(dir==='long'?dc.low:dc.high)}, confirming buyers${dir==='long'?'':'/sellers'} are defending this level aggressively.`
                 : `Price is reacting at the level. The candle body shows ${dir==='long'?'buying':'selling'} pressure. Watch for the next candle to close ${dir==='long'?'above':'below'} the level to confirm the move.`);
           break;
         }
@@ -14821,8 +14821,8 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
               `Breakout (${pct}% body)`,
               dir==='long'?'down':'up', true, 1,
               pct >= 60
-                ? `Strong breakout candle â€” ${pct}% of the candle range is body, showing conviction. Price has closed ${dir==='long'?'above resistance':'below support'} decisively.`
-                : `Breakout candle with ${pct}% body. Moderate conviction â€” watch for follow-through on the next candle to confirm the breakout is real.`);
+                ? `Strong breakout candle — ${pct}% of the candle range is body, showing conviction. Price has closed ${dir==='long'?'above resistance':'below support'} decisively.`
+                : `Breakout candle with ${pct}% body. Moderate conviction — watch for follow-through on the next candle to confirm the breakout is real.`);
           break;
         }
 
@@ -14833,10 +14833,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
           const pct = pb.detected && pb.retrace ? Math.round(pb.retrace*100) : null;
           if (inRange(px))
             addArrow(entryAnchorBar, px,
-              pct ? `${pct}% pullback â€” entry` : `Trend resuming`,
+              pct ? `${pct}% pullback — entry` : `Trend resuming`,
               dir==='long'?'up':'down', true, 1,
               pct
-                ? `Price pulled back ${pct}% into the Fibonacci zone${pb.volContracting?' with volume contracting (healthy pullback â€” sellers losing momentum)':' â€” watch for volume to contract before entering'}. The trend is expected to resume ${dir==='long'?'upward':'downward'} from here.`
+                ? `Price pulled back ${pct}% into the Fibonacci zone${pb.volContracting?' with volume contracting (healthy pullback — sellers losing momentum)':' — watch for volume to contract before entering'}. The trend is expected to resume ${dir==='long'?'upward':'downward'} from here.`
                 : `Price is resuming the ${dir==='long'?'up':'down'}trend. Entry here follows the path of least resistance.`);
           break;
         }
@@ -14850,13 +14850,13 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             if (inRange(sp))
               addArrow(swB, sp, `Stop hunt wick`,
                 dir==='long'?'up':'down', false, 2,
-                `This wick swept the stops sitting ${dir==='long'?'below':'above'} ${fP(sw.sweepLevel)}. The long wick + immediate reversal is the signature of a liquidity sweep â€” smart money filled orders and reversed.`);
+                `This wick swept the stops sitting ${dir==='long'?'below':'above'} ${fP(sw.sweepLevel)}. The long wick + immediate reversal is the signature of a liquidity sweep — smart money filled orders and reversed.`);
           }
           const dp = dir==='long' ? dc.high : dc.low;
           if (inRange(dp))
-            addArrow(entryAnchorBar, dp, `Displacement â€” enter next`,
+            addArrow(entryAnchorBar, dp, `Displacement — enter next`,
               dir==='long'?'down':'up', true, 1,
-              `The displacement candle closed strongly ${dir==='long'?'up':'down'} after the sweep â€” this is institutional money entering. Enter on the open of the next candle.`);
+              `The displacement candle closed strongly ${dir==='long'?'up':'down'} after the sweep — this is institutional money entering. Enter on the open of the next candle.`);
           break;
         }
 
@@ -14879,18 +14879,18 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
         const peak = (dir==='long' ? swingH : swingL).slice(-1)[0];
         if (peak && peak.bar < visibleUpTo-3 && inRange(peak.price))
           addArrow(peak.bar, peak.price,
-            dir==='long' ? `Peak â€” pullback started` : `Trough â€” pullback started`,
+            dir==='long' ? `Peak — pullback started` : `Trough — pullback started`,
             dir==='long'?'down':'up', false, 2,
             `The trend ${dir==='long'?'peaked':'bottomed'} here before the current pullback. The Fibonacci retracement zone is measured from this point.`);
       }
     }
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ��������������������������������������������������������������������������
   // CONFLUENCE FACTOR ANNOTATIONS
   // Show each confluence factor as a named label so the user can see WHY
   // this setup qualified. Appears in all stages so context is always visible.
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ��������������������������������������������������������������������������
   {
     const cfFactors = _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method);
     if (cfFactors.length) {
@@ -14906,10 +14906,10 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
             type: 'arrow',
             bar: labelBar,
             price: dir === 'long' ? labelPrice + atr * i * 0.35 : labelPrice - atr * i * 0.35,
-            label: `âœ¦ ${f.name}`,
+            label: `✦ ${f.name}`,
             pointing: dir === 'long' ? 'down' : 'up',
             highlight: false,
-            pri: 4,   // lowest priority â€” doesn't block structural annotations
+            pri: 4,   // lowest priority — doesn't block structural annotations
             candleIndex: stageCandle,
             explanation: f.explanation,
             isConfluenceFactor: true,
@@ -14923,7 +14923,7 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   _commit(ann);
 }
 
-// â”€â”€ Post-trade debrief annotation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Post-trade debrief annotation ────────────────────────────────────────────
 // Called when user clicks "Show Annotations" on the trade_completed screen.
 // Step 1: runs the full _mentorAnnotateSetup at stage-3 to draw all confluence
 //         factors and structural context that led to the trade.
@@ -14939,9 +14939,9 @@ function _mentorAnnotateDebrief() {
   const isLong   = dir === 'long';
   const atr      = calculateATR(tradeEnd, 14) || (curData[tradeEnd]?.close * 0.005) || 1;
 
-  // â”€â”€ Step 1: Full confluence / structural context via _mentorAnnotateSetup â”€â”€
+  // ── Step 1: Full confluence / structural context via _mentorAnnotateSetup ──
   // Since the setup bar is well in the past (barsAway = 0), the function always
-  // runs at stage 3 â€” all 3 layers of annotations are revealed at once.
+  // runs at stage 3 — all 3 layers of annotations are revealed at once.
   if (tsd?.setup && typeof tsd.setupBar === 'number') {
     const _prev = mentorState.annotationsEnabled;
     mentorState.annotationsEnabled = true;   // temporarily allow annotations
@@ -14952,11 +14952,11 @@ function _mentorAnnotateDebrief() {
     // _mentorAnnotateSetup called _clearMentorAnnotationsSilent + _commit internally,
     // so confluence / structure drawings are now in the drawings array.
   } else {
-    // No stored setup data â€” just clear and start fresh
+    // No stored setup data — just clear and start fresh
     _clearMentorAnnotationsSilent();
   }
 
-  // â”€â”€ Step 2: Layer trade levels on top (entry, SL, TP, R:R) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Step 2: Layer trade levels on top (entry, SL, TP, R:R) ────────────────
   // Extract explanations from the AI debrief text stored in lockedInsights
   const insights  = mentorState.lockedInsights || [];
   const entryLine = insights.find(l => l && /ENTRY REASONING/i.test(l)) || '';
@@ -14970,39 +14970,39 @@ function _mentorAnnotateDebrief() {
   };
   const fP = (p) => typeof p === 'number' ? p.toFixed(2) : '?';
 
-  // Entry arrow â€” gold highlight, points in trade direction
+  // Entry arrow — gold highlight, points in trade direction
   _addMentorArrow(
     entryBar,
     trade.entry,
-    isLong ? 'â–² ENTRY' : 'â–¼ ENTRY',
+    isLong ? '▲ ENTRY' : '▼ ENTRY',
     isLong ? 'up' : 'down',
     true,  // highlight = gold tier
     extractText(entryLine) || `${isLong ? 'Long' : 'Short'} entry at ${fP(trade.entry)}`
   );
 
-  // Stop Loss zone line â€” dashed red, spans entry to trade end
+  // Stop Loss zone line — dashed red, spans entry to trade end
   const slId = _addMentorBox(entryBar, tradeEnd, trade.stopLoss - atr * 0.07, trade.stopLoss + atr * 0.07, 'STOP LOSS');
   if (slId) {
     const slD = drawings.find(d => d.id === slId);
     if (slD) {
       slD.isLine      = true;
-      slD.explanation = extractText(slLine) || `Stop placed at ${fP(trade.stopLoss)} â€” above/below key structure.`;
+      slD.explanation = extractText(slLine) || `Stop placed at ${fP(trade.stopLoss)} — above/below key structure.`;
       slD.lineColor   = 'rgba(255,77,106,0.85)';
     }
   }
 
-  // Take Profit zone line â€” dashed green, spans entry to trade end
+  // Take Profit zone line — dashed green, spans entry to trade end
   const tpId = _addMentorBox(entryBar, tradeEnd, trade.takeProfit - atr * 0.07, trade.takeProfit + atr * 0.07, 'TAKE PROFIT');
   if (tpId) {
     const tpD = drawings.find(d => d.id === tpId);
     if (tpD) {
       tpD.isLine      = true;
-      tpD.explanation = extractText(tpLine) || `Target at ${fP(trade.takeProfit)} â€” next key level / support-resistance zone.`;
+      tpD.explanation = extractText(tpLine) || `Target at ${fP(trade.takeProfit)} — next key level / support-resistance zone.`;
       tpD.lineColor   = 'rgba(0,212,160,0.85)';
     }
   }
 
-  // R:R label â€” secondary arrow near trade midpoint
+  // R:R label — secondary arrow near trade midpoint
   const midPrice = (trade.stopLoss + trade.takeProfit) / 2;
   const rrLabel  = `R:R ${typeof trade.riskReward === 'number' ? trade.riskReward.toFixed(1) : '?'}`;
   _addMentorArrow(
@@ -15025,7 +15025,7 @@ function toggleMentorDebriefAnnotations() {
     clearMentorAnnotations();
     mentorState._debriefAnnotationsVisible = false;
     if (btn) {
-      btn.textContent = 'ðŸ“ Show Annotations';
+      btn.textContent = '� Show Annotations';
       btn.style.opacity = '1';
       btn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
       btn.style.borderColor = 'rgba(139,92,246,0.35)';
@@ -15035,7 +15035,7 @@ function toggleMentorDebriefAnnotations() {
     _mentorAnnotateDebrief();
     mentorState._debriefAnnotationsVisible = true;
     if (btn) {
-      btn.textContent = 'ðŸ™ˆ Hide Annotations';
+      btn.textContent = '🙈 Hide Annotations';
       btn.style.opacity = '0.8';
       btn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.35),rgba(139,92,246,0.15))';
       btn.style.borderColor = 'rgba(139,92,246,0.7)';
@@ -15077,7 +15077,7 @@ function _commit(ann) {
         if (!existing.label.includes(a.label)) existing.label += ' + ' + a.label;
         return;
       }
-      // Store explanation on the box itself â€” rendered as tooltip on hover, NOT as a
+      // Store explanation on the box itself — rendered as tooltip on hover, NOT as a
       // separate floating arrow (which caused duplicate bubbles on top of each other).
       const zoneDrawingId = _addMentorBox(a.f, a.t, a.price-atr*0.08, a.price+atr*0.08, a.label);
       if (zoneDrawingId) {
@@ -15118,7 +15118,7 @@ function _commit(ann) {
 
     } else if (a.type==='arrow') {
       const enrichedExplanation = [a.explanation, _mentorConfluenceExplanation(a.label, methodCtx, dirCtx)].filter(Boolean).join(' ');
-      // Anchor arrows at their actual structural price â€” bubble placement handles visual spacing.
+      // Anchor arrows at their actual structural price — bubble placement handles visual spacing.
       // Only apply a tiny nudge when two annotations land on exactly the same bar+direction.
       let price = a.price;
       const key   = `${a.bar}_${a.pointing}`;
@@ -15136,9 +15136,9 @@ function _commit(ann) {
     }
   });
 
-  // â”€â”€ Cache the computed drawings so scroll-back can restore them â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cache the computed drawings so scroll-back can restore them ───────────
   if (mentorState._lastAnnStateKey) {
-    // stateKey format: "<setupBar>_<method>" â€” method may contain underscores
+    // stateKey format: "<setupBar>_<method>" — method may contain underscores
     const sepIdx = mentorState._lastAnnStateKey.indexOf('_');
     const setupBarNum = Number(mentorState._lastAnnStateKey.slice(0, sepIdx));
     const methodStr   = mentorState._lastAnnStateKey.slice(sepIdx + 1);
@@ -15153,8 +15153,8 @@ function _commit(ann) {
   try { saveDrawings(curSym.s, curTF); } catch(e) {}
   if (typeof draw==='function') draw();
 
-  // â”€â”€ Confluence pause: when a new primary annotation appears during setup_detected,
-  //    pause replay and draw an explanation dialogue at the current bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Confluence pause: when a new primary annotation appears during setup_detected,
+  //    pause replay and draw an explanation dialogue at the current bar ──────────
   _maybePauseForConfluence(firstPrimaryLabel, firstPrimaryBar, firstPrimaryPrice, firstPrimaryDir, atr);
 }
 
@@ -15164,7 +15164,7 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   if (mentorState.lifecycleState !== 'setup_detected') return;
   if (!mentorState.upcomingSetup) return;
 
-  // Only fire once per unique label â€” avoid re-pausing on every redraw
+  // Only fire once per unique label — avoid re-pausing on every redraw
   if (!mentorState._confluencePauses) mentorState._confluencePauses = new Set();
   // Normalise label: strip merged suffixes like " + EMA confluence" so the
   // base level name is stable across redraws
@@ -15174,17 +15174,17 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
 
   // Build the explanation for this confluence type
   const explanations = {
-    'Support zone':        'Price has previously bounced from this level. Buyers are defending it â€” watch for a rejection wick to confirm.',
-    'Resistance zone':     'Price has previously reversed here. Sellers stepped in at this level â€” watch for a wick rejection before entering short.',
+    'Support zone':        'Price has previously bounced from this level. Buyers are defending it — watch for a rejection wick to confirm.',
+    'Resistance zone':     'Price has previously reversed here. Sellers stepped in at this level — watch for a wick rejection before entering short.',
     'Consolidation range': 'Price is coiling in a tight range. This compression builds energy. A breakout from this range often leads to a strong directional move.',
     'Breakout level':      'This is the key level to break. A candle closing convincingly above/below this line is the trigger to enter.',
     'Breakdown level':     'This is the support line to break. A close below confirms the breakdown and is the entry trigger.',
-    'Fib 38â€“62% pullback zone': 'Price has pulled back into the Fibonacci golden zone â€” the most common reversal area in trending markets. Watch for the trend to resume here.',
-    'Pullback zone (38â€“62%)':   'Price has pulled back into the Fibonacci golden zone â€” the most common reversal area in trending markets. Watch for the trend to resume here.',
-    'Liquidity pool':      'Stop losses are clustered here. A wick into this zone sweeps those stops before reversing â€” the sweep is the entry signal.',
+    'Fib 38–62% pullback zone': 'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
+    'Pullback zone (38–62%)':   'Price has pulled back into the Fibonacci golden zone — the most common reversal area in trending markets. Watch for the trend to resume here.',
+    'Liquidity pool':      'Stop losses are clustered here. A wick into this zone sweeps those stops before reversing — the sweep is the entry signal.',
     'Trading range':       'Price is bouncing between two levels. The strategy is to enter at the boundaries. Avoid trading near the middle of the range.',
-    'Range support':       'The lower boundary of the range â€” where buyers have repeatedly defended. Look for a reaction here.',
-    'Range resistance':    'The upper boundary of the range â€” where sellers have repeatedly stepped in. Look for a rejection here.',
+    'Range support':       'The lower boundary of the range — where buyers have repeatedly defended. Look for a reaction here.',
+    'Range resistance':    'The upper boundary of the range — where sellers have repeatedly stepped in. Look for a rejection here.',
   };
   const explanation = _mentorConfluenceExplanation(
     baseLabel,
@@ -15203,25 +15203,25 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   if (c) {
     const arrowPrice = dir === 'up' ? c.low - atr * 0.5 : c.high + atr * 0.5;
     _addMentorArrow(replayCutoff, arrowPrice,
-      `ðŸ“ ${label}`, dir === 'up' ? 'up' : 'down', false);
+      `� ${label}`, dir === 'up' ? 'up' : 'down', false);
   }
 
   // Show explanation in the mentor panel
   mentorState.currentInsights = [
-    `â¸ Mentor spotted a confluence â€” replay paused`,
-    `ðŸ“Œ ${label}`,
+    `�� Mentor spotted a confluence — replay paused`,
+    `📌 ${label}`,
     explanation,
-    `Press Space or â–¶ to continue when ready.`,
+    `Press Space or ▶ to continue when ready.`,
   ];
   mentorState.currentQuestion = 'Study this level before the trade forms.';
   updateMentorUI();
   scheduleDraw();
 
-  toast(`â¸ Confluence: ${label}`);
+  toast(`�� Confluence: ${label}`);
 }
 
 
-// â”€â”€ Mentor annotation helpers â€” defined at module scope (not inside render loop) â”€â”€
+// ── Mentor annotation helpers — defined at module scope (not inside render loop) ──
 function _mentorWrapText(ctx, text, font, maxW) {
   ctx.font = font;
   const words = text.split(' ');
@@ -15253,7 +15253,7 @@ function _mentorTryBand(ctx, ax, bubbleW, bubbleH, inBottom, H, W) {
   return null;
 }
 
-// Batched draw â€” coalesces multiple draw() calls in the same JS task into one rAF
+// Batched draw — coalesces multiple draw() calls in the same JS task into one rAF
 let _pendingDraw = false;
 function scheduleDraw() {
   if (_pendingDraw) return;
@@ -15325,7 +15325,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         _btApplyLineStyle(ctx, hlineStyle);
         ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W-R_PANEL_OFFSET-4,y); ctx.stroke();
         ctx.setLineDash([]);
-        // Label pill â€” show custom label for refinement annotations, price for normal hlines
+        // Label pill — show custom label for refinement annotations, price for normal hlines
         const pillLabel = d._tapRefinement && d.label ? d.label : fP(d.price);
         ctx.font = d._tapRefinement ? 'bold 9px ui-monospace,monospace' : '9px monospace';
         const lw=ctx.measureText(pillLabel).width+10;
@@ -15382,7 +15382,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           const diff = d.price2-d.price1;
           const pct  = (diff/d.price1*100).toFixed(2);
           const angleDeg = (Math.atan2(-(y2-y1),(x2-x1))*180/Math.PI).toFixed(1);
-          const label= `${angleDeg}Â° Â· ${diff>=0?'+':''}${pct}%`;
+          const label= `${angleDeg}° · ${diff>=0?'+':''}${pct}%`;
           const mx=(x1+x2)/2, my=(y1+y2)/2;
           ctx.font='bold 9px monospace'; const lw=ctx.measureText(label).width+10;
           ctx.fillStyle='rgba(8,11,22,0.88)'; ctx.fillRect(mx-lw/2,my-13,lw,15);
@@ -15517,22 +15517,22 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         break;
       }
 
-      // â”€â”€ MENTOR ANNOTATION TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── MENTOR ANNOTATION TYPES ────────────────────────────────────────────
       // mentor_arrow: downward/upward arrow pointing at a specific candle
       // mentor_box:   highlight box around a candle range
       // mentor_label: floating callout with explanation text
       // All are selectable and deletable. Marked with isMentorAnnotation=true.
 
-      // â”€â”€ MENTOR ANNOTATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── MENTOR ANNOTATIONS ─────────────────────────────────────────────────
       // Three types following visual hierarchy:
-      //   mentor_arrow  â†’ structure points (small, clean triangle marker + label)
-      //   mentor_box    â†’ zones (semi-transparent fill, subtle border, inline label)
-      //   mentor_label  â†’ explanatory notes (compact callout anchored to price)
+      //   mentor_arrow  → structure points (small, clean triangle marker + label)
+      //   mentor_box    → zones (semi-transparent fill, subtle border, inline label)
+      //   mentor_label  → explanatory notes (compact callout anchored to price)
       //
       // Priority tiers control opacity and size:
-      //   d.tier = 'primary'   â†’ full opacity, bold label
-      //   d.tier = 'secondary' â†’ 75% opacity
-      //   d.tier = 'tertiary'  â†’ 50% opacity, smaller label
+      //   d.tier = 'primary'   → full opacity, bold label
+      //   d.tier = 'secondary' → 75% opacity
+      //   d.tier = 'tertiary'  → 50% opacity, smaller label
 
       case 'mentor_arrow': {
         const ax  = barXfn(d.bar);
@@ -15552,7 +15552,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.restore(); break;
         }
 
-        // â”€â”€ Text measurement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Text measurement ─────────────────────────────────────────────────
         const explanation = d.explanation || '';
         const fontSize    = isPrimary ? 11 : 10;
         const padX = 10, padY = 7;
@@ -15580,14 +15580,14 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const bubbleH = padY * 2 + lineH * titleLines.length +
                         (explLines.length ? lineH * explLines.length + 5 : 0);
 
-        // â”€â”€ Placement: bubbles in top or bottom band, never over candles â”€â”€â”€â”€â”€
-        // Safe chart area: chartTop â†’ chartBottom, chartLeft â†’ chartRight
+        // ── Placement: bubbles in top or bottom band, never over candles ─────
+        // Safe chart area: chartTop → chartBottom, chartLeft → chartRight
         // Band height is whichever is larger: bubble height + margin, or 16% of chart height
         if (!ctx._placedBubbles) ctx._placedBubbles = [];
         if (!ctx._mentorBubbleCount) ctx._mentorBubbleCount = 0;
-        // Reserve 2 slots specifically for confluence factor annotations (âœ¦ prefix).
+        // Reserve 2 slots specifically for confluence factor annotations (✦ prefix).
         // Non-confluence secondary annotations are capped at 3 to leave room.
-        const isConfluence = !!(d.isConfluenceFactor || d.label?.startsWith('âœ¦'));
+        const isConfluence = !!(d.isConfluenceFactor || d.label?.startsWith('✦'));
         const maxAllowed = isConfluence ? 6 : 4;
         if (ctx._mentorBubbleCount >= maxAllowed && !isPrimary && !d.highlight) break;
         if (explanation) ctx._mentorBubbleCount++;
@@ -15599,7 +15599,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const botBandTop = chartBottom - bandH;
         const botBandBot = chartBottom;
 
-        // Anchor in upper half â†’ use bottom band; lower half â†’ use top band
+        // Anchor in upper half → use bottom band; lower half → use top band
         const anchorInUpper = ay < chartTop + chartH * 0.5;
         const preferBottom  = anchorInUpper;
 
@@ -15641,7 +15641,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         d._bubbleRect = { x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH, anchorX: ax, anchorY: aySafe };
         ctx._placedBubbles.push({ x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH });
 
-        // â”€â”€ Draw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Draw ─────────────────────────────────────────────────────────────
         ctx.save();
         ctx.globalAlpha = alpha * (isWIP ? 0.7 : 1);
 
@@ -15651,9 +15651,9 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.beginPath(); ctx.arc(ax, aySafe, 1.3, 0, Math.PI*2); ctx.fill();
 
-        // Connector: straight single line from bubble edge â†’ anchor point.
+        // Connector: straight single line from bubble edge → anchor point.
         // Straight line (no dogleg) so each annotation has its own visually
-        // distinct connector â€” avoids the shared-vertical-segment "web" effect
+        // distinct connector — avoids the shared-vertical-segment "web" effect
         // when many bubbles anchor near the same bar.
         const bubbleEdgeY = useBottom ? bubbleY : bubbleY + bubbleH;
         // Attach to the bubble edge at the horizontal midpoint of the bubble,
@@ -15750,8 +15750,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
 
         ctx.save();
         if (d.isLine) {
-          // â”€â”€ Level line (for zone-type: S&R, liquidity levels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          // Draw as a single dashed line at the midpoint â€” the callout bubble
+          // ── Level line (for zone-type: S&R, liquidity levels) ──────────────
+          // Draw as a single dashed line at the midpoint — the callout bubble
           // carries the full information, so we don't show a filled rectangle.
           const midY = (byT + byB) / 2;
           ctx.strokeStyle = strokeCol;
@@ -15761,7 +15761,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.beginPath(); ctx.moveTo(bxL, midY); ctx.lineTo(bxR, midY); ctx.stroke();
           ctx.setLineDash([]);
         } else {
-          // â”€â”€ Zone fill on chart (for range/consolidation boxes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // ── Zone fill on chart (for range/consolidation boxes) ──────────────
           ctx.globalAlpha = fillAlpha * (isWIP ? 0.7 : 1);
           ctx.fillStyle = fillCol + '1)';
           ctx.fillRect(bxL, byT, bW, bHt);
@@ -15780,7 +15780,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         }
         ctx.restore();
 
-        // â”€â”€ Floating callout bubble with arrow pointing to zone centre â”€â”€â”€â”€â”€â”€
+        // ── Floating callout bubble with arrow pointing to zone centre ──────
         if (d.label && bW > 20) {
           const isPrimary  = tier === 'primary';
           const explanation = d.explanation || '';
@@ -15900,12 +15900,12 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.globalAlpha = alpha * 0.9 * (isWIP ? 0.7 : 1);
           ctx.beginPath();
           if (useBottom) {
-            // Bubble below anchor â€” arrowhead points UP toward the structure
+            // Bubble below anchor — arrowhead points UP toward the structure
             ctx.moveTo(connX, bubbleEdgeY);
             ctx.lineTo(connX - ahSz, bubbleEdgeY - ahSz * 2);
             ctx.lineTo(connX + ahSz, bubbleEdgeY - ahSz * 2);
           } else {
-            // Bubble above anchor â€” arrowhead points DOWN toward the structure
+            // Bubble above anchor — arrowhead points DOWN toward the structure
             ctx.moveTo(connX, bubbleEdgeY);
             ctx.lineTo(connX - ahSz, bubbleEdgeY + ahSz * 2);
             ctx.lineTo(connX + ahSz, bubbleEdgeY + ahSz * 2);
@@ -15963,8 +15963,8 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         const lay  = pyfn(d.price);
         const tier = d.tier || 'tertiary';
         const txt  = d.label || '';
-        // Split on pipe or em-dash â€” show max 2 lines
-        const allLines = txt.split(/\||â€”/).map(s => s.trim()).filter(Boolean).slice(0, 2);
+        // Split on pipe or em-dash — show max 2 lines
+        const allLines = txt.split(/\||—/).map(s => s.trim()).filter(Boolean).slice(0, 2);
         const fontSize = tier === 'primary' ? 10 : 9;
         ctx.font       = `${fontSize}px sans-serif`;
         const maxW     = Math.max(...allLines.map(l => ctx.measureText(l).width), 50);
@@ -16073,10 +16073,10 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
         // "AI Refined" badge for refinement suggestions placed via Show on Chart
         if(d._refinementLabel){
           const badge = d._refinementMode === 'management'
-            ? `â˜… AI MANAGE Â· ${tapTradeStateLabel(d._refinementState || 'ACTIVE').toUpperCase()}`
+            ? `★ AI MANAGE · ${tapTradeStateLabel(d._refinementState || 'ACTIVE').toUpperCase()}`
             : d._refinementMode === 'reentry'
-              ? 'â˜… AI RE-ENTRY SETUP'
-              : `â˜… AI REFINED Â· ${tapTradeStateLabel(d._refinementState || 'PENDING').toUpperCase()}`;
+              ? '★ AI RE-ENTRY SETUP'
+              : `★ AI REFINED · ${tapTradeStateLabel(d._refinementState || 'PENDING').toUpperCase()}`;
           ctx.font = 'bold 9px ui-monospace,monospace';
           const bw = ctx.measureText(badge).width + 12;
           const bh = 15;
@@ -16093,7 +16093,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.fillText(badge, bxPos + 6, byPos + 10);
         }
         if(d._tradeState && d._tradeState !== 'PENDING'){
-          const stateBadge = `STATE Â· ${tapTradeStateLabel(d._tradeState).toUpperCase()}`;
+          const stateBadge = `STATE · ${tapTradeStateLabel(d._tradeState).toUpperCase()}`;
           ctx.font = 'bold 8px ui-monospace,monospace';
           const sw = ctx.measureText(stateBadge).width + 10;
           const sh = 14;
@@ -16146,7 +16146,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       }
 
       case 'extline': {
-        // Extended line â€” projects infinitely beyond both anchor points
+        // Extended line — projects infinitely beyond both anchor points
         const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
         const dx=x2-x1, dy=y2-y1;
         const len=Math.hypot(dx,dy)||1;
@@ -16166,7 +16166,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           const pctChg=((d.price2-d.price1)/d.price1*100).toFixed(2);
           const mx=(x1+x2)/2, my=(y1+y2)/2;
           ctx.font='bold 9px monospace'; ctx.textAlign='center';
-          const lbl=`${angleDeg}Â°  ${pctChg>=0?'+':''}${pctChg}%`;
+          const lbl=`${angleDeg}°  ${pctChg>=0?'+':''}${pctChg}%`;
           const lw2=ctx.measureText(lbl).width+10;
           ctx.fillStyle='rgba(8,11,22,0.85)'; ctx.fillRect(mx-lw2/2,my-13,lw2,14);
           ctx.fillStyle=dCol; ctx.fillText(lbl,mx,my-2);
@@ -16180,7 +16180,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
       }
 
       case 'channel': {
-        // Parallel channel â€” 3 points: two define the main line, third sets parallel offset
+        // Parallel channel — 3 points: two define the main line, third sets parallel offset
         if(!d.bar2||!d.price3) break;
         const x1=barXfn(d.bar1),y1=pyfn(d.price1);
         const x2=barXfn(d.bar2),y2=pyfn(d.price2);
@@ -16332,7 +16332,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     ctx.restore();
   });
 
-  // â”€â”€ Multi-selection highlight glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Multi-selection highlight glow ─────────────────────────────────────────
   if(selectedDrawings.length > 1){
     selectedDrawings.forEach(d=>{
       if(d===selectedDrawing) return; // already has handles
@@ -16364,7 +16364,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     });
   }
 
-  // â”€â”€ Draw handles for selected drawing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Draw handles for selected drawing ──────────────────────────────────────
   if(selectedDrawing && !drawingWIP){
     const handles = getHandles(selectedDrawing);
     handles.forEach(h=>{
@@ -16384,7 +16384,7 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     });
   }
 
-  // â”€â”€ Marquee selection rectangle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Marquee selection rectangle ────────────────────────────────────────────
   if(isMarquee){
     const rx=Math.min(marqueeX0,marqueeX1), ry=Math.min(marqueeY0,marqueeY1);
     const rw=Math.abs(marqueeX1-marqueeX0), rh=Math.abs(marqueeY1-marqueeY0);
@@ -16402,19 +16402,19 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
     });
     // label
     ctx.font='9px monospace'; ctx.textAlign='left'; ctx.fillStyle='rgba(61,127,255,.9)';
-    ctx.fillText(`${Math.round(rw)}Ã—${Math.round(rh)}`, rx+4, ry-4);
+    ctx.fillText(`${Math.round(rw)}×${Math.round(rh)}`, rx+4, ry-4);
     ctx.restore();
   }
 }
 
-// â”€â”€ Lighten a hex color â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Lighten a hex color ───────────────────────────────────────────────────────
 function lightenColor(hex, amt){
   // simple: just return as-is since we use alpha for selection cue instead
   return hex;
 }
 const Y_AXIS_W = 52;
 const X_AXIS_H = 44;
-// Pixels the right glass panel overlaps the canvas â€” y-axis drawn inside this
+// Pixels the right glass panel overlaps the canvas — y-axis drawn inside this
 const R_PANEL_OFFSET = 280;
 
 function getZone(x,y,W,H){
@@ -16438,14 +16438,14 @@ function getAutoRange(){
 function setupEvents(){
   const mc = _el('main-canvas');
 
-  // â”€â”€ mousedown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── mousedown ─────────────────────────────────────────────────────────────
   mc.addEventListener('mousedown', e => {
     const r  = mc.getBoundingClientRect();
     const lx = uiToCanvasPx(e.clientX - r.left);
     const ly = uiToCanvasPx(e.clientY - r.top);
     const zone = getZone(lx, ly, mc.width, mc.height);
 
-    // â”€â”€ Replay: click on canvas play/pause button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Replay: click on canvas play/pause button ────────────────────────
     if(replayMode && !replayPicking && window._replayBtnX >= 0){
       const dx = lx - window._replayBtnX;
       const dy = ly - window._replayBtnY;
@@ -16455,7 +16455,7 @@ function setupEvents(){
       }
     }
 
-    // â”€â”€ Replay: drag the committed cutoff line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Replay: drag the committed cutoff line ───────────────────────────
     if(replayMode && !replayPicking && replayCutoff >= 0 && zone === 'pan'){
       const cutoffX = mc.width - (rightBarIndex - replayCutoff) * barWidth;
       if(Math.abs(lx - cutoffX) <= 8){
@@ -16468,7 +16468,7 @@ function setupEvents(){
       }
     }
 
-    // â”€â”€ Replay: clicking in the pan zone commits the start bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Replay: clicking in the pan zone commits the start bar ────────────
     if(replayMode && replayPicking && zone === 'pan'){
       const W = mc.width;
       const firstBar = Math.max(0, Math.ceil(rightBarIndex - W / barWidth));
@@ -16479,7 +16479,7 @@ function setupEvents(){
       return;
     }
 
-    // â”€â”€ Drawing tools intercept pan zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Drawing tools intercept pan zone ──────────────────────────────────
     if(zone === 'pan'){
       if(handleDrawMousedown(lx, ly, e)) return;
     }
@@ -16499,7 +16499,7 @@ function setupEvents(){
       isXScaling      = true;
       xScaleStartX    = uiToCanvasPx(e.clientX);
       xScaleStartBW   = barWidth;
-      // anchor: bar under mouse stays fixed â€” store both bar and pixel position
+      // anchor: bar under mouse stays fixed — store both bar and pixel position
       xScaleAnchorX   = lx;
       xScaleAnchorBar = rightBarIndex - (mc.width - lx) / barWidth;
       mc.style.cursor = 'ew-resize';
@@ -16517,8 +16517,8 @@ function setupEvents(){
     e.preventDefault();
   });
 
-  // â”€â”€ mousemove on document so drag survives leaving canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Cache canvas bounding rect â€” only re-read on resize/scroll
+  // ── mousemove on document so drag survives leaving canvas ─────────────────
+  // Cache canvas bounding rect — only re-read on resize/scroll
   let _mcRect = mc.getBoundingClientRect();
   window.addEventListener('resize', ()=>{ _mcRect = mc.getBoundingClientRect(); });
   window.addEventListener('scroll', ()=>{ _mcRect = mc.getBoundingClientRect(); }, true);
@@ -16533,7 +16533,7 @@ function setupEvents(){
       handleDrawMousemove(mouseX, mouseY); return;
     }
 
-    // â”€â”€ Replay line drag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Replay line drag ──────────────────────────────────────────────────
     if(_replayLineDragging && replayMode && curData){
       const W = mc.width;
       const firstBar = Math.max(0, Math.ceil(rightBarIndex - W / barWidth));
@@ -16546,7 +16546,7 @@ function setupEvents(){
       return;
     }
 
-    // â”€â”€ Show ew-resize cursor when hovering near the replay cutoff line â”€â”€â”€â”€â”€â”€
+    // ── Show ew-resize cursor when hovering near the replay cutoff line ──────
     if(replayMode && !replayPicking && !_replayLineDragging && !isPanning && replayCutoff >= 0){
       const W2 = mc.width;
       const cx = W2 - (rightBarIndex - replayCutoff) * barWidth;
@@ -16570,7 +16570,7 @@ function setupEvents(){
 
       // Horizontal: shift rightBarIndex by how many bars we moved
       rightBarIndex = panStartRight - dx / barWidth;
-      // Symmetric half-screen limits: oldest bar â‰¥ x=W/2, newest bar â‰¤ x=W/2
+      // Symmetric half-screen limits: oldest bar ≥ x=W/2, newest bar ≤ x=W/2
       const _halfBars = (mc.width / 2) / barWidth;
       rightBarIndex = Math.max(_halfBars, Math.min(curData.length - 1 + _halfBars, rightBarIndex));
 
@@ -16600,7 +16600,7 @@ function setupEvents(){
       const dx   = uiToCanvasPx(e.clientX) - xScaleStartX;
       // Exponential so small moves near centre feel natural
       const newBW = Math.max(1, Math.min(80, xScaleStartBW * Math.pow(1.005, dx)));
-      // Keep anchor bar at same screen pixel â€” anchor bar stays at xScaleAnchorX from left
+      // Keep anchor bar at same screen pixel — anchor bar stays at xScaleAnchorX from left
       rightBarIndex = xScaleAnchorBar + (mc.width - xScaleAnchorX) / newBW;
       barWidth = newBW;
       // Re-apply half-screen bounds after scale change
@@ -16627,7 +16627,7 @@ function setupEvents(){
       draw(); return;
     }
 
-    // Hover â€” update cursor based on zone and drawings
+    // Hover — update cursor based on zone and drawings
     if(!isPanning && !isXScaling && !isYScaling){
       if(isMarquee){ mc.style.cursor='crosshair'; draw(); return; }
       const zone = getZone(mouseX, mouseY, mc.width, mc.height);
@@ -16654,14 +16654,14 @@ function setupEvents(){
     }
   });
 
-  // â”€â”€ mouseup on document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── mouseup on document ────────────────────────────────────────────────────
   document.addEventListener('mouseup', e => {
     if(drawingWIP || isDraggingDrawing || isResizingDrawing || isMarquee){
       const r = mc.getBoundingClientRect();
       handleDrawMouseup(e.clientX-r.left, e.clientY-r.top);
       return;
     }
-    // â”€â”€ Replay line drag commit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Replay line drag commit ────────────────────────────────────────────
     if(_replayLineDragging){
       _replayLineDragging = false;
       mc.style.cursor = 'crosshair';
@@ -16671,7 +16671,7 @@ function setupEvents(){
         const lc = mentorState.lifecycleState;
 
         if ((lc === 'setup_detected' || lc === 'preview') && mentorState.upcomingSetup) {
-          // Approaching a setup â€” refresh annotations for new position, preserve setup
+          // Approaching a setup — refresh annotations for new position, preserve setup
           const _sb = mentorState.upcomingSetup.bar;
           const _ba = _sb - replayCutoff;
           // If user dragged PAST the setup bar, reset to scanning
@@ -16683,7 +16683,7 @@ function setupEvents(){
             mentorState.setupCache && mentorState.setupCache.clear();
             setTimeout(() => updateMentor(), 80);
           } else {
-            // Still before the setup â€” refresh annotations and message
+            // Still before the setup — refresh annotations and message
             mentorState._lastAnnotateStage = 0; // force redraw from stage 1
             mentorState._lastAnnotateBar   = null;
             if (!mentorState.earlyWarningShown && _ba > 5) {
@@ -16695,7 +16695,7 @@ function setupEvents(){
 
         } else if (lc === 'setup_wait' || lc === 'trade_monitoring' ||
                    lc === 'trade_result' || lc === 'trade_completed') {
-          // Trade is active or was completed â€” preserve everything, just update UI
+          // Trade is active or was completed — preserve everything, just update UI
           // The trade tool, annotations, and panel all stay intact
           if (mentorState._tradeSetupData) {
             const tsd = mentorState._tradeSetupData;
@@ -16708,7 +16708,7 @@ function setupEvents(){
           updateMentorUI();
 
         } else {
-          // scanning / no_setup_found / method_selection â€” safe to reset and re-scan
+          // scanning / no_setup_found / method_selection — safe to reset and re-scan
           setMentorState('scanning', 'scrub reset');
           mentorState.setupCache && mentorState.setupCache.clear();
           setTimeout(() => updateMentor(), 80);
@@ -16725,14 +16725,14 @@ function setupEvents(){
     mc.style.cursor = activeTool==='eraser'?'cell':'crosshair';
   });
 
-  // â”€â”€ mouseleave â€” hide crosshair only if not dragging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── mouseleave — hide crosshair only if not dragging ───────────────────────
   mc.addEventListener('mouseleave', () => {
     if(!isPanning && !isXScaling && !isYScaling){
       mouseX = -1; mouseY = -1; draw();
     }
   });
 
-  // â”€â”€ double-click to reset or edit text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── double-click to reset or edit text ──────────────────────────────────────
   mc.addEventListener('dblclick', e => {
     const r  = mc.getBoundingClientRect();
     const lx = e.clientX-r.left, ly = e.clientY-r.top;
@@ -16753,7 +16753,7 @@ function setupEvents(){
     draw();
   });
 
-  // â”€â”€ scroll wheel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── scroll wheel ──────────────────────────────────────────────────────────
   mc.addEventListener('wheel', e => {
     e.preventDefault();
     const r    = mc.getBoundingClientRect();
@@ -16786,8 +16786,8 @@ function setupEvents(){
   window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); positionChartTabsBar(); draw(); }, 50));
 }
 
-// â•â• LOAD SYMBOL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â”€â”€ Live WebSocket tick â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// �� LOAD SYMBOL ���������������������������������������������������������������
+// ── Live WebSocket tick ────────────────────────────────────────────────────────
 let liveWS = null;
 let liveWSSym = null;
 let _liveWSReconnectTimer = null;
@@ -16800,7 +16800,7 @@ async function connectLiveTick(sym, type){
   _liveWSIntentionalClose = false;
   // Only Finnhub WS supports stocks + forex; crypto uses Binance WS
   if(type==='Crypto'){
-    const pair = sym.replace('/','').toLowerCase()+'t'; // BTC/USD â†’ btcusdt
+    const pair = sym.replace('/','').toLowerCase()+'t'; // BTC/USD → btcusdt
     liveWS = new WebSocket('wss://stream.binance.com:9443/ws/'+pair+'@ticker');
     liveWSSym = sym;
     liveWS.onmessage = e => {
@@ -16813,9 +16813,9 @@ async function connectLiveTick(sym, type){
     };
     liveWS.onerror = ()=>{};
     liveWS.onclose = () => {
-      if(_liveWSIntentionalClose) return; // we switched symbol â€” don't reconnect
-      if(sym !== liveWSSym) return;       // stale handler â€” symbol already changed
-      setSrcStatus('âŸ³ reconnectingâ€¦','var(--tx2)');
+      if(_liveWSIntentionalClose) return; // we switched symbol — don't reconnect
+      if(sym !== liveWSSym) return;       // stale handler — symbol already changed
+      setSrcStatus('⟳ reconnecting…','var(--tx2)');
       _liveWSReconnectTimer = setTimeout(() => {
         if(sym === liveWSSym) connectLiveTick(sym, type);
       }, 3000);
@@ -16842,10 +16842,10 @@ function updateLiveTick(sym, price){
   updateTopbar(); draw();
   const s = SYMS.find(x=>x.s===sym);
   if(s){ const prev=s.p||price; s.c=+((price-prev)/prev*100).toFixed(2); s.p=price; }
-  setSrcStatus('â— live','var(--tl)');
+  setSrcStatus('� live','var(--tl)');
 }
 
-// â”€â”€ Historical extension (pan left past oldest bar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Historical extension (pan left past oldest bar) ─────────────────────────
 let isFetchingMore = false;
 
 async function fetchMoreHistory(){
@@ -16854,7 +16854,7 @@ async function fetchMoreHistory(){
   const sym = curSym.s;
   const tf  = curTF;
   isFetchingMore = true;
-  setSrcStatus('âŸ³ loading historyâ€¦','var(--tx3)');
+  setSrcStatus('⟳ loading history…','var(--tx3)');
   try{
     let bars = [];
     if(curSym.t === 'Crypto'){
@@ -16870,18 +16870,18 @@ async function fetchMoreHistory(){
         rightBarIndex += newBars.length; // keep view stable
         dataCache[sym+'_'+tf] = curData;
         draw();
-        setSrcStatus('â— live Â· '+newBars.length+' bars added','var(--tl)');
+        setSrcStatus('� live · '+newBars.length+' bars added','var(--tl)');
       } else {
-        setSrcStatus('â— live Â· no older data','var(--tl)');
+        setSrcStatus('� live · no older data','var(--tl)');
       }
     }
   }catch(e){
-    setSrcStatus('â— live','var(--tl)');
+    setSrcStatus('� live','var(--tl)');
   }
   isFetchingMore = false;
 }
 
-// â”€â”€ Binance candle fetcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Binance candle fetcher ───────────────────────────────────────────────────
 async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
   const pair   = sym.replace('/','').toUpperCase().replace('USD','USDT');
   const btf    = BINANCE_TF[tf]||'1d';
@@ -16900,7 +16900,7 @@ async function fetchBinanceCandles(sym, tf, startTime=null, endTime=null){
   }));
 }
 
-// â”€â”€ Main symbol loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main symbol loader ───────────────────────────────────────────────────────
 async function loadSym(sym){
   const requestTabId = activeChartTabId;
   const requestTF = curTF;
@@ -16938,7 +16938,7 @@ async function loadSym(sym){
     rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
   }
   normalizeChartViewportForCurrentData(symbolChanged);
-  // Don't load drawings yet â€” curData is fake placeholder.
+  // Don't load drawings yet — curData is fake placeholder.
   // Drawings will be correctly resolved once real data arrives.
   drawings=[]; drawingWIP=null; selectedDrawing=null;
   delete aiCache[requestKey];
@@ -16948,7 +16948,7 @@ async function loadSym(sym){
   renderTopbarInds(); sizeCanvases(); updateTopbar(); draw();
   buildWL(); buildAIPanel(); buildInfo(); buildJournal(); buildAlertsPanel(); renderThesisTrackerWidget();
   tapSyncToSymbol();
-  setSrcStatus('âŸ³ fetchingâ€¦','var(--tx3)');
+  setSrcStatus('⟳ fetching…','var(--tx3)');
 
   // Check session cache first
   if(dataCache[requestKey]){
@@ -16965,11 +16965,11 @@ async function loadSym(sym){
       rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
     }
     normalizeChartViewportForCurrentData(symbolChanged);
-    // Real data â€” now safe to resolve drawing timestamps â†’ bar indices
+    // Real data — now safe to resolve drawing timestamps → bar indices
     loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
     updateTopbar(); draw(); buildAIPanel(true);
-    setSrcStatus('â— live Â· cached','var(--tl)');
+    setSrcStatus('� live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
     endChartTransition(requestTabId, requestSeq, true);
     return;
@@ -17011,22 +17011,22 @@ async function loadSym(sym){
         rightBarIndex = clampChartTabRightIndex(requestTab?.rightBarIndex, curData.length);
       }
       normalizeChartViewportForCurrentData(symbolChanged);
-      // Re-resolve drawing timestamps â†’ bar indices now that real data is loaded
+      // Re-resolve drawing timestamps → bar indices now that real data is loaded
       loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
-      setSrcStatus('â— live','var(--tl)');
+      setSrcStatus('� live','var(--tl)');
       connectLiveTick(sym, curSym.t);
       setTimeout(() => tapScanCurrentChart().catch(() => {}), 2000); // incremental scan in background
       endChartTransition(requestTabId, requestSeq, true);
     } else {
       if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
-      setSrcStatus('âš  simulated Â· no live data','var(--am)');
+      setSrcStatus('⚠ simulated · no live data','var(--am)');
       endChartTransition(requestTabId, requestSeq, true);
     }
   } catch(err){
     if(!isCurrentChartRequest(requestTabId, requestTF, sym, requestSeq)) return;
-    setSrcStatus('âš  simulated Â· fetch error','var(--rd)');
+    setSrcStatus('⚠ simulated · fetch error','var(--rd)');
     endChartTransition(requestTabId, requestSeq, true);
   }
 }
@@ -17037,7 +17037,7 @@ function updateTopbar(){
   const pct=((last.close-prev.close)/prev.close*100);
   document.getElementById('sym-t').textContent=curSym.s;
   document.getElementById('sym-e').textContent=curSym.e;
-  // Statusbar â€” symbol, timeframe, bar count
+  // Statusbar — symbol, timeframe, bar count
   const sbSym = document.getElementById('sb-sym'); if(sbSym) sbSym.textContent = curSym.s;
   const sbTf  = document.getElementById('sb-tf');  if(sbTf)  sbTf.textContent  = curTF.toUpperCase();
   const sbBars= document.getElementById('sb-bars'); if(sbBars) sbBars.textContent = curData.length + ' bars';
@@ -17053,7 +17053,7 @@ function updateTopbar(){
   document.getElementById('ov-v').textContent=fV(last.volume);
 }
 
-// â•â• CONTROLS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� CONTROLS ������������������������������������������������������������������
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
@@ -17085,10 +17085,10 @@ function setTF(btn,tf){
   });
 }
 function setCT(btn,type){
-  // legacy â€” delegate to new system
+  // legacy — delegate to new system
   ctSelect(type, ctIconFor(type), ctLabelFor(type));
 }
-function ctIconFor(t){ return {candle:'â–ª',line:'âˆ¿',area:'â—¿',heikin:'â¬¡'}[t]||'â–ª'; }
+function ctIconFor(t){ return {candle:'▪',line:'∿',area:'◿',heikin:'⬡'}[t]||'▪'; }
 function ctLabelFor(t){ return {candle:'Candles',line:'Line',area:'Area',heikin:'Heikin Ashi'}[t]||t; }
 function ctSelect(type, icon, label){
   curCT = type;
@@ -17237,7 +17237,7 @@ function rpTab(btn,tab){
   if(tab==='analytics') refreshAiHistoryPanel();
 }
 
-// â•â• CUSTOM INDICATOR ENGINE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� CUSTOM INDICATOR ENGINE ���������������������������������������������������
 
 const IND_FUNCTIONS = [
   { name:'sma',     sig:'sma(src, len)',     desc:'Simple Moving Average' },
@@ -17275,7 +17275,7 @@ function ilTab(btn,tab){
 }
 function filterIndList(q){ renderIndList(q); }
 
-// Helper â€” gets current search query regardless of where the search input lives
+// Helper — gets current search query regardless of where the search input lives
 function _indSearchQ(){ return (document.getElementById('ov-ind-search')||{}).value||''; }
 
 function renderIndList(q){
@@ -17295,7 +17295,7 @@ function renderIndList(q){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
           ${pinned
-            ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">âœ“ On bar</button>`
+            ? `<button onclick="removeIndFromTopbar('${ind.id}')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
             : `<button onclick="addIndToTopbar('${ind.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
         </div>
@@ -17306,10 +17306,10 @@ function renderIndList(q){
     const rows = customIndicators.filter(i=>!lq||i.name.toLowerCase().includes(lq)||i.formula.toLowerCase().includes(lq));
     if(!rows.length){
       el.innerHTML=`<div style="padding:30px 20px;text-align:center;">
-        <div style="font-size:24px;margin-bottom:8px;">âš—</div>
+        <div style="font-size:24px;margin-bottom:8px;">⚗</div>
         <div style="color:var(--tx2);font-size:11px;font-weight:600;margin-bottom:4px;">No custom indicators yet</div>
         <div style="color:var(--tx3);font-size:11px;margin-bottom:14px;">Use the builder to create your own</div>
-        <button onclick="openIndBuilder();closeIndList()" style="padding:6px 16px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:10px;border-radius:3px;cursor:pointer;font-family:monospace;">âš— Build Custom</button>
+        <button onclick="openIndBuilder();closeIndList()" style="padding:6px 16px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:10px;border-radius:3px;cursor:pointer;font-family:monospace;">⚗ Build Custom</button>
       </div>`;
       return;
     }
@@ -17319,15 +17319,15 @@ function renderIndList(q){
         <div style="width:10px;height:10px;border-radius:50%;background:${ind.color};flex-shrink:0;margin-right:4px;"></div>
         <div style="flex:1;min-width:0;">
           <div class="il-name">${ind.name}</div>
-          <div class="il-desc">${ind.type==='panel'?'Sub-panel':'Overlay'} Â· ${ind.formula.substring(0,36)}${ind.formula.length>36?'â€¦':''}</div>
+          <div class="il-desc">${ind.type==='panel'?'Sub-panel':'Overlay'} · ${ind.formula.substring(0,36)}${ind.formula.length>36?'…':''}</div>
         </div>
         <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
           ${onBar
-            ? `<button onclick="indToggle('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">âœ“ On bar</button>`
+            ? `<button onclick="indToggle('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;">✓ On bar</button>`
             : `<button onclick="indToggle('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--b2);color:var(--tx2);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;white-space:nowrap;" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='var(--b2)';this.style.color='var(--tx2)'">+ Add to bar</button>`
           }
-          <button onclick="indEdit('${ind.id}');closeIndList()" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:11px;padding:3px 7px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">âœŽ</button>
-          <button onclick="indDelete('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="background:none;border:none;color:var(--tx3);font-size:12px;padding:2px 5px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">âœ•</button>
+          <button onclick="indEdit('${ind.id}');closeIndList()" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:11px;padding:3px 7px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">✎</button>
+          <button onclick="indDelete('${ind.id}');renderIndList((document.getElementById('ov-ind-search')||{}).value||'')" style="background:none;border:none;color:var(--tx3);font-size:12px;padding:2px 5px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
         </div>
       </div>`;
     }).join('');
@@ -17470,7 +17470,7 @@ function evalIndFormula(formula, data){
     .replace(/\bsqrt\b/g, 'Math.sqrt')
     .replace(/\blog\b/g, 'Math.log');
 
-  // Evaluate â€” result may be array or scalar
+  // Evaluate — result may be array or scalar
   // eslint-disable-next-line no-new-func
   const raw = new Function(
     'close','open','high','low','volume',
@@ -17480,9 +17480,9 @@ function evalIndFormula(formula, data){
 
   // Normalise to array
   if(Array.isArray(raw)) return raw;
-  // Scalar â€” fill all bars with that value
+  // Scalar — fill all bars with that value
   if(typeof raw === 'number') return data.map(()=>raw);
-  // Array of arrays (e.g. two lines) â€” take first for now
+  // Array of arrays (e.g. two lines) — take first for now
   if(Array.isArray(raw[0])) return raw[0];
   return null;
 }
@@ -17490,18 +17490,18 @@ function evalIndFormula(formula, data){
 function indTest(){
   const formula = document.getElementById('ind-formula').value.trim();
   const status  = document.getElementById('ind-status');
-  if(!formula){ status.innerHTML='<span style="color:var(--rd)">âš  Enter a formula first</span>'; return; }
-  if(!curData.length){ status.innerHTML='<span style="color:var(--rd)">âš  Load a chart first</span>'; return; }
+  if(!formula){ status.innerHTML='<span style="color:var(--rd)">⚠ Enter a formula first</span>'; return; }
+  if(!curData.length){ status.innerHTML='<span style="color:var(--rd)">⚠ Load a chart first</span>'; return; }
   const data = curCT==='heikin'?calcHeikin(curData):curData;
   try{
     const result = evalIndFormula(formula, data);
-    if(!result){ status.innerHTML='<span style="color:var(--rd)">âš  Formula returned no data</span>'; return; }
+    if(!result){ status.innerHTML='<span style="color:var(--rd)">⚠ Formula returned no data</span>'; return; }
     const vals   = result.filter(v=>v!=null&&isFinite(v));
-    if(!vals.length){ status.innerHTML='<span style="color:var(--rd)">âš  All values are null/invalid</span>'; return; }
+    if(!vals.length){ status.innerHTML='<span style="color:var(--rd)">⚠ All values are null/invalid</span>'; return; }
     const mn = Math.min(...vals).toFixed(4), mx = Math.max(...vals).toFixed(4);
-    status.innerHTML=`<span style="color:var(--tl)">âœ“ OK â€” ${vals.length} values Â· range [${mn}, ${mx}]</span>`;
+    status.innerHTML=`<span style="color:var(--tl)">✓ OK — ${vals.length} values · range [${mn}, ${mx}]</span>`;
   }catch(err){
-    status.innerHTML=`<span style="color:var(--rd)">âœ— ${err.message}</span>`;
+    status.innerHTML=`<span style="color:var(--rd)">✗ ${err.message}</span>`;
   }
 }
 
@@ -17509,16 +17509,16 @@ function indSave(){
   const name    = document.getElementById('ind-name').value.trim();
   const formula = document.getElementById('ind-formula').value.trim();
   const status  = document.getElementById('ind-status');
-  if(!name){    status.innerHTML='<span style="color:var(--rd)">âš  Give this indicator a name</span>'; return; }
-  if(!formula){ status.innerHTML='<span style="color:var(--rd)">âš  Enter a formula first</span>'; return; }
-  if(!curData.length){ status.innerHTML='<span style="color:var(--rd)">âš  Load a chart first</span>'; return; }
+  if(!name){    status.innerHTML='<span style="color:var(--rd)">⚠ Give this indicator a name</span>'; return; }
+  if(!formula){ status.innerHTML='<span style="color:var(--rd)">⚠ Enter a formula first</span>'; return; }
+  if(!curData.length){ status.innerHTML='<span style="color:var(--rd)">⚠ Load a chart first</span>'; return; }
   const data = curCT==='heikin'?calcHeikin(curData):curData;
   try{
     const result = evalIndFormula(formula, data);
     const vals = (result||[]).filter(v=>v!=null&&isFinite(v));
-    if(!vals.length){ status.innerHTML='<span style="color:var(--rd)">âš  Formula produced no valid values</span>'; return; }
+    if(!vals.length){ status.innerHTML='<span style="color:var(--rd)">⚠ Formula produced no valid values</span>'; return; }
   }catch(err){
-    status.innerHTML=`<span style="color:var(--rd)">âœ— ${err.message}</span>`; return;
+    status.innerHTML=`<span style="color:var(--rd)">✗ ${err.message}</span>`; return;
   }
 
   const color     = document.getElementById('ind-color').value;
@@ -17539,7 +17539,7 @@ function indSave(){
   const savedName = name;
   indClear();
   closeIndBuilder();
-  toast(`âš— ${savedName} added to chart`);
+  toast(`⚗ ${savedName} added to chart`);
 }
 
 function indClear(){
@@ -17551,10 +17551,10 @@ function indClear(){
   document.getElementById('ind-linestyle').value='solid';
   document.getElementById('ind-linewidth').value='1.5';
   document.getElementById('ind-status').innerHTML='';
-  document.getElementById('ind-save-btn').textContent='âœš Add to Chart';
+  document.getElementById('ind-save-btn').textContent='✚ Add to Chart';
   document.getElementById('ind-autocomplete').style.display='none';
   const title = document.getElementById('indbuild-title');
-  if(title) title.textContent='âš— BUILD INDICATOR';
+  if(title) title.textContent='⚗ BUILD INDICATOR';
   indEditId=null;
 }
 
@@ -17569,9 +17569,9 @@ function indEdit(id){
   document.getElementById('ind-type').value = ind.type;
   document.getElementById('ind-linestyle').value = ind.linestyle||'solid';
   document.getElementById('ind-linewidth').value = ind.linewidth||1.5;
-  document.getElementById('ind-save-btn').textContent='âœ” Update Indicator';
+  document.getElementById('ind-save-btn').textContent='✔ Update Indicator';
   document.getElementById('ind-status').innerHTML='';
-  document.getElementById('indbuild-title').textContent='âœŽ EDIT INDICATOR';
+  document.getElementById('indbuild-title').textContent='✎ EDIT INDICATOR';
   initIndChips();
   document.getElementById('indbuild-bg').style.display='flex';
 }
@@ -17594,7 +17594,7 @@ function buildIndList(){
   const el = document.getElementById('ind-list');
   if(!el) return;
   if(!customIndicators.length){
-    el.innerHTML='<div style="padding:14px 10px;text-align:center;color:var(--tx3);font-size:11px;font-family:monospace;">No custom indicators yet.<br>Build one above â†‘</div>';
+    el.innerHTML='<div style="padding:14px 10px;text-align:center;color:var(--tx3);font-size:11px;font-family:monospace;">No custom indicators yet.<br>Build one above ↑</div>';
     return;
   }
   el.innerHTML = customIndicators.map(ind=>`
@@ -17602,11 +17602,11 @@ function buildIndList(){
       <div style="width:8px;height:8px;border-radius:50%;background:${ind.color};flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:10px;color:var(--tx);font-family:monospace;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ind.name}</div>
-        <div style="font-size:11px;color:var(--tx2);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ind.type==='panel'?'sub-panel':'overlay'} Â· ${ind.formula.substring(0,28)}${ind.formula.length>28?'â€¦':''}</div>
+        <div style="font-size:11px;color:var(--tx2);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ind.type==='panel'?'sub-panel':'overlay'} · ${ind.formula.substring(0,28)}${ind.formula.length>28?'…':''}</div>
       </div>
-      <button onclick="indToggle('${ind.id}')" title="${ind.visible?'Hide':'Show'}" style="background:none;border:1px solid var(--b1);color:${ind.visible?'var(--am)':'var(--tx3)'};font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;">${ind.visible?'â—':'â—‹'}</button>
-      <button onclick="indEdit('${ind.id}')" title="Edit" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">âœŽ</button>
-      <button onclick="indDelete('${ind.id}')" title="Delete" style="background:none;border:none;color:var(--tx3);font-size:11px;padding:2px 4px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">âœ•</button>
+      <button onclick="indToggle('${ind.id}')" title="${ind.visible?'Hide':'Show'}" style="background:none;border:1px solid var(--b1);color:${ind.visible?'var(--am)':'var(--tx3)'};font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;">${ind.visible?'�':'○'}</button>
+      <button onclick="indEdit('${ind.id}')" title="Edit" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">✎</button>
+      <button onclick="indDelete('${ind.id}')" title="Delete" style="background:none;border:none;color:var(--tx3);font-size:11px;padding:2px 4px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
     </div>
   `).join('');
 }
@@ -17620,7 +17620,7 @@ function buildWL(filter=''){
   const hasAny = Object.values(cats).some(a=>a.length);
   if(!hasAny){
     html=`<div style="padding:24px 12px;text-align:center;line-height:1.8;">
-      <div style="font-size:18px;margin-bottom:6px;">ðŸ“‹</div>
+      <div style="font-size:18px;margin-bottom:6px;">📋</div>
       <div style="color:var(--tx2);font-size:10px;font-weight:600;margin-bottom:3px;">Watchlist is empty</div>
       <div style="color:var(--tx3);font-size:11px;">Search and add symbols to track them here</div>
     </div>`;
@@ -17631,7 +17631,7 @@ function buildWL(filter=''){
       syms.forEach(s=>{html+=`<div class="wl-row${s.s===curSym.s?' on':''}" data-sym="${s.s}" onclick="selSym('${s.s}')">
         <div style="flex:1;min-width:0;"><div class="wl-sym">${s.s}</div><div class="wl-name">${s.n}</div></div>
         <div class="wl-r"><div class="wl-px">${fP(s.p)}</div><div class="wl-ch ${s.c>=0?'up':'dn'}">${s.c>=0?'+':''}${s.c}%</div></div>
-        <button onclick="event.stopPropagation();removeFromWatchlist('${s.s}')" title="Remove from watchlist" style="background:none;border:none;color:var(--tx3);cursor:pointer;padding:0 2px 0 6px;font-size:11px;line-height:1;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">âœ•</button>
+        <button onclick="event.stopPropagation();removeFromWatchlist('${s.s}')" title="Remove from watchlist" style="background:none;border:none;color:var(--tx3);cursor:pointer;padding:0 2px 0 6px;font-size:11px;line-height:1;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
       </div>`;});
     }
   }
@@ -17640,8 +17640,8 @@ function buildWL(filter=''){
 function selSym(s){loadSym(s);closeModal();}
 function selSymNewTab(s){ createChartTab(s, curTF); closeModal(); }
 
-// â•â• DRAGGABLE POPUPS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// makeDraggable(el, handle) â€” call once per popup on DOMContentLoaded.
+// �� DRAGGABLE POPUPS ����������������������������������������������������������
+// makeDraggable(el, handle) — call once per popup on DOMContentLoaded.
 // Drag by the handle (or el itself). Position resets when caller invokes resetDrag(el).
 function makeDraggable(el, handle) {
   if (!el) return;
@@ -17725,7 +17725,7 @@ document.addEventListener('DOMContentLoaded', () => {
   makeDraggable(document.getElementById('tut-content'),       document.querySelector('#tut-content .tut-hdr, #tut-content'));
 });
 
-// â•â• MODAL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� MODAL ��������������������������������������������������������������������
 function openModal(){
   document.getElementById('modal-bg').classList.add('open');
   document.getElementById('m-input').value='';
@@ -17741,21 +17741,21 @@ function filterModal(q){
       <div class="mr-s">${s.s}</div><div class="mr-n">${s.n}</div>
       <div class="mr-p">${fP(s.p)}</div><div class="mr-t">${s.t}</div>
       <button onclick="event.stopPropagation();selSymNewTab('${s.s}')" style="flex-shrink:0;padding:2px 8px;border-radius:999px;font-size:10px;font-family:monospace;cursor:pointer;transition:all .15s;background:rgba(61,142,255,.08);border:1px solid rgba(61,142,255,.24);color:var(--blue);" onmouseover="this.style.background='rgba(61,142,255,.14)';this.style.color='#a9c9ff'" onmouseout="this.style.background='rgba(61,142,255,.08)';this.style.color='var(--blue)'">+ Tab</button>
-      <button onclick="event.stopPropagation();${watching?`removeFromWatchlist('${s.s}')`:`addToWatchlist('${s.s}')`}" style="flex-shrink:0;padding:2px 8px;border-radius:3px;font-size:11px;font-family:monospace;cursor:pointer;transition:all .15s;${watching?'background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.4);color:var(--am);':'background:transparent;border:1px solid var(--b2);color:var(--tx3);'}" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='${watching?'rgba(240,165,0,.4)':'var(--b2)'}';this.style.color='${watching?'var(--am)':'var(--tx3)'}">${watching?'âœ“ Watching':'+ Watch'}</button>
+      <button onclick="event.stopPropagation();${watching?`removeFromWatchlist('${s.s}')`:`addToWatchlist('${s.s}')`}" style="flex-shrink:0;padding:2px 8px;border-radius:3px;font-size:11px;font-family:monospace;cursor:pointer;transition:all .15s;${watching?'background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.4);color:var(--am);':'background:transparent;border:1px solid var(--b2);color:var(--tx3);'}" onmouseover="this.style.borderColor='var(--am)';this.style.color='var(--am)'" onmouseout="this.style.borderColor='${watching?'rgba(240,165,0,.4)':'var(--b2)'}';this.style.color='${watching?'var(--am)':'var(--tx3)'}">${watching?'✓ Watching':'+ Watch'}</button>
     </div>`;
   }).join('');
 }
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ closeModal(); closeIndBuilder(); closeIndList(); closePSC(); }
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openModal();}
-  // Global shortcuts â€” skip if typing in an input
+  // Global shortcuts — skip if typing in an input
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   // 1-7 = timeframes
   const tfMap={'1':'1m','2':'5m','3':'15m','4':'1h','5':'1d','6':'1w','7':'1M'};
   if(tfMap[e.key] && !e.ctrlKey && !e.metaKey){
     const tf=tfMap[e.key];
     const btn=document.querySelector(`.tf[onclick*="'${tf}'"]`);
-    if(btn){ btn.click(); toast(`â± ${tf} timeframe`); }
+    if(btn){ btn.click(); toast(`�� ${tf} timeframe`); }
     return;
   }
   // P = position size calculator
@@ -17784,8 +17784,8 @@ document.addEventListener('keydown',e=>{
   if(replayMode && !replayPicking){
     // Prevent keyboard controls when replay is complete
     if(curData && replayCutoff >= curData.length - 1) {
-      if(e.key===' '){ e.preventDefault(); toast('â¹ Already at end â€” Esc to exit'); return; }
-      if(e.key==='ArrowRight'){ e.preventDefault(); toast('â¹ Already at end'); return; }
+      if(e.key===' '){ e.preventDefault(); toast('�� Already at end — Esc to exit'); return; }
+      if(e.key==='ArrowRight'){ e.preventDefault(); toast('�� Already at end'); return; }
     }
     if(e.key==='ArrowRight'){ e.preventDefault(); replayStep(1);   return; }
     if(e.key==='ArrowLeft'){  e.preventDefault(); replayStep(-1);  return; }
@@ -17808,10 +17808,10 @@ function toggleFullscreenChart(){
   [rpanel, rrh].forEach(el=>{ if(el) el.style.display=_chartFullscreen?'none':''; });
   if(scanner) scanner.style.display=_chartFullscreen?'none':'';
   setTimeout(()=>{ sizeCanvases(); draw(); },30);
-  toast(_chartFullscreen?'â–¶ Fullscreen â€” press F to exit':'â—€ Normal view');
+  toast(_chartFullscreen?'▶ Fullscreen — press F to exit':'◀ Normal view');
 }
 
-// â•â• SCANNER / PROMPT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SCANNER / PROMPT ����������������������������������������������������������
 function runPrompt(btn, q){
   // Highlight active prompt button
   document.querySelectorAll('.sp').forEach(s=>s.classList.remove('sp-active'));
@@ -17878,9 +17878,9 @@ function runPrompt(btn, q){
     { test: q=>q.match(/breakdown|break.?down|break(ing)? (down|lower)|collapse|dump/),
       filter:s=>s.breakdown, sort:(a,b)=>b.volRatio-a.volRatio, label:'Breakdowns', fmt:s=>`${s.s} ${s.volRatio.toFixed(1)}x vol` },
     { test: q=>q.match(/uptrend|trending.{0,8}up|above.{0,8}(sma|ma)|bullish.{0,8}trend|golden.{0,8}cross/),
-      filter:s=>s.goldenX||s.aboveSMA, sort:(a,b)=>b.momentum-a.momentum, label:'Uptrend', fmt:s=>`${s.s} ${s.goldenX?'GoldenX':'â†‘SMA'}` },
+      filter:s=>s.goldenX||s.aboveSMA, sort:(a,b)=>b.momentum-a.momentum, label:'Uptrend', fmt:s=>`${s.s} ${s.goldenX?'GoldenX':'↑SMA'}` },
     { test: q=>q.match(/downtrend|trending.{0,8}down|below.{0,8}(sma|ma)|bearish.{0,8}trend|death.{0,8}cross/),
-      filter:s=>s.deathX||!s.aboveSMA, sort:(a,b)=>b.momentum-a.momentum, label:'Downtrend', fmt:s=>`${s.s} ${s.deathX?'DeathX':'â†“SMA'}` },
+      filter:s=>s.deathX||!s.aboveSMA, sort:(a,b)=>b.momentum-a.momentum, label:'Downtrend', fmt:s=>`${s.s} ${s.deathX?'DeathX':'↓SMA'}` },
     { test: q=>q.match(/gain|gainer|up|green|bull|pump|rocket|best.{0,8}perf|top.{0,8}(mover|perform)/),
       filter:s=>s.c>0, sort:(a,b)=>b.c-a.c, label:'Top Gainers', fmt:s=>`${s.s} +${s.c}%` },
     { test: q=>q.match(/loser|loss|down|red|bear|drop|fall|worst|sell.?off/),
@@ -17890,13 +17890,13 @@ function runPrompt(btn, q){
     { test: q=>q.match(/hammer|reversal.{0,8}bull|bullish.{0,8}reversal/),
       filter:s=>s.hammer||s.engulfBull, sort:(a,b)=>b.bullPats-a.bullPats, label:'Bullish Reversals', fmt:s=>`${s.s} ${s.hammer?'Hammer':'Engulf'}` },
     { test: q=>q.match(/shooting.?star|reversal.{0,8}bear|bearish.{0,8}reversal/),
-      filter:s=>s.shootingStar||s.engulfBear, sort:(a,b)=>b.bearPats-a.bearPats, label:'Bearish Reversals', fmt:s=>`${s.s} ${s.shootingStar?'Shootâ˜…':'Engulf'}` },
+      filter:s=>s.shootingStar||s.engulfBear, sort:(a,b)=>b.bearPats-a.bearPats, label:'Bearish Reversals', fmt:s=>`${s.s} ${s.shootingStar?'Shoot★':'Engulf'}` },
     { test: q=>q.match(/doji|indecis|uncertain|neutral.{0,8}candle/),
       filter:s=>s.doji, sort:(a,b)=>b.momentum-a.momentum, label:'Doji', fmt:s=>`${s.s} Doji` },
     { test: q=>q.match(/engulf/),
-      filter:s=>s.engulfBull||s.engulfBear, sort:(a,b)=>(b.engulfBull?1:0)-(a.engulfBull?1:0), label:'Engulfing', fmt:s=>`${s.s} ${s.engulfBull?'â–²Bull':'â–¼Bear'}` },
+      filter:s=>s.engulfBull||s.engulfBear, sort:(a,b)=>(b.engulfBull?1:0)-(a.engulfBull?1:0), label:'Engulfing', fmt:s=>`${s.s} ${s.engulfBull?'▲Bull':'▼Bear'}` },
     { test: q=>q.match(/pattern|setup|signal|opportunity|trade/),
-      filter:s=>s.bullPats+s.bearPats>=2, sort:(a,b)=>(b.bullPats+b.bearPats)-(a.bullPats+a.bearPats), label:'Best Setups', fmt:s=>`${s.s} ${s.bullPats}â†‘${s.bearPats}â†“` },
+      filter:s=>s.bullPats+s.bearPats>=2, sort:(a,b)=>(b.bullPats+b.bearPats)-(a.bullPats+a.bearPats), label:'Best Setups', fmt:s=>`${s.s} ${s.bullPats}↑${s.bearPats}↓` },
     { test: q=>q.match(/bollinger|bb|band.{0,8}(touch|squeeze|upper|lower)/),
       filter:s=>s.nearBBUpper||s.nearBBLower||s.bbSqueeze,
       sort:(a,b)=>(b.nearBBUpper?2:b.nearBBLower?1:0)-(a.nearBBUpper?2:a.nearBBLower?1:0),
@@ -17935,10 +17935,10 @@ function nlPick(sym, el){
   document.querySelectorAll('.nl-chip').forEach(c=>c.classList.remove('nl-chip-active'));
   el.classList.add('nl-chip-active');
   loadSym(sym);
-  toast(`ðŸ“ˆ Loaded ${sym}`);
+  toast(`📈 Loaded ${sym}`);
 }
 
-// â•â• TOAST + CLOCK â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� TOAST + CLOCK �������������������������������������������������������������
 let toastT;
 function toast(msg){
   const el=document.getElementById('toast');
@@ -17948,16 +17948,16 @@ function toast(msg){
 setInterval(()=>{
   const n=new Date();
   const clkEl=document.getElementById('st-clk'); if(clkEl) clkEl.textContent=n.toLocaleTimeString('en-GB',{hour12:false});
-  // Crypto trades 24/7 â€” always LIVE. Only show CLOSED on weekends for context.
+  // Crypto trades 24/7 — always LIVE. Only show CLOSED on weekends for context.
   const dayOfWeek = n.getDay(); // 0=Sun, 6=Sat
   const isCryptoWeekend = false; // crypto never closes
   const open = curSym && curSym.t === 'Crypto' ? true : !(dayOfWeek === 0 || dayOfWeek === 6);
-  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'â— LIVE':'â— CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--tx3)'; }
+  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'� LIVE':'� CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--tx3)'; }
   updateSessionCountdown();
   updateTiltDetector();
 },1000);
 
-// â•â• SCANNER HELPERS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SCANNER HELPERS �����������������������������������������������������������
 function scrollPrompts(dx){
   const el=document.getElementById('scanner-prompts'); if(el) el.scrollBy({top:dx, behavior:'smooth'});
 }
@@ -17987,7 +17987,7 @@ function initScannerDrag(){
   el.addEventListener('touchmove',  e=>{ el.scrollLeft=scrollStart-(e.touches[0].pageX-startX); },{passive:true});
 }
 
-// â•â• SIDEBAR RESIZE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SIDEBAR RESIZE ������������������������������������������������������������
 
 // ResizeObserver: redraws chart whenever chart-area changes size
 // (catches overlay-panel dock/undock, window resize, zoom changes)
@@ -18007,7 +18007,7 @@ function initScannerDrag(){
 function initSidebarResize(){
   const SIDEBAR_MIN = 0, SIDEBAR_MAX = 380, SIDEBAR_DEFAULT = 196;
   const RPANEL_MIN  = 0, RPANEL_MAX  = 420, RPANEL_DEFAULT  = 240;
-  const COLLAPSE_THRESHOLD = 40; // px â€” snap to 0 if dragged below this
+  const COLLAPSE_THRESHOLD = 40; // px — snap to 0 if dragged below this
 
   const sidebar = document.getElementById('sidebar');
   const rpanel  = document.getElementById('rpanel');
@@ -18036,7 +18036,7 @@ function initSidebarResize(){
       el.style.overflow = '';
     }
     // During drag: only resize+redraw once per animation frame to avoid jitter.
-    // sizeCanvases() resets mc.width which clears the canvas â€” batching via rAF
+    // sizeCanvases() resets mc.width which clears the canvas — batching via rAF
     // means we only get one clear+repaint per frame instead of one per pixel.
     if(!_rafPending){
       _rafPending = true;
@@ -18117,8 +18117,8 @@ function initSidebarResize(){
   const rBtn = document.getElementById('right-collapse-btn');
 
   function updateBtnArrows(){
-    if(lBtn) lBtn.textContent = isCollapsed(sidebar) ? 'â€º' : 'â€¹';
-    if(rBtn) rBtn.textContent = isCollapsed(rpanel)  ? 'â€¹' : 'â€º';
+    if(lBtn) lBtn.textContent = isCollapsed(sidebar) ? '›' : '‹';
+    if(rBtn) rBtn.textContent = isCollapsed(rpanel)  ? '‹' : '›';
     // Toggle wide hit-area class on handles
     if(lHandle) lHandle.classList.toggle('panel-collapsed', isCollapsed(sidebar));
     if(rHandle) rHandle.classList.toggle('panel-collapsed', isCollapsed(rpanel));
@@ -18148,7 +18148,7 @@ function initSidebarResize(){
   if(lHandle) lHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
   if(rHandle) rHandle.addEventListener('dblclick', () => setTimeout(updateBtnArrows, 220));
 
-  // Keep settings toggle in sync â€” patch to also update widths
+  // Keep settings toggle in sync — patch to also update widths
   const origScSidebar = document.getElementById('sc-sidebar');
   if(origScSidebar){
     origScSidebar.addEventListener('change', function(){
@@ -18165,7 +18165,7 @@ function initSidebarResize(){
   }
 }
 
-// â•â• SETTINGS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� SETTINGS ������������������������������������������������������������������
 
 function applyUIScale(val){
   const numericVal = Math.max(80, Math.min(130, parseFloat(val) || 100));
@@ -18248,7 +18248,7 @@ function hydrateSettingsUI(){
         <div class="sm-title">Settings</div>
         <div class="sm-subtitle">Workspace, chart, AI, and data controls</div>
       </div>
-      <button class="sm-close" onclick="closeSettings()">âœ•</button>
+      <button class="sm-close" onclick="closeSettings()">✕</button>
     </div>
     <div class="sm-tabs">
       <button class="sm-tab on" onclick="smTab(this,'sm-workspace')">WORKSPACE</button>
@@ -18893,7 +18893,7 @@ function initContextMenus(){
         { label: showSessions ? 'Hide sessions' : 'Show sessions', action:() => toggleSessions() },
         { label:'Add alert for this market', action:() => addAlertForSymbol(curSym.s, price) },
         { label:'Open settings', action:() => openSettings() },
-      ], e.clientX, e.clientY, `${curSym.s} Â· ${String(curTF).toUpperCase()}`);
+      ], e.clientX, e.clientY, `${curSym.s} · ${String(curTF).toUpperCase()}`);
     });
   }
 
@@ -18930,7 +18930,7 @@ function initContextMenus(){
   }
 }
 
-// â”€â”€ Auth UI functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Auth UI functions ──────────────────────────────────────────────────────────
 function authShowTab(tab){
   document.querySelectorAll('.auth-tab').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.auth-panel').forEach(el => el.classList.remove('active'));
@@ -18965,7 +18965,7 @@ async function authSubmitLogin(){
   
   errEl.textContent = '';
   if(!user || !pass){ errEl.textContent='Please enter username and password.'; return; }
-  if(btn){ btn.textContent='Signing inâ€¦'; btn.disabled=true; }
+  if(btn){ btn.textContent='Signing in…'; btn.disabled=true; }
   
   try {
     // Add timeout to prevent infinite loading
@@ -18975,7 +18975,7 @@ async function authSubmitLogin(){
     
     const result = await Promise.race([authLoginAsync(user, pass), timeoutPromise]);
 
-    if(btn){ btn.textContent='SIGN IN â†’'; btn.disabled=false; }
+    if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
     if(!result.ok){ errEl.textContent = result.err; return; }
     
     
@@ -19003,8 +19003,8 @@ async function authSubmitLogin(){
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
-    console.error('âŒ Login process error:', error);
-    if(btn){ btn.textContent='SIGN IN â†’'; btn.disabled=false; }
+    console.error('�� Login process error:', error);
+    if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
     
     if (error.message.includes('timed out')) {
       errEl.textContent = 'Sign in took too long. Please check your internet connection and try again.';
@@ -19021,9 +19021,9 @@ async function authSubmitRegister(){
   const errEl = document.getElementById('auth-reg-err');
   const btn   = document.querySelector('#auth-panel-register .auth-btn');
   errEl.textContent = '';
-  if(btn){ btn.textContent='Creating accountâ€¦'; btn.disabled=true; }
+  if(btn){ btn.textContent='Creating account…'; btn.disabled=true; }
   const result = await authRegisterAsync(user, pass, name);
-  if(btn){ btn.textContent='CREATE ACCOUNT â†’'; btn.disabled=false; }
+  if(btn){ btn.textContent='CREATE ACCOUNT →'; btn.disabled=false; }
   if(!result.ok){ errEl.textContent = result.err; return; }
   // Auto-login after register
   const loginResult = await authLoginAsync(user, pass);
@@ -19066,14 +19066,14 @@ async function authSubmitChangePass(){
   if(newP.length < 6){ errEl.textContent = 'Password must be at least 6 characters.'; return; }
   const result = await authChangePassword(_currentUser, oldP, newP);
   if(!result.ok){ errEl.textContent = result.err; return; }
-  okEl.textContent = 'âœ“ Password updated successfully.';
+  okEl.textContent = '✓ Password updated successfully.';
   ['auth-cp-old','auth-cp-new','auth-cp-conf'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   setTimeout(closeChangePass, 1200);
 }
 
-// â”€â”€ Override updateUserBadge to also toggle change-pass button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Override updateUserBadge to also toggle change-pass button ─────────────────
 // Auto-save all state every 30 seconds
 function _startAutoSave(){
   if(_autoSaveInterval) clearInterval(_autoSaveInterval);
@@ -19091,7 +19091,7 @@ function _stopAutoSave(){
   if(_autoSaveInterval){ clearInterval(_autoSaveInterval); _autoSaveInterval = null; }
 }
 
-// â•â• ACCOUNT SYSTEM (Supabase-backed) â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� ACCOUNT SYSTEM (Supabase-backed) ������������������������������������������
 
 // Test Supabase connectivity
 async function testSupabaseConnection() {
@@ -19109,11 +19109,11 @@ async function testSupabaseConnection() {
     if (response.ok) {
       return true;
     } else {
-      console.error('âŒ Supabase service responded with:', response.status, response.statusText);
+      console.error('�� Supabase service responded with:', response.status, response.statusText);
       return false;
     }
   } catch (error) {
-    console.error('âŒ Cannot reach Supabase service:', error.message);
+    console.error('�� Cannot reach Supabase service:', error.message);
     return false;
   }
 }
@@ -19132,11 +19132,11 @@ function initializeSupabase() {
         }
       });
     } else {
-      console.error('âŒ Supabase library not loaded');
+      console.error('�� Supabase library not loaded');
       _supaReady = false;
     }
   } catch (error) {
-    console.error('âŒ Failed to initialize Supabase client:', error);
+    console.error('�� Failed to initialize Supabase client:', error);
     _supaReady = false;
   }
 }
@@ -19153,7 +19153,7 @@ function waitForSupabaseAndInit() {
 // Start initialization process immediately
 waitForSupabaseAndInit();
 
-// â”€â”€ Storage helpers â€” localStorage (fast cache) + Supabase (persistent cloud) â”€â”€
+// ── Storage helpers — localStorage (fast cache) + Supabase (persistent cloud) ──
 function _lsKey(key){ return _currentUser ? `apex-${_currentUser}-${key}` : `apex-${key}`; }
 
 function _lsGet(key){
@@ -19163,16 +19163,16 @@ function _lsDel(key){
   try{ localStorage.removeItem(_lsKey(key)); }catch(e){}
 }
 
-// Write queue â€” batches Supabase writes to avoid hammering the API
+// Write queue — batches Supabase writes to avoid hammering the API
 function _lsSet(key, val){
   try{ localStorage.setItem(_lsKey(key), val); }catch(e){}
   if(_currentUserId){
-    // If the circuit breaker has tripped, only write locally â€” don't queue
+    // If the circuit breaker has tripped, only write locally — don't queue
     // cloud writes or override the "offline" badge with "syncing".
     if(_supaRLSBlocked) return;
     _writeQueue[key] = val; // queue it, deduplicate by key
     if(_writeFlushTimer) clearTimeout(_writeFlushTimer);
-    updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloudâ€¦' });
+    updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
     _writeFlushTimer = setTimeout(_flushWriteQueue, 2000); // batch writes every 2s
   }
 }
@@ -19189,11 +19189,11 @@ async function _flushWriteQueue(force){
   }));
   clearTimeout(_writeFlushTimer);
   _writeFlushTimer = null;
-  updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloudâ€¦' });
+  updateCloudSyncBadge({ status:'syncing', message:'Saving your workspace to the cloud…' });
   try{
     const { error } = await _supa.from('user_data').upsert(entries, { onConflict: 'user_id,key' });
     if(error) throw error;
-    // Success â€” reset failure count and clear queue entries that haven't changed
+    // Success — reset failure count and clear queue entries that haven't changed
     _supaRLSFailCount = 0;
     Object.keys(snapshot).forEach(k => {
       if(_writeQueue[k] === snapshot[k]) delete _writeQueue[k];
@@ -19204,12 +19204,12 @@ async function _flushWriteQueue(force){
     if(hardFailure){
       _supaRLSFailCount++;
       if(_supaRLSFailCount >= 3){
-        // Trip the circuit breaker â€” stop all further write attempts until re-login
+        // Trip the circuit breaker — stop all further write attempts until re-login
         _supaRLSBlocked = true;
         // Discard the queue so live-tick saves don't keep re-populating it
         Object.keys(_writeQueue).forEach(k => delete _writeQueue[k]);
         console.warn('Supabase cloud sync disabled: repeated RLS policy failures. Data is saved locally.');
-        updateCloudSyncBadge({ status:'offline', message:'Cloud sync unavailable â€” data is saved locally' });
+        updateCloudSyncBadge({ status:'offline', message:'Cloud sync unavailable — data is saved locally' });
         return;
       }
     } else {
@@ -19249,7 +19249,7 @@ async function _syncFromCloud(){
   }
   
   try{
-    updateCloudSyncBadge({ status:'syncing', message:'Loading your cloud workspaceâ€¦' });
+    updateCloudSyncBadge({ status:'syncing', message:'Loading your cloud workspace…' });
     const { data, error } = await _supa.from('user_data')
       .select('key,value')
       .eq('user_id', _currentUserId);
@@ -19266,12 +19266,12 @@ async function _syncFromCloud(){
     
     updateCloudSyncBadge({ status:'ok', message:'Cloud workspace loaded', lastOkAt: Date.now() });
   }catch(e){ 
-    console.error('âŒ Supabase sync error:', e);
+    console.error('�� Supabase sync error:', e);
     updateCloudSyncBadge({ status:'error', message:`Cloud sync failed: ${e.message}` });
   }
 }
 
-// â”€â”€ Session persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Session persistence ────────────────────────────────────────────────────────
 function _saveSession(username){ try{ localStorage.setItem('apex-session', JSON.stringify({ username, loginAt: Date.now() })); }catch(e){} }
 function _clearSession(){ try{ localStorage.removeItem('apex-session'); }catch(e){} }
 function _restoreSession(){ try{ const s = JSON.parse(localStorage.getItem('apex-session')||'null'); return s?.username || null; }catch(e){ return null; } }
@@ -19280,7 +19280,7 @@ function _restoreSession(){ try{ const s = JSON.parse(localStorage.getItem('apex
 function _getAccounts(){ try{ return JSON.parse(localStorage.getItem('apex-accounts') || '{}'); }catch(e){ return {}; } }
 function _saveAccounts(a){ try{ localStorage.setItem('apex-accounts', JSON.stringify(a)); }catch(e){} }
 
-// â”€â”€ Auth â€” Supabase email/password (username@apexfx.app synthetic email) â”€â”€â”€â”€â”€â”€â”€
+// ── Auth — Supabase email/password (username@apexfx.app synthetic email) ───────
 // We store users as username@apexfx.app so the UI stays username-based
 function _userEmail(username){ return `${username.trim().toLowerCase()}@apexfx.app`; }
 
@@ -19311,20 +19311,20 @@ async function authLoginAsync(username, password){
   
   // Wait for Supabase to be ready
   if (!_supaReady || !_supa) {
-    console.error('âŒ Supabase client not ready:', { _supaReady, _supa: !!_supa, supabase: typeof supabase });
+    console.error('�� Supabase client not ready:', { _supaReady, _supa: !!_supa, supabase: typeof supabase });
     
     if (typeof supabase === 'undefined') {
-      console.error('âŒ Supabase library not loaded - CDN issue');
+      console.error('�� Supabase library not loaded - CDN issue');
       return { ok:false, err:'Authentication service not available. Please refresh the page and check your internet connection.' };
     } else {
-      console.error('âŒ Supabase library loaded but client not ready - attempting force initialization...');
+      console.error('�� Supabase library loaded but client not ready - attempting force initialization...');
       
       // Force initialization as fallback
       try {
         _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
         _supaReady = true;
       } catch (initError) {
-        console.error('âŒ Force initialization failed:', initError);
+        console.error('�� Force initialization failed:', initError);
         return { ok:false, err:'Authentication service failed to initialize. Please refresh the page.' };
       }
     }
@@ -19334,14 +19334,14 @@ async function authLoginAsync(username, password){
     const { data, error } = await _supa.auth.signInWithPassword({ email, password });
     
     if(error) {
-      console.error('âŒ Sign in error:', error);
+      console.error('�� Sign in error:', error);
       return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
     }
     
     const displayName = data.user?.user_metadata?.displayName || username;
     return { ok:true, username, displayName, userId: data.user.id };
   } catch (err) {
-    console.error('âŒ Unexpected error during login:', err);
+    console.error('�� Unexpected error during login:', err);
     
     // Check for network/CORS errors
     if (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('CORS')) {
@@ -19400,7 +19400,7 @@ function enterGuestMode(){
 function doLogin(username, displayName){
   _currentUser = username;
   _saveSession(username);
-  updateCloudSyncBadge({ status:'syncing', message:'Preparing your cloud workspaceâ€¦' });
+  updateCloudSyncBadge({ status:'syncing', message:'Preparing your cloud workspace…' });
   // Grab userId from active Supabase session if not already set
   if(!_currentUserId){
     _supa.auth.getSession().then(({data}) => {
@@ -19523,7 +19523,7 @@ function updateUserBadge(displayName){
   }
 }
 
-// â”€â”€ Patch saveWatchlist / saveJournal / saveTopbarInds / saveCustomInds to use namespace â”€â”€
+// ── Patch saveWatchlist / saveJournal / saveTopbarInds / saveCustomInds to use namespace ──
 function saveWatchlist(){ _lsSet('watchlist', JSON.stringify([...watchlist])); }
 function saveTopbarInds(){
   _lsSet('topbar-inds', JSON.stringify(topbarInds));
@@ -19599,7 +19599,7 @@ function saveSettingsToStorage(){
     },{})
   };
   _lsSet('settings', JSON.stringify(settings));
-  // Update the sync badge silently â€” no toast on background/auto saves.
+  // Update the sync badge silently — no toast on background/auto saves.
   // Toast only shown when user explicitly opens and closes the Settings panel.
   updateCloudSyncBadge({ status: _cloudSyncState.status, message: _cloudSyncState.message });
 }
@@ -19664,7 +19664,7 @@ function loadSettingsFromStorage(){
   renderTopbarInds();
   if(document.getElementById('settings-bg')?.classList.contains('open')) syncSettingsFormFromState();
 }
-// â•â• INIT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� INIT ����������������������������������������������������������������������
 window.addEventListener('load', () => {
   sizeCanvases();
   positionChartTabsBar();
@@ -19689,7 +19689,7 @@ window.addEventListener('load', () => {
       ensureChartTabs();
       switchChartTab(activeChartTabId, true, { focusLatest: true });
     } else {
-      // No active session â€” show auth screen
+      // No active session — show auth screen
       closeAuthOverlay();
       enterGuestMode();
       switchChartTab(activeChartTabId, true, { focusLatest: true });
@@ -19861,10 +19861,10 @@ function tutNavStep(dir){
 
 
 
-// â•â• PRE-MARKET BRIEF v2 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� PRE-MARKET BRIEF v2 �������������������������������������������������������
 // Multi-timeframe per-symbol deep analysis
 
-// TFs to analyse â€” 1H through Monthly (6 TFs for full confluence)
+// TFs to analyse — 1H through Monthly (6 TFs for full confluence)
 const TF_BAR_SECS = {'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1M':2592000};
 function tfBarSecs(tf){ return TF_BAR_SECS[tf] || 3600; }
 // Convert halfBars to a time duration in seconds for the current TF
@@ -19877,7 +19877,7 @@ const PMB_TF_LABELS = { '1h':'1H', '4h':'4H', '1d':'Daily', '1w':'Weekly', '1M':
 // Bar counts needed per TF to get meaningful pattern + S/R detection
 const PMB_TF_BARS = { '1h':200, '4h':200, '1d':200, '1w':120, '1M':60 };
 
-let pmbAnalyses = {}; // sym â†’ { tfData:{tfâ†’analysis}, confluence, ... }
+let pmbAnalyses = {}; // sym → { tfData:{tf→analysis}, confluence, ... }
 let pmbCurrentPane = 'overview';
 let _pmbInFlight = false; // guard: prevents double-generate on rapid clicks
 
@@ -19973,7 +19973,7 @@ async function analyseTF(sym, tf, realData) {
   const emaAligned = e8 && e21 ? (e8 > e21 ? 'bull' : 'bear') : 'neut';
   const smaAligned = s20 && s50 ? (s20 > s50 ? 'bull' : 'bear') : 'neut';
 
-  // Combined directional score: 0 (full bear) â†’ 100 (full bull)
+  // Combined directional score: 0 (full bear) → 100 (full bull)
   let score = 50;
   if (bias === 'bull') score += 15; else if (bias === 'bear') score -= 15;
   if (emaAligned === 'bull') score += 10; else if (emaAligned === 'bear') score -= 10;
@@ -19990,13 +19990,13 @@ async function analyseTF(sym, tf, realData) {
   const nearestS = sr.support.filter(s => s < price).sort((a,b) => b-a)[0] || null;
   const nearestR = sr.resistance.filter(r => r > price).sort((a,b) => a-b)[0] || null;
 
-  // % change vs 5 bars ago using typical price â€” includes wick momentum
+  // % change vs 5 bars ago using typical price — includes wick momentum
   const tp5ago  = n >= 6 ? (data[n-6].high + data[n-6].low + data[n-6].close) / 3 : price;
   const movePct = n >= 6 ? ((price - tp5ago) / tp5ago * 100) : 0;
 
   return {
     tf, bias, score, emaAligned, smaAligned,
-    rsi: lastRSI ? lastRSI.toFixed(1) : 'â€”',
+    rsi: lastRSI ? lastRSI.toFixed(1) : '—',
     atrPct: (atr / price * 100).toFixed(2),
     topPat: topPat ? { name: topPat.name, conf: topPat.conf, dir: topPat.dir } : null,
     nearestS, nearestR, price,
@@ -20049,10 +20049,10 @@ async function generatePremarket() {
   _pmbInFlight = true;
   const btn = document.getElementById('pmb-gen-btn');
   btn.disabled = true;
-  btn.textContent = 'âŸ³ Analysingâ€¦';
+  btn.textContent = '⟳ Analysing…';
 
   document.getElementById('pmb-idle').style.display = 'none';
-  pmbSetProgress(2, 'Gathering watchlistâ€¦');
+  pmbSetProgress(2, 'Gathering watchlist…');
 
   try {
     const wlSyms = SYMS.filter(s => watchlist.has(s.s));
@@ -20066,7 +20066,7 @@ async function generatePremarket() {
     for (const sym of symsToAnalyse) {
       const tfData = {};
       for (const tf of PMB_TFS) {
-        pmbSetProgress(Math.round(done / total * 80) + 2, `Fetching ${sym.s} ${PMB_TF_LABELS[tf]} dataâ€¦`);
+        pmbSetProgress(Math.round(done / total * 80) + 2, `Fetching ${sym.s} ${PMB_TF_LABELS[tf]} data…`);
         await new Promise(r => setTimeout(r, 0));
         let realData = null;
         if(sym.t === 'Crypto'){
@@ -20088,27 +20088,27 @@ async function generatePremarket() {
         price: realPrice,
         movePct: daily?.movePct || 0,
         dailyBias: daily?.bias || 'neut',
-        dailyRSI: daily?.rsi || 'â€”'
+        dailyRSI: daily?.rsi || '—'
       };
       updatePMBNavItem(sym.s, pmbAnalyses[sym.s]);
     }
 
     const analyses = symsToAnalyse.map(s => pmbAnalyses[s.s]).filter(Boolean);
 
-    pmbSetProgress(82, 'Building overviewâ€¦');
+    pmbSetProgress(82, 'Building overview…');
     await new Promise(r => setTimeout(r, 0));
     buildPMBOverview(analyses);
     buildPMBChecklist();
 
-    pmbSetProgress(88, 'Building per-symbol detail pagesâ€¦');
+    pmbSetProgress(88, 'Building per-symbol detail pages…');
     await new Promise(r => setTimeout(r, 0));
     buildAllSymbolPanes(analyses);
 
-    pmbSetProgress(92, 'Generating AI narrativesâ€¦');
+    pmbSetProgress(92, 'Generating AI narratives…');
     for (const sym of symsToAnalyse) {
       const a = pmbAnalyses[sym.s];
       if (!a) continue;
-      pmbSetProgress(92, `AI narrative: ${sym.s}â€¦`);
+      pmbSetProgress(92, `AI narrative: ${sym.s}…`);
       await new Promise(r => setTimeout(r, 0));
       try {
         const text = await generateSymbolNarrative(a);
@@ -20126,7 +20126,7 @@ async function generatePremarket() {
             const _res  = _a.daily.nearestResistance ? ` Nearest resistance: ${fP(_a.daily.nearestResistance)}.` : '';
             el.textContent = `${sym.s} is showing a ${_bias} bias on the daily.${_rsi}${_sup}${_res} Watch for a reaction at key levels before entering.`;
           } else {
-            el.textContent = 'Technical analysis complete â€” see timeframe breakdown above for details.';
+            el.textContent = 'Technical analysis complete — see timeframe breakdown above for details.';
           }
         }
       } finally {
@@ -20135,12 +20135,12 @@ async function generatePremarket() {
       }
     }
 
-    pmbSetProgress(98, 'Fetching newsâ€¦');
+    pmbSetProgress(98, 'Fetching news…');
     await fetchPMBNews(symsToAnalyse.slice(0,3).map(s => s.s));
 
-    pmbSetProgress(100, `Complete â€” ${symsToAnalyse.length} symbols analysed across ${PMB_TFS.length} timeframes`);
+    pmbSetProgress(100, `Complete — ${symsToAnalyse.length} symbols analysed across ${PMB_TFS.length} timeframes`);
     document.getElementById('pmb-generated-at').textContent =
-      `Generated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} Â· ${symsToAnalyse.length} symbols Â· ${PMB_TFS.length} TFs each`;
+      `Generated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${symsToAnalyse.length} symbols · ${PMB_TFS.length} TFs each`;
 
     pmbShowPane('overview');
   } catch (err) {
@@ -20150,7 +20150,7 @@ async function generatePremarket() {
       `Could not finish brief: ${err.message || 'unexpected error'}`;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'âš¡ Generate Brief';
+    btn.textContent = '⚡ Generate Brief';
     _pmbInFlight = false;
   }
 }
@@ -20169,7 +20169,7 @@ function renderPNavBias(a) {
   if (!a) return '';
   const c = a.confluence;
   const biasClass = c.confScore >= 58 ? 'bull' : c.confScore <= 42 ? 'bear' : 'neut';
-  const biasLabel = biasClass === 'bull' ? 'â–²' : biasClass === 'bear' ? 'â–¼' : 'â—';
+  const biasLabel = biasClass === 'bull' ? '▲' : biasClass === 'bear' ? '▼' : '�';
   const chgCol = a.movePct >= 0 ? 'var(--tl)' : 'var(--rd)';
   return `<span class="pnav-bias ${biasClass}">${biasLabel}</span>
           <span class="pnav-chg" style="color:${chgCol}">${a.movePct >= 0 ? '+' : ''}${a.movePct}%</span>`;
@@ -20204,7 +20204,7 @@ function buildPMBOverview(analyses) {
   const losers   = [...analyses].sort((a,b) => a.movePct - b.movePct).filter(a => a.movePct < 0).slice(0,3).map(a=>a.sym);
   const moodTxt  = document.getElementById('pmb-mood-text');
   if (moodTxt) {
-    let t = `${bulls} of ${total} symbols showing bullish confluence across all timeframes Â· ${bears} bearish Â· ${total-bulls-bears} mixed.`;
+    let t = `${bulls} of ${total} symbols showing bullish confluence across all timeframes · ${bears} bearish · ${total-bulls-bears} mixed.`;
     if (gainers.length) t += ` Daily gainers: ${gainers.join(', ')}.`;
     if (losers.length) t += ` Decliners: ${losers.join(', ')}.`;
     moodTxt.textContent = t;
@@ -20234,7 +20234,7 @@ function buildPMBOverview(analyses) {
         <span class="pmb-sym-csig ${biasClass}">${c.verdict}</span>
         <div class="pmb-sym-ctf" style="margin-top:5px;display:flex;align-items:center;gap:4px;">
           ${tfDots}
-          <span style="margin-left:2px;font-size:11px;color:var(--tx2);">${c.bullTFs}â–² ${c.bearTFs}â–¼ / ${c.totalTFs} TFs</span>
+          <span style="margin-left:2px;font-size:11px;color:var(--tx2);">${c.bullTFs}▲ ${c.bearTFs}▼ / ${c.totalTFs} TFs</span>
         </div>
       </div>`;
     }).join('');
@@ -20246,13 +20246,13 @@ function buildPMBChecklist() {
   if (!el) return;
   const now = new Date(); const h = now.getHours();
   const checks = [
-    { icon:'ðŸ“°', text:'Check economic calendar â€” mark high-impact events for today', done:false },
-    { icon:'ðŸŒ', text:'Review overnight moves in Asian and European markets', done:false },
-    { icon:'ðŸŽ¯', text:'Mark key S/R from Weekly/Monthly on each pair before the open', done:false },
-    { icon:'ðŸ“Š', text:'Review yesterday\'s journal â€” any patterns or mistakes to correct?', done: h >= 9 },
-    { icon:'ðŸ§ ', text:'Define your max daily loss and max trade count', done:false },
-    { icon:'ðŸ’¡', text:'Only trade setups where Daily aligns with the HTF bias', done:false },
-    { icon:'âš–', text:'Size every position before entry â€” no impulse sizing', done:false },
+    { icon:'📰', text:'Check economic calendar — mark high-impact events for today', done:false },
+    { icon:'�', text:'Review overnight moves in Asian and European markets', done:false },
+    { icon:'🎯', text:'Mark key S/R from Weekly/Monthly on each pair before the open', done:false },
+    { icon:'📊', text:'Review yesterday\'s journal — any patterns or mistakes to correct?', done: h >= 9 },
+    { icon:'🧠', text:'Define your max daily loss and max trade count', done:false },
+    { icon:'💡', text:'Only trade setups where Daily aligns with the HTF bias', done:false },
+    { icon:'⚖', text:'Size every position before entry — no impulse sizing', done:false },
   ];
   el.innerHTML = checks.map(c => `
     <label class="pmb-check-item">
@@ -20288,10 +20288,10 @@ function buildSymbolPane(a) {
     const t = a.tfData[tf];
     if (!t) return '';
     const biasClass = t.bias;
-    const biasArrow = t.bias === 'bull' ? 'â–²' : t.bias === 'bear' ? 'â–¼' : 'â—';
+    const biasArrow = t.bias === 'bull' ? '▲' : t.bias === 'bear' ? '▼' : '�';
     const rsiCol = parseFloat(t.rsi) > 70 ? 'var(--rd)' : parseFloat(t.rsi) < 30 ? 'var(--tl)' : 'var(--tx3)';
     const patName = t.topPat?.name || '';
-    const patShort = patName ? patName.replace('Bullish ','').replace('Bearish ','').replace(' Cross','Ã—').substring(0,12) : '';
+    const patShort = patName ? patName.replace('Bullish ','').replace('Bearish ','').replace(' Cross','×').substring(0,12) : '';
     const cellBorder = t.bias === 'bull' ? 'border-color:rgba(0,201,160,.3)' : t.bias === 'bear' ? 'border-color:rgba(240,48,96,.3)' : '';
     return `<div class="pmb-tf-cell" style="${cellBorder}">
       <div class="pmb-tf-label">${PMB_TF_LABELS[tf]}</div>
@@ -20305,7 +20305,7 @@ function buildSymbolPane(a) {
   const confBarW = c.confScore;
   const confBarCol = c.confScore >= 58 ? 'var(--tl)' : c.confScore <= 42 ? 'var(--rd)' : 'var(--am)';
 
-  // Key levels â€” combine S/R from Weekly and Monthly (most important), plus Daily
+  // Key levels — combine S/R from Weekly and Monthly (most important), plus Daily
   const keyLevels = [];
   ['1M','1w','1d'].forEach(tf => {
     const t = a.tfData[tf];
@@ -20327,11 +20327,11 @@ function buildSymbolPane(a) {
     </div>`).join('');
 
   // HTF context note
-  const htfLabel = c.htfBias === 'bull' ? 'â–² BULLISH' : c.htfBias === 'bear' ? 'â–¼ BEARISH' : 'â— MIXED';
+  const htfLabel = c.htfBias === 'bull' ? '▲ BULLISH' : c.htfBias === 'bear' ? '▼ BEARISH' : '� MIXED';
   const htfCol   = c.htfBias === 'bull' ? 'var(--tl)' : c.htfBias === 'bear' ? 'var(--rd)' : 'var(--am)';
   const htfNote  = c.dailyMatchesHTF
-    ? `Daily bias aligns with higher TF â€” <span style="color:var(--tl)">confluent setup</span>.`
-    : `Daily bias conflicts with higher TF â€” <span style="color:var(--am)">wait for alignment before trading</span>.`;
+    ? `Daily bias aligns with higher TF — <span style="color:var(--tl)">confluent setup</span>.`
+    : `Daily bias conflicts with higher TF — <span style="color:var(--am)">wait for alignment before trading</span>.`;
 
   // Daily close context
   const daily = a.tfData['1d'];
@@ -20346,7 +20346,7 @@ function buildSymbolPane(a) {
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
             <span style="font-size:18px;font-weight:600;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx);">${a.sym}</span>
             <span style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${a.name}</span>
-            <span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;padding:2px 7px;border-radius:3px;background:var(--bg4);color:var(--tx2);border:1px solid var(--b2);">${a.exchange} Â· ${a.type}</span>
+            <span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;padding:2px 7px;border-radius:3px;background:var(--bg4);color:var(--tx2);border:1px solid var(--b2);">${a.exchange} · ${a.type}</span>
           </div>
           <div style="display:flex;gap:16px;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--tx2);align-items:center;flex-wrap:wrap;">
             <span style="font-size:14px;font-weight:700;color:var(--tx);">${fP(a.price)}</span>
@@ -20355,7 +20355,7 @@ function buildSymbolPane(a) {
           </div>
         </div>
         <div style="text-align:right;">
-          <button onclick="selSym('${a.sym}');closePremarket();" style="padding:6px 13px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.3);color:var(--green);font-size:11px;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;font-weight:700;" onmouseover="this.style.background='rgba(0,212,160,.16)'" onmouseout="this.style.background='rgba(0,212,160,.08)'">Open Chart â€º</button>
+          <button onclick="selSym('${a.sym}');closePremarket();" style="padding:6px 13px;background:rgba(0,212,160,.08);border:1px solid rgba(0,212,160,.3);color:var(--green);font-size:11px;font-family:ui-monospace,'SF Mono',monospace;border-radius:3px;cursor:pointer;font-weight:700;" onmouseover="this.style.background='rgba(0,212,160,.16)'" onmouseout="this.style.background='rgba(0,212,160,.08)'">Open Chart ›</button>
         </div>
       </div>
     </div>
@@ -20363,13 +20363,13 @@ function buildSymbolPane(a) {
     <!-- Confluence verdict -->
     <div class="pmb-section">
       <div class="pmb-sec-hdr">
-        <span class="pmb-sec-icon">ðŸ”€</span>
+        <span class="pmb-sec-icon">🔀</span>
         <span class="pmb-sec-title" style="color:${verdictCol};">MULTI-TF CONFLUENCE</span>
       </div>
       <div class="pmb-conf-bar" style="border-left-color:${verdictCol};">
         <div>
           <div class="pmb-conf-label" style="color:${verdictCol};">${c.verdict}</div>
-          <div class="pmb-conf-note">${c.bullTFs} of ${c.totalTFs} timeframes bullish Â· ${c.bearTFs} bearish Â· HTF bias: <span style="color:${htfCol};font-weight:700;">${htfLabel}</span></div>
+          <div class="pmb-conf-note">${c.bullTFs} of ${c.totalTFs} timeframes bullish · ${c.bearTFs} bearish · HTF bias: <span style="color:${htfCol};font-weight:700;">${htfLabel}</span></div>
           <div class="pmb-conf-note" style="margin-top:2px;">${htfNote}</div>
         </div>
         <div style="text-align:right;">
@@ -20385,9 +20385,9 @@ function buildSymbolPane(a) {
     <!-- TF breakdown grid -->
     <div class="pmb-section">
       <div class="pmb-sec-hdr">
-        <span class="pmb-sec-icon">ðŸ“Š</span>
+        <span class="pmb-sec-icon">📊</span>
         <span class="pmb-sec-title" style="color:var(--am);">TIMEFRAME BREAKDOWN</span>
-        <span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:auto;">1H â†’ Monthly</span>
+        <span style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:auto;">1H → Monthly</span>
       </div>
       <div class="pmb-tf-grid">${tfCells}</div>
     </div>
@@ -20395,9 +20395,9 @@ function buildSymbolPane(a) {
     <!-- Key Levels from HTF + Daily -->
     <div class="pmb-section">
       <div class="pmb-sec-hdr">
-        <span class="pmb-sec-icon">ðŸŽ¯</span>
-        <span class="pmb-sec-title" style="color:var(--tl);">KEY LEVELS â€” HTF + DAILY</span>
-        <span style="font-size:11px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;margin-left:auto;">Monthly Â· Weekly Â· Daily S/R</span>
+        <span class="pmb-sec-icon">🎯</span>
+        <span class="pmb-sec-title" style="color:var(--tl);">KEY LEVELS — HTF + DAILY</span>
+        <span style="font-size:11px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;margin-left:auto;">Monthly · Weekly · Daily S/R</span>
       </div>
       <div class="pmb-levels-grid">${levelsHTML || '<div style="font-size:11px;color:var(--tx2);">No significant levels detected.</div>'}</div>
     </div>
@@ -20405,9 +20405,9 @@ function buildSymbolPane(a) {
     <!-- AI Narrative for this symbol -->
     <div class="pmb-section">
       <div class="pmb-sec-hdr">
-        <span class="pmb-sec-icon">ðŸ¤–</span>
-        <span class="pmb-sec-title" style="color:var(--tx2);">AI BRIEF â€” ${a.sym}</span>
-        <span id="pmb-narr-load-${a.sym}" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:8px;">âŸ³ generatingâ€¦</span>
+        <span class="pmb-sec-icon">🤖</span>
+        <span class="pmb-sec-title" style="color:var(--tx2);">AI BRIEF — ${a.sym}</span>
+        <span id="pmb-narr-load-${a.sym}" style="font-size:11px;font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);margin-left:8px;">⟳ generating…</span>
       </div>
       <div class="pmb-narrative" id="pmb-narrative-${a.sym}"></div>
     </div>
@@ -20415,10 +20415,10 @@ function buildSymbolPane(a) {
     <!-- News for this symbol -->
     <div class="pmb-section">
       <div class="pmb-sec-hdr">
-        <span class="pmb-sec-icon">ðŸ“¡</span>
-        <span class="pmb-sec-title" style="color:var(--rd);">NEWS â€” ${a.sym}</span>
+        <span class="pmb-sec-icon">📡</span>
+        <span class="pmb-sec-title" style="color:var(--rd);">NEWS — ${a.sym}</span>
       </div>
-      <div id="pmb-news-${a.sym}" style="font-size:10px;color:var(--tx3);">âŸ³ fetchingâ€¦</div>
+      <div id="pmb-news-${a.sym}" style="font-size:10px;color:var(--tx3);">⟳ fetching…</div>
     </div>
 
   </div>`;
@@ -20448,11 +20448,11 @@ async function generateSymbolNarrative(a) {
 
   const rsiDaily  = daily?.rsi ? `${daily.rsi} ${daily.rsi > 70 ? '(Overbought)' : daily.rsi < 30 ? '(Oversold)' : '(Neutral)'}` : 'N/A';
   const rsiH1     = h1?.rsi    ? `${h1.rsi} ${h1.rsi > 70 ? '(Overbought)'   : h1.rsi < 30    ? '(Oversold)'   : '(Neutral)'}` : 'N/A';
-  const volStatus = a.movePct > 1 ? 'Elevated â€” strong bullish move' : a.movePct < -1 ? 'Elevated â€” strong bearish move' : 'Normal';
+  const volStatus = a.movePct > 1 ? 'Elevated — strong bullish move' : a.movePct < -1 ? 'Elevated — strong bearish move' : 'Normal';
   const dailyMove = `${a.movePct >= 0 ? '+' : ''}${a.movePct}%`;
   const isBTC     = a.sym.includes('BTC');
   const cryptoCtx = isBTC
-    ? 'BTC is the market benchmark â€” its structure drives overall crypto sentiment.'
+    ? 'BTC is the market benchmark — its structure drives overall crypto sentiment.'
     : `Monitor BTC dominance and BTC price action for correlation signals on ${a.sym}.`;
 
   const prompt = `You are a professional financial market analyst responsible for preparing a clear and concise pre-market briefing for traders. Your goal is to summarise the most important market developments and highlight potential trading opportunities for the upcoming session. Use objective analysis based on macroeconomic context, market sentiment, technical structure, and key levels.
@@ -20465,7 +20465,7 @@ Current Price: ${fP(a.price)}
 Daily Move: ${dailyMove}
 Overall Confluence: ${c.verdict} (score: ${c.confScore}/100)
 Higher TF Bias (Weekly + Monthly): ${htfLabel}
-Daily Aligns with HTF: ${c.dailyMatchesHTF ? 'YES â€” confluent' : 'NO â€” conflicting'}
+Daily Aligns with HTF: ${c.dailyMatchesHTF ? 'YES — confluent' : 'NO — conflicting'}
 
 Multi-Timeframe Technical Data:
 ${tfRows}
@@ -20508,20 +20508,20 @@ Classify sentiment as: Bullish / Bearish / Mixed / Neutral
 Explain the reasoning using the data provided.
 
 5. POTENTIAL TRADING THEMES TODAY
-Identify 3â€“5 possible themes or narratives traders may focus on for ${a.sym} today. Examples: momentum continuation, key level retest, volatility expansion, BTC correlation play, altcoin rotation.
+Identify 3–5 possible themes or narratives traders may focus on for ${a.sym} today. Examples: momentum continuation, key level retest, volatility expansion, BTC correlation play, altcoin rotation.
 
 6. WATCHLIST SETUPS
 For ${a.sym}, provide:
   Asset Name: ${a.sym}
   Current Market Context: (describe current structure)
-  Potential Setup: (breakout, pullback, trend continuation, or range trade â€” be specific)
+  Potential Setup: (breakout, pullback, trend continuation, or range trade — be specific)
   Key Levels to Watch: (use exact prices from the data above)
 
 7. RISK EVENTS TO WATCH
 List the most important factors during this session that could cause volatility for ${a.sym}. Include technical invalidation levels and macro sensitivity.
 
 8. TRADER SUMMARY
-A 3â€“4 sentence summary of the most important things a trader should watch for ${a.sym} today. Be specific, use the exact price levels provided, and remain actionable. Do not make guaranteed predictions or provide financial advice.`;
+A 3–4 sentence summary of the most important things a trader should watch for ${a.sym} today. Be specific, use the exact price levels provided, and remain actionable. Do not make guaranteed predictions or provide financial advice.`;
 
   return await groqFetch(prompt);
 }
@@ -20552,7 +20552,7 @@ async function fetchPMBNews(symStrs) {
           <div class="pmb-news-dot" style="background:${col}"></div>
           <div>
             <div class="pmb-news-title">${title}</div>
-            <div class="pmb-news-src">${item.source||''} Â· ${timeAgo(item.date)||''}</div>
+            <div class="pmb-news-src">${item.source||''} · ${timeAgo(item.date)||''}</div>
           </div>
         </div>${wend}`;
       }).join('');
@@ -20564,7 +20564,7 @@ async function fetchPMBNews(symStrs) {
 
 
 
-// â•â• AI BEST SETUPS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AI BEST SETUPS ������������������������������������������������������������
 let aisSetups   = [];
 let aisSortKey  = 'score';
 let aisActiveTypes = new Set(['Crypto']);
@@ -20591,17 +20591,17 @@ function aisToggleTF(el){
 
   if(tf === 'all'){
     if(allOn){
-      // All selected â†’ deselect all
+      // All selected → deselect all
       aisTFFilter.clear();
       document.querySelectorAll('.ais-chip.tf').forEach(b => b.classList.remove('on'));
     } else {
-      // Not all â†’ select all
+      // Not all → select all
       aisTFFilter = new Set(ALL_TFS);
       document.querySelectorAll('.ais-chip.tf').forEach(b => b.classList.toggle('on', b.dataset.tf === 'all'));
     }
   } else {
     if(allOn){
-      // Currently showing all â€” first click on a specific TF = switch exclusively to that one
+      // Currently showing all — first click on a specific TF = switch exclusively to that one
       aisTFFilter = new Set([tf]);
       document.querySelector('.ais-chip.tf-all').classList.remove('on');
       document.querySelectorAll('.ais-chip.tf:not(.tf-all)').forEach(b => b.classList.toggle('on', b.dataset.tf === tf));
@@ -20609,7 +20609,7 @@ function aisToggleTF(el){
       // Toggle this TF in/out of the current selection
       if(aisTFFilter.has(tf)){ aisTFFilter.delete(tf); el.classList.remove('on'); }
       else                    { aisTFFilter.add(tf);   el.classList.add('on'); }
-      // Nothing left â†’ reset to all
+      // Nothing left → reset to all
       if(aisTFFilter.size === 0){
         aisTFFilter = new Set(ALL_TFS);
         document.querySelectorAll('.ais-chip.tf').forEach(b => b.classList.toggle('on', b.dataset.tf === 'all'));
@@ -20644,14 +20644,14 @@ function aisToggleFilter(el){
   if(group === 'type'){
     const allOn = allTypes.every(t => aisActiveTypes.has(t));
     if(allOn){
-      // All active â€” first click switches exclusively to this type
+      // All active — first click switches exclusively to this type
       aisActiveTypes = new Set([f]);
       document.querySelector('.ais-chip.type-all').classList.remove('on');
       document.querySelectorAll('.ais-chip.type').forEach(b => b.classList.toggle('on', b.dataset.filter === f));
     } else {
       if(set.has(f)){ set.delete(f); el.classList.remove('on'); }
       else           { set.add(f);   el.classList.add('on'); }
-      // Nothing left â†’ reset to all
+      // Nothing left → reset to all
       if(set.size === 0){
         aisActiveTypes = new Set(ALL_TYPES);
         document.querySelectorAll('.ais-chip.type').forEach(b => b.classList.add('on'));
@@ -20662,7 +20662,7 @@ function aisToggleFilter(el){
       }
     }
   } else {
-    // Dir filter â€” simple toggle
+    // Dir filter — simple toggle
     if(set.has(f)){ set.delete(f); el.classList.remove('on'); }
     else           { set.add(f);   el.classList.add('on'); }
     if(set.size === 0){ set.add(f); el.classList.add('on'); } // keep at least one
@@ -20670,7 +20670,7 @@ function aisToggleFilter(el){
   aisApplyFilter();
 }
 
-// â”€â”€ Instant filter: just show/hide cards, no re-render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Instant filter: just show/hide cards, no re-render ───────────────────────
 function aisApplyFilter(){
   const cards = document.querySelectorAll('.ais-card');
   let shown = 0;
@@ -20684,7 +20684,7 @@ function aisApplyFilter(){
   });
   const total = aisSetups.length;
   document.getElementById('ais-showing-count').textContent =
-    shown > 12 ? `${shown} of ${total} Â· scroll â†“` : `${shown} of ${total} setups`;
+    shown > 12 ? `${shown} of ${total} · scroll ↓` : `${shown} of ${total} setups`;
   let empty = document.getElementById('ais-empty-msg');
   if(!shown){
     if(!empty){
@@ -20717,7 +20717,7 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
   const symObj = SYMS.find(x => x.s === sym);
   if(!symObj) return;
   const targetTf = tf || curTF;
-  // Stable key for this exact setup â€” used to prevent re-placing on repeat clicks
+  // Stable key for this exact setup — used to prevent re-placing on repeat clicks
   const _aisSetupKey = `${sym}|${dir}|${(+entry).toFixed(5)}|${(+sl).toFixed(5)}|${(+target).toFixed(5)}|${targetTf}`;
   const setupRef = aisSetups.find(x => x.sym === sym && x.tf === targetTf);
   const targetTabId = createChartTab(sym, targetTf);
@@ -20782,7 +20782,7 @@ function aisSetProgress(pct, lbl){
   document.getElementById('ais-prog-lbl').textContent  = lbl;
 }
 
-// â”€â”€ Analyse one symbol on one specific TF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Analyse one symbol on one specific TF ────────────────────────────────────
 async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const tfCfg = AIS_TF_CFG[tf] || AIS_TF_CFG['1d'];
   const TF_ORDER = ['1m','5m','15m','1h','4h','1d','1w','1M'];
@@ -20879,7 +20879,7 @@ async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
 
 async function runAISetupScan(){
   const btn = document.getElementById('ais-scan-btn');
-  btn.disabled = true; btn.textContent = 'âŸ³ Scanningâ€¦';
+  btn.disabled = true; btn.textContent = '⟳ Scanning…';
   document.getElementById('ais-rescan-btn').style.display = 'none';
   document.getElementById('ais-summary').style.display    = 'none';
   document.getElementById('ais-sort-bar').style.display   = 'none';
@@ -20893,7 +20893,7 @@ async function runAISetupScan(){
     let done = 0;
     for(const sym of SYMS){
       for(const tf of selectedTFs){
-        aisSetProgress(Math.round((done/total)*55)+2, `Fetching ${sym.s} Â· ${tf}â€¦`);
+        aisSetProgress(Math.round((done/total)*55)+2, `Fetching ${sym.s} · ${tf}…`);
         await new Promise(r=>setTimeout(r,0));
         let realData = dataCache[sym.s+'_'+tf] || null;
         if(!realData && sym.t==='Crypto'){
@@ -20912,7 +20912,7 @@ async function runAISetupScan(){
 
     aisSetups.sort((a,b)=>b.score-a.score);
     aisUpdateSummary();
-    aisSetProgress(60,'Rendering cardsâ€¦');
+    aisSetProgress(60,'Rendering cards…');
     await new Promise(r=>setTimeout(r,0));
     aisRenderCards();
 
@@ -20925,11 +20925,11 @@ async function runAISetupScan(){
     let groqRateLimited = false;
     for(let i=0;i<top6.length;i++){
       const s=top6[i], cid=`${s.sym}-${s.tf}`;
-      aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}â€¦`);
+      aisSetProgress(60+Math.round((i/top6.length)*38), `AI idea: ${s.sym} ${s.tf}…`);
       await new Promise(r=>setTimeout(r,0));
       const el = document.getElementById(`ais-idea-${cid}`);
       if(groqRateLimited){
-        if(el) el.textContent = 'AI rate limited â€” rescan to retry.';
+        if(el) el.textContent = 'AI rate limited — rescan to retry.';
         continue;
       }
       try{
@@ -20940,7 +20940,7 @@ async function runAISetupScan(){
         const msg = e?.message || '';
         if(msg.includes('exhausted') || msg.includes('429') || msg.includes('401')){
           groqRateLimited = true;
-          if(el) el.textContent = 'AI rate limited â€” rescan in a moment.';
+          if(el) el.textContent = 'AI rate limited — rescan in a moment.';
         } else {
           if(el) el.textContent = 'AI idea unavailable.';
         }
@@ -20949,19 +20949,19 @@ async function runAISetupScan(){
 
     const tfLabel = selectedTFs.length === ALL_TFS.length ? 'all TFs' : selectedTFs.join(', ');
     const scanTime = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    aisSetProgress(100,`Done â€” ${SYMS.length} symbols Ã— ${selectedTFs.length} TF${selectedTFs.length>1?'s':''}`);
+    aisSetProgress(100,`Done — ${SYMS.length} symbols × ${selectedTFs.length} TF${selectedTFs.length>1?'s':''}`);
     document.getElementById('ais-footer-info').textContent =
-      `Scan locked at ${scanTime} Â· ${SYMS.length} instruments Â· ${tfLabel} Â· Click "â†» Update Scan" to refresh Â· Ideas only â€” always verify before trading`;
+      `Scan locked at ${scanTime} · ${SYMS.length} instruments · ${tfLabel} · Click "↻ Update Scan" to refresh · Ideas only — always verify before trading`;
     // Store scan timestamp on the rescan button for user visibility
     const rescBtn = document.getElementById('ais-rescan-btn');
-    if(rescBtn) rescBtn.title = `Last scanned at ${scanTime} â€” click to re-run with latest candle data`;
+    if(rescBtn) rescBtn.title = `Last scanned at ${scanTime} — click to re-run with latest candle data`;
   } catch (err) {
     console.error('AI setup scan failed:', err);
     aisSetProgress(100, 'Scan failed');
     document.getElementById('ais-footer-info').textContent =
       `Scan failed: ${err.message || 'unexpected error'}`;
   } finally {
-    btn.disabled=false; btn.textContent='âš¡ Scan Markets';
+    btn.disabled=false; btn.textContent='⚡ Scan Markets';
     document.getElementById('ais-rescan-btn').style.display='inline-block';
   }
 }
@@ -20974,7 +20974,7 @@ function aisUpdateSummary(){
   document.getElementById('ais-s-bull').textContent    = bulls;
   document.getElementById('ais-s-bear').textContent    = bears;
   document.getElementById('ais-s-avg-conf').textContent= avgConf+'%';
-  document.getElementById('ais-s-top').textContent     = top?`${top.sym} ${top.tf}`:'â€”';
+  document.getElementById('ais-s-top').textContent     = top?`${top.sym} ${top.tf}`:'—';
   document.getElementById('ais-summary').style.display = 'flex';
   document.getElementById('ais-sort-bar').style.display= 'flex';
 }
@@ -20999,7 +20999,7 @@ function aisRenderCards(){
     return 0;
   });
 
-  // Render ALL cards â€” filtering is done by aisApplyFilter via display:none
+  // Render ALL cards — filtering is done by aisApplyFilter via display:none
   container.innerHTML = sorted.map((s,i) => aisCardHTML(s,i)).join('');
   requestAnimationFrame(() => sorted.forEach(s => aisDrawMiniChart(s)));
 
@@ -21020,7 +21020,7 @@ function aisRenderCards(){
       body.innerHTML =
         `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">` +
           `<span style="color:${wrCol};font-weight:700;">${stats.winRate}% win rate</span>` +
-          `<span style="color:var(--tx3);">${stats.count} setups Â· ${stats.tpCount}W / ${stats.slCount}L</span>` +
+          `<span style="color:var(--tx3);">${stats.count} setups · ${stats.tpCount}W / ${stats.slCount}L</span>` +
         `</div>` +
         `<div style="height:3px;border-radius:2px;background:rgba(136,153,176,.2);margin-bottom:4px;">` +
           `<div style="height:100%;width:${bar}%;border-radius:2px;background:${wrCol};transition:width .4s;"></div>` +
@@ -21041,12 +21041,12 @@ function aisBuildSelectionReason(s){
   if (s.patLabel) reasons.push(s.patLabel.toLowerCase());
   if(s.memoryFit?.delta > 0 && s.memoryFit.reasons?.[0]) reasons.push(`personal edge: ${s.memoryFit.reasons[0]}`);
   if(s.memoryFit?.delta < 0 && s.memoryFit.cautions?.[0]) reasons.push(`personal caution: ${s.memoryFit.cautions[0]}`);
-  return reasons.length ? reasons.slice(0, 3).join(' · ') : 'pattern, structure, and momentum context';
+  return reasons.length ? reasons.slice(0, 3).join(' � ') : 'pattern, structure, and momentum context';
 }
 
 function aisBuildPersonalFit(s){
   const fit = s.memoryFit || buildTraderMemoryFit(s);
-  if(!fit || fit.band === 'neutral') return fit?.summary || 'No strong personal edge signal yet — treat this like a neutral opportunity.';
+  if(!fit || fit.band === 'neutral') return fit?.summary || 'No strong personal edge signal yet � treat this like a neutral opportunity.';
   return fit.summary;
 }
 
@@ -21056,7 +21056,7 @@ function aisBuildNextAction(s){
     return 'Open the chart, but demand extra confirmation before treating this as a live trade.';
   }
   if(fit.nextActionBias === 'aggressive_validation'){
-    return 'Open the chart and validate execution quickly — this already matches one of your stronger conditions.';
+    return 'Open the chart and validate execution quickly � this already matches one of your stronger conditions.';
   }
   return 'Open the chart, then use Trade Analysis to decide whether this exact entry is still good.';
 }
@@ -21085,7 +21085,7 @@ function aisCardHTML(s, rank){
       <div class="ais-rank ${rankCls}">${rank+1}</div>
       <div class="ais-sym-wrap">
         <div class="ais-sym">${s.sym}<span class="ais-tf-badge">${s.tf}</span></div>
-        <div class="ais-name">${s.name} Â· <span style="color:${chgCol}">${s.movePct>=0?'+':''}${s.movePct}%</span></div>
+        <div class="ais-name">${s.name} · <span style="color:${chgCol}">${s.movePct>=0?'+':''}${s.movePct}%</span></div>
       </div>
       <span class="ais-dir-badge ${dirCls}">${dirLabel}</span>
     </div>
@@ -21103,11 +21103,11 @@ function aisCardHTML(s, rank){
       <div class="ais-lvl"><div class="ais-lvl-val" style="color:${tgtCol};margin-top:2px">${fP(s.target)}</div><div class="ais-lvl-lbl">${tgtLbl}</div></div>
     </div>
     <div id="ais-hist-${cid}" style="display:none;margin:6px 0 2px;padding:7px 10px;border-radius:6px;background:rgba(136,153,176,.07);border:1px solid rgba(136,153,176,.15);">
-      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;letter-spacing:.4px;margin-bottom:4px;">ðŸ“Š HISTORICAL DATA</div>
+      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;letter-spacing:.4px;margin-bottom:4px;">📊 HISTORICAL DATA</div>
       <div id="ais-hist-body-${cid}" style="font-size:10px;color:var(--tx2);font-family:ui-monospace,monospace;line-height:1.6;"></div>
     </div>
     <div class="ais-idea">
-      <div class="ais-idea-lbl">ðŸ’¡ WHY IT MADE THE LIST</div>
+      <div class="ais-idea-lbl">💡 WHY IT MADE THE LIST</div>
       <div id="ais-idea-${cid}" style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;padding:2px 0;">
         AI idea generated for top 6 setups only.
       </div>
@@ -21125,7 +21125,7 @@ function aisCardHTML(s, rank){
     <div class="ais-cta">
       <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart</button>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} · Score ${s.score}</span>
+        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} � Score ${s.score}</span>
         <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:var(--tx3);">Scanned ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
       </div>
     </div>
@@ -21175,7 +21175,7 @@ function aisDrawMiniChart(s){
 }
 
 function aisGenerateIdea(s){
-  // Client-side deterministic template â€” no API call needed.
+  // Client-side deterministic template — no API call needed.
   // All 4 lines (Setup / Why / Levels / Wait) are built from scanned data already available.
   const dir     = s.dir === 'bull' ? 'bullish' : 'bearish';
   const dirCap  = s.dir === 'bull' ? 'Bullish' : 'Bearish';
@@ -21195,32 +21195,32 @@ function aisGenerateIdea(s){
   // Confluence / TF alignment context
   const tfCtx = s.tfAgree >= 2
     ? 'Higher timeframe is aligned in the same direction, adding confluence.'
-    : 'Higher timeframe is mixed â€” treat this as a lower-confluence read.';
+    : 'Higher timeframe is mixed — treat this as a lower-confluence read.';
   const fit = s.memoryFit || buildTraderMemoryFit(s, profile);
   const personalCtx = fit?.summary ? ` ${fit.summary}.` : '';
 
   // Pattern-specific setup line
   const setupTemplates = {
-    'Bull Flag':        `A bull flag is forming on ${s.sym} â€” a tight consolidation after a strong impulse move up, coiling before a potential continuation.`,
-    'Bear Flag':        `A bear flag is forming on ${s.sym} â€” a tight consolidation after a sharp drop, coiling before a potential continuation lower.`,
-    'Double Bottom':    `${s.sym} is printing a double bottom â€” two lows at similar levels suggesting buyers are defending this area.`,
-    'Double Top':       `${s.sym} is printing a double top â€” two highs at similar levels suggesting sellers are capping price here.`,
+    'Bull Flag':        `A bull flag is forming on ${s.sym} — a tight consolidation after a strong impulse move up, coiling before a potential continuation.`,
+    'Bear Flag':        `A bear flag is forming on ${s.sym} — a tight consolidation after a sharp drop, coiling before a potential continuation lower.`,
+    'Double Bottom':    `${s.sym} is printing a double bottom — two lows at similar levels suggesting buyers are defending this area.`,
+    'Double Top':       `${s.sym} is printing a double top — two highs at similar levels suggesting sellers are capping price here.`,
     'Breakout':         `${s.sym} is breaking out of a consolidation range to the ${dir} side at ${price}.`,
     'Breakdown':        `${s.sym} is breaking down from a consolidation range, with price losing a key floor at ${keyLvl || price}.`,
-    'Inside Bar':       `${s.sym} is compressing into an inside bar â€” a volatility squeeze that often precedes a sharp directional move.`,
+    'Inside Bar':       `${s.sym} is compressing into an inside bar — a volatility squeeze that often precedes a sharp directional move.`,
     'Engulfing':        `A ${dir} engulfing candle has formed on ${s.sym}, with buyers fully absorbing the prior candle.`,
     'Hammer':           `A hammer candle on ${s.sym} suggests sellers pushed price down but buyers stepped in and reclaimed the level.`,
     'Shooting Star':    `A shooting star on ${s.sym} shows buyers pushed to a high but were rejected, leaving a long upper wick.`,
     'Triangle':         `${s.sym} is compressing into a triangle pattern, with narrowing price action ahead of a potential breakout.`,
-    'Wedge':            `${s.sym} is forming a wedge â€” converging highs and lows suggesting the current trend is losing momentum.`,
+    'Wedge':            `${s.sym} is forming a wedge — converging highs and lows suggesting the current trend is losing momentum.`,
   };
   const setupLine = setupTemplates[s.patLabel] ||
     `A ${dir} ${s.patLabel || 'pattern'} is forming on ${s.sym} at ${price}${rsiCtx}.`;
 
   // Why it matters
   const whyLine = s.tfAgree >= 2
-    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 â€” this is not just noise on one chart.${personalCtx}`
-    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} â€” worth watching but treat it with appropriate caution given mixed higher-TF context.${personalCtx}`;
+    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 — this is not just noise on one chart.${personalCtx}`
+    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} — worth watching but treat it with appropriate caution given mixed higher-TF context.${personalCtx}`;
 
   // Levels line
   let levelsLine;
@@ -21231,9 +21231,9 @@ function aisGenerateIdea(s){
       ? `Key level to watch: ${keyLvl} as support, resistance near ${above} (approx 1 ATR above), with ${below} as a reference if price retreats.`
       : `Key level to watch: ${keyLvl} as resistance, support near ${below} (approx 1 ATR below), with ${above} as a reference if price bounces.`;
   } else if (keyLvl) {
-    levelsLine = `Key level identified at ${keyLvl} â€” watch how price reacts at this zone before drawing conclusions.`;
+    levelsLine = `Key level identified at ${keyLvl} — watch how price reacts at this zone before drawing conclusions.`;
   } else {
-    levelsLine = `Current price is ${price} on the ${s.tf} timeframe â€” no standout key level identified by the scan, so use your own drawn levels.`;
+    levelsLine = `Current price is ${price} on the ${s.tf} timeframe — no standout key level identified by the scan, so use your own drawn levels.`;
   }
 
   // Wait / confirmation line
@@ -21242,7 +21242,7 @@ function aisGenerateIdea(s){
     bear: `Wait for a candle close below the recent swing low or a rejection from ${keyLvl || price} before treating this as confirmed. A strong close back above the breakdown point would invalidate it.`,
   };
   const waitLine = waitTemplates[s.dir] ||
-    `Confirmation is needed before acting â€” watch for a decisive candle close in the ${dir} direction.`;
+    `Confirmation is needed before acting — watch for a decisive candle close in the ${dir} direction.`;
   const actionLine = fit?.nextActionBias === 'extra_confirmation'
     ? 'Treat this as watchlist-quality first. Only elevate it if price confirms cleanly at the level.'
     : fit?.nextActionBias === 'aggressive_validation'
@@ -21698,7 +21698,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
-      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '—'}</div>
+      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '�'}</div>
     </div>`;
   const betterLabel = tradeState.state === 'ACTIVE'
     ? 'Trade management'
@@ -21722,7 +21722,7 @@ function tapRenderSetupBridge(d, analysisText=''){
   wrap.style.display = 'block';
   out.innerHTML = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-      ${scorePill('Scan Score', scanScore !== null ? `${scanScore}/100` : 'â€”', 'var(--green)')}
+      ${scorePill('Scan Score', scanScore !== null ? `${scanScore}/100` : '—', 'var(--green)')}
       ${scorePill('Trade Score', tradeScore !== null ? `${tradeScore}/100` : 'Pending', tradeScore !== null ? (tradeScore >= 75 ? 'var(--tl)' : tradeScore >= 55 ? 'var(--am)' : 'var(--rd)') : 'var(--tx2)')}
       ${scorePill('Setup Type', (setupMeta.patLabel || 'Structure').split(' ').slice(0,3).join(' '), 'var(--tx)')}
       ${scorePill('Trade State', tapTradeStateLabel(tradeState.state), tapTradeStateColor(tradeState.state))}
@@ -21731,7 +21731,7 @@ function tapRenderSetupBridge(d, analysisText=''){
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
         <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Scanner view</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.scannerSaw}</div>
-        <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Discovery only — this explains why the market made the list.</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Discovery only � this explains why the market made the list.</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
         <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Execution verdict</div>
@@ -21745,7 +21745,7 @@ function tapRenderSetupBridge(d, analysisText=''){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;">${betterLabel}</div>
           <button onclick="tapShowRefinementOnChart()" style="background:rgba(0,201,160,.13);border:1px solid rgba(0,201,160,.35);border-radius:4px;color:var(--tl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 9px;cursor:pointer;letter-spacing:.3px;white-space:nowrap;display:flex;align-items:center;gap:4px;">
-            <span>ðŸ“</span><span>${actionLabel}</span>
+            <span>�</span><span>${actionLabel}</span>
           </button>
         </div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${refinement?.reason || comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
@@ -21757,7 +21757,7 @@ function tapRenderSetupBridge(d, analysisText=''){
 
 
 
-// â”€â”€ Show refinement as a proper long/short trade tool on the main chart â”€â”€â”€â”€â”€â”€â”€
+// ── Show refinement as a proper long/short trade tool on the main chart ───────
 function tapShowRefinementOnChartLegacy(){
   if(!_tapDrawing || !curData?.length) return;
   const d      = _tapDrawing;
@@ -21771,7 +21771,7 @@ function tapShowRefinementOnChartLegacy(){
   // Remove any existing refinement tool so we don't stack up multiples
   drawings = drawings.filter(x => !x._tapRefinement);
 
-  // â”€â”€ Step 1: Try to parse AI-suggested levels from the analysis text â”€â”€â”€â”€â”€â”€â”€
+  // ── Step 1: Try to parse AI-suggested levels from the analysis text ───────
   const _analysisText = tapAnalysisCache[curSym.s]?.aiResult || '';
   let suggestedEntry = null, suggestedSL = null, suggestedTP = null;
 
@@ -21788,8 +21788,8 @@ function tapShowRefinementOnChartLegacy(){
     if(_tpM)    suggestedTP    = _validateP(_tpM[1]);
   }
 
-  // â”€â”€ Step 1b: Use RAG winning setups to compute historically-optimal entry/SL â”€
-  // Filter similar past setups that actually hit TP â€” average their offsets
+  // ── Step 1b: Use RAG winning setups to compute historically-optimal entry/SL ─
+  // Filter similar past setups that actually hit TP — average their offsets
   if(!suggestedEntry || !suggestedSL){
     const _ragWinners = _tapLastRagMatches.filter(m =>
       m.outcome === 'tp_hit' &&
@@ -21816,10 +21816,10 @@ function tapShowRefinementOnChartLegacy(){
     }
   }
 
-  // â”€â”€ Step 2: Fill remaining gaps with S/R fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Step 2: Fill remaining gaps with S/R fallback ────────────────────────────
   // Entry: nearest S/R that IMPROVES price (lower for long, higher for short)
-  // For LONG: want to enter LOWER (at support) â€” better price
-  // For SHORT: want to enter HIGHER (at resistance) â€” better price
+  // For LONG: want to enter LOWER (at support) — better price
+  // For SHORT: want to enter HIGHER (at resistance) — better price
   if(!suggestedEntry){
     if(isLong){
       const cands = sr.support.filter(s => s < d.price && s > d.price * 0.98);
@@ -21834,14 +21834,14 @@ function tapShowRefinementOnChartLegacy(){
     }
   }
 
-  // SL: AI suggestion â†’ RAG-derived â†’ same proportional distance as original SL
+  // SL: AI suggestion → RAG-derived → same proportional distance as original SL
   if(!suggestedSL){
     const origSlDist = Math.abs(d.price - d.sl);
     suggestedSL = isLong ? suggestedEntry - origSlDist : suggestedEntry + origSlDist;
   }
 
-  // â”€â”€ KEY FIX: TP always stays anchored to the original trade's target â”€â”€â”€â”€â”€â”€â”€
-  // The refinement improves entry/SL precision â€” it never changes the trade idea.
+  // ── KEY FIX: TP always stays anchored to the original trade's target ───────
+  // The refinement improves entry/SL precision — it never changes the trade idea.
   // Only use a parsed AI suggestion if it's in the same direction as the original TP.
   const _origTpInDirection = isLong ? d.tp > d.price : d.tp < d.price;
   if(!suggestedTP || (isLong ? suggestedTP <= suggestedEntry : suggestedTP >= suggestedEntry)){
@@ -21850,7 +21850,7 @@ function tapShowRefinementOnChartLegacy(){
 
   const riskAmt = Math.abs(suggestedEntry - suggestedSL);
 
-  // â”€â”€ Build a proper long/short drawing â€” same format as user-placed tools â”€â”€â”€
+  // ── Build a proper long/short drawing — same format as user-placed tools ───
   const halfBars = defaultTradeToolHalfBars(curTF);
   // Place the box centred on the current bar so it's clearly visible
   const refinementDraw = {
@@ -21872,8 +21872,8 @@ function tapShowRefinementOnChartLegacy(){
   saveDrawings(curSym.s, curTF);
   draw();
 
-  const rr = riskAmt > 0 ? (Math.abs(suggestedTP - suggestedEntry) / riskAmt).toFixed(2) : 'â€”';
-  toast(`ðŸ“ AI Refined ${isLong ? 'LONG' : 'SHORT'} placed â€” Entry ${fP(suggestedEntry)} Â· SL ${fP(suggestedSL)} Â· TP ${fP(suggestedTP)} Â· R:R 1:${rr}`);
+  const rr = riskAmt > 0 ? (Math.abs(suggestedTP - suggestedEntry) / riskAmt).toFixed(2) : '—';
+  toast(`� AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
 }
 
 async function tapEnsureTradeContextOnChart(sym, tf){
@@ -22019,7 +22019,7 @@ async function tapShowRefinementOnChart(){
       expiryBars: stateInfo.expiryBars ?? setupExpiryBars(tf),
       expectedHoldBars: stateInfo.expectedHoldBars ?? setupExpectedHoldBars(tf),
     }, { ...stateInfo, data: analysisData }, tf);
-    tapPlaceRefinementDrawing(drawing, effectiveState, 'management', `AI trade management overlay placed â€” ${refinement.reason || 'updated risk plan'}`);
+    tapPlaceRefinementDrawing(drawing, effectiveState, 'management', `AI trade management overlay placed — ${refinement.reason || 'updated risk plan'}`);
     return;
   }
 
@@ -22030,12 +22030,12 @@ async function tapShowRefinementOnChart(){
     toast('AI refinement did not return a valid pending entry structure.');
     return;
   }
-  // Reject refinements that significantly worsen R:R â€” must be â‰¥1.5:1 and not below 80% of original
+  // Reject refinements that significantly worsen R:R — must be ≥1.5:1 and not below 80% of original
   const origRR  = Math.abs(d.tp - d.price) / Math.max(Math.abs(d.sl - d.price), 1e-9);
   const refRR   = Math.abs(refinedTP - refinedEntry) / Math.max(Math.abs(refinedSL - refinedEntry), 1e-9);
   const minRR   = Math.max(1.5, origRR * 0.8);
   if(refRR < minRR){
-    // Widen SL to hit minimum R:R instead of rejecting â€” keep the refined entry/TP
+    // Widen SL to hit minimum R:R instead of rejecting — keep the refined entry/TP
     const neededRisk = Math.abs(refinedTP - refinedEntry) / minRR;
     refinedSL = isLong ? refinedEntry - neededRisk : refinedEntry + neededRisk;
   }
@@ -22077,7 +22077,7 @@ function tapClearRefinement(){
   draw();
 }
 
-// â•â• INCREMENTAL LIVE SCAN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� INCREMENTAL LIVE SCAN ������������������������������������������������������
 // Runs in the browser background after each chart load.
 // Detects setups on recent bars using the same 10 methods as the historical scan,
 // computes outcomes from OHLCV (no Groq needed), and stores to Supabase so the
@@ -22325,14 +22325,14 @@ async function tapScanCurrentChart() {
   const tf  = curTF;
   if (!sym || sym === 'unknown') return;
 
-  // Cooldown per tf â€” daily chart scans once per day, intraday scans hourly
+  // Cooldown per tf — daily chart scans once per day, intraday scans hourly
   const lsKey = `tap_iscan_${sym}_${tf}`;
   const lastScan = parseInt(localStorage.getItem(lsKey) || '0');
   const now = Date.now();
   const cooldownMs = { '1d': 86400000, '4h': 43200000, '1h': 14400000,
                        '30m': 7200000, '15m': 3600000, '5m': 1800000, '1m': 900000 }[tf] || 3600000;
   if (now - lastScan < cooldownMs) return;
-  // Set flag synchronously before any await â€” prevents all concurrent callers from passing cooldown
+  // Set flag synchronously before any await — prevents all concurrent callers from passing cooldown
   _tapScanInFlight = true;
   localStorage.setItem(lsKey, String(now));
 
@@ -22373,7 +22373,7 @@ async function tapScanCurrentChart() {
 
   if (!allSetups.length) { _tapScanInFlight = false; return; }
 
-  // Upload in batches â€” upsert so re-runs don't duplicate
+  // Upload in batches — upsert so re-runs don't duplicate
   const BATCH = 50;
   let stored = 0;
   try {
@@ -22390,16 +22390,16 @@ async function tapScanCurrentChart() {
   }
 }
 
-// â•â• TRADE ANALYSIS POPUP â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â”€â”€ Trade Analysis Cache â€” one entry per symbol â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// �� TRADE ANALYSIS POPUP ������������������������������������������������������
+// ── Trade Analysis Cache — one entry per symbol ─────────────────────────────
 // tapAnalysisCache[sym] = { drawing, sym, tf, aiResult }
-// ONE analysis per symbol. Dismissed only when user explicitly âœ•s the badge.
-// Popup âœ• just collapses to badge â€” NEVER deletes the cache.
+// ONE analysis per symbol. Dismissed only when user explicitly ✕s the badge.
+// Popup ✕ just collapses to badge — NEVER deletes the cache.
 const tapAnalysisCache = {};
 
-// â•â• AI ANALYSIS â€” TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� AI ANALYSIS — TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP �������������������
 // Cache key: `${sym}|${tf}`  |  TTL: 30 min  |  Queue delay: 2 s (grows on 429)
-const TAP_AI_TTL      = 1_800_000; // 30 minutes â€” locked until user clicks Re-analyse
+const TAP_AI_TTL      = 1_800_000; // 30 minutes — locked until user clicks Re-analyse
 const TAP_AI_INTERVAL = 2_000;
 
 // tapAiTTLCache[key] = { result: string, ts: number }
@@ -22442,7 +22442,7 @@ function _tapAiEnqueue(sym, tf, execFn){
   const hit = _tapAiCacheGet(sym, tf);
   if(hit) return { cached: true, result: hit.result, ageMs: Date.now() - hit.ts };
 
-  // 2. In-flight dedup â€” attach to existing promise
+  // 2. In-flight dedup — attach to existing promise
   if(tapAiInflight[key]) return { inFlight: true, promise: tapAiInflight[key].promise };
 
   // 3. Per-user duplicate guard
@@ -22497,7 +22497,7 @@ async function _tapAiProcessQueue(){
   }
 }
 
-// â”€â”€ Analysis lock â€” persisted to localStorage per symbol â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Analysis lock — persisted to localStorage per symbol ──────────────────────
 // Once an analysis runs for a symbol, it is locked permanently.
 // Key: 'tap-lock-{sym}', Value: JSON {aiResult, ts, entry, sl, tp}
 function tapSaveLock(sym, result, d){
@@ -22547,10 +22547,10 @@ function tapHasLock(sym){
 }
 
 let _tapDrawing = null;  // drawing currently in popup/modal
-let _tapLastRagMatches = []; // RAG matches from last tapGenerateAI â€” used by refinement
+let _tapLastRagMatches = []; // RAG matches from last tapGenerateAI — used by refinement
 let _tapScanInFlight = false; // guard against concurrent incremental scans
 
-// â”€â”€ Blocked toast â€” shown when user tries to place a second trade on same symbol â”€â”€
+// ── Blocked toast — shown when user tries to place a second trade on same symbol ──
 function tapShowBlockedToast(){
   const cached = tapAnalysisCache[curSym.s];
   if(!cached) return;
@@ -22565,20 +22565,20 @@ function tapShowBlockedToast(){
     box-shadow:0 8px 32px rgba(0,0,0,.7);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;
     animation:tap-pop .15s ease-out;white-space:nowrap;`;
   t.innerHTML = `
-    <span style="color:var(--am);">âš </span>
-    <span style="color:var(--tx2);">Analysis already exists for <strong style="color:var(--tx)">${curSym.s}</strong> â€” dismiss it first to place a new trade.</span>
+    <span style="color:var(--am);">⚠</span>
+    <span style="color:var(--tx2);">Analysis already exists for <strong style="color:var(--tx)">${curSym.s}</strong> — dismiss it first to place a new trade.</span>
     <button onclick="tapReopenFromBadge();document.getElementById('tap-blocked-toast')?.remove();"
       style="padding:4px 11px;background:rgba(0,201,160,.1);border:1px solid rgba(0,201,160,.4);
       color:var(--tl);border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;">
-      ðŸ”¬ Reopen
+      🔬 Reopen
     </button>
     <button onclick="this.closest('#tap-blocked-toast').remove()"
-      style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;padding:0 2px;">âœ•</button>`;
+      style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;padding:0 2px;">✕</button>`;
   document.body.appendChild(t);
   setTimeout(() => t?.remove(), 6000);
 }
 
-// â”€â”€ Real-time sync: update popup when drawing is dragged/resized â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Real-time sync: update popup when drawing is dragged/resized ─────────────
 function tapSyncDrawingToPopup(d){
   // Only sync if this is the currently active drawing
   if(d !== _tapDrawing) return;
@@ -22590,7 +22590,7 @@ function tapSyncDrawingToPopup(d){
   }
 }
 
-// â”€â”€ Fill the popup fields from a drawing object â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fill the popup fields from a drawing object ───────────────────────────────
 function _tapAnchorFill(d){
   const isLong = d.type === 'long';
   const rr     = Math.abs(d.tp - d.price) / Math.abs(d.sl - d.price);
@@ -22599,16 +22599,16 @@ function _tapAnchorFill(d){
   // Compute trade status based on price history since the drawing's bar
   const { status, statusCol } = tapTradeStatus(d);
 
-  document.getElementById('tap-anchor-dir').textContent  = isLong ? 'â–² LONG' : 'â–¼ SHORT';
+  document.getElementById('tap-anchor-dir').textContent  = isLong ? '▲ LONG' : '▼ SHORT';
   document.getElementById('tap-anchor-dir').dataset.sym = curSym.s;
   document.getElementById('tap-anchor-dir').style.color  = isLong ? 'var(--tl)' : 'var(--rd)';
   document.getElementById('tap-anchor-price').textContent =
-    curSym.s + ' @ ' + fP(d.price) + (status ? '  Â· ' + status : '');
+    curSym.s + ' @ ' + fP(d.price) + (status ? '  · ' + status : '');
   document.getElementById('tap-anchor-price').style.color = statusCol || 'var(--tx2)';
   document.getElementById('tap-a-entry').textContent = fP(d.price);
   document.getElementById('tap-a-sl').textContent    = fP(d.sl);
   document.getElementById('tap-a-tp').textContent    = fP(d.tp);
-  document.getElementById('tap-a-rr').textContent    = isFinite(rr) ? rr.toFixed(2) : 'â€”';
+  document.getElementById('tap-a-rr').textContent    = isFinite(rr) ? rr.toFixed(2) : '—';
   const btn = document.getElementById('tap-anchor-btn');
   btn.className = isLong ? '' : 'bear';
 
@@ -22624,19 +22624,19 @@ function _tapAnchorFill(d){
     }
     noteEl.style.display = 'block';
     noteEl.textContent   = stateInfo.state === 'EXPIRED'
-      ? 'âŒ› This setup expired for its original timeframe, so it will not be analysed as a fresh live entry.'
-      : 'âš  This setup is already missed on the chart, so it will not be analysed as a fresh live entry.';
+      ? '⌛ This setup expired for its original timeframe, so it will not be analysed as a fresh live entry.'
+      : '⚠ This setup is already missed on the chart, so it will not be analysed as a fresh live entry.';
   } else {
     btn.style.display = '';
     const noteEl = document.getElementById('tap-anchor-note');
     if(noteEl) noteEl.style.display = 'none';
     const cached = tapAnalysisCache[curSym.s];
-    btn.textContent = (cached && cached.aiResult) ? 'ðŸ”¬ View Analysis' : 
-                      stateInfo.state === 'PENDING' ? 'ðŸ”® Predict This Trade' : 'ðŸ”¬ Analyse This Trade';
+    btn.textContent = (cached && cached.aiResult) ? '🔬 View Analysis' : 
+                      stateInfo.state === 'PENDING' ? '🔮 Predict This Trade' : '🔬 Analyse This Trade';
   }
 }
 
-// â”€â”€ Determine if the trade (from its bar forward) hit SL, hit TP, or is open â”€â”€
+// ── Determine if the trade (from its bar forward) hit SL, hit TP, or is open ──
 function tapGetTradeSourceTF(d, fallbackTf = curTF){
   return d?._originTf || d?._setupTf || d?.tf || d?._aisMeta?.tf || fallbackTf || curTF || '1d';
 }
@@ -22694,7 +22694,7 @@ function tapClassifyTradeLevels(spec, data, tf){
   let entryBar = Number.isFinite(spec?.entryBar) ? Math.round(spec.entryBar) : null;
   if(entryBar == null && Number.isFinite(spec?.time)) entryBar = tapTimeToBarInSeries(Number(spec.time), data);
   if(entryBar == null && Number.isFinite(spec?.bar)) entryBar = Math.round(Number(spec.bar) - halfBars);
-  // Search entire available history when no entry bar is known â€” prevents "Missed Setup" false positives
+  // Search entire available history when no entry bar is known — prevents "Missed Setup" false positives
   // for setups where the trigger happened before the default 120-bar lookback window
   if(entryBar == null) entryBar = 0;
 
@@ -22704,7 +22704,7 @@ function tapClassifyTradeLevels(spec, data, tf){
   }
 
   // Fast-path: if current price has already passed the TP (and didn't hit SL first from entry bar),
-  // report COMPLETED â€” catches setups where the trigger and TP happened very quickly together
+  // report COMPLETED — catches setups where the trigger and TP happened very quickly together
   const currentPriceNow = data[n-1]?.close ?? entry;
   if(isLong && currentPriceNow >= tp && currentPriceNow > entry){
     // Make sure SL wasn't hit from start of window first
@@ -22813,23 +22813,23 @@ function tapTradeStatusLegacy(d){
   const halfBars = effectiveHalfBars(d);
   const entryBar = Math.round(d.bar - halfBars); // left edge = entry bar
 
-  // â”€â”€ CASE 1: Trade center or entry is in the future (beyond last bar) â”€â”€â”€â”€â”€â”€â”€â”€
-  // Use d.bar (center) â€” if center is beyond data, it's a future setup
+  // ── CASE 1: Trade center or entry is in the future (beyond last bar) ────────
+  // Use d.bar (center) — if center is beyond data, it's a future setup
   // Even if entryBar is within data, a future-centered box = forward-looking trade
   if(d.bar >= n || entryBar >= n){
-    return { status:'ðŸ”® Future Setup', statusCol:'var(--bl)' };
+    return { status:'🔮 Future Setup', statusCol:'var(--bl)' };
   }
 
-  // â”€â”€ CASE 2: Trade placed before chart data starts â€” invalid placement â”€â”€â”€â”€â”€
+  // ── CASE 2: Trade placed before chart data starts — invalid placement ─────
   if(entryBar < 0){
-    return { status:'â›” Invalid Placement', statusCol:'var(--rd)' };
+    return { status:'⛔ Invalid Placement', statusCol:'var(--rd)' };
   }
 
-  // â”€â”€ CASE 3: Entry price must be within the price range of the box window â”€â”€â”€â”€â”€â”€
+  // ── CASE 3: Entry price must be within the price range of the box window ──────
   // The simplest and most reliable validity check: do the bars that the box is
   // placed on actually trade at the entry price level? If the entry line sits
-  // above every candle high in the box window, it was never reachable â€” invalid.
-  // If it sits below every candle low â€” also never reachable â€” invalid.
+  // above every candle high in the box window, it was never reachable — invalid.
+  // If it sits below every candle low — also never reachable — invalid.
   // This catches: box above chart, box below chart, box in empty historical space.
   const rightEdge = Math.min(n - 1, Math.round(d.bar + effectiveHalfBars(d)));
   const lastB    = curData[n-1];
@@ -22841,13 +22841,13 @@ function tapTradeStatusLegacy(d){
     if(curData[i].high > boxHigh) boxHigh = curData[i].high;
     if(curData[i].low  < boxLow)  boxLow  = curData[i].low;
   }
-  // Entry must be within the range traded inside the box â€” if it's outside,
+  // Entry must be within the range traded inside the box — if it's outside,
   // no candle in the box touched it and the placement is invalid.
   if(d.price > boxHigh || d.price < boxLow){
-    return { status:'â›” Invalid Placement', statusCol:'var(--rd)' };
+    return { status:'⛔ Invalid Placement', statusCol:'var(--rd)' };
   }
 
-  // â”€â”€ CASE 4: Scan for entry trigger and TP/SL from entryBar forward â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CASE 4: Scan for entry trigger and TP/SL from entryBar forward ───────────
   let entryTriggered = false;
   let triggerBar = entryBar;
   for(let i = entryBar; i < n; i++){
@@ -22858,22 +22858,22 @@ function tapTradeStatusLegacy(d){
 
   if(!entryTriggered){
     const dist = Math.abs(curPrice - d.price) / d.price * 100;
-    return { status:`â³ Not Triggered (${dist.toFixed(1)}% away)`, statusCol:'var(--am)' };
+    return { status:`�� Not Triggered (${dist.toFixed(1)}% away)`, statusCol:'var(--am)' };
   }
 
-  // â”€â”€ CASE 5: Entry triggered â€” scan forward from trigger bar for TP/SL â”€â”€â”€â”€â”€
+  // ── CASE 5: Entry triggered — scan forward from trigger bar for TP/SL ─────
   for(let i = triggerBar; i < n; i++){
     const bar = curData[i];
     if(isLong){
-      if(bar.low  <= d.sl) return { status:'âœ— SL Hit', statusCol:'var(--rd)' };
-      if(bar.high >= d.tp) return { status:'âœ“ TP Hit', statusCol:'var(--tl)' };
+      if(bar.low  <= d.sl) return { status:'✗ SL Hit', statusCol:'var(--rd)' };
+      if(bar.high >= d.tp) return { status:'✓ TP Hit', statusCol:'var(--tl)' };
     } else {
-      if(bar.high >= d.sl) return { status:'âœ— SL Hit', statusCol:'var(--rd)' };
-      if(bar.low  <= d.tp) return { status:'âœ“ TP Hit', statusCol:'var(--tl)' };
+      if(bar.high >= d.sl) return { status:'✗ SL Hit', statusCol:'var(--rd)' };
+      if(bar.low  <= d.tp) return { status:'✓ TP Hit', statusCol:'var(--tl)' };
     }
   }
 
-  // Still open â€” report floating P&L vs last bar
+  // Still open — report floating P&L vs last bar
   // lastB and curPrice already declared above in CASE 3
   const openPnl  = isLong ? (curPrice - d.price) / d.price * 100
                            : (d.price - curPrice) / d.price * 100;
@@ -22883,19 +22883,19 @@ function tapTradeStatusLegacy(d){
   };
 }
 
-// â”€â”€ Show the floating popup (anchored top-right of chart-area) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Show the floating popup (anchored top-right of chart-area) ────────────────
 function tapTradeStatus(d){
   const info = getTradeState(d);
   const curPrice = Number(info.currentPrice);
-  if(info.state === 'COMPLETED') return { status:'âœ“ TP Hit', statusCol:'var(--tl)' };
-  if(info.state === 'STOPPED') return { status:'âœ— SL Hit', statusCol:'var(--rd)' };
+  if(info.state === 'COMPLETED') return { status:'✓ TP Hit', statusCol:'var(--tl)' };
+  if(info.state === 'STOPPED') return { status:'✗ SL Hit', statusCol:'var(--rd)' };
   if(info.state === 'MISSED') return { status:'Missed Setup', statusCol:'var(--tx2)' };
   if(info.state === 'EXPIRED') return { status:'Expired Setup', statusCol:'var(--tx3)' };
   if(info.state === 'PENDING'){
     const dist = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
       ? Math.abs(curPrice - d.price) / d.price * 100
       : 0;
-    return { status:`â³ Pending (${dist.toFixed(1)}% away)`, statusCol:'var(--bl)' };
+    return { status:`�� Pending (${dist.toFixed(1)}% away)`, statusCol:'var(--bl)' };
   }
   const openPnl = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
     ? (info.isLong ? (curPrice - d.price) / d.price * 100 : (d.price - curPrice) / d.price * 100)
@@ -22911,7 +22911,7 @@ function showTradeAnalysisPopup(d, freshPlacement=false){
   
   // Check if we're in replay mode with mentor enabled
   if (replayMode && mentorState.enabled) {
-    console.log('ðŸš« Trade analysis blocked - Replay training mode active');
+    console.log('🚫 Trade analysis blocked - Replay training mode active');
     // In replay mode, let the mentor handle trade analysis, not the normal system
     return; // Don't show normal trade analysis popup
   }
@@ -22935,9 +22935,9 @@ function showTradeAnalysisPopup(d, freshPlacement=false){
   }
 
   if(freshPlacement){
-    // Fresh placement â€” clear symbol-level AI result so analysis runs fresh
+    // Fresh placement — clear symbol-level AI result so analysis runs fresh
     tapAnalysisCache[curSym.s].aiResult = null;
-    // Each drawing has its own lock key â€” no need to clear others
+    // Each drawing has its own lock key — no need to clear others
   } else {
     // Re-opening: check for a per-drawing lock first, then symbol-level
     const drawKey = d.id ? 'tap-lock-draw-' + d.id : null;
@@ -22968,24 +22968,24 @@ function showTradeAnalysisPopup(d, freshPlacement=false){
   if(rb){ rb.style.display = 'inline-flex'; rb.style.alignItems = 'center'; }
 }
 
-// Popup âœ• â€” collapses to badge, NEVER deletes cache
+// Popup ✕ — collapses to badge, NEVER deletes cache
 function closeTradeAnalysisPopup(){
   document.getElementById('tap-anchor').style.display = 'none';
   resetDrag(document.getElementById('tap-anchor'));
   tapShowBadge();
 }
 
-// â”€â”€ Persistent badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Persistent badge ──────────────────────────────────────────────────────────
 function tapShowBadge(){
   const cached = tapAnalysisCache[curSym.s];
   if(!cached) return;
   const d = cached.drawing;
   const isLong = d.type === 'long';
   const { status, statusCol } = tapTradeStatus(d);
-  document.getElementById('tap-badge-dir').textContent   = isLong ? 'â–² LONG' : 'â–¼ SHORT';
+  document.getElementById('tap-badge-dir').textContent   = isLong ? '▲ LONG' : '▼ SHORT';
   document.getElementById('tap-badge-dir').style.color   = isLong ? 'var(--tl)' : 'var(--rd)';
   document.getElementById('tap-badge-sym').textContent   = cached.sym;
-  document.getElementById('tap-badge-price').textContent = '@ ' + fP(d.price) + (status ? ' Â· ' + status : '');
+  document.getElementById('tap-badge-price').textContent = '@ ' + fP(d.price) + (status ? ' · ' + status : '');
   document.getElementById('tap-badge-price').style.color = statusCol || 'var(--am)';
   document.getElementById('tap-badge').style.borderColor = isLong ? 'rgba(0,201,160,.5)' : 'rgba(240,48,96,.5)';
   document.getElementById('tap-badge').style.display = 'block';
@@ -23000,24 +23000,24 @@ function tapHideBadge(){
   if(rb) rb.style.display = 'none';
 }
 
-// Badge âœ• â€” THIS is the only action that permanently clears the cache
+// Badge ✕ — THIS is the only action that permanently clears the cache
 function tapDismissBadge(){
   const cached = tapAnalysisCache[curSym.s];
   if(cached && cached.aiResult){
-    // AI was actually used â€” mark dismissed so no new analysis can be triggered
+    // AI was actually used — mark dismissed so no new analysis can be triggered
     cached.dismissed = true;
   } else {
-    // No analysis was ever run â€” fully delete the cache entry so they keep their slot
+    // No analysis was ever run — fully delete the cache entry so they keep their slot
     delete tapAnalysisCache[curSym.s];
   }
   _tapDrawing = null;
   tapHideBadge();
 }
 
-// â”€â”€ Dismiss confirmation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dismiss confirmation ──────────────────────────────────────────────────────
 function tapAskDismiss(){
   const cached = tapAnalysisCache[curSym.s];
-  // Only warn if AI was actually run â€” otherwise just silently dismiss, slot is returned
+  // Only warn if AI was actually run — otherwise just silently dismiss, slot is returned
   if(cached && cached.aiResult){
     document.getElementById('tap-dc-sym').textContent = curSym.s;
     document.getElementById('tap-dismiss-confirm').style.display = 'flex';
@@ -23033,14 +23033,14 @@ function tapDismissConfirm(){
   tapDismissBadge();
 }
 
-// â”€â”€ Analyse gate â€” warn before consuming the one-per-session slot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Analyse gate — warn before consuming the one-per-session slot ─────────────
 function tapAnalyseGate(){
   if(!_tapDrawing) return;
   const { status } = tapTradeStatus(_tapDrawing);
   if(status.includes('Invalid Placement') || status.includes('Not Triggered')) return;
-  // Check lock â€” once analysed, always show saved result
+  // Check lock — once analysed, always show saved result
   if(tapHasLock(curSym.s)){ openFullTradeAnalysis(); return; }
-  // No prior analysis â€” show one-time confirmation warning
+  // No prior analysis — show one-time confirmation warning
   document.getElementById('tap-ac-sym').textContent = curSym.s;
   document.getElementById('tap-analyse-confirm').style.display = 'flex';
 }
@@ -23058,7 +23058,7 @@ function tapAnalyseConfirm(){
   openFullTradeAnalysis();
 }
 
-// â”€â”€ Trade screenshot capture & share â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Trade screenshot capture & share ─────────────────────────────────────────
 let _tapScreenshotDataUrl = null;
 
 function tapCaptureScreenshot(){
@@ -23069,7 +23069,7 @@ function tapCaptureScreenshot(){
   if(!img) return;
 
   setTimeout(() => {
-    // â”€â”€ Temporarily zoom into the trade drawing for the screenshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Temporarily zoom into the trade drawing for the screenshot ──────────
     const d = _tapDrawing;
     const savedBarWidth      = barWidth;
     const savedRightBarIndex = rightBarIndex;
@@ -23077,7 +23077,7 @@ function tapCaptureScreenshot(){
     if(d){
       const halfBars = effectiveHalfBars(d);
       // Centre the drawing: right edge = drawing center + halfBars + padding
-      const zoomBarWidth = Math.min(24, Math.max(14, barWidth * 2));  // 2Ã— current, capped 14â€“24px
+      const zoomBarWidth = Math.min(24, Math.max(14, barWidth * 2));  // 2× current, capped 14–24px
       barWidth = zoomBarWidth;
       // Show ~50 bars total centred on the drawing
       const visibleBars   = 50;
@@ -23088,7 +23088,7 @@ function tapCaptureScreenshot(){
 
     const dataUrl = captureChart();
 
-    // â”€â”€ Restore original view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Restore original view ─────────────────────────────────────────────────
     if(d){
       barWidth      = savedBarWidth;
       rightBarIndex = savedRightBarIndex;
@@ -23116,7 +23116,7 @@ function tapDownloadScreenshot(){
   a.href     = _tapScreenshotDataUrl;
   a.download = `apexfx-${sym}-${ts}.jpg`;
   a.click();
-  toast('ðŸ“· Screenshot downloaded');
+  toast('📷 Screenshot downloaded');
 }
 
 async function tapCopyScreenshot(){
@@ -23125,12 +23125,12 @@ async function tapCopyScreenshot(){
     const res  = await fetch(_tapScreenshotDataUrl);
     const blob = await res.blob();
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    toast('ðŸ“‹ Screenshot copied to clipboard');
+    toast('📋 Screenshot copied to clipboard');
   } catch(e) {
     // Fallback: open in new tab so user can save manually
     const w = window.open();
     if(w){ w.document.write(`<img src="${_tapScreenshotDataUrl}" style="max-width:100%">`); }
-    toast('ðŸ“· Opened in new tab â€” right-click to save');
+    toast('📷 Opened in new tab — right-click to save');
   }
 }
 
@@ -23192,8 +23192,8 @@ async function openFullTradeAnalysis(){
   
   // Check if we're in replay mode with mentor enabled
   if (replayMode && mentorState.enabled) {
-    console.log('ðŸš« Full trade analysis blocked - Replay training mode active');
-    showMentorMessage('ðŸ“š In replay training mode, the AI Mentor reviews your trades instead of the normal analysis system.');
+    console.log('🚫 Full trade analysis blocked - Replay training mode active');
+    showMentorMessage('📚 In replay training mode, the AI Mentor reviews your trades instead of the normal analysis system.');
     return;
   }
   
@@ -23201,7 +23201,7 @@ async function openFullTradeAnalysis(){
   const d      = _tapDrawing;
   const cached = tapAnalysisCache[curSym.s];
   const isLong = d.type === 'long';
-  const dirLabel = isLong ? 'LONG â–²' : 'SHORT â–¼';
+  const dirLabel = isLong ? 'LONG ▲' : 'SHORT ▼';
   const dirCol   = isLong ? 'var(--tl)' : 'var(--rd)';
   const rr   = Math.abs(d.tp - d.price) / Math.abs(d.sl - d.price);
   const slPct = Math.abs((d.sl - d.price) / d.price * 100);
@@ -23213,7 +23213,7 @@ async function openFullTradeAnalysis(){
   // Open in compact mode (reset any previous expanded state)
   const _tapModalEl = document.getElementById('tap-modal');
   _tapModalEl.classList.remove('expanded');
-  document.getElementById('tap-expand-btn').textContent = 'VIEW FULL ANALYSIS â†“';
+  document.getElementById('tap-expand-btn').textContent = 'VIEW FULL ANALYSIS ↓';
   document.getElementById('tap-modal-bg').classList.add('open');
 
   document.getElementById('tap-expand-row').style.display = '';
@@ -23237,10 +23237,10 @@ async function openFullTradeAnalysis(){
 
   // Header
   document.getElementById('tap-hdr-title').textContent  = `\uD83D\uDD2C TRADE ANALYSIS \u2014 ${curSym.s}`;
-  document.getElementById('tap-sym-tf').textContent     = `${curSym.s} Â· ${curTF}`;
+  document.getElementById('tap-sym-tf').textContent     = `${curSym.s} · ${curTF}`;
   document.getElementById('tap-journal-sym').textContent = curSym.s;
 
-  // Trade status banner â€” inject below header if SL/TP hit or unrealistic
+  // Trade status banner — inject below header if SL/TP hit or unrealistic
   let statusBanner = '';
   if(status){
     const bannerBg  = status.includes('SL') ? 'rgba(240,48,96,.12)'
@@ -23252,12 +23252,12 @@ async function openFullTradeAnalysis(){
     statusBanner = `<div style="margin:0 0 12px;padding:8px 12px;background:${bannerBg};
       border-left:3px solid ${bannerBdr};border-radius:3px;
       font-size:10px;font-weight:700;font-family:ui-monospace,'SF Mono',monospace;color:${statusCol};">
-      ${status === 'âœ— SL Hit'            ? 'ðŸ”´ STOP LOSS HIT â€” this trade has already been stopped out'
-      : status === 'âœ“ TP Hit'            ? 'ðŸŸ¢ TAKE PROFIT HIT â€” this trade reached its target'
-      : status.includes('Unrealistic')   ? 'âš  PLACEMENT WARNING â€” entry price is far from where price has traded'
-      : status.includes('Future')        ? 'ðŸ”® FUTURE SETUP â€” price has not reached entry yet; AI will predict likelihood'
-      : status.includes('Not Triggered') ? 'â³ NOT TRIGGERED â€” price never reached this entry level'
-      : 'ðŸ“Š ' + status}
+      ${status === '✗ SL Hit'            ? '🔴 STOP LOSS HIT — this trade has already been stopped out'
+      : status === '✓ TP Hit'            ? '🟢 TAKE PROFIT HIT — this trade reached its target'
+      : status.includes('Unrealistic')   ? '⚠ PLACEMENT WARNING — entry price is far from where price has traded'
+      : status.includes('Future')        ? '🔮 FUTURE SETUP — price has not reached entry yet; AI will predict likelihood'
+      : status.includes('Not Triggered') ? '�� NOT TRIGGERED — price never reached this entry level'
+      : '📊 ' + status}
     </div>`;
   }
 
@@ -23271,7 +23271,7 @@ async function openFullTradeAnalysis(){
   document.getElementById('tap-l-rr').textContent       = rr.toFixed(2) + ':1';
   document.getElementById('tap-l-rr-grade').textContent = rr >= 3 ? 'Excellent' : rr >= 2 ? 'Good' : rr >= 1.5 ? 'Acceptable' : 'Poor';
   document.getElementById('tap-l-rr-grade').style.color = rr >= 3 ? 'var(--tl)' : rr >= 2 ? 'var(--am)' : 'var(--rd)';
-  // topScoreEl/topScoreSubEl kept as stubs â€” score lives in verdict banner now
+  // topScoreEl/topScoreSubEl kept as stubs — score lives in verdict banner now
   const topScoreEl    = document.getElementById('tap-l-ai-score');
   const topScoreSubEl = document.getElementById('tap-l-ai-score-sub');
 
@@ -23293,12 +23293,12 @@ async function openFullTradeAnalysis(){
   const scDl  = document.getElementById('tap-sc-dl-btn');
   const scCp  = document.getElementById('tap-sc-copy-btn');
   if(scImg){ scImg.style.display='none'; scImg.src=''; }
-  if(scPh) { scPh.style.display='inline'; scPh.textContent='Capturing chartâ€¦'; scPh.style.color='var(--tx3)'; }
+  if(scPh) { scPh.style.display='inline'; scPh.textContent='Capturing chart…'; scPh.style.color='var(--tx3)'; }
   if(scDl) scDl.style.display='none';
   if(scCp) scCp.style.display='none';
   tapCaptureScreenshot();
 
-  // â”€â”€ AI â€” session lock (30 min TTL) â†’ in-flight dedup â†’ FIFO queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AI — session lock (30 min TTL) → in-flight dedup → FIFO queue ────────────
   const aiOutEl     = document.getElementById('tap-ai-out');
   const aiLoadingEl = document.getElementById('tap-ai-loading');
   const _aiTF       = d.tf || curTF;
@@ -23307,8 +23307,8 @@ async function openFullTradeAnalysis(){
   document.getElementById('tap-ai-age-badge')?.remove();
   document.getElementById('tap-ai-reanalyse-btn')?.remove();
 
-  // â”€â”€ SESSION LOCK: if we already have a result for this drawing, show it immediately â”€â”€
-  // This prevents re-running on every open â€” use "Re-analyse" to force fresh analysis.
+  // ── SESSION LOCK: if we already have a result for this drawing, show it immediately ──
+  // This prevents re-running on every open — use "Re-analyse" to force fresh analysis.
   if(_hasCachedResult){
     const sessionResult = cached.aiResult;
     aiOutEl.textContent = tapDisplayAnalysisText(sessionResult);
@@ -23318,7 +23318,7 @@ async function openFullTradeAnalysis(){
     tapRenderSetupBridge(d, sessionResult);
     tapRenderDecisionContext(d);
     aiLoadingEl.style.display = 'none';
-    if(topScoreSubEl) topScoreSubEl.textContent = 'Locked analysis â€” click Re-analyse to refresh';
+    if(topScoreSubEl) topScoreSubEl.textContent = 'Locked analysis — click Re-analyse to refresh';
     // Pre-fetch RAG matches in background so "Show on Chart" refinement works
     const _fv = tapExtractFeatureVector(d, curData);
     if(_fv) tapSearchSimilarAnalyses(_fv, curSym.s, _aiTF).then(m => { _tapLastRagMatches = m; }).catch(() => {});
@@ -23331,7 +23331,7 @@ async function openFullTradeAnalysis(){
       `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
       `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
       `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
-      `letter-spacing:.3px;white-space:nowrap;">â†» Re-analyse</button>`;
+      `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
     aiOutEl.parentNode.insertBefore(ageEl, aiOutEl);
     return;
   }
@@ -23351,7 +23351,7 @@ async function openFullTradeAnalysis(){
   }
 
   if(_enq.cached){
-    // TTL cache hit â€” instant result, no Groq call
+    // TTL cache hit — instant result, no Groq call
     const ageSec = Math.round(_enq.ageMs / 1000);
     aiOutEl.textContent = tapDisplayAnalysisText(_enq.result);
     tapRenderVerdictBanner(_enq.result);
@@ -23373,10 +23373,10 @@ async function openFullTradeAnalysis(){
       `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
       `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
       `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
-      `letter-spacing:.3px;white-space:nowrap;">â†» Re-analyse</button>`;
+      `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
     aiOutEl.parentNode.insertBefore(ageEl, aiOutEl);
   } else {
-    // Queued or in-flight â€” show skeleton + live position/countdown
+    // Queued or in-flight — show skeleton + live position/countdown
     const initPos = _enq.position || 0;
     const initEta = initPos > 0 ? initPos * Math.ceil(TAP_AI_INTERVAL / 1000) : 0;
     aiOutEl.innerHTML = _tapAiQueueHtml(initPos, initEta);
@@ -23391,7 +23391,7 @@ async function openFullTradeAnalysis(){
       const pos = tapAiQueue.findIndex(q => q.key === _aiQueueKey) + 1;
       const cooldownLeft = tapAiCooldownUntil > Date.now() ? Math.ceil((tapAiCooldownUntil - Date.now()) / 1000) : 0;
 
-      // Ensure rate-limit banner exists in DOM â€” creates it on first 429 even if skeleton was already shown
+      // Ensure rate-limit banner exists in DOM — creates it on first 429 even if skeleton was already shown
       let rlEl = document.getElementById('tap-ai-rate-limit');
       if(cooldownLeft > 0 && !rlEl){
         rlEl = document.createElement('div');
@@ -23402,7 +23402,7 @@ async function openFullTradeAnalysis(){
       if(rlEl){
         if(cooldownLeft > 0){
           rlEl.style.display = 'block';
-          rlEl.textContent = `Groq rate limited â€” retrying automatically in ${cooldownLeft}s`;
+          rlEl.textContent = `Groq rate limited — retrying automatically in ${cooldownLeft}s`;
         } else {
           rlEl.style.display = 'none';
         }
@@ -23412,8 +23412,8 @@ async function openFullTradeAnalysis(){
 
       if(cooldownLeft > 0){
         qEl.textContent = pos > 0
-          ? `Queued (pos ${pos}) â€” resuming in ${cooldownLeft}s`
-          : `Rate limited â€” resuming in ${cooldownLeft}s`;
+          ? `Queued (pos ${pos}) — resuming in ${cooldownLeft}s`
+          : `Rate limited — resuming in ${cooldownLeft}s`;
       } else if(pos > 0){
         const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
         qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
@@ -23426,11 +23426,11 @@ async function openFullTradeAnalysis(){
       const barEl = document.getElementById('tap-verdict-bar');
       if(subEl && subEl.textContent.startsWith('AI is reviewing')){
         if(cooldownLeft > 0){
-          subEl.textContent = `Rate limited â€” retrying in ${cooldownLeft}s`;
+          subEl.textContent = `Rate limited — retrying in ${cooldownLeft}s`;
         } else if(pos > 0){
-          subEl.textContent = `Queued â€” position ${pos} in line`;
+          subEl.textContent = `Queued — position ${pos} in line`;
         } else {
-          subEl.textContent = `AI is reviewing your setup Â· ${elapsedSec}s`;
+          subEl.textContent = `AI is reviewing your setup · ${elapsedSec}s`;
         }
       }
       // Animate progress bar: fills to ~90% over 45s then holds until done
@@ -23460,11 +23460,11 @@ async function openFullTradeAnalysis(){
       doneEl.id = 'tap-ai-age-badge';
       doneEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
       doneEl.innerHTML = `<span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--tx3);letter-spacing:.3px;">` +
-        `\uD83D\uDD12 Analysis locked â€” will not re-run on reopen</span>` +
+        `\uD83D\uDD12 Analysis locked — will not re-run on reopen</span>` +
         `<button id="tap-ai-reanalyse-btn" onclick="tapForceReanalyse()" style="` +
         `background:rgba(61,142,255,.12);border:1px solid rgba(61,142,255,.35);border-radius:4px;` +
         `color:var(--bl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 8px;cursor:pointer;` +
-        `letter-spacing:.3px;white-space:nowrap;">â†» Re-analyse</button>`;
+        `letter-spacing:.3px;white-space:nowrap;">↻ Re-analyse</button>`;
       aiOutEl.parentNode.insertBefore(doneEl, aiOutEl);
     } catch(e) {
       clearInterval(_tapAiCountdownTimer); _tapAiCountdownTimer = null;
@@ -23473,7 +23473,7 @@ async function openFullTradeAnalysis(){
   }
 }
 
-// Force re-analysis â€” clears session lock so next open triggers fresh Groq call
+// Force re-analysis — clears session lock so next open triggers fresh Groq call
 function tapForceReanalyse(){
   if(!curSym?.s) return;
   const cached = tapAnalysisCache[curSym.s];
@@ -23489,11 +23489,11 @@ function tapForceReanalyse(){
     }
     try{ localStorage.removeItem('tap-lock-' + curSym.s); }catch(e){}
   }
-  toast('\u21BB Re-analysing â€” fresh AI request queued\u2026');
+  toast('\u21BB Re-analysing — fresh AI request queued\u2026');
   openFullTradeAnalysis();
 }
 
-// â”€â”€ AI queue UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI queue UI helpers ────────────────────────────────────────────────────────
 function _tapAiQueueHtml(pos, etaSec){
   const statusText = pos > 0
     ? `Position ${pos} \u2014 ready in ~${etaSec}s`
@@ -23525,7 +23525,7 @@ function _tapAiRenderErr(rawMsg, aiOutEl, aiLoadingEl, topScoreEl, topScoreSubEl
   if(aiLoadingEl) aiLoadingEl.style.display = 'none';
 }
 
-// â”€â”€ Mini chart with entry/sl/tp overlaid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mini chart with entry/sl/tp overlaid ──────────────────────────────────────
 function tapDrawChart(d){
   const canvas = document.getElementById('tap-chart-canvas');
   if(!canvas || !curData.length) return;
@@ -23615,14 +23615,14 @@ function tapDrawChart(d){
   ctx.closePath(); ctx.fill();
 }
 
-// â”€â”€ Chart stats row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Chart stats row ───────────────────────────────────────────────────────────
 function tapRenderChartStats(d){
   const el = document.getElementById('tap-chart-stats');
   if(!curData.length){ el.innerHTML=''; return; }
   const n    = curData.length;
   const last = curData[n-1];
   const rsiV = calcRSI(curData);
-  const rsi  = rsiV[n-1]?.toFixed(1) || 'â€”';
+  const rsi  = rsiV[n-1]?.toFixed(1) || '—';
   const atrV = calcATR(curData);
   const atr  = atrV[n-1] || 0;
   const atrPct = (atr / last.close * 100).toFixed(2);
@@ -23642,13 +23642,13 @@ function tapRenderChartStats(d){
   el.innerHTML = [
     stat('RSI', rsi, rsiCol),
     stat('ATR%', atrPct + '%'),
-    stat('Support', nearS ? fP(nearS) : 'â€”', 'var(--tl)'),
-    stat('Resistance', nearR ? fP(nearR) : 'â€”', 'var(--rd)'),
+    stat('Support', nearS ? fP(nearS) : '—', 'var(--tl)'),
+    stat('Resistance', nearR ? fP(nearR) : '—', 'var(--rd)'),
     topPat ? stat('Pattern', topPat.name.slice(0,18), topPat.dir==='bull'?'var(--tl)':'var(--rd)') : '',
   ].join('');
 }
 
-// â”€â”€ Risk assessment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Risk assessment ───────────────────────────────────────────────────────────
 function tapRenderRisk(d, rr){
   const n = curData.length;
   const rsiV = calcRSI(curData);
@@ -23664,23 +23664,23 @@ function tapRenderRisk(d, rr){
   const factors = [];
 
   // R:R quality
-  if(rr >= 3)       { riskScore -= 15; factors.push({ icon:'âœ…', text:`R:R of ${rr.toFixed(1)} is excellent â€” risk justified by potential reward`, col:'var(--tl)' }); }
-  else if(rr >= 2)  { riskScore -= 8;  factors.push({ icon:'âœ…', text:`R:R of ${rr.toFixed(1)} is acceptable`, col:'var(--tl)' }); }
-  else if(rr >= 1.5){ factors.push({ icon:'âš ', text:`R:R of ${rr.toFixed(1)} is marginal â€” consider wider target or tighter stop`, col:'var(--am)' }); }
-  else              { riskScore += 20; factors.push({ icon:'ðŸ”´', text:`R:R of ${rr.toFixed(1)} is poor â€” reward does not justify the risk`, col:'var(--rd)' }); }
+  if(rr >= 3)       { riskScore -= 15; factors.push({ icon:'✅', text:`R:R of ${rr.toFixed(1)} is excellent — risk justified by potential reward`, col:'var(--tl)' }); }
+  else if(rr >= 2)  { riskScore -= 8;  factors.push({ icon:'✅', text:`R:R of ${rr.toFixed(1)} is acceptable`, col:'var(--tl)' }); }
+  else if(rr >= 1.5){ factors.push({ icon:'⚠', text:`R:R of ${rr.toFixed(1)} is marginal — consider wider target or tighter stop`, col:'var(--am)' }); }
+  else              { riskScore += 20; factors.push({ icon:'🔴', text:`R:R of ${rr.toFixed(1)} is poor — reward does not justify the risk`, col:'var(--rd)' }); }
 
   // RSI conditions
-  if(isLong && rsi > 72)  { riskScore += 12; factors.push({ icon:'âš ', text:`RSI ${rsi.toFixed(0)} â€” overbought territory, longs face headwinds`, col:'var(--am)' }); }
-  if(!isLong && rsi < 28) { riskScore += 12; factors.push({ icon:'âš ', text:`RSI ${rsi.toFixed(0)} â€” oversold territory, shorts face covering pressure`, col:'var(--am)' }); }
-  if(isLong && rsi < 45)  { riskScore -= 8;  factors.push({ icon:'âœ…', text:`RSI ${rsi.toFixed(0)} â€” momentum has room to run upward`, col:'var(--tl)' }); }
-  if(!isLong && rsi > 55) { riskScore -= 8;  factors.push({ icon:'âœ…', text:`RSI ${rsi.toFixed(0)} â€” momentum favours downside`, col:'var(--tl)' }); }
+  if(isLong && rsi > 72)  { riskScore += 12; factors.push({ icon:'⚠', text:`RSI ${rsi.toFixed(0)} — overbought territory, longs face headwinds`, col:'var(--am)' }); }
+  if(!isLong && rsi < 28) { riskScore += 12; factors.push({ icon:'⚠', text:`RSI ${rsi.toFixed(0)} — oversold territory, shorts face covering pressure`, col:'var(--am)' }); }
+  if(isLong && rsi < 45)  { riskScore -= 8;  factors.push({ icon:'✅', text:`RSI ${rsi.toFixed(0)} — momentum has room to run upward`, col:'var(--tl)' }); }
+  if(!isLong && rsi > 55) { riskScore -= 8;  factors.push({ icon:'✅', text:`RSI ${rsi.toFixed(0)} — momentum favours downside`, col:'var(--tl)' }); }
 
   // SL distance vs ATR
   if(atr > 0){
     const slVsAtr = slPct / (atr / d.price * 100);
-    if(slVsAtr < 0.8){ riskScore += 10; factors.push({ icon:'âš ', text:`Stop is ${slPct.toFixed(2)}% â€” tighter than 1 ATR, may be hit by normal volatility`, col:'var(--am)' }); }
-    if(slVsAtr > 2.5){ riskScore += 8;  factors.push({ icon:'âš ', text:`Stop is ${slPct.toFixed(2)}% â€” wide stop increases dollar risk per trade`, col:'var(--am)' }); }
-    if(slVsAtr >= 0.8 && slVsAtr <= 2){ riskScore -= 5; factors.push({ icon:'âœ…', text:`Stop width ${slPct.toFixed(2)}% is well-placed relative to ATR`, col:'var(--tl)' }); }
+    if(slVsAtr < 0.8){ riskScore += 10; factors.push({ icon:'⚠', text:`Stop is ${slPct.toFixed(2)}% — tighter than 1 ATR, may be hit by normal volatility`, col:'var(--am)' }); }
+    if(slVsAtr > 2.5){ riskScore += 8;  factors.push({ icon:'⚠', text:`Stop is ${slPct.toFixed(2)}% — wide stop increases dollar risk per trade`, col:'var(--am)' }); }
+    if(slVsAtr >= 0.8 && slVsAtr <= 2){ riskScore -= 5; factors.push({ icon:'✅', text:`Stop width ${slPct.toFixed(2)}% is well-placed relative to ATR`, col:'var(--tl)' }); }
   }
 
   // S/R proximity
@@ -23689,7 +23689,7 @@ function tapRenderRisk(d, rr){
     const nearS = sr.support.filter(s => s < d.price).sort((a,b) => b-a)[0];
     if(nearS){
       const distToS = Math.abs(d.price - nearS) / d.price * 100;
-      if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'âœ…', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below â€” natural floor for the trade`, col:'var(--tl)' }); }
+      if(distToS < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Support at ${fP(nearS)} is ${distToS.toFixed(1)}% below — natural floor for the trade`, col:'var(--tl)' }); }
     }
   }
   if(!isLong && sr.resistance.length){
@@ -23697,7 +23697,7 @@ function tapRenderRisk(d, rr){
     const nearR = sr.resistance.filter(r => r > d.price).sort((a,b) => a-b)[0];
     if(nearR){
       const distToR = Math.abs(nearR - d.price) / d.price * 100;
-      if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'âœ…', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above â€” natural ceiling confirms short`, col:'var(--tl)' }); }
+      if(distToR < 1.5){ riskScore -= 10; factors.push({ icon:'✅', text:`Resistance at ${fP(nearR)} is ${distToR.toFixed(1)}% above — natural ceiling confirms short`, col:'var(--tl)' }); }
     }
   }
 
@@ -23717,7 +23717,7 @@ function tapRenderRisk(d, rr){
   ).join('');
 }
 
-// â”€â”€ Historical similar setups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Historical similar setups ─────────────────────────────────────────────────
 function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
   const n = curData.length;
   const isLong = d.type === 'long';
@@ -23735,7 +23735,7 @@ function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
   const weaknesses = [];
   const improvements = [];
 
-  // Risk/Reward Logic (max 23) â€” continuous based on actual ratio
+  // Risk/Reward Logic (max 23) — continuous based on actual ratio
   if(rr >= 3)      riskRewardLogic = Math.round(19 + Math.min(4, (rr - 3) * 2));   // 19-23
   else if(rr >= 2) riskRewardLogic = Math.round(14 + (rr - 2) * 5);                // 14-19
   else if(rr >= 1.5) riskRewardLogic = Math.round(9 + (rr - 1.5) * 10);            // 9-14
@@ -23745,7 +23745,7 @@ function tapBuildFallbackAnalysis(d, rr, tradeStatus=''){
     improvements.push('Improve the setup by tightening the stop behind cleaner structure or waiting for a better entry.');
   }
 
-  // Stop Placement (max 26) â€” continuous based on ATR ratio
+  // Stop Placement (max 26) — continuous based on ATR ratio
   if(atr > 0){
     const atrPct = (atr / d.price) * 100;
     const slVsAtr = slPct / Math.max(atrPct, 0.0001);
@@ -23863,7 +23863,7 @@ function tapRenderHistorical(d){
 
   const isLong   = d.type === 'long';
   const n        = curData.length;
-  const atrV     = calcATR(curData);   // ATR array â€” one value per bar
+  const atrV     = calcATR(curData);   // ATR array — one value per bar
   const rsiV     = calcRSI(curData);
   const entryBar = Math.min(d.bar, n - 1);
   const currentRsi = rsiV[entryBar] || 50;
@@ -23876,10 +23876,10 @@ function tapRenderHistorical(d){
     if(!barRsi) continue;
     if(i - lastMatchBar < 15) continue;   // enforce spacing so we don't cluster
 
-    // RSI similarity window â€” Â±20 of current RSI
+    // RSI similarity window — ±20 of current RSI
     if(Math.abs(barRsi - currentRsi) >= 20) continue;
 
-    // Use typical price (h+l+c)/3 for momentum bias â€” respects wick direction
+    // Use typical price (h+l+c)/3 for momentum bias — respects wick direction
     const tp   = (curData[i].high + curData[i].low + curData[i].close) / 3;
     const tp5  = curData[i-5] ? (curData[i-5].high + curData[i-5].low + curData[i-5].close) / 3 : tp;
     const localBias = tp > tp5 ? 'bull' : 'bear';
@@ -23904,12 +23904,12 @@ function tapRenderHistorical(d){
       ? Math.min(...slice.map(b => b.low))  < entryP - slDist
       : Math.max(...slice.map(b => b.high)) > entryP + slDist;
 
-    // Max favourable excursion â€” how far did price move our way before reversing?
+    // Max favourable excursion — how far did price move our way before reversing?
     const mfe = isLong
       ? Math.max(...slice.map(b => b.high)) - entryP
       : entryP - Math.min(...slice.map(b => b.low));
 
-    // A "winner" = moved at least 1.5Ã— SL distance in our favour without hitting SL
+    // A "winner" = moved at least 1.5× SL distance in our favour without hitting SL
     const success = !hitSl && mfe >= slDist * 1.5;
 
     matches.push({
@@ -23928,7 +23928,7 @@ function tapRenderHistorical(d){
 
   countEl.textContent = `${matches.length} similar setups found`;
   if(!matches.length){
-    el.innerHTML = `<div style="font-size:10px;color:var(--tx3);">Not enough historical data â€” try a longer timeframe (Daily/Weekly) for more bar history.</div>`;
+    el.innerHTML = `<div style="font-size:10px;color:var(--tx3);">Not enough historical data — try a longer timeframe (Daily/Weekly) for more bar history.</div>`;
     return;
   }
 
@@ -23942,7 +23942,7 @@ function tapRenderHistorical(d){
       background:var(--bg3);border-radius:5px;border-left:3px solid ${rrColor};">
       <div style="font-size:18px;font-weight:600;font-family:ui-monospace,'SF Mono',monospace;color:${rrColor};">${winRate}%</div>
       <div style="font-size:11px;color:var(--tx2);line-height:1.6;">Historical win rate on similar conditions<br>
-        <span style="color:var(--tx3);">${wins} winners Â· ${slHits} SL hits Â· ${matches.length - wins - slHits} inconclusive Â· ${matches.length} total</span>
+        <span style="color:var(--tx3);">${wins} winners · ${slHits} SL hits · ${matches.length - wins - slHits} inconclusive · ${matches.length} total</span>
       </div>
     </div>
     <div id="tap-hist-list"></div>`;
@@ -23957,11 +23957,11 @@ function tapRenderHistorical(d){
       <div style="display:flex;align-items:center;gap:8px;width:100%;">
         <div class="tap-hist-num">${idx+1}</div>
         <div class="tap-hist-body">
-          <div class="tap-hist-title">${m.date} Â· Entry ~${fP(m.entryP)} Â· RSI ${m.barRsi}</div>
+          <div class="tap-hist-title">${m.date} · Entry ~${fP(m.entryP)} · RSI ${m.barRsi}</div>
           <div class="tap-hist-detail">
             ${m.fwdBars}-bar result: <span style="color:${moveCol};font-weight:700;">${m.movePct>=0?'+':''}${m.movePct.toFixed(2)}%</span>
-            Â· MFE: +${m.mfePct}%
-            Â· ${m.hitSl ? '<span style="color:var(--rd);">Stop hit</span>' : 'Stop intact'}
+            · MFE: +${m.mfePct}%
+            · ${m.hitSl ? '<span style="color:var(--rd);">Stop hit</span>' : 'Stop intact'}
           </div>
         </div>
         <span class="tap-hist-outcome ${outcomeClass}">${outcomeLabel}</span>
@@ -23971,7 +23971,7 @@ function tapRenderHistorical(d){
           border-radius:3px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .13s;"
           onmouseover="this.style.background='rgba(61,127,255,.22)'"
           onmouseout="this.style.background='rgba(61,127,255,.1)'">
-          ðŸ“ˆ View on Chart
+          📈 View on Chart
         </button>
       </div>
       <div style="margin-top:7px;margin-left:28px;background:var(--bg);border:1px solid var(--b1);border-radius:3px;overflow:hidden;">
@@ -23985,7 +23985,7 @@ function tapRenderHistorical(d){
   });
 }
 
-// â”€â”€ Draw a mini sparkline for a historical match â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Draw a mini sparkline for a historical match ──────────────────────────────
 function tapDrawHistSparkline(idx, m, isLong){
   const canvas = document.getElementById(`tap-hist-spark-${idx}`);
   if(!canvas) return;
@@ -24062,19 +24062,19 @@ function tapDrawHistSparkline(idx, m, isLong){
   ctx.fillText(new Date(slice[slice.length-1].time*1000).toLocaleDateString([],{month:'short',day:'numeric'}), pad.l+cw-2, H-2);
 }
 
-// â”€â”€ Jump to a historical bar on the main chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Jump to a historical bar on the main chart ────────────────────────────────
 function tapJumpToBar(barIdx){
   // Close the modal and navigate the chart to that bar
   closeTapModal();
-  // Scroll the chart so this bar is visible â€” set rightBarIndex to show it centered
+  // Scroll the chart so this bar is visible — set rightBarIndex to show it centered
   const visibleBars = Math.floor((_drawW || 800) / (barWidth + 1));
   rightBarIndex = barIdx + Math.floor(visibleBars * 0.6);
   rightBarIndex = Math.max(visibleBars, Math.min(curData.length - 1, rightBarIndex));
   draw();
-  toast(`ðŸ“ˆ Jumped to ${new Date(curData[barIdx].time*1000).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}`);
+  toast(`📈 Jumped to ${new Date(curData[barIdx].time*1000).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}`);
 }
 
-// â”€â”€ Journal history for this symbol â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Journal history for this symbol ──────────────────────────────────────────
 function tapRenderJournalHistory(){
   const el  = document.getElementById('tap-journal-history');
   const sym = curSym.s;
@@ -24092,15 +24092,15 @@ function tapRenderJournalHistory(){
     ${trades.map(t => {
       const col = t.outcome==='win'?'var(--tl)':'var(--rd)';
       return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px;">
-        <span style="font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);width:70px;">${t.time ? new Date(t.time).toLocaleDateString([],{month:'short',day:'numeric'}) : 'â€”'}</span>
+        <span style="font-family:ui-monospace,'SF Mono',monospace;color:var(--tx3);width:70px;">${t.time ? new Date(t.time).toLocaleDateString([],{month:'short',day:'numeric'}) : '—'}</span>
         <span style="font-family:ui-monospace,'SF Mono',monospace;color:${t.dir==='long'?'var(--tl)':'var(--rd)'};">${t.dir?.toUpperCase()}</span>
-        <span style="flex:1;color:var(--tx2);">${t.setup || 'â€”'}</span>
+        <span style="flex:1;color:var(--tx2);">${t.setup || '—'}</span>
         <span style="font-family:ui-monospace,'SF Mono',monospace;color:${col};">${t.pl != null ? (t.pl >= 0 ? '+' : '') + t.pl.toFixed(2) : t.outcome}</span>
       </div>`;
     }).join('')}`;
 }
 
-// â”€â”€ AI narrative â€” dedicated fetch with higher token budget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AI narrative — dedicated fetch with higher token budget ───────────────────
 function tapRenderVerdictBanner(text){
   const banner   = document.getElementById('tap-verdict-banner');
   const lbl      = document.getElementById('tap-verdict-label');
@@ -24143,29 +24143,29 @@ function tapRenderVerdictBanner(text){
     scoreVal = scoreVal ?? 68; likelihood='Moderate likelihood of success'; barPct=scoreVal;
   } else if(structuredVerdict.includes('RISKY SETUP') || structuredVerdict === 'RISKY' || zone.includes('RISKY SETUP') || zone.includes('RISKY')){
     verdict='RISKY SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood — proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood � proceed with caution'; barPct=scoreVal;
   } else if(structuredVerdict.includes('AVOID TRADE') || structuredVerdict === 'AVOID' || zone.includes('AVOID TRADE') || zone.includes('AVOID')){
     verdict='AVOID TRADE'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
     scoreVal = scoreVal ?? 18; likelihood='Do not trade this setup'; barPct=scoreVal;
   } else if(zone.includes('A+ SETUP')){
     verdict='A+ SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 95; likelihood='Excellent — high likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 95; likelihood='Excellent � high likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('A SETUP')){
     verdict='A SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 80; likelihood='Strong — good likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 80; likelihood='Strong � good likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('B SETUP')){
     verdict='B SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 60; likelihood='Moderate — proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 60; likelihood='Moderate � proceed with caution'; barPct=scoreVal;
   } else if(zone.includes('C SETUP')){
     verdict='C SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 35; likelihood='Weak — high risk of failure'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 35; likelihood='Weak � high risk of failure'; barPct=scoreVal;
   } else if(zone.includes('INVALID SETUP')){
     verdict='INVALID SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid — do not trade'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid � do not trade'; barPct=scoreVal;
   }
 
   if(!verdict){
-    // No verdict keyword found â€” show score-only state in banner
+    // No verdict keyword found — show score-only state in banner
     if(parsedScore !== null){
       banner.style.background  = 'rgba(136,153,176,0.06)';
       banner.style.borderColor = 'rgba(136,153,176,0.2)';
@@ -24189,37 +24189,37 @@ function tapRenderVerdictBanner(text){
   banner.style.borderColor = border;
   lbl.textContent          = verdict;
   lbl.style.color          = verdictColor;
-  scoreEl.textContent      = scoreVal !== null ? String(scoreVal) : 'â€”';
+  scoreEl.textContent      = scoreVal !== null ? String(scoreVal) : '—';
   scoreEl.style.color      = verdictColor;
   subEl.textContent        = likelihood;
   subEl.style.color        = verdictColor;
-  probEl.textContent       = probPct ? `${probPct}% probability of success · ${scoreSource}` : `See full execution analysis below · ${scoreSource}`;
+  probEl.textContent       = probPct ? `${probPct}% probability of success � ${scoreSource}` : `See full execution analysis below � ${scoreSource}`;
   probEl.style.color       = verdictColor;
   barEl.style.background   = verdictColor;
   if(topScoreEl){
-    topScoreEl.textContent = scoreVal !== null ? `${scoreVal}/100` : 'â€”';
+    topScoreEl.textContent = scoreVal !== null ? `${scoreVal}/100` : '—';
     topScoreEl.style.color = verdictColor;
   }
   if(topScoreSubEl){
-    topScoreSubEl.textContent = verdict ? `${verdict} · execution quality` : scoreSource;
+    topScoreSubEl.textContent = verdict ? `${verdict} � execution quality` : scoreSource;
     topScoreSubEl.style.color = verdictColor;
   }
   setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â”€â”€ TAP RAG (Retrieval-Augmented Generation) â€” Self-Learning Analysis Engine â”€
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
+// ── TAP RAG (Retrieval-Augmented Generation) — Self-Learning Analysis Engine ─
+// ������������������������������������������������������������������������������
 // How it works:
 //   1. Extract a 12-dim normalised feature vector from the current trade setup
 //   2. Search local history + Supabase for past analyses with similar vectors
-//   3. Tier 1 (â‰¥0.93 similarity, non-failed): return stored analysis â†’ FREE
-//   4. Tier 2 (â‰¥0.75 similarity): inject as few-shot context â†’ ~40% cheaper
-//   5. Tier 3 (<0.75): full Groq call â†’ standard cost
+//   3. Tier 1 (≥0.93 similarity, non-failed): return stored analysis → FREE
+//   4. Tier 2 (≥0.75 similarity): inject as few-shot context → ~40% cheaper
+//   5. Tier 3 (<0.75): full Groq call → standard cost
 //   6. After every Groq call, store analysis + feature vector for future reuse
-//   7. When SL/TP is hit, record outcome â†’ system learns what worked
+//   7. When SL/TP is hit, record outcome → system learns what worked
 
-// â”€â”€ Feature vector extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Feature vector extraction ─────────────────────────────────────────────────
 // Returns [rsi_norm, trend_bull, direction, rr_norm, sl_atr_norm, pat_conf,
 //          pat_aligns, sr_prox, vol_ratio_norm, macd_bull, macd_str, rsi_bull]
 function tapExtractFeatureVector(d, analysisData) {
@@ -24272,7 +24272,7 @@ function tapExtractFeatureVector(d, analysisData) {
   } catch(e) { return null; }
 }
 
-// â”€â”€ Cosine similarity between two equal-length vectors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Cosine similarity between two equal-length vectors ────────────────────────
 function tapCosineSimilarity(v1, v2) {
   if (!v1 || !v2 || v1.length !== v2.length) return 0;
   let dot = 0, mag1 = 0, mag2 = 0;
@@ -24285,7 +24285,7 @@ function tapCosineSimilarity(v1, v2) {
   return denom > 0 ? dot / denom : 0;
 }
 
-// â”€â”€ Local analysis history (localStorage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Local analysis history (localStorage) ────────────────────────────────────
 function tapGetLocalAnalysisHistory() {
   try { return JSON.parse(_lsGet('apex-analyses') || '[]'); } catch(e) { return []; }
 }
@@ -24293,13 +24293,13 @@ function tapSetLocalAnalysisHistory(arr) {
   try { _lsSet('apex-analyses', JSON.stringify(arr.slice(0, 120))); } catch(e) {}
 }
 
-// â”€â”€ Normalise symbol to the format used in the historical scan database â”€â”€â”€â”€â”€â”€â”€
-// App uses 'BTC/USD', scan saved 'BTC-USD' â€” normalise before any DB query
+// ── Normalise symbol to the format used in the historical scan database ───────
+// App uses 'BTC/USD', scan saved 'BTC-USD' — normalise before any DB query
 function _tapNormSym(sym) {
   return (sym || '').replace('/', '-');
 }
 
-// â”€â”€ Cross-timeframe similarity weight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Cross-timeframe similarity weight ─────────────────────────────────────────
 // Short TFs (1m/5m) have thin history so we cast a wider cross-TF net.
 // Same-TF matches are always preferred; cross-TF matches are slightly discounted.
 function _tapTFSimilarityWeight(currentTF, rowTF) {
@@ -24309,14 +24309,14 @@ function _tapTFSimilarityWeight(currentTF, rowTF) {
   const longTFs  = ['1h', '4h', '1d'];
   const bucket = tf => shortTFs.includes(tf) ? 0 : midTFs.includes(tf) ? 1 : 2;
   const dist = Math.abs(bucket(currentTF) - bucket(rowTF));
-  // 1 bucket away (e.g. 5mâ†”15m): 0.95Ã—   2 buckets away (e.g. 1mâ†”1h): 0.88Ã—
+  // 1 bucket away (e.g. 5m↔15m): 0.95×   2 buckets away (e.g. 1m↔1h): 0.88×
   return dist === 0 ? 1.0 : dist === 1 ? 0.95 : 0.88;
 }
 
-// â”€â”€ Search for similar past analyses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Search for similar past analyses ─────────────────────────────────────────
 // Pulls from:  1) localStorage (your own recent analyses)
-//              2) Supabase â€” your personal analyses (cross-device)
-//              3) Supabase â€” historical scan data (user_id = 'anonymous')
+//              2) Supabase — your personal analyses (cross-device)
+//              3) Supabase — historical scan data (user_id = 'anonymous')
 // Cross-timeframe matches are included but slightly down-weighted so same-TF
 // matches are always preferred when available.
 async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
@@ -24332,7 +24332,7 @@ async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
   // 2 + 3. Supabase: your analyses AND historical scan data (anonymous)
   if (_supa) {
     try {
-      // Fetch both in parallel â€” your personal data + the historical library
+      // Fetch both in parallel — your personal data + the historical library
       const _sel = 'id,feature_vector,analysis_text,verdict,combined_score,direction,outcome,verdict_correct,created_at,timeframe,method_detected,entry_price,sl_price,tp_price';
       const [personalRes, historicalRes] = await Promise.all([
         _currentUserId
@@ -24360,7 +24360,7 @@ async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
         r.feature_vector.length === featureVec.length
       );
       candidates = [...candidates, ...remoteRows];
-    } catch(e) { /* Supabase unavailable â€” use local only */ }
+    } catch(e) { /* Supabase unavailable — use local only */ }
   }
 
   // Score with cross-TF weight applied
@@ -24374,7 +24374,7 @@ async function tapSearchSimilarAnalyses(featureVec, symbol, currentTF) {
     .slice(0, 5);
 }
 
-// â”€â”€ Store a completed analysis for future RAG reuse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Store a completed analysis for future RAG reuse ───────────────────────────
 async function tapStoreAnalysis(d, featureVec, analysisText, scorecard, symbol, tf, methodDetected) {
   if (!featureVec || !analysisText) return null;
   const id = 'apex-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -24409,13 +24409,13 @@ async function tapStoreAnalysis(d, featureVec, analysisText, scorecard, symbol, 
   if (_supa && _currentUserId) {
     try {
       await _supa.from('apex_analyses').insert(record);
-    } catch(e) { /* non-critical â€” local copy already saved */ }
+    } catch(e) { /* non-critical — local copy already saved */ }
   }
 
   return id;
 }
 
-// â”€â”€ Record SL/TP outcome against a stored analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Record SL/TP outcome against a stored analysis ───────────────────────────
 // Called when tapTradeStatus detects SL Hit or TP Hit for a drawing
 async function tapUpdateAnalysisOutcome(d, outcome) {
   // outcome: 'tp_hit' | 'sl_hit' | 'breakeven'
@@ -24429,7 +24429,7 @@ async function tapUpdateAnalysisOutcome(d, outcome) {
   if (!record) return;
 
   // Determine if the AI verdict was correct:
-  // Strong/Acceptable Setup â†’ expected TP hit; Risky/Avoid â†’ expected SL hit
+  // Strong/Acceptable Setup → expected TP hit; Risky/Avoid → expected SL hit
   const positiveVerdict = /strong|acceptable/i.test(record.verdict || '');
   const verdictCorrect  = outcome === 'tp_hit' ? positiveVerdict : !positiveVerdict;
 
@@ -24449,7 +24449,7 @@ async function tapUpdateAnalysisOutcome(d, outcome) {
   }
 }
 
-// â”€â”€ RAG stats visible in the TAP panel (win-rate from stored outcomes) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── RAG stats visible in the TAP panel (win-rate from stored outcomes) ─────────
 function tapGetRAGStats(symbol) {
   const history = tapGetLocalAnalysisHistory();
   const resolved = history.filter(a => a.outcome && a.outcome !== 'pending' && a.symbol === symbol);
@@ -24465,7 +24465,7 @@ function tapGetRAGStats(symbol) {
   };
 }
 
-// â”€â”€ Fetch historical win-rate stats from the scan database â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fetch historical win-rate stats from the scan database ───────────────────
 // Queries the anonymous historical data for a specific symbol/TF/direction
 // Returns { winRate, count, tpCount, slCount, topMethod, methodWinRate } or null
 async function tapFetchHistoricalStats(symbol, tf, direction) {
@@ -24503,7 +24503,7 @@ async function tapFetchHistoricalStats(symbol, tf, direction) {
   } catch(e) { return null; }
 }
 
-// â”€â”€ Parse METHOD_JSON line from analysis text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Parse METHOD_JSON line from analysis text ─────────────────────────────────
 function tapParseMethodJSON(text) {
   const parsed = tapParseLabeledJSON(text, 'METHOD_JSON');
   if(!parsed || typeof parsed !== 'object') return null;
@@ -24516,7 +24516,7 @@ function tapParseMethodJSON(text) {
   };
 }
 
-// â”€â”€ Render method badge in the TAP panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Render method badge in the TAP panel ──────────────────────────────────────
 // Shows which trading methodology was detected, with confidence + key signals
 function tapRenderMethodBadge(analysisText) {
   document.getElementById('tap-method-badge')?.remove();
@@ -24538,7 +24538,7 @@ function tapRenderMethodBadge(analysisText) {
     'Wyckoff':           { bg: 'rgba(139,92,246,.15)',  border: 'rgba(139,92,246,.45)',  text: '#a78bfa' },
   };
   const col = methodColors[mj.method] || { bg: 'rgba(136,153,176,.12)', border: 'rgba(136,153,176,.35)', text: 'var(--tx2)' };
-  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' · ') : '';
+  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' � ') : '';
 
   const badge = document.createElement('div');
   badge.id = 'tap-method-badge';
@@ -24551,7 +24551,7 @@ function tapRenderMethodBadge(analysisText) {
           `${mj.method.toUpperCase()}</span>` +
         (signals ? `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${signals}</span>` : '') +
       `</div>` +
-      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '—'}% match</span>` +
+      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '�'}% match</span>` +
     `</div>` +
     (mj.method_verdict ? `<div style="font-size:10px;color:var(--tx2);line-height:1.5;">${mj.method_verdict}</div>` : '');
 
@@ -24560,7 +24560,7 @@ function tapRenderMethodBadge(analysisText) {
   aiOut?.parentNode?.insertBefore(badge, aiOut);
 }
 
-// â”€â”€ Show historical win-rate stats in TAP panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Show historical win-rate stats in TAP panel ───────────────────────────────
 async function tapRenderHistoricalStatsBadge(d) {
   document.getElementById('tap-hist-stats-badge')?.remove();
   if (!d || !_supa) return;
@@ -24578,7 +24578,7 @@ async function tapRenderHistoricalStatsBadge(d) {
   badge.innerHTML =
     `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">` +
       `<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;` +
-        `letter-spacing:.4px;color:var(--tx2);">ðŸ“Š HISTORICAL DATA Â· ${sym} ${tf}</span>` +
+        `letter-spacing:.4px;color:var(--tx2);">📊 HISTORICAL DATA · ${sym} ${tf}</span>` +
       `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${stats.count} similar setups scanned</span>` +
     `</div>` +
     `<div style="display:flex;align-items:center;gap:12px;">` +
@@ -24588,8 +24588,8 @@ async function tapRenderHistoricalStatsBadge(d) {
           `<div style="height:100%;width:${stats.winRate}%;border-radius:2px;background:${wrCol};"></div>` +
         `</div>` +
         `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">` +
-          `${stats.tpCount} TP hit · ${stats.slCount} SL hit` +
-          (stats.topMethod ? ` · Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
+          `${stats.tpCount} TP hit � ${stats.slCount} SL hit` +
+          (stats.topMethod ? ` � Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
         `</span>` +
       `</div>` +
     `</div>`;
@@ -24599,10 +24599,10 @@ async function tapRenderHistoricalStatsBadge(d) {
 
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
-  // Use the TF the drawing was placed on — fall back to curTF if not stored
+  // Use the TF the drawing was placed on � fall back to curTF if not stored
   const drawingTF = d.tf || tapAnalysisCache[curSym.s]?.tf || curTF;
   const analysisSym = tapGetTradeSourceSym(d, curSym.s);
-  // Use the data for that specific TF from cache — fall back to curData
+  // Use the data for that specific TF from cache � fall back to curData
   const analysisData = (drawingTF === curTF)
     ? curData
     : (dataCache[analysisSym+'_'+drawingTF] || dataCache[analysisSym+'_'+drawingTF+'_mtf'] || curData);
@@ -24611,16 +24611,16 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const pats   = detectPatterns(analysisData);
   const sr     = detectSR(analysisData);
   const rsiV   = calcRSI(analysisData);
-  const rsi    = rsiV[n-1]?.toFixed(1) || '—';
+  const rsi    = rsiV[n-1]?.toFixed(1) || '�';
   const atrV   = calcATR(analysisData);
   const atr    = atrV[n-1] || 0;
   const sma20  = calcSMA(analysisData, 20);
   const sma50  = calcSMA(analysisData, 50);
   const macdV  = calcMACD(analysisData);
   const lastMACD = macdV[n-1];
-  const macdLine = lastMACD?.macd?.toFixed(5) || '—';
-  const macdSig  = lastMACD?.signal?.toFixed(5) || '—';
-  const macdHist = lastMACD?.hist?.toFixed(5) || '—';
+  const macdLine = lastMACD?.macd?.toFixed(5) || '�';
+  const macdSig  = lastMACD?.signal?.toFixed(5) || '�';
+  const macdHist = lastMACD?.hist?.toFixed(5) || '�';
   const macdDir  = lastMACD?.hist > 0 ? 'Bullish momentum' : lastMACD?.hist < 0 ? 'Bearish momentum' : 'Neutral';
   const ema9V  = calcEMA(analysisData,9);  const ema9last  = ema9V[n-1];
   const ema21V = calcEMA(analysisData,21); const ema21last = ema21V[n-1];
@@ -24644,7 +24644,7 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const distPct   = Math.abs(d.price - curPrice) / curPrice * 100;
   const isUnrealistic = tradeStatus && tradeStatus.includes('Unrealistic');
 
-  // Build outcome context â€” the AI must acknowledge what already happened
+  // Build outcome context — the AI must acknowledge what already happened
   const isFuture      = tradeStatus && tradeStatus.includes('Future');
   const isNotTriggered= tradeStatus && tradeStatus.includes('Not Triggered');
   let outcomeCtx = '';
@@ -24657,10 +24657,10 @@ OUTCOME: STOP LOSS HIT. This trade has already been stopped out at ${fP(d.sl)}. 
 OUTCOME: TAKE PROFIT HIT. This trade already reached its target ${fP(d.tp)}. The trade SUCCEEDED.`;
     else if(isUnrealistic)
       outcomeCtx = `
-WARNING: Entry price ${fP(d.price)} is ${distPct.toFixed(1)}% away from current price ${fP(curPrice)}. Price range on chart: ${fP(rangeLow)}â€“${fP(rangeHigh)}. This placement appears UNREALISTIC.`;
+WARNING: Entry price ${fP(d.price)} is ${distPct.toFixed(1)}% away from current price ${fP(curPrice)}. Price range on chart: ${fP(rangeLow)}–${fP(rangeHigh)}. This placement appears UNREALISTIC.`;
     else if(isFuture)
       outcomeCtx = `
-STATUS: FUTURE SETUP. Entry ${fP(d.price)} is ABOVE current price ${fP(curPrice)} â€” this trade has NOT happened yet. Current price must reach ${fP(d.price)} before this trade triggers. Analyse this as a FORWARD-LOOKING setup: assess whether price is likely to reach the entry and play out as planned based on current market structure.`;
+STATUS: FUTURE SETUP. Entry ${fP(d.price)} is ABOVE current price ${fP(curPrice)} — this trade has NOT happened yet. Current price must reach ${fP(d.price)} before this trade triggers. Analyse this as a FORWARD-LOOKING setup: assess whether price is likely to reach the entry and play out as planned based on current market structure.`;
     else if(isNotTriggered)
       outcomeCtx = `
 STATUS: NOT TRIGGERED. Entry at ${fP(d.price)} was never reached by price. Current price is ${fP(curPrice)} (${distPct.toFixed(1)}% away). This setup did not activate. Analyse whether price could still reach the entry or whether the opportunity has passed.`;
@@ -24669,7 +24669,7 @@ STATUS: NOT TRIGGERED. Entry at ${fP(d.price)} was never reached by price. Curre
 OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   }
 
-  // â”€â”€ Build richer market context for the prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Build richer market context for the prompt ───────────────────────────────
   const recentBars   = analysisData.slice(-20);
   const recentHighs  = recentBars.map(b=>b.high);
   const recentLows   = recentBars.map(b=>b.low);
@@ -24690,10 +24690,10 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   const priceVsSma50 = sma50val ? (curPrice > sma50val ? `above SMA50 (${fP(sma50val)})` : `below SMA50 (${fP(sma50val)})`) : '';
   const entryVsSma   = sma20val ? (d.price > sma20val ? `above SMA20` : `below SMA20`) : '';
   const allPatsStr   = pats.length ? pats.map(p=>`${p.name} (${(p.conf*100).toFixed(0)}% conf, ${p.dir})`).join(', ') : 'none';
-  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED — STOPPED OUT' :
-                       tradeStatus?.includes('TP Hit') ? 'COMPLETED — TARGET HIT' :
+  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED � STOPPED OUT' :
+                       tradeStatus?.includes('TP Hit') ? 'COMPLETED � TARGET HIT' :
                        tradeStatus?.includes('Open')   ? 'ACTIVE / OPEN' :
-                       isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
+                       isFuture                        ? 'PENDING � NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
   const traderProfile = getTraderProfile();
   const drawingCtx = buildDrawingsContext(d, analysisData);
@@ -24743,43 +24743,43 @@ Confluences: ${mtfContext.confluences.length ? mtfContext.confluences.join(' | '
 Conflicts: ${mtfContext.conflicts.length ? mtfContext.conflicts.join(' | ') : 'No major multi-timeframe conflicts found.'}
 `;
 
-  // â”€â”€ Historical stats: fetch BEFORE building prompt so scores reflect real data â”€
+  // ── Historical stats: fetch BEFORE building prompt so scores reflect real data ─
   const _histStats = await tapFetchHistoricalStats(_tapNormSym(analysisSym), drawingTF, isLong ? 'long' : 'short').catch(() => null);
   const _histCtxForPrompt = _histStats && _histStats.count >= 10
     ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${analysisSym} ${drawingTF} ${isLong?'long':'short'} setups scanned):
   Overall win rate: ${_histStats.winRate}% (${_histStats.tpCount} TP hit, ${_histStats.slCount} SL hit)` +
       (_histStats.topMethod ? `\n  Best performing method on this pair/TF: ${_histStats.topMethod} with ${_histStats.methodWinRate}% win rate` : '') +
-      `\n  IMPORTANT: Use this historical win rate as a STRONG input to your Technical Confluence score and your Probability Estimate. A ${_histStats.winRate}% base rate for this setup type should anchor your probability â€” adjust up/down based on how well this specific trade aligns with the best-performing conditions.`
+      `\n  IMPORTANT: Use this historical win rate as a STRONG input to your Technical Confluence score and your Probability Estimate. A ${_histStats.winRate}% base rate for this setup type should anchor your probability — adjust up/down based on how well this specific trade aligns with the best-performing conditions.`
     : '';
 
-  // â”€â”€ RAG: Extract feature vector and search similar past analyses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RAG: Extract feature vector and search similar past analyses ──────────────
   const _ragFeatureVec = tapExtractFeatureVector(d, analysisData);
   const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, analysisSym, drawingTF) : [];
   _tapLastRagMatches   = _ragMatches; // Cache for tapShowRefinementOnChart
   const _ragBest       = _ragMatches[0];
 
-  // Tier 1 (â‰¥0.93 similarity, non-failed) â€” return stored analysis directly (FREE)
+  // Tier 1 (≥0.93 similarity, non-failed) — return stored analysis directly (FREE)
   if (_ragBest?.similarity >= 0.93 && _ragBest.analysis_text && _ragBest.outcome !== 'sl_hit') {
     const _simPct = (_ragBest.similarity * 100).toFixed(0);
     const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? 'TP hit historically'
                         : _ragBest.outcome === 'sl_hit' ? 'SL hit historically' : 'Outcome pending';
     const _ragNote = `\n\n-----------------------------------------\n` +
-      `Retrieved from similar past analysis · ${_simPct}% match\n` +
-      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} · ${_outcomeLabel}\n` +
-      `(No new Groq call — saved from your analysis history)`;
+      `Retrieved from similar past analysis � ${_simPct}% match\n` +
+      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} � ${_outcomeLabel}\n` +
+      `(No new Groq call � saved from your analysis history)`;
     return _ragBest.analysis_text + _ragNote;
   }
 
-  // Tier 2 (0.75â€“0.92) â€” inject as few-shot context into the prompt
+  // Tier 2 (0.75–0.92) — inject as few-shot context into the prompt
   const _ragCtx = (_ragBest?.similarity >= 0.75 && _ragBest.analysis_text)
-    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state · outcome: ${_ragBest.outcome || 'pending'}):\n` +
+    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state � outcome: ${_ragBest.outcome || 'pending'}):\n` +
       _ragBest.analysis_text.slice(0, 600) +
-      `\n[Apply similar reasoning — but re-evaluate with the live data above]\n`
+      `\n[Apply similar reasoning � but re-evaluate with the live data above]\n`
     : '';
 
-  const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade â€” not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
+  const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
 
-Be forensic, objective, and blunt. The trader does not need encouragement â€” they need an honest assessment.
+Be forensic, objective, and blunt. The trader does not need encouragement — they need an honest assessment.
 You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.${outcomeCtx}
 
 INPUT DATA:
@@ -24793,17 +24793,17 @@ Direction: ${isLong ? 'LONG' : 'SHORT'}
 Trade State: ${tradeStateInfo.state}
 Setup Age: ${tradeStateInfo.ageBars ?? 'n/a'} bars old | Expiry Window: ${tradeStateInfo.expiryBars ?? setupExpiryBars(drawingTF)} bars | Expected Hold: ${tradeStateInfo.expectedHoldBars ?? setupExpectedHoldBars(drawingTF)} bars
 Risk/Reward: 1:${rr.toFixed(2)}
-ATR(14): ${fP(atr)} â€” stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}Ã— ATR
+ATR(14): ${fP(atr)} — stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}× ATR
 
 Market Structure:
-  Short-term trend (SMA20): ${sma20val&&curPrice?(curPrice>sma20val?'Bullish â€” price above SMA20 '+fP(sma20val):'Bearish â€” price below SMA20 '+fP(sma20val)):'N/A'}
-  Broader trend filter on trade TF (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish â€” price above SMA50 '+fP(sma50val):'Bearish â€” price below SMA50 '+fP(sma50val)):'N/A'}
+  Short-term trend (SMA20): ${sma20val&&curPrice?(curPrice>sma20val?'Bullish — price above SMA20 '+fP(sma20val):'Bearish — price below SMA20 '+fP(sma20val)):'N/A'}
+  Broader trend filter on trade TF (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish — price above SMA50 '+fP(sma50val):'Bearish — price below SMA50 '+fP(sma50val)):'N/A'}
   Nearest support below entry: ${nearestS?fP(nearestS):'None detected'}
   Nearest resistance above entry: ${nearestR?fP(nearestR):'None detected'}
   All S/R levels: ${sr.support.slice(0,3).map(fP).join(', ')||'None'} (S) | ${sr.resistance.slice(0,3).map(fP).join(', ')||'None'} (R)
 
 Indicators:
-  RSI(14): ${rsi}${parseFloat(rsi)>70?' â€” Overbought':parseFloat(rsi)<30?' â€” Oversold':' â€” Neutral'}
+  RSI(14): ${rsi}${parseFloat(rsi)>70?' — Overbought':parseFloat(rsi)<30?' — Oversold':' — Neutral'}
   MACD: ${macdLine} / Signal: ${macdSig} / Hist: ${macdHist} (${macdDir})
   EMA9: ${ema9last?fP(ema9last):'N/A'} | EMA21: ${ema21last?fP(ema21last):'N/A'} | SMA50: ${sma50val?fP(sma50val):'N/A'}
   Volume: ${volDesc}
@@ -24849,15 +24849,15 @@ State whether 1:${rr.toFixed(2)} is acceptable, poor, or excellent for this setu
 List the factors that support this trade (confluent) and those that work against it (conflicting). Be specific with indicator readings and price levels. Explicitly state whether the idea is good but the execution is weak, or whether both are strong.
 
 6. TRADE QUALITY SCORE
-Score each component using SPECIFIC measured values from the input data â€” do NOT use round numbers or multiples of 5. Every score must reflect the actual measurements (price distances, ATR ratios, indicator readings). Think of each score as a precise calculation, not an estimate.
-  Entry Quality (0â€“28): Precision of entry relative to structure, key levels, and current price distance.
-  Stop Placement (0â€“26): Quality of stop relative to ATR, structural levels, and noise buffer.
-  Risk/Reward Logic (0â€“23): How well the R:R of 1:${rr.toFixed(2)} fits this specific setup and market conditions.
-  Technical Confluence (0â€“23): Number and strength of aligned technical factors (indicators, structure, volume, patterns).
-  Combined Score (0â€“100): Sum of the four components above.
+Score each component using SPECIFIC measured values from the input data — do NOT use round numbers or multiples of 5. Every score must reflect the actual measurements (price distances, ATR ratios, indicator readings). Think of each score as a precise calculation, not an estimate.
+  Entry Quality (0–28): Precision of entry relative to structure, key levels, and current price distance.
+  Stop Placement (0–26): Quality of stop relative to ATR, structural levels, and noise buffer.
+  Risk/Reward Logic (0–23): How well the R:R of 1:${rr.toFixed(2)} fits this specific setup and market conditions.
+  Technical Confluence (0–23): Number and strength of aligned technical factors (indicators, structure, volume, patterns).
+  Combined Score (0–100): Sum of the four components above.
 
 7. CRITICAL WEAKNESSES
-What are the 2â€“3 most important reasons this trade could fail? Be direct.
+What are the 2–3 most important reasons this trade could fail? Be direct.
 
 8. SUGGESTED IMPROVEMENTS
 If the trade has weaknesses, suggest a better version of the same setup with improved entry, stop, and target logic. If it is strong, confirm the levels are appropriate.
@@ -24868,7 +24868,7 @@ Important state rules:
   - If Trade State = COMPLETED or STOPPED: do not output a live refinement; explain that the trade is finished and focus on review context.
 
 9. PROBABILITY ESTIMATE
-Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Use a precise number (e.g. 61%, 73%, 44%) â€” not a round estimate. Explain your reasoning in one sentence.
+Give a specific percentage probability of hitting take profit before stop loss, based on the technical factors above. Use a precise number (e.g. 61%, 73%, 44%) — not a round estimate. Explain your reasoning in one sentence.
 
 10. FINAL VERDICT
 Classify as one of: Strong Setup / Acceptable Setup / Risky Setup / Avoid Trade
@@ -24886,19 +24886,19 @@ IMPORTANT METHOD RULES:
 - Choose Support & Resistance only when the actual entry logic is primarily a horizontal level reaction or level flip.
 - If a more specific method clearly fits better (Breakout, MA / Trend Following, Price Action, Fibonacci, RSI / Momentum, ICT, SMC, Supply & Demand, Wyckoff), choose that instead.
 - If the setup originated from a scanner/original method hint, preserve that method unless the live chart evidence clearly contradicts it.
-- Prefer the most specific rule set that explains the entry, stop, and target together — not the safest generic label.
+- Prefer the most specific rule set that explains the entry, stop, and target together � not the safest generic label.
 
 Choose exactly ONE method from this list:
-  â€¢ ICT â€” entry at Fair Value Gap or Order Block; SL below/above OB; TP at liquidity pool or previous high/low; displacement candles present
-  â€¢ SMC (Smart Money Concepts) â€” entry after Break of Structure or Change of Character + retest; TP at imbalance or opposing liquidity
-  â€¢ Supply & Demand â€” entry at fresh untested supply/demand zone from an explosive base move; SL just outside the zone
-  â€¢ Support & Resistance â€” entry at a horizontal S/R level; SL just beyond the level; TP at next major S/R
-  â€¢ MA / Trend Following â€” entry on EMA/SMA crossover or pullback to a moving average; trend continuation logic
-  â€¢ Price Action â€” candlestick pattern trigger (pin bar, engulfing, inside bar, hammer) at a key structural level
-  â€¢ Breakout â€” entry above/below a consolidation range or key level with momentum; SL inside range; TP = range projection
-  â€¢ Fibonacci â€” entry at 38.2%, 50%, or 61.8% retracement of a clear swing; TP at 127.2% or 161.8% extension
-  â€¢ RSI / Momentum â€” entry triggered by RSI extreme (<30 or >70) or divergence at a key level; momentum confirmation
-  â€¢ Wyckoff â€” entry after accumulation/distribution phase completing; spring or upthrust as trigger; markup/markdown TP
+  • ICT — entry at Fair Value Gap or Order Block; SL below/above OB; TP at liquidity pool or previous high/low; displacement candles present
+  • SMC (Smart Money Concepts) — entry after Break of Structure or Change of Character + retest; TP at imbalance or opposing liquidity
+  • Supply & Demand — entry at fresh untested supply/demand zone from an explosive base move; SL just outside the zone
+  • Support & Resistance — entry at a horizontal S/R level; SL just beyond the level; TP at next major S/R
+  • MA / Trend Following — entry on EMA/SMA crossover or pullback to a moving average; trend continuation logic
+  • Price Action — candlestick pattern trigger (pin bar, engulfing, inside bar, hammer) at a key structural level
+  • Breakout — entry above/below a consolidation range or key level with momentum; SL inside range; TP = range projection
+  • Fibonacci — entry at 38.2%, 50%, or 61.8% retracement of a clear swing; TP at 127.2% or 161.8% extension
+  • RSI / Momentum — entry triggered by RSI extreme (<30 or >70) or divergence at a key level; momentum confirmation
+  • Wyckoff — entry after accumulation/distribution phase completing; spring or upthrust as trigger; markup/markdown TP
 
 Then evaluate this specific trade through the lens of THAT method:
 - Does this trade follow the method's rules correctly?
@@ -24921,7 +24921,7 @@ Rules for REFINEMENT_JSON:
   - For EXPIRED, use reject or post_trade_review; do not output a live setup.
   - For COMPLETED or STOPPED, use post_trade_review with entry/sl/tp all null.
  - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
-  - SL PLACEMENT RULE: Always place the stop loss BEYOND the nearest significant swing high (for shorts) or swing low (for longs) from the S/R levels provided â€” not just ATR-based. The SL must clear that structural level by at least 0.2Ã— ATR so a wick cannot clip it. A tight SL that sits inside a S/R zone will be stopped out by normal volatility.
+  - SL PLACEMENT RULE: Always place the stop loss BEYOND the nearest significant swing high (for shorts) or swing low (for longs) from the S/R levels provided — not just ATR-based. The SL must clear that structural level by at least 0.2× ATR so a wick cannot clip it. A tight SL that sits inside a S/R zone will be stopped out by normal volatility.
   - R:R RULE: The refined R:R must be at least 1.5:1. Do not tighten the stop or move the target closer if doing so drops R:R below 1.5:1. If you cannot achieve 1.5:1 with a structurally sound SL, widen the TP instead.
 
 13. ACTION_JSON
@@ -24948,14 +24948,14 @@ Always remain objective. Do not guarantee outcomes or provide financial advice.`
     timeoutMs: 55000,
   });
 
-  // Store this analysis for future RAG reuse (non-blocking â€” never blocks the result)
+  // Store this analysis for future RAG reuse (non-blocking — never blocks the result)
   if (_ragFeatureVec && _result) {
     const _sc    = tapExtractTradeMetrics(_result);
     const _mj    = tapParseMethodJSON(_result);
     tapStoreAnalysis(d, _ragFeatureVec, _result, _sc, curSym.s, drawingTF, _mj?.method || null).catch(() => {});
   }
 
-  // Run incremental scan after any analysis â€” keeps RAG database fresh for both
+  // Run incremental scan after any analysis — keeps RAG database fresh for both
   // manually drawn trades and scanner-selected trades
   setTimeout(() => tapScanCurrentChart().catch(() => {}), 1000);
 
@@ -24964,33 +24964,33 @@ Always remain objective. Do not guarantee outcomes or provide financial advice.`
 
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// TOPBAR DOCK SYSTEM â€” drag nav items to topbar, click to open floating window
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
+// TOPBAR DOCK SYSTEM — drag nav items to topbar, click to open floating window
+// ������������������������������������������������������������������������������
 
 const TB_ITEMS = {
-  watch:     { icon:'â—ˆ',  label:'Watchlist',        navId:'nav-watch',    action:()=>toggleOverlay('watch'),    w:280, h:500 },
-  alerts:    { icon:'â°', label:'Price Alerts',      navId:'nav-alerts',   action:()=>toggleOverlay('alerts'),   w:300, h:400 },
-  scanner:   { icon:'âŒ•',  label:'AI Scanner',        navId:'nav-scanner',  action:()=>toggleOverlay('scanner'),  w:320, h:540 },
-  draw:      { icon:'âœ',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
-  inds:      { icon:'ðŸ“ˆ', label:'Indicators',         navId:'nav-inds',     action:()=>toggleOverlay('inds'),     w:300, h:500 },
-  aisetups:  { icon:'âš¡', label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
-  premarket: { icon:'â˜€',  label:'Pre-Market Brief',  navId:'btn-premarket',action:()=>openPremarket(),           w:480, h:580 },
-  psc:       { icon:'âš–',  label:'Position Sizer',    navId:null,           action:()=>openPSC(),                 w:380, h:480 },
-  settings:  { icon:'âš™',  label:'Settings',          navId:null,           action:()=>openSettings(),            w:500, h:560 },
+  watch:     { icon:'◈',  label:'Watchlist',        navId:'nav-watch',    action:()=>toggleOverlay('watch'),    w:280, h:500 },
+  alerts:    { icon:'��', label:'Price Alerts',      navId:'nav-alerts',   action:()=>toggleOverlay('alerts'),   w:300, h:400 },
+  scanner:   { icon:'⌕',  label:'AI Scanner',        navId:'nav-scanner',  action:()=>toggleOverlay('scanner'),  w:320, h:540 },
+  draw:      { icon:'�',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
+  inds:      { icon:'📈', label:'Indicators',         navId:'nav-inds',     action:()=>toggleOverlay('inds'),     w:300, h:500 },
+  aisetups:  { icon:'⚡', label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
+  premarket: { icon:'☀',  label:'Pre-Market Brief',  navId:'btn-premarket',action:()=>openPremarket(),           w:480, h:580 },
+  psc:       { icon:'⚖',  label:'Position Sizer',    navId:null,           action:()=>openPSC(),                 w:380, h:480 },
+  settings:  { icon:'⚙',  label:'Settings',          navId:null,           action:()=>openSettings(),            w:500, h:560 },
   help:      { icon:'?',  label:'Help',               navId:null,           action:()=>openTutorial(),            w:480, h:560 },
 };
 
-// State â€” which keys are docked to topbar
+// State — which keys are docked to topbar
 let _dockedKeys = new Set();
 // Active floating panel windows
-let _fpwMap = {}; // key â†’ dom element
+let _fpwMap = {}; // key → dom element
 let _fpwZ   = 3000;
 // Key being dragged
 let _dragKey  = null;
 let _dragFrom = null; // 'nav' | 'topbar'
 
-// â”€â”€ Load persisted dock state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Load persisted dock state ────────────────────────────────────────────────
 function _tbLoadState(){
   try {
     const saved = JSON.parse(_lsGet('tbdocked') || '[]');
@@ -25003,7 +25003,7 @@ function _tbSaveState(){
   try { _lsSet('tbdocked', JSON.stringify(keys)); } catch(e){}
 }
 
-// â”€â”€ Drag START from nav button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drag START from nav button ───────────────────────────────────────────────
 function navDragStart(e, key, label){
   _dragKey  = key;
   _dragFrom = 'nav';
@@ -25019,7 +25019,7 @@ function navDragEnd(e){
   _dragKey = null; _dragFrom = null;
 }
 
-// â”€â”€ Drag START from docked topbar button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drag START from docked topbar button ─────────────────────────────────────
 function tbDockedDragStart(e, key){
   _dragKey  = key;
   _dragFrom = 'topbar';
@@ -25038,7 +25038,7 @@ function tbDockedDragEnd(e){
   _dragKey = null; _dragFrom = null;
 }
 
-// â”€â”€ Reorder within docked bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Reorder within docked bar ─────────────────────────────────────────────────
 function tbDockItemDragOver(e, overKey){
   if(_dragFrom !== 'topbar' || !_dragKey || _dragKey === overKey) return;
   e.preventDefault(); e.stopPropagation();
@@ -25070,19 +25070,19 @@ function tbDockItemDrop(e, overKey){
   _tbSaveState();
 }
 
-// â•â• TOPBAR SLOT SYSTEM â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �� TOPBAR SLOT SYSTEM �������������������������������������������������������
 // Each .tb-slot holds at most one .tb-block. Blocks are MOVED (not cloned) so
 // their IDs remain unique. Dragging a block shows all slots as drop targets.
 
 const TB_SLOT_COUNT = 9;
 
-// Default layout: slot index â†’ block data-tb-id (null = empty)
+// Default layout: slot index → block data-tb-id (null = empty)
 const TB_DEFAULT_LAYOUT = ['symbol','timeframes','charttype','journal',null,null,null,'indicators','ohlc'];
 
 let _tbDraggingId   = null;
 let _tbDraggingFromSlot = null;
 
-// â”€â”€ Save / load layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Save / load layout ────────────────────────────────────────────────────────
 function _tbSaveLayout(){
   const order = [];
   for(let i=0;i<TB_SLOT_COUNT;i++){
@@ -25113,7 +25113,7 @@ function _tbLoadLayout(){
   return [...TB_DEFAULT_LAYOUT];
 }
 
-// â”€â”€ Initial placement â€” move blocks from template store into slots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Initial placement — move blocks from template store into slots ────────────
 function _tbInitBlocks(){
   const layout = _tbLoadLayout();
   const store  = document.getElementById('tb-block-templates');
@@ -25164,7 +25164,7 @@ function _tbBindBlock(block, slotIdx){
     e.stopPropagation();
     requestAnimationFrame(() => block.classList.add('tb-dragging'));
     document.getElementById('cmd-bar').classList.add('tb-dragging-active');
-    // No nav highlight for built-in blocks â€” they can't go back to the sidebar
+    // No nav highlight for built-in blocks — they can't go back to the sidebar
   };
   block.ondragend = () => {
     block.classList.remove('tb-dragging');
@@ -25176,7 +25176,7 @@ function _tbBindBlock(block, slotIdx){
   };
 }
 
-// â”€â”€ Slot drag handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Slot drag handlers ────────────────────────────────────────────────────────
 function _tbSlotOver(e, idx){
   if(!_tbDraggingId && !(_dragKey && _dragFrom==='nav')) return;
   e.preventDefault(); e.stopPropagation();
@@ -25193,7 +25193,7 @@ function _tbSlotDrop(e, idx){
   document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-over'));
   document.getElementById('cmd-bar').classList.remove('tb-dragging-active');
 
-  // â”€â”€ Nav item docked into this slot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Nav item docked into this slot ──────────────────────────────────────────
   if(_dragFrom === 'nav'){
     const key = e.dataTransfer.getData('text/plain') || _dragKey;
     if(!key || !TB_ITEMS[key]) return;
@@ -25201,7 +25201,7 @@ function _tbSlotDrop(e, idx){
     return;
   }
 
-  // â”€â”€ Block reorder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Block reorder ────────────────────────────────────────────────────────────
   if(!_tbDraggingId) return;
   const fromIdx  = _tbDraggingFromSlot;
   const toIdx    = idx;
@@ -25217,7 +25217,7 @@ function _tbSlotDrop(e, idx){
     toSlot.innerHTML = '';
     toSlot.appendChild(fromBlock);
     if(fromBlock.dataset.tbId?.startsWith('nav-')){
-      // nav block â€” restore proper drag handler with updated slot index
+      // nav block — restore proper drag handler with updated slot index
       const navKey = fromBlock.dataset.tbId.slice(4);
       fromBlock.ondragstart = _tbNavBlockDragStart(fromBlock, navKey, toIdx);
     } else {
@@ -25241,7 +25241,7 @@ function _tbSlotDrop(e, idx){
   _tbSaveLayout();
 }
 
-// â”€â”€ Dock a nav item into a specific slot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dock a nav item into a specific slot ─────────────────────────────────────
 function _dockToTopbarSlot(key, slotIdx){
   if(_dockedKeys.has(key)) return;
   const cfg = TB_ITEMS[key];
@@ -25304,7 +25304,7 @@ function _dockToTopbarSlot(key, slotIdx){
 
   slot.innerHTML = '';
   slot.appendChild(block);
-  // NOTE: do NOT call _tbBindBlock here â€” it would overwrite the ondragstart
+  // NOTE: do NOT call _tbBindBlock here — it would overwrite the ondragstart
   // which sets _dragFrom='topbar' needed for navDropZoneDrop to undock correctly.
 
   _tbSaveState();
@@ -25352,7 +25352,7 @@ function cmdBarDrop(e){
   }
 }
 
-// â”€â”€ Nav drop zone (drag back from topbar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Nav drop zone (drag back from topbar) ─────────────────────────────────────
 function navDropZoneOver(e){
   if(_dragFrom === 'topbar' || _dragFrom === 'topbar-block'){
     e.preventDefault();
@@ -25366,7 +25366,7 @@ function navDropZoneLeave(e){
   const to      = e.relatedTarget;
   if(to && (nav.contains(to) || overlay.contains(to) || to === nav || to === overlay)) return;
   nav.classList.remove('nav-drop-active');
-  // Don't deactivate overlay here â€” dragend handles that
+  // Don't deactivate overlay here — dragend handles that
 }
 function navDropZoneDrop(e){
   e.preventDefault();
@@ -25385,7 +25385,7 @@ function navDropZoneDrop(e){
   }
 }
 
-// â”€â”€ Dock a button to the topbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dock a button to the topbar ───────────────────────────────────────────────
 function _dockToTopbar(key, save){
   // Find the first empty slot and dock into it
   let target = 0;
@@ -25396,7 +25396,7 @@ function _dockToTopbar(key, save){
   _dockToTopbarSlot(key, target);
 }
 
-// â”€â”€ Undock â€” move button back to nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Undock — move button back to nav ─────────────────────────────────────────
 function _undockFromTopbar(key){
   if(!_dockedKeys.has(key)) return;
   const cfg = TB_ITEMS[key];
@@ -25406,7 +25406,7 @@ function _undockFromTopbar(key){
   const block = document.querySelector(`.tb-block[data-tb-id="nav-${key}"]`);
   if(block){
     const slot = block.closest('.tb-slot');
-    if(slot) slot.innerHTML = ''; // fully clear â€” no ghost elements
+    if(slot) slot.innerHTML = ''; // fully clear — no ghost elements
   }
 
   // Close any open panel
@@ -25422,7 +25422,7 @@ function _undockFromTopbar(key){
   _tbSaveLayout();
 }
 
-// â”€â”€ Journal topbar button click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Journal topbar button click ───────────────────────────────────────────────
 let _journalFpwBuilt = false; // track if FPW has been created
 
 function tbJournalClick(){
@@ -25443,7 +25443,7 @@ function tbJournalClick(){
     return;
   }
 
-  // First open â€” create the FPW
+  // First open — create the FPW
   const btnEl = document.getElementById('tb-journal-btn');
   const bar   = document.getElementById('cmd-bar');
   const barH  = bar ? bar.getBoundingClientRect().bottom : 52;
@@ -25455,9 +25455,9 @@ function tbJournalClick(){
   newFpw.style.cssText = `width:440px;height:620px;left:${Math.min(btnX, window.innerWidth-450)}px;top:${barH+4}px;z-index:${++_fpwZ};`;
   newFpw.innerHTML = `
     <div class="fpw-titlebar" id="fpwtb-journal">
-      <span class="fpw-icon">ðŸ““</span>
+      <span class="fpw-icon">📓</span>
       <span class="fpw-title">Journal</span>
-      <button class="fpw-close" onclick="tbJournalClose()" title="Close">âœ•</button>
+      <button class="fpw-close" onclick="tbJournalClose()" title="Close">✕</button>
     </div>
     <div class="fpw-body" id="fpwbody-journal" style="overflow:hidden;"></div>`;
 
@@ -25466,7 +25466,7 @@ function tbJournalClick(){
   _fpwMakeDraggable(newFpw, document.getElementById('fpwtb-journal'));
   newFpw.addEventListener('mousedown', () => { newFpw.style.zIndex = ++_fpwZ; });
 
-  // Move rp-journal into FPW body â€” do this once, it stays there permanently
+  // Move rp-journal into FPW body — do this once, it stays there permanently
   const src  = document.getElementById('rp-journal');
   const body = document.getElementById('fpwbody-journal');
   if(src && body){
@@ -25496,7 +25496,7 @@ function _updateJournalBtnState(){
   btn.classList.toggle('active', !!active);
 }
 
-// â”€â”€ Click a docked topbar button â†’ open/toggle floating panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Click a docked topbar button → open/toggle floating panel ────────────────
 function _tbBtnClick(key){
   const cfg = TB_ITEMS[key];
   const useModal = ['aisetups','premarket','psc','settings','help'];
@@ -25505,7 +25505,7 @@ function _tbBtnClick(key){
     return;
   }
 
-  // If this window is already open and visible â†’ close it (toggle off)
+  // If this window is already open and visible → close it (toggle off)
   if(_fpwMap[key] && _fpwMap[key].style.display !== 'none'){
     _closeFpw(key);
     return;
@@ -25524,13 +25524,13 @@ function _tbBtnClick(key){
   }
 }
 
-// â”€â”€ Open a floating panel window â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Open a floating panel window ──────────────────────────────────────────────
 function _openFpw(key){
   const cfg = TB_ITEMS[key];
   const existing = document.getElementById('fpw-' + key);
   if(existing){ existing.style.display='flex'; _fpwFocus(key); return; }
 
-  // Compute position â€” cascade from topbar button
+  // Compute position — cascade from topbar button
   const btnEl = document.getElementById('tbdock-' + key);
   const bar   = document.getElementById('cmd-bar');
   const barH  = bar ? bar.getBoundingClientRect().bottom : 52;
@@ -25545,7 +25545,7 @@ function _openFpw(key){
     <div class="fpw-titlebar" id="fpwtb-${key}">
       <span class="fpw-icon">${cfg.icon}</span>
       <span class="fpw-title">${cfg.label}</span>
-      <button class="fpw-close" onclick="_closeFpw('${key}')" title="Close">âœ•</button>
+      <button class="fpw-close" onclick="_closeFpw('${key}')" title="Close">✕</button>
     </div>
     <div class="fpw-body" id="fpwbody-${key}"></div>`;
 
@@ -25595,17 +25595,17 @@ function _updateDockedBtnState(key){
 function _getDockedBtnActive(key){
   if(key === 'journal') return !!_fpwMap['journal'] && _fpwMap['journal'].style.display !== 'none';
   switch(key){
-    // Overlay panels â€” active when that overlay is open
+    // Overlay panels — active when that overlay is open
     case 'watch':    case 'alerts': case 'scanner':
     case 'draw':     case 'inds':
       return _activeOverlay === key;
-    // Replay â€” active when replay is running
+    // Replay — active when replay is running
     case 'replay':
       return typeof replayMode !== 'undefined' && replayMode;
-    // AI Setups â€” active when the ai-panel overlay is visible
+    // AI Setups — active when the ai-panel overlay is visible
     case 'aisetups':
       return !!_fpwMap[key] && _fpwMap[key].style.display !== 'none';
-    // Pre-market / PSC / Settings / Help â€” active when their modal is open
+    // Pre-market / PSC / Settings / Help — active when their modal is open
     case 'premarket':{
       const el = document.getElementById('premarket-modal') || document.getElementById('pm-bg') || document.getElementById('premarket-bg');
       return el ? (el.style.display === 'flex' || el.classList.contains('open')) : false;
@@ -25632,7 +25632,7 @@ function _syncAllDockedBtns(){
   _dockedKeys.forEach(key => _updateDockedBtnState(key));
 }
 
-// â”€â”€ Populate panel body with the right content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Populate panel body with the right content ────────────────────────────────
 function _fpwPopulate(key){
   const body = document.getElementById('fpwbody-' + key);
   if(!body) return;
@@ -25640,7 +25640,7 @@ function _fpwPopulate(key){
   if(key === 'watch'){
     body.innerHTML = `
       <div style="padding:8px 10px;border-bottom:1px solid var(--line);">
-        <input placeholder="Filter watchlistâ€¦" oninput="buildWL(this.value)"
+        <input placeholder="Filter watchlist…" oninput="buildWL(this.value)"
           style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--tx);
           font-size:11px;padding:6px 10px;border-radius:var(--r);outline:none;font-family:var(--font-mono);">
       </div>
@@ -25715,7 +25715,7 @@ function _fpwPopulate(key){
   }
 }
 
-// â”€â”€ Drag to reposition floating window â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Drag to reposition floating window ───────────────────────────────────────
 function _fpwMakeDraggable(el, handle){
   let ox=0, oy=0, sx=0, sy=0, dragging=false;
   handle.addEventListener('mousedown', e => {
@@ -25750,7 +25750,7 @@ window.addEventListener('beforeunload', () => {
     user_id: _currentUserId, key, value, updated_at: new Date().toISOString()
   }));
   if(entries.length > 0){
-    // Best-effort beacon â€” browser allows this during unload
+    // Best-effort beacon — browser allows this during unload
     const body = JSON.stringify(entries);
     navigator.sendBeacon && navigator.sendBeacon(
       `${SUPA_URL}/rest/v1/user_data`,
@@ -25773,18 +25773,18 @@ document.addEventListener('visibilitychange', () => {
 
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �������������������������������������������������������������������������������
 // STRATEGY BACKTESTER
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// �������������������������������������������������������������������������������
 
 const BT_PRESETS = {
   rsi_reversal_long: {
-    name:'RSI Reversal â€” Long', direction:'long',
+    name:'RSI Reversal — Long', direction:'long',
     conditions:[{type:'rsi_below',value:32},{type:'price_above_ema',period:200}],
     slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
   },
   rsi_reversal_short: {
-    name:'RSI Reversal â€” Short', direction:'short',
+    name:'RSI Reversal — Short', direction:'short',
     conditions:[{type:'rsi_above',value:68},{type:'price_below_ema',period:200}],
     slMult:1.5, rr:2.0, capital:10000, riskPct:1.0
   },
@@ -25813,7 +25813,7 @@ const BT_PRESETS = {
 const BT_COND_LABELS = {
   rsi_below:      c=>`RSI < ${c.value}`,
   rsi_above:      c=>`RSI > ${c.value}`,
-  rsi_between:    c=>`RSI between ${c.min}â€“${c.max}`,
+  rsi_between:    c=>`RSI between ${c.min}–${c.max}`,
   price_above_ema:c=>`Price above EMA ${c.period}`,
   price_below_ema:c=>`Price below EMA ${c.period}`,
   price_above_sma:c=>`Price above SMA ${c.period}`,
@@ -25826,7 +25826,7 @@ const BT_COND_LABELS = {
   bb_below_lower: ()=>'Close below Lower Bollinger Band',
   stoch_below:    c=>`Stochastic %K < ${c.value}`,
   stoch_above:    c=>`Stochastic %K > ${c.value}`,
-  volume_spike:   c=>`Volume > ${c.mult}Ã— average`,
+  volume_spike:   c=>`Volume > ${c.mult}× average`,
 };
 
 const btState = {
@@ -25836,7 +25836,7 @@ const btState = {
 
 function openBacktester(){
   document.getElementById('bt-bg').classList.add('open');
-  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '—'} · ${curTF}`;
+  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '�'} � ${curTF}`;
   _btRenderBuilder();
 }
 function closeBacktester(){ document.getElementById('bt-bg').classList.remove('open'); }
@@ -25864,14 +25864,14 @@ function _btRenderBuilder(){
   const list = document.getElementById('bt-cond-list');
   if(!list) return;
   if(!s.conditions.length){
-    list.innerHTML = '<div class="bt-cond-empty">No conditions yet â€” add rules below or choose a preset</div>';
+    list.innerHTML = '<div class="bt-cond-empty">No conditions yet — add rules below or choose a preset</div>';
   } else {
     list.innerHTML = s.conditions.map((c,i)=>{
       const lbl = (BT_COND_LABELS[c.type]||((x)=>x.type))(c);
       return `<div class="bt-cond-item">
-        <span class="bt-cond-dot">â—†</span>
+        <span class="bt-cond-dot">◆</span>
         <span class="bt-cond-label">${lbl}</span>
-        <button class="bt-cond-remove" onclick="_btRemoveCond(${i})">âœ•</button>
+        <button class="bt-cond-remove" onclick="_btRemoveCond(${i})">✕</button>
       </div>`;
     }).join('');
   }
@@ -25908,7 +25908,7 @@ function _btUpdateConditionUI(){
       if(v1)v1.value=40; if(v2)v2.value=60; break;
     case 'price_above_ema': case 'price_below_ema': show1('EMA period',200); break;
     case 'price_above_sma': case 'price_below_sma': show1('SMA period',50); break;
-    case 'volume_spike': show1('Ã— avg vol',1.5); break;
+    case 'volume_spike': show1('× avg vol',1.5); break;
     case 'stoch_below': show1('%K value',20); break;
     case 'stoch_above': show1('%K value',80); break;
   }
@@ -26001,7 +26001,7 @@ function _btRunBacktest(){
   s.riskPct  = parseFloat(document.getElementById('bt-riskpct')?.value)||1.0;
 
   const btn = document.getElementById('bt-run-btn');
-  if(btn){ btn.textContent='â³ Runningâ€¦'; btn.disabled=true; }
+  if(btn){ btn.textContent='�� Running…'; btn.disabled=true; }
 
   // Pre-compute all indicators on full dataset
   const inds = {
@@ -26079,7 +26079,7 @@ function _btRunBacktest(){
     equityCurve.push({i:data.length-1,equity});
   }
 
-  if(btn){ btn.textContent='â–¶ Run Backtest'; btn.disabled=false; }
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
 
   const stats = _btCalcStats(trades, equityCurve, s.capital, equity);
   btState.result={trades,equityCurve,stats};
@@ -26131,7 +26131,7 @@ function _btRenderResults({trades,equityCurve,stats}){
     </div>
     <div class="bt-results-hdr" style="margin-top:14px">EQUITY CURVE</div>
     <canvas id="bt-eq-canvas" height="120" style="width:100%;display:block"></canvas>
-    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades · $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
+    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades � $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
     <div class="bt-trade-table">
       <div class="bt-trade-hdr"><span>#</span><span>Dir</span><span>Entry</span><span>Exit</span><span>Result</span><span>R</span><span>P&amp;L</span></div>
       <div class="bt-trade-rows">${trades.slice(0,300).map((t,i)=>{
@@ -26199,37 +26199,37 @@ function _btClearResults(){
 }
 function _btShowError(msg){
   const el=document.getElementById('bt-results');
-  if(el) el.innerHTML=`<div class="bt-error">âš  ${msg}</div>`;
+  if(el) el.innerHTML=`<div class="bt-error">⚠ ${msg}</div>`;
   const btn=document.getElementById('bt-run-btn');
-  if(btn){ btn.textContent='â–¶ Run Backtest'; btn.disabled=false; }
+  if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// APEX FX â€” 20-FEATURE UPGRADE FUNCTIONS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
+// APEX FX — 20-FEATURE UPGRADE FUNCTIONS
+// ������������������������������������������������������������������������������
 
-// â”€â”€â”€ 1. COMMAND PALETTE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 1. COMMAND PALETTE ──────────────────────────────────────────────────────
 const CMDPAL_COMMANDS = [
-  { icon:'âŒ•',  label:'Search Symbol',         cat:'Navigate',  action:()=>openModal(),                kbd:'/' },
-  { icon:'ðŸ“ˆ', label:'New Chart Tab',          cat:'Navigate',  action:()=>createChartTab(curSym?.s||'BTCUSDT', curTF) },
-  { icon:'ðŸ“‹', label:'Open Trade Journal',     cat:'Journal',   action:()=>openJModal(),               kbd:'J' },
-  { icon:'ðŸ”¬', label:'Open AI Analysis',       cat:'AI',        action:()=>tapAnalyseGate&&tapAnalyseGate() },
-  { icon:'âš¡', label:'AI Best Setups',         cat:'AI',        action:()=>{ const b=document.getElementById('btn-aisetups'); if(b)b.click(); } },
-  { icon:'â˜€', label:'Pre-Market Brief',        cat:'AI',        action:()=>openPremarket() },
-  { icon:'ðŸ“Š', label:'Open Backtester',        cat:'Tools',     action:()=>{ const b=document.getElementById('bt-modal-bg'); if(b){b.style.display='flex';} } },
-  { icon:'âš–', label:'Position Sizer',          cat:'Tools',     action:()=>openPSC(),                  kbd:'P' },
-  { icon:'ðŸ“·', label:'Take Screenshot',        cat:'Tools',     action:()=>saveChartImage&&saveChartImage() },
-  { icon:'â®', label:'Toggle Bar Replay',      cat:'Tools',     action:()=>toggleReplay(),              kbd:'R' },
-  { icon:'ðŸ§¬', label:'Trader DNA Card',        cat:'Analytics', action:()=>openDNACard() },
-  { icon:'ðŸ“‹', label:'Trade Idea Board',       cat:'Tools',     action:()=>openKanban() },
-  { icon:'ðŸ“Š', label:'Session Debrief',        cat:'Analytics', action:()=>openSessionDebrief() },
-  { icon:'â˜€', label:'Morning Ritual',          cat:'Tools',     action:()=>openRitualModal() },
-  { icon:'âš™', label:'Settings',               cat:'Platform',  action:()=>openSettings(),             kbd:',' },
+  { icon:'⌕',  label:'Search Symbol',         cat:'Navigate',  action:()=>openModal(),                kbd:'/' },
+  { icon:'📈', label:'New Chart Tab',          cat:'Navigate',  action:()=>createChartTab(curSym?.s||'BTCUSDT', curTF) },
+  { icon:'📋', label:'Open Trade Journal',     cat:'Journal',   action:()=>openJModal(),               kbd:'J' },
+  { icon:'🔬', label:'Open AI Analysis',       cat:'AI',        action:()=>tapAnalyseGate&&tapAnalyseGate() },
+  { icon:'⚡', label:'AI Best Setups',         cat:'AI',        action:()=>{ const b=document.getElementById('btn-aisetups'); if(b)b.click(); } },
+  { icon:'☀', label:'Pre-Market Brief',        cat:'AI',        action:()=>openPremarket() },
+  { icon:'📊', label:'Open Backtester',        cat:'Tools',     action:()=>{ const b=document.getElementById('bt-modal-bg'); if(b){b.style.display='flex';} } },
+  { icon:'⚖', label:'Position Sizer',          cat:'Tools',     action:()=>openPSC(),                  kbd:'P' },
+  { icon:'📷', label:'Take Screenshot',        cat:'Tools',     action:()=>saveChartImage&&saveChartImage() },
+  { icon:'��', label:'Toggle Bar Replay',      cat:'Tools',     action:()=>toggleReplay(),              kbd:'R' },
+  { icon:'🧬', label:'Trader DNA Card',        cat:'Analytics', action:()=>openDNACard() },
+  { icon:'📋', label:'Trade Idea Board',       cat:'Tools',     action:()=>openKanban() },
+  { icon:'📊', label:'Session Debrief',        cat:'Analytics', action:()=>openSessionDebrief() },
+  { icon:'☀', label:'Morning Ritual',          cat:'Tools',     action:()=>openRitualModal() },
+  { icon:'⚙', label:'Settings',               cat:'Platform',  action:()=>openSettings(),             kbd:',' },
   { icon:'?',  label:'Tutorial / Help',        cat:'Platform',  action:()=>openTutorial() },
-  { icon:'ðŸ—‚', label:'Analytics Tab',          cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(2)'); if(t)t.click(); } },
-  { icon:'ðŸ“°', label:'News Tab',               cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(3)'); if(t)t.click(); } },
-  { icon:'ðŸ””', label:'Alerts Panel',           cat:'Navigate',  action:()=>toggleOverlay('alerts') },
-  { icon:'ðŸ‘', label:'Toggle Setup Watch',     cat:'AI',        action:()=>toggleSetupWatch() },
+  { icon:'🗂', label:'Analytics Tab',          cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(2)'); if(t)t.click(); } },
+  { icon:'📰', label:'News Tab',               cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(3)'); if(t)t.click(); } },
+  { icon:'🔔', label:'Alerts Panel',           cat:'Navigate',  action:()=>toggleOverlay('alerts') },
+  { icon:'�', label:'Toggle Setup Watch',     cat:'AI',        action:()=>toggleSetupWatch() },
 ];
 
 let _cpActiveIdx = 0;
@@ -26275,7 +26275,7 @@ function renderCmdPalResults(q){
         matchSyms.map(s => {
           const abs = flatIdx++;
           return `<div class="cp-item${abs===_cpActiveIdx?' cp-active':''}" onclick="selSym('${s.s}');closeCommandPalette();">
-            <span class="cp-item-icon">ðŸ“ˆ</span>
+            <span class="cp-item-icon">📈</span>
             <span class="cp-item-label">${s.s} <span style="color:var(--tx3);font-size:11px;">${s.n}</span></span>
             <span class="cp-item-cat">${s.t}</span>
           </div>`;
@@ -26312,7 +26312,7 @@ function cmdPalKey(e){
   }
 }
 
-// â”€â”€â”€ 2. STATUS BAR UPGRADE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 2. STATUS BAR UPGRADE ───────────────────────────────────────────────────
 function updateStatusBarStats(){
   // Daily P&L
   const today = new Date().toDateString();
@@ -26334,7 +26334,7 @@ function updateStatusBarStats(){
   const alertEl = document.getElementById('sb-alert-count');
   if(alertEl && alerts.length){
     alertEl.style.display='';
-    alertEl.textContent = `ðŸ”” ${alerts.length}`;
+    alertEl.textContent = `🔔 ${alerts.length}`;
     alertEl.style.color = 'var(--am)';
   } else if(alertEl){
     alertEl.style.display='none';
@@ -26350,7 +26350,7 @@ function updateStatusBarStats(){
   updateRPBadges();
 }
 
-// â”€â”€â”€ 3. CHART TAB COLOUR CONTEXT MENU â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 3. CHART TAB COLOUR CONTEXT MENU ────────────────────────────────────────
 const TAB_COLOUR_SWATCHES = [
   { label:'Green',  val:'#00c9a0' },
   { label:'Blue',   val:'#3d7fff' },
@@ -26401,15 +26401,15 @@ function renameChartTabPrompt(){
   closeTabContextMenu();
 }
 
-// â”€â”€â”€ 4. SMARTER WATCHLIST SIGNALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 4. SMARTER WATCHLIST SIGNALS ────────────────────────────────────────────
 function getSymbolSignal(s){
   if(!s) return null;
   const c = parseFloat(s.c)||0;
-  if(c > 3)  return { icon:'ðŸ”¥', color:'var(--tl)',  label:'Strong up' };
-  if(c > 1)  return { icon:'â–²',  color:'var(--tl)',  label:'Up' };
-  if(c < -3) return { icon:'â„',  color:'var(--rd)',  label:'Strong down' };
-  if(c < -1) return { icon:'â–¼',  color:'var(--rd)',  label:'Down' };
-  return      { icon:'â”€',  color:'var(--tx3)', label:'Flat' };
+  if(c > 3)  return { icon:'🔥', color:'var(--tl)',  label:'Strong up' };
+  if(c > 1)  return { icon:'▲',  color:'var(--tl)',  label:'Up' };
+  if(c < -3) return { icon:'��',  color:'var(--rd)',  label:'Strong down' };
+  if(c < -1) return { icon:'▼',  color:'var(--rd)',  label:'Down' };
+  return      { icon:'─',  color:'var(--tx3)', label:'Flat' };
 }
 
 // Patch buildWL to inject signals (called as post-hook via DOMContentLoaded)
@@ -26435,7 +26435,7 @@ function _buildWLWithSignals(filter){
   });
 }
 
-// â”€â”€â”€ 5. RIGHT PANEL TAB BADGES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 5. RIGHT PANEL TAB BADGES ───────────────────────────────────────────────
 let _rpLastVisitAnalytics = Date.now();
 let _rpLastVisitNews      = Date.now();
 let _rpAnalyticsBadgeCount = 0;
@@ -26448,7 +26448,7 @@ function updateRPBadges(){
   if(badge){ badge.classList.toggle('show', todayNew > 0 && !document.getElementById('rp-analytics')?.classList.contains('on')); }
 }
 
-// â”€â”€â”€ 6. PRE-SESSION RITUAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 6. PRE-SESSION RITUAL ───────────────────────────────────────────────────
 function openRitualModal(){
   const bg = document.getElementById('ritual-bg');
   if(bg) bg.classList.add('open');
@@ -26508,7 +26508,7 @@ function _maybeShowRitualModal(){
   _ritualShownToday = true;
 }
 
-// â”€â”€â”€ 7. TILT INTERVENTION (ENHANCED) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 7. TILT INTERVENTION (ENHANCED) ─────────────────────────────────────────
 function _enhancedTiltDetector(){
   const recent = journal.slice(-5).map(e=>e.outcome).filter(o=>o==='win'||o==='loss');
   const tiltEl = document.getElementById('st-tilt');
@@ -26517,7 +26517,7 @@ function _enhancedTiltDetector(){
   const isTilt = losses >= 2;
   tiltEl.style.display = isTilt ? '' : 'none';
   if(isTilt){
-    tiltEl.title = `âš  ${losses} consecutive losses â€” consider stepping away`;
+    tiltEl.title = `⚠ ${losses} consecutive losses — consider stepping away`;
     tiltEl.style.cursor='pointer';
     tiltEl.onclick=()=>showTiltAlert(losses);
   }
@@ -26541,10 +26541,10 @@ function showTiltAlert(losses){
 function dismissTiltAlert(stepAway){
   const bg = document.getElementById('tilt-intervention-bg');
   if(bg) bg.classList.remove('open');
-  if(stepAway){ toast('â¸ Session paused. Come back when you\'re ready.'); }
+  if(stepAway){ toast('�� Session paused. Come back when you\'re ready.'); }
 }
 
-// â”€â”€â”€ 8. STREAK IN STATUSBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 8. STREAK IN STATUSBAR ──────────────────────────────────────────────────
 function updateStreakBadge(){
   const el = document.getElementById('sb-streak');
   if(!el) return;
@@ -26557,18 +26557,18 @@ function updateStreakBadge(){
   if(streak >= 2){
     el.style.display='';
     if(curType==='win'){
-      el.textContent=`ðŸ”¥ ${streak}W`;
+      el.textContent=`🔥 ${streak}W`;
       el.style.color='var(--tl)';
       el.title=`${streak} win streak!`;
     } else {
-      el.textContent=`â„ ${streak}L`;
+      el.textContent=`�� ${streak}L`;
       el.style.color='var(--rd)';
-      el.title=`${streak} loss streak â€” consider a break`;
+      el.title=`${streak} loss streak — consider a break`;
     }
   } else { el.style.display='none'; }
 }
 
-// â”€â”€â”€ 9. SESSION DEBRIEF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 9. SESSION DEBRIEF ───────────────────────────────────────────────────────
 function openSessionDebrief(){
   const bg = document.getElementById('debrief-bg');
   if(!bg) return;
@@ -26587,8 +26587,8 @@ function openSessionDebrief(){
   if(stats) stats.innerHTML=[
     { val: todayTrades.length, lbl:'Trades', col:'var(--tx)' },
     { val: wins+'W/'+losses+'L', lbl:'Win/Loss', col: wins>=losses?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '—', lbl:'Win Rate', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '�', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '�', lbl:'Win Rate', col:'var(--am)' },
   ].map(s=>`<div class="debrief-stat-card"><div class="debrief-stat-val" style="color:${s.col}">${s.val}</div><div class="debrief-stat-lbl">${s.lbl}</div></div>`).join('');
 
   const body = document.getElementById('debrief-body');
@@ -26597,7 +26597,7 @@ function openSessionDebrief(){
     body.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;">No trades logged today.</div>';
     return;
   }
-  body.innerHTML='<div style="color:var(--tx3);font-size:11px;">Generating AI debriefâ€¦</div>';
+  body.innerHTML='<div style="color:var(--tx3);font-size:11px;">Generating AI debrief…</div>';
 
   // Build prompt for AI
   const summary = todayTrades.map(e=>`${e.dir?.toUpperCase()||'?'} ${e.sym} @${e.entry} → exit ${e.exit||'?'} | ${e.outcome||'open'} | P&L: ${e.pl!=null?e.pl.toFixed(2):'?'} | Notes: ${e.note||'none'}`).join('\n');
@@ -26615,7 +26615,7 @@ function closeSessionDebrief(){
   if(bg) bg.classList.remove('open');
 }
 
-// â”€â”€â”€ 10. TRADER DNA CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 10. TRADER DNA CARD ─────────────────────────────────────────────────────
 function openDNACard(){
   const bg = document.getElementById('dna-bg');
   if(!bg) return;
@@ -26628,13 +26628,13 @@ function openDNACard(){
   const plVals = journal.filter(e=>e.pl!=null).map(e=>e.pl);
   const netPL = plVals.reduce((s,v)=>s+v,0);
   const rrVals = journal.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
+  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '�';
 
   // Username
   const user = typeof supabaseUser!=='undefined' ? supabaseUser : null;
   const uname = user?.email?.split('@')[0] || 'Trader';
   const sub = document.getElementById('dna-subtitle');
-  if(sub) sub.textContent = `${closed.length} closed trades Â· ${journal.length} total`;
+  if(sub) sub.textContent = `${closed.length} closed trades · ${journal.length} total`;
   const uEl = document.getElementById('dna-username');
   if(uEl) uEl.textContent = uname.charAt(0).toUpperCase()+uname.slice(1);
 
@@ -26642,8 +26642,8 @@ function openDNACard(){
   const grid = document.getElementById('dna-stats-grid');
   if(grid) grid.innerHTML = [
     { val: wr+'%', lbl:'Win Rate', col: wr>=50?'var(--tl)':'var(--rd)' },
-    { val: avgRR==='—'?'—':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: avgRR==='�'?'�':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '�', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
   ].map(s=>`<div class="dna-stat-card"><div class="dna-stat-val" style="color:${s.col}">${s.val}</div><div class="dna-stat-lbl">${s.lbl}</div></div>`).join('');
 
   // Strengths (top tags by win rate)
@@ -26682,7 +26682,7 @@ function closeDNACard(){
   if(bg) bg.classList.remove('open');
 }
 
-// â”€â”€â”€ 11. RISK DASHBOARD STRIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 11. RISK DASHBOARD STRIP ────────────────────────────────────────────────
 function updateRiskStrip(){
   const strip = document.getElementById('risk-strip');
   if(!strip) return;
@@ -26700,12 +26700,12 @@ function updateRiskStrip(){
     <div class="risk-strip-cell"><span class="rsc-label">DAILY LIMIT</span> <span class="rsc-val" style="color:var(--tx2);">$${maxLoss.toFixed(0)}</span></div>
     <div class="risk-strip-cell"><span class="rsc-label">USED</span> <span class="rsc-val" style="color:${col};">${pct.toFixed(0)}%</span> <div class="rsc-bar"><div class="rsc-bar-fill" style="width:${pct}%;background:${col};"></div></div></div>
     <div class="risk-strip-cell"><span class="rsc-label">REMAINING</span> <span class="rsc-val" style="color:${remaining>0?'var(--tl)':'var(--rd)'}">${remaining>0?'$'+remaining.toFixed(0):'STOP'}</span></div>
-    <div class="risk-strip-cell" style="cursor:pointer;" onclick="openRitualModal()" title="Edit limits"><span style="color:var(--tx3);font-size:11px;">âš™</span></div>
+    <div class="risk-strip-cell" style="cursor:pointer;" onclick="openRitualModal()" title="Edit limits"><span style="color:var(--tx3);font-size:11px;">⚙</span></div>
   `;
-  if(pct>=100 && !strip._warned){ strip._warned=true; toast('ðŸ›‘ Daily loss limit reached â€” stop trading for today.'); }
+  if(pct>=100 && !strip._warned){ strip._warned=true; toast('🛑 Daily loss limit reached — stop trading for today.'); }
 }
 
-// â”€â”€â”€ 12. ONBOARDING TOUR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 12. ONBOARDING TOUR ─────────────────────────────────────────────────────
 function startOnboardingTour(force){
   if(!force && _lsGet('tour-completed')) return;
   _lsSet('tour-completed',''); // clear so it re-plays
@@ -26743,7 +26743,7 @@ function _renderTourStep(){
     spot.style.height=(r.height+pad*2)+'px';
     spot.style.borderRadius='7px';
     spot.style.pointerEvents='none';
-    // Smart tooltip positioning â€” prefer right of target, then left, then below
+    // Smart tooltip positioning — prefer right of target, then left, then below
     const tW=280, tH=190, margin=16;
     const vw=window.innerWidth, vh=window.innerHeight;
     let tL, tT;
@@ -26777,7 +26777,7 @@ function tourSkip(){
   _lsSet('tour-completed','1');
 }
 
-// â”€â”€â”€ 13. TRADE IDEA KANBAN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 13. TRADE IDEA KANBAN ────────────────────────────────────────────────────
 function openKanban(){
   const bg=document.getElementById('kanban-bg');
   if(bg) bg.classList.add('open');
@@ -26817,9 +26817,9 @@ function renderKanban(){
   const board=document.getElementById('kanban-board');
   if(!board) return;
   const cols=[
-    {key:'watching',label:'ðŸ‘ Watching',    col:'var(--bl)'},
-    {key:'ready',   label:'âš¡ Ready',        col:'var(--tl)'},
-    {key:'passed',  label:'âœ“ Passed/Closed', col:'var(--tx3)'},
+    {key:'watching',label:'� Watching',    col:'var(--bl)'},
+    {key:'ready',   label:'⚡ Ready',        col:'var(--tl)'},
+    {key:'passed',  label:'✓ Passed/Closed', col:'var(--tx3)'},
   ];
   board.innerHTML=cols.map(c=>{
     const ideas=tradeIdeas.filter(t=>t.col===c.key);
@@ -26838,7 +26838,7 @@ function renderKanban(){
         ${idea.notes?`<div class="kanban-card-notes">${idea.notes}</div>`:''}
         <div class="kanban-card-footer">
           ${moveBtns}
-          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">×</button>
+          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">�</button>
         </div>
       </div>`;
     }).join('') || `<div style="color:var(--tx3);font-size:11px;text-align:center;padding:12px;opacity:.6;">Empty</div>`;
@@ -26849,7 +26849,7 @@ function renderKanban(){
   }).join('');
 }
 
-// â”€â”€â”€ 14. PATTERN COMPLETION PROGRESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 14. PATTERN COMPLETION PROGRESS ─────────────────────────────────────────
 function updatePatternProgress(phase, method){
   const el=document.getElementById('pattern-progress');
   if(!el) return;
@@ -26868,15 +26868,15 @@ function updatePatternProgress(phase, method){
   el.innerHTML=steps.map((s,i)=>{
     const isDone=i<activeIdx;
     const isAct=i===activeIdx;
-    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">›</span>':''}`;
+    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">�</span>':''}`;
   }).join('');
 }
 
-// â”€â”€â”€ 15. MACRO CONTEXT STRIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 15. MACRO CONTEXT STRIP ──────────────────────────────────────────────────
 function updateMacroStrip(){
   const el=document.getElementById('macro-strip');
   if(!el||_macroStripDismissed) return;
-  // Static macro context — shows session info + bias
+  // Static macro context � shows session info + bias
   const sessions=[
     {name:'Asia',   start:22*60, end:6*60,    col:'#3d7fff'},
     {name:'London', start:7*60,  end:15*60+30,col:'#00c9a0'},
@@ -26906,11 +26906,11 @@ function updateMacroStrip(){
     <div class="macro-pill"><span class="mp-label">SESSION</span>${sessHtml}</div>
     ${bias?`<div class="macro-pill"><span class="mp-label">BIAS</span><span style="color:var(--am);font-weight:600;">${bias}</span></div>`:''}
     ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}...</span></div>`:''}
-    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">×</button>
+    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">�</button>
   `;
 }
 
-// â”€â”€â”€ 16. SYMBOL THEME TINT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 16. SYMBOL THEME TINT ────────────────────────────────────────────────────
 const _SYM_TINTS={
   Crypto: 'rgba(0,212,160,.035)',
   Stock:  'rgba(61,142,255,.03)',
@@ -26925,7 +26925,7 @@ function applySymbolTint(sym){
   if(area) area.style.background=`radial-gradient(ellipse at 50% 120%, ${tint} 0%, transparent 65%)`;
 }
 
-// â”€â”€â”€ 17. EMOTIONAL GUARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 17. EMOTIONAL GUARD ─────────────────────────────────────────────────────
 function openEmotionalGuard(toolId){
   _pendingEmotionTool=toolId;
   const bg=document.getElementById('emo-guard-bg');
@@ -26950,30 +26950,30 @@ function proceedWithTool(){
   if(tool && typeof setTool==='function') setTool(tool);
 }
 
-// â”€â”€â”€ 18. WHY DID I LOSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 18. WHY DID I LOSE ───────────────────────────────────────────────────────
 function whyDidILose(entryId){
   const e=journal.find(j=>j.id===entryId);
   if(!e){ toast('Trade not found'); return; }
   const btn=document.querySelector(`#je-${entryId} .wdil-btn`);
-  if(btn){ btn.textContent='Analysingâ€¦'; btn.disabled=true; }
+  if(btn){ btn.textContent='Analysing…'; btn.disabled=true; }
   const prompt=`You are a trading coach. Analyse this losing trade and tell the trader specifically why they likely lost and what to do differently next time:\n\nSymbol: ${e.sym}\nDirection: ${e.dir}\nSetup: ${e.setup||'not specified'}\nEntry: ${e.entry}\nStop Loss: ${e.sl||'not set'}\nExit: ${e.exit||'not set'}\nP&L: ${e.pl!=null?e.pl.toFixed(2):'unknown'}\nNotes: ${e.note||'none'}\nEmotions: ${(e.emotions||[]).join(', ')||'not logged'}\n\nKeep it under 100 words. Be direct, specific, and constructive.`;
   aiComplete([{role:'user',content:prompt}]).then(text=>{
     const container=document.getElementById(`autopsy-${entryId}`);
-    if(container){ container.style.display='block'; container.textContent='â“ WHY I LOST: '+text; container.style.borderLeftColor='var(--rd)'; }
-    if(btn){ btn.textContent='âœ“ Done'; btn.style.opacity='.5'; }
+    if(container){ container.style.display='block'; container.textContent='�� WHY I LOST: '+text; container.style.borderLeftColor='var(--rd)'; }
+    if(btn){ btn.textContent='✓ Done'; btn.style.opacity='.5'; }
   }).catch(err=>{
     if(btn){ btn.textContent='Why did I lose?'; btn.disabled=false; }
     toast('Could not analyse: '+err.message);
   });
 }
 
-// â”€â”€â”€ 19. AI SETUP WATCH MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 19. AI SETUP WATCH MODE ──────────────────────────────────────────────────
 function toggleSetupWatch(){
   setupWatchActive=!setupWatchActive;
   _lsSet('setup-watch-active',setupWatchActive?'1':'');
   _updateSetupWatchUI();
   if(setupWatchActive){
-    toast('ðŸ‘ Setup Watch active â€” AI will alert you when a setup forms');
+    toast('� Setup Watch active — AI will alert you when a setup forms');
     if(!_setupWatchInterval) _setupWatchInterval=setInterval(_checkSetupWatch, 120000);
   } else {
     toast('Setup Watch off');
@@ -27005,11 +27005,11 @@ function _checkSetupWatch(){
   const bias=(biasEl?.textContent||'').toLowerCase();
   if(bias.includes('bullish')||bias.includes('bearish')){
     _setupWatchLastAlert=now;
-    toast(`âš¡ Setup Watch: ${bias.toUpperCase()} signal on ${curSym.s} ${curTF}`);
+    toast(`⚡ Setup Watch: ${bias.toUpperCase()} signal on ${curSym.s} ${curTF}`);
   }
 }
 
-// â”€â”€â”€ 20. SMARTER WATCHLIST (buildWL hook) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 20. SMARTER WATCHLIST (buildWL hook) ─────────────────────────────────────
 // Hook called after buildWL to inject signal badges
 function _postBuildWLHook(){
   document.querySelectorAll('.wl-row[data-sym]').forEach(row=>{
@@ -27031,7 +27031,7 @@ function _postBuildWLHook(){
   });
 }
 
-// â”€â”€â”€ WIRE UP MODIFICATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── WIRE UP MODIFICATIONS ────────────────────────────────────────────────────
 // Override updateTiltDetector to use enhanced version
 if(typeof updateTiltDetector==='function') window.updateTiltDetector=_enhancedTiltDetector;
 
@@ -27114,7 +27114,7 @@ function computePlanScore(){
     breakdown.push({ label: `${maxConsec} consecutive losses detected`, penalty });
   }
 
-  // Deduct for poor RR — average below 1.0
+  // Deduct for poor RR � average below 1.0
   const rrVals = closed.filter(t => t.rr != null).map(t => Number(t.rr));
   const avgRR = rrVals.length ? rrVals.reduce((a,b) => a+b, 0) / rrVals.length : null;
   if(avgRR !== null && avgRR < 1.0){
@@ -27139,9 +27139,9 @@ function renderDNACard(){
     return;
   }
 
-  const winRate = p.winRate != null ? p.winRate + '%' : '—';
-  const avgRR   = p.avgRR   != null ? '1:' + p.avgRR.toFixed(2) : '—';
-  const best    = p.bestSetup ? p.bestSetup.key : (p.bestSymbol ? p.bestSymbol.key : '—');
+  const winRate = p.winRate != null ? p.winRate + '%' : '�';
+  const avgRR   = p.avgRR   != null ? '1:' + p.avgRR.toFixed(2) : '�';
+  const best    = p.bestSetup ? p.bestSetup.key : (p.bestSymbol ? p.bestSymbol.key : '�');
   const scoreColor = score >= 80 ? 'var(--tl)' : score >= 55 ? 'var(--am)' : 'var(--rd)';
   const scoreLabel = score >= 80 ? 'Disciplined' : score >= 55 ? 'Developing' : 'Needs Work';
 
@@ -27160,11 +27160,11 @@ function renderDNACard(){
         <div class="dna-lbl">Trades</div>
       </div>
       <div class="dna-stat">
-        <div class="dna-val" title="${best}">${best.length > 8 ? best.slice(0,8)+'…' : best}</div>
+        <div class="dna-val" title="${best}">${best.length > 8 ? best.slice(0,8)+'�' : best}</div>
         <div class="dna-lbl">Top Setup</div>
       </div>
       <div class="dna-stat" style="border-left:2px solid var(--b1);padding-left:10px;">
-        <div class="dna-val" style="color:${scoreColor};">${score != null ? score : '—'}</div>
+        <div class="dna-val" style="color:${scoreColor};">${score != null ? score : '�'}</div>
         <div class="dna-lbl" style="color:${scoreColor};">${scoreLabel}</div>
       </div>
     </div>`;
@@ -27420,7 +27420,7 @@ function checkEmptyWidgets(){
     if(analyticsHidden?.has(wid)) continue; // respect user's choice
     const isEmpty = content.children.length === 0 && content.innerText.trim() === '';
     if(isEmpty) widget.style.display = 'none';
-    // don't force-show — applyAnalyticsVisibility already handled that
+    // don't force-show � applyAnalyticsVisibility already handled that
   }
   // Show/hide analytics-stage section titles if all their widgets are hidden
   document.querySelectorAll('#analytics-widgets .analytics-stage').forEach(stage => {
@@ -27572,7 +27572,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 // Override Cmd+K to open command palette
 (function(){
-  // Re-bind Cmd+K â€” find existing listener section and override via capture
+  // Re-bind Cmd+K — find existing listener section and override via capture
   document.addEventListener('keydown', e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){
       e.preventDefault();
@@ -27585,10 +27585,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // Update status bar on a slower interval
 setInterval(()=>{ updateStatusBarStats(); }, 30000);
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
 // AI CHART OVERLAY
 // Draws S/R levels, bias badge, and top pattern label directly on the canvas.
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ������������������������������������������������������������������������������
 
 function toggleAIOverlay(){
   aiOverlayEnabled = !aiOverlayEnabled;
@@ -27599,12 +27599,12 @@ function toggleAIOverlay(){
       btn.style.background = 'rgba(61,142,255,.18)';
       btn.style.borderColor = 'rgba(61,142,255,.55)';
       btn.style.color       = 'var(--bl)';
-      btn.textContent       = 'â¬¡ AI Overlay';
+      btn.textContent       = '⬡ AI Overlay';
     } else {
       btn.style.background = 'rgba(255,255,255,.04)';
       btn.style.borderColor = 'rgba(255,255,255,.1)';
       btn.style.color       = 'var(--tx3)';
-      btn.textContent       = 'â¬¡ AI Overlay';
+      btn.textContent       = '⬡ AI Overlay';
     }
   }
   draw();
@@ -27636,7 +27636,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
 
   const currentPrice = last.close;
 
-  // â”€â”€ Nearest support (1 line only, closest below price) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Nearest support (1 line only, closest below price) ───────────────────
   const nearestSupport = (sr.support || [])
     .filter(p => isFinite(p) && p < currentPrice && py(p) >= 2 && py(p) <= H - 2)
     .sort((a, b) => b - a)[0];
@@ -27661,7 +27661,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
     ctx.fillText(label, rightEdge - 5, y - 1);
   }
 
-  // â”€â”€ Nearest resistance (1 line only, closest above price) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Nearest resistance (1 line only, closest above price) ────────────────
   const nearestResistance = (sr.resistance || [])
     .filter(p => isFinite(p) && p > currentPrice && py(p) >= 2 && py(p) <= H - 2)
     .sort((a, b) => a - b)[0];
@@ -27685,7 +27685,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
     ctx.fillText(label, rightEdge - 5, y - 1);
   }
 
-  // â”€â”€ Compact bias badge â€” top-left of chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Compact bias badge — top-left of chart ───────────────────────────────
   if(bias && bias !== 'NEUTRAL'){
     const isUp  = bias === 'BULLISH';
     const col   = isUp ? 'rgba(0,201,160,' : 'rgba(240,48,96,';
@@ -27706,7 +27706,7 @@ function renderAIOverlay(ctx, W, H, py, barX, C){
     ctx.fillText(text, 12, 14);
   }
 
-  // â”€â”€ Directional arrow above/below the most recent bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Directional arrow above/below the most recent bar ────────────────────
   if(bias && bias !== 'NEUTRAL' && curData?.length){
     const lastBar = curData[curData.length - 1];
     const bx2     = barX(curData.length - 1);
