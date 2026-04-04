@@ -1928,6 +1928,7 @@ function renderAIPanel(r){
     if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
     if(_heroIcon) _heroIcon.style.color = _hCol;
   }
+  updateWorkflowStrip();
 }
 
 // â•â• JOURNAL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -2420,6 +2421,10 @@ function buildJournal(){
   if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'—'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
   const bestEl=document.getElementById('jst-best');
   if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'—'; }
+  const { score: planScore } = computePlanScore();
+  const scoreEl=document.getElementById('jst-score');
+  if(scoreEl){ scoreEl.textContent=planScore!=null?planScore:'—'; scoreEl.style.color=planScore==null?'':(planScore>=80?'var(--tl)':planScore>=55?'var(--am)':'var(--rd)'); }
+  updateActivationBanner();
 
   drawEquityCurve();
   if(document.getElementById('rp-analytics')?.classList.contains('on')) buildAnalytics();
@@ -2784,6 +2789,7 @@ function setupFilter(btn, mode){
 
 function buildAnalytics(){
   applyAnalyticsVisibility();
+  renderDNACard();
   renderAnalyticsHero();
   renderTraderProfileWidget();
   renderThesisTrackerWidget();
@@ -27072,6 +27078,338 @@ const WIDGET_EMPTY_IDS = {
   sym:       'sym-chart',
 };
 
+// ══ PLAN / DISCIPLINE SCORE ════════════════════════════════════════════════
+function computePlanScore(){
+  const closed = getClosedJournalTrades();
+  if(!closed.length) return { score: null, breakdown: [] };
+
+  let score = 100;
+  const breakdown = [];
+
+  // Deduct for untagged trades (no setup)
+  const untagged = closed.filter(t => !t.setup || t.setup.trim() === '').length;
+  if(untagged > 0){
+    const penalty = Math.min(25, untagged * 5);
+    score -= penalty;
+    breakdown.push({ label: `${untagged} trade${untagged > 1 ? 's' : ''} without a setup`, penalty });
+  }
+
+  // Deduct for trades with no notes
+  const noNotes = closed.filter(t => !t.note || t.note.trim() === '').length;
+  if(noNotes > 0){
+    const penalty = Math.min(15, noNotes * 3);
+    score -= penalty;
+    breakdown.push({ label: `${noNotes} trade${noNotes > 1 ? 's' : ''} without notes`, penalty });
+  }
+
+  // Deduct for consecutive losses (revenge trading risk)
+  let maxConsec = 0, cur = 0;
+  [...closed].reverse().forEach(t => {
+    if(t.outcome === 'loss'){ cur++; if(cur > maxConsec) maxConsec = cur; }
+    else cur = 0;
+  });
+  if(maxConsec >= 3){
+    const penalty = Math.min(30, (maxConsec - 2) * 7);
+    score -= penalty;
+    breakdown.push({ label: `${maxConsec} consecutive losses detected`, penalty });
+  }
+
+  // Deduct for poor RR — average below 1.0
+  const rrVals = closed.filter(t => t.rr != null).map(t => Number(t.rr));
+  const avgRR = rrVals.length ? rrVals.reduce((a,b) => a+b, 0) / rrVals.length : null;
+  if(avgRR !== null && avgRR < 1.0){
+    const penalty = 10;
+    score -= penalty;
+    breakdown.push({ label: `Avg R:R ${avgRR.toFixed(2)} is below 1.0`, penalty });
+  }
+
+  return { score: Math.max(0, Math.min(100, Math.round(score))), breakdown, avgRR };
+}
+
+// ══ TRADING DNA CARD ════════════════════════════════════════════════════════
+function renderDNACard(){
+  const el = document.getElementById('dna-card');
+  if(!el) return;
+  const p = getTraderProfile();
+  const closed = getClosedJournalTrades();
+  const { score } = computePlanScore();
+
+  if(!closed.length){
+    el.innerHTML = `<div style="font-size:10px;color:var(--tx3);padding:4px 0;">Log trades to see your Trading DNA.</div>`;
+    return;
+  }
+
+  const winRate = p.winRate != null ? p.winRate + '%' : '—';
+  const avgRR   = p.avgRR   != null ? '1:' + p.avgRR.toFixed(2) : '—';
+  const best    = p.bestSetup ? p.bestSetup.key : (p.bestSymbol ? p.bestSymbol.key : '—');
+  const scoreColor = score >= 80 ? 'var(--tl)' : score >= 55 ? 'var(--am)' : 'var(--rd)';
+  const scoreLabel = score >= 80 ? 'Disciplined' : score >= 55 ? 'Developing' : 'Needs Work';
+
+  el.innerHTML = `
+    <div class="dna-card-inner">
+      <div class="dna-stat">
+        <div class="dna-val">${winRate}</div>
+        <div class="dna-lbl">Win Rate</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val">${avgRR}</div>
+        <div class="dna-lbl">Avg R:R</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val">${closed.length}</div>
+        <div class="dna-lbl">Trades</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val" title="${best}">${best.length > 8 ? best.slice(0,8)+'…' : best}</div>
+        <div class="dna-lbl">Top Setup</div>
+      </div>
+      <div class="dna-stat" style="border-left:2px solid var(--b1);padding-left:10px;">
+        <div class="dna-val" style="color:${scoreColor};">${score != null ? score : '—'}</div>
+        <div class="dna-lbl" style="color:${scoreColor};">${scoreLabel}</div>
+      </div>
+    </div>`;
+}
+
+// ══ WORKFLOW STRIP ═══════════════════════════════════════════════════════════
+function updateWorkflowStrip(){
+  const strip = document.getElementById('wf-strip');
+  if(!strip) return;
+
+  const hasBias     = !!curData?.length;
+  const hasDrawing  = typeof drawings !== 'undefined' && drawings.some(d => d._tapRefinement);
+  const hasTrade    = typeof drawings !== 'undefined' && drawings.some(d => d.type === 'long' || d.type === 'short');
+  const hasJournal  = journal.filter(e => !e.archived).length > 0;
+
+  const steps = [
+    { id:'wf-find',     active: hasBias,    done: hasBias },
+    { id:'wf-validate', active: hasBias,    done: hasDrawing },
+    { id:'wf-execute',  active: hasDrawing, done: hasTrade },
+    { id:'wf-review',   active: hasTrade,   done: hasJournal },
+  ];
+
+  steps.forEach(s => {
+    const el = document.getElementById(s.id);
+    if(!el) return;
+    el.className = 'wf-step' + (s.done ? ' wf-done' : s.active ? ' wf-active' : '');
+  });
+}
+
+// ══ ACTIVATION BANNER ═══════════════════════════════════════════════════════
+function updateActivationBanner(){
+  const banner  = document.getElementById('activation-banner');
+  const textEl  = document.getElementById('activation-banner-text');
+  const btnEl   = document.getElementById('activation-banner-btn');
+  if(!banner || !textEl || !btnEl) return;
+
+  const closed  = getClosedJournalTrades();
+  const all     = journal.filter(e => !e.archived);
+  const hasSetup = all.some(e => e.setup && e.setup.trim() !== '');
+
+  let text = '', btnLabel = '', btnAction = '';
+
+  if(all.length === 0){
+    text = 'Log your first trade to unlock Analytics & AI insights.';
+    btnLabel = 'Log Trade';
+    btnAction = "document.getElementById('open-journal-modal')?.click()";
+  } else if(closed.length < 5){
+    text = `${5 - closed.length} more closed trade${5-closed.length!==1?'s':''} needed to unlock full Analytics.`;
+    btnLabel = 'Log Trade';
+    btnAction = "document.getElementById('open-journal-modal')?.click()";
+  } else if(!hasSetup){
+    text = 'Add a Setup tag to your trades to unlock DNA insights.';
+    btnLabel = 'Open Journal';
+    btnAction = "document.getElementById('tab-journal')?.click()";
+  } else {
+    banner.style.display = 'none';
+    return;
+  }
+
+  textEl.textContent = text;
+  btnEl.textContent  = btnLabel;
+  btnEl.onclick = new Function(btnAction);
+  banner.style.display = 'flex';
+}
+
+// ══ CSV IMPORT ═══════════════════════════════════════════════════════════════
+function openCSVImport(){
+  const modal = document.getElementById('csv-import-modal');
+  if(modal){ modal.style.display = 'flex'; return; }
+
+  const m = document.createElement('div');
+  m.id = 'csv-import-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal-box" style="max-width:460px;">
+      <div class="modal-hdr">
+        <span style="font-weight:700;font-size:13px;">Import Trades from CSV</span>
+        <button onclick="document.getElementById('csv-import-modal').style.display='none'" style="background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+      </div>
+      <div style="padding:12px 14px;">
+        <p style="font-size:11px;color:var(--tx2);margin:0 0 10px;">Supports MT4/MT5 history exports, Binance order history, Bybit trade history, or a generic CSV with columns: symbol, direction, entry, exit, size, P&L.</p>
+        <input type="file" id="csv-file-input" accept=".csv,.txt" style="font-size:11px;color:var(--tx2);width:100%;margin-bottom:10px;" onchange="_handleCSVFile(this)">
+        <div id="csv-preview" style="font-size:10px;color:var(--tx3);min-height:30px;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+          <button onclick="document.getElementById('csv-import-modal').style.display='none'" class="j-btn">Cancel</button>
+          <button id="csv-import-btn" onclick="_processImportCSV()" class="j-btn" style="background:var(--bl);color:#fff;display:none;">Import</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.style.display = 'flex';
+}
+
+let _csvParsedTrades = [];
+function _handleCSVFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const rows = _parseCSVRows(text);
+    const fmt  = _detectBrokerFormat(rows[0] || {});
+    const trades = rows.map(r => _mapRowToTrade(r, fmt)).filter(Boolean);
+    _csvParsedTrades = trades;
+    const preview = document.getElementById('csv-preview');
+    const btn = document.getElementById('csv-import-btn');
+    if(!trades.length){
+      preview.textContent = 'No valid trades found. Check your file format.';
+      if(btn) btn.style.display = 'none';
+    } else {
+      preview.innerHTML = `<span style="color:var(--tl);">✓</span> Found <b>${trades.length}</b> trades (${fmt} format detected).`;
+      if(btn) btn.style.display = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function _parseCSVRows(text){
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if(lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  });
+}
+
+function _detectBrokerFormat(row){
+  const keys = Object.keys(row).join(' ').toLowerCase();
+  if(keys.includes('ticket') || keys.includes('profit') && keys.includes('open time')) return 'MT4/MT5';
+  if(keys.includes('orderno') || keys.includes('realized profit')) return 'Binance';
+  if(keys.includes('qty') && keys.includes('avg price')) return 'Bybit';
+  return 'Generic';
+}
+
+function _mapRowToTrade(row, fmt){
+  try{
+    let sym='', dir='long', entry=0, exit=0, size=1, pl=null, note='', time=null;
+    if(fmt === 'MT4/MT5'){
+      sym   = (row['symbol'] || row['item'] || '').toUpperCase();
+      dir   = (row['type'] || '').toLowerCase().includes('sell') ? 'short' : 'long';
+      entry = parseFloat(row['open price'] || row['price'] || 0);
+      exit  = parseFloat(row['close price'] || row['price'] || 0);
+      size  = parseFloat(row['size'] || row['lots'] || 1);
+      pl    = parseFloat(row['profit'] || 0);
+      time  = row['open time'] ? new Date(row['open time']).getTime() : Date.now();
+    } else if(fmt === 'Binance'){
+      sym   = (row['pair'] || row['symbol'] || '').toUpperCase();
+      dir   = (row['side'] || '').toLowerCase() === 'sell' ? 'short' : 'long';
+      entry = parseFloat(row['avg. price'] || row['price'] || 0);
+      size  = parseFloat(row['filled'] || row['qty'] || 1);
+      pl    = parseFloat(row['realized profit'] || 0);
+    } else if(fmt === 'Bybit'){
+      sym   = (row['symbol'] || '').toUpperCase();
+      dir   = (row['side'] || '').toLowerCase() === 'sell' ? 'short' : 'long';
+      entry = parseFloat(row['avg price'] || row['price'] || 0);
+      size  = parseFloat(row['qty'] || 1);
+      pl    = parseFloat(row['closed p&l'] || row['pnl'] || 0);
+    } else {
+      sym   = (row['symbol'] || row['pair'] || row['ticker'] || '').toUpperCase();
+      dir   = (row['direction'] || row['side'] || row['type'] || 'long').toLowerCase().includes('sell') || (row['direction']||'').toLowerCase() === 'short' ? 'short' : 'long';
+      entry = parseFloat(row['entry'] || row['open'] || 0);
+      exit  = parseFloat(row['exit'] || row['close'] || 0);
+      size  = parseFloat(row['size'] || row['qty'] || row['amount'] || 1);
+      pl    = row['pl'] != null ? parseFloat(row['pl']) : row['pnl'] != null ? parseFloat(row['pnl']) : null;
+    }
+    if(!sym || !isFinite(entry) || entry === 0) return null;
+    const outcome = pl != null ? (pl >= 0 ? 'win' : 'loss') : null;
+    return {
+      id: 'csv_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+      entryName: sym + ' Import',
+      sym, dir: dir === 'short' ? 'short' : 'long',
+      tf: '', entry, exit: exit || null, size, pl: pl != null ? pl : null,
+      outcome, rr: null, note, lessons: '', setup: '', emotions: [], tags: [],
+      time: time || Date.now(), archived: false,
+    };
+  } catch(e){ return null; }
+}
+
+function _processImportCSV(){
+  if(!_csvParsedTrades.length) return;
+  _confirmCSVImport(_csvParsedTrades);
+}
+
+function _confirmCSVImport(trades){
+  const existing = journal.map(t => t.id);
+  const fresh = trades.filter(t => !existing.includes(t.id));
+  if(!fresh.length){
+    document.getElementById('csv-preview').textContent = 'All trades already imported.';
+    return;
+  }
+  journal.unshift(...fresh);
+  saveJournal();
+  buildJournal();
+  document.getElementById('csv-import-modal').style.display = 'none';
+  toast(`Imported ${fresh.length} trade${fresh.length > 1 ? 's' : ''}!`);
+}
+
+// ══ PRE-TRADE CHECKLIST ══════════════════════════════════════════════════════
+function _preTradeCheck(cb){
+  const warnings = [];
+  const closed = getClosedJournalTrades();
+
+  // Check for recent consecutive losses (3+)
+  const recent = [...closed].reverse().slice(0, 5);
+  let streak = 0;
+  for(const t of recent){ if(t.outcome === 'loss') streak++; else break; }
+  if(streak >= 3) warnings.push(`You're on a ${streak}-loss streak. Is this setup A-grade?`);
+
+  // Check if we have a bias / copilot analysis for current symbol
+  const sym = typeof curSym !== 'undefined' ? curSym?.s : null;
+  const hasBias = sym && typeof tapAnalysisCache !== 'undefined' && tapAnalysisCache[sym]?.aiResult;
+  if(!hasBias) warnings.push('No AI analysis run for this symbol yet. Consider running Copilot first.');
+
+  if(warnings.length === 0){ cb(); return; }
+  _showPreTradeModal(warnings, cb);
+}
+
+function _showPreTradeModal(warnings, onConfirm){
+  const existing = document.getElementById('pretrade-modal');
+  if(existing) existing.remove();
+
+  const m = document.createElement('div');
+  m.id = 'pretrade-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal-box" style="max-width:380px;">
+      <div class="modal-hdr" style="border-bottom:1px solid var(--line);">
+        <span style="font-weight:700;font-size:13px;color:var(--am);">⚠ Pre-Trade Check</span>
+      </div>
+      <div style="padding:12px 14px;">
+        <ul style="margin:0 0 14px 16px;padding:0;font-size:11px;color:var(--tx2);line-height:1.7;">
+          ${warnings.map(w => `<li>${w}</li>`).join('')}
+        </ul>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="document.getElementById('pretrade-modal').remove()" class="j-btn">Cancel</button>
+          <button onclick="document.getElementById('pretrade-modal').remove();(${onConfirm.toString()})()" class="j-btn" style="background:var(--am);color:#111;">Proceed Anyway</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
 function checkEmptyWidgets(){
   // Hide widgets whose primary data container has no rendered content,
   // but never un-hide widgets the user has explicitly hidden via Customise
@@ -27204,6 +27542,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Collapsible sidebar sections
   initCollapsibleSections();
+
+  // Activation banner
+  updateActivationBanner();
 
   // Initial status bar
   setTimeout(updateStatusBarStats, 500);

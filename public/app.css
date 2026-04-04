@@ -2718,3 +2718,70 @@ body.is-dragging { user-select: none; }
   transition:color .15s;
 }
 .sec-title:hover .widget-collapse-arrow{color:var(--tx2);}
+
+/* ══ TRADING DNA CARD ══════════════════════════════════════════════════════ */
+.dna-card-inner{
+  display:flex;align-items:center;gap:0;
+  flex-wrap:wrap;
+}
+.dna-stat{
+  flex:1 1 0;min-width:52px;
+  text-align:center;padding:4px 6px;
+  border-right:1px solid var(--line);
+}
+.dna-stat:last-child{border-right:none;}
+.dna-val{font-size:14px;font-weight:800;color:var(--tx);font-family:monospace;line-height:1.2;}
+.dna-lbl{font-size:9px;color:var(--tx3);margin-top:2px;text-transform:uppercase;letter-spacing:.4px;}
+
+/* ══ WORKFLOW STRIP ═════════════════════════════════════════════════════════ */
+#wf-strip{
+  display:flex;align-items:center;justify-content:center;
+  gap:4px;padding:8px 8px 6px;
+  border-bottom:1px solid var(--line);
+  background:var(--bg2);
+}
+.wf-step{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:4px 8px;border-radius:6px;cursor:default;
+  border:1px solid var(--b1);background:var(--bg3);
+  opacity:.45;transition:opacity .2s,border-color .2s,background .2s;
+  min-width:48px;
+}
+.wf-step.wf-active{opacity:.75;border-color:var(--am);}
+.wf-step.wf-done{opacity:1;border-color:var(--tl);background:rgba(0,201,160,.07);}
+.wf-num{font-size:9px;font-weight:700;color:var(--tx3);}
+.wf-step.wf-active .wf-num{color:var(--am);}
+.wf-step.wf-done .wf-num{color:var(--tl);}
+.wf-label{font-size:10px;color:var(--tx2);font-weight:600;}
+.wf-step.wf-done .wf-label{color:var(--tl);}
+.wf-arrow{font-size:11px;color:var(--tx3);opacity:.5;}
+#wf-review{cursor:pointer;}
+#wf-review:hover{background:var(--bg3);opacity:1!important;}
+
+/* ══ ACTIVATION BANNER ══════════════════════════════════════════════════════ */
+#activation-banner{
+  display:none;align-items:center;gap:10px;
+  padding:7px 12px;
+  background:rgba(0,201,160,.08);
+  border-bottom:1px solid rgba(0,201,160,.2);
+  font-size:11px;color:var(--tx2);
+  flex-shrink:0;
+}
+#activation-banner-text{flex:1;}
+.act-btn{
+  padding:3px 10px;font-size:10px;font-weight:700;
+  background:var(--tl);color:#111;
+  border:none;border-radius:4px;cursor:pointer;white-space:nowrap;
+}
+.act-btn:hover{opacity:.85;}
+.act-dismiss{
+  background:none;border:none;color:var(--tx3);
+  font-size:13px;cursor:pointer;padding:0 4px;line-height:1;
+}
+.act-dismiss:hover{color:var(--tx);}
+
+/* ══ PRE-TRADE MODAL ════════════════════════════════════════════════════════ */
+#pretrade-modal .modal-box{border-top:3px solid var(--am);}
+
+/* ══ CSV IMPORT MODAL ═══════════════════════════════════════════════════════ */
+#csv-import-modal .modal-box{border-top:3px solid var(--bl);}
