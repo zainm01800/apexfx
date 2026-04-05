@@ -277,6 +277,7 @@ function _chartTabSnapshot(){
     drawings: (drawings || []).map(drawingToTime),
   };
 }
+let _saveChartTabsTimer = null;
 function syncActiveChartTabRuntimeState(persist = false){
   if(!activeChartTabId) return;
   if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
@@ -291,7 +292,11 @@ function syncActiveChartTabRuntimeState(persist = false){
     showSessions: !!showSessions,
     updatedAt: Date.now(),
   });
-  if(persist) saveChartTabs(false);
+  // Debounce localStorage write — serializing all tabs on every wheel tick is expensive
+  if(persist){
+    clearTimeout(_saveChartTabsTimer);
+    _saveChartTabsTimer = setTimeout(()=>saveChartTabs(false), 400);
+  }
 }
 function saveCurrentChartTabState(){
   if(!activeChartTabId) return;
@@ -2427,7 +2432,10 @@ function buildJournal(){
   updateActivationBanner();
 
   drawEquityCurve();
-  if(document.getElementById('rp-analytics')?.classList.contains('on')) buildAnalytics();
+  if(document.getElementById('rp-analytics')?.classList.contains('on')){
+    clearTimeout(_buildAnalyticsTimer);
+    _buildAnalyticsTimer = setTimeout(()=>buildAnalytics(), 200);
+  }
 
   if(jFilterMode==='heatmap'){
     drawMonthHeatmap();
@@ -13308,8 +13316,11 @@ function saveDrawings(sym,tf){
     const activeTab = chartTabs.find(t => t.id === activeChartTabId);
     if(activeTab && curSym?.s === sym) activeTab.drawings = portable;
   }catch(e){}
-  // Use cached AI panel data — force=false prevents Groq re-calls on drawing move/save
-  if(curSym?.s === sym && curTF === tf) buildAIPanel(false);
+  // Use cached AI panel data — debounced so rapid drawing moves don't spam panel rebuilds
+  if(curSym?.s === sym && curTF === tf && !_isDrawingDrag){
+    clearTimeout(_buildAIPanelTimer);
+    _buildAIPanelTimer = setTimeout(()=>buildAIPanel(false), 300);
+  }
 }
 function loadDrawings(sym,tf){
   try{
@@ -13322,6 +13333,10 @@ let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
 let channelStage = 0;        // channel needs 3 clicks
+let _tapSyncLast = 0;        // throttle tapSyncDrawingToPopup during drag
+let _isDrawingDrag = false;  // true while user is actively dragging a drawing
+let _buildAIPanelTimer = null; // debounce saveDrawings → buildAIPanel
+let _buildAnalyticsTimer = null; // debounce buildJournal → buildAnalytics
 
 // Effective half-width in bars — uses stored duration if available for TF-independence
 function effectiveHalfBars(d){ 
@@ -13944,6 +13959,7 @@ function handleDrawMousedown(sx, sy, e){
       const hid = hitTestHandle(selectedDrawing, sx, sy);
       if(hid){
         isResizingDrawing = true;
+        _isDrawingDrag    = true;
         resizeHandle      = hid;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
@@ -13961,6 +13977,7 @@ function handleDrawMousedown(sx, sy, e){
         const bubbleDrag = (drawings[i].type==='mentor_arrow' || drawings[i].type==='mentor_box') && _mentorBubbleHit(drawings[i], sx, sy);
         isDraggingDrawing = !bubbleDrag;
         isResizingDrawing = bubbleDrag;
+        _isDrawingDrag    = true;
         resizeHandle      = bubbleDrag ? 'bubble' : null;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
@@ -14251,7 +14268,10 @@ function handleDrawMousemove(sx, sy){
       case 'arrow':{ d.bar=s.bar+dBar; d.price=s.price+dPrice; break; }
     }
     draw();
-    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement){
+      const now=Date.now();
+      if(!_tapSyncLast||now-_tapSyncLast>=80){ _tapSyncLast=now; tapSyncDrawingToPopup(d); }
+    }
     return;
   }
 
@@ -14301,7 +14321,10 @@ function handleDrawMousemove(sx, sy){
         d.pts=s.pts.map(p=>({bar:p.bar+dBar,price:p.price+dPrice})); break;
     }
     draw();
-    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement){
+      const now=Date.now();
+      if(!_tapSyncLast||now-_tapSyncLast>=80){ _tapSyncLast=now; tapSyncDrawingToPopup(d); }
+    }
     return;
   }
 
@@ -14344,6 +14367,7 @@ function handleDrawMouseup(sx, sy){
 
   // End drag or resize
   if(isDraggingDrawing || isResizingDrawing){
+    _isDrawingDrag = false;
     try { saveDrawings(curSym.s, curTF); } catch(e) {}
     isDraggingDrawing = false;
     isResizingDrawing = false;
@@ -16993,6 +17017,9 @@ async function fetchMoreHistory(){
         invalidateIndCache();
         rightBarIndex += newBars.length; // keep view stable
         dataCache[sym+'_'+tf] = curData;
+        // Re-resolve drawing bar indices after prepend — existing d.bar values are now
+        // off by newBars.length because the data array shifted; re-map from timestamps.
+        loadDrawings(sym, tf);
         draw();
         setSrcStatus('� live · '+newBars.length+' bars added','var(--tl)');
       } else {
