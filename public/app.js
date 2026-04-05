@@ -13198,6 +13198,69 @@ let activeTool = 'cursor';
 let drawingColor = '#f0a500';
 let drawingLineStyle = 'solid';
 let drawingLineWidth = 1;
+let drawingMagnet = false; // snap to OHLC prices
+
+// ── New toolbar group state ───────────────────────────────────────────────────
+const _dtbGroups = {
+  lines:    { active: 'line' },
+  fib:      { active: 'fib' },
+  patterns: { active: 'pitchfork' },
+  shapes:   { active: 'rect' },
+  annot:    { active: 'text' },
+  trade:    { active: 'long' },
+};
+// Which group owns each tool
+const _dtbToolGroup = {
+  line:'lines', ray:'lines', extline:'lines', hline:'lines', hray:'lines', vline:'lines',
+  fib:'fib', fibext:'fib',
+  pitchfork:'patterns', channel:'patterns',
+  rect:'shapes', ellipse:'shapes', triangle:'shapes', pricerange:'shapes',
+  text:'annot', arrow:'annot',
+  long:'trade', short:'trade',
+};
+
+function _dtbGroupClick(group) {
+  setTool(_dtbGroups[group].active);
+  _dtbCloseFlyout();
+}
+
+function _dtbPick(group, tool, iconHtml) {
+  _dtbGroups[group].active = tool;
+  // Update icon of group main button
+  const iconEl = document.getElementById('dtbg-' + group + '-icon');
+  if (iconEl) iconEl.innerHTML = iconHtml;
+  setTool(tool);
+  _dtbCloseFlyout();
+}
+
+let _dtbOpenFlyoutId = null;
+function _dtbOpenFlyout(group) {
+  _dtbCloseFlyout();
+  const el = document.getElementById('dtbf-' + group);
+  if (el) { el.classList.add('open'); _dtbOpenFlyoutId = group; }
+}
+function _dtbCloseFlyout() {
+  if (_dtbOpenFlyoutId) {
+    document.getElementById('dtbf-' + _dtbOpenFlyoutId)?.classList.remove('open');
+    _dtbOpenFlyoutId = null;
+  }
+}
+
+function _dtbToggleMagnet() {
+  drawingMagnet = !drawingMagnet;
+  const btn = document.getElementById('dtb2-magnet');
+  if (btn) btn.classList.toggle('magnet-on', drawingMagnet);
+  toast(drawingMagnet ? 'Snap to price: ON' : 'Snap to price: OFF');
+}
+
+// Snap price to nearest OHLC of a bar when magnet is active
+function _dtbSnapPrice(price, barIdx) {
+  if (!drawingMagnet || !curData || barIdx == null) return price;
+  const bar = curData[Math.round(barIdx)];
+  if (!bar) return price;
+  const candidates = [bar.open, bar.high, bar.low, bar.close];
+  return candidates.reduce((best, p) => Math.abs(p - price) < Math.abs(best - price) ? p : best, price);
+}
 
 // ── Per-symbol drawing persistence ───────────────────────────────────────────
 // ── Drawing coordinate helpers ──────────────────────────────────────────────
@@ -13368,16 +13431,33 @@ function _dtSetStyle(btn, style){
 function setTool(t){
   activeTool = t;
   drawingWIP = null; pitchforkStage = 0; channelStage = 0;
+  // Sync old sidebar buttons
   TOOL_BTNS.forEach(id=>{
     const b = document.getElementById('dt-'+id);
     if(b) b.classList.toggle('on', id===t);
   });
+  // Sync new floating toolbar
+  _dtbSyncToolbar(t);
   const mc = _el('main-canvas');
   mc.style.cursor = t==='cursor'?'crosshair': t==='eraser'?'cell':'crosshair';
-  // Reflect drawing tool active state on docked button
   const drawBtn = document.getElementById('tbdock-draw');
   if(drawBtn) drawBtn.classList.toggle('active', t !== 'cursor');
   draw();
+}
+
+function _dtbSyncToolbar(t) {
+  // Reset all group main buttons and singles
+  document.querySelectorAll('#draw-toolbar .dtb-btn').forEach(b => b.classList.remove('on'));
+  if (t === 'cursor') {
+    document.getElementById('dtb2-cursor')?.classList.add('on');
+  } else if (t === 'measure') {
+    document.getElementById('dtb2-measure')?.classList.add('on');
+  } else if (t === 'eraser') {
+    document.getElementById('dtb2-eraser')?.classList.add('on');
+  } else {
+    const group = _dtbToolGroup[t];
+    if (group) document.getElementById('dtbg-' + group + '-main')?.classList.add('on');
+  }
 }
 
 // Keyboard shortcuts for tools
@@ -13585,8 +13665,25 @@ function hitTest(d, sx, sy){
       const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
       const minX=Math.min(x1,x2)-TOL,maxX=Math.max(x1,x2)+TOL;
       const minY=Math.min(y1,y2)-TOL,maxY=Math.max(y1,y2)+TOL;
-      // hit border or interior
       return sx>minX&&sx<maxX&&sy>minY&&sy<maxY;
+    }
+    case 'ellipse':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      const cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2+TOL,ry=Math.abs(y2-y1)/2+TOL;
+      if(rx===0||ry===0) return false;
+      return ((sx-cx)*(sx-cx))/(rx*rx)+((sy-cy)*(sy-cy))/(ry*ry)<=1;
+    }
+    case 'triangle':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      const mx=(x1+x2)/2;
+      // point-in-triangle using sign method
+      const sign=(px,py,ax,ay,bx,by)=>(px-bx)*(ay-by)-(ax-bx)*(py-by);
+      const d1=sign(sx,sy,mx,y1,x2,y2);
+      const d2=sign(sx,sy,x2,y2,x1,y2);
+      const d3=sign(sx,sy,x1,y2,mx,y1);
+      const hasNeg=(d1<0)||(d2<0)||(d3<0);
+      const hasPos=(d1>0)||(d2>0)||(d3>0);
+      return !(hasNeg&&hasPos);
     }
     case 'fib':{
       const x1=_barX(d.bar1),x2=_barX(d.bar2);
@@ -14064,7 +14161,7 @@ function handleDrawMousemove(sx, sy){
     const dBar=bar-dragStartBar, dPrice=price-dragStartPrice;
     const dX = sx - dragStartX, dY = sy - dragStartY;
     switch(d.type){
-      case 'line': case 'ray': case 'fib': case 'measure':
+      case 'line': case 'ray': case 'fib': case 'measure': case 'ellipse': case 'triangle':
         if(resizeHandle==='p1'){ d.bar1=bar; d.price1=price; }
         else if(resizeHandle==='p2'){ d.bar2=bar; d.price2=price; }
         else{ d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar; d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; }
@@ -14170,7 +14267,7 @@ function handleDrawMousemove(sx, sy){
       case 'hline': case 'hray': d.price=s.price+dPrice; break;
       case 'vline': d.bar=s.bar+dBar; break;
       case 'line': case 'ray': case 'fib': case 'rect': case 'measure':
-      case 'extline': case 'fibext':
+      case 'extline': case 'fibext': case 'ellipse': case 'triangle':
         d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
         d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; break;
       case 'channel':
@@ -14217,9 +14314,9 @@ function handleDrawMousemove(sx, sy){
   }
 
   if(!drawingWIP) return;
-  const { bar, price } = screenToDraw(sx, sy);
+  const { bar, price: rawPrice } = screenToDraw(sx, sy);
+  const price = _dtbSnapPrice(rawPrice, bar);
   if(drawingWIP.type==='pitchfork'){
-    // update preview: last pt tracks mouse
     const stage = drawingWIP.pts.length;
     if(stage===1) drawingWIP.pts[1]={bar,price};
     else if(stage>=2) drawingWIP.pts[2]={bar,price};
@@ -15426,6 +15523,33 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.fillRect(rx+rw/2-lw/2,ry+rh/2-8,lw,13);
           ctx.fillStyle=col; ctx.fillText(label,rx+rw/2,ry+rh/2+3);
         }
+        break;
+      }
+
+      case 'ellipse':{
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const cx=(x1+x2)/2, cy=(y1+y2)/2;
+        const rx=Math.abs(x2-x1)/2, ry=Math.abs(y2-y1)/2;
+        ctx.beginPath(); ctx.ellipse(cx,cy,Math.max(rx,1),Math.max(ry,1),0,0,Math.PI*2);
+        ctx.fillStyle=isSel?'rgba(240,165,0,.08)':'rgba(240,165,0,.04)';
+        ctx.fill();
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1.5;
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.stroke(); ctx.setLineDash([]);
+        if(isSel){ drawHandle(cx-rx,cy); drawHandle(cx+rx,cy); drawHandle(cx,cy-ry); drawHandle(cx,cy+ry); }
+        break;
+      }
+
+      case 'triangle':{
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const mx=(x1+x2)/2;
+        ctx.beginPath(); ctx.moveTo(mx,y1); ctx.lineTo(x2,y2); ctx.lineTo(x1,y2); ctx.closePath();
+        ctx.fillStyle=isSel?'rgba(240,165,0,.08)':'rgba(240,165,0,.04)';
+        ctx.fill();
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1.5;
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.stroke(); ctx.setLineDash([]);
+        if(isSel){ drawHandle(mx,y1); drawHandle(x1,y2); drawHandle(x2,y2); }
         break;
       }
 
@@ -27545,6 +27669,29 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Activation banner
   updateActivationBanner();
+
+  // Draw toolbar: wire chevron area to open flyouts, close on outside click
+  document.querySelectorAll('#draw-toolbar .dtb-item.group').forEach(item => {
+    const group = item.id.replace('dtbg-', '');
+    const btn = item.querySelector('.dtb-btn');
+    if (!btn) return;
+    btn.addEventListener('click', e => {
+      // If click landed on the chevron region (bottom-right 10x10px area)
+      const r = btn.getBoundingClientRect();
+      if (e.clientX >= r.right - 12 && e.clientY >= r.bottom - 12) {
+        e.stopPropagation();
+        _dtbOpenFlyoutId === group ? _dtbCloseFlyout() : _dtbOpenFlyout(group);
+      }
+    });
+  });
+  document.addEventListener('click', e => {
+    if (_dtbOpenFlyoutId && !e.target.closest('#draw-toolbar')) _dtbCloseFlyout();
+  });
+  // Keyboard shortcut: M = magnet
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key.toLowerCase() === 'm') _dtbToggleMagnet();
+  });
 
   // Initial status bar
   setTimeout(updateStatusBarStats, 500);

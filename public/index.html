@@ -436,13 +436,180 @@
     <!-- CHART BODY: chart area fills all remaining space -->
     <div id="chart-body">
 
-      <!-- Hidden legacy drawing toolbar (JS still references these IDs) -->
-      <div id="draw-toolbar" style="display:none;">
-        <button class="dt-btn on" id="dt-cursor-legacy" style="display:none;"></button>
-      </div>
-
       <!-- CHART AREA -->
       <div id="chart-area">
+
+        <!-- ── TRADINGVIEW-STYLE DRAWING TOOLBAR ─────────────────────────── -->
+        <div id="draw-toolbar">
+
+          <!-- Cursor -->
+          <div class="dtb-item single" data-tool="cursor">
+            <button class="dtb-btn" id="dtb2-cursor" onclick="setTool('cursor')" title="Cursor (V)">
+              <svg viewBox="0 0 16 16"><path d="M3.5 1.5l9 5.5-4.5 1.2-1.8 4.8z" fill="currentColor" stroke="currentColor" stroke-width=".3" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+
+          <div class="dtb-sep"></div>
+
+          <!-- Lines group -->
+          <div class="dtb-item group" id="dtbg-lines">
+            <button class="dtb-btn" id="dtbg-lines-main" onclick="_dtbGroupClick('lines')" title="Trend Line (T)">
+              <span class="dtb-icon" id="dtbg-lines-icon">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="13" x2="14" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-lines">
+              <div class="dtb-fly-hdr">Lines</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','line',`<svg viewBox='0 0 16 16'><line x1='2' y1='13' x2='14' y2='3' stroke='currentColor' stroke-width='1.5' stroke-linecap='round'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="13" x2="14" y2="3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Trend Line <kbd>T</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','ray',`<svg viewBox='0 0 16 16'><line x1='2' y1='13' x2='13' y2='3.5' stroke='currentColor' stroke-width='1.5' stroke-linecap='round'/><polygon points='14,3 11,4 13,6' fill='currentColor'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="13" x2="13" y2="3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><polygon points="14,3 11,4 13,6" fill="currentColor"/></svg><span>Ray</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','extline',`<svg viewBox='0 0 16 16'><line x1='0' y1='14' x2='16' y2='2' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="0" y1="14" x2="16" y2="2" stroke="currentColor" stroke-width="1.5"/></svg><span>Extended Line</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','hline',`<svg viewBox='0 0 16 16'><line x1='0' y1='8' x2='16' y2='8' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="0" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5"/></svg><span>Horizontal Line <kbd>H</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','hray',`<svg viewBox='0 0 16 16'><line x1='2' y1='8' x2='13' y2='8' stroke='currentColor' stroke-width='1.5'/><polygon points='15,8 12,6.5 12,9.5' fill='currentColor'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5"/><polygon points="15,8 12,6.5 12,9.5" fill="currentColor"/></svg><span>Horizontal Ray</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('lines','vline',`<svg viewBox='0 0 16 16'><line x1='8' y1='0' x2='8' y2='16' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="8" y1="0" x2="8" y2="16" stroke="currentColor" stroke-width="1.5"/></svg><span>Vertical Line</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Fibonacci group -->
+          <div class="dtb-item group" id="dtbg-fib">
+            <button class="dtb-btn" id="dtbg-fib-main" onclick="_dtbGroupClick('fib')" title="Fibonacci Retracement (F)">
+              <span class="dtb-icon" id="dtbg-fib-icon">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="9.5" x2="14" y2="9.5" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5"/></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-fib">
+              <div class="dtb-fly-hdr">Fibonacci</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('fib','fib',`<svg viewBox='0 0 16 16'><line x1='2' y1='4' x2='14' y2='4' stroke='currentColor' stroke-width='1.5'/><line x1='2' y1='7' x2='14' y2='7' stroke='currentColor' stroke-width='.8' opacity='.7'/><line x1='2' y1='9.5' x2='14' y2='9.5' stroke='currentColor' stroke-width='.8' opacity='.7'/><line x1='2' y1='12' x2='14' y2='12' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="9.5" x2="14" y2="9.5" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5"/></svg><span>Fib Retracement <kbd>F</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('fib','fibext',`<svg viewBox='0 0 16 16'><line x1='2' y1='12' x2='14' y2='12' stroke='currentColor' stroke-width='1.5'/><line x1='2' y1='9' x2='14' y2='9' stroke='currentColor' stroke-width='.8' opacity='.7'/><line x1='2' y1='6' x2='14' y2='6' stroke='currentColor' stroke-width='.8' opacity='.7'/><line x1='2' y1='2' x2='14' y2='2' stroke='currentColor' stroke-width='1'/><text x='12' y='3' font-size='5' fill='currentColor'>+</text></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="9" x2="14" y2="9" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="6" x2="14" y2="6" stroke="currentColor" stroke-width=".8" opacity=".7"/><line x1="2" y1="2" x2="14" y2="2" stroke="currentColor" stroke-width="1"/><text x="11" y="3.5" font-size="6" fill="currentColor">+</text></svg><span>Fib Extension</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Patterns/Pitchfork group -->
+          <div class="dtb-item group" id="dtbg-patterns">
+            <button class="dtb-btn" id="dtbg-patterns-main" onclick="_dtbGroupClick('patterns')" title="Andrews Pitchfork">
+              <span class="dtb-icon" id="dtbg-patterns-icon">
+                <svg viewBox="0 0 16 16"><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="1.5"/><line x1="3" y1="6" x2="13" y2="6" stroke="currentColor" stroke-width="1"/><line x1="3" y1="6" x2="1.5" y2="14" stroke="currentColor" stroke-width="1"/><line x1="13" y1="6" x2="14.5" y2="14" stroke="currentColor" stroke-width="1"/></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-patterns">
+              <div class="dtb-fly-hdr">Patterns</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('patterns','pitchfork',`<svg viewBox='0 0 16 16'><line x1='8' y1='2' x2='8' y2='14' stroke='currentColor' stroke-width='1.5'/><line x1='3' y1='6' x2='13' y2='6' stroke='currentColor' stroke-width='1'/><line x1='3' y1='6' x2='1.5' y2='14' stroke='currentColor' stroke-width='1'/><line x1='13' y1='6' x2='14.5' y2='14' stroke='currentColor' stroke-width='1'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="1.5"/><line x1="3" y1="6" x2="13" y2="6" stroke="currentColor" stroke-width="1"/><line x1="3" y1="6" x2="1.5" y2="14" stroke="currentColor" stroke-width="1"/><line x1="13" y1="6" x2="14.5" y2="14" stroke="currentColor" stroke-width="1"/></svg><span>Andrews Pitchfork</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('patterns','channel',`<svg viewBox='0 0 16 16'><line x1='2' y1='12' x2='14' y2='5' stroke='currentColor' stroke-width='1.5' stroke-linecap='round'/><line x1='2' y1='14' x2='14' y2='7' stroke='currentColor' stroke-width='1' stroke-dasharray='2,2'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="2" y1="12" x2="14" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="14" x2="14" y2="7" stroke="currentColor" stroke-width="1" stroke-dasharray="2,2"/></svg><span>Parallel Channel <kbd>C</kbd></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Shapes group -->
+          <div class="dtb-item group" id="dtbg-shapes">
+            <button class="dtb-btn" id="dtbg-shapes-main" onclick="_dtbGroupClick('shapes')" title="Rectangle (R)">
+              <span class="dtb-icon" id="dtbg-shapes-icon">
+                <svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.5" rx="1"/></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-shapes">
+              <div class="dtb-fly-hdr">Shapes</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('shapes','rect',`<svg viewBox='0 0 16 16'><rect x='2' y='4' width='12' height='8' fill='none' stroke='currentColor' stroke-width='1.5' rx='1'/></svg>`)">
+                <svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.5" rx="1"/></svg><span>Rectangle <kbd>R</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('shapes','ellipse',`<svg viewBox='0 0 16 16'><ellipse cx='8' cy='8' rx='6' ry='4' fill='none' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6" ry="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Ellipse</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('shapes','triangle',`<svg viewBox='0 0 16 16'><polygon points='8,2 14,14 2,14' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linejoin='round'/></svg>`)">
+                <svg viewBox="0 0 16 16"><polygon points="8,2 14,14 2,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Triangle</span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('shapes','pricerange',`<svg viewBox='0 0 16 16'><line x1='0' y1='5' x2='16' y2='5' stroke='currentColor' stroke-width='1.5'/><rect x='0' y='5' width='16' height='6' fill='currentColor' opacity='.15'/><line x1='0' y1='11' x2='16' y2='11' stroke='currentColor' stroke-width='1.5'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="0" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.5"/><rect x="0" y="5" width="16" height="6" fill="currentColor" opacity=".15"/><line x1="0" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="1.5"/></svg><span>Price Zone <kbd>P</kbd></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Annotations group -->
+          <div class="dtb-item group" id="dtbg-annot">
+            <button class="dtb-btn" id="dtbg-annot-main" onclick="_dtbGroupClick('annot')" title="Text Label (X)">
+              <span class="dtb-icon" id="dtbg-annot-icon">
+                <svg viewBox="0 0 16 16"><text x="3" y="13" font-size="13" font-weight="700" font-family="sans-serif" fill="currentColor">T</text></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-annot">
+              <div class="dtb-fly-hdr">Annotations</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('annot','text',`<svg viewBox='0 0 16 16'><text x='3' y='13' font-size='13' font-weight='700' font-family='sans-serif' fill='currentColor'>T</text></svg>`)">
+                <svg viewBox="0 0 16 16"><text x="3" y="13" font-size="13" font-weight="700" font-family="sans-serif" fill="currentColor">T</text></svg><span>Text Label <kbd>X</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('annot','arrow',`<svg viewBox='0 0 16 16'><line x1='8' y1='14' x2='8' y2='5' stroke='currentColor' stroke-width='1.5'/><polygon points='8,2 5,7 11,7' fill='currentColor'/></svg>`)">
+                <svg viewBox="0 0 16 16"><line x1="8" y1="14" x2="8" y2="5" stroke="currentColor" stroke-width="1.5"/><polygon points="8,2 5,7 11,7" fill="currentColor"/></svg><span>Arrow <kbd>A</kbd></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Measure (standalone) -->
+          <div class="dtb-item single" data-tool="measure">
+            <button class="dtb-btn" id="dtb2-measure" onclick="setTool('measure')" title="Measure Tool">
+              <svg viewBox="0 0 16 16"><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="5" x2="2" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="11" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+
+          <div class="dtb-sep"></div>
+
+          <!-- Magnet toggle -->
+          <div class="dtb-item single" data-tool="magnet">
+            <button class="dtb-btn" id="dtb2-magnet" onclick="_dtbToggleMagnet()" title="Snap to Price (M)">
+              <svg viewBox="0 0 16 16"><path d="M4 2v4a4 4 0 0 0 8 0V2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4" y1="2" x2="4" y2="5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <div class="dtb-sep"></div>
+
+          <!-- Trade tools group -->
+          <div class="dtb-item group" id="dtbg-trade">
+            <button class="dtb-btn" id="dtbg-trade-main" onclick="_dtbGroupClick('trade')" title="Long Position (L)">
+              <span class="dtb-icon" id="dtbg-trade-icon">
+                <svg viewBox="0 0 16 16"><rect x="2" y="8" width="12" height="5" fill="rgba(0,201,160,.25)" stroke="#00c9a0" stroke-width="1"/><polygon points="8,2 3,8 13,8" fill="#00c9a0"/></svg>
+              </span>
+              <span class="dtb-chev">▾</span>
+            </button>
+            <div class="dtb-flyout" id="dtbf-trade">
+              <div class="dtb-fly-hdr">Trade Tools</div>
+              <button class="dtb-fly-item" onclick="_dtbPick('trade','long',`<svg viewBox='0 0 16 16'><rect x='2' y='8' width='12' height='5' fill='rgba(0,201,160,.25)' stroke='#00c9a0' stroke-width='1'/><polygon points='8,2 3,8 13,8' fill='#00c9a0'/></svg>`)">
+                <svg viewBox="0 0 16 16"><rect x="2" y="8" width="12" height="5" fill="rgba(0,201,160,.25)" stroke="#00c9a0" stroke-width="1"/><polygon points="8,2 3,8 13,8" fill="#00c9a0"/></svg><span>Long Position <kbd>L</kbd></span>
+              </button>
+              <button class="dtb-fly-item" onclick="_dtbPick('trade','short',`<svg viewBox='0 0 16 16'><rect x='2' y='3' width='12' height='5' fill='rgba(240,48,96,.25)' stroke='#f03060' stroke-width='1'/><polygon points='8,14 3,8 13,8' fill='#f03060'/></svg>`)">
+                <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="5" fill="rgba(240,48,96,.25)" stroke="#f03060" stroke-width="1"/><polygon points="8,14 3,8 13,8" fill="#f03060"/></svg><span>Short Position <kbd>S</kbd></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Eraser -->
+          <div class="dtb-item single" data-tool="eraser">
+            <button class="dtb-btn" id="dtb2-eraser" onclick="setTool('eraser')" title="Eraser (E)">
+              <svg viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-7 7H3v-3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="6.5" y1="9.5" x2="11" y2="5" stroke="currentColor" stroke-width="1" opacity=".5"/></svg>
+            </button>
+          </div>
+
+        </div><!-- /#draw-toolbar -->
+
         <div id="chart-tabs-bar">
           <div id="chart-tabs-list"></div>
           <button id="chart-tab-add" onclick="createChartTab()" title="Open new chart tab" aria-label="Open new chart tab">+</button>
