@@ -218,8 +218,7 @@ position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);
 }
 .dt-btn:hover{background:var(--bg4);color:var(--tx2);}
 .dt-btn.on{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);}
-/* hidden dt-btn elements for compatibility with existing JS */
-#draw-toolbar{display:none;}
+/* dt-btn base style (used in overlay panel #ov-draw) */
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
 #main-col{position:absolute;inset:0;padding-top:0;padding-bottom:var(--statusbar-h,22px);display:flex;flex-direction:column;overflow:hidden;}
@@ -577,8 +576,7 @@ position:absolute;left:48px;top:0;bottom:var(--statusbar-h,22px);
 }
 .dt-btn:hover{background:var(--bg4);color:var(--tx2);}
 .dt-btn.on{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);}
-/* hidden dt-btn elements for compatibility with existing JS */
-#draw-toolbar{display:none;}
+/* dt-btn base style (used in overlay panel #ov-draw) */
 
 /* ─── MAIN COLUMN ────────────────────────────────────────────────────────── */
 #main-col{position:absolute;inset:0;padding-top:0;padding-bottom:var(--statusbar-h,22px);display:flex;flex-direction:column;overflow:hidden;}
@@ -2785,3 +2783,170 @@ body.is-dragging { user-select: none; }
 
 /* ══ CSV IMPORT MODAL ═══════════════════════════════════════════════════════ */
 #csv-import-modal .modal-box{border-top:3px solid var(--bl);}
+
+/* ══ DRAW TOOLBAR (TradingView-style) ═══════════════════════════════════════ */
+#draw-toolbar {
+  position: absolute;
+  left: 6px;
+  top: 42px; /* below chart-tabs-bar */
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 3px;
+  background: rgba(13,17,26,.92);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  user-select: none;
+}
+
+.dtb-sep {
+  width: 20px;
+  height: 1px;
+  background: rgba(255,255,255,.08);
+  margin: 2px 0;
+  flex-shrink: 0;
+}
+
+.dtb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dtb-btn {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: rgba(168,187,208,.65);
+  cursor: pointer;
+  padding: 0;
+  transition: background .12s, color .12s;
+  overflow: visible;
+}
+.dtb-btn:hover {
+  background: rgba(255,255,255,.07);
+  color: #c8d8e8;
+}
+.dtb-btn.on {
+  background: rgba(41,98,255,.18);
+  color: #2962ff;
+}
+.dtb-btn.on:hover {
+  background: rgba(41,98,255,.25);
+}
+.dtb-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.dtb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dtb-icon svg { width: 16px; height: 16px; }
+
+/* Small chevron in bottom-right of group buttons */
+.dtb-chev {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 5px;
+  line-height: 1;
+  color: rgba(168,187,208,.4);
+  pointer-events: none;
+  transition: color .12s;
+}
+.dtb-btn:hover .dtb-chev { color: rgba(168,187,208,.7); }
+.dtb-btn.on .dtb-chev { color: rgba(41,98,255,.6); }
+
+/* Magnet active state */
+#dtb2-magnet.magnet-on {
+  background: rgba(245,166,35,.15);
+  color: #f5a623;
+}
+
+/* ── Flyout menus ─────────────────────────────────────────────────────────── */
+.dtb-flyout {
+  display: none;
+  position: absolute;
+  left: 36px;
+  top: 0;
+  min-width: 180px;
+  background: rgba(13,17,26,.97);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  padding: 4px 0;
+  z-index: 200;
+  flex-direction: column;
+}
+.dtb-flyout.open { display: flex; }
+
+.dtb-fly-hdr {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: rgba(168,187,208,.35);
+  padding: 5px 10px 3px;
+}
+
+.dtb-fly-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: rgba(168,187,208,.8);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+  transition: background .1s, color .1s;
+  border-radius: 4px;
+  margin: 1px 4px;
+}
+.dtb-fly-item:hover {
+  background: rgba(41,98,255,.12);
+  color: #c8d8e8;
+}
+.dtb-fly-item.active {
+  color: #2962ff;
+}
+.dtb-fly-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: .8;
+}
+.dtb-fly-item span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dtb-fly-item kbd {
+  font-size: 9px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: rgba(168,187,208,.45);
+  font-family: monospace;
+  margin-left: 8px;
+}
