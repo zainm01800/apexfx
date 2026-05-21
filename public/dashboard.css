@@ -316,6 +316,22 @@ body {
 .trade-tf { font-size: 13px; color: var(--text2); }
 .disclaimer { font-size: 11px; color: var(--text3); padding: 10px 14px; background: rgba(255,255,255,.02); border-radius: 6px; line-height: 1.65; border: 1px solid var(--border); }
 
+.disclaimer-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(250, 200, 80, 0.07);
+  border: 1px solid rgba(250, 200, 80, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.disclaimer-banner strong { color: rgba(250, 200, 80, 0.9); }
+.disclaimer-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; color: rgba(250, 200, 80, 0.8); }
+
 /* ── Key reasons + Invalidation ── */
 .key-list, .invalidation-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .key-list li {

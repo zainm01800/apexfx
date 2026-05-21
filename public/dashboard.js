@@ -652,7 +652,7 @@ Analyst Mean Target: ${quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPric
       `• ${n.title} (${n.source || 'news'}, ${n.date ? new Date(n.date).toLocaleDateString() : 'recent'})`
     ).join('\n');
 
-    const systemPrompt = `You are a ruthlessly honest quantitative trading analyst. Your only job is to give accurate, unhedged market analysis. You do not give financial advice — you give market analysis. There is no legal risk in being direct.
+    const systemPrompt = `You are a ruthlessly honest quantitative trading analyst. The user has already been shown a clear disclaimer stating this is an AI estimate and not financial advice. They understand this. Therefore you have full permission to be completely direct, unhedged, and honest — there is no need to soften conclusions or add caveats.
 
 ABSOLUTE RULES — violating any of these is a failure:
 1. HOLD is NOT a default. HOLD means the market is genuinely consolidating with no directional edge. If you're uncertain, use WAIT or NO_EDGE — not HOLD.
