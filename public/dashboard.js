@@ -652,14 +652,37 @@ Analyst Mean Target: ${quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPric
       `• ${n.title} (${n.source || 'news'}, ${n.date ? new Date(n.date).toLocaleDateString() : 'recent'})`
     ).join('\n');
 
-    const prompt = `You are an elite institutional-grade market analyst — a synthesis of the world's best hedge fund analysts, macro strategists, quantitative researchers, forensic accountants, behavioral finance experts, and long-term investors.
+    const systemPrompt = `You are a ruthlessly honest quantitative trading analyst. Your only job is to give accurate, unhedged market analysis. You do not give financial advice — you give market analysis. There is no legal risk in being direct.
 
-Your mission: deliver the most accurate, unbiased, actionable analysis possible to help traders make better decisions.
-NEVER default to bullish bias. Challenge every assumption. If no clear edge exists, return NO_EDGE.
-Verdict must be EXACTLY one of: STRONG_BUY, BUY, SPECULATIVE_BUY, HOLD, WAIT, REDUCE_EXPOSURE, AVOID, SHORT, SPECULATIVE_SHORT, HEDGE, NO_EDGE
+ABSOLUTE RULES — violating any of these is a failure:
+1. HOLD is NOT a default. HOLD means the market is genuinely consolidating with no directional edge. If you're uncertain, use WAIT or NO_EDGE — not HOLD.
+2. confidence_score of 60-65 is BANNED as a default. Every asset has a real confidence level. Assign it based on signal alignment, not safety. Most analyses should score outside the 58-67 range.
+3. NEVER soften a bearish view with vague language. If the asset is broken, say it clearly with AVOID, SHORT, or REDUCE_EXPOSURE.
+4. NEVER soften a bullish view either. If the setup is strong, say STRONG_BUY or BUY — not SPECULATIVE_BUY or WAIT.
+5. NO_EDGE is always available. It is more honest than a forced verdict. Use it freely when evidence is genuinely mixed.
+6. You must respond with ONLY valid JSON. No markdown. No preamble. No "note:". No disclaimers.
 
-══════════════════════════════════════════════════
-ASSET: ${sym}  |  TYPE: ${type}
+CALIBRATION EXAMPLES — use these as anchors:
+- confidence_score 88: RSI 72 overbought, price at BB upper, StochRSI 92, weekly MACD crossing down, approaching major resistance. Extremely high-conviction SHORT setup.
+- confidence_score 77: Strong uptrend, price above all SMAs, MACD positive, OBV accumulation, but RSI 64 — not overbought, room to run. Solid BUY.
+- confidence_score 63: Mixed signals — daily bullish but weekly bearish MACD, volume declining, near 61.8% Fibonacci. Genuine uncertainty. WAIT for confirmation.
+- confidence_score 45: Three indicators bullish, three bearish, flat OBV, macro unclear. NO_EDGE is the correct answer.
+- confidence_score 31: Asset in structural downtrend, breaking support, negative OBV, sector deteriorating. HIGH-CONVICTION AVOID or SHORT.
+
+VERDICT GUIDE — pick the one that actually fits, not the safe one:
+- STRONG_BUY: Multiple timeframe alignment, all major indicators bullish, strong momentum, low risk
+- BUY: Most indicators bullish, clear upside, acceptable risk
+- SPECULATIVE_BUY: Bullish thesis but high risk or weak evidence; only for risk-tolerant traders
+- WAIT: Setup is forming but the trigger hasn't fired — specific catalyst or level needed
+- HOLD: Asset is in genuine consolidation; no new entry but existing longs reasonable
+- REDUCE_EXPOSURE: Thesis deteriorating; existing holders should trim
+- AVOID: Poor risk/reward; neither long nor short is attractive
+- SHORT: Active bearish thesis with clear downside target and defined risk
+- SPECULATIVE_SHORT: Bearish thesis but high risk; for risk-tolerant traders only
+- HEDGE: Long but protect with puts or inverse ETF due to elevated tail risk
+- NO_EDGE: Genuinely conflicting signals; no trade edge exists right now`;
+
+    const prompt = `ASSET: ${sym}  |  TYPE: ${type}
 ══════════════════════════════════════════════════
 Current Price: ${curr.toFixed(dp)}
 1D Change: ${chg1d}%  |  7D: ${chg7d != null ? chg7d + '%' : 'N/A'}  |  30D: ${chg30d != null ? chg30d + '%' : 'N/A'}
@@ -693,34 +716,16 @@ ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
 ━━━ NEWS & CATALYSTS (last 14 days) ━━━
 ${newsText || 'No recent news available.'}
 
-══════════════════════════════════════════════════
-DEEP ANALYSIS FRAMEWORK — execute methodically in this order:
+━━━ TASK ━━━
+Analyze all data above. Be direct. Do not hedge. Do not default.
+Read the price action carefully — what is actually happening? Are bulls or bears in control? What does the volume say? Where is this asset headed?
 
-1. MACRO REGIME: Current rate environment, inflation trajectory, central bank stance (Fed/ECB/BOJ), QT/QE cycle, recession probability, credit spreads, USD strength, global risk appetite. Is this risk-on/risk-off/late-cycle/euphoric? Precise impact on ${sym}.
-
-2. ASSET PROFILE: What does this asset do? Competitive moat, market leadership, industry structure, management quality, long-term viability. For crypto: tokenomics, utility, ecosystem health. For forex: economic differentials and policy divergence.
-
-3. FUNDAMENTALS: ${type === 'Stock' ? 'Revenue/earnings growth quality, FCF generation, margin trajectory, debt load, dilution risk, insider activity, valuation vs peers and historical averages. Cheap for a reason or expensive for a reason?' : 'Interest rate differentials, current account dynamics, economic momentum, central bank divergence, positioning.'}
-
-4. TECHNICALS: Synthesize ALL the multi-timeframe data provided above — daily AND weekly structure. What does the raw OHLCV price action reveal? Is momentum building or exhausting? Where are the key liquidity zones? Are indicators aligned or diverging? What do Bollinger Bands and StochRSI say about the current setup?
-
-5. SENTIMENT & POSITIONING: Is this trade crowded? Retail vs institutional positioning. Contrarian signals. Are analysts uniformly too bullish or bearish? OBV and volume confirmation?
-
-6. CATALYSTS: Next material catalysts — earnings, product cycles, macro events, regulatory decisions. Which risks are underpriced by the market right now?
-
-7. RISK: Aggressively challenge BOTH the bull AND bear thesis. What causes a 30%+ drawdown? Hidden structural risks, correlation risks, liquidity risks, narrative collapse scenarios.
-
-8. SCENARIOS: Assign realistic probabilities that sum to exactly 100%.
-
-9. DECISION: Apply rigorous probabilistic decision logic. Weight evidence objectively. NO_EDGE is frequently the correct answer — do not force a conclusion.
-
-══════════════════════════════════════════════════
-Respond ONLY with valid JSON — no markdown, no text before or after the JSON:
+Respond ONLY with valid JSON. No text before or after.
 
 {
-  "verdict": "...",
+  "verdict": "STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE",
   "confidence_level": "Low|Moderate|High|Very High",
-  "confidence_score": <integer 0-100. Calibration: 85-100=extremely rare, near-perfect alignment across all frameworks; 70-84=strong conviction, most signals aligned; 55-69=moderate conviction, meaningful uncertainty exists; 40-54=low conviction, conflicting signals; below 40=near-NO_EDGE. Do NOT default to 60. Score must reflect the actual evidence strength.>,
+  "confidence_score": <integer 0-100. Base this on how many indicators and frameworks align. If 7 out of 9 signals point the same direction, score 75+. If signals are split 5-4, score 45-55. If genuinely uncertain, score below 50. 60-65 is a valid score only if evidence is genuinely in that middle band — not as a default.>,
   "executive_summary": "3-4 sentence institutional overview of the opportunity/risk",
   "macro_environment": "3-4 sentences on macro regime and specific impact on this asset",
   "macro_regime": "risk-on|risk-off|late-cycle|recessionary|expansionary|euphoric|fearful|liquidity-driven|fundamentally-driven",
@@ -762,9 +767,10 @@ Respond ONLY with valid JSON — no markdown, no text before or after the JSON:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt,
+        system:      systemPrompt,
         model:       'llama-3.3-70b-versatile',
         max_tokens:  6000,
-        temperature: 0.1,
+        temperature: 0.35,
         timeoutMs:   58000,
       }),
     });

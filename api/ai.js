@@ -52,7 +52,7 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: corsHeaders });
   }
 
-  const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0, timeoutMs = 30000 } = body;
+  const { prompt, system, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0, timeoutMs = 30000 } = body;
   const safeMaxTokens = Math.max(1, Math.min(8000, Number(max_tokens) || 1000));
   const safeTemperature = Math.max(0, Math.min(1, Number(temperature) || 0));
   const safeTimeoutMs = Math.max(5000, Math.min(60000, Number(timeoutMs) || 30000));
@@ -60,6 +60,12 @@ export default async function handler(req) {
   if (!prompt || typeof prompt !== 'string' || prompt.length > 120000) {
     return new Response(JSON.stringify({ error: 'Invalid prompt' }), { status: 400, headers: corsHeaders });
   }
+
+  const messages = [];
+  if (system && typeof system === 'string' && system.length <= 20000) {
+    messages.push({ role: 'system', content: system });
+  }
+  messages.push({ role: 'user', content: prompt });
 
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -72,7 +78,7 @@ export default async function handler(req) {
         model,
         max_tokens: safeMaxTokens,
         temperature: safeTemperature,
-        messages: [{ role: 'user', content: prompt }],
+        messages,
       }),
       signal: AbortSignal.timeout(safeTimeoutMs),
     });
