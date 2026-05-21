@@ -1,18 +1,10 @@
 // /api/quote — Vercel Edge Function
-// Returns stock fundamentals and quote data from Yahoo Finance.
+// Returns stock fundamentals and quote data from Finnhub.
 // GET /api/quote?sym=AAPL&type=Stock
 
 export const config = { runtime: 'edge' };
 
-function toYahooTicker(sym, type) {
-  if (type === 'Forex') return sym.replace('/', '') + '=X';
-  if (type === 'Crypto') return sym.replace('/', '-');
-  if (type === 'Futures') {
-    const m = { 'ES1!': 'ES=F', 'CL1!': 'CL=F', 'GC1!': 'GC=F', 'NQ1!': 'NQ=F' };
-    return m[sym] || sym;
-  }
-  return sym;
-}
+const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 
 function isAllowedOrigin(origin, host) {
   if (!origin) return true;
@@ -24,12 +16,20 @@ function isAllowedOrigin(origin, host) {
   return false;
 }
 
+async function finnhubFetch(path, signal) {
+  const res = await fetch(`https://finnhub.io/api/v1${path}&token=${FINNHUB_KEY}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    signal,
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export default async function handler(req) {
   const url = new URL(req.url);
   const origin = req.headers.get('origin');
-  const { searchParams } = url;
-  const sym = searchParams.get('sym');
-  const type = searchParams.get('type') || 'Stock';
+  const sym = url.searchParams.get('sym');
+  const type = url.searchParams.get('type') || 'Stock';
   const allowedOrigin = isAllowedOrigin(origin, url.host) ? (origin || url.origin) : url.origin;
 
   const corsHeaders = {
@@ -42,71 +42,60 @@ export default async function handler(req) {
   if (origin && !isAllowedOrigin(origin, url.host)) {
     return new Response(JSON.stringify({ error: 'Origin not allowed' }), { status: 403, headers: corsHeaders });
   }
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
-
   if (!sym) {
     return new Response(JSON.stringify({ error: 'sym parameter required' }), { status: 400, headers: corsHeaders });
   }
 
-  const ticker = toYahooTicker(sym.toUpperCase(), type);
+  // Only Finnhub stock endpoints are supported; for Forex/Crypto/Futures return partial data
+  const ticker = sym.toUpperCase();
 
   try {
-    const fetchUrl =
-      `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}` +
-      `?modules=price%2CsummaryDetail%2CfinancialData%2CdefaultKeyStatistics`;
+    const abort = AbortSignal.timeout(12000);
 
-    const res = await fetch(fetchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!res.ok) {
-      return new Response(
-        JSON.stringify({ error: `Yahoo Finance error ${res.status}` }),
-        { status: res.status, headers: corsHeaders }
-      );
+    // For non-stock asset types, Finnhub fundamentals don't apply — return empty
+    if (type !== 'Stock' && type !== 'ETF') {
+      return new Response(JSON.stringify({ name: ticker }), { headers: corsHeaders });
     }
 
-    const data = await res.json();
-    const result = data?.quoteSummary?.result?.[0];
+    const [quoteData, profileData, metricsData] = await Promise.all([
+      finnhubFetch(`/quote?symbol=${encodeURIComponent(ticker)}`, abort),
+      finnhubFetch(`/stock/profile2?symbol=${encodeURIComponent(ticker)}`, abort),
+      finnhubFetch(`/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all`, abort),
+    ]);
 
-    if (!result) {
-      return new Response(
-        JSON.stringify({ error: 'No data found for this symbol' }),
-        { status: 404, headers: corsHeaders }
-      );
-    }
-
-    const price    = result.price || {};
-    const summary  = result.summaryDetail || {};
-    const financial = result.financialData || {};
-    const keyStats = result.defaultKeyStatistics || {};
+    const m = metricsData?.metric || {};
 
     const quote = {
-      name:              price.longName?.raw || price.shortName?.raw || sym,
-      currentPrice:      price.regularMarketPrice?.raw ?? null,
-      change:            price.regularMarketChange?.raw ?? null,
-      changePercent:     price.regularMarketChangePercent?.raw ?? null,
-      marketCap:         price.marketCap?.raw ?? null,
-      pe:                summary.trailingPE?.raw ?? null,
-      forwardPE:         summary.forwardPE?.raw ?? null,
-      eps:               keyStats.trailingEps?.raw ?? null,
-      dividendYield:     summary.dividendYield?.raw ?? null,
-      week52High:        summary.fiftyTwoWeekHigh?.raw ?? null,
-      week52Low:         summary.fiftyTwoWeekLow?.raw ?? null,
-      avgVolume:         summary.averageVolume?.raw ?? null,
-      beta:              summary.beta?.raw ?? null,
-      revenueGrowth:     financial.revenueGrowth?.raw ?? null,
-      earningsGrowth:    financial.earningsGrowth?.raw ?? null,
-      recommendationKey: financial.recommendationKey?.raw ?? null,
-      targetMeanPrice:   financial.targetMeanPrice?.raw ?? null,
+      name:              profileData?.name || ticker,
+      currentPrice:      quoteData?.c ?? null,
+      change:            quoteData?.d ?? null,
+      changePercent:     quoteData?.dp ? quoteData.dp / 100 : null,
+      marketCap:         profileData?.marketCapitalization
+                           ? profileData.marketCapitalization * 1e6
+                           : null,
+      pe:                m['peNormalizedAnnual'] ?? m['peTTM'] ?? null,
+      forwardPE:         m['peForward'] ?? null,
+      eps:               m['epsNormalizedAnnual'] ?? m['epsTTM'] ?? null,
+      dividendYield:     m['dividendYieldIndicatedAnnual']
+                           ? m['dividendYieldIndicatedAnnual'] / 100
+                           : null,
+      week52High:        m['52WeekHigh'] ?? null,
+      week52Low:         m['52WeekLow'] ?? null,
+      avgVolume:         m['10DayAverageTradingVolume']
+                           ? m['10DayAverageTradingVolume'] * 1e6
+                           : null,
+      beta:              m['beta'] ?? null,
+      revenueGrowth:     m['revenueGrowthTTMYoy']
+                           ? m['revenueGrowthTTMYoy'] / 100
+                           : null,
+      earningsGrowth:    m['epsGrowthTTMYoy']
+                           ? m['epsGrowthTTMYoy'] / 100
+                           : null,
+      recommendationKey: null,
+      targetMeanPrice:   m['targetPrice'] ?? null,
     };
 
     return new Response(JSON.stringify(quote), { headers: corsHeaders });
