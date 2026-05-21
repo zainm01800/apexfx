@@ -1,7 +1,9 @@
 {
   "version": 2,
+  "redirects": [
+    { "source": "/", "destination": "/dashboard.html", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/", "destination": "/public/dashboard.html" },
     { "source": "/(.*)", "destination": "/public/$1" }
   ]
 }
