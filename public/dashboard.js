@@ -600,14 +600,14 @@ async function startResearch() {
 
     // ── Build prompt ──────────────────────────────────────────────────────────
 
-    // Raw daily OHLCV (last 30 bars)
-    const ohlcvTable = candles.slice(-30).map(b =>
+    // Raw daily OHLCV (last 20 bars — enough for pattern recognition, keeps tokens low)
+    const ohlcvTable = candles.slice(-20).map(b =>
       `${fmtDate(b.time)} O:${b.open.toFixed(dp)} H:${b.high.toFixed(dp)} L:${b.low.toFixed(dp)} C:${b.close.toFixed(dp)} V:${fmtVol(b.volume)}`
     ).join('\n');
 
-    // Weekly OHLCV (last 12 weeks)
+    // Weekly OHLCV (last 8 weeks)
     const weeklyTable = weeklyCandles
-      ? weeklyCandles.slice(-12).map(b =>
+      ? weeklyCandles.slice(-8).map(b =>
           `${fmtDate(b.time)} O:${b.open.toFixed(dp)} H:${b.high.toFixed(dp)} L:${b.low.toFixed(dp)} C:${b.close.toFixed(dp)} V:${fmtVol(b.volume)}`
         ).join('\n')
       : 'Weekly data unavailable.';
@@ -705,10 +705,10 @@ Weekly trend: ${wTrend ?? 'N/A'} | Weekly RSI: ${wRSI ?? 'N/A'}${wRSI != null ? 
 Weekly MACD: ${wMACD != null ? (wMACD > 0 ? 'POSITIVE (bullish)' : 'NEGATIVE (bearish)') : 'N/A'}
 Weekly SMA20: ${wSMA20?.toFixed(dp) || 'N/A'} | Weekly SMA50: ${wSMA50?.toFixed(dp) || 'N/A'}
 
-WEEKLY OHLCV (last 12 weeks, oldest→newest):
+WEEKLY OHLCV (last 8 weeks, oldest→newest):
 ${weeklyTable}
 
-━━━ DAILY PRICE ACTION (last 30 bars, oldest→newest) ━━━
+━━━ DAILY PRICE ACTION (last 20 bars, oldest→newest) ━━━
 ${ohlcvTable}
 ${fundBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
@@ -776,10 +776,35 @@ Respond ONLY with valid JSON. No text before or after.
     });
     if (!aiRes.ok) {
       const e = await aiRes.json().catch(() => ({}));
+      if (aiRes.status === 429) {
+        // Groq rate limit — calculate how long to wait
+        const retryMs = e.retryAfterMs || null;
+        let waitMsg = 'AI rate limit reached.';
+        if (retryMs) {
+          const mins = Math.ceil(retryMs / 60000);
+          waitMsg = mins >= 60
+            ? `AI rate limit reached. Groq quota resets in ~${Math.ceil(mins / 60)}h ${mins % 60}m. Try again later or upgrade your Groq plan at console.groq.com.`
+            : `AI rate limit reached. Groq quota resets in ~${mins} minute${mins !== 1 ? 's' : ''}. Please wait and try again.`;
+        } else {
+          waitMsg = 'AI rate limit reached (Groq free tier). Please wait a few minutes and try again, or upgrade your Groq plan at console.groq.com.';
+        }
+        throw new Error(waitMsg);
+      }
       throw new Error(e.error || `AI service error (HTTP ${aiRes.status})`);
     }
     const aiData = await aiRes.json();
-    if (aiData.error) throw new Error(aiData.error);
+    if (aiData.error) {
+      if (aiData.retryAfterMs || aiData.error?.toLowerCase().includes('rate') || aiData.error?.toLowerCase().includes('quota')) {
+        const mins = aiData.retryAfterMs ? Math.ceil(aiData.retryAfterMs / 60000) : null;
+        const waitMsg = mins
+          ? (mins >= 60
+            ? `AI rate limit reached. Groq quota resets in ~${Math.ceil(mins / 60)}h ${mins % 60}m. Try again later.`
+            : `AI rate limit reached. Groq quota resets in ~${mins} minute${mins !== 1 ? 's' : ''}. Please wait.`)
+          : 'AI rate limit reached (Groq free tier). Please wait a few minutes and try again.';
+        throw new Error(waitMsg);
+      }
+      throw new Error(aiData.error);
+    }
 
     setStep(5);
 
