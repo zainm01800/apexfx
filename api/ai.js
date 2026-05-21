@@ -53,7 +53,7 @@ export default async function handler(req) {
   }
 
   const { prompt, model = 'llama-3.1-8b-instant', max_tokens = 1000, temperature = 0, timeoutMs = 30000 } = body;
-  const safeMaxTokens = Math.max(1, Math.min(4000, Number(max_tokens) || 1000));
+  const safeMaxTokens = Math.max(1, Math.min(8000, Number(max_tokens) || 1000));
   const safeTemperature = Math.max(0, Math.min(1, Number(temperature) || 0));
   const safeTimeoutMs = Math.max(5000, Math.min(60000, Number(timeoutMs) || 30000));
 
