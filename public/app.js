@@ -1,4 +1,4 @@
-// Extracted from inline <script> blocks in index.html
+﻿// Extracted from inline <script> blocks in index.html
 
 // ── OVERLAY PANEL + NAV GLUE SCRIPT ─────────────────────────────────────────
 // Overlay panel controller
@@ -155,7 +155,7 @@ updateStatusTime();
 
 // ─── Extracted from index.html ────────────────────────────────────────────
 
-// ══ SUPABASE AUTHENTICATION VARIABLES (declared first to prevent hoisting issues) ══════════════════════════════════════════
+// �� SUPABASE AUTHENTICATION VARIABLES (declared first to prevent hoisting issues) ������������������������������������������
 const SUPA_URL  = 'https://ksxznauzvlsgfghvpeew.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzeHpuYXV6dmxzZ2ZnaHZwZWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0ODg4MjIsImV4cCI6MjA4OTA2NDgyMn0.B5a2zl8Vr_Q51fB9_Pv1Q8SXnh41xELgJkrRu0BEkEk';
 
@@ -164,10 +164,10 @@ let _currentUserId  = null; // Supabase auth UUID
 let _supaReady      = false;
 let _supa           = null;
 
-// ══ AUTO-SAVE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+// �� AUTO-SAVE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let _autoSaveInterval = null;
 
-// ══ WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+// �� WRITE QUEUE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 const _writeQueue = {}; // key → value (latest wins)
 let _writeFlushTimer = null;
 let _cloudSyncState = { status:'offline', message:'Local only', lastOkAt:0 };
@@ -197,13 +197,13 @@ function updateCloudSyncBadge(state = {}){
   }
 }
 
-// ══ DRAWING VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+// �� DRAWING VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let drawings = []; // completed drawings
 
-// ══ DOM CACHE VARIABLES (declared early to prevent hoisting issues) ══════════════════════════════════════════
+// �� DOM CACHE VARIABLES (declared early to prevent hoisting issues) ������������������������������������������
 let _elCache = {}; // Cached DOM element references
 
-// ══ BUILTIN INDICATORS (declared early to prevent hoisting issues) ══════════════════════════════════════════
+// �� BUILTIN INDICATORS (declared early to prevent hoisting issues) ������������������������������������������
 const BUILTIN_INDS = [
   {id:'sma',     name:'SMA',      desc:'Simple Moving Average (20 & 50)',      icon:'📈'},
   {id:'ema',     name:'EMA',      desc:'Exponential Moving Average (9, 21 & 200)',  icon:'📈'},
@@ -213,10 +213,10 @@ const BUILTIN_INDS = [
   {id:'rsi',     name:'RSI',      desc:'Relative Strength Index (14)',         icon:'📉'},
   {id:'macd',    name:'MACD',     desc:'MACD (12,26,9) sub-panel',            icon:'〰'},
   {id:'stoch',   name:'Stoch',    desc:'Stochastic Oscillator (14,3)',         icon:'📉'},
-  {id:'sessions',name:'Sessions', desc:'Trading session bands — Asia · London · NY', icon:'🌍'},
+  {id:'sessions',name:'Sessions', desc:'Trading session bands � Asia � London � NY', icon:'🌍'},
 ];
 
-// ══ SYMBOLS ══════════════════════════════════════════════════════════════════
+// �� SYMBOLS ������������������������������������������������������������������
 const SYMS=[
   // ── Crypto (via Binance — free, commercial use permitted) ────────────────
   // p values = approximate prices as of March 2026 — used only as placeholder
@@ -243,7 +243,7 @@ const SYMS=[
   {s:'OP/USD',   n:'Optimism',      e:'CRYPTO', t:'Crypto', p:0.101,  c:0},
 ];
 
-// ══ STATE ════════════════════════════════════════════════════════════════════
+// �� STATE ��������������������������������������������������������������������
 let curSym=SYMS[0], curData=[], curTF='1d', curCT='heikin';
 let chartTabs = [];
 let activeChartTabId = null;
@@ -261,7 +261,7 @@ function _chartTabTitle(sym, tf){
   return sym ? `${sym}${tf ? ` ${String(tf).toUpperCase()}` : ''}` : 'Chart';
 }
 function _chartTabMeta(tab){
-  return `${tab.tf || '1d'} · ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
+  return `${tab.tf || '1d'} � ${(tab.chartType || 'heikin').replace('heikin','HA')}`;
 }
 function _chartTabSnapshot(){
   return {
@@ -277,6 +277,7 @@ function _chartTabSnapshot(){
     drawings: (drawings || []).map(drawingToTime),
   };
 }
+let _saveChartTabsTimer = null;
 function syncActiveChartTabRuntimeState(persist = false){
   if(!activeChartTabId) return;
   if(chartTransitionState.loading && chartTransitionState.tabId === activeChartTabId) return;
@@ -291,7 +292,11 @@ function syncActiveChartTabRuntimeState(persist = false){
     showSessions: !!showSessions,
     updatedAt: Date.now(),
   });
-  if(persist) saveChartTabs(false);
+  // Debounce localStorage write — serializing all tabs on every wheel tick is expensive
+  if(persist){
+    clearTimeout(_saveChartTabsTimer);
+    _saveChartTabsTimer = setTimeout(()=>saveChartTabs(false), 400);
+  }
 }
 function saveCurrentChartTabState(){
   if(!activeChartTabId) return;
@@ -348,7 +353,7 @@ function renderChartTabs(){
     const isActive = tab.id === activeChartTabId;
     const title = tab.title || _chartTabTitle(tab.sym, tab.tf);
     const meta  = _chartTabMeta(tab);
-    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">×</button></div>`;
+    return `<div class="chart-tab${isActive?' active':''}" data-tab-id="${tab.id}" onclick="switchChartTab('${tab.id}')"><div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;"><span class="chart-tab-label">${title}</span><span class="chart-tab-meta">${meta}</span></div><button class="chart-tab-close" onclick="event.stopPropagation();closeChartTab('${tab.id}')" title="Close tab">�</button></div>`;
   }).join('');
   if(el.innerHTML !== desired) el.innerHTML = desired;
   const activeEl = el.querySelector('.chart-tab.active');
@@ -456,6 +461,9 @@ function tapBuildSetupContextMeta(meta = {}, placement = {}){
     sym: meta.sym || placement.sym || curSym?.s,
     tf: meta.tf || placement.tf || curTF,
     dir: meta.dir || placement.dir || null,
+    originalMethod: meta.originalMethod || meta.methodHint || meta.method || placement.originalMethod || placement.methodHint || placement.method || '',
+    methodHint: meta.methodHint || meta.originalMethod || meta.method || placement.methodHint || placement.originalMethod || placement.method || '',
+    methodCandidates: Array.isArray(meta.methodCandidates) ? meta.methodCandidates.slice(0, 4) : (Array.isArray(placement.methodCandidates) ? placement.methodCandidates.slice(0, 4) : []),
     originalEntry: Number.isFinite(Number(meta.originalEntry)) ? Number(meta.originalEntry) : Number(placement.entry),
     originalSL: Number.isFinite(Number(meta.originalSL)) ? Number(meta.originalSL) : Number(placement.sl),
     originalTP: Number.isFinite(Number(meta.originalTP)) ? Number(meta.originalTP) : Number(placement.target),
@@ -464,6 +472,255 @@ function tapBuildSetupContextMeta(meta = {}, placement = {}){
     originalRationale: meta.originalRationale || meta.idea || '',
     originalStructureContext: meta.originalStructureContext || '',
   };
+}
+
+function tapNormalizeMethodName(method){
+  const raw = String(method || '').trim();
+  if(!raw) return '';
+  const key = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const map = {
+    'ict': 'ICT',
+    'smc': 'SMC',
+    'smart money concepts': 'SMC',
+    'supply & demand': 'Supply & Demand',
+    'supply and demand': 'Supply & Demand',
+    'support & resistance': 'Support & Resistance',
+    'support and resistance': 'Support & Resistance',
+    's&r': 'Support & Resistance',
+    'ma / trend following': 'MA / Trend Following',
+    'ma trend following': 'MA / Trend Following',
+    'trend following': 'MA / Trend Following',
+    'price action': 'Price Action',
+    'breakout': 'Breakout',
+    'fibonacci': 'Fibonacci',
+    'rsi / momentum': 'RSI / Momentum',
+    'rsi momentum': 'RSI / Momentum',
+    'wyckoff': 'Wyckoff',
+  };
+  return map[key] || raw;
+}
+
+function tapMethodFromPatternLabel(label){
+  const text = String(label || '').toLowerCase();
+  if(!text) return '';
+  if(/fair value gap|fvg|order block|ob\b|imbalance/.test(text)) return 'ICT';
+  if(/choch|bos\b|break of structure|market structure shift|liquidity/.test(text)) return 'SMC';
+  if(/supply|demand/.test(text)) return 'Supply & Demand';
+  if(/support|resistance|bounce|rejection/.test(text)) return 'Support & Resistance';
+  if(/breakout|triangle|compression|range break|flag/.test(text)) return 'Breakout';
+  if(/pullback|trend|continuation|ema|moving average|bullish structure|bearish structure/.test(text)) return 'MA / Trend Following';
+  if(/engulf|pin bar|pinbar|hammer|shooting star|inside bar|doji/.test(text)) return 'Price Action';
+  if(/fib|retracement|golden zone/.test(text)) return 'Fibonacci';
+  if(/rsi|momentum|overbought|oversold|divergence/.test(text)) return 'RSI / Momentum';
+  if(/spring|upthrust|accumulation|distribution|wyckoff/.test(text)) return 'Wyckoff';
+  return '';
+}
+
+function tapInferMethodCandidates(d, data, extras = {}){
+  if(!Array.isArray(data) || !data.length) return { primary: '', candidates: [], summary: 'No method evidence available.' };
+  const isLong = d?.type === 'long' || d?.dir === 'long' || d?.dir === 'bull';
+  const dir = isLong ? 'long' : 'short';
+  const entry = Number(d?.price ?? d?.entry);
+  const sl = Number(d?.sl);
+  const tp = Number(d?.tp ?? d?.target);
+  const atrSeries = calcATR(data);
+  const safeAtr = Math.max(1e-9, atrSeries?.[Math.max(0, data.length - 1)] || Math.abs(entry - sl) || Math.abs(entry || data[data.length - 1]?.close || 1) * 0.003);
+  const scores = {};
+  const reasons = {};
+  const add = (method, pts, reason) => {
+    const name = tapNormalizeMethodName(method);
+    if(!name || !Number.isFinite(pts) || pts <= 0) return;
+    scores[name] = (scores[name] || 0) + pts;
+    if(reason){
+      reasons[name] = reasons[name] || [];
+      if(!reasons[name].includes(reason) && reasons[name].length < 3) reasons[name].push(reason);
+    }
+  };
+  const setupMeta = extras.setupMeta || {};
+  const seeded = tapNormalizeMethodName(setupMeta.originalMethod || setupMeta.methodHint || setupMeta.method || extras.methodHint || tapMethodFromPatternLabel(extras.patLabel));
+  if(seeded) add(seeded, 4.5, 'Original setup context already pointed to this method.');
+
+  const anchorBars = [...new Set([
+    Number.isFinite(d?.bar) ? Math.max(1, Math.min(data.length - 1, Math.round(d.bar))) : null,
+    data.length - 1,
+    data.length - 2,
+    data.length - 3
+  ].filter(v => Number.isFinite(v) && v >= 1))];
+
+  for(const idx of anchorBars){
+    const atrAtIdx = Math.max(1e-9, atrSeries?.[idx] || safeAtr);
+    for(const detector of _SCAN_DETECTORS){
+      let matches = [];
+      try { matches = detector(data, idx, atrAtIdx) || []; } catch(e) { matches = []; }
+      matches.filter(s => String(s?.dir || '').toLowerCase() === dir).forEach(s => {
+        const detectorEntry = Number(s.entry);
+        const detectorSL = Number(s.sl);
+        const detectorTP = Number(s.tp);
+        const entryFit = Number.isFinite(entry) && Number.isFinite(detectorEntry)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorEntry - entry) / Math.max(atrAtIdx * 1.4, Math.abs(entry) * 0.003)))
+          : 0.55;
+        const slFit = Number.isFinite(sl) && Number.isFinite(detectorSL)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorSL - sl) / Math.max(atrAtIdx * 1.7, Math.abs(sl || detectorSL) * 0.003)))
+          : 0.45;
+        const tpFit = Number.isFinite(tp) && Number.isFinite(detectorTP)
+          ? Math.max(0, 1 - Math.min(1.2, Math.abs(detectorTP - tp) / Math.max(atrAtIdx * 2.2, Math.abs(tp || detectorTP) * 0.004)))
+          : 0.35;
+        const pts = 1.8 + entryFit * 2.6 + slFit * 1.4 + tpFit * 1.0;
+        add(s.method, pts, `Scanner-style ${tapNormalizeMethodName(s.method)} logic matched near the setup anchor.`);
+      });
+    }
+  }
+
+  const patternMethod = tapMethodFromPatternLabel(extras.patLabel || setupMeta.patLabel || setupMeta.originalPattern);
+  if(patternMethod) add(patternMethod, 2.8, 'The detected pattern label matches this method best.');
+
+  const sr = detectSR(data);
+  const nearestS = sr.support.filter(v => v <= entry).sort((a,b) => b - a)[0];
+  const nearestR = sr.resistance.filter(v => v >= entry).sort((a,b) => a - b)[0];
+  const srDist = isLong ? Math.abs((nearestS ?? entry) - entry) : Math.abs((nearestR ?? entry) - entry);
+  if(Number.isFinite(srDist) && srDist <= safeAtr * 0.35){
+    add('Support & Resistance', 1.1, 'Entry sits very close to a horizontal reaction level.');
+  }
+
+  const ema9 = calcEMA(data, 9), ema21 = calcEMA(data, 21), sma20 = calcSMA(data, 20), sma50 = calcSMA(data, 50);
+  const maStack = [ema9[data.length - 1], ema21[data.length - 1], sma20[data.length - 1], sma50[data.length - 1]].filter(Number.isFinite);
+  const nearMa = maStack.some(v => Math.abs(v - entry) <= safeAtr * 0.4);
+  const bullishTrend = ema9[data.length - 1] > ema21[data.length - 1] && sma20[data.length - 1] >= sma50[data.length - 1];
+  const bearishTrend = ema9[data.length - 1] < ema21[data.length - 1] && sma20[data.length - 1] <= sma50[data.length - 1];
+  if(nearMa && ((isLong && bullishTrend) || (!isLong && bearishTrend))){
+    add('MA / Trend Following', 2.4, 'Entry is sitting near aligned moving averages inside the trend direction.');
+  }
+
+  try{
+    const structure = analyzeMarketStructure?.(data) || null;
+    const pullback = detectTrendPullback(data, structure);
+    if(pullback?.detected) add('MA / Trend Following', 2.1, 'Trend pullback structure is present on this chart.');
+    const sweep = detectLiquiditySweep(data);
+    if(sweep?.detected) add('SMC', 2.2, 'A liquidity sweep / displacement pattern is visible.');
+    const conso = detectConsolidation(data);
+    const last = data[data.length - 1];
+    if(conso?.isConsolidating || (last && (last.close > conso?.upper || last.close < conso?.lower))){
+      add('Breakout', 1.9, 'The market is coiling or breaking from a consolidation range.');
+    }
+  }catch(e){}
+
+  const rsiSeries = calcRSI(data);
+  const rsi = rsiSeries?.[data.length - 1];
+  if(Number.isFinite(rsi) && ((isLong && rsi < 35) || (!isLong && rsi > 65))){
+    add('RSI / Momentum', 1.7, 'Momentum is at an extreme that fits an RSI-based setup.');
+  }
+
+  const ranked = Object.entries(scores)
+    .map(([method, score]) => ({ method, score: Math.round(score * 10) / 10, reasons: reasons[method] || [] }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 4);
+  const primary = ranked[0]?.method || seeded || 'Support & Resistance';
+  const summary = ranked.length
+    ? ranked.map((row, idx) => `${idx + 1}. ${row.method} (${row.score}) � ${(row.reasons[0] || 'closest fit from the current structure')}`).join(' | ')
+    : `1. ${primary} � generic fallback only`;
+  return { primary, candidates: ranked, summary };
+}
+
+const TAP_MTF_ORDER = ['1m','5m','15m','1h','4h','1d','1w','1M'];
+const TAP_MTF_BARS = { '1m': 220, '5m': 220, '15m': 220, '1h': 220, '4h': 220, '1d': 220, '1w': 180, '1M': 120 };
+
+function tapGetProfessionalTFPlan(baseTf){
+  const idx = Math.max(0, TAP_MTF_ORDER.indexOf(baseTf));
+  return {
+    higher: idx < TAP_MTF_ORDER.length - 1 ? TAP_MTF_ORDER[idx + 1] : null,
+    lower: idx > 0 ? TAP_MTF_ORDER[idx - 1] : null,
+  };
+}
+
+async function tapLoadTFDataForAnalysis(sym, tf){
+  if(!sym || !tf) return null;
+  const cached = tapGetDataForSymTF(sym, tf);
+  if(Array.isArray(cached) && cached.length >= 20) return cached;
+  try{
+    return await genDataForTF(sym, tf, TAP_MTF_BARS[tf] || 220);
+  }catch(e){
+    return cached || null;
+  }
+}
+
+function tapSummariseTFSnapshot(data, tf, trade){
+  if(!Array.isArray(data) || data.length < 20) return null;
+  const isLong = trade?.type === 'long' || trade?.dir === 'long' || trade?.dir === 'bull';
+  const last = data[data.length - 1];
+  const structure = analyzeMarketStructure(data);
+  const pats = detectPatterns(data);
+  const sr = detectSR(data);
+  const atrSeries = calcATR(data);
+  const atr = Math.max(1e-9, atrSeries?.[atrSeries.length - 1] || Math.abs(last.close) * 0.004);
+  const rsiSeries = calcRSI(data);
+  const rsi = Number(rsiSeries?.[rsiSeries.length - 1] ?? NaN);
+  const ema9 = calcEMA(data, 9), ema21 = calcEMA(data, 21), sma20 = calcSMA(data, 20), sma50 = calcSMA(data, 50);
+  const emaBull = Number.isFinite(ema9[data.length - 1]) && Number.isFinite(ema21[data.length - 1]) ? ema9[data.length - 1] > ema21[data.length - 1] : null;
+  const smaBull = Number.isFinite(sma20[data.length - 1]) && Number.isFinite(sma50[data.length - 1]) ? sma20[data.length - 1] > sma50[data.length - 1] : null;
+  const trendBias = structure?.trend === 'uptrend_structure' ? 'bull'
+    : structure?.trend === 'downtrend_structure' ? 'bear'
+    : ((emaBull === true && smaBull !== false) ? 'bull' : (emaBull === false && smaBull !== true ? 'bear' : 'neutral'));
+  const topPat = [...pats].sort((a,b)=>b.conf-a.conf)[0] || null;
+  const tradeDirMatches = trendBias === 'neutral' ? 0 : ((isLong && trendBias === 'bull') || (!isLong && trendBias === 'bear') ? 1 : -1);
+  const nearestSupport = sr.support.filter(v => v < last.close).sort((a,b)=>b-a)[0] ?? null;
+  const nearestResistance = sr.resistance.filter(v => v > last.close).sort((a,b)=>a-b)[0] ?? null;
+  const rangeSlice = data.slice(-20);
+  const swingHigh = Math.max(...rangeSlice.map(b=>b.high));
+  const swingLow = Math.min(...rangeSlice.map(b=>b.low));
+  const confluences = [];
+  const conflicts = [];
+  if(tradeDirMatches > 0) confluences.push(`${tf} trend aligns with the trade direction`);
+  if(tradeDirMatches < 0) conflicts.push(`${tf} trend conflicts with the trade direction`);
+  if(topPat?.dir === (isLong ? 'bull' : 'bear')) confluences.push(`${tf} top pattern supports the trade`);
+  else if(topPat?.dir && topPat.dir !== 'neut') conflicts.push(`${tf} top pattern leans against the trade`);
+  if(Number.isFinite(rsi)){
+    if(isLong && rsi < 38) confluences.push(`${tf} RSI is reset enough for upside continuation`);
+    if(!isLong && rsi > 62) confluences.push(`${tf} RSI is elevated enough for downside continuation`);
+    if(isLong && rsi > 72) conflicts.push(`${tf} RSI is stretched on the long side`);
+    if(!isLong && rsi < 28) conflicts.push(`${tf} RSI is stretched on the short side`);
+  }
+  return {
+    tf,
+    trendBias,
+    structure: structure?.trend || 'neutral',
+    topPattern: topPat ? `${topPat.name} (${Math.round((topPat.conf || 0) * 100)}%)` : 'none',
+    rsi: Number.isFinite(rsi) ? +rsi.toFixed(1) : null,
+    atr,
+    nearestSupport,
+    nearestResistance,
+    swingHigh,
+    swingLow,
+    confluences,
+    conflicts,
+    summary: `${tf}: ${trendBias === 'bull' ? 'bullish' : trendBias === 'bear' ? 'bearish' : 'neutral'} structure (${String(structure?.trend || 'neutral').replace(/_/g,' ')}), top pattern ${topPat ? topPat.name : 'none'}, RSI ${Number.isFinite(rsi) ? rsi.toFixed(1) : 'n/a'}, support ${nearestSupport ? fP(nearestSupport) : 'n/a'}, resistance ${nearestResistance ? fP(nearestResistance) : 'n/a'}.`
+  };
+}
+
+async function tapBuildProfessionalMTFContext(sym, baseTf, trade, baseData){
+  const plan = tapGetProfessionalTFPlan(baseTf);
+  const base = tapSummariseTFSnapshot(baseData, baseTf, trade);
+  const [higherData, lowerData] = await Promise.all([
+    plan.higher ? tapLoadTFDataForAnalysis(sym, plan.higher) : Promise.resolve(null),
+    plan.lower ? tapLoadTFDataForAnalysis(sym, plan.lower) : Promise.resolve(null),
+  ]);
+  const higher = plan.higher ? tapSummariseTFSnapshot(higherData, plan.higher, trade) : null;
+  const lower = plan.lower ? tapSummariseTFSnapshot(lowerData, plan.lower, trade) : null;
+  const allConfluences = [...(higher?.confluences || []), ...(base?.confluences || []), ...(lower?.confluences || [])];
+  const allConflicts = [...(higher?.conflicts || []), ...(base?.conflicts || []), ...(lower?.conflicts || [])];
+  let verdict = 'mixed';
+  if((higher?.trendBias && base?.trendBias) && higher.trendBias === base.trendBias && base.trendBias !== 'neutral'){
+    verdict = lower?.trendBias && lower.trendBias !== base.trendBias ? 'aligned_but_execution_mixed' : 'aligned';
+  } else if(higher?.trendBias && base?.trendBias && higher.trendBias !== 'neutral' && base.trendBias !== 'neutral' && higher.trendBias !== base.trendBias){
+    verdict = 'conflicted';
+  }
+  const summary = verdict === 'aligned'
+    ? `Top-down confluence is strong: ${higher?.tf || baseTf} and ${baseTf} are aligned, and ${lower?.tf || baseTf} is mainly being used for execution timing.`
+    : verdict === 'aligned_but_execution_mixed'
+      ? `Higher and trade timeframes align, but the lower timeframe execution tape is mixed, so timing matters more than the raw idea.`
+      : verdict === 'conflicted'
+        ? `Higher timeframe bias and trade timeframe structure are not fully aligned, so this setup should be treated with more caution.`
+        : `Timeframe alignment is mixed, so the trade should rely on the cleanest structure and execution confirmation only.`;
+  return { base, higher, lower, verdict, confluences: allConfluences, conflicts: allConflicts, summary };
 }
 
 function tapBuildPlacedTradeDrawing(levels, stateInfo, tf, extras = {}){
@@ -541,16 +798,16 @@ function tapProjectFutureAISPlacement(placement, stateInfo, data, tf){
   if(isLong){
     entry = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 0.7, origRisk * 0.45), recentLow + atr * 0.4);
     if(!(entry < last.close - entryGap)) return null;
-    sl = Math.min(entry - Math.max(atr * 0.9, origRisk * 0.8), recentLow - atr * 0.2);
-    if(!(sl < entry)) sl = entry - Math.max(atr * 0.9, origRisk * 0.8);
-    tp = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 1.4, origRisk * origRR), entry + Math.abs(entry - sl) * origRR);
+    sl = Math.min(entry - Math.max(atr * 1.5, origRisk * 1.0), recentLow - atr * 0.5);
+    if(!(sl < entry)) sl = entry - Math.max(atr * 1.5, origRisk * 1.0);
+    tp = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 2.5, origRisk * origRR), entry + Math.abs(entry - sl) * origRR);
     if(!(tp > entry)) tp = entry + Math.abs(entry - sl) * Math.max(1.8, origRR);
   } else {
     entry = resistanceCandidates[0] ?? Math.max(last.close + Math.max(atr * 0.7, origRisk * 0.45), recentHigh - atr * 0.4);
     if(!(entry > last.close + entryGap)) return null;
-    sl = Math.max(entry + Math.max(atr * 0.9, origRisk * 0.8), recentHigh + atr * 0.2);
-    if(!(sl > entry)) sl = entry + Math.max(atr * 0.9, origRisk * 0.8);
-    tp = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 1.4, origRisk * origRR), entry - Math.abs(entry - sl) * origRR);
+    sl = Math.max(entry + Math.max(atr * 1.5, origRisk * 1.0), recentHigh + atr * 0.5);
+    if(!(sl > entry)) sl = entry + Math.max(atr * 1.5, origRisk * 1.0);
+    tp = supportCandidates[0] ?? Math.min(last.close - Math.max(atr * 2.5, origRisk * origRR), entry - Math.abs(entry - sl) * origRR);
     if(!(tp < entry)) tp = entry - Math.abs(entry - sl) * Math.max(1.8, origRR);
   }
 
@@ -758,7 +1015,7 @@ function switchChartTab(id, skipSave, options = {}){
     if(activeChartTabId !== id) return;
     curCT = tab.chartType || curCT;
     barWidth = tab.barWidth || barWidth;
-    if(options.focusLatest || datasetChanged){
+    if(options.focusLatest){
       rightBarIndex = curData.length + 5;
       priceHi = null;
       priceLo = null;
@@ -767,7 +1024,7 @@ function switchChartTab(id, skipSave, options = {}){
       priceHi = tab.priceHi ?? null;
       priceLo = tab.priceLo ?? null;
     }
-    normalizeChartViewportForCurrentData(!!options.focusLatest || datasetChanged);
+    normalizeChartViewportForCurrentData(!!options.focusLatest);
     drawings = Array.isArray(tab.drawings) ? tab.drawings.map(drawingFromTime) : drawings;
     placePendingAISetupOnActiveChart(tab);
     drawingWIP = null;
@@ -845,9 +1102,9 @@ let alerts=[], journal=[];
 let _aiOverlayData   = null;   // last buildAIPanel result
 let aiOverlayEnabled = (_lsGet('ai-overlay-on') !== '0'); // default ON
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // APEX FX — 20-FEATURE UPGRADE STATE
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 
 // Trade Idea Board
 let tradeIdeas = [];
@@ -976,7 +1233,7 @@ const FBASE = 'https://finnhub.io/api/v1';
 // TF_RES removed — Yahoo Finance no longer used
 const TF_FROM={'1m':7,'5m':60,'15m':60,'1h':729,'1d':3649,'1w':3649,'1M':3649};
 // Binance TF map for crypto
-const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','1d':'1d','1w':'1w','1M':'1M'};
+const BINANCE_TF={'1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d','1w':'1w','1M':'1M'};
 
 try{alerts=JSON.parse(localStorage.getItem('apex-alerts'))||[];}catch(e){alerts=[];}
 let watchlist=new Set();
@@ -986,7 +1243,7 @@ function addToWatchlist(sym){watchlist.add(sym);saveWatchlist();buildWL();filter
 function removeFromWatchlist(sym){watchlist.delete(sym);saveWatchlist();buildWL();}
 // journal loaded via loadJournal() after function is defined
 
-// ══ DATA & INDICATORS ════════════════════════════════════════════════════════
+// �� DATA & INDICATORS ��������������������������������������������������������
 // Seeded RNG — same seed always produces same sequence
 function seededRng(seed){
   let s = seed;
@@ -1138,13 +1395,16 @@ function getXAxisTick(d, prev, tf){
   return null;
 }
 
-// ══ AI PATTERN RECOGNITION ════════════════════════════════════════════════════
+// �� AI PATTERN RECOGNITION ����������������������������������������������������
 function detectSR(data){
   const support=[],resistance=[];
-  for(let i=2;i<data.length-2;i++){
-    if(data[i].low<data[i-1].low&&data[i].low<data[i-2].low&&data[i].low<data[i+1].low&&data[i].low<data[i+2].low)
+  // Use a 3-bar lookback on each side (6-bar window) for more significant swing highs/lows
+  for(let i=3;i<data.length-3;i++){
+    if(data[i].low<data[i-1].low&&data[i].low<data[i-2].low&&data[i].low<data[i-3].low&&
+       data[i].low<data[i+1].low&&data[i].low<data[i+2].low&&data[i].low<data[i+3].low)
       support.push(data[i].low);
-    if(data[i].high>data[i-1].high&&data[i].high>data[i-2].high&&data[i].high>data[i+1].high&&data[i].high>data[i+2].high)
+    if(data[i].high>data[i-1].high&&data[i].high>data[i-2].high&&data[i].high>data[i-3].high&&
+       data[i].high>data[i+1].high&&data[i].high>data[i+2].high&&data[i].high>data[i+3].high)
       resistance.push(data[i].high);
   }
   const cluster=(levels,thr=0.005)=>{
@@ -1233,7 +1493,7 @@ function detectPatterns(data){
   return pats;
 }
 
-// ══ AI PANEL ══════════════════════════════════════════════════════════════════
+// �� AI PANEL ������������������������������������������������������������������
 let aiCache = {}; // key: sym+tf → {pats, sr, bias, top}
 
 function buildAIPanel(force=false){
@@ -1389,6 +1649,7 @@ function aiCopilotActions(state){
   const profileNote = state.profile?.weaknesses?.[0]
     ? `Trader memory caution: ${state.profile.weaknesses[0]}`
     : 'Trader memory is still building. More journaled trades will make this advice more personal.';
+  actions.push(aiCopilotCard('Use this well', 'Use the copilot to understand the live chart. Use AI Setups to discover ideas, then use Trade Analysis when you need a proper entry, stop, and target decision.', 'var(--bl)'));
   actions.push(aiCopilotCard('Thesis watch', state.thesis
     ? `${state.thesis.statement} Current status: ${state.thesisStatus.label}. Confirmation sits near ${isFinite(state.thesis.confirmation) ? fP(state.thesis.confirmation) : 'n/a'} and invalidation near ${isFinite(state.thesis.invalidation) ? fP(state.thesis.invalidation) : 'n/a'}.`
     : `No thesis is pinned for ${state.sym}. If you already have an idea, pin one from Trade Analysis so the copilot can monitor it instead of giving only generic market context.`, state.thesis ? (state.thesisStatus.color || 'var(--green)') : 'var(--tx3)'));
@@ -1433,13 +1694,13 @@ async function aiCopilotFetchExplanation(state, force=false){
   const cacheKey = `${state.key}::${drawSig}`;
   if(!force && aiCopilotCache[cacheKey]){
     outEl.innerHTML = aiCopilotRenderAIText(aiCopilotCache[cacheKey].text);
-    statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} � use Trade Analysis for exact entries`;
     return;
   }
   if(aiCopilotInFlight[cacheKey]) return;
   aiCopilotInFlight[cacheKey] = true;
-  statusEl.textContent = 'Generating deeper AI explanation…';
-  outEl.innerHTML = 'Generating deeper chart explanation…';
+  statusEl.textContent = 'Reading the chart now � use Trade Analysis when you need a trade verdict';
+  outEl.innerHTML = 'Building a deeper live chart read...';
   try{
     const prompt = `You are the live AI copilot inside a trading platform. Explain the current chart in plain English for the trader who is looking at it right now.
 
@@ -1476,7 +1737,7 @@ Do not give financial advice. Do not use markdown. Keep the tone calm, clear, an
     const text = await groqFetch(prompt + _histCtx, { max_tokens: 220, temperature: 0.2, timeoutMs: 20000 });
     aiCopilotCache[cacheKey] = { text, ts: Date.now() };
     outEl.innerHTML = aiCopilotRenderAIText(text);
-    statusEl.textContent = `Live read updated · ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    statusEl.textContent = `Live read refreshed at ${new Date(aiCopilotCache[cacheKey].ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} � use Trade Analysis for exact entries`;
   }catch(e){
     outEl.innerHTML = `Deeper AI explanation unavailable right now. The live briefing above is still current.&nbsp;
       <button onclick="refreshLiveCopilot(true)"
@@ -1484,9 +1745,9 @@ Do not give financial advice. Do not use markdown. Keep the tone calm, clear, an
                color:#a5b4fc;font-size:10px;border-radius:4px;cursor:pointer;font-family:inherit;"
         onmouseover="this.style.background='rgba(99,102,241,.22)'"
         onmouseout="this.style.background='rgba(99,102,241,.12)'">
-        ↺ Retry
+        Retry
       </button>`;
-    statusEl.textContent = 'Live briefing ready · deeper explanation unavailable';
+    statusEl.textContent = 'Live briefing ready � use Trade Analysis if you need a trade-level verdict';
   } finally {
     delete aiCopilotInFlight[cacheKey];
   }
@@ -1502,7 +1763,7 @@ function renderLiveCopilot(r, force=false){
   briefEl.innerHTML = aiCopilotBrief(state);
   changesEl.innerHTML = aiCopilotChanges(state);
   actionsEl.innerHTML = aiCopilotActions(state);
-  statusEl.textContent = 'Reading the current chart, your thesis, and your marked levels…';
+  statusEl.textContent = 'Reading the current chart, your thesis, and your marked levels for a live read';
   aiCopilotFetchExplanation(state, force);
 }
 
@@ -1542,11 +1803,11 @@ function renderAIPanel(r){
   document.getElementById('ai-signal').innerHTML=`
     <div style="background:${bias==='BULLISH'?'rgba(0,201,160,.08)':bias==='BEARISH'?'rgba(240,48,96,.08)':'rgba(245,166,35,.08)'};border-radius:6px;padding:8px 10px;border-left:3px solid ${col};margin-bottom:4px;">
       <div style="font-weight:800;font-size:14px;color:${col};letter-spacing:.5px;">${biasEmoji} ${bias}</div>
-      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} · ${bulls} bull / ${bears} bear</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px;">${pats.length} signal${pats.length!==1?'s':''} � ${bulls} bull / ${bears} bear</div>
     </div>
     ${top?`<div style="font-size:10px;color:var(--tx3);padding:2px 0;">Top: <span style="color:var(--tx2);">${top.name}</span> <span style="color:${col};">${(top.conf*100).toFixed(0)}%</span></div>`:''}`;
 
-  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`🤖 ${top.name} · ${(top.conf*100).toFixed(0)}% conf`; } }
+  if(top){ const sp=document.getElementById('st-pattern'); if(sp){ sp.style.display=''; sp.textContent=`AI ${top.name} � ${(top.conf*100).toFixed(0)}% conf`; } }
 
   // ── TREND STRENGTH ──────────────────────────────────────────────────────────
   if(n >= 50){
@@ -1668,13 +1929,14 @@ function renderAIPanel(r){
     _hero.style.background = bias==='BULLISH'?'rgba(0,201,160,.05)':bias==='BEARISH'?'rgba(240,48,96,.05)':'rgba(245,166,35,.05)';
     _heroLabel.textContent = bias + ' BIAS';
     _heroLabel.style.color = _hCol;
-    _heroSub.textContent = top ? `Top signal: ${top.name} · ${(top.conf*100).toFixed(0)}% conf · ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
+    _heroSub.textContent = top ? `Top signal: ${top.name} � ${(top.conf*100).toFixed(0)}% conf � ${pats.length} pattern${pats.length!==1?'s':''} detected` : `${pats.length} pattern${pats.length!==1?'s':''} detected`;
     if(_heroIcon) _heroIcon.textContent = bias==='BULLISH'?'▲':bias==='BEARISH'?'▼':'◆';
     if(_heroIcon) _heroIcon.style.color = _hCol;
   }
+  updateWorkflowStrip();
 }
 
-// ══ JOURNAL ══════════════════════════════════════════════════════════════════
+// �� JOURNAL ������������������������������������������������������������������
 let jEditId = null;      // null = new, string = editing existing
 let jSnapData = null;    // base64 screenshot stored in modal
 let jFilterMode = 'all';
@@ -1716,10 +1978,10 @@ function captureChart(){
   }catch(e){ console.error('captureChart:', e); return null; }
 }
 
-// Standalone 📷 button — capture then open journal modal pre-loaded with snap
+// Standalone 📷 button � capture then open journal modal pre-loaded with snap
 function captureToJournal(){
   const snap = captureChart();
-  if(!snap){ toast('❌ Screenshot failed — make sure a chart is loaded'); return; }
+  if(!snap){ toast('✖ Screenshot failed � make sure a chart is loaded'); return; }
   jSnapData = snap;
   openJModal();
 }
@@ -1781,7 +2043,7 @@ function openJModal(editEntry){
       // Auto-detect outcome by walking candles after entry bar and seeing which level is touched first
       let autoOutcome = '';
       let autoExit    = fP(td.tp);
-      // td.bar is a float data index — floor it and clamp to valid range
+      // td.bar is a float data index � floor it and clamp to valid range
       const entryBarIdx = Math.min(Math.floor(td.bar ?? 0), curData.length - 1);
       const startBar    = Math.max(0, entryBarIdx + 1);
       const isLong      = td.dir === 'long';
@@ -1791,7 +2053,7 @@ function openJModal(editEntry){
         const tpHit = isLong ? c.high >= td.tp : c.low  <= td.tp;
         const slHit = isLong ? c.low  <= td.sl : c.high >= td.sl;
         if(slHit && tpHit){
-          // Both hit same candle — prior candle's close direction tells us which way price was moving
+          // Both hit same candle � prior candle's close direction tells us which way price was moving
           const prevClose = i > 0 ? curData[i-1]?.close : td.entry;
           const movingDown = prevClose > c.open;
           if(isLong){
@@ -1809,7 +2071,7 @@ function openJModal(editEntry){
       // Still no hit = trade still open, leave exit as TP target
       document.getElementById('jm-exit').value    = autoExit;
       document.getElementById('jm-outcome').value = autoOutcome;
-      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry  ·  filled from ' + td.dir.toUpperCase() + ' tool';
+      document.getElementById('jm-title-lbl').textContent = 'New Trade Entry � filled from ' + td.dir.toUpperCase() + ' tool';
     }
   }
 
@@ -1878,7 +2140,7 @@ function jmCalcRR(){
   const sl   =parseFloat(document.getElementById('jm-sl').value);
   const tp   =parseFloat(document.getElementById('jm-tp').value);
   const rrEl = document.getElementById('jm-rr-val');
-  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='—'; return; }
+  if(isNaN(entry)||isNaN(sl)||isNaN(tp)||sl===entry){ rrEl.textContent='�'; return; }
   const risk   = Math.abs(entry-sl);
   const reward = Math.abs(tp-entry);
   const rr     = reward/risk;
@@ -1913,7 +2175,7 @@ function jmSnapLoad(input){
   const file = input?.files?.[0];
   if(!file || !file.type.startsWith('image/')) return;
   const r = new FileReader();
-  r.onload = ev => { jSnapData = ev.target.result; jmRenderSnap(); toast('📷 Image attached'); };
+  r.onload = ev => { jSnapData = ev.target.result; jmRenderSnap(); toast('Image attached'); };
   r.readAsDataURL(file);
   // Reset so same file can be re-selected
   input.value = '';
@@ -1928,8 +2190,8 @@ function jmSnapClick(){
     requestAnimationFrame(()=>{
       const snap = captureChart();
       modal.style.visibility = '';
-      if(snap){ jSnapData=snap; jmRenderSnap(); toast('📷 Chart captured'); }
-      else { toast('❌ Screenshot failed — try Upload instead'); }
+      if(snap){ jSnapData=snap; jmRenderSnap(); toast('Chart captured'); }
+      else { toast('Screenshot failed � try Upload instead'); }
     });
   });
 }
@@ -1998,7 +2260,7 @@ function saveJEntry(){
   }
 
   saveJournal(); buildJournal(); closeJModal();
-  toast(`📓 ${dir.toUpperCase()} logged · ${e2.sym} @ $${fP(entry)}`);
+  toast(`📓 ${dir.toUpperCase()} logged � ${e2.sym} @ $${fP(entry)}`);
 }
 
 // saveJournal / loadJournal defined in account system (namespaced)
@@ -2009,11 +2271,11 @@ let _snapPreviewFilename = '';
 
 function saveChartImage(){
   const snap = captureChart();
-  if(!snap){ toast('❌ Screenshot failed'); return; }
+  if(!snap){ toast('✖ Screenshot failed'); return; }
   _snapPreviewData = snap;
   _snapPreviewFilename = `apexfx-${curSym.s}-${curTF}-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.jpg`;
   document.getElementById('snap-preview-img').src = snap;
-  document.getElementById('snap-preview-title').textContent = `📷 ${curSym.s} · ${curTF}`;
+  document.getElementById('snap-preview-title').textContent = `📷 ${curSym.s} � ${curTF}`;
   document.getElementById('snap-copy-badge').style.display = 'none';
   document.getElementById('snap-preview-bg').classList.add('open');
 }
@@ -2029,7 +2291,7 @@ function snapDoSave(){
   a.href = _snapPreviewData;
   a.download = _snapPreviewFilename;
   a.click();
-  toast(`⬇ Saved · ${_snapPreviewFilename}`);
+  toast(`⬇ Saved � ${_snapPreviewFilename}`);
   closeSnapPreview();
 }
 
@@ -2047,12 +2309,12 @@ async function snapDoCopy(){
     await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
     document.getElementById('snap-copy-badge').style.display = 'block';
     setTimeout(()=>{ document.getElementById('snap-copy-badge').style.display='none'; }, 2500);
-    toast('⎘ Screenshot copied to clipboard');
+    toast('Screenshot copied to clipboard');
   }catch(e){
-    // Final fallback — open in new tab so user can right-click → copy
+    // Final fallback � open in new tab so user can right-click → copy
     const w = window.open();
     w.document.write(`<img src="${_snapPreviewData}" style="max-width:100%">`);
-    toast('⚠ Clipboard blocked — image opened in new tab (right-click → Copy)');
+    toast('⚠ Clipboard blocked � image opened in new tab (right-click → Copy)');
   }
 }
 
@@ -2153,20 +2415,27 @@ function buildJournal(){
   const wins   = liveEntries.filter(e=>e.outcome==='win').length;
   const closed = liveEntries.filter(e=>e.outcome==='win'||e.outcome==='loss').length;
   const rrVals = liveEntries.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
+  const avgRR  = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '�';
   const plVals = liveEntries.filter(e=>e.pl!=null).map(e=>e.pl);
   const totalPL= plVals.reduce((a,b)=>a+b,0);
   const bestPL = plVals.length ? Math.max(...plVals) : null;
   document.getElementById('jst-total').textContent = liveEntries.length;
-  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : '—';
-  document.getElementById('jst-rr').textContent    = avgRR==='—' ? '—' : '1:'+avgRR;
+  document.getElementById('jst-wr').textContent    = closed ? Math.round(wins/closed*100)+'%' : '�';
+  document.getElementById('jst-rr').textContent    = avgRR==='�' ? '�' : '1:'+avgRR;
   const plEl=document.getElementById('jst-pl');
-  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'—'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
+  if(plEl){ plEl.textContent=plVals.length?(totalPL>=0?'+':'')+totalPL.toFixed(2):'�'; plEl.style.color=totalPL>=0?'var(--tl)':'var(--rd)'; }
   const bestEl=document.getElementById('jst-best');
-  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'—'; }
+  if(bestEl){ bestEl.textContent=bestPL!=null?'+'+bestPL.toFixed(2):'�'; }
+  const { score: planScore } = computePlanScore();
+  const scoreEl=document.getElementById('jst-score');
+  if(scoreEl){ scoreEl.textContent=planScore!=null?planScore:'�'; scoreEl.style.color=planScore==null?'':(planScore>=80?'var(--tl)':planScore>=55?'var(--am)':'var(--rd)'); }
+  updateActivationBanner();
 
   drawEquityCurve();
-  if(document.getElementById('rp-analytics')?.classList.contains('on')) buildAnalytics();
+  if(document.getElementById('rp-analytics')?.classList.contains('on')){
+    clearTimeout(_buildAnalyticsTimer);
+    _buildAnalyticsTimer = setTimeout(()=>buildAnalytics(), 200);
+  }
 
   if(jFilterMode==='heatmap'){
     drawMonthHeatmap();
@@ -2225,13 +2494,13 @@ function buildJournal(){
     const gL     = group.entries.filter(e=>e.outcome==='loss').length;
     const hasPL  = group.entries.some(e=>e.pl!=null);
     const plCol  = gPL>0?'var(--tl)':gPL<0?'var(--rd)':'var(--tx3)';
-    const plBit  = hasPL ? ` · <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
-    const wlBit  = (gW||gL) ? ` · <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
+    const plBit  = hasPL ? ` � <span style="color:${plCol};font-weight:700;">${gPL>=0?'+':''}${gPL.toFixed(2)}</span>` : '';
+    const wlBit  = (gW||gL) ? ` � <span style="color:var(--tl)">${gW}W</span>/<span style="color:var(--rd)">${gL}L</span>` : '';
 
     const entriesHTML = group.entries.map(e=>{
       const plColor     = !e.pl ? 'var(--tx2)' : e.pl>0 ? 'var(--tl)' : 'var(--rd)';
       const plTxt       = e.pl!=null ? (e.pl>=0?'+':'')+e.pl.toFixed(2) : '';
-      const outcomeIcon = e.outcome==='win'?'✓':e.outcome==='loss'?'✗':e.outcome==='be'?'≈':'';
+      const outcomeIcon = e.outcome==='win'?'✓':e.outcome==='loss'?'✕':e.outcome==='be'?'≈':'';
       const outcomeCol  = e.outcome==='win'?'var(--tl)':e.outcome==='loss'?'var(--rd)':'var(--am)';
       const dispName    = e.entryName || `${e.sym} ${(e.dir||'').toUpperCase()} @ $${fP(e.entry||0)}`;
       const archBadge   = e.archived ? `<span style="font-size:11px;padding:1px 4px;border-radius:8px;background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.2);color:var(--bl);font-family:monospace;margin-left:3px;">archive</span>` : '';
@@ -2244,7 +2513,7 @@ function buildJournal(){
         <div style="display:flex;align-items:center;gap:7px;flex-shrink:0;">
           ${plTxt?`<span style="font-family:monospace;font-size:10px;font-weight:700;color:${plColor}">${plTxt}</span>`:''}
           ${outcomeIcon?`<span style="font-size:10px;color:${outcomeCol};font-weight:700;">${outcomeIcon}</span>`:''}
-          <button onclick="event.stopPropagation();openJModal(journal.find(j=>j.id==='${e.id}'))" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Edit">✏</button>
+          <button onclick="event.stopPropagation();openJModal(journal.find(j=>j.id==='${e.id}'))" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Edit">✎</button>
           <button onclick="event.stopPropagation();deleteJournalEntry('${e.id}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;padding:0 2px;" title="Delete">✕</button>
         </div>
       </div>
@@ -2265,12 +2534,12 @@ function buildJournal(){
         ${(e.tags&&e.tags.length)?`<div style="margin-bottom:5px;">${e.tags.map(t=>`<span style="font-size:11px;padding:1px 5px;border-radius:8px;background:rgba(61,127,255,.1);border:1px solid rgba(61,127,255,.25);color:var(--bl);margin-right:3px;font-family:monospace;">${t}</span>`).join('')}</div>`:''}
         ${(e.patterns&&e.patterns.length)?`<div style="margin-bottom:5px;">${e.patterns.map(p=>`<span style="font-size:11px;padding:1px 4px;border-radius:2px;background:var(--bg5);color:var(--am);margin-right:3px;">${p}</span>`).join('')}</div>`:''}
         ${e.note?`<div style="font-size:11px;color:var(--tx2);font-style:italic;margin-bottom:4px;line-height:1.4;">"${e.note}"</div>`:''}
-        ${e.lessons?`<div style="font-size:11px;color:var(--tl);margin-bottom:4px;line-height:1.4;">💡 ${e.lessons}</div>`:''}
+        ${e.lessons?`<div style="font-size:11px;color:var(--tl);margin-bottom:4px;line-height:1.4;">Tip: ${e.lessons}</div>`:''}
         <div style="font-size:11px;color:var(--tx2);">${new Date(e.time).toLocaleString()}</div>
         ${e.screenshot?`<img class="jentry-thumb" src="${e.screenshot}" onclick="viewSnap('${e.id}')" title="Click to fullscreen">`:''}
         ${!e.archived?`<div style="margin-top:7px;border-top:1px solid var(--b1);padding-top:7px;display:flex;gap:5px;">
-          <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">🔬 AI Autopsy</button>
-          ${e.outcome==='loss'?`<button onclick="event.stopPropagation();whyDidILose('${e.id}')" class="wdil-btn">❓ Why did I lose?</button>`:''}
+          <button onclick="event.stopPropagation();runAutopsy('${e.id}',this)" style="flex:1;padding:5px;background:rgba(240,165,0,.06);border:1px solid rgba(240,165,0,.2);color:var(--am);font-size:11px;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:600;" onmouseover="this.style.background='rgba(240,165,0,.13)'" onmouseout="this.style.background='rgba(240,165,0,.06)'">AI Autopsy</button>
+          ${e.outcome==='loss'?`<button onclick="event.stopPropagation();whyDidILose('${e.id}')" class="wdil-btn">Why did I lose?</button>`:''}
         </div>
         <div id="autopsy-${e.id}" style="display:none;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:3px;border-left:3px solid var(--am);font-size:11px;line-height:1.7;color:var(--tx2);white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
         `:''}
@@ -2305,7 +2574,7 @@ function logTrade(dir){
   openJModal();
 }
 
-// ══ EQUITY CURVE ═════════════════════════════════════════════════════════════
+// �� EQUITY CURVE �������������������������������������������������������������
 function drawEquityCurve(){
   const c = document.getElementById('j-equity');
   if(!c) return;
@@ -2372,7 +2641,7 @@ function drawEquityCurve(){
   ctx.fillText((last>=0?'+':'')+last.toFixed(2), W-4, 10);
 }
 
-// ══ MONTHLY HEATMAP ═══════════════════════════════════════════════════════════
+// �� MONTHLY HEATMAP �����������������������������������������������������������
 function drawMonthHeatmap(){
   const el = document.getElementById('j-heatmap');
   if(!el) return;
@@ -2433,7 +2702,7 @@ function drawMonthHeatmap(){
 
 
 
-// ══ ANALYTICS WIDGET VISIBILITY ═══════════════════════════════════════════════
+// �� ANALYTICS WIDGET VISIBILITY �����������������������������������������������
 const ANALYTICS_WIDGETS = [
   ['coach',   'AI Coach'],
   ['edge',    'Edge Profiler'],
@@ -2514,7 +2783,7 @@ function toggleAnalyticsCustomise(){
   }
 }
 
-// ══ ANALYTICS ENGINE ══════════════════════════════════════════════════════════
+// �� ANALYTICS ENGINE ����������������������������������������������������������
 
 let setupFilterMode = 'all';
 function setupFilter(btn, mode){
@@ -2528,6 +2797,7 @@ function setupFilter(btn, mode){
 
 function buildAnalytics(){
   applyAnalyticsVisibility();
+  renderDNACard();
   renderAnalyticsHero();
   renderTraderProfileWidget();
   renderThesisTrackerWidget();
@@ -2543,6 +2813,7 @@ function buildAnalytics(){
   buildDrawdownCurve();
   buildRRDist();
   buildMonthlyPL();
+  checkEmptyWidgets();
 }
 
 let traderProfileCache = null;
@@ -2565,8 +2836,8 @@ function renderAnalyticsHero(){
     || 'The platform will start surfacing your strongest pattern once more closed trades are logged.';
   const stats = [
     { label:'Closed Trades', value: p?.total || 0, color:'var(--tx)' },
-    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '—', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
-    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '—', color:'var(--am)' },
+    { label:'Win Rate', value: p?.winRate != null ? `${p.winRate}%` : '�', color: p?.winRate >= 50 ? 'var(--tl)' : 'var(--am)' },
+    { label:'Avg R:R', value: p?.avgRR != null ? p.avgRR.toFixed(2) : '�', color:'var(--am)' },
     { label:'Thesis', value: thesis ? thesisState.label : 'None', color: thesis ? thesisState.color : 'var(--tx3)' },
   ];
   el.innerHTML = `
@@ -2735,6 +3006,91 @@ function getTraderProfile(force){
   }
   return saveTraderProfileSnapshot(false);
 }
+function _normSetupKey(v){
+  return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function _setupKeysMatch(a, b){
+  const left = _normSetupKey(a);
+  const right = _normSetupKey(b);
+  if(!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+function buildTraderMemoryFit(setupLike, profile){
+  const p = profile || getTraderProfile?.();
+  if(!p?.total){
+    return {
+      delta: 0,
+      band: 'neutral',
+      reasons: [],
+      cautions: [],
+      summary: 'Trader memory is still building.',
+      nextActionBias: 'validate',
+    };
+  }
+  const setup = setupLike || {};
+  const reasons = [];
+  const cautions = [];
+  let delta = 0;
+  const liveSession = _sessionBucketFromTime(Date.now());
+  const rr = Number(setup.rr);
+
+  if(p.bestSymbol?.key && setup.sym === p.bestSymbol.key){
+    delta += 8;
+    reasons.push(`matches your strongest symbol (${p.bestSymbol.key})`);
+  }
+  if(p.bestTf?.key && setup.tf === p.bestTf.key){
+    delta += 6;
+    reasons.push(`lines up with your best timeframe (${p.bestTf.key})`);
+  }
+  if(p.bestSetup?.key && _setupKeysMatch(setup.patLabel || setup.setupType, p.bestSetup.key)){
+    delta += 6;
+    reasons.push(`resembles your strongest setup type (${p.bestSetup.key})`);
+  }
+  if(p.bestSession?.key && liveSession === p.bestSession.key){
+    delta += 3;
+    reasons.push(`current session matches your strongest window (${p.bestSession.key})`);
+  }
+  if(Number.isFinite(rr) && p.avgRR != null){
+    if(rr >= p.avgRR + 0.3){
+      delta += 3;
+      reasons.push(`reward-to-risk is stronger than your average`);
+    } else if(rr < Math.max(1.5, p.avgRR - 0.35)){
+      delta -= 5;
+      cautions.push(`reward-to-risk is weaker than your normal edge`);
+    }
+  }
+  if(p.recentLosses >= 4){
+    delta -= 4;
+    cautions.push(`recent form is shaky, so this needs cleaner confirmation`);
+  }
+  if(p.weaknesses?.[0]){
+    const weakness = String(p.weaknesses[0]);
+    if(/session/i.test(weakness) && p.bestSession?.key && liveSession !== p.bestSession.key){
+      delta -= 2;
+      cautions.push(`this is outside your strongest session`);
+    }
+    if(/R:R|reward/i.test(weakness) && Number.isFinite(rr) && rr < 2){
+      delta -= 2;
+      cautions.push(`your history suggests being stricter on lower R:R trades`);
+    }
+  }
+
+  delta = Math.max(-12, Math.min(12, delta));
+  const band = delta >= 8 ? 'strong_fit'
+    : delta >= 3 ? 'good_fit'
+    : delta <= -6 ? 'poor_fit'
+    : delta < 0 ? 'cautious_fit'
+    : 'neutral';
+  const summary = reasons.length
+    ? `${reasons.slice(0, 2).join(' � ')}${cautions.length ? ` � Watch-out: ${cautions[0]}` : ''}`
+    : (cautions[0] || 'No strong personal fit signal yet.');
+  const nextActionBias = band === 'poor_fit' || band === 'cautious_fit'
+    ? 'extra_confirmation'
+    : band === 'strong_fit'
+      ? 'aggressive_validation'
+      : 'validate';
+  return { delta, band, reasons, cautions, summary, nextActionBias };
+}
 function getCurrentThesis(sym){
   const key = sym || curSym?.s;
   return key ? thesisStore[key] || null : null;
@@ -2791,13 +3147,30 @@ function renderTraderProfileWidget(){
     p.bestSession ? `Best Session: ${p.bestSession.key}` : '',
     p.bestSetup ? `Best Setup: ${p.bestSetup.key}` : '',
   ].filter(Boolean).map(t => `<span style="padding:3px 8px;border-radius:10px;background:var(--bg3);border:1px solid var(--b1);font-size:10px;color:var(--tx2);font-family:ui-monospace,'SF Mono',monospace;">${t}</span>`).join('');
+  const edge = p.strengths?.[0] || 'Your edge will appear here once the app has enough closed trades to compare.';
+  const weakness = p.weaknesses?.[0] || 'No repeating weakness detected yet.';
+  const focus = p.checklist?.[0] || 'Keep journaling clean setups so the profile can get more specific.';
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;">
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Closed Trades</div><div style="font-size:18px;color:var(--tx);font-weight:700;">${p.total}</div></div>
       <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Win Rate</div><div style="font-size:18px;color:${p.winRate >= 50 ? 'var(--tl)' : 'var(--am)'};font-weight:700;">${p.winRate}%</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Avg Planned R:R</div><div style="font-size:18px;color:var(--am);font-weight:700;">${p.avgRR != null ? p.avgRR.toFixed(2) : '�'}</div></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${chips}</div>
+    <div style="display:grid;gap:8px;margin-bottom:8px;">
+      <div style="padding:8px;background:rgba(61,142,255,.06);border:1px solid rgba(61,142,255,.16);border-radius:6px;">
+        <div style="font-size:10px;color:var(--blue);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Your edge</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${edge}</div>
+      </div>
+      <div style="padding:8px;background:rgba(255,77,106,.05);border:1px solid rgba(255,77,106,.14);border-radius:6px;">
+        <div style="font-size:10px;color:var(--rd);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Your weakness</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${weakness}</div>
+      </div>
+      <div style="padding:8px;background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.16);border-radius:6px;">
+        <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Current focus</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${focus}</div>
+      </div>
+    </div>
     <div style="padding:8px;background:rgba(0,201,160,.06);border:1px solid rgba(0,201,160,.16);border-radius:6px;margin-bottom:8px;">
       <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What is working</div>
       <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${p.strengths.slice(0,2).join(' ')}</div>
@@ -2808,7 +3181,7 @@ function renderTraderProfileWidget(){
     </div>
     <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
       <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Before your next trade</div>
-      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `• ${x}`).join('<br>')}</div>
+      <div style="font-size:11px;color:var(--tx2);line-height:1.7;">${p.checklist.slice(0,3).map(x => `� ${x}`).join('<br>')}</div>
     </div>`;
 }
 function renderThesisTrackerWidget(){
@@ -2823,14 +3196,14 @@ function renderThesisTrackerWidget(){
   const st = _thesisStatus(thesis, lastPrice);
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} · ${thesis.tf || curTF}</div>
+      <div style="font-size:12px;color:var(--tx);font-weight:700;">${thesis.sym} � ${thesis.tf || curTF}</div>
       <div style="padding:3px 8px;border-radius:999px;border:1px solid var(--b1);background:var(--bg3);font-size:10px;color:${st.color};font-family:ui-monospace,'SF Mono',monospace;">${st.label}</div>
     </div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:8px;">${thesis.statement || 'No thesis statement saved.'}</div>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;">
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '—'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '—'}</div></div>
-      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '—'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Confirm</div><div style="font-size:14px;color:var(--green);font-weight:700;">${isFinite(thesis.confirmation) ? fP(thesis.confirmation) : '�'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Invalidate</div><div style="font-size:14px;color:var(--rd);font-weight:700;">${isFinite(thesis.invalidation) ? fP(thesis.invalidation) : '�'}</div></div>
+      <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;"><div style="font-size:10px;color:var(--tx3);">Target</div><div style="font-size:14px;color:var(--am);font-weight:700;">${isFinite(thesis.target) ? fP(thesis.target) : '�'}</div></div>
     </div>
     <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;">Focus: ${thesis.focus || 'No follow-through note saved.'}</div>
     <div style="display:flex;gap:6px;">
@@ -2856,10 +3229,10 @@ function renderReplayLabWidget(){
       ${recent.map(s => `
         <div style="padding:8px;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;">
           <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
-            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} · ${s.method || 'Replay'}</span>
+            <span style="font-size:11px;color:var(--tx);font-weight:600;">${s.sym} � ${s.method || 'Replay'}</span>
             <span style="font-size:11px;color:${s.overall >= 75 ? 'var(--tl)' : s.overall >= 60 ? 'var(--am)' : 'var(--rd)'};font-family:ui-monospace,'SF Mono',monospace;">${s.overall}/100</span>
           </div>
-          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} · ${_fmtAgo(s.createdAt)}</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:4px;">${(s.outcome || '').replace(/_/g,' ')} � ${_fmtAgo(s.createdAt)}</div>
           <div style="font-size:11px;color:var(--tx2);line-height:1.5;">${(s.notes || []).slice(0,2).join(' ')}</div>
         </div>`).join('')}
     </div>`;
@@ -2878,7 +3251,7 @@ function buildWLBars(){
   const avgW = wins.length   ? wins.reduce((a,b)=>a+b,0)/wins.length     : 0;
   const avgL = losses.length ? Math.abs(losses.reduce((a,b)=>a+b,0)/losses.length) : 0;
   const maxVal = Math.max(avgW, avgL, 0.01);
-  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : '—';
+  const ratio  = (avgW && avgL) ? (avgW/avgL).toFixed(2) : '�';
   const ratioCol = parseFloat(ratio) >= 1 ? 'var(--tl)' : 'var(--rd)';
 
   el.innerHTML = `
@@ -2896,7 +3269,7 @@ function buildWLBars(){
     </div>
     <div style="font-size:11px;font-family:monospace;color:var(--tx3);text-align:center;">
       Win/Loss ratio: <span style="color:${ratioCol};font-weight:700;">${ratio}</span>
-      <span style="color:var(--tx3);"> · ${wins.length}W / ${losses.length}L</span>
+      <span style="color:var(--tx3);"> � ${wins.length}W / ${losses.length}L</span>
     </div>`;
 }
 
@@ -2920,7 +3293,7 @@ function buildStreakStats(){
     for(const e of recent){ if(e.outcome===curType) curStreak++; else break; }
   }
   const curCol  = curType==='win'?'var(--tl)':'var(--rd)';
-  const curIcon = curType==='win'?'🔥':'❄';
+  const curIcon = curType==='win'?'Hot':'Cold';
   const card = (label, val, col, sub='') =>
     `<div style="flex:1;min-width:70px;padding:6px 8px;background:var(--bg3);border-radius:4px;border-top:2px solid ${col};">
       <div style="font-size:16px;font-weight:800;color:${col};font-family:monospace;">${val}</div>
@@ -2929,8 +3302,8 @@ function buildStreakStats(){
     </div>`;
   el.innerHTML =
     card('Current',`${curIcon} ${curStreak}`,curCol,curType||'') +
-    card('Best Win','🏆 '+bestW,'var(--tl)','streak') +
-    card('Best Loss','💀 '+bestL,'var(--rd)','streak');
+    card('Best Win','Best '+bestW,'var(--tl)','streak') +
+    card('Best Loss','Worst '+bestL,'var(--rd)','streak');
 }
 
 // ── Tag Performance ───────────────────────────────────────────────────────────
@@ -3372,7 +3745,7 @@ function invalidateAIReports(){
       dot.className = 'stale-dot';
       dot.title = 'Journal has changed since this report was generated';
       dot.style.cssText = 'font-size:11px;padding:1px 5px;border-radius:8px;background:rgba(240,165,0,.1);color:var(--am);font-family:monospace;border:1px solid rgba(240,165,0,.3);margin-right:4px;';
-      dot.textContent = '● outdated';
+      dot.textContent = '� outdated';
       ctrl.insertBefore(dot, ctrl.firstChild);
     }
   });
@@ -3405,7 +3778,7 @@ function checkWeeklyLock(){
   }
 }
 
-// ══ AI REPORT HISTORY LOG ══════════════════════════════════════════════════════
+// �� AI REPORT HISTORY LOG ������������������������������������������������������
 // Persistent storage for all AI session/weekly reports — keyed by date string
 // Structure: aiHistoryLog = { daily: [ {date, dateKey, text} ], weekly: [ {weekKey, label, text} ] }
 let aiHistoryLog = { daily:[], weekly:[] };
@@ -3553,7 +3926,7 @@ async function runAICoach(){
 
   const idle = document.getElementById('coach-idle');
   const btn  = idle?.querySelector('button');
-  if(btn){ btn.textContent = '⏳ Analysing...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Analysing...'; btn.disabled = true; }
 
   const live    = journal.filter(e=>!e.archived);
   const closed  = live.filter(e => e.outcome === 'win' || e.outcome === 'loss');
@@ -3612,7 +3985,7 @@ async function runAutopsy(id, btn){
     return;
   }
 
-  btn.textContent = '⏳ Analysing...'; btn.disabled = true;
+  btn.textContent = '�� Analysing...'; btn.disabled = true;
   out.style.display = 'block';
   out.textContent = 'Running autopsy...';
 
@@ -3664,7 +4037,7 @@ Write a trade autopsy with these 4 sections (keep each to 2-3 lines):
   btn.disabled = false;
 }
 
-// ══ EDGE PROFILER ════════════════════════════════════════════════════════════
+// �� EDGE PROFILER ������������������������������������������������������������
 async function runEdgeProfiler(){
   const idle = document.getElementById('edge-idle');
   const btn  = idle?.querySelector('button');
@@ -3681,7 +4054,7 @@ async function runEdgeProfiler(){
     return;
   }
 
-  if(btn){ btn.textContent = '⏳ Profiling...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Profiling...'; btn.disabled = true; }
 
   const bySetup={}, bySym={}, byTF={}, byDir={long:[],short:[]}, byEmo={};
   closed.forEach(e=>{
@@ -3716,7 +4089,7 @@ By Emotion at entry:
 ${Object.entries(byEmo).map(([k,v])=>`${k}: ${Math.round(v.w/(v.w+v.l)*100)}% WR (${v.w+v.l} trades)`).join('\n')||'No emotion data'}
 
 Write an EDGE PROFILE with these sections:
-🏆 YOUR A+ SETUP — the single highest-probability combination (setup + symbol + direction + timeframe) with exact stats
+�� YOUR A+ SETUP — the single highest-probability combination (setup + symbol + direction + timeframe) with exact stats
 📈 WHERE YOU MAKE MONEY — top 3 conditions that consistently produce winners
 📉 WHERE YOU LOSE MONEY — top 2-3 conditions that destroy your edge (avoid these)
 🧠 PSYCHOLOGICAL EDGE — your best emotional state for trading, backed by data
@@ -3732,7 +4105,7 @@ Write an EDGE PROFILE with these sections:
   }
 }
 
-// ══ POST-SESSION SUMMARY ══════════════════════════════════════════════════════
+// �� POST-SESSION SUMMARY ������������������������������������������������������
 async function runSessionSummary(){
   const idle = document.getElementById('session-idle');
   const btn  = idle?.querySelector('button');
@@ -3750,7 +4123,7 @@ async function runSessionSummary(){
     return;
   }
 
-  if(btn){ btn.textContent = '⏳ Writing summary...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Writing summary...'; btn.disabled = true; }
 
   const closed  = today.filter(e=>e.outcome==='win'||e.outcome==='loss');
   const wins    = closed.filter(e=>e.outcome==='win').length;
@@ -3778,7 +4151,7 @@ ${tradeList}
 Write a post-session summary with these sections (2-3 lines each, conversational tone):
 📋 SESSION SNAPSHOT — quick summary of how the day went in plain English
 ✅ BEST DECISION — the single best thing they did today (specific trade or behaviour)
-❌ BIGGEST MISTAKE — the single worst decision and why it matters
+�� BIGGEST MISTAKE — the single worst decision and why it matters
 🧠 MENTAL GAME — how emotions played out across the session and what it signals
 🌅 TOMORROW — one specific intention or rule to carry into the next session`;
 
@@ -3793,7 +4166,7 @@ Write a post-session summary with these sections (2-3 lines each, conversational
   }
 }
 
-// ══ WEEKLY PERFORMANCE REPORT ════════════════════════════════════════════════
+// �� WEEKLY PERFORMANCE REPORT ������������������������������������������������
 async function runWeeklyReport(){
   const idle = document.getElementById('weekly-idle');
   const btn  = document.getElementById('weekly-generate-btn');
@@ -3811,7 +4184,7 @@ async function runWeeklyReport(){
     return;
   }
 
-  if(btn){ btn.textContent = '⏳ Generating...'; btn.disabled = true; }
+  if(btn){ btn.textContent = '�� Generating...'; btn.disabled = true; }
 
   const wins      = closed.filter(e=>e.outcome==='win').length;
   const plVals    = closed.filter(e=>e.pl!=null).map(e=>e.pl);
@@ -3852,9 +4225,9 @@ Write a WEEKLY REPORT with these sections:
 📊 WEEK AT A GLANCE — 3-4 bullet points with the headline numbers and what they mean
 📈 WHAT WORKED — top 2 things that generated the most profit or highest quality trades
 📉 WHAT DIDN'T WORK — top 2 things that cost money or represented poor process
-🔁 PATTERNS TO NOTE — any recurring behaviour (good or bad) across the week
+� PATTERNS TO NOTE — any recurring behaviour (good or bad) across the week
 📅 NEXT WEEK FOCUS — 3 specific, measurable intentions for the coming week
-⭐ TRADER GRADE — give the week a grade (A/B/C/D) with a one-line rationale
+� TRADER GRADE — give the week a grade (A/B/C/D) with a one-line rationale
 
 Keep it professional but human. This is a weekly review, not a punishment.`;
 
@@ -3960,7 +4333,7 @@ async function runDynamicPretradeAI(){
   const sl    = parseFloat(document.getElementById('jm-sl')?.value)    || null;
   const tp    = parseFloat(document.getElementById('jm-tp')?.value)    || null;
 
-  btn.textContent = '⏳'; btn.disabled = true;
+  btn.textContent = '��'; btn.disabled = true;
   out.style.display = 'block';
   out.textContent = 'Running deep pre-trade check...';
 
@@ -4252,7 +4625,7 @@ function calcPSC(){
     ${rrHtml}`;
 }
 
-// ══ SESSION HIGHLIGHTER ══════════════════════════════════════════════════════
+// �� SESSION HIGHLIGHTER ������������������������������������������������������
 let showSessions = false;
 try{ showSessions = JSON.parse(localStorage.getItem('apex-sessions')||'false'); }catch(e){}
 
@@ -4266,7 +4639,7 @@ function toggleSessions(){
   syncActiveChartTabRuntimeState(true);
   saveSettingsToStorage();
   draw();
-  toast(showSessions ? '🌍 Sessions ON — London · NY · Asia' : '🌍 Sessions OFF');
+  toast(showSessions ? '� Sessions ON — London · NY · Asia' : '� Sessions OFF');
 }
 
 // Draw trading session highlight bands onto ctx for the visible bars
@@ -4312,7 +4685,7 @@ function drawSessions(ctx, data, firstBar, lastBar, barX, H){
   });
 }
 
-// ══ BAR REPLAY MODE ══════════════════════════════════════════════════════════
+// �� BAR REPLAY MODE ����������������������������������������������������������
 // Design: chart is NEVER locked. curData always holds the full dataset.
 // replayCutoff = data index of the last visible bar (bars after it are dimmed).
 // Phase 1 (picking): move mouse to hover over the bar you want to start from,
@@ -4362,7 +4735,7 @@ function triggerReplayRescan() {
     const _scanAnalysis = mentorState.analysis;
     const _trendLabel = _scanAnalysis?.structure?.trend?.replace(/_/g,' ') || null;
     mentorState.currentInsights = [
-      `🔍 Scanning for ${_methodName} setups...`,
+      `� Scanning for ${_methodName} setups...`,
       _trendLabel ? `Current market structure: ${_trendLabel}.` : 'Reading market structure...',
       'The mentor will pause the replay the moment a qualifying setup appears.'
     ];
@@ -4396,7 +4769,7 @@ function startReplay(){
   _syncAllDockedBtns();
   updateReplayStatus();
   draw();
-  toast('⏮ Replay — hover to pick start bar, then click');
+  toast('�� Replay — hover to pick start bar, then click');
   
   // Clear the flag after a short delay
   setTimeout(() => {
@@ -4422,7 +4795,7 @@ function stopReplay(){
   const _rbtn2=document.getElementById('btn-replay'); if(_rbtn2) _rbtn2.classList.remove('on');
   _syncAllDockedBtns();
   draw();
-  toast('⏹ Replay ended');
+  toast('�� Replay ended');
 }
 
 // Force reset replay state (for debugging)
@@ -4550,13 +4923,13 @@ function replayTogglePlay(){
   if(replayTimer){
     clearInterval(replayTimer);
     replayTimer = null;
-    updateReplayStatus(); draw(); toast('⏸ Paused');
+    updateReplayStatus(); draw(); toast('�� Paused');
   } else {
     // Clear freeze so scroll follows replay naturally once user presses play
     mentorState._freezeScrollForPreview = false;
     // Check if already at the end
     if(replayCutoff >= curData.length - 1) {
-      toast('⏹ Already at end — Esc to exit');
+      toast('�� Already at end — Esc to exit');
       return;
     }
     replayTimer = setInterval(()=>{
@@ -4568,7 +4941,7 @@ function replayTogglePlay(){
         if(replayCutoff >= curData.length - 1){
           clearInterval(replayTimer); replayTimer = null
           updateReplayStatus(); draw(); // Ensure final state is rendered
-          toast('⏹ Replay complete — Esc to exit');
+          toast('�� Replay complete — Esc to exit');
           return;
         }
         replayStep(1);
@@ -4604,7 +4977,7 @@ function updateReplayStatus(){
   wrap.style.display = replayMode ? 'flex' : 'none';
   if(!txt) return;
   if(replayPicking){
-    txt.textContent = '⏮ PICK START BAR';
+    txt.textContent = '�� PICK START BAR';
     if(play){ play.style.display='none'; }
   } else {
     if(!curData || curData.length <= 1) {
@@ -4616,7 +4989,7 @@ function updateReplayStatus(){
     txt.textContent = `REPLAY  ${replayCutoff}/${curData.length - 1}  (${pct}%)`;
     if(play){
       play.style.display='';
-      play.textContent = replayTimer ? '⏸' : '▶';
+      play.textContent = replayTimer ? '��' : '▶';
       play.style.color = replayTimer ? 'var(--rd)' : 'var(--tl)';
       play.style.borderColor = replayTimer ? 'rgba(240,48,96,.4)' : 'rgba(0,201,160,.4)';
       play.style.background  = replayTimer ? 'rgba(240,48,96,.15)' : 'rgba(0,201,160,.15)';
@@ -4637,7 +5010,7 @@ function replayHoverBar(){
   ));
 }
 
-// ══ AI TRADING MENTOR ═══════════════════════════════════════════════════════════
+// �� AI TRADING MENTOR �����������������������������������������������������������
 // Real-time trading coach for Bar Replay mode - analyzes only current and past data
 
 let mentorState = {
@@ -4712,7 +5085,167 @@ let mentorState = {
   // Annotation cache — drawings computed once per setup, restored on scroll
   _annCache: null, // { setupBar, method, drawings: [...] }
   _debriefAnnotationsVisible: false,
+  guidanceLevel: 'standard',
+  lessonFocus: 'general',
 };
+
+function mentorGuidanceLevelMeta(){
+  const level = mentorState.guidanceLevel || 'standard';
+  if(level === 'beginner'){
+    return {
+      detail: 'full',
+      title: 'Beginner mode',
+      note: 'More explanation, more teaching context, and clearer reminders about what matters most.',
+    };
+  }
+  if(level === 'advanced'){
+    return {
+      detail: 'tight',
+      title: 'Advanced mode',
+      note: 'Shorter prompts and less hand-holding so you can read the chart more independently.',
+    };
+  }
+  return {
+    detail: 'balanced',
+    title: 'Standard mode',
+    note: 'Balanced explanations with enough context to teach without slowing the workflow down.',
+  };
+}
+
+function setMentorGuidanceLevel(level){
+  const next = ['beginner','standard','advanced'].includes(level) ? level : 'standard';
+  mentorState.guidanceLevel = next;
+  try{ _prefsSet('mentor-guidance-level', next); }catch(e){}
+  const el = document.getElementById('mentor-guidance-level');
+  if(el && el.value !== next) el.value = next;
+  const meta = mentorGuidanceLevelMeta();
+  if(mentorState.enabled){
+    toast(`Mentor guidance: ${meta.title}`);
+    updateMentorUI();
+  }
+}
+
+function mentorEnrichLine(line){
+  const text = String(line || '').trim();
+  if(!text) return '';
+  const level = mentorGuidanceLevelMeta().detail;
+  if(level === 'tight'){
+    return text;
+  }
+  if(level === 'full'){
+    if(/support|resistance|liquidity|pullback|breakout|confirmation|invalidation|structure/i.test(text)){
+      return `${text} Why it matters: this is one of the context clues the mentor uses to judge whether the trade idea is real or only looks attractive at first glance.`;
+    }
+    if(/wait|patient|patience|scan|watch/i.test(text)){
+      return `${text} The teaching point here is discipline: not every candle deserves a decision.`;
+    }
+  }
+  return text;
+}
+
+function mentorFormatInsights(insights){
+  const items = Array.isArray(insights) ? insights : [insights];
+  const formatted = items
+    .map(mentorEnrichLine)
+    .filter(Boolean)
+    .map(line => `<div style="margin-bottom:8px;line-height:1.55;color:var(--tx2);font-size:11px;">${String(line).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)
+    .join('');
+  const meta = mentorGuidanceLevelMeta();
+  const focusMeta = mentorLessonFocusMeta();
+  const modeCard = `
+    <div style="margin-bottom:10px;padding:8px 9px;border-radius:8px;background:rgba(155,109,255,0.07);border:1px solid rgba(155,109,255,0.16);">
+      <div style="font-size:10px;color:var(--purple);font-family:var(--font-mono);letter-spacing:.06em;margin-bottom:4px;">${meta.title}</div>
+      <div style="font-size:10.5px;line-height:1.5;color:var(--tx3);">${meta.note}</div>
+      <div style="font-size:10px;line-height:1.45;color:var(--tx3);margin-top:4px;">Lesson focus: ${focusMeta.label}. ${focusMeta.note}</div>
+    </div>`;
+  return modeCard + formatted;
+}
+function mentorLessonFocusMeta(){
+  const focus = mentorState.lessonFocus || 'general';
+  const map = {
+    general:   { label:'General focus', note:'Balanced coaching across structure, timing, and risk.' },
+    structure: { label:'Structure focus', note:'Bias the teaching toward trend, levels, and market structure.' },
+    patience:  { label:'Patience focus', note:'Bias the teaching toward waiting, confirmation, and avoiding forced trades.' },
+    entries:   { label:'Entry focus', note:'Bias the teaching toward entry precision and trigger quality.' },
+    risk:      { label:'Risk focus', note:'Bias the teaching toward stops, targets, and reward-to-risk discipline.' },
+    liquidity: { label:'Liquidity focus', note:'Bias the teaching toward sweeps, reclaims, and reaction levels.' },
+  };
+  return map[focus] || map.general;
+}
+function setMentorLessonFocus(focus){
+  const next = ['general','structure','patience','entries','risk','liquidity'].includes(focus) ? focus : 'general';
+  mentorState.lessonFocus = next;
+  try{ _prefsSet('mentor-lesson-focus', next); }catch(e){
+    try{ _lsSet('mentor-lesson-focus', next); }catch(_){}
+  }
+  const el = document.getElementById('mentor-lesson-focus');
+  if(el && el.value !== next) el.value = next;
+  if(mentorState.enabled){
+    toast(`Mentor lesson focus: ${mentorLessonFocusMeta().label}`);
+    updateMentorUI();
+  }
+}
+function mentorLessonFocusPrompt(){
+  const focus = mentorState.lessonFocus || 'general';
+  const map = {
+    general: 'Keep the coaching balanced between structure, timing, and risk.',
+    structure: 'Prioritise structure: trend quality, key levels, support/resistance, and why the setup fits the chart.',
+    patience: 'Prioritise patience: waiting, confirmation, not chasing, and what must happen before acting.',
+    entries: 'Prioritise entry quality: trigger candle, level precision, and whether the placement is early, late, or clean.',
+    risk: 'Prioritise risk management: stop logic, target logic, reward-to-risk, and capital protection.',
+    liquidity: 'Prioritise liquidity concepts: sweeps, stop hunts, reclaim levels, reaction zones, and where resting orders likely sat.',
+  };
+  return map[focus] || map.general;
+}
+
+function mentorBuildLessonRecap(trade, outcome, replayScorecard){
+  const method = mentorState.selectedTradingMethod || 'general';
+  const methodLabel = {
+    breakout: 'Breakout',
+    trend: 'Trend Following',
+    support_resistance: 'Support & Resistance',
+    pullback: 'Pullback',
+    range: 'Range',
+    liquidity: 'Liquidity Sweep',
+    general: 'General lesson'
+  }[method] || method;
+  const profile = getTraderProfile?.();
+  const focus = mentorState.lessonFocus && mentorState.lessonFocus !== 'general'
+    ? mentorLessonFocusPrompt()
+    : (profile?.checklist?.[0] || 'Keep waiting for cleaner confirmation before committing to the next trade.');
+  const note = replayScorecard?.notes?.[0] || (outcome === 'take_profit'
+    ? 'The structure and management held together well enough for the idea to play out.'
+    : outcome === 'stop_loss'
+      ? 'The breakdown point mattered more than the initial setup idea, so protecting capital was the right outcome.'
+      : 'The setup ran out of time before it could fully play out, which is still useful information.');
+  return {
+    title: `${methodLabel} lesson recap`,
+    grade: replayScorecard?.overall != null ? `${replayScorecard.overall}/100` : 'Review',
+    takeaway: note,
+    nextFocus: focus,
+  };
+}
+
+function renderMentorSessionRecap(trade, outcome, replayScorecard){
+  const el = document.getElementById('mentor-session-recap');
+  if(!el) return;
+  const recap = mentorBuildLessonRecap(trade, outcome, replayScorecard);
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+      <div style="font-size:10px;color:var(--blue);font-family:var(--font-mono);letter-spacing:.06em;">${recap.title}</div>
+      <div style="font-size:12px;color:var(--tx);font-weight:700;font-family:var(--font-mono);">${recap.grade}</div>
+    </div>
+    <div style="font-size:11px;color:var(--tx2);line-height:1.55;margin-bottom:6px;">${recap.takeaway}</div>
+    <div style="font-size:10px;color:var(--tx3);line-height:1.5;">Next focus: ${recap.nextFocus}</div>`;
+}
+
+function clearMentorSessionRecap(){
+  const el = document.getElementById('mentor-session-recap');
+  if(!el) return;
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
 
 // ── Centralised state transition helper ──────────────────────────────────────
 // Using this instead of direct `mentorState.lifecycleState = x` ensures that
@@ -4814,7 +5347,7 @@ function setMentorState(newState, reason) {
 
 
 
-// ══ MENTOR REPLAY CONTROL ═══════════════════════════════════════════════════════════
+// �� MENTOR REPLAY CONTROL �����������������������������������������������������������
 
 function pauseReplayForSetup() {
   if (!replayMode) return;
@@ -4828,7 +5361,7 @@ function pauseReplayForSetup() {
   mentorState.setupPausedReplay = true;
   updateReplayStatus();
   draw();
-  toast('⏸ Setup found — replay paused');
+  toast('�� Setup found — replay paused');
 }
 
 function resumeReplayAfterSetup(autoPlay = false) {
@@ -4967,12 +5500,7 @@ function updateLockedMentorUI() {
   }
   
   // Render main insights
-  insightsEl.innerHTML = displayContent
-    .map(line => {
-      if (!line || !line.trim()) return '<div style="height:6px;"></div>';
-      return `<div style="margin-bottom:8px;line-height:1.5;color:var(--tx2);font-size:11px;">${line.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
-    })
-    .join('');
+  insightsEl.innerHTML = mentorFormatInsights(displayContent.filter(line => line && String(line).trim()));
 
   // Append live trade monitoring updates in a distinct section
   if (mentorState.exampleTradeActive && mentorState.tradeMonitoringUpdates.length > 0) {
@@ -5005,6 +5533,7 @@ function updateLockedMentorUI() {
     setupControlsEl.style.display = 'none';
     completionControlsEl.style.display = 'none';
   }
+  if (mentorState.lockedMessage !== 'trade_completed') clearMentorSessionRecap();
 }
 
 function generateExampleTrade(setupData, currentBar) {
@@ -5080,7 +5609,7 @@ function activateExampleTrade(setupData, currentBar) {
   const exampleTrade = generateExampleTrade(setupData, currentBar);
   
   if (!exampleTrade) {
-    console.error('❌ Failed to generate example trade');
+    console.error('�� Failed to generate example trade');
     return;
   }
   
@@ -5101,7 +5630,7 @@ function monitorExampleTrade(currentBar) {
     const barsToEntry = trade.barIndex - currentBar;
     let commentary;
     if (barsToEntry > 8) {
-      commentary = `⏳ ${barsToEntry} candles until entry @ ${trade.entry.toFixed(4)} — watch price approaching the level`;
+      commentary = `�� ${barsToEntry} candles until entry @ ${trade.entry.toFixed(4)} — watch price approaching the level`;
     } else if (barsToEntry > 3) {
       commentary = `🔔 Entry approaching in ~${barsToEntry} candles — price is converging on the entry zone`;
     } else if (barsToEntry > 1) {
@@ -5125,8 +5654,8 @@ function monitorExampleTrade(currentBar) {
     const dirLabel = trade.direction === 'long' ? 'LONG' : 'SHORT';
     mentorState.tradeMonitoringUpdates = [
       `✅ Trade entered: ${dirLabel} @ ${trade.entry.toFixed(4)}`,
-      `🛡️ Stop Loss active @ ${trade.stopLoss.toFixed(4)}`,
-      `🏆 Target @ ${trade.takeProfit.toFixed(4)} — R:R ${trade.riskReward?.toFixed(1) || '?'}:1`,
+      `🛡� Stop Loss active @ ${trade.stopLoss.toFixed(4)}`,
+      `�� Target @ ${trade.takeProfit.toFixed(4)} — R:R ${trade.riskReward?.toFixed(1) || '?'}:1`,
     ];
     mentorState.lockedQuestion = '📊 Trade is live — watching for TP or SL...';
     updateLockedMentorUI();
@@ -5191,7 +5720,7 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   let update;
 
   if (pnlR >= 1.4) {
-    update = `🏆 Almost there! Price is ${pctToTP.toFixed(0)}% of the way to TP — holding strong`;
+    update = `�� Almost there! Price is ${pctToTP.toFixed(0)}% of the way to TP — holding strong`;
   } else if (pnlR >= 0.8) {
     update = `✅ Trade at +${pnlR.toFixed(1)}R — well into profit, target within reach`;
   } else if (pnlR >= 0.3) {
@@ -5199,7 +5728,7 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   } else if (pnlR >= 0) {
     update = `📊 Just above entry — trade open, watching for momentum to build`;
   } else if (pnlR >= -0.5) {
-    update = `⚠️ Price pulled back to ${pnlR.toFixed(1)}R — normal in any trade, stop loss is protecting the position`;
+    update = `⚠� Price pulled back to ${pnlR.toFixed(1)}R — normal in any trade, stop loss is protecting the position`;
   } else {
     update = `🔴 Near stop loss (${pnlR.toFixed(1)}R) — price testing the invalidation level`;
   }
@@ -5209,12 +5738,12 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   if (_wickBar && trade.direction === 'long') {
     const wickDistToSL = (_wickBar.low - trade.stopLoss) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `⚠️ Wick approaching SL — low @ ${fP(_wickBar.low)}, stop @ ${fP(trade.stopLoss)}`;
+      update = `⚠� Wick approaching SL — low @ ${fP(_wickBar.low)}, stop @ ${fP(trade.stopLoss)}`;
     }
   } else if (_wickBar && trade.direction === 'short') {
     const wickDistToSL = (trade.stopLoss - _wickBar.high) / riskDist;
     if (wickDistToSL < 0.15 && pnlR > -0.5) {
-      update = `⚠️ Wick approaching SL — high @ ${fP(_wickBar.high)}, stop @ ${fP(trade.stopLoss)}`;
+      update = `⚠� Wick approaching SL — high @ ${fP(_wickBar.high)}, stop @ ${fP(trade.stopLoss)}`;
     }
   }
 
@@ -5223,7 +5752,7 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   const lastEmoji = last ? (last.match(/^[\S]+/)?.[0] || '') : '';
   const newEmoji  = update.match(/^[\S]+/)?.[0] || '';
   if (lastEmoji && newEmoji && lastEmoji === newEmoji) {
-    // Same category — replace the last entry so we don't stack e.g. three "🏆 Almost there!" lines
+    // Same category — replace the last entry so we don't stack e.g. three "�� Almost there!" lines
     mentorState.tradeMonitoringUpdates[mentorState.tradeMonitoringUpdates.length - 1] = update;
   } else if (update !== last) {
     mentorState.tradeMonitoringUpdates.push(update);
@@ -5239,7 +5768,7 @@ function addTradeMonitoringUpdate(currentPrice, previousPrice, trade, currentBar
   }
 }
 
-// ══ STRUCTURED TRADE REVIEW GENERATOR ════════════════════════════════════════════════════════════════
+// �� STRUCTURED TRADE REVIEW GENERATOR ����������������������������������������������������������������
 
 function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade = false) {
   if (!trade || !curData) return null;
@@ -5329,7 +5858,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   slReasoning += ` The ${slPercent}% stop distance provided adequate room for normal market volatility while protecting capital if the structure broke.`;
   
   review.sections.push({
-    title: '🛡️ STOP LOSS PLACEMENT',
+    title: '🛡� STOP LOSS PLACEMENT',
     content: slReasoning
   });
   
@@ -5377,7 +5906,7 @@ function generateStructuredTradeReview(trade, outcome, currentBar, isUserTrade =
   rmReasoning += ` Risk was controlled by sizing the position appropriately relative to account balance, ensuring that even if the stop loss was hit, the loss would be a small percentage of total capital.`;
   
   review.sections.push({
-    title: '⚖️ RISK MANAGEMENT',
+    title: '⚖� RISK MANAGEMENT',
     content: rmReasoning
   });
   
@@ -5521,7 +6050,7 @@ function handleTradeCompletion(outcome, currentBar) {
   const replayScorecard = mentorRecordReplayScorecard(trade, outcome, currentBar);
   const outcomeHeader = isWin
     ? '🎉 TAKE PROFIT REACHED ✅'
-    : outcome === 'stop_loss' ? '⛔ STOP LOSS HIT' : '⏱️ TRADE EXPIRED';
+    : outcome === 'stop_loss' ? '⛔ STOP LOSS HIT' : '��� TRADE EXPIRED';
 
   // Immediate placeholder while AI debrief loads
   mentorState.lockedMessage  = 'trade_completed';
@@ -5535,6 +6064,7 @@ function handleTradeCompletion(outcome, currentBar) {
     : '🎓 Learning opportunity — reviewing what happened...';
   setMentorState('trade_completed', 'trade finished');
   mentorState.tradeMonitoringUpdates = [];
+  renderMentorSessionRecap(trade, outcome, replayScorecard);
   updateLockedMentorUI();
 
   // Record outcome in case history
@@ -5562,10 +6092,11 @@ function handleTradeCompletion(outcome, currentBar) {
     mentorState.lockedQuestion = isWin
       ? '🎓 Ready to find another setup? Hit "Continue Replay".'
       : '🎓 Every loss is data. Hit "Continue Replay" to keep going.';
+    renderMentorSessionRecap(trade, outcome, replayScorecard);
     updateLockedMentorUI();
   });
 
-  console.log('🏁 Trade completed:', outcome);
+  console.log('� Trade completed:', outcome);
 }
 
 function continueReplayAfterTradeCompletion() {
@@ -5577,11 +6108,12 @@ function continueReplayAfterTradeCompletion() {
   mentorState._lastAnnStateKey = null; mentorState._annCache = null;  // force fresh annotation draw
   mentorState._annotationsDrawnForTrade = false;
   mentorState._debriefAnnotationsVisible = false;
+  clearMentorSessionRecap();
   clearMentorAnnotations();
   // Reset show-annotations button
   const _saBtn = document.getElementById('btn-show-annotations');
   if (_saBtn) {
-    _saBtn.textContent = '📍 Show Annotations';
+    _saBtn.textContent = '� Show Annotations';
     _saBtn.style.opacity = '1';
     _saBtn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
     _saBtn.style.borderColor = 'rgba(139,92,246,0.35)';
@@ -5628,7 +6160,7 @@ function continueReplayAfterTradeCompletion() {
 
   // Use setMentorState so dependent fields sync correctly
   setMentorState('scanning', 'trade completed');
-  mentorState.currentInsights = ['🔍 Scanning for the next setup...'];
+  mentorState.currentInsights = ['� Scanning for the next setup...'];
   mentorState.currentQuestion = 'Watch the chart — the mentor will highlight the next opportunity.';
 
   updateMentorUI();
@@ -5640,7 +6172,7 @@ function continueReplayAfterTradeCompletion() {
   }
 }
 
-// ══ SHARED MENTOR TRADE LEVEL CALCULATOR ════════════════════════════════════════════════════════════
+// �� SHARED MENTOR TRADE LEVEL CALCULATOR ������������������������������������������������������������
 // Proper trade construction:
 //   1. SL first — placed at the nearest structural swing low/high within 2×ATR,
 //      giving a sensible, tight stop that reflects real invalidation.
@@ -5769,7 +6301,7 @@ function calculateATR(barIndex, period = 14) {
   return sum / trueRanges.length;
 }
 
-// ══ REPLAY MODE TRADE DETECTION & AI REVIEW ═══════════════════════════════════════════════════════════
+// �� REPLAY MODE TRADE DETECTION & AI REVIEW �����������������������������������������������������������
 
 function detectReplayTradePlacement() {
   // Only detect trades in replay mode with mentor enabled
@@ -6069,7 +6601,7 @@ function displayTradeReview(review, tradeData) {
   if (review.weaknesses.length > 0) {
     reviewHTML += `
       <div style="margin-bottom:12px;">
-        <strong style="color:var(--red);">⚠️ Areas for Improvement:</strong>
+        <strong style="color:var(--red);">⚠� Areas for Improvement:</strong>
         <ul style="margin:4px 0;padding-left:16px;color:var(--tx2);">
           ${review.weaknesses.map(w => `<li>${w}</li>`).join('')}
         </ul>
@@ -6116,7 +6648,7 @@ function closeTradeReview() {
   showMentorMessage('Continue your replay training. AI will alert you to new setups.');
 }
 
-// ══ TRADING METHOD FILTERING ═══════════════════════════════════════════════════════════
+// �� TRADING METHOD FILTERING �����������������������������������������������������������
 
 function changeTradingMethod(newMethod) {
   const methodNames = {
@@ -6150,7 +6682,7 @@ function changeTradingMethod(newMethod) {
   // ── Show switching state in panel ─────────────────────────────────────────
   mentorState.currentInsights = [
     `🔄 Switching to ${methodDisplayName}...`,
-    `⏸ Replay paused while strategy resets.`,
+    `�� Replay paused while strategy resets.`,
   ];
   mentorState.currentQuestion = 'Clearing old state and rescanning for new setups...';
   updateMentorUI();
@@ -6202,7 +6734,7 @@ function resetMentorStateForStrategyChange() {
   // Clear setup cache to ensure fresh detection (no old losing trades)
   if (mentorState.setupCache) {
     mentorState.setupCache.clear();
-    console.log('🗑️ Setup cache cleared');
+    console.log('🗑� Setup cache cleared');
   }
   
   // Cancel any active setup
@@ -6246,7 +6778,7 @@ function resetMentorStateForStrategyChange() {
     mentorState.setupPausedReplay = false;
     const replayBtn = document.getElementById('replay-play-btn');
     if (replayBtn) {
-      replayBtn.innerHTML = '⏸️';
+      replayBtn.innerHTML = '���';
     }
   }
 }
@@ -6257,7 +6789,7 @@ function filterSetupByTradingMethod(setupDetection, selectedMethod) {
   return setupDetection;
 }
 
-// ══ PASS 1: DETERMINISTIC TRADE VALIDATOR ════════════════════════════════════════════════
+// �� PASS 1: DETERMINISTIC TRADE VALIDATOR ������������������������������������������������
 // Pipeline: normalize → detect mode → validate → score → verdict
 // This layer makes a deterministic decision BEFORE the LLM is involved.
 // The LLM in Phase 1/2/3 narrates a verdict that has already been computed here.
@@ -6512,7 +7044,7 @@ function runMentorValidatorPass1(setupDetection, barIndex, fullData) {
   };
 }
 
-// ══ REPLAY KNOWLEDGE ADVANTAGE ═══════════════════════════════════════════════════════════
+// �� REPLAY KNOWLEDGE ADVANTAGE �����������������������������������������������������������
 
 function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
   if (!replayMode || !fullData || fullData.length <= currentBar + 5) {
@@ -6522,7 +7054,7 @@ function validateSetupWithFutureData(setupDetection, currentBar, fullData) {
 }
 
 
-// ══ CASE HISTORY ENGINE ══════════════════════════════════════════════════════════════════
+// �� CASE HISTORY ENGINE ������������������������������������������������������������������
 // Stores past analysis cases in IndexedDB and retrieves similar ones for future analysis.
 // This makes the system more grounded over time — not by training the AI, but by
 // supplying structured historical context at analysis time.
@@ -7013,7 +7545,7 @@ function caseHistoryOnTradeComplete(tradeOutcome) {
 }
 
 
-// ══ STRUCTURED SETUP DETECTION ═══════════════════════════════════════════════════════════
+// �� STRUCTURED SETUP DETECTION �����������������������������������������������������������
 
 function detectStructuredSetups(data, barIndex, _methodOverride) {
   // _methodOverride lets callers (like the scanner) specify a method without
@@ -7226,7 +7758,7 @@ function _isPriceRelativeRound(price) {
   return candidates.some(round => round > 0 && Math.abs(price - Math.round(price / round) * round) / price < 0.005);
 }
 
-// ══ METHODOLOGY-STRICT DETECTION FUNCTIONS ══════════════════════════════════════════════════
+// �� METHODOLOGY-STRICT DETECTION FUNCTIONS ��������������������������������������������������
 // Each function enforces the real criteria from the trading methodology document.
 // Strict criteria replace the 80-candle cooldown — bad setups are rejected here, not timed out.
 
@@ -7935,7 +8467,7 @@ function analyzeMarketStructure(data) {
   else if (higherHighs <= 1 && higherLows <= 1) trend = 'downtrend_structure';
   else trend = 'range_structure';
   
-  console.log('🔍 Market structure analysis:', { trend, higherHighs, higherLows });
+  console.log('� Market structure analysis:', { trend, higherHighs, higherLows });
   
   return { trend };
 }
@@ -7964,7 +8496,7 @@ function toggleMentor() {
     // Clear cache when enabling to ensure fresh detection
     if (mentorState.setupCache) {
       mentorState.setupCache.clear();
-      console.log('🗑️ Setup cache cleared on mentor enable');
+      console.log('🗑� Setup cache cleared on mentor enable');
     }
     
     panel.style.display = 'block';
@@ -8068,6 +8600,20 @@ function enableMentorFromPopup() {
     if (methodSelection) {
       methodSelection.style.display = 'block';
     }
+    const guidanceSel = document.getElementById('mentor-guidance-level');
+    const focusSel = document.getElementById('mentor-lesson-focus');
+    const savedGuidance = (() => {
+      try{ return _prefsGet('mentor-guidance-level', 'standard'); }catch(e){ return 'standard'; }
+    })();
+    const savedFocus = (() => {
+      try{ return _prefsGet('mentor-lesson-focus', 'general'); }catch(e){
+        try{ return _lsGet('mentor-lesson-focus') || 'general'; }catch(_){ return 'general'; }
+      }
+    })();
+    mentorState.guidanceLevel = ['beginner','standard','advanced'].includes(savedGuidance) ? savedGuidance : 'standard';
+    mentorState.lessonFocus = ['general','structure','patience','entries','risk','liquidity'].includes(savedFocus) ? savedFocus : 'general';
+    if(guidanceSel) guidanceSel.value = mentorState.guidanceLevel;
+    if(focusSel) focusSel.value = mentorState.lessonFocus;
 
     updateMentorUI();
   }, 250);
@@ -8184,7 +8730,7 @@ function skipTradeSetup() {
   mentorState.waitingForTrade = false;
   mentorState.currentSetup = null;
   document.getElementById('mentor-trade-prompt').style.display = 'none';
-  showMentorMessage('⏭️ Trade setup skipped. Continue monitoring for better opportunities.');
+  showMentorMessage('��� Trade setup skipped. Continue monitoring for better opportunities.');
 }
 
 function showManualTradeEntry(direction) {
@@ -8196,7 +8742,7 @@ function showManualTradeEntry(direction) {
   // Create a simple manual entry form
   const manualEntryHtml = `
     <div style="background:var(--bg2);border:1px solid var(--purple);border-radius:6px;padding:12px;margin-top:12px;">
-      <div style="color:var(--tx1);font-weight:600;margin-bottom:8px;">📝 Manual ${direction.toUpperCase()} Entry</div>
+      <div style="color:var(--tx1);font-weight:600;margin-bottom:8px;">� Manual ${direction.toUpperCase()} Entry</div>
       <div style="color:var(--tx2);font-size:11px;margin-bottom:8px;">
         Current Price: $${currentPrice.toFixed(2)}
       </div>
@@ -8264,7 +8810,7 @@ function processTradePlacement(trade) {
 function cancelManualEntry() {
   mentorState.waitingForTrade = false;
   document.getElementById('mentor-trade-prompt').style.display = 'none';
-  showMentorMessage('❌ Trade entry cancelled.');
+  showMentorMessage('�� Trade entry cancelled.');
 }
 
 function analyzePlacedTrade(trade) {
@@ -8327,10 +8873,10 @@ function evaluateEntryQuality(trade, analysis) {
     feedback.push('✅ Entry at current market price');
   } else if (priceDiff < 0.005) {
     score += Math.round(7 + (1 - priceDiff / 0.005) * 6); // 7–13
-    feedback.push('⚠️ Entry close to current price');
+    feedback.push('⚠� Entry close to current price');
   } else {
     score -= Math.round(3 + Math.min(12, priceDiff * 800)); // proportional penalty
-    feedback.push('❌ Entry far from current price');
+    feedback.push('�� Entry far from current price');
   }
 
   // Check if entry aligns with recent price action
@@ -8346,7 +8892,7 @@ function evaluateEntryQuality(trade, analysis) {
       feedback.push('✅ Entry near recent low');
     } else if (entryPrice > recentHigh) {
       score -= Math.round(8 + distFromLow * 4); // 8–12 penalty
-      feedback.push('❌ Entry above recent high');
+      feedback.push('�� Entry above recent high');
     }
   } else {
     const distFromHigh = Math.abs(recentHigh - entryPrice) / rangeSize;
@@ -8355,7 +8901,7 @@ function evaluateEntryQuality(trade, analysis) {
       feedback.push('✅ Entry near recent high');
     } else if (entryPrice < recentLow) {
       score -= Math.round(8 + distFromHigh * 4);
-      feedback.push('❌ Entry below recent low');
+      feedback.push('�� Entry below recent low');
     }
   }
 
@@ -8368,7 +8914,7 @@ function evaluateEntryQuality(trade, analysis) {
     feedback.push('✅ Above-average volume at entry');
   } else if (analysis.volume === 'low') {
     score -= 6;
-    feedback.push('⚠️ Low volume — entry conviction is weak');
+    feedback.push('⚠� Low volume — entry conviction is weak');
   }
 
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
@@ -8393,10 +8939,10 @@ function evaluateStopLoss(trade, analysis) {
     feedback.push('✅ Stop loss at appropriate distance');
   } else if (atrRatio < 1.2) {
     score -= Math.round(12 + (1.2 - atrRatio) / 1.2 * 8); // 12–20 penalty
-    feedback.push('❌ Stop loss too tight');
+    feedback.push('�� Stop loss too tight');
   } else {
     score -= Math.round(7 + (atrRatio - 2.5) * 3); // 7–13 penalty
-    feedback.push('⚠️ Stop loss too wide');
+    feedback.push('⚠� Stop loss too wide');
   }
 
   // Check logical placement
@@ -8409,7 +8955,7 @@ function evaluateStopLoss(trade, analysis) {
     } else {
       const overshoot = Math.round((stopLoss - recentLow) / recentLow * 100);
       score -= Math.round(5 + overshoot * 2);
-      feedback.push('⚠️ Stop loss above recent support');
+      feedback.push('⚠� Stop loss above recent support');
     }
   } else {
     const recentHigh = Math.max(...curData.slice(Math.max(0, mentorState.currentBar - 10), mentorState.currentBar + 1).map(bar => bar.high));
@@ -8419,7 +8965,7 @@ function evaluateStopLoss(trade, analysis) {
       feedback.push('✅ Stop loss above recent resistance');
     } else {
       score -= Math.round(5 + Math.abs(bufferPct) * 200);
-      feedback.push('⚠️ Stop loss below recent resistance');
+      feedback.push('⚠� Stop loss below recent resistance');
     }
   }
 
@@ -8441,10 +8987,10 @@ function evaluateRiskManagement(trade, analysis) {
     feedback.push('✅ Good risk/reward ratio');
   } else if (riskRewardRatio >= 1) {
     score += Math.round(6 + (riskRewardRatio - 1) * 20); // 6–16
-    feedback.push('⚠️ Minimum acceptable risk/reward ratio');
+    feedback.push('⚠� Minimum acceptable risk/reward ratio');
   } else {
     score -= Math.round(14 + (1 - riskRewardRatio) * 12); // 14–26 penalty
-    feedback.push('❌ Poor risk/reward ratio');
+    feedback.push('�� Poor risk/reward ratio');
   }
 
   // Check position size relative to ATR
@@ -8457,7 +9003,7 @@ function evaluateRiskManagement(trade, analysis) {
     feedback.push('✅ Reasonable position size');
   } else {
     score -= Math.round(7 + (atrRatio - 2) * 4); // growing penalty for large risk
-    feedback.push('⚠️ Large position size');
+    feedback.push('⚠� Large position size');
   }
 
   return { score: Math.max(0, Math.min(100, score)), feedback: feedback.join('. ') };
@@ -8490,10 +9036,10 @@ function evaluateTrendAlignment(trade, analysis) {
     feedback.push('✅ Trade aligned with downtrend');
   } else if (trend === 'neutral') {
     score += Math.round(7 + (smaBias === 'mixed' ? 3 : 0));
-    feedback.push('⚠️ Trading in ranging market');
+    feedback.push('⚠� Trading in ranging market');
   } else {
     score -= Math.round(17 + (smaBias !== 'mixed' ? 4 : 0));
-    feedback.push('❌ Trade against trend');
+    feedback.push('�� Trade against trend');
   }
 
   // Check market structure — reward aligned structure confirmation
@@ -8643,7 +9189,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
       slAnalysis += ` Consider moving it above the recent swing high at ${swingHigh.toFixed(4)} to align with the structural invalidation point.`;
     }
   }
-  sections.push(`🛡️ **STOP LOSS PLACEMENT**`);
+  sections.push(`🛡� **STOP LOSS PLACEMENT**`);
   sections.push(slAnalysis);
   sections.push('');
   
@@ -8673,7 +9219,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
     rmAnalysis = `Risk management needs improvement. Focus on placing stops at true structural invalidation points and ensuring minimum 1.5:1 R:R ratios.`;
   }
   rmAnalysis += ` With proper position sizing, even if this trade hits the stop, the loss represents only a small portion of total capital.`;
-  sections.push(`⚖️ **RISK MANAGEMENT**`);
+  sections.push(`⚖� **RISK MANAGEMENT**`);
   sections.push(rmAnalysis);
   sections.push('');
   
@@ -8695,7 +9241,7 @@ function generateTradeExplanation(trade, evaluation, analysis) {
   if (score >= 80) {
     takeaway = `✅ **Key Takeaway:** This trade demonstrates proper application of technical principles. Continue seeking setups with similar characteristics: clear structure, logical invalidation points, and favorable risk-to-reward ratios.`;
   } else if (score >= 60) {
-    takeaway = `⚠️ **Key Takeaway:** While this trade may work, focus on improving ${evaluation.riskManagement && evaluation.riskManagement.score < 70 ? 'risk management' : 'trend alignment'} in future setups. Patience in waiting for higher-quality opportunities pays off.`;
+    takeaway = `⚠� **Key Takeaway:** While this trade may work, focus on improving ${evaluation.riskManagement && evaluation.riskManagement.score < 70 ? 'risk management' : 'trend alignment'} in future setups. Patience in waiting for higher-quality opportunities pays off.`;
   } else {
     takeaway = `🎓 **Key Takeaway:** This trade has significant issues. Focus on: (1) Waiting for clear confirmation before entry, (2) Placing stops at true structural levels, (3) Only trading when R:R is at least 1.5:1, (4) Trading with the trend, not against it.`;
   }
@@ -8818,7 +9364,7 @@ function showDetailedOutcomeAnalysis(trade, outcome) {
   const barsHeld = lastTrade.barsHeld;
   
   let outcomeColor = outcome === 'take_profit' ? 'var(--green)' : 'var(--red)';
-  let outcomeText = outcome === 'take_profit' ? '✅ Profit Target Hit' : '❌ Stop Loss Hit';
+  let outcomeText = outcome === 'take_profit' ? '✅ Profit Target Hit' : '�� Stop Loss Hit';
   
   const outcomeDetails = `
     <div style="margin-bottom:8px;">
@@ -8860,14 +9406,14 @@ function generateLearningPoints(trade, outcome, barsHeld) {
     if (barsHeld < 10) {
       points.push('🚀 Quick profit shows strong momentum');
     } else {
-      points.push('⏱️ Patience allowed the setup to play out');
+      points.push('��� Patience allowed the setup to play out');
     }
   } else {
     if (trade.evaluation.trendAlignment.score < 60) {
-      points.push('❌ Fighting the trend was costly');
+      points.push('�� Fighting the trend was costly');
     }
     if (trade.evaluation.stopLossPlacement.score < 60) {
-      points.push('📍 Stop loss placement could be improved');
+      points.push('� Stop loss placement could be improved');
     }
     if (barsHeld < 5) {
       points.push('⚡ Quick rejection shows strong opposition');
@@ -8974,7 +9520,7 @@ function makeMentorDraggable() {
   document.addEventListener('touchmove', drag);
 }
 
-// ══ TRADE LIFECYCLE STATE HANDLERS ═══════════════════════════════════════════════════════════
+// �� TRADE LIFECYCLE STATE HANDLERS �����������������������������������������������������������
 
 function handleSetupWaitState(currentBar) {
   // If the message is locked or a trade is already active, preserve the state.
@@ -9000,7 +9546,7 @@ function handleSetupWaitState(currentBar) {
     mentorState.setupWaitStart = null;
     mentorState.setupWaitData = null;
     mentorState.messageLocked = false;
-    mentorState.currentInsights = ['❌ Setup no longer valid'];
+    mentorState.currentInsights = ['�� Setup no longer valid'];
     mentorState.currentQuestion = 'Resuming market scanning...';
     updateMentorUI();
     return;
@@ -9178,7 +9724,7 @@ function handleSetupDetectedState(currentBar) {
         ];
       }
       mentorState.lockedQuestion =
-        `A potential ${setupName} setup is forming. Choose “Watch Demo” for a guided walkthrough or “Let Me Try” to place the idea yourself.`;
+        `A potential ${setupName} setup is forming. Choose “Watch Demo� for a guided walkthrough or “Let Me Try� to place the idea yourself.`;
       updateLockedMentorUI();
     };
 
@@ -9395,11 +9941,11 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   if (foundBar < 0) {
     // Nothing found even in 500-bar lookahead — show restart button (use raw HTML string so the button renders)
     mentorState.currentInsights = `
-      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">🔍 Scanning for a <strong>${methodLabel}</strong> setup...</div>
+      <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:8px;">� Scanning for a <strong>${methodLabel}</strong> setup...</div>
       <div style="line-height:1.55;color:var(--tx2);font-size:11px;margin-bottom:12px;">No qualifying setup found within the remaining replay data.</div>
       <button onclick="startReplayPicking()" style="padding:6px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.35);color:#a5b4fc;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;margin-right:8px;"
         onmouseover="this.style.background='rgba(99,102,241,.22)'" onmouseout="this.style.background='rgba(99,102,241,.12)'">
-        ← Pick Earlier Bar
+        � Pick Earlier Bar
       </button>
       <span style="font-size:10px;color:var(--tx3);">or try a different strategy</span>
     `;
@@ -9428,7 +9974,7 @@ function _buildNoSetupMessage(currentBar, foundBar, method) {
   })();
 
   mentorState.currentInsights = [
-    `🔍 Scanning for ${methodLabel} criteria...`,
+    `� Scanning for ${methodLabel} criteria...`,
     `A qualifying setup is ${proximity}.`,
     directionHint,
   ].filter(Boolean);
@@ -9556,7 +10102,7 @@ function generateTradeSuccessExplanation() {
   const review = generateStructuredTradeReview(simulatedTrade, outcome, currentBar, isUserTrade);
   
   if (!review) {
-    console.error('❌ Failed to generate structured review');
+    console.error('�� Failed to generate structured review');
     return;
   }
   
@@ -9568,18 +10114,18 @@ function generateTradeSuccessExplanation() {
     insights.push('🎉 **TRADE COMPLETED SUCCESSFULLY**');
     insights.push(`✅ Take profit reached at ${result.takeProfit.toFixed(4)}`);
     insights.push(`📈 Profit: ${result.profit.toFixed(2)} ${_mentorPriceUnit()}`);
-    insights.push(`⏱️ Duration: ${result.duration} bars`);
+    insights.push(`��� Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 2.0).toFixed(2)}`);
   } else if (result.outcome === 'loss') {
     insights.push('📊 **TRADE COMPLETED WITH LOSS**');
-    insights.push(`❌ Stop loss hit at ${result.stopLoss.toFixed(4)}`);
+    insights.push(`�� Stop loss hit at ${result.stopLoss.toFixed(4)}`);
     insights.push(`📉 Loss: ${Math.abs(result.profit).toFixed(2)} ${_mentorPriceUnit()}`);
-    insights.push(`⏱️ Duration: ${result.duration} bars`);
+    insights.push(`��� Duration: ${result.duration} bars`);
     insights.push(`📊 Risk/Reward: 1:${(result.riskReward || 1.0).toFixed(2)}`);
   } else {
-    insights.push('⏱️ **TRADE EXPIRED**');
+    insights.push('��� **TRADE EXPIRED**');
     insights.push('📊 Neither target reached within expected timeframe');
-    insights.push(`⏱️ Duration: ${result.duration} bars`);
+    insights.push(`��� Duration: ${result.duration} bars`);
   }
   
   // Add structured educational sections
@@ -9621,10 +10167,10 @@ function pauseReplayForTradeCompletion() {
     // Update replay button to show paused state
     const replayBtn = document.getElementById('replay-play-btn');
     if (replayBtn) {
-      replayBtn.innerHTML = '▶️';
+      replayBtn.innerHTML = '▶�';
     }
     
-    toast('⏸️ Auto-paused - trade completed successfully');
+    toast('��� Auto-paused - trade completed successfully');
   }
 }
 
@@ -9633,7 +10179,7 @@ function pauseReplayForTradeCompletion() {
 // that won via JS hoisting and didn't reset the annotation/cache state, causing
 // annotations to not appear on the second trade. Removed — first definition handles all.
 
-// ══ LIFECYCLE HELPER FUNCTIONS ═══════════════════════════════════════════════════════════
+// �� LIFECYCLE HELPER FUNCTIONS �����������������������������������������������������������
 
 function isSetupStillValid(currentBar) {
   if (!mentorState.setupWaitData || !curData) return false;
@@ -9807,7 +10353,7 @@ function generateTradeMonitoringCommentary(currentBar) {
     Math.abs(trade.takeProfit - currentPrice) / entryPrice;
   
   if (distanceToSL < 0.01) {
-    commentary.push("⚠️ Price is approaching stop loss level.");
+    commentary.push("⚠� Price is approaching stop loss level.");
   } else if (distanceToTP < 0.01) {
     commentary.push("🎯 Price is approaching take profit level.");
   }
@@ -9833,7 +10379,7 @@ function generateTradeResultEvaluation(tradeResult) {
     if (entryQuality >= 80) {
       evaluation.push("✅ Entry timing was excellent with good risk management.");
     } else {
-      evaluation.push("⚠️ Entry could have been optimized for better timing.");
+      evaluation.push("⚠� Entry could have been optimized for better timing.");
     }
     
   } else {
@@ -9849,7 +10395,7 @@ function generateTradeResultEvaluation(tradeResult) {
   mentorState.currentQuestion = "Trade completed. Returning to market scanning...";
 }
 
-// ══ AI-POWERED MENTOR ENGINE ═════════════════════════════════════════════════
+// �� AI-POWERED MENTOR ENGINE �������������������������������������������������
 // Replaces hardcoded string analysis with real Groq AI responses.
 // Three phases:  (1) Setup analysis  (2) Live trade narration  (3) Post-trade debrief
 // The client-side detection still decides WHEN to pause — Groq decides WHAT to say.
@@ -9908,6 +10454,9 @@ function _buildMentorContext(barIndex, numBars = 20) {
 async function _mentorAISetupAnalysis(setupDetection, barIndex) {
   const ctx = _buildMentorContext(barIndex, 25);
   if (!ctx) return null;
+  const guidance = mentorGuidanceLevelMeta();
+  const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   const methodDescriptions = {
     breakout:           'breakout from consolidation — body close beyond zone, volume > 20-bar avg, measured-move target',
@@ -9939,6 +10488,9 @@ WEAKNESSES: ${v.weaknesses.join('; ') || 'none noted'}` : '';
   const histNote = historicalContext
     ? `HISTORICAL CONTEXT:\n${historicalContext}\nFactor the historical win rate into your tone — if past similar setups performed well, reflect that confidence.`
     : '';
+  const traderMemoryNote = traderProfile?.total
+    ? `TRADER MEMORY:\n${formatTraderProfileForAI(traderProfile)}\nUse this to tailor the teaching angle and the main caution for this student.`
+    : '';
 
   // Verdict-specific voice — each verdict has a genuinely different personality
   const toneInstruction = !v ? '' :
@@ -9961,17 +10513,20 @@ INDICATORS: Price ${ctx.price} | ATR ${ctx.atr} | RSI ${ctx.rsi} | EMA9 ${ctx.em
 SETUP: ${setupDetection.setup?.replace(/_/g,' ')} ${setupDetection.direction?.toUpperCase()} | Confluence ${setupDetection.confluence}/4 | ${(setupDetection.quality||'').toUpperCase()}
 ${verdictLine}
 ${histNote}
+${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 ${toneInstruction}
 
-Write 4 lines. Each starts with a different emoji. Each is one punchy sentence (max 20 words). Blank line between each.
+Write ${guidance.detail === 'full' ? '5' : '4'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'Each is one punchy sentence (max 16 words).' : guidance.detail === 'full' ? 'Each is one clear teaching sentence (max 26 words).' : 'Each is one punchy sentence (max 20 words).' } Blank line between each.
 
-🔍 What triggered this setup — name the specific price action or pattern you saw
-📍 The exact level that matters and why it's significant (use the actual price number)
+� What triggered this setup — name the specific price action or pattern you saw
+� The exact level that matters and why it's significant (use the actual price number)
 👀 What needs to happen next to confirm the move is real
-⚠️ The one thing that would kill this trade — be specific about the price or condition
+⚠� The one thing that would kill this trade — be specific about the price or condition
+${guidance.detail === 'full' ? '🧠 One teaching takeaway that helps the student recognise this setup again' : ''}
 
-No intro sentence. No summary line. Start with 🔍.`;
+No intro sentence. No summary line. Start with �.`;
 
   try {
     return await groqFetch(prompt);
@@ -9985,6 +10540,9 @@ No intro sentence. No summary line. Start with 🔍.`;
 async function _mentorAITradePlacement(trade, barIndex, _genAtCall) {
   const ctx = _buildMentorContext(barIndex, 15);
   if (!ctx) return null;
+  const guidance = mentorGuidanceLevelMeta();
+  const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   // Stale guard — if setup changed while Groq was processing, discard
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
@@ -10010,6 +10568,9 @@ ${p1.verdict.weaknesses.length ? `WATCH OUT: ${p1.verdict.weaknesses.join('; ')}
     : p1?.verdict?.verdict === 'Weak'
     ? 'VOICE: Honest. Explain the trade levels clearly, but make sure the student understands this is borderline and why.'
     : 'VOICE: Clear and factual.';
+  const traderMemoryNote = traderProfile?.total
+    ? `TRADER MEMORY: ${formatTraderProfileForAI(traderProfile)} Use this to point out whether this kind of placement fits or clashes with the student's habits.`
+    : '';
 
   const prompt = `You are a senior trading mentor. The student just clicked "show me the trade." Walk them through it like a real person — tight, specific, no fluff.
 
@@ -10017,17 +10578,20 @@ ${ctx.sym} ${ctx.tf} | ${trade.direction.toUpperCase()} | ${ctx.method} strategy
 Entry: ${trade.entry.toFixed(4)} | SL: ${trade.stopLoss.toFixed(4)} | TP: ${trade.takeProfit.toFixed(4)} | R:R: ${trade.riskReward.toFixed(2)}:1 | ATR: ${ctx.atr}
 ${verdictLine}
 ${volNote2}
+${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 Recent bars:
 ${ctx.ohlcvStr}
 
 ${toneNote}
 
-Write 3 lines. Each starts with a different emoji. One sentence each (max 20 words). Blank line between each.
+Write ${guidance.detail === 'full' ? '4' : '3'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'One sentence each (max 16 words).' : guidance.detail === 'full' ? 'One clear sentence each (max 24 words).' : 'One sentence each (max 20 words).' } Blank line between each.
 
 🎯 Why this entry at ${trade.entry.toFixed(4)} — what price structure or signal put us here
-🛡️ Why the stop is at ${trade.stopLoss.toFixed(4)} — what level structurally breaks the trade idea
-🏆 What ${trade.takeProfit.toFixed(4)} represents — name the structure, measured move, or liquidity level
+🛡� Why the stop is at ${trade.stopLoss.toFixed(4)} — what level structurally breaks the trade idea
+�� What ${trade.takeProfit.toFixed(4)} represents — name the structure, measured move, or liquidity level
+${guidance.detail === 'full' ? '🧠 One reminder about what this student personally tends to get right or wrong in trades like this' : ''}
 
 No intro. Start with 🎯.`;
 
@@ -10043,6 +10607,9 @@ No intro. Start with 🎯.`;
 async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall) {
   const ctx = _buildMentorContext(currentBar, 30);
   if (!ctx) return null;
+  const guidance = mentorGuidanceLevelMeta();
+  const traderProfile = getTraderProfile?.();
+  const lessonFocus = mentorLessonFocusPrompt();
 
   // Stale guard — discard if a new setup started while Groq was processing
   if (_genAtCall !== undefined && mentorState._aiGeneration !== _genAtCall) return null;
@@ -10077,15 +10644,20 @@ async function _mentorAIPostTradeDebrief(trade, outcome, currentBar, _genAtCall)
     : weaknessLine
     ? `VOICE: Honest and constructive. The pre-trade analysis already flagged weaknesses. If they contributed to the loss, say so directly — don't soften it. Frame it as: "we knew this risk going in, here's what it looked like in the bars." Every losing trade is data.`
     : `VOICE: Constructive mentor. Don't catastrophise, but don't sugarcoat either. Find the specific moment in the price data where the trade broke down and name it. Give one actionable rule to take away.`;
+  const traderMemoryNote = traderProfile?.total
+    ? `TRADER MEMORY: ${formatTraderProfileForAI(traderProfile)} Use this to connect the lesson back to the student's real strengths or repeated mistakes.`
+    : '';
 
   const prompt = `You are a senior trading mentor. The student just finished a trade. Debrief them like a real coach — specific, honest, grounded in what the price actually did.
 
-${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN' : '❌ LOSS'} | ${setupType} setup | ${ctx.method} strategy
+${ctx.sym} ${ctx.tf} | ${isWin ? '✅ WIN' : '�� LOSS'} | ${setupType} setup | ${ctx.method} strategy
 Entry ${trade.entry.toFixed(4)} → SL ${trade.stopLoss.toFixed(4)} / TP ${trade.takeProfit.toFixed(4)} | R:R ${trade.riskReward.toFixed(2)}:1 | ATR ${ctx.atr}
 ${scoreLine}
 ${verdictLine}
 ${weaknessLine}
 ${volNote3}
+${traderMemoryNote}
+LESSON FOCUS: ${lessonFocus}
 
 Price action — last 30 bars (Bar 1 = oldest, Bar 30 = most recent):
 ${ctx.ohlcvStr}
@@ -10093,14 +10665,15 @@ ${ctx.ohlcvStr}
 ${toneInstruction3}
 ${barRefInstruction}
 
-Write 4 lines. Each starts with a different emoji. One punchy sentence each (max 22 words). Blank line between each.
+Write ${guidance.detail === 'full' ? '5' : '4'} lines. Each starts with a different emoji. ${guidance.detail === 'tight' ? 'One punchy sentence each (max 18 words).' : guidance.detail === 'full' ? 'One clear coaching sentence each (max 26 words).' : 'One punchy sentence each (max 22 words).' } Blank line between each.
 
-${isWin ? '✅' : '❌'} Did the core ${setupType} thesis play out — what specifically confirmed or broke it?
+${isWin ? '✅' : '��'} Did the core ${setupType} thesis play out — what specifically confirmed or broke it?
 📊 Name the strongest confluence in this trade and whether it actually mattered to the outcome
 💡 One specific, actionable rule the student should take away from this trade
-⚖️ Was the stop at ${trade.stopLoss.toFixed(4)} structurally correct — or should it have been placed differently?
+⚖� Was the stop at ${trade.stopLoss.toFixed(4)} structurally correct — or should it have been placed differently?
+${guidance.detail === 'full' ? "🧠 One note tying this lesson back to the student's own trading habits" : ''}
 
-No intro. Start with ${isWin ? '✅' : '❌'}.`;
+No intro. Start with ${isWin ? '✅' : '��'}.`;
 
   try {
     return await groqFetch(prompt);
@@ -10117,10 +10690,12 @@ async function _mentorAIProximityHint(setupDetection, setupBar, currentBar) {
   if (!ctx) return null;
   const barsAway = setupBar - currentBar;
   const setupName = (setupDetection.setup || 'setup').replace(/_/g,' ');
+  const guidance = mentorGuidanceLevelMeta();
+  const lessonFocus = mentorLessonFocusPrompt();
 
-  const prompt = `Trading mentor hint — ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}.
+  const prompt = `Trading mentor hint — ${ctx.sym} ${ctx.tf}, ${ctx.method} setup ${barsAway} bars away. Price ${ctx.price}, RSI ${ctx.rsi}, EMA9 ${ctx.ema9}. Setup: ${setupName} ${setupDetection.direction}. Lesson focus: ${lessonFocus}
 
-Write one short sentence (max 20 words) — what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
+Write one short sentence (${guidance.detail === 'tight' ? 'max 14 words' : guidance.detail === 'full' ? 'max 24 words' : 'max 20 words'}) — what specific thing should the trader watch right now? Be concrete and direct. No intro words.`;
 
   try {
     const hint = await groqFetch(prompt);
@@ -10246,7 +10821,7 @@ function updateMentor() {
       mentorState.analysis = mentorState._analysisCache.data;
       
       if (!mentorState.analysis) {
-        mentorState.currentInsights = ['⚠️ Analysis temporarily unavailable'];
+        mentorState.currentInsights = ['⚠� Analysis temporarily unavailable'];
         mentorState.currentQuestion = 'Please try advancing a few more candles...';
         updateMentorUI();
         return;
@@ -10279,7 +10854,7 @@ function updateMentor() {
         }
         
       } catch (error) {
-        console.error('❌ Setup detection failed:', error);
+        console.error('�� Setup detection failed:', error);
         // NO FALLBACK - AI only places trades with future data validation
         // Set to no setup to prevent invalid trades
         setupDetection = { setup: 'none', quality: 'none', confluence: 0 };
@@ -10362,7 +10937,7 @@ function updateMentorUIWithCooldown(candlesRemaining) {
   const analysis = mentorState.analysis;
   const trend = analysis?.structure?.trend?.replace(/_/g, ' ') || null;
   const lines = [
-    `🔍 Scanning for ${methodLabel} criteria...`,
+    `� Scanning for ${methodLabel} criteria...`,
     trend ? `Market structure: ${trend}.` : 'Reading market structure...',
     `Next scan in ${candlesRemaining} bar${candlesRemaining !== 1 ? 's' : ''}.`,
   ];
@@ -10389,7 +10964,7 @@ function generateHighQualityTradeInsights(setupDetection) {
     const verdictEmoji = { Strong: '🟢', Decent: '🟡', Weak: '🟠', Reject: '🔴' }[v.verdict] || '⚪';
     insights.push(`${verdictEmoji} <strong>${v.verdict} setup</strong> — Score: ${v.qualityScore}/100 · ${v.timing}`);
     if (v.strengths.length)  insights.push(`✅ ${v.strengths[0]}`);
-    if (v.weaknesses.length) insights.push(`⚠️ ${v.weaknesses[0]}`);
+    if (v.weaknesses.length) insights.push(`⚠� ${v.weaknesses[0]}`);
   }
 
   // ── Common header ─────────────────────────────────────────────────────────
@@ -10401,10 +10976,10 @@ function generateHighQualityTradeInsights(setupDetection) {
       const setupLabel = setupDetection.setup === 'breakout' ? 'breakout' :
                          setupDetection.setup === 'range_breakout' ? 'range breakout' : 'breakout';
       insights.push(`🔥 High-quality ${dir} ${setupLabel} detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoBreakoutNote = _isCrypto()
-        ? ` ⚠️ Crypto breakout note: false breakouts are far more common in crypto due to thin liquidity. Require a higher volume bar (1.5× avg minimum) and ideally wait for a retest of the broken level before entering — chasing the initial candle is a common mistake.`
+        ? ` ⚠� Crypto breakout note: false breakouts are far more common in crypto due to thin liquidity. Require a higher volume bar (1.5× avg minimum) and ideally wait for a retest of the broken level before entering — chasing the initial candle is a common mistake.`
         : '';
       question = `BREAKOUT SETUP — Consolidation zone has been identified preceding this ${dir} move. ` +
         `Confirm: (1) Is the breakout candle closing decisively above/below the level? ` +
@@ -10415,7 +10990,7 @@ function generateHighQualityTradeInsights(setupDetection) {
     }
     case 'trend': {
       insights.push(`📈 High-quality ${dir} trend setup detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoTrendNote = _isCrypto()
         ? ` ⚡ Crypto trend note: crypto trends move faster than forex equivalents — a 4H trend can behave like a weekly trend. Watch funding rates on perpetuals: strongly positive funding in an uptrend signals overleveraged longs and increases the probability of a sharp pullback even if structure looks intact.`
@@ -10430,10 +11005,10 @@ function generateHighQualityTradeInsights(setupDetection) {
     case 'support_resistance': {
       const srType = dir === 'long' ? 'support bounce' : 'resistance rejection';
       insights.push(`🎯 High-quality ${srType} detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoSRNote = _isCrypto()
-        ? ` 🕐 Crypto S&R note: with no daily open/close, use Asia, London, and NY session highs/lows as your key reference points. Round numbers ($50k, $100k, $3000) act as powerful magnets — price often sweeps just beyond them to grab stops before reversing. Require at least 3 touches on crypto; 2 touches is not enough in a 24/7 market.`
+        ? ` � Crypto S&R note: with no daily open/close, use Asia, London, and NY session highs/lows as your key reference points. Round numbers ($50k, $100k, $3000) act as powerful magnets — price often sweeps just beyond them to grab stops before reversing. Require at least 3 touches on crypto; 2 touches is not enough in a 24/7 market.`
         : '';
       question = `S&R SETUP — Key ${dir === 'long' ? 'support' : 'resistance'} level identified. ` +
         `Check: (1) How many times has price reacted at this level? (more = stronger) ` +
@@ -10443,8 +11018,8 @@ function generateHighQualityTradeInsights(setupDetection) {
       break;
     }
     case 'pullback': {
-      insights.push(`↩️ High-quality ${dir} pullback entry detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`↩� High-quality ${dir} pullback entry detected`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoPullbackNote = _isCrypto()
         ? ` ⚡ Crypto pullback note: timeframes are compressed — what would be a pullback to the daily EMA in forex can happen in a few 4H candles in crypto. Shallow pullbacks (25–38%) are more common because momentum traders re-enter quickly. If perpetual futures funding is heavily positive on a long setup, wait for a deeper pullback before entering.`
@@ -10459,10 +11034,10 @@ function generateHighQualityTradeInsights(setupDetection) {
     case 'range': {
       const rangeEdge = dir === 'long' ? 'support boundary' : 'resistance boundary';
       insights.push(`📊 High-quality range ${dir === 'long' ? 'long' : 'short'} setup at ${rangeEdge}`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoRangeNote = _isCrypto()
-        ? ` 🌐 Crypto range note: without a daily session close, range boundaries can shift subtly across Asia/London/NY sessions. Weekend ranges are notorious for being broken on the Monday open — avoid range trades entered on a Friday close. Require at least 3 touches on each boundary in crypto.`
+        ? ` � Crypto range note: without a daily session close, range boundaries can shift subtly across Asia/London/NY sessions. Weekend ranges are notorious for being broken on the Monday open — avoid range trades entered on a Friday close. Require at least 3 touches on each boundary in crypto.`
         : '';
       question = `RANGE SETUP — Price is at the ${rangeEdge} of a defined range. ` +
         `Check: (1) Are there 2–3 clear touches on both boundaries confirming the range? ` +
@@ -10473,7 +11048,7 @@ function generateHighQualityTradeInsights(setupDetection) {
     }
     case 'liquidity': {
       insights.push(`💧 Liquidity sweep + reversal setup detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       const cryptoLiqNote = _isCrypto()
         ? ` 🎯 Crypto liquidity note: sweeps are far more deliberate and frequent in crypto due to thin order books and less regulation. Large players actively engineer stop hunts around obvious swing highs/lows and round numbers. The displacement candle after the sweep is often fast and strong — if you hesitate, you miss it. This is the highest-probability pattern in crypto trading.`
@@ -10487,7 +11062,7 @@ function generateHighQualityTradeInsights(setupDetection) {
     }
     default: {
       insights.push(`🚀 High-quality ${dir} setup detected`);
-      insights.push(`Confluence score: ${conf}/4 ⭐`);
+      insights.push(`Confluence score: ${conf}/4 �`);
       insights.push(`Setup quality: ${quality}`);
       question = `Setup detected in ${trend} market. Confirm structure, key levels, and volume before acting.`;
     }
@@ -10696,8 +11271,8 @@ function mentorShowMeTrade() {
     } else {
       mentorState.lockedInsights = [
         `${dirEmoji} ${dirLabel} entry @ ${entryPrice.toFixed(4)}`,
-        `🛡️ Stop Loss @ ${stopLoss.toFixed(4)} — structural invalidation level`,
-        `🏆 Take Profit @ ${takeProfit.toFixed(4)} — ${rrLabel}:1 R:R target`,
+        `🛡� Stop Loss @ ${stopLoss.toFixed(4)} — structural invalidation level`,
+        `�� Take Profit @ ${takeProfit.toFixed(4)} — ${rrLabel}:1 R:R target`,
         `📊 Watch the candle arrive at the entry line`,
       ];
     }
@@ -10933,20 +11508,21 @@ function updateMentorUI() {
   // Update insights - handle both array and string
   if (insightsEl && mentorState.currentInsights) {
     if (Array.isArray(mentorState.currentInsights)) {
-      insightsEl.innerHTML = mentorState.currentInsights
-        .map(line => `<div style="margin-bottom:8px;line-height:1.55;color:var(--tx2);font-size:11px;">${String(line).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`)
-        .join('');
+      insightsEl.innerHTML = mentorFormatInsights(mentorState.currentInsights);
     } else {
       insightsEl.innerHTML = mentorState.currentInsights;
     }
   } else if (insightsEl) {
-    insightsEl.innerHTML = '<div style="line-height:1.55;color:var(--tx2);font-size:11px;">The mentor is analyzing market data...</div>';
+    insightsEl.innerHTML = mentorFormatInsights(['The mentor is analyzing market data...']);
   }
   
   // Update question
   if (questionEl) {
     if (mentorState.currentQuestion) {
-      questionEl.textContent = mentorState.currentQuestion;
+      const detail = mentorGuidanceLevelMeta().detail;
+      questionEl.textContent = detail === 'tight'
+        ? mentorState.currentQuestion
+        : `${mentorState.currentQuestion}${detail === 'full' ? ' Focus on the structure first, then think about entry only after the idea is clearly confirmed.' : ''}`;
       questionEl.style.display = 'block';
     } else {
       questionEl.style.display = 'none';
@@ -11186,13 +11762,15 @@ if (typeof requestIdleCallback !== 'undefined') {
 window.toggleMentor = toggleMentor;
 window.mentorDecision = mentorDecision;
 window.mentorHint = mentorHint;
+window.setMentorGuidanceLevel = setMentorGuidanceLevel;
+window.setMentorLessonFocus = setMentorLessonFocus;
 window.updateMentor = updateMentor;
 window.showMentorPopup = showMentorPopup;
 window.closeMentorPopup = closeMentorPopup;
 window.enableMentorFromPopup = enableMentorFromPopup;
 
-// ══ AI TRADE FINDER (embedded in mentor panel) ══════════════════════════════
-// The finder lives inside the mentor panel — toggled with the 🔍 Find button.
+// �� AI TRADE FINDER (embedded in mentor panel) ������������������������������
+// The finder lives inside the mentor panel — toggled with the � Find button.
 // Scans the whole chart, lists setups as cards, and launches replay to each one.
 
 let _mfSetups    = [];    // last scan results
@@ -11510,7 +12088,7 @@ window.launchReplayToSetup   = _mfLaunch;
 
 
 
-// ══ PRE-TRADE CHECKLIST ═══════════════════════════════════════════════════════
+// �� PRE-TRADE CHECKLIST �������������������������������������������������������
 const DEFAULT_CHECKS = [
   'Trend direction confirmed',
   'Higher timeframe aligned',
@@ -11574,7 +12152,7 @@ function updateCheckScore(){
   el.style.color  = col;
 }
 
-// ══ TILT DETECTOR + SESSION COUNTDOWN ════════════════════════════════════════
+// �� TILT DETECTOR + SESSION COUNTDOWN ����������������������������������������
 let _recentOutcomes = []; // last few trade outcomes from journal
 
 function updateTiltDetector(){
@@ -11634,7 +12212,7 @@ function updateSessionCountdown(){
   }
 }
 
-// ══ ALERTS ═══════════════════════════════════════════════════════════════════
+// �� ALERTS �������������������������������������������������������������������
 function addAlert(){
   const curPrice = fP(curData[curData.length-1]?.close || curSym.p);
   // Use in-app modal instead of browser prompt()
@@ -11702,8 +12280,8 @@ function buildAlertsPanel(){
     </div>`).join('');
 }
 
-// ══ NEWS PANEL ════════════════════════════════════════════════════════════════
-// ══ NEWS PANEL ════════════════════════════════════════════════════════════════
+// �� NEWS PANEL ����������������������������������������������������������������
+// �� NEWS PANEL ����������������������������������������������������������������
 let newsCache = {};
 let _newsFetchAbort = null; // AbortController for in-flight news request
 
@@ -11978,10 +12556,15 @@ function renderNews(items, sym){
 
 
 
-// ══ CANVAS CHART ══════════════════════════════════════════════════════════════
+// �� CANVAS CHART ��������������������������������������������������������������
 function sizeCanvases(){
   const area=_el('chart-area');
-  const W=area.clientWidth, totalH=area.clientHeight;
+  // Use main-col.clientWidth to break the circular dependency where canvas
+  // flex-shrink:0 keeps inflating area.clientWidth after a window resize.
+  // main-col is position:absolute;inset:0 so it always reflects true viewport width.
+  const mainCol=_el('main-col');
+  const W=(mainCol&&mainCol.clientWidth>0)?mainCol.clientWidth:area.clientWidth;
+  const totalH=area.clientHeight;
   const volH=showVol?68:0, rsiH=showRSI?74:0;
   const macdH=showMACD?74:0, stochH=showStoch?74:0;
   const mainH=Math.max(100,totalH-volH-rsiH-macdH-stochH);
@@ -12385,7 +12968,7 @@ function _drawImmediate(){
       // Icon
       ctx.fillStyle = '#07090e';
       ctx.font = 'bold 15px monospace'; ctx.textAlign='center';
-      ctx.fillText(isPlaying ? '⏸' : '▶', btnX, btnY+5);
+      ctx.fillText(isPlaying ? '��' : '▶', btnX, btnY+5);
 
       // Store button position for click detection
       window._replayBtnX = btnX; window._replayBtnY = btnY; window._replayBtnR = btnR;
@@ -12618,11 +13201,74 @@ function _drawImmediate(){
   updateChartScrubber();
 }
 
-// ══ DRAWING TOOLS ══════════════════════════════════════════════════════════════
+// �� DRAWING TOOLS ��������������������������������������������������������������
 let activeTool = 'cursor';
 let drawingColor = '#f0a500';
 let drawingLineStyle = 'solid';
 let drawingLineWidth = 1;
+let drawingMagnet = false; // snap to OHLC prices
+
+// ── New toolbar group state ───────────────────────────────────────────────────
+const _dtbGroups = {
+  lines:    { active: 'line' },
+  fib:      { active: 'fib' },
+  patterns: { active: 'pitchfork' },
+  shapes:   { active: 'rect' },
+  annot:    { active: 'text' },
+  trade:    { active: 'long' },
+};
+// Which group owns each tool
+const _dtbToolGroup = {
+  line:'lines', ray:'lines', extline:'lines', hline:'lines', hray:'lines', vline:'lines',
+  fib:'fib', fibext:'fib',
+  pitchfork:'patterns', channel:'patterns',
+  rect:'shapes', ellipse:'shapes', triangle:'shapes', pricerange:'shapes',
+  text:'annot', arrow:'annot',
+  long:'trade', short:'trade',
+};
+
+function _dtbGroupClick(group) {
+  setTool(_dtbGroups[group].active);
+  _dtbCloseFlyout();
+}
+
+function _dtbPick(group, tool, iconHtml) {
+  _dtbGroups[group].active = tool;
+  // Update icon of group main button
+  const iconEl = document.getElementById('dtbg-' + group + '-icon');
+  if (iconEl) iconEl.innerHTML = iconHtml;
+  setTool(tool);
+  _dtbCloseFlyout();
+}
+
+let _dtbOpenFlyoutId = null;
+function _dtbOpenFlyout(group) {
+  _dtbCloseFlyout();
+  const el = document.getElementById('dtbf-' + group);
+  if (el) { el.classList.add('open'); _dtbOpenFlyoutId = group; }
+}
+function _dtbCloseFlyout() {
+  if (_dtbOpenFlyoutId) {
+    document.getElementById('dtbf-' + _dtbOpenFlyoutId)?.classList.remove('open');
+    _dtbOpenFlyoutId = null;
+  }
+}
+
+function _dtbToggleMagnet() {
+  drawingMagnet = !drawingMagnet;
+  const btn = document.getElementById('dtb2-magnet');
+  if (btn) btn.classList.toggle('magnet-on', drawingMagnet);
+  toast(drawingMagnet ? 'Snap to price: ON' : 'Snap to price: OFF');
+}
+
+// Snap price to nearest OHLC of a bar when magnet is active
+function _dtbSnapPrice(price, barIdx) {
+  if (!drawingMagnet || !curData || barIdx == null) return price;
+  const bar = curData[Math.round(barIdx)];
+  if (!bar) return price;
+  const candidates = [bar.open, bar.high, bar.low, bar.close];
+  return candidates.reduce((best, p) => Math.abs(p - price) < Math.abs(best - price) ? p : best, price);
+}
 
 // ── Per-symbol drawing persistence ───────────────────────────────────────────
 // ── Drawing coordinate helpers ──────────────────────────────────────────────
@@ -12664,12 +13310,17 @@ function drawingFromTime(d) {
 function _drawKey(sym,tf){ return `drawings-${sym}`; }
 function saveDrawings(sym,tf){
   try{
-    // Exclude temporary refinement/overlay annotations (_noSave) from persistence
     const portable = drawings.filter(d => !d._noSave).map(drawingToTime);
     _lsSet(_drawKey(sym,tf), JSON.stringify(portable));
+    // Keep in-memory tab.drawings in sync so tab switches don't lose unsaved drawings
+    const activeTab = chartTabs.find(t => t.id === activeChartTabId);
+    if(activeTab && curSym?.s === sym) activeTab.drawings = portable;
   }catch(e){}
-  // Use cached AI panel data — force=false prevents Groq re-calls on drawing move/save
-  if(curSym?.s === sym && curTF === tf) buildAIPanel(false);
+  // Use cached AI panel data — debounced so rapid drawing moves don't spam panel rebuilds
+  if(curSym?.s === sym && curTF === tf && !_isDrawingDrag){
+    clearTimeout(_buildAIPanelTimer);
+    _buildAIPanelTimer = setTimeout(()=>buildAIPanel(false), 300);
+  }
 }
 function loadDrawings(sym,tf){
   try{
@@ -12682,6 +13333,10 @@ let drawingWIP = null;       // in-progress drawing
 let selectedDrawing = null;  // currently selected drawing
 let pitchforkStage = 0;      // pitchfork needs 3 clicks
 let channelStage = 0;        // channel needs 3 clicks
+let _tapSyncLast = 0;        // throttle tapSyncDrawingToPopup during drag
+let _isDrawingDrag = false;  // true while user is actively dragging a drawing
+let _buildAIPanelTimer = null; // debounce saveDrawings → buildAIPanel
+let _buildAnalyticsTimer = null; // debounce buildJournal → buildAnalytics
 
 // Effective half-width in bars — uses stored duration if available for TF-independence
 function effectiveHalfBars(d){ 
@@ -12791,16 +13446,33 @@ function _dtSetStyle(btn, style){
 function setTool(t){
   activeTool = t;
   drawingWIP = null; pitchforkStage = 0; channelStage = 0;
+  // Sync old sidebar buttons
   TOOL_BTNS.forEach(id=>{
     const b = document.getElementById('dt-'+id);
     if(b) b.classList.toggle('on', id===t);
   });
+  // Sync new floating toolbar
+  _dtbSyncToolbar(t);
   const mc = _el('main-canvas');
   mc.style.cursor = t==='cursor'?'crosshair': t==='eraser'?'cell':'crosshair';
-  // Reflect drawing tool active state on docked button
   const drawBtn = document.getElementById('tbdock-draw');
   if(drawBtn) drawBtn.classList.toggle('active', t !== 'cursor');
   draw();
+}
+
+function _dtbSyncToolbar(t) {
+  // Reset all group main buttons and singles
+  document.querySelectorAll('#draw-toolbar .dtb-btn').forEach(b => b.classList.remove('on'));
+  if (t === 'cursor') {
+    document.getElementById('dtb2-cursor')?.classList.add('on');
+  } else if (t === 'measure') {
+    document.getElementById('dtb2-measure')?.classList.add('on');
+  } else if (t === 'eraser') {
+    document.getElementById('dtb2-eraser')?.classList.add('on');
+  } else {
+    const group = _dtbToolGroup[t];
+    if (group) document.getElementById('dtbg-' + group + '-main')?.classList.add('on');
+  }
 }
 
 // Keyboard shortcuts for tools
@@ -12814,6 +13486,33 @@ document.addEventListener('keydown', e=>{
     drawings = drawings.filter(d=>!toDelete.has(d));
     saveDrawings(curSym.s,curTF);
     selectedDrawing=null; selectedDrawings=[]; draw();
+  }
+  // Arrow keys — nudge selected drawing 1 bar left/right, or small price step up/down
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='ArrowUp'||e.key==='ArrowDown') && selectedDrawing){
+    e.preventDefault();
+    const d = selectedDrawing;
+    const dBar  = e.key==='ArrowLeft' ? -1 : e.key==='ArrowRight' ? 1 : 0;
+    const priceStep = ((priceHi||0)-(priceLo||0)) / 200 || (d.price||1) * 0.001;
+    const dPrice = e.key==='ArrowUp' ? priceStep : e.key==='ArrowDown' ? -priceStep : 0;
+    // shift bar position for all drawing types
+    if(dBar !== 0){
+      if(d.bar  !== undefined) d.bar  += dBar;
+      if(d.bar1 !== undefined) d.bar1 += dBar;
+      if(d.bar2 !== undefined) d.bar2 += dBar;
+    }
+    // shift price for all drawing types
+    if(dPrice !== 0){
+      if(d.price  !== undefined) d.price  += dPrice;
+      if(d.price1 !== undefined) d.price1 += dPrice;
+      if(d.price2 !== undefined) d.price2 += dPrice;
+      if(d.priceHigh !== undefined) d.priceHigh += dPrice;
+      if(d.priceLow  !== undefined) d.priceLow  += dPrice;
+      // trade tool levels move together
+      if(d.sl !== undefined) d.sl += dPrice;
+      if(d.tp !== undefined) d.tp += dPrice;
+    }
+    saveDrawings(curSym.s, curTF);
+    draw();
   }
 });
 
@@ -12981,8 +13680,25 @@ function hitTest(d, sx, sy){
       const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
       const minX=Math.min(x1,x2)-TOL,maxX=Math.max(x1,x2)+TOL;
       const minY=Math.min(y1,y2)-TOL,maxY=Math.max(y1,y2)+TOL;
-      // hit border or interior
       return sx>minX&&sx<maxX&&sy>minY&&sy<maxY;
+    }
+    case 'ellipse':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      const cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2+TOL,ry=Math.abs(y2-y1)/2+TOL;
+      if(rx===0||ry===0) return false;
+      return ((sx-cx)*(sx-cx))/(rx*rx)+((sy-cy)*(sy-cy))/(ry*ry)<=1;
+    }
+    case 'triangle':{
+      const x1=_barX(d.bar1),y1=_py(d.price1),x2=_barX(d.bar2),y2=_py(d.price2);
+      const mx=(x1+x2)/2;
+      // point-in-triangle using sign method
+      const sign=(px,py,ax,ay,bx,by)=>(px-bx)*(ay-by)-(ax-bx)*(py-by);
+      const d1=sign(sx,sy,mx,y1,x2,y2);
+      const d2=sign(sx,sy,x2,y2,x1,y2);
+      const d3=sign(sx,sy,x1,y2,mx,y1);
+      const hasNeg=(d1<0)||(d2<0)||(d3<0);
+      const hasPos=(d1>0)||(d2>0)||(d3>0);
+      return !(hasNeg&&hasPos);
     }
     case 'fib':{
       const x1=_barX(d.bar1),x2=_barX(d.bar2);
@@ -13243,6 +13959,7 @@ function handleDrawMousedown(sx, sy, e){
       const hid = hitTestHandle(selectedDrawing, sx, sy);
       if(hid){
         isResizingDrawing = true;
+        _isDrawingDrag    = true;
         resizeHandle      = hid;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
@@ -13260,6 +13977,7 @@ function handleDrawMousedown(sx, sy, e){
         const bubbleDrag = (drawings[i].type==='mentor_arrow' || drawings[i].type==='mentor_box') && _mentorBubbleHit(drawings[i], sx, sy);
         isDraggingDrawing = !bubbleDrag;
         isResizingDrawing = bubbleDrag;
+        _isDrawingDrag    = true;
         resizeHandle      = bubbleDrag ? 'bubble' : null;
         dragStartBar      = _xToBar ? _xToBar(sx) : 0;
         dragStartPrice    = _yToPrice ? _yToPrice(sy) : 0;
@@ -13460,7 +14178,7 @@ function handleDrawMousemove(sx, sy){
     const dBar=bar-dragStartBar, dPrice=price-dragStartPrice;
     const dX = sx - dragStartX, dY = sy - dragStartY;
     switch(d.type){
-      case 'line': case 'ray': case 'fib': case 'measure':
+      case 'line': case 'ray': case 'fib': case 'measure': case 'ellipse': case 'triangle':
         if(resizeHandle==='p1'){ d.bar1=bar; d.price1=price; }
         else if(resizeHandle==='p2'){ d.bar2=bar; d.price2=price; }
         else{ d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar; d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; }
@@ -13550,7 +14268,10 @@ function handleDrawMousemove(sx, sy){
       case 'arrow':{ d.bar=s.bar+dBar; d.price=s.price+dPrice; break; }
     }
     draw();
-    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement){
+      const now=Date.now();
+      if(!_tapSyncLast||now-_tapSyncLast>=80){ _tapSyncLast=now; tapSyncDrawingToPopup(d); }
+    }
     return;
   }
 
@@ -13566,7 +14287,7 @@ function handleDrawMousemove(sx, sy){
       case 'hline': case 'hray': d.price=s.price+dPrice; break;
       case 'vline': d.bar=s.bar+dBar; break;
       case 'line': case 'ray': case 'fib': case 'rect': case 'measure':
-      case 'extline': case 'fibext':
+      case 'extline': case 'fibext': case 'ellipse': case 'triangle':
         d.bar1=s.bar1+dBar; d.bar2=s.bar2+dBar;
         d.price1=s.price1+dPrice; d.price2=s.price2+dPrice; break;
       case 'channel':
@@ -13600,7 +14321,10 @@ function handleDrawMousemove(sx, sy){
         d.pts=s.pts.map(p=>({bar:p.bar+dBar,price:p.price+dPrice})); break;
     }
     draw();
-    if((d.type==='long'||d.type==='short') && !d._tapRefinement) tapSyncDrawingToPopup(d);
+    if((d.type==='long'||d.type==='short') && !d._tapRefinement){
+      const now=Date.now();
+      if(!_tapSyncLast||now-_tapSyncLast>=80){ _tapSyncLast=now; tapSyncDrawingToPopup(d); }
+    }
     return;
   }
 
@@ -13613,9 +14337,9 @@ function handleDrawMousemove(sx, sy){
   }
 
   if(!drawingWIP) return;
-  const { bar, price } = screenToDraw(sx, sy);
+  const { bar, price: rawPrice } = screenToDraw(sx, sy);
+  const price = _dtbSnapPrice(rawPrice, bar);
   if(drawingWIP.type==='pitchfork'){
-    // update preview: last pt tracks mouse
     const stage = drawingWIP.pts.length;
     if(stage===1) drawingWIP.pts[1]={bar,price};
     else if(stage>=2) drawingWIP.pts[2]={bar,price};
@@ -13643,6 +14367,7 @@ function handleDrawMouseup(sx, sy){
 
   // End drag or resize
   if(isDraggingDrawing || isResizingDrawing){
+    _isDrawingDrag = false;
     try { saveDrawings(curSym.s, curTF); } catch(e) {}
     isDraggingDrawing = false;
     isResizingDrawing = false;
@@ -13761,7 +14486,7 @@ function _addMentorLabel(bar, price, lines) {
   return id;
 }
 
-// ══ MENTOR ANNOTATION ENGINE ═════════════════════════════════════════════════
+// �� MENTOR ANNOTATION ENGINE �������������������������������������������������
 // Universal, clean annotation system.
 // Rules:
 //   • Max 5 annotations per setup (1 context + 1 key level + 1 confluence + 1 entry + 1 objective)
@@ -13986,12 +14711,12 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   const swingL = findMajorSwings('low');
 
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   // STAGE 1 — MARKET CONTEXT
   // Structural swing annotations. Only shown for trend/pullback methods where
   // the swing sequence IS the primary confluence. Breakout, liquidity, range,
   // and S&R methods show their own structural context in Stage 2.
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   const _methodNeedsSwingContext = method === 'trend' || method === 'pullback' ||
     method === 'flag_continuation' || method === 'structure_continuation';
     // Note: support_resistance intentionally excluded — S&R is about price levels,
@@ -14031,11 +14756,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   } // end _methodNeedsSwingContext
 
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   // STAGE 2 — KEY LEVEL / ZONE + WHY IT WAS PICKED
   // The specific price area the trade is based on.
   // For each method: show the level AND mark the prior touches that validate it.
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   if (showLevels) {
     switch (method) {
 
@@ -14175,11 +14900,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
   }
 
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   // STAGE 3 — ENTRY SIGNAL
   // The specific candle behaviour that triggers the trade.
   // Anchored to real OHLC. Explains exactly what to look for.
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   if (showConf) {
     // For stage-3 entry annotations during setup_detected phase,
     // the setup bar may still be in the future so detectionBar fails isVis().
@@ -14282,11 +15007,11 @@ function _mentorAnnotateSetup(setupDetection, anchorBar, setupBar) {
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   // CONFLUENCE FACTOR ANNOTATIONS
   // Show each confluence factor as a named label so the user can see WHY
   // this setup qualified. Appears in all stages so context is always visible.
-  // ══════════════════════════════════════════════════════════════════════════
+  // ��������������������������������������������������������������������������
   {
     const cfFactors = _buildConfluenceFactors(setupDetection, data, structure, atr, dir, method);
     if (cfFactors.length) {
@@ -14421,7 +15146,7 @@ function toggleMentorDebriefAnnotations() {
     clearMentorAnnotations();
     mentorState._debriefAnnotationsVisible = false;
     if (btn) {
-      btn.textContent = '📍 Show Annotations';
+      btn.textContent = '� Show Annotations';
       btn.style.opacity = '1';
       btn.style.background = 'linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08))';
       btn.style.borderColor = 'rgba(139,92,246,0.35)';
@@ -14599,12 +15324,12 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   if (c) {
     const arrowPrice = dir === 'up' ? c.low - atr * 0.5 : c.high + atr * 0.5;
     _addMentorArrow(replayCutoff, arrowPrice,
-      `📍 ${label}`, dir === 'up' ? 'up' : 'down', false);
+      `� ${label}`, dir === 'up' ? 'up' : 'down', false);
   }
 
   // Show explanation in the mentor panel
   mentorState.currentInsights = [
-    `⏸ Mentor spotted a confluence — replay paused`,
+    `�� Mentor spotted a confluence — replay paused`,
     `📌 ${label}`,
     explanation,
     `Press Space or ▶ to continue when ready.`,
@@ -14613,7 +15338,7 @@ function _maybePauseForConfluence(label, bar, price, dir, atr) {
   updateMentorUI();
   scheduleDraw();
 
-  toast(`⏸ Confluence: ${label}`);
+  toast(`�� Confluence: ${label}`);
 }
 
 
@@ -14822,6 +15547,33 @@ function renderDrawings(ctx, W, H, barXfn, pyfn, yToPricefn){
           ctx.fillRect(rx+rw/2-lw/2,ry+rh/2-8,lw,13);
           ctx.fillStyle=col; ctx.fillText(label,rx+rw/2,ry+rh/2+3);
         }
+        break;
+      }
+
+      case 'ellipse':{
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const cx=(x1+x2)/2, cy=(y1+y2)/2;
+        const rx=Math.abs(x2-x1)/2, ry=Math.abs(y2-y1)/2;
+        ctx.beginPath(); ctx.ellipse(cx,cy,Math.max(rx,1),Math.max(ry,1),0,0,Math.PI*2);
+        ctx.fillStyle=isSel?'rgba(240,165,0,.08)':'rgba(240,165,0,.04)';
+        ctx.fill();
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1.5;
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.stroke(); ctx.setLineDash([]);
+        if(isSel){ drawHandle(cx-rx,cy); drawHandle(cx+rx,cy); drawHandle(cx,cy-ry); drawHandle(cx,cy+ry); }
+        break;
+      }
+
+      case 'triangle':{
+        const x1=barXfn(d.bar1),y1=pyfn(d.price1),x2=barXfn(d.bar2),y2=pyfn(d.price2);
+        const mx=(x1+x2)/2;
+        ctx.beginPath(); ctx.moveTo(mx,y1); ctx.lineTo(x2,y2); ctx.lineTo(x1,y2); ctx.closePath();
+        ctx.fillStyle=isSel?'rgba(240,165,0,.08)':'rgba(240,165,0,.04)';
+        ctx.fill();
+        ctx.strokeStyle=col; ctx.lineWidth=isSel?2:1.5;
+        _btApplyLineStyle(ctx, d.ls||'solid');
+        ctx.stroke(); ctx.setLineDash([]);
+        if(isSel){ drawHandle(mx,y1); drawHandle(x1,y2); drawHandle(x2,y2); }
         break;
       }
 
@@ -16182,7 +16934,7 @@ function setupEvents(){
   window.addEventListener('resize', () => setTimeout(()=>{ sizeCanvases(); positionChartTabsBar(); draw(); }, 50));
 }
 
-// ══ LOAD SYMBOL ═══════════════════════════════════════════════════════════════
+// �� LOAD SYMBOL ���������������������������������������������������������������
 // ── Live WebSocket tick ────────────────────────────────────────────────────────
 let liveWS = null;
 let liveWSSym = null;
@@ -16238,7 +16990,7 @@ function updateLiveTick(sym, price){
   updateTopbar(); draw();
   const s = SYMS.find(x=>x.s===sym);
   if(s){ const prev=s.p||price; s.c=+((price-prev)/prev*100).toFixed(2); s.p=price; }
-  setSrcStatus('● live','var(--tl)');
+  setSrcStatus('� live','var(--tl)');
 }
 
 // ── Historical extension (pan left past oldest bar) ─────────────────────────
@@ -16265,14 +17017,17 @@ async function fetchMoreHistory(){
         invalidateIndCache();
         rightBarIndex += newBars.length; // keep view stable
         dataCache[sym+'_'+tf] = curData;
+        // Re-resolve drawing bar indices after prepend — existing d.bar values are now
+        // off by newBars.length because the data array shifted; re-map from timestamps.
+        loadDrawings(sym, tf);
         draw();
-        setSrcStatus('● live · '+newBars.length+' bars added','var(--tl)');
+        setSrcStatus('� live · '+newBars.length+' bars added','var(--tl)');
       } else {
-        setSrcStatus('● live · no older data','var(--tl)');
+        setSrcStatus('� live · no older data','var(--tl)');
       }
     }
   }catch(e){
-    setSrcStatus('● live','var(--tl)');
+    setSrcStatus('� live','var(--tl)');
   }
   isFetchingMore = false;
 }
@@ -16365,7 +17120,7 @@ async function loadSym(sym){
     loadDrawings(sym, requestTF);
     // force=true: overwrite any stale placeholder-data cache entry
     updateTopbar(); draw(); buildAIPanel(true);
-    setSrcStatus('● live · cached','var(--tl)');
+    setSrcStatus('� live · cached','var(--tl)');
     connectLiveTick(sym, curSym.t);
     endChartTransition(requestTabId, requestSeq, true);
     return;
@@ -16411,7 +17166,7 @@ async function loadSym(sym){
       loadDrawings(sym, requestTF);
       // force=true: overwrite any stale placeholder-data cache entry
       updateTopbar(); draw(); buildAIPanel(true); buildInfo();
-      setSrcStatus('● live','var(--tl)');
+      setSrcStatus('� live','var(--tl)');
       connectLiveTick(sym, curSym.t);
       setTimeout(() => tapScanCurrentChart().catch(() => {}), 2000); // incremental scan in background
       endChartTransition(requestTabId, requestSeq, true);
@@ -16449,7 +17204,7 @@ function updateTopbar(){
   document.getElementById('ov-v').textContent=fV(last.volume);
 }
 
-// ══ CONTROLS ══════════════════════════════════════════════════════════════════
+// �� CONTROLS ������������������������������������������������������������������
 function setTF(btn,tf){
   saveDrawings(curSym.s, curTF);
   curTF=tf;
@@ -16633,7 +17388,7 @@ function rpTab(btn,tab){
   if(tab==='analytics') refreshAiHistoryPanel();
 }
 
-// ══ CUSTOM INDICATOR ENGINE ═══════════════════════════════════════════════════
+// �� CUSTOM INDICATOR ENGINE ���������������������������������������������������
 
 const IND_FUNCTIONS = [
   { name:'sma',     sig:'sma(src, len)',     desc:'Simple Moving Average' },
@@ -17000,7 +17755,7 @@ function buildIndList(){
         <div style="font-size:10px;color:var(--tx);font-family:monospace;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ind.name}</div>
         <div style="font-size:11px;color:var(--tx2);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ind.type==='panel'?'sub-panel':'overlay'} · ${ind.formula.substring(0,28)}${ind.formula.length>28?'…':''}</div>
       </div>
-      <button onclick="indToggle('${ind.id}')" title="${ind.visible?'Hide':'Show'}" style="background:none;border:1px solid var(--b1);color:${ind.visible?'var(--am)':'var(--tx3)'};font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;">${ind.visible?'●':'○'}</button>
+      <button onclick="indToggle('${ind.id}')" title="${ind.visible?'Hide':'Show'}" style="background:none;border:1px solid var(--b1);color:${ind.visible?'var(--am)':'var(--tx3)'};font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;">${ind.visible?'�':'○'}</button>
       <button onclick="indEdit('${ind.id}')" title="Edit" style="background:none;border:1px solid var(--b1);color:var(--tx3);font-size:11px;padding:2px 6px;border-radius:3px;cursor:pointer;" onmouseover="this.style.color='var(--am)'" onmouseout="this.style.color='var(--tx3)'">✎</button>
       <button onclick="indDelete('${ind.id}')" title="Delete" style="background:none;border:none;color:var(--tx3);font-size:11px;padding:2px 4px;cursor:pointer;" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
     </div>
@@ -17036,7 +17791,7 @@ function buildWL(filter=''){
 function selSym(s){loadSym(s);closeModal();}
 function selSymNewTab(s){ createChartTab(s, curTF); closeModal(); }
 
-// ══ DRAGGABLE POPUPS ══════════════════════════════════════════════════════════
+// �� DRAGGABLE POPUPS ����������������������������������������������������������
 // makeDraggable(el, handle) — call once per popup on DOMContentLoaded.
 // Drag by the handle (or el itself). Position resets when caller invokes resetDrag(el).
 function makeDraggable(el, handle) {
@@ -17121,7 +17876,7 @@ document.addEventListener('DOMContentLoaded', () => {
   makeDraggable(document.getElementById('tut-content'),       document.querySelector('#tut-content .tut-hdr, #tut-content'));
 });
 
-// ══ MODAL ════════════════════════════════════════════════════════════════════
+// �� MODAL ��������������������������������������������������������������������
 function openModal(){
   document.getElementById('modal-bg').classList.add('open');
   document.getElementById('m-input').value='';
@@ -17151,7 +17906,7 @@ document.addEventListener('keydown',e=>{
   if(tfMap[e.key] && !e.ctrlKey && !e.metaKey){
     const tf=tfMap[e.key];
     const btn=document.querySelector(`.tf[onclick*="'${tf}'"]`);
-    if(btn){ btn.click(); toast(`⏱ ${tf} timeframe`); }
+    if(btn){ btn.click(); toast(`�� ${tf} timeframe`); }
     return;
   }
   // P = position size calculator
@@ -17180,8 +17935,8 @@ document.addEventListener('keydown',e=>{
   if(replayMode && !replayPicking){
     // Prevent keyboard controls when replay is complete
     if(curData && replayCutoff >= curData.length - 1) {
-      if(e.key===' '){ e.preventDefault(); toast('⏹ Already at end — Esc to exit'); return; }
-      if(e.key==='ArrowRight'){ e.preventDefault(); toast('⏹ Already at end'); return; }
+      if(e.key===' '){ e.preventDefault(); toast('�� Already at end — Esc to exit'); return; }
+      if(e.key==='ArrowRight'){ e.preventDefault(); toast('�� Already at end'); return; }
     }
     if(e.key==='ArrowRight'){ e.preventDefault(); replayStep(1);   return; }
     if(e.key==='ArrowLeft'){  e.preventDefault(); replayStep(-1);  return; }
@@ -17207,7 +17962,7 @@ function toggleFullscreenChart(){
   toast(_chartFullscreen?'▶ Fullscreen — press F to exit':'◀ Normal view');
 }
 
-// ══ SCANNER / PROMPT ══════════════════════════════════════════════════════════
+// �� SCANNER / PROMPT ����������������������������������������������������������
 function runPrompt(btn, q){
   // Highlight active prompt button
   document.querySelectorAll('.sp').forEach(s=>s.classList.remove('sp-active'));
@@ -17334,7 +18089,7 @@ function nlPick(sym, el){
   toast(`📈 Loaded ${sym}`);
 }
 
-// ══ TOAST + CLOCK ═════════════════════════════════════════════════════════════
+// �� TOAST + CLOCK �������������������������������������������������������������
 let toastT;
 function toast(msg){
   const el=document.getElementById('toast');
@@ -17348,12 +18103,12 @@ setInterval(()=>{
   const dayOfWeek = n.getDay(); // 0=Sun, 6=Sat
   const isCryptoWeekend = false; // crypto never closes
   const open = curSym && curSym.t === 'Crypto' ? true : !(dayOfWeek === 0 || dayOfWeek === 6);
-  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'● LIVE':'● CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--tx3)'; }
+  const liveEl=document.getElementById('st-live'); if(liveEl){ liveEl.textContent=open?'� LIVE':'� CLOSED'; liveEl.style.color=open?'var(--tl)':'var(--tx3)'; }
   updateSessionCountdown();
   updateTiltDetector();
 },1000);
 
-// ══ SCANNER HELPERS ═══════════════════════════════════════════════════════════
+// �� SCANNER HELPERS �����������������������������������������������������������
 function scrollPrompts(dx){
   const el=document.getElementById('scanner-prompts'); if(el) el.scrollBy({top:dx, behavior:'smooth'});
 }
@@ -17383,7 +18138,7 @@ function initScannerDrag(){
   el.addEventListener('touchmove',  e=>{ el.scrollLeft=scrollStart-(e.touches[0].pageX-startX); },{passive:true});
 }
 
-// ══ SIDEBAR RESIZE ════════════════════════════════════════════════════════════
+// �� SIDEBAR RESIZE ������������������������������������������������������������
 
 // ResizeObserver: redraws chart whenever chart-area changes size
 // (catches overlay-panel dock/undock, window resize, zoom changes)
@@ -17561,7 +18316,7 @@ function initSidebarResize(){
   }
 }
 
-// ══ SETTINGS ══════════════════════════════════════════════════════════════════
+// �� SETTINGS ������������������������������������������������������������������
 
 function applyUIScale(val){
   const numericVal = Math.max(80, Math.min(130, parseFloat(val) || 100));
@@ -18399,7 +19154,7 @@ async function authSubmitLogin(){
     document.getElementById('auth-login-pass').value = '';
     
   } catch (error) {
-    console.error('❌ Login process error:', error);
+    console.error('�� Login process error:', error);
     if(btn){ btn.textContent='SIGN IN →'; btn.disabled=false; }
     
     if (error.message.includes('timed out')) {
@@ -18487,7 +19242,7 @@ function _stopAutoSave(){
   if(_autoSaveInterval){ clearInterval(_autoSaveInterval); _autoSaveInterval = null; }
 }
 
-// ══ ACCOUNT SYSTEM (Supabase-backed) ══════════════════════════════════════════
+// �� ACCOUNT SYSTEM (Supabase-backed) ������������������������������������������
 
 // Test Supabase connectivity
 async function testSupabaseConnection() {
@@ -18505,11 +19260,11 @@ async function testSupabaseConnection() {
     if (response.ok) {
       return true;
     } else {
-      console.error('❌ Supabase service responded with:', response.status, response.statusText);
+      console.error('�� Supabase service responded with:', response.status, response.statusText);
       return false;
     }
   } catch (error) {
-    console.error('❌ Cannot reach Supabase service:', error.message);
+    console.error('�� Cannot reach Supabase service:', error.message);
     return false;
   }
 }
@@ -18528,11 +19283,11 @@ function initializeSupabase() {
         }
       });
     } else {
-      console.error('❌ Supabase library not loaded');
+      console.error('�� Supabase library not loaded');
       _supaReady = false;
     }
   } catch (error) {
-    console.error('❌ Failed to initialize Supabase client:', error);
+    console.error('�� Failed to initialize Supabase client:', error);
     _supaReady = false;
   }
 }
@@ -18662,7 +19417,7 @@ async function _syncFromCloud(){
     
     updateCloudSyncBadge({ status:'ok', message:'Cloud workspace loaded', lastOkAt: Date.now() });
   }catch(e){ 
-    console.error('❌ Supabase sync error:', e);
+    console.error('�� Supabase sync error:', e);
     updateCloudSyncBadge({ status:'error', message:`Cloud sync failed: ${e.message}` });
   }
 }
@@ -18707,20 +19462,20 @@ async function authLoginAsync(username, password){
   
   // Wait for Supabase to be ready
   if (!_supaReady || !_supa) {
-    console.error('❌ Supabase client not ready:', { _supaReady, _supa: !!_supa, supabase: typeof supabase });
+    console.error('�� Supabase client not ready:', { _supaReady, _supa: !!_supa, supabase: typeof supabase });
     
     if (typeof supabase === 'undefined') {
-      console.error('❌ Supabase library not loaded - CDN issue');
+      console.error('�� Supabase library not loaded - CDN issue');
       return { ok:false, err:'Authentication service not available. Please refresh the page and check your internet connection.' };
     } else {
-      console.error('❌ Supabase library loaded but client not ready - attempting force initialization...');
+      console.error('�� Supabase library loaded but client not ready - attempting force initialization...');
       
       // Force initialization as fallback
       try {
         _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
         _supaReady = true;
       } catch (initError) {
-        console.error('❌ Force initialization failed:', initError);
+        console.error('�� Force initialization failed:', initError);
         return { ok:false, err:'Authentication service failed to initialize. Please refresh the page.' };
       }
     }
@@ -18730,14 +19485,14 @@ async function authLoginAsync(username, password){
     const { data, error } = await _supa.auth.signInWithPassword({ email, password });
     
     if(error) {
-      console.error('❌ Sign in error:', error);
+      console.error('�� Sign in error:', error);
       return { ok:false, err: error.message.includes('Invalid') ? 'Incorrect username or password.' : error.message };
     }
     
     const displayName = data.user?.user_metadata?.displayName || username;
     return { ok:true, username, displayName, userId: data.user.id };
   } catch (err) {
-    console.error('❌ Unexpected error during login:', err);
+    console.error('�� Unexpected error during login:', err);
     
     // Check for network/CORS errors
     if (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('CORS')) {
@@ -19060,7 +19815,7 @@ function loadSettingsFromStorage(){
   renderTopbarInds();
   if(document.getElementById('settings-bg')?.classList.contains('open')) syncSettingsFormFromState();
 }
-// ══ INIT ══════════════════════════════════════════════════════════════════════
+// �� INIT ����������������������������������������������������������������������
 window.addEventListener('load', () => {
   sizeCanvases();
   positionChartTabsBar();
@@ -19126,7 +19881,7 @@ function hydrateTutorialContent(){
   const prevBtn = document.querySelector('#tut-footer .tut-nav-prev');
   const nextBtn = document.querySelector('#tut-footer .tut-nav-next');
   if(titleEl) titleEl.textContent = 'APEXFX Help & Tutorial';
-  if(subEl) subEl.textContent = 'A quick intro to what makes APEXFX different';
+  if(subEl) subEl.textContent = 'A quick intro to the AI workflow, not a full manual';
   if(nav){
     nav.innerHTML = `
       <div class="tut-nav-section">Quick Intro</div>
@@ -19142,61 +19897,61 @@ function hydrateTutorialContent(){
       <div class="tut-page on" id="tut-intro">
         <div class="tut-hero">
           <div class="tut-hero-kicker">Welcome</div>
-          <div class="tut-h1">This is not just a charting site</div>
-          <div class="tut-lead">APEXFX is built to help you find, understand, practise, and review trades in one place. You can use it right away in guest mode, then sign in later to sync everything.</div>
+          <div class="tut-h1">This is an AI trading workspace</div>
+          <div class="tut-lead">APEXFX is designed to work alongside your charting process. It helps you find ideas, validate execution, practise in replay, and review yourself over time.</div>
           <div class="tut-hero-actions">
-            <span class="tut-pill">Use without an account</span>
-            <span class="tut-pill">AI built into the workflow</span>
-            <span class="tut-pill">Training + review</span>
+            <span class="tut-pill">Guest mode first</span>
+            <span class="tut-pill">AI in every stage</span>
+            <span class="tut-pill">Training + review loop</span>
           </div>
         </div>
         <div class="tut-grid">
-          <div class="tut-card"><div class="tut-card-title">Find ideas</div><div class="tut-card-body">Use AI Setups, scans, and pre-market tools to surface markets worth looking at.</div></div>
-          <div class="tut-card"><div class="tut-card-title">Validate trades</div><div class="tut-card-body">Use Trade Analysis to judge the exact entry, stop, target, and timing.</div></div>
-          <div class="tut-card"><div class="tut-card-title">Train your eye</div><div class="tut-card-body">Replay + Mentor teaches setups on historical charts instead of only giving signals.</div></div>
-          <div class="tut-card"><div class="tut-card-title">Build your edge</div><div class="tut-card-body">Journal and analytics turn your trade history into feedback and pattern recognition.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Find</div><div class="tut-card-body">AI Setups and scans surface markets worth opening.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Validate</div><div class="tut-card-body">Trade Analysis checks whether the exact placement still makes sense.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Practise</div><div class="tut-card-body">Replay and Mentor teach you to read setups without knowing what happens next.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Improve</div><div class="tut-card-body">Journal and analytics turn your history into lessons and trader memory.</div></div>
         </div>
-        <div class="tut-tip">Best first workflow: open a chart, check the AI tab, run Trade Analysis on a setup, then try Replay Mentor when you want to practise.</div>
+        <div class="tut-tip">Best first workflow: read the AI tab, open an AI Setup, run Trade Analysis, then use Replay Mentor later to practise the same kind of idea.</div>
       </div>
       <div class="tut-page" id="tut-copilot">
         <div class="tut-h1">Live AI Copilot</div>
-        <div class="tut-lead">The AI tab on the right is your live market read. It is meant to explain what the chart is doing right now, not just throw a random signal at you.</div>
+        <div class="tut-lead">The AI tab is your live briefing. Its job is to explain the chart now. It is not supposed to replace your trade validation step.</div>
         <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>Reads the current chart state.</strong> It looks at trend, structure, levels, and recent changes.</div></div>
         <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Gets better when you draw on the chart.</strong> Mark levels, zones, or a thesis and the copilot becomes more specific.</div></div>
         <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Helps with context.</strong> It tells you what changed, what matters next, and whether your thesis is strengthening or weakening.</div></div>
-        <div class="tut-tip">Think of the AI tab as your live chart briefing. Think of Trade Analysis as the deeper decision check before taking the trade.</div>
+        <div class="tut-tip">Simple rule: AI tab = live read. Trade Analysis = execution check.</div>
       </div>
       <div class="tut-page" id="tut-mentor">
         <div class="tut-h1">Mentor & Replay</div>
-        <div class="tut-lead">This is one of the most unique parts of APEXFX. Instead of only analysing the live market, the platform can teach you on historical charts too.</div>
+        <div class="tut-lead">This is one of the parts that makes APEXFX different. Instead of only analysing live charts, it can teach you on replayed price action too.</div>
         <div class="tut-grid">
           <div class="tut-card"><div class="tut-card-title">Replay mode</div><div class="tut-card-body">Step through old price action and practise reading the market without knowing what happens next.</div></div>
           <div class="tut-card"><div class="tut-card-title">AI Mentor</div><div class="tut-card-body">The mentor spots setups, explains confluences, and can either guide you or let you try it yourself.</div></div>
         </div>
-        <div class="tut-warn">The goal is not just signals. The goal is to help you understand why a setup is valid, what confirms it, and what would invalidate it.</div>
+        <div class="tut-warn">The point is not just signals. The point is learning why a setup is valid, what confirms it, and what breaks it.</div>
       </div>
       <div class="tut-page" id="tut-review">
         <div class="tut-h1">Analysis, Journal, and Growth</div>
-        <div class="tut-lead">APEXFX is designed to carry one trade idea through the whole process: discovery, validation, execution, and review.</div>
+        <div class="tut-lead">APEXFX works best when one trade idea moves through the full loop: discovery, validation, execution, and review.</div>
         <div class="tut-step"><div class="tut-step-num">1</div><div class="tut-step-body"><strong>AI Setups finds ideas.</strong> It shows markets and setups worth checking.</div></div>
         <div class="tut-step"><div class="tut-step-num">2</div><div class="tut-step-body"><strong>Trade Analysis checks the exact trade.</strong> It separates setup quality from execution quality.</div></div>
-        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Journal and analytics close the loop.</strong> Your history starts revealing habits, strengths, and weak spots.</div></div>
-        <div class="tut-tip">Over time, the goal is for the platform to feel less like a dashboard and more like a trading workspace that learns how you operate.</div>
+        <div class="tut-step"><div class="tut-step-num">3</div><div class="tut-step-body"><strong>Journal and analytics close the loop.</strong> Your history reveals habits, strengths, and weak spots.</div></div>
+        <div class="tut-tip">Over time the goal is simple: fewer random decisions, better pattern recognition, and a platform that learns how you trade.</div>
       </div>
       <div class="tut-page" id="tut-workspace">
         <div class="tut-h1">Your Workspace</div>
-        <div class="tut-lead">You do not need to learn every button on day one. Just know where the core pieces are.</div>
+        <div class="tut-lead">You do not need every button on day one. Just know where the core workflow lives.</div>
         <div class="tut-grid">
-          <div class="tut-card"><div class="tut-card-title">Top of chart</div><div class="tut-card-body">Symbol, timeframe, and chart tabs. Each tab can hold its own chart state.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Top of chart</div><div class="tut-card-body">Symbol, timeframe, and chart tabs. Each tab keeps its own workspace.</div></div>
           <div class="tut-card"><div class="tut-card-title">Left side</div><div class="tut-card-body">Watchlist, drawing tools, and the Help button you can come back to anytime.</div></div>
-          <div class="tut-card"><div class="tut-card-title">Right side</div><div class="tut-card-body">AI, analytics, and news. This is where most of the guided intelligence lives.</div></div>
-          <div class="tut-card"><div class="tut-card-title">Guest vs account</div><div class="tut-card-body">Guest mode lets you explore. Signing in brings cloud sync, saved progress, and a persistent trader profile.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Right side</div><div class="tut-card-body">Live AI on top, trader growth below. Think present first, review second.</div></div>
+          <div class="tut-card"><div class="tut-card-title">Guest vs account</div><div class="tut-card-body">Guest mode lets you explore first. Signing in adds sync, saved progress, and a persistent trader profile.</div></div>
         </div>
-        <div class="tut-tip">That is all you really need to get started. Use this button again later if you want a quick reset.</div>
+        <div class="tut-tip">That is enough to get started. Come back here anytime if you want a quick reset on how the platform is meant to be used.</div>
       </div>
     `;
   }
-  if(footerHint) footerHint.textContent = 'Quick intro to the unique parts of APEXFX';
+  if(footerHint) footerHint.textContent = 'Quick intro to the unique AI workflow inside APEXFX';
   if(prevBtn) prevBtn.textContent = 'Prev';
   if(nextBtn) nextBtn.textContent = 'Next';
   _tutorialHydrated = true;
@@ -19257,7 +20012,7 @@ function tutNavStep(dir){
 
 
 
-// ══ PRE-MARKET BRIEF v2 ═══════════════════════════════════════════════════════
+// �� PRE-MARKET BRIEF v2 �������������������������������������������������������
 // Multi-timeframe per-symbol deep analysis
 
 // TFs to analyse — 1H through Monthly (6 TFs for full confluence)
@@ -19565,7 +20320,7 @@ function renderPNavBias(a) {
   if (!a) return '';
   const c = a.confluence;
   const biasClass = c.confScore >= 58 ? 'bull' : c.confScore <= 42 ? 'bear' : 'neut';
-  const biasLabel = biasClass === 'bull' ? '▲' : biasClass === 'bear' ? '▼' : '●';
+  const biasLabel = biasClass === 'bull' ? '▲' : biasClass === 'bear' ? '▼' : '�';
   const chgCol = a.movePct >= 0 ? 'var(--tl)' : 'var(--rd)';
   return `<span class="pnav-bias ${biasClass}">${biasLabel}</span>
           <span class="pnav-chg" style="color:${chgCol}">${a.movePct >= 0 ? '+' : ''}${a.movePct}%</span>`;
@@ -19643,7 +20398,7 @@ function buildPMBChecklist() {
   const now = new Date(); const h = now.getHours();
   const checks = [
     { icon:'📰', text:'Check economic calendar — mark high-impact events for today', done:false },
-    { icon:'🌍', text:'Review overnight moves in Asian and European markets', done:false },
+    { icon:'�', text:'Review overnight moves in Asian and European markets', done:false },
     { icon:'🎯', text:'Mark key S/R from Weekly/Monthly on each pair before the open', done:false },
     { icon:'📊', text:'Review yesterday\'s journal — any patterns or mistakes to correct?', done: h >= 9 },
     { icon:'🧠', text:'Define your max daily loss and max trade count', done:false },
@@ -19684,7 +20439,7 @@ function buildSymbolPane(a) {
     const t = a.tfData[tf];
     if (!t) return '';
     const biasClass = t.bias;
-    const biasArrow = t.bias === 'bull' ? '▲' : t.bias === 'bear' ? '▼' : '●';
+    const biasArrow = t.bias === 'bull' ? '▲' : t.bias === 'bear' ? '▼' : '�';
     const rsiCol = parseFloat(t.rsi) > 70 ? 'var(--rd)' : parseFloat(t.rsi) < 30 ? 'var(--tl)' : 'var(--tx3)';
     const patName = t.topPat?.name || '';
     const patShort = patName ? patName.replace('Bullish ','').replace('Bearish ','').replace(' Cross','×').substring(0,12) : '';
@@ -19723,7 +20478,7 @@ function buildSymbolPane(a) {
     </div>`).join('');
 
   // HTF context note
-  const htfLabel = c.htfBias === 'bull' ? '▲ BULLISH' : c.htfBias === 'bear' ? '▼ BEARISH' : '● MIXED';
+  const htfLabel = c.htfBias === 'bull' ? '▲ BULLISH' : c.htfBias === 'bear' ? '▼ BEARISH' : '� MIXED';
   const htfCol   = c.htfBias === 'bull' ? 'var(--tl)' : c.htfBias === 'bear' ? 'var(--rd)' : 'var(--am)';
   const htfNote  = c.dailyMatchesHTF
     ? `Daily bias aligns with higher TF — <span style="color:var(--tl)">confluent setup</span>.`
@@ -19960,7 +20715,7 @@ async function fetchPMBNews(symStrs) {
 
 
 
-// ══ AI BEST SETUPS ════════════════════════════════════════════════════════════
+// �� AI BEST SETUPS ������������������������������������������������������������
 let aisSetups   = [];
 let aisSortKey  = 'score';
 let aisActiveTypes = new Set(['Crypto']);
@@ -20142,6 +20897,9 @@ function aisOpenChart(sym, dir, entry, sl, target, tf){
         sym: setupRef.sym,
         tf: setupRef.tf,
         dir: setupRef.dir,
+        methodHint: setupRef.methodHint || '',
+        originalMethod: setupRef.methodHint || '',
+        methodCandidates: Array.isArray(setupRef.methodCandidates) ? setupRef.methodCandidates.slice(0, 4) : [],
         score: setupRef.score,
         originalScore: setupRef.score,
         conf: setupRef.conf,
@@ -20234,22 +20992,39 @@ async function aisAnalyseSymbol(sym, tf, realData, higherRealData){
   const target  = dir==='bull' ? +(entry+tgtDist).toFixed(price<10?4:2) : +(entry-tgtDist).toFixed(price<10?4:2);
   const rr      = (tgtDist/slDist).toFixed(1);
 
+  const patLabel = primary.topPat?primary.topPat.name
+    :(higher?.topPat?higher.topPat.name+` (${higherTF})`:(dir==='bull'?'Bullish Structure':'Bearish Structure'));
+  const memoryFit = buildTraderMemoryFit({
+    sym: sym.s,
+    tf,
+    patLabel,
+    rr: Number(rr),
+    dir,
+  });
+  const methodHintInfo = tapInferMethodCandidates({
+    dir,
+    entry,
+    sl,
+    tp: target,
+    bar: primary.n - 1,
+  }, primary.data, { patLabel });
   let score = conf;
   if(primary.topPat) score+=primary.topPat.conf*15;
   if(higher?.topPat?.dir===dir) score+=5;
-  score = Math.min(100,Math.round(score));
-
-  const patLabel = primary.topPat?primary.topPat.name
-    :(higher?.topPat?higher.topPat.name+` (${higherTF})`:(dir==='bull'?'Bullish Structure':'Bearish Structure'));
+  const discoveryScore = Math.min(100,Math.round(score));
+  score = Math.min(100, Math.max(0, Math.round(discoveryScore + memoryFit.delta)));
 
   return {
     sym:sym.s, name:sym.n, type:sym.t, exchange:sym.e,
-    tf, dir, conf, score, rr,
+    tf, dir, conf, score, rr, discoveryScore,
     price, entry, sl, target,
     patLabel, movePct:+primary.movePct.toFixed(2),
     rsi:primary.rsi?+primary.rsi.toFixed(1):null,
     dailyData:primary.data, atr, tfAgree,
     keyLevel: dir==='bull'?primary.nearestS:primary.nearestR,
+    memoryFit,
+    methodHint: methodHintInfo.primary,
+    methodCandidates: methodHintInfo.candidates,
   };
 }
 
@@ -20415,7 +21190,26 @@ function aisBuildSelectionReason(s){
   else if (s.rsi && (s.rsi < 30 || s.rsi > 70)) reasons.push('RSI extreme');
   if (Math.abs(s.movePct) >= 0.8) reasons.push('active momentum');
   if (s.patLabel) reasons.push(s.patLabel.toLowerCase());
-  return reasons.length ? reasons.slice(0, 3).join(' · ') : 'pattern, structure, and momentum context';
+  if(s.memoryFit?.delta > 0 && s.memoryFit.reasons?.[0]) reasons.push(`personal edge: ${s.memoryFit.reasons[0]}`);
+  if(s.memoryFit?.delta < 0 && s.memoryFit.cautions?.[0]) reasons.push(`personal caution: ${s.memoryFit.cautions[0]}`);
+  return reasons.length ? reasons.slice(0, 3).join(' � ') : 'pattern, structure, and momentum context';
+}
+
+function aisBuildPersonalFit(s){
+  const fit = s.memoryFit || buildTraderMemoryFit(s);
+  if(!fit || fit.band === 'neutral') return fit?.summary || 'No strong personal edge signal yet � treat this like a neutral opportunity.';
+  return fit.summary;
+}
+
+function aisBuildNextAction(s){
+  const fit = s.memoryFit || buildTraderMemoryFit(s);
+  if(fit.nextActionBias === 'extra_confirmation'){
+    return 'Open the chart, but demand extra confirmation before treating this as a live trade.';
+  }
+  if(fit.nextActionBias === 'aggressive_validation'){
+    return 'Open the chart and validate execution quickly � this already matches one of your stronger conditions.';
+  }
+  return 'Open the chart, then use Trade Analysis to decide whether this exact entry is still good.';
 }
 
 function aisCardHTML(s, rank){
@@ -20426,7 +21220,7 @@ function aisCardHTML(s, rank){
   const confCol  = s.conf>=75?'var(--tl)':s.conf>=55?'var(--am)':'var(--rd)';
   const confBar  = s.conf>=75?'#00c9a0':s.conf>=55?'#f0a500':'#f03060';
   const chgCol   = s.movePct>=0?'var(--tl)':'var(--rd)';
-  const rsiNote  = s.rsi?(s.rsi>70?'⚠ Overbought':s.rsi<30?'⚡ Oversold':`RSI ${s.rsi}`):'';
+  const rsiNote  = s.rsi?(s.rsi>70?'Overbought':s.rsi<30?'Oversold':`RSI ${s.rsi}`):'';
   const rrNum    = parseFloat(s.rr);
   const rrCol    = rrNum>=3?'var(--tl)':rrNum>=2?'var(--am)':'var(--tx2)';
   const patternTag = (s.patLabel || 'Structure').split(' ').slice(0,2).join(' ');
@@ -20464,19 +21258,25 @@ function aisCardHTML(s, rank){
       <div id="ais-hist-body-${cid}" style="font-size:10px;color:var(--tx2);font-family:ui-monospace,monospace;line-height:1.6;"></div>
     </div>
     <div class="ais-idea">
-      <div class="ais-idea-lbl">💡 AI SETUP SUMMARY</div>
+      <div class="ais-idea-lbl">💡 WHY IT MADE THE LIST</div>
       <div id="ais-idea-${cid}" style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;padding:2px 0;">
         AI idea generated for top 6 setups only.
       </div>
       <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;margin-top:6px;">
         Selected because ${aisBuildSelectionReason(s)}.
       </div>
+      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;margin-top:4px;">
+        Personal fit: ${aisBuildPersonalFit(s)}
+      </div>
+      <div style="font-size:9px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;line-height:1.5;margin-top:4px;">
+        Next step: ${aisBuildNextAction(s)}
+      </div>
     </div>
     <div class="ais-tags">${tags.map(t=>`<span class="ais-tag">${t}</span>`).join('')}</div>
     <div class="ais-cta">
-      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart ›</button>
+      <button class="ais-open-btn ${dirCls}" onclick="aisOpenChart('${s.sym}','${s.dir}',${s.entry},${s.sl},${s.target},'${s.tf}')">Open Chart</button>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} · Score ${s.score}</span>
+        <span class="ais-score-lbl" style="color:${rrCol}">R:R ${s.rr} � Score ${s.score}</span>
         <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:var(--tx3);">Scanned ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
       </div>
     </div>
@@ -20534,6 +21334,7 @@ function aisGenerateIdea(s){
   const price   = fP(s.price);
   const keyLvl  = s.keyLevel ? fP(s.keyLevel) : null;
   const atr     = s.atr ? fP(s.atr) : null;
+  const profile = getTraderProfile?.();
 
   // RSI context
   const rsiCtx = !s.rsi ? '' :
@@ -20546,6 +21347,8 @@ function aisGenerateIdea(s){
   const tfCtx = s.tfAgree >= 2
     ? 'Higher timeframe is aligned in the same direction, adding confluence.'
     : 'Higher timeframe is mixed — treat this as a lower-confluence read.';
+  const fit = s.memoryFit || buildTraderMemoryFit(s, profile);
+  const personalCtx = fit?.summary ? ` ${fit.summary}.` : '';
 
   // Pattern-specific setup line
   const setupTemplates = {
@@ -20567,8 +21370,8 @@ function aisGenerateIdea(s){
 
   // Why it matters
   const whyLine = s.tfAgree >= 2
-    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 — this is not just noise on one chart.`
-    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} — worth watching but treat it with appropriate caution given mixed higher-TF context.`;
+    ? `${dirCap} bias is confirmed across multiple timeframes with a scan confidence of ${s.conf}/100 — this is not just noise on one chart.${personalCtx}`
+    : `Scan confidence is ${s.conf}/100 on the ${s.tf} timeframe${rsiCtx || ''} — worth watching but treat it with appropriate caution given mixed higher-TF context.${personalCtx}`;
 
   // Levels line
   let levelsLine;
@@ -20591,13 +21394,19 @@ function aisGenerateIdea(s){
   };
   const waitLine = waitTemplates[s.dir] ||
     `Confirmation is needed before acting — watch for a decisive candle close in the ${dir} direction.`;
+  const actionLine = fit?.nextActionBias === 'extra_confirmation'
+    ? 'Treat this as watchlist-quality first. Only elevate it if price confirms cleanly at the level.'
+    : fit?.nextActionBias === 'aggressive_validation'
+      ? 'This deserves a quicker execution check because it lines up with one of your stronger conditions.'
+      : 'Use Trade Analysis next if you want to judge the exact entry, stop, and target.';
 
-  // Return in the same format the rest of the code expects (Setup: / Why: / Levels: / Wait:)
+  // Return in the same format the rest of the code expects.
   return Promise.resolve([
     `Setup: ${setupLine}`,
     `Why: ${whyLine}`,
     `Levels: ${levelsLine}`,
     `Wait: ${waitLine}`,
+    `Action: ${actionLine}`,
   ].join('\n'));
 }
 
@@ -20618,14 +21427,14 @@ function formatAISIdea(text){
     .map(line => line.trim())
     .filter(Boolean)
     .map(line => line.replace(/^\d+\.\s*/, ''))
-    .slice(0, 4);
+    .slice(0, 5);
 
   if (!lines.length) {
     return '<div style="color:var(--tx3);">AI summary unavailable.</div>';
   }
 
   return lines.map(line => {
-    const match = line.match(/^(Setup|Why|Levels|Wait)\s*:\s*(.+)$/i);
+    const match = line.match(/^(Setup|Why|Levels|Wait|Action)\s*:\s*(.+)$/i);
     if (!match) {
       return `<div style="margin-bottom:6px;color:var(--tx2);">${escapeHtml(line)}</div>`;
     }
@@ -20754,12 +21563,23 @@ function tapParseRefinementJSON(text){
   out.keepOriginalTarget = !!out.keepOriginalTarget;
   return out;
 }
+function tapParseActionJSON(text){
+  const parsed = tapParseLabeledJSON(text, 'ACTION_JSON');
+  if(!parsed || typeof parsed !== 'object') return null;
+  return {
+    nextAction: String(parsed.nextAction || '').trim().toLowerCase(),
+    urgency: String(parsed.urgency || '').trim().toLowerCase(),
+    reason: String(parsed.reason || '').trim(),
+    focus: String(parsed.focus || '').trim(),
+  };
+}
 
 function tapDisplayAnalysisText(text){
   return String(text || '')
     .replace(/\n?METHOD_JSON:\s*\{[^\n]*\}/gi, '')
     .replace(/\n?REFINEMENT_JSON:\s*\{[^\n]*\}/gi, '')
     .replace(/\n?SCORECARD_JSON:\s*\{[^\n]*\}/gi, '')
+    .replace(/\n?ACTION_JSON:\s*\{[^\n]*\}/gi, '')
     .trim();
 }
 
@@ -20768,6 +21588,7 @@ function tapExtractTradeMetrics(text){
   const structured = tapParseStructuredAnalysis(source);
   if (structured) {
     return {
+      sourceText: source,
       entryQuality: structured.entry_quality ?? null,
       stopPlacement: structured.stop_placement ?? null,
       riskReward: structured.risk_reward_logic ?? null,
@@ -20804,6 +21625,7 @@ function tapExtractTradeMetrics(text){
   else if (verdictZone.includes('C SETUP')) fallbackCombined = 35;
   else if (verdictZone.includes('AVOID TRADE') || verdictZone.includes('AVOID') || verdictZone.includes('INVALID SETUP')) fallbackCombined = 18;
   return {
+    sourceText: source,
     entryQuality: getScore('Entry Quality'),
     stopPlacement: getScore('Stop Placement'),
     riskReward: getScore('Risk/Reward Logic'),
@@ -20825,38 +21647,45 @@ function tapBuildComparison(setupMeta, metrics){
   const scannerSaw = setupMeta.idea
     ? String(setupMeta.idea).replace(/\s+/g, ' ').trim()
     : `${setupMeta.patLabel || 'Setup'} on ${setupMeta.tf || curTF} with ${setupMeta.conf ?? setupMeta.score ?? 'n/a'} confidence.`;
+  const methodLens = setupMeta?.originalMethod ? ` Original method context: ${setupMeta.originalMethod}.` : '';
+  const profile = getTraderProfile?.();
+  const personalLens = profile?.total
+    ? (profile.weaknesses?.[0]
+      ? ` Personal lens: ${profile.weaknesses[0]}`
+      : (profile.strengths?.[0] ? ` Personal lens: ${profile.strengths[0]}` : ''))
+    : '';
 
   let confirmed = 'Trade analysis did not have enough context to compare this setup yet.';
   if (tradeScore !== null && tradeScore >= 75) {
-    confirmed = 'Trade analysis agrees the market idea is strong and the current execution is mostly solid.';
+    confirmed = 'Execution check agrees the market idea is strong, and the current placement still looks mostly clean.';
   } else if (tradeScore !== null && tradeScore >= 55) {
-    confirmed = 'Trade analysis sees a real opportunity here, but the exact trade placement still has some weaknesses.';
+    confirmed = 'Execution check still sees an opportunity here, but the exact placement needs more care.';
   } else if (tradeScore !== null) {
-    confirmed = 'Trade analysis thinks the idea may exist, but this exact trade is weak as placed right now.';
+    confirmed = 'The market idea may still exist, but this exact entry, stop, or target is weak right now.';
   }
 
-  let changed = 'The scanner found the opportunity; Trade Analysis is now checking the exact entry, stop, and target.';
+  let changed = 'The scanner found the idea. Trade Analysis is judging whether this exact execution still makes sense now.';
   if (tradeScore !== null && scanScore !== null) {
     if (tradeScore + 12 < scanScore) {
-      changed = 'The market idea looked better than the execution. The setup may be valid, but the current entry or risk plan is dragging it down.';
+      changed = 'The setup quality looked better than the execution quality. The idea may still be valid, but the current entry or risk plan is dragging it down.';
     } else if (tradeScore > scanScore + 10) {
-      changed = 'Trade Analysis likes the execution even more than the original scan did. The placed levels improved the idea.';
+      changed = 'The exact placement improved the original scan idea, so execution quality is now stronger than discovery quality.';
     } else {
-      changed = 'The discovery score and execution score are fairly aligned, so the setup quality and trade quality broadly agree.';
+      changed = 'Discovery quality and execution quality are fairly aligned, so the setup and the trade placement broadly agree.';
     }
   }
   if (entryScore !== null && entryScore < 12) {
-    changed = 'The main downgrade is entry timing. The setup may still be good, but the current entry looks late, early, or badly positioned.';
+    changed = 'The main downgrade is entry timing. The idea may still be good, but the current entry looks late, early, or badly positioned.';
   } else if (rrScore !== null && rrScore < 12) {
-    changed = 'The main downgrade is the risk/reward profile. The setup idea may be fine, but the target and stop do not justify the trade cleanly.';
+    changed = 'The main downgrade is the risk/reward profile. The idea may be fine, but the target and stop do not justify the trade cleanly.';
   }
 
   let better = metrics?.improvements || '';
   if (!better && tradeScore !== null && tradeScore < 60) {
     better = 'Look for a cleaner entry closer to support/resistance, a stop placed beyond structure, and a target that restores a stronger reward-to-risk balance.';
   }
-
-  return { scanScore, tradeScore, scannerSaw, confirmed, changed, better };
+  const action = tapParseActionJSON(metrics?.sourceText || '') || null;
+  return { scanScore, tradeScore, scannerSaw: scannerSaw + methodLens + personalLens, confirmed, changed, better, action };
 }
 function tapGetRenderedTradeScore(){
   const scoreEl = document.getElementById('tap-verdict-score');
@@ -21016,10 +21845,11 @@ function tapRenderSetupBridge(d, analysisText=''){
   const tradeScore = comp?.tradeScore ?? tapGetRenderedTradeScore();
   const tradeState = getTradeState(d, tapGetDataForSymTF(tapGetTradeSourceSym(d), tapGetTradeSourceTF(d)));
   const refinement = tapParseRefinementJSON(analysisText || '');
+  const action = comp?.action || tapParseActionJSON(analysisText || '');
   const scorePill = (label, value, color) => `
     <div style="padding:8px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--b1);min-width:110px;">
       <div style="font-size:10px;color:var(--tx3);font-family:ui-monospace,'SF Mono',monospace;">${label}</div>
-      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '—'}</div>
+      <div style="font-size:18px;font-weight:700;color:${color};font-family:ui-monospace,'SF Mono',monospace;">${value ?? '�'}</div>
     </div>`;
   const betterLabel = tradeState.state === 'ACTIVE'
     ? 'Trade management'
@@ -21050,27 +21880,28 @@ function tapRenderSetupBridge(d, analysisText=''){
     </div>
     <div style="display:grid;gap:8px;">
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
-        <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What AI Setups saw</div>
+        <div style="font-size:10px;color:var(--green);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Scanner view</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.scannerSaw}</div>
-        <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Discovery step only — use the trade score for execution quality.</div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Discovery only � this explains why the market made the list.</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
-        <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What Trade Analysis confirmed</div>
+        <div style="font-size:10px;color:var(--bl);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Execution verdict</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.confirmed}</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
-        <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">What changed</div>
+        <div style="font-size:10px;color:var(--am);font-family:ui-monospace,'SF Mono',monospace;margin-bottom:4px;">Why the score changed</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${comp.changed}</div>
       </div>
       <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--b1);border-radius:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-size:10px;color:var(--tl);font-family:ui-monospace,'SF Mono',monospace;">${betterLabel}</div>
           <button onclick="tapShowRefinementOnChart()" style="background:rgba(0,201,160,.13);border:1px solid rgba(0,201,160,.35);border-radius:4px;color:var(--tl);font-size:10px;font-family:ui-monospace,monospace;padding:2px 9px;cursor:pointer;letter-spacing:.3px;white-space:nowrap;display:flex;align-items:center;gap:4px;">
-            <span>📍</span><span>${actionLabel}</span>
+            <span>�</span><span>${actionLabel}</span>
           </button>
         </div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.6;">${refinement?.reason || comp.better || 'If the setup stays attractive, refine the entry first, then rebuild the stop and target around the new level.'}</div>
         <div style="font-size:10px;color:${tapTradeStateColor(tradeState.state)};margin-top:6px;">${refinement?.stateNote || tradeState.reason}</div>
+        ${action?.reason ? `<div style="font-size:10px;color:var(--tx3);margin-top:6px;">Next action: ${action.reason}</div>` : ''}
       </div>
     </div>`;
 }
@@ -21183,22 +22014,17 @@ function tapShowRefinementOnChartLegacy(){
     halfDuration: halfBarsToSecs(halfBars, curTF),
     tf:           curTF,
     id:           'tap-refine-' + Date.now(),
-    _tapRefinement: true,                      // marks it as temporary
-    _noSave:        true,                      // excluded from localStorage
+    _tapRefinement: true,                      // replaced when a new refinement is placed
     _refinementLabel: true,                    // tells renderer to show "AI Refined" badge
   };
 
+  drawings = drawings.filter(x => !x._tapRefinement); // replace any prior refinement
   drawings.push(refinementDraw);
+  saveDrawings(curSym.s, curTF);
   draw();
 
   const rr = riskAmt > 0 ? (Math.abs(suggestedTP - suggestedEntry) / riskAmt).toFixed(2) : '—';
-  toast(`📍 AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
-
-  // Auto-remove after 90 seconds to keep chart clean
-  setTimeout(() => {
-    drawings = drawings.filter(x => !x._tapRefinement);
-    draw();
-  }, 90000);
+  toast(`� AI Refined ${isLong ? 'LONG' : 'SHORT'} placed — Entry ${fP(suggestedEntry)} · SL ${fP(suggestedSL)} · TP ${fP(suggestedTP)} · R:R 1:${rr}`);
 }
 
 async function tapEnsureTradeContextOnChart(sym, tf){
@@ -21226,20 +22052,16 @@ function tapIsDirectionallyValidRefinement(isLong, entry, sl, tp){
 function tapPlaceRefinementDrawing(drawing, sourceState, mode, message){
   drawings = drawings.filter(x => !x._tapRefinement);
   drawing._tapRefinement = true;
-  drawing._noSave = true;
   drawing._refinementLabel = true;
   drawing._refinementMode = mode;
   drawing._refinementState = sourceState;
   drawings.push(drawing);
+  saveDrawings(curSym.s, curTF);
   rightBarIndex = drawing.bar + Math.max(10, Math.round(((_el('main-canvas')?.width || 420) / Math.max(barWidth, 1)) * 0.12));
   priceHi = null;
   priceLo = null;
   draw();
   if(message) toast(message);
-  setTimeout(() => {
-    drawings = drawings.filter(x => !x._tapRefinement);
-    draw();
-  }, 90000);
 }
 
 async function tapShowRefinementOnChart(){
@@ -21275,7 +22097,6 @@ async function tapShowRefinementOnChart(){
   const isLong = d.type === 'long';
   const atrVals = calcATR(analysisData);
   const atr = atrVals?.[atrVals.length - 1] || Math.abs(d.price - d.sl) || d.price * 0.01;
-  const preserveWindow = Math.max(Math.abs(d.price - d.sl) * 2, atr * 2.5);
 
   if(effectiveState === 'COMPLETED' || effectiveState === 'STOPPED'){
     selectedDrawing = d;
@@ -21354,15 +22175,20 @@ async function tapShowRefinementOnChart(){
   }
 
   const refinedEntry = Number.isFinite(refinement.entry) ? refinement.entry : d.price;
-  const refinedSL = Number.isFinite(refinement.sl) ? refinement.sl : d.sl;
+  let refinedSL = Number.isFinite(refinement.sl) ? refinement.sl : d.sl;
   const refinedTP = refinement.keepOriginalTarget ? d.tp : (Number.isFinite(refinement.tp) ? refinement.tp : d.tp);
   if(!tapIsDirectionallyValidRefinement(isLong, refinedEntry, refinedSL, refinedTP)){
     toast('AI refinement did not return a valid pending entry structure.');
     return;
   }
-  if(Math.abs(refinedEntry - d.price) > preserveWindow){
-    toast('Refinement was rejected because it drifted too far from the original setup context.');
-    return;
+  // Reject refinements that significantly worsen R:R — must be ≥1.5:1 and not below 80% of original
+  const origRR  = Math.abs(d.tp - d.price) / Math.max(Math.abs(d.sl - d.price), 1e-9);
+  const refRR   = Math.abs(refinedTP - refinedEntry) / Math.max(Math.abs(refinedSL - refinedEntry), 1e-9);
+  const minRR   = Math.max(1.5, origRR * 0.8);
+  if(refRR < minRR){
+    // Widen SL to hit minimum R:R instead of rejecting — keep the refined entry/TP
+    const neededRisk = Math.abs(refinedTP - refinedEntry) / minRR;
+    refinedSL = isLong ? refinedEntry - neededRisk : refinedEntry + neededRisk;
   }
   const refinedState = tapClassifyTradeLevels({
     type: d.type,
@@ -21402,7 +22228,7 @@ function tapClearRefinement(){
   draw();
 }
 
-// ══ INCREMENTAL LIVE SCAN ══════════════════════════════════════════════════════
+// �� INCREMENTAL LIVE SCAN ������������������������������������������������������
 // Runs in the browser background after each chart load.
 // Detects setups on recent bars using the same 10 methods as the historical scan,
 // computes outcomes from OHLCV (no Groq needed), and stores to Supabase so the
@@ -21715,14 +22541,14 @@ async function tapScanCurrentChart() {
   }
 }
 
-// ══ TRADE ANALYSIS POPUP ══════════════════════════════════════════════════════
+// �� TRADE ANALYSIS POPUP ������������������������������������������������������
 // ── Trade Analysis Cache — one entry per symbol ─────────────────────────────
 // tapAnalysisCache[sym] = { drawing, sym, tf, aiResult }
 // ONE analysis per symbol. Dismissed only when user explicitly ✕s the badge.
 // Popup ✕ just collapses to badge — NEVER deletes the cache.
 const tapAnalysisCache = {};
 
-// ══ AI ANALYSIS — TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP ═══════════════════
+// �� AI ANALYSIS — TTL CACHE + FIFO QUEUE + IN-FLIGHT DEDUP �������������������
 // Cache key: `${sym}|${tf}`  |  TTL: 30 min  |  Queue delay: 2 s (grows on 429)
 const TAP_AI_TTL      = 1_800_000; // 30 minutes — locked until user clicks Re-analyse
 const TAP_AI_INTERVAL = 2_000;
@@ -22183,7 +23009,7 @@ function tapTradeStatusLegacy(d){
 
   if(!entryTriggered){
     const dist = Math.abs(curPrice - d.price) / d.price * 100;
-    return { status:`⏳ Not Triggered (${dist.toFixed(1)}% away)`, statusCol:'var(--am)' };
+    return { status:`�� Not Triggered (${dist.toFixed(1)}% away)`, statusCol:'var(--am)' };
   }
 
   // ── CASE 5: Entry triggered — scan forward from trigger bar for TP/SL ─────
@@ -22220,7 +23046,7 @@ function tapTradeStatus(d){
     const dist = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
       ? Math.abs(curPrice - d.price) / d.price * 100
       : 0;
-    return { status:`⏳ Pending (${dist.toFixed(1)}% away)`, statusCol:'var(--bl)' };
+    return { status:`�� Pending (${dist.toFixed(1)}% away)`, statusCol:'var(--bl)' };
   }
   const openPnl = Number.isFinite(curPrice) && Number.isFinite(d?.price) && d?.price
     ? (info.isLong ? (curPrice - d.price) / d.price * 100 : (d.price - curPrice) / d.price * 100)
@@ -22581,7 +23407,7 @@ async function openFullTradeAnalysis(){
       : status === '✓ TP Hit'            ? '🟢 TAKE PROFIT HIT — this trade reached its target'
       : status.includes('Unrealistic')   ? '⚠ PLACEMENT WARNING — entry price is far from where price has traded'
       : status.includes('Future')        ? '🔮 FUTURE SETUP — price has not reached entry yet; AI will predict likelihood'
-      : status.includes('Not Triggered') ? '⏳ NOT TRIGGERED — price never reached this entry level'
+      : status.includes('Not Triggered') ? '�� NOT TRIGGERED — price never reached this entry level'
       : '📊 ' + status}
     </div>`;
   }
@@ -22733,6 +23559,8 @@ async function openFullTradeAnalysis(){
         }
       }
 
+      const elapsedSec = Math.round((Date.now() - _aiStarted) / 1000);
+
       if(cooldownLeft > 0){
         qEl.textContent = pos > 0
           ? `Queued (pos ${pos}) — resuming in ${cooldownLeft}s`
@@ -22741,8 +23569,25 @@ async function openFullTradeAnalysis(){
         const eta = pos * Math.ceil(TAP_AI_INTERVAL / 1000);
         qEl.textContent = `Position ${pos} \u2014 ready in ~${eta}s`;
       } else {
-        const elapsedSec = Math.round((Date.now() - _aiStarted) / 1000);
-        qEl.textContent = `Analyzing\u2026 (${elapsedSec}s)`;
+        qEl.textContent = `Analyzing\u2026 (${elapsedSec}s elapsed)`;
+      }
+
+      // Update compact-view subtitle + progress bar so the user can see it loading
+      const subEl = document.getElementById('tap-verdict-sub');
+      const barEl = document.getElementById('tap-verdict-bar');
+      if(subEl && subEl.textContent.startsWith('AI is reviewing')){
+        if(cooldownLeft > 0){
+          subEl.textContent = `Rate limited — retrying in ${cooldownLeft}s`;
+        } else if(pos > 0){
+          subEl.textContent = `Queued — position ${pos} in line`;
+        } else {
+          subEl.textContent = `AI is reviewing your setup · ${elapsedSec}s`;
+        }
+      }
+      // Animate progress bar: fills to ~90% over 45s then holds until done
+      if(barEl && barEl.style.width !== '100%'){
+        const pct = Math.min(90, Math.round((1 - Math.exp(-elapsedSec / 45)) * 100));
+        barEl.style.width = pct + '%';
       }
     }, 500);
 
@@ -23435,7 +24280,7 @@ function tapRenderVerdictBanner(text){
   const scoreRaw = scoringZone.match(/combined\s*score[^0-9]{0,30}(\d{1,3})(?:\s*\/\s*100)?/i)
                 || scoringZone.match(/(\d{1,3})\s*\/\s*100/);
   const parsedScore = structured?.combined_score ?? (scoreRaw ? Math.min(100, Math.max(0, parseInt(scoreRaw[1]))) : null);
-  const scoreSource = structured ? 'Structured AI score' : (parsedScore !== null ? 'Parsed from AI analysis' : 'Verdict fallback');
+  const scoreSource = structured ? 'Execution score from structured AI output' : (parsedScore !== null ? 'Execution score parsed from AI analysis' : 'Execution verdict fallback');
 
   let verdict='', verdictColor='#8899b0', bg='rgba(136,153,176,0.08)', border='rgba(136,153,176,0.2)';
   let scoreVal = parsedScore, likelihood='', barPct=50;
@@ -23449,25 +24294,25 @@ function tapRenderVerdictBanner(text){
     scoreVal = scoreVal ?? 68; likelihood='Moderate likelihood of success'; barPct=scoreVal;
   } else if(structuredVerdict.includes('RISKY SETUP') || structuredVerdict === 'RISKY' || zone.includes('RISKY SETUP') || zone.includes('RISKY')){
     verdict='RISKY SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood — proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 42; likelihood='Lower likelihood � proceed with caution'; barPct=scoreVal;
   } else if(structuredVerdict.includes('AVOID TRADE') || structuredVerdict === 'AVOID' || zone.includes('AVOID TRADE') || zone.includes('AVOID')){
     verdict='AVOID TRADE'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
     scoreVal = scoreVal ?? 18; likelihood='Do not trade this setup'; barPct=scoreVal;
   } else if(zone.includes('A+ SETUP')){
     verdict='A+ SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 95; likelihood='Excellent — high likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 95; likelihood='Excellent � high likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('A SETUP')){
     verdict='A SETUP'; verdictColor='#00d4a0'; bg='rgba(0,212,160,0.1)'; border='rgba(0,212,160,0.35)';
-    scoreVal = scoreVal ?? 80; likelihood='Strong — good likelihood of success'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 80; likelihood='Strong � good likelihood of success'; barPct=scoreVal;
   } else if(zone.includes('B SETUP')){
     verdict='B SETUP'; verdictColor='#f5a623'; bg='rgba(245,166,35,0.1)'; border='rgba(245,166,35,0.35)';
-    scoreVal = scoreVal ?? 60; likelihood='Moderate — proceed with caution'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 60; likelihood='Moderate � proceed with caution'; barPct=scoreVal;
   } else if(zone.includes('C SETUP')){
     verdict='C SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 35; likelihood='Weak — high risk of failure'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 35; likelihood='Weak � high risk of failure'; barPct=scoreVal;
   } else if(zone.includes('INVALID SETUP')){
     verdict='INVALID SETUP'; verdictColor='#ff4d6a'; bg='rgba(255,77,106,0.1)'; border='rgba(255,77,106,0.35)';
-    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid — do not trade'; barPct=scoreVal;
+    scoreVal = scoreVal ?? 5; likelihood='Setup is invalid � do not trade'; barPct=scoreVal;
   }
 
   if(!verdict){
@@ -23479,7 +24324,7 @@ function tapRenderVerdictBanner(text){
       scoreEl.style.color      = 'var(--tx)';
       lbl.textContent          = 'ANALYSIS COMPLETE';
       lbl.style.color          = 'var(--tx2)';
-      subEl.textContent        = scoreSource;
+      subEl.textContent        = 'Execution read complete';
       subEl.style.color        = 'var(--tx3)';
       barEl.style.background   = 'var(--tx3)';
       setTimeout(() => { barEl.style.width = parsedScore + '%'; }, 60);
@@ -23499,7 +24344,7 @@ function tapRenderVerdictBanner(text){
   scoreEl.style.color      = verdictColor;
   subEl.textContent        = likelihood;
   subEl.style.color        = verdictColor;
-  probEl.textContent       = probPct ? `${probPct}% probability of success · ${scoreSource}` : `See full analysis below · ${scoreSource}`;
+  probEl.textContent       = probPct ? `${probPct}% probability of success � ${scoreSource}` : `See full execution analysis below � ${scoreSource}`;
   probEl.style.color       = verdictColor;
   barEl.style.background   = verdictColor;
   if(topScoreEl){
@@ -23507,15 +24352,15 @@ function tapRenderVerdictBanner(text){
     topScoreEl.style.color = verdictColor;
   }
   if(topScoreSubEl){
-    topScoreSubEl.textContent = verdict || scoreSource;
+    topScoreSubEl.textContent = verdict ? `${verdict} � execution quality` : scoreSource;
     topScoreSubEl.style.color = verdictColor;
   }
   setTimeout(() => { barEl.style.width = barPct + '%'; }, 60);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // ── TAP RAG (Retrieval-Augmented Generation) — Self-Learning Analysis Engine ─
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // How it works:
 //   1. Extract a 12-dim normalised feature vector from the current trade setup
 //   2. Search local history + Supabase for past analyses with similar vectors
@@ -23811,12 +24656,15 @@ async function tapFetchHistoricalStats(symbol, tf, direction) {
 
 // ── Parse METHOD_JSON line from analysis text ─────────────────────────────────
 function tapParseMethodJSON(text) {
-  if (!text) return null;
-  try {
-    const m = text.match(/METHOD_JSON:\s*(\{[^\n]+\})/);
-    if (!m) return null;
-    return JSON.parse(m[1]);
-  } catch(e) { return null; }
+  const parsed = tapParseLabeledJSON(text, 'METHOD_JSON');
+  if(!parsed || typeof parsed !== 'object') return null;
+  const method = tapNormalizeMethodName(parsed.method);
+  return {
+    method: method || String(parsed.method || '').trim(),
+    confidence: Number.isFinite(Number(parsed.confidence)) ? Math.max(0, Math.min(100, Math.round(Number(parsed.confidence)))) : null,
+    signals: Array.isArray(parsed.signals) ? parsed.signals.map(v => String(v || '').trim()).filter(Boolean).slice(0, 4) : [],
+    method_verdict: String(parsed.method_verdict || '').trim(),
+  };
 }
 
 // ── Render method badge in the TAP panel ──────────────────────────────────────
@@ -23841,7 +24689,7 @@ function tapRenderMethodBadge(analysisText) {
     'Wyckoff':           { bg: 'rgba(139,92,246,.15)',  border: 'rgba(139,92,246,.45)',  text: '#a78bfa' },
   };
   const col = methodColors[mj.method] || { bg: 'rgba(136,153,176,.12)', border: 'rgba(136,153,176,.35)', text: 'var(--tx2)' };
-  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' · ') : '';
+  const signals = Array.isArray(mj.signals) ? mj.signals.slice(0, 3).join(' � ') : '';
 
   const badge = document.createElement('div');
   badge.id = 'tap-method-badge';
@@ -23851,10 +24699,10 @@ function tapRenderMethodBadge(analysisText) {
     `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${mj.method_verdict ? '6px' : '0'};">` +
       `<div style="display:flex;align-items:center;gap:8px;">` +
         `<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:.5px;color:${col.text};">` +
-          `📊 ${mj.method.toUpperCase()}</span>` +
+          `${mj.method.toUpperCase()}</span>` +
         (signals ? `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">${signals}</span>` : '') +
       `</div>` +
-      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '—'}% match</span>` +
+      `<span style="font-size:9px;font-family:ui-monospace,monospace;color:var(--tx3);">${mj.confidence ?? '�'}% match</span>` +
     `</div>` +
     (mj.method_verdict ? `<div style="font-size:10px;color:var(--tx2);line-height:1.5;">${mj.method_verdict}</div>` : '');
 
@@ -23891,8 +24739,8 @@ async function tapRenderHistoricalStatsBadge(d) {
           `<div style="height:100%;width:${stats.winRate}%;border-radius:2px;background:${wrCol};"></div>` +
         `</div>` +
         `<span style="font-size:9px;color:var(--tx3);font-family:ui-monospace,monospace;">` +
-          `${stats.tpCount} TP hit · ${stats.slCount} SL hit` +
-          (stats.topMethod ? ` · Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
+          `${stats.tpCount} TP hit � ${stats.slCount} SL hit` +
+          (stats.topMethod ? ` � Best: ${stats.topMethod} ${stats.methodWinRate}%` : '') +
         `</span>` +
       `</div>` +
     `</div>`;
@@ -23902,26 +24750,28 @@ async function tapRenderHistoricalStatsBadge(d) {
 
 async function tapGenerateAI(d, rr, tradeStatus){
   const isLong = d.type === 'long';
-  // Use the TF the drawing was placed on — fall back to curTF if not stored
+  // Use the TF the drawing was placed on � fall back to curTF if not stored
   const drawingTF = d.tf || tapAnalysisCache[curSym.s]?.tf || curTF;
-  // Use the data for that specific TF from cache — fall back to curData
+  const analysisSym = tapGetTradeSourceSym(d, curSym.s);
+  // Use the data for that specific TF from cache � fall back to curData
   const analysisData = (drawingTF === curTF)
     ? curData
-    : (dataCache[curSym.s+'_'+drawingTF] || curData);
+    : (dataCache[analysisSym+'_'+drawingTF] || dataCache[analysisSym+'_'+drawingTF+'_mtf'] || curData);
+  const mtfContext = await tapBuildProfessionalMTFContext(analysisSym, drawingTF, d, analysisData);
   const n      = analysisData.length;
   const pats   = detectPatterns(analysisData);
   const sr     = detectSR(analysisData);
   const rsiV   = calcRSI(analysisData);
-  const rsi    = rsiV[n-1]?.toFixed(1) || '—';
+  const rsi    = rsiV[n-1]?.toFixed(1) || '�';
   const atrV   = calcATR(analysisData);
   const atr    = atrV[n-1] || 0;
   const sma20  = calcSMA(analysisData, 20);
   const sma50  = calcSMA(analysisData, 50);
   const macdV  = calcMACD(analysisData);
   const lastMACD = macdV[n-1];
-  const macdLine = lastMACD?.macd?.toFixed(5) || '—';
-  const macdSig  = lastMACD?.signal?.toFixed(5) || '—';
-  const macdHist = lastMACD?.hist?.toFixed(5) || '—';
+  const macdLine = lastMACD?.macd?.toFixed(5) || '�';
+  const macdSig  = lastMACD?.signal?.toFixed(5) || '�';
+  const macdHist = lastMACD?.hist?.toFixed(5) || '�';
   const macdDir  = lastMACD?.hist > 0 ? 'Bullish momentum' : lastMACD?.hist < 0 ? 'Bearish momentum' : 'Neutral';
   const ema9V  = calcEMA(analysisData,9);  const ema9last  = ema9V[n-1];
   const ema21V = calcEMA(analysisData,21); const ema21last = ema21V[n-1];
@@ -23929,7 +24779,7 @@ async function tapGenerateAI(d, rr, tradeStatus){
   const topPats    = [...pats].sort((a,b)=>b.conf-a.conf).slice(0,2).map(p=>p.name);
   const tp     = (b) => (b.high + b.low + b.close) / 3;  // typical price helper
   const recentMove = n >= 6 ? ((tp(analysisData[n-1]) - tp(analysisData[n-6])) / tp(analysisData[n-6]) * 100).toFixed(2) : '0';
-  const symTrades  = journal.filter(j=>j.sym===curSym.s&&j.outcome);
+  const symTrades  = journal.filter(j=>j.sym===analysisSym&&j.outcome);
   const symWR      = symTrades.length ? Math.round(symTrades.filter(j=>j.outcome==='win').length/symTrades.length*100)+'%' : 'n/a';
   const trend      = sma20[n-1] && sma50[n-1] ? (sma20[n-1] > sma50[n-1] ? 'Bullish' : 'Bearish') : 'N/A';
   // curPrice = typical price of last bar; also note the wick extremes
@@ -23991,10 +24841,10 @@ OUTCOME: Trade currently OPEN. ${tradeStatus}.`;
   const priceVsSma50 = sma50val ? (curPrice > sma50val ? `above SMA50 (${fP(sma50val)})` : `below SMA50 (${fP(sma50val)})`) : '';
   const entryVsSma   = sma20val ? (d.price > sma20val ? `above SMA20` : `below SMA20`) : '';
   const allPatsStr   = pats.length ? pats.map(p=>`${p.name} (${(p.conf*100).toFixed(0)}% conf, ${p.dir})`).join(', ') : 'none';
-  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED — STOPPED OUT' :
-                       tradeStatus?.includes('TP Hit') ? 'COMPLETED — TARGET HIT' :
+  const tradeState   = tradeStatus?.includes('SL Hit') ? 'COMPLETED � STOPPED OUT' :
+                       tradeStatus?.includes('TP Hit') ? 'COMPLETED � TARGET HIT' :
                        tradeStatus?.includes('Open')   ? 'ACTIVE / OPEN' :
-                       isFuture                        ? 'PENDING — NOT YET TRIGGERED' :
+                       isFuture                        ? 'PENDING � NOT YET TRIGGERED' :
                        isNotTriggered                  ? 'NOT TRIGGERED' : 'ACTIVE';
   const traderProfile = getTraderProfile();
   const drawingCtx = buildDrawingsContext(d, analysisData);
@@ -24008,6 +24858,7 @@ Originating Setup Context:
   Discovery Score: ${setupMeta.score ?? 'n/a'}/100
   Scan Confidence: ${setupMeta.conf ?? 'n/a'}/100
   Setup Type: ${setupMeta.patLabel || 'Structure'}
+  Original Method Hint: ${setupMeta.originalMethod || setupMeta.methodHint || 'n/a'}
   Original Timeframe: ${setupMeta.tf || drawingTF}
   Original Entry / SL / TP: ${isFinite(setupMeta.originalEntry) ? fP(setupMeta.originalEntry) : fP(d.price)} / ${isFinite(setupMeta.originalSL) ? fP(setupMeta.originalSL) : fP(d.sl)} / ${isFinite(setupMeta.originalTP) ? fP(setupMeta.originalTP) : fP(d.tp)}
   Expected Hold / Expiry: ${setupMeta.expectedHoldBars ?? setupExpectedHoldBars(setupMeta.tf || drawingTF)} bars / ${setupMeta.expiryBars ?? setupExpiryBars(setupMeta.tf || drawingTF)} bars
@@ -24015,13 +24866,38 @@ Originating Setup Context:
   Original Structure Context: ${(setupMeta.originalStructureContext || `${setupMeta.patLabel || 'Structure'} aligned with ${setupMeta.tf || drawingTF}`).replace(/\s+/g, ' ').trim()}
   Important: separate the underlying market opportunity from the exact trade placement. A setup can be good while the entry, stop, and target are still poor.
 ` : '';
-  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}`;
+  const personalFit = buildTraderMemoryFit({
+    sym: analysisSym,
+    tf: drawingTF,
+    patLabel: setupMeta?.patLabel || d?._setupPattern || '',
+    rr,
+    dir: isLong ? 'bull' : 'bear',
+  }, traderProfile);
+  const traderCtx = `Trader Memory: ${formatTraderProfileForAI(traderProfile)} Checklist bias: ${(traderProfile?.checklist || []).slice(0,2).join(' ') || 'none'}. Current setup fit: ${personalFit.summary} (score adjustment ${personalFit.delta >= 0 ? '+' : ''}${personalFit.delta}).`;
   const drawingStateCtx = `Chart Intent: ${thesisCtx.replace(/\s+/g,' ').trim()} Nearby levels: ${drawingCtx.nearbyLevels.length ? drawingCtx.nearbyLevels.map(x => `${x.type} ${fP(x.level)}`).join(', ') : 'none'} Notes: ${drawingCtx.notes.length ? drawingCtx.notes.join(' | ') : 'none'} Structure objects: ${drawingCtx.structureCounts.hlines} hlines, ${drawingCtx.structureCounts.trendlines} trend lines, ${drawingCtx.structureCounts.zones} zones, ${drawingCtx.structureCounts.fibs} fib tools`;
+  const methodHintInfo = tapInferMethodCandidates(d, analysisData, {
+    setupMeta,
+    patLabel: setupMeta?.patLabel || d?._setupPattern || topPats[0] || '',
+    methodHint: setupMeta?.originalMethod || setupMeta?.methodHint || '',
+  });
+  const methodHintCtx = methodHintInfo?.candidates?.length
+    ? `Method evidence hints (strong guidance, but override only if the live chart clearly contradicts it): ${methodHintInfo.summary}.`
+    : `Method evidence hints: original context suggests ${setupMeta?.originalMethod || setupMeta?.methodHint || 'no strong method bias'}, but you must still verify against the live chart.`;
+  const mtfPromptCtx = `
+TOP-DOWN MULTI-TIMEFRAME CONTEXT
+Professional workflow: use the higher timeframe for directional bias and major structure, the original trade timeframe for setup quality, and the lower timeframe for execution timing.
+Overall alignment: ${mtfContext.summary}
+Higher timeframe (${mtfContext.higher?.tf || 'n/a'}): ${mtfContext.higher ? mtfContext.higher.summary : 'Not available.'}
+Trade timeframe (${drawingTF}): ${mtfContext.base ? mtfContext.base.summary : 'Not available.'}
+Execution timeframe (${mtfContext.lower?.tf || 'n/a'}): ${mtfContext.lower ? mtfContext.lower.summary : 'Not available.'}
+Confluences: ${mtfContext.confluences.length ? mtfContext.confluences.join(' | ') : 'No strong multi-timeframe confluences found.'}
+Conflicts: ${mtfContext.conflicts.length ? mtfContext.conflicts.join(' | ') : 'No major multi-timeframe conflicts found.'}
+`;
 
   // ── Historical stats: fetch BEFORE building prompt so scores reflect real data ─
-  const _histStats = await tapFetchHistoricalStats(_tapNormSym(curSym.s), drawingTF, isLong ? 'long' : 'short').catch(() => null);
+  const _histStats = await tapFetchHistoricalStats(_tapNormSym(analysisSym), drawingTF, isLong ? 'long' : 'short').catch(() => null);
   const _histCtxForPrompt = _histStats && _histStats.count >= 10
-    ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${curSym.s} ${drawingTF} ${isLong?'long':'short'} setups scanned):
+    ? `\nHISTORICAL PERFORMANCE DATA (${_histStats.count} real ${analysisSym} ${drawingTF} ${isLong?'long':'short'} setups scanned):
   Overall win rate: ${_histStats.winRate}% (${_histStats.tpCount} TP hit, ${_histStats.slCount} SL hit)` +
       (_histStats.topMethod ? `\n  Best performing method on this pair/TF: ${_histStats.topMethod} with ${_histStats.methodWinRate}% win rate` : '') +
       `\n  IMPORTANT: Use this historical win rate as a STRONG input to your Technical Confluence score and your Probability Estimate. A ${_histStats.winRate}% base rate for this setup type should anchor your probability — adjust up/down based on how well this specific trade aligns with the best-performing conditions.`
@@ -24029,27 +24905,27 @@ Originating Setup Context:
 
   // ── RAG: Extract feature vector and search similar past analyses ──────────────
   const _ragFeatureVec = tapExtractFeatureVector(d, analysisData);
-  const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, curSym.s, drawingTF) : [];
+  const _ragMatches    = _ragFeatureVec ? await tapSearchSimilarAnalyses(_ragFeatureVec, analysisSym, drawingTF) : [];
   _tapLastRagMatches   = _ragMatches; // Cache for tapShowRefinementOnChart
   const _ragBest       = _ragMatches[0];
 
   // Tier 1 (≥0.93 similarity, non-failed) — return stored analysis directly (FREE)
   if (_ragBest?.similarity >= 0.93 && _ragBest.analysis_text && _ragBest.outcome !== 'sl_hit') {
     const _simPct = (_ragBest.similarity * 100).toFixed(0);
-    const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? '✓ TP Hit historically'
-                        : _ragBest.outcome === 'sl_hit' ? '✗ SL Hit historically' : 'Outcome pending';
-    const _ragNote = `\n\n─────────────────────────────────────────\n` +
-      `🧠 RETRIEVED FROM SIMILAR PAST ANALYSIS · ${_simPct}% match\n` +
-      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} · ${_outcomeLabel}\n` +
-      `(No new Groq call — saved from your analysis history)`;
+    const _outcomeLabel = _ragBest.outcome === 'tp_hit' ? 'TP hit historically'
+                        : _ragBest.outcome === 'sl_hit' ? 'SL hit historically' : 'Outcome pending';
+    const _ragNote = `\n\n-----------------------------------------\n` +
+      `Retrieved from similar past analysis � ${_simPct}% match\n` +
+      `Method: ${_ragBest.method_detected || 'Detected from stored analysis'} � ${_outcomeLabel}\n` +
+      `(No new Groq call � saved from your analysis history)`;
     return _ragBest.analysis_text + _ragNote;
   }
 
   // Tier 2 (0.75–0.92) — inject as few-shot context into the prompt
   const _ragCtx = (_ragBest?.similarity >= 0.75 && _ragBest.analysis_text)
-    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state · outcome: ${_ragBest.outcome || 'pending'}):\n` +
+    ? `\n\nRELEVANT PAST ANALYSIS FOR REFERENCE (${(_ragBest.similarity * 100).toFixed(0)}% similar market state � outcome: ${_ragBest.outcome || 'pending'}):\n` +
       _ragBest.analysis_text.slice(0, 600) +
-      `\n[Apply similar reasoning — but re-evaluate with the live data above]\n`
+      `\n[Apply similar reasoning � but re-evaluate with the live data above]\n`
     : '';
 
   const prompt = `You are an institutional-level trade validator. A trader has already identified a potential opportunity and placed specific trade levels. Your job is to rigorously evaluate whether this is a good trade — not to find the opportunity, but to critique the specific levels chosen and determine if this trade should be executed.
@@ -24058,7 +24934,7 @@ Be forensic, objective, and blunt. The trader does not need encouragement — th
 You are an institutional-level trading analyst. Your job is to objectively evaluate the provided trade setup using technical analysis, market structure, momentum, and risk management. Be precise, logical, and structured. Do not give vague statements.${outcomeCtx}
 
 INPUT DATA:
-Asset: ${curSym.s} (${curSym.n})
+Asset: ${analysisSym} (${curSym.n})
 Timeframe: ${drawingTF} (trade placed on this timeframe)
 Current Price: ${fP(curPrice)}
 Entry Price: ${fP(d.price)} (${((d.price - curPrice)/curPrice*100).toFixed(2)}% from current)
@@ -24072,7 +24948,7 @@ ATR(14): ${fP(atr)} — stop is ${(Math.abs(d.price-d.sl)/atr).toFixed(1)}× ATR
 
 Market Structure:
   Short-term trend (SMA20): ${sma20val&&curPrice?(curPrice>sma20val?'Bullish — price above SMA20 '+fP(sma20val):'Bearish — price below SMA20 '+fP(sma20val)):'N/A'}
-  Higher TF trend (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish — price above SMA50 '+fP(sma50val):'Bearish — price below SMA50 '+fP(sma50val)):'N/A'}
+  Broader trend filter on trade TF (SMA50): ${sma50val&&curPrice?(curPrice>sma50val?'Bullish — price above SMA50 '+fP(sma50val):'Bearish — price below SMA50 '+fP(sma50val)):'N/A'}
   Nearest support below entry: ${nearestS?fP(nearestS):'None detected'}
   Nearest resistance above entry: ${nearestR?fP(nearestR):'None detected'}
   All S/R levels: ${sr.support.slice(0,3).map(fP).join(', ')||'None'} (S) | ${sr.resistance.slice(0,3).map(fP).join(', ')||'None'} (R)
@@ -24086,12 +24962,24 @@ Indicators:
 Recent Price Action (last 3 bars): ${last3bars}
 5-bar move: ${recentMove}% | Swing high: ${fP(swingHigh)} | Swing low: ${fP(swingLow)}
 Patterns: ${allPatsStr.slice(0, 220)}
-Trader's historical win rate on ${curSym.s}: ${symWR}
+Trader's historical win rate on ${analysisSym}: ${symWR}
 ${traderCtx}
 ${drawingStateCtx}
+${methodHintCtx}
 ${setupCtx}${_histCtxForPrompt}
+${mtfPromptCtx}
 -----------------------------
 TRADE VALIDATION PROCESS
+
+PERSONALISATION RULE
+Use trader memory as a real weighting input, not a decorative note. If this setup matches the trader's stronger conditions, say so. If it clashes with their repeated mistakes, say so clearly and let that affect the scoring.
+
+TOP-DOWN RULE
+Analyse this like a professional trader:
+- Higher timeframe = directional bias and major structure
+- Original trade timeframe = setup quality and structural validity
+- Lower timeframe = execution timing and trigger quality
+If those three disagree, say so clearly and let that reduce the execution score.
 
 0. DISCOVERY VS EXECUTION
 First decide whether the market idea itself is valid, then decide whether these exact levels are good enough to trade. Keep those two judgments clearly separated throughout the answer.
@@ -24144,6 +25032,13 @@ Identify which single trading methodology this trade most closely follows, based
 - WHAT the take profit targets (liquidity pool? opposing S/R? MA extension? Fibonacci extension? next structure?)
 - Any other signals (displacement candles, BOS/CHoCH, RSI extreme, MA crossover)
 
+IMPORTANT METHOD RULES:
+- Do NOT default to Support & Resistance just because support and resistance levels exist on the chart. Every chart has levels.
+- Choose Support & Resistance only when the actual entry logic is primarily a horizontal level reaction or level flip.
+- If a more specific method clearly fits better (Breakout, MA / Trend Following, Price Action, Fibonacci, RSI / Momentum, ICT, SMC, Supply & Demand, Wyckoff), choose that instead.
+- If the setup originated from a scanner/original method hint, preserve that method unless the live chart evidence clearly contradicts it.
+- Prefer the most specific rule set that explains the entry, stop, and target together � not the safest generic label.
+
 Choose exactly ONE method from this list:
   • ICT — entry at Fair Value Gap or Order Block; SL below/above OB; TP at liquidity pool or previous high/low; displacement candles present
   • SMC (Smart Money Concepts) — entry after Break of Structure or Change of Character + retest; TP at imbalance or opposing liquidity
@@ -24176,7 +25071,21 @@ Rules for REFINEMENT_JSON:
   - For MISSED, only use pullback_reentry if the move has not already replayed on chart; otherwise use reject.
   - For EXPIRED, use reject or post_trade_review; do not output a live setup.
   - For COMPLETED or STOPPED, use post_trade_review with entry/sl/tp all null.
-  - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
+ - For PENDING, keep the refinement close to the original setup context; do not invent a completely different trade.
+  - SL PLACEMENT RULE: Always place the stop loss BEYOND the nearest significant swing high (for shorts) or swing low (for longs) from the S/R levels provided — not just ATR-based. The SL must clear that structural level by at least 0.2× ATR so a wick cannot clip it. A tight SL that sits inside a S/R zone will be stopped out by normal volatility.
+  - R:R RULE: The refined R:R must be at least 1.5:1. Do not tighten the stop or move the target closer if doing so drops R:R below 1.5:1. If you cannot achieve 1.5:1 with a structurally sound SL, widen the TP instead.
+
+13. ACTION_JSON
+On the very next line after REFINEMENT_JSON, output exactly:
+ACTION_JSON: {"nextAction":"<wait|validate_now|manage_trade|look_for_reentry|review_only|skip>","urgency":"<low|medium|high>","reason":"<one sentence on the best next move for the trader>","focus":"<entry|confirmation|risk|management|review>"}
+Rules for ACTION_JSON:
+  - PENDING strong/acceptable setups should usually be validate_now or wait.
+  - ACTIVE setups must be manage_trade.
+  - MISSED setups should usually be look_for_reentry or skip.
+  - EXPIRED setups should be skip or review_only.
+  - COMPLETED and STOPPED setups must be review_only.
+  - The reason must respect trader memory. If the setup clashes with the trader's weak habits, say that.
+  - IMPROVEMENT RULE: Only output a refined entry/sl/tp if the refinement genuinely improves on the original. If the original levels are already optimal, set keepOriginalTarget:true and adjust only what is necessary.
 Do not add any text after REFINEMENT_JSON.
 
 Always remain objective. Do not guarantee outcomes or provide financial advice.`;
@@ -24206,15 +25115,15 @@ Always remain objective. Do not guarantee outcomes or provide financial advice.`
 
 
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // TOPBAR DOCK SYSTEM — drag nav items to topbar, click to open floating window
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 
 const TB_ITEMS = {
   watch:     { icon:'◈',  label:'Watchlist',        navId:'nav-watch',    action:()=>toggleOverlay('watch'),    w:280, h:500 },
-  alerts:    { icon:'⏰', label:'Price Alerts',      navId:'nav-alerts',   action:()=>toggleOverlay('alerts'),   w:300, h:400 },
+  alerts:    { icon:'��', label:'Price Alerts',      navId:'nav-alerts',   action:()=>toggleOverlay('alerts'),   w:300, h:400 },
   scanner:   { icon:'⌕',  label:'AI Scanner',        navId:'nav-scanner',  action:()=>toggleOverlay('scanner'),  w:320, h:540 },
-  draw:      { icon:'✏',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
+  draw:      { icon:'�',  label:'Drawing Tools',     navId:'nav-draw',     action:()=>toggleOverlay('draw'),     w:260, h:360 },
   inds:      { icon:'📈', label:'Indicators',         navId:'nav-inds',     action:()=>toggleOverlay('inds'),     w:300, h:500 },
   aisetups:  { icon:'⚡', label:'AI Setups',          navId:'btn-aisetups', action:()=>openAISetups(),            w:460, h:600 },
   premarket: { icon:'☀',  label:'Pre-Market Brief',  navId:'btn-premarket',action:()=>openPremarket(),           w:480, h:580 },
@@ -24312,7 +25221,7 @@ function tbDockItemDrop(e, overKey){
   _tbSaveState();
 }
 
-// ══ TOPBAR SLOT SYSTEM ═══════════════════════════════════════════════════════
+// �� TOPBAR SLOT SYSTEM �������������������������������������������������������
 // Each .tb-slot holds at most one .tb-block. Blocks are MOVED (not cloned) so
 // their IDs remain unique. Dragging a block shows all slots as drop targets.
 
@@ -25015,9 +25924,9 @@ document.addEventListener('visibilitychange', () => {
 
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// �������������������������������������������������������������������������������
 // STRATEGY BACKTESTER
-// ═══════════════════════════════════════════════════════════════════════════════
+// �������������������������������������������������������������������������������
 
 const BT_PRESETS = {
   rsi_reversal_long: {
@@ -25078,7 +25987,7 @@ const btState = {
 
 function openBacktester(){
   document.getElementById('bt-bg').classList.add('open');
-  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '—'} · ${curTF}`;
+  document.getElementById('bt-run-note').textContent = `Running on: ${curSym?.s || '�'} � ${curTF}`;
   _btRenderBuilder();
 }
 function closeBacktester(){ document.getElementById('bt-bg').classList.remove('open'); }
@@ -25243,7 +26152,7 @@ function _btRunBacktest(){
   s.riskPct  = parseFloat(document.getElementById('bt-riskpct')?.value)||1.0;
 
   const btn = document.getElementById('bt-run-btn');
-  if(btn){ btn.textContent='⏳ Running…'; btn.disabled=true; }
+  if(btn){ btn.textContent='�� Running…'; btn.disabled=true; }
 
   // Pre-compute all indicators on full dataset
   const inds = {
@@ -25373,12 +26282,12 @@ function _btRenderResults({trades,equityCurve,stats}){
     </div>
     <div class="bt-results-hdr" style="margin-top:14px">EQUITY CURVE</div>
     <canvas id="bt-eq-canvas" height="120" style="width:100%;display:block"></canvas>
-    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades · $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
+    <div class="bt-results-hdr" style="margin-top:14px">TRADE LOG <span style="color:var(--tx3);font-weight:400;font-size:10px">${n} trades � $${Math.round(startCapital).toLocaleString()} → $${Math.round(finalEquity).toLocaleString()}</span></div>
     <div class="bt-trade-table">
       <div class="bt-trade-hdr"><span>#</span><span>Dir</span><span>Entry</span><span>Exit</span><span>Result</span><span>R</span><span>P&amp;L</span></div>
       <div class="bt-trade-rows">${trades.slice(0,300).map((t,i)=>{
         const rc=t.rMult>0?'#00c9a0':'#ff4d6a';
-        const res=t.reason==='tp'?'✓ TP':t.reason==='sl'?'✗ SL':'⏸ Open';
+        const res=t.reason==='tp'?'TP':t.reason==='sl'?'SL':'Open';
         return `<div class="bt-trade-row ${t.rMult>0?'win':'loss'}">
           <span style="color:var(--tx3)">${i+1}</span>
           <span style="color:${t.dir==='long'?'#00c9a0':'#ff4d6a'}">${t.dir==='long'?'▲':'▼'} ${t.dir}</span>
@@ -25446,9 +26355,9 @@ function _btShowError(msg){
   if(btn){ btn.textContent='▶ Run Backtest'; btn.disabled=false; }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // APEX FX — 20-FEATURE UPGRADE FUNCTIONS
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 
 // ─── 1. COMMAND PALETTE ──────────────────────────────────────────────────────
 const CMDPAL_COMMANDS = [
@@ -25461,7 +26370,7 @@ const CMDPAL_COMMANDS = [
   { icon:'📊', label:'Open Backtester',        cat:'Tools',     action:()=>{ const b=document.getElementById('bt-modal-bg'); if(b){b.style.display='flex';} } },
   { icon:'⚖', label:'Position Sizer',          cat:'Tools',     action:()=>openPSC(),                  kbd:'P' },
   { icon:'📷', label:'Take Screenshot',        cat:'Tools',     action:()=>saveChartImage&&saveChartImage() },
-  { icon:'⏮', label:'Toggle Bar Replay',      cat:'Tools',     action:()=>toggleReplay(),              kbd:'R' },
+  { icon:'��', label:'Toggle Bar Replay',      cat:'Tools',     action:()=>toggleReplay(),              kbd:'R' },
   { icon:'🧬', label:'Trader DNA Card',        cat:'Analytics', action:()=>openDNACard() },
   { icon:'📋', label:'Trade Idea Board',       cat:'Tools',     action:()=>openKanban() },
   { icon:'📊', label:'Session Debrief',        cat:'Analytics', action:()=>openSessionDebrief() },
@@ -25471,7 +26380,7 @@ const CMDPAL_COMMANDS = [
   { icon:'🗂', label:'Analytics Tab',          cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(2)'); if(t)t.click(); } },
   { icon:'📰', label:'News Tab',               cat:'Navigate',  action:()=>{ const t=document.querySelector('.rp-tab:nth-child(3)'); if(t)t.click(); } },
   { icon:'🔔', label:'Alerts Panel',           cat:'Navigate',  action:()=>toggleOverlay('alerts') },
-  { icon:'👁', label:'Toggle Setup Watch',     cat:'AI',        action:()=>toggleSetupWatch() },
+  { icon:'�', label:'Toggle Setup Watch',     cat:'AI',        action:()=>toggleSetupWatch() },
 ];
 
 let _cpActiveIdx = 0;
@@ -25649,7 +26558,7 @@ function getSymbolSignal(s){
   const c = parseFloat(s.c)||0;
   if(c > 3)  return { icon:'🔥', color:'var(--tl)',  label:'Strong up' };
   if(c > 1)  return { icon:'▲',  color:'var(--tl)',  label:'Up' };
-  if(c < -3) return { icon:'❄',  color:'var(--rd)',  label:'Strong down' };
+  if(c < -3) return { icon:'��',  color:'var(--rd)',  label:'Strong down' };
   if(c < -1) return { icon:'▼',  color:'var(--rd)',  label:'Down' };
   return      { icon:'─',  color:'var(--tx3)', label:'Flat' };
 }
@@ -25726,7 +26635,7 @@ function ritualCheck(){
   const btn = document.getElementById('ritual-start-btn');
   if(btn){
     btn.disabled = ticked < total;
-    btn.textContent = ticked < total ? `${total-ticked} items remaining…` : '▶ Start Trading Session';
+    btn.textContent = ticked < total ? `${total-ticked} items remaining...` : 'Start Trading Session';
   }
 }
 
@@ -25736,7 +26645,7 @@ function ritualComplete(){
   _lsSet('ritual-last-shown', new Date().toDateString());
   _ritualShownToday = true;
   closeRitualModal();
-  toast('☀ Ready to trade! Good luck today.');
+  toast('Ready to trade. Good luck today.');
   updateRiskStrip();
 }
 
@@ -25783,7 +26692,7 @@ function showTiltAlert(losses){
 function dismissTiltAlert(stepAway){
   const bg = document.getElementById('tilt-intervention-bg');
   if(bg) bg.classList.remove('open');
-  if(stepAway){ toast('⏸ Session paused. Come back when you\'re ready.'); }
+  if(stepAway){ toast('�� Session paused. Come back when you\'re ready.'); }
 }
 
 // ─── 8. STREAK IN STATUSBAR ──────────────────────────────────────────────────
@@ -25803,7 +26712,7 @@ function updateStreakBadge(){
       el.style.color='var(--tl)';
       el.title=`${streak} win streak!`;
     } else {
-      el.textContent=`❄ ${streak}L`;
+      el.textContent=`�� ${streak}L`;
       el.style.color='var(--rd)';
       el.title=`${streak} loss streak — consider a break`;
     }
@@ -25829,8 +26738,8 @@ function openSessionDebrief(){
   if(stats) stats.innerHTML=[
     { val: todayTrades.length, lbl:'Trades', col:'var(--tx)' },
     { val: wins+'W/'+losses+'L', lbl:'Win/Loss', col: wins>=losses?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
-    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '—', lbl:'Win Rate', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(2) : '�', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: plVals.length ? Math.round(wins/(wins+losses||1)*100)+'%' : '�', lbl:'Win Rate', col:'var(--am)' },
   ].map(s=>`<div class="debrief-stat-card"><div class="debrief-stat-val" style="color:${s.col}">${s.val}</div><div class="debrief-stat-lbl">${s.lbl}</div></div>`).join('');
 
   const body = document.getElementById('debrief-body');
@@ -25870,7 +26779,7 @@ function openDNACard(){
   const plVals = journal.filter(e=>e.pl!=null).map(e=>e.pl);
   const netPL = plVals.reduce((s,v)=>s+v,0);
   const rrVals = journal.filter(e=>e.rr).map(e=>e.rr);
-  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '—';
+  const avgRR = rrVals.length ? (rrVals.reduce((a,b)=>a+b,0)/rrVals.length).toFixed(2) : '�';
 
   // Username
   const user = typeof supabaseUser!=='undefined' ? supabaseUser : null;
@@ -25884,8 +26793,8 @@ function openDNACard(){
   const grid = document.getElementById('dna-stats-grid');
   if(grid) grid.innerHTML = [
     { val: wr+'%', lbl:'Win Rate', col: wr>=50?'var(--tl)':'var(--rd)' },
-    { val: avgRR==='—'?'—':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
-    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '—', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
+    { val: avgRR==='�'?'�':'1:'+avgRR, lbl:'Avg R:R', col:'var(--am)' },
+    { val: plVals.length ? (netPL>=0?'+':'')+netPL.toFixed(0) : '�', lbl:'Net P&L', col: netPL>=0?'var(--tl)':'var(--rd)' },
   ].map(s=>`<div class="dna-stat-card"><div class="dna-stat-val" style="color:${s.col}">${s.val}</div><div class="dna-stat-lbl">${s.lbl}</div></div>`).join('');
 
   // Strengths (top tags by win rate)
@@ -25970,7 +26879,7 @@ function _renderTourStep(){
   document.getElementById('tour-body').textContent=step.body;
   document.getElementById('tour-step-label').textContent=`Step ${tourStep+1} of ${steps.length}`;
   document.getElementById('tour-prev-btn').style.opacity=tourStep===0?'0.3':'1';
-  document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish ✓':'Next →';
+  document.getElementById('tour-next-btn').textContent=tourStep===steps.length-1?'Finish':'Next';
 
   // Spotlight + tooltip positioning
   const spot=document.getElementById('tour-spotlight');
@@ -26059,7 +26968,7 @@ function renderKanban(){
   const board=document.getElementById('kanban-board');
   if(!board) return;
   const cols=[
-    {key:'watching',label:'👁 Watching',    col:'var(--bl)'},
+    {key:'watching',label:'� Watching',    col:'var(--bl)'},
     {key:'ready',   label:'⚡ Ready',        col:'var(--tl)'},
     {key:'passed',  label:'✓ Passed/Closed', col:'var(--tx3)'},
   ];
@@ -26067,7 +26976,7 @@ function renderKanban(){
     const ideas=tradeIdeas.filter(t=>t.col===c.key);
     const cards=ideas.map(idea=>{
       const otherCols=cols.filter(x=>x.key!==c.key);
-      const moveBtns=otherCols.map(oc=>`<button class="kanban-move-btn" onclick="moveIdeaToCol('${idea.id}','${oc.key}')">→ ${oc.label.split(' ').slice(1).join(' ')}</button>`).join('');
+      const moveBtns=otherCols.map(oc=>`<button class="kanban-move-btn" onclick="moveIdeaToCol('${idea.id}','${oc.key}')">Move to ${oc.label.split(' ').slice(1).join(' ')}</button>`).join('');
       const dirBadge=idea.dir==='long'
         ? `<span style="color:var(--tl);font-size:10px;font-family:monospace;">▲ LONG</span>`
         : `<span style="color:var(--rd);font-size:10px;font-family:monospace;">▼ SHORT</span>`;
@@ -26080,7 +26989,7 @@ function renderKanban(){
         ${idea.notes?`<div class="kanban-card-notes">${idea.notes}</div>`:''}
         <div class="kanban-card-footer">
           ${moveBtns}
-          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">✕</button>
+          <button class="kanban-del-btn" onclick="deleteTradeIdea('${idea.id}')">�</button>
         </div>
       </div>`;
     }).join('') || `<div style="color:var(--tx3);font-size:11px;text-align:center;padding:12px;opacity:.6;">Empty</div>`;
@@ -26110,7 +27019,7 @@ function updatePatternProgress(phase, method){
   el.innerHTML=steps.map((s,i)=>{
     const isDone=i<activeIdx;
     const isAct=i===activeIdx;
-    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">›</span>':''}`;
+    return `<span class="pp-step${isDone?' done':isAct?' active':''}">${isDone?'✓ ':isAct?'◉ ':'○ '}${s}</span>${i<steps.length-1?'<span class="pp-sep">�</span>':''}`;
   }).join('');
 }
 
@@ -26118,7 +27027,7 @@ function updatePatternProgress(phase, method){
 function updateMacroStrip(){
   const el=document.getElementById('macro-strip');
   if(!el||_macroStripDismissed) return;
-  // Static macro context — shows session info + bias
+  // Static macro context � shows session info + bias
   const sessions=[
     {name:'Asia',   start:22*60, end:6*60,    col:'#3d7fff'},
     {name:'London', start:7*60,  end:15*60+30,col:'#00c9a0'},
@@ -26147,8 +27056,8 @@ function updateMacroStrip(){
   el.innerHTML=`
     <div class="macro-pill"><span class="mp-label">SESSION</span>${sessHtml}</div>
     ${bias?`<div class="macro-pill"><span class="mp-label">BIAS</span><span style="color:var(--am);font-weight:600;">${bias}</span></div>`:''}
-    ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}…</span></div>`:''}
-    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">✕</button>
+    ${briefText?`<div class="macro-pill" style="flex:1;overflow:hidden;text-overflow:ellipsis;"><span class="mp-label">AI</span><span style="color:var(--tx2);">${briefText}...</span></div>`:''}
+    <button class="macro-dismiss" onclick="_macroStripDismissed=true;this.parentElement.style.display='none';" title="Hide">�</button>
   `;
 }
 
@@ -26201,7 +27110,7 @@ function whyDidILose(entryId){
   const prompt=`You are a trading coach. Analyse this losing trade and tell the trader specifically why they likely lost and what to do differently next time:\n\nSymbol: ${e.sym}\nDirection: ${e.dir}\nSetup: ${e.setup||'not specified'}\nEntry: ${e.entry}\nStop Loss: ${e.sl||'not set'}\nExit: ${e.exit||'not set'}\nP&L: ${e.pl!=null?e.pl.toFixed(2):'unknown'}\nNotes: ${e.note||'none'}\nEmotions: ${(e.emotions||[]).join(', ')||'not logged'}\n\nKeep it under 100 words. Be direct, specific, and constructive.`;
   aiComplete([{role:'user',content:prompt}]).then(text=>{
     const container=document.getElementById(`autopsy-${entryId}`);
-    if(container){ container.style.display='block'; container.textContent='❓ WHY I LOST: '+text; container.style.borderLeftColor='var(--rd)'; }
+    if(container){ container.style.display='block'; container.textContent='�� WHY I LOST: '+text; container.style.borderLeftColor='var(--rd)'; }
     if(btn){ btn.textContent='✓ Done'; btn.style.opacity='.5'; }
   }).catch(err=>{
     if(btn){ btn.textContent='Why did I lose?'; btn.disabled=false; }
@@ -26215,7 +27124,7 @@ function toggleSetupWatch(){
   _lsSet('setup-watch-active',setupWatchActive?'1':'');
   _updateSetupWatchUI();
   if(setupWatchActive){
-    toast('👁 Setup Watch active — AI will alert you when a setup forms');
+    toast('� Setup Watch active — AI will alert you when a setup forms');
     if(!_setupWatchInterval) _setupWatchInterval=setInterval(_checkSetupWatch, 120000);
   } else {
     toast('Setup Watch off');
@@ -26304,6 +27213,469 @@ if(_origSelSym){
   };
 }
 
+// ══ COLLAPSIBLE SIDEBAR SECTIONS ════════════════════════════════════════════
+
+const WIDGET_EMPTY_IDS = {
+  profile:   'trader-profile-card',
+  thesis:    'thesis-tracker-card',
+  replaylab: 'replay-lab-card',
+  psych:     'psych-chart',
+  setup:     'setup-chart',
+  tod:       'tod-heatmap',
+  wl:        'wl-bars',
+  streak:    'streak-stats',
+  tags:      'tag-chart',
+  dow:       'dow-chart',
+  sym:       'sym-chart',
+};
+
+// ══ PLAN / DISCIPLINE SCORE ════════════════════════════════════════════════
+function computePlanScore(){
+  const closed = getClosedJournalTrades();
+  if(!closed.length) return { score: null, breakdown: [] };
+
+  let score = 100;
+  const breakdown = [];
+
+  // Deduct for untagged trades (no setup)
+  const untagged = closed.filter(t => !t.setup || t.setup.trim() === '').length;
+  if(untagged > 0){
+    const penalty = Math.min(25, untagged * 5);
+    score -= penalty;
+    breakdown.push({ label: `${untagged} trade${untagged > 1 ? 's' : ''} without a setup`, penalty });
+  }
+
+  // Deduct for trades with no notes
+  const noNotes = closed.filter(t => !t.note || t.note.trim() === '').length;
+  if(noNotes > 0){
+    const penalty = Math.min(15, noNotes * 3);
+    score -= penalty;
+    breakdown.push({ label: `${noNotes} trade${noNotes > 1 ? 's' : ''} without notes`, penalty });
+  }
+
+  // Deduct for consecutive losses (revenge trading risk)
+  let maxConsec = 0, cur = 0;
+  [...closed].reverse().forEach(t => {
+    if(t.outcome === 'loss'){ cur++; if(cur > maxConsec) maxConsec = cur; }
+    else cur = 0;
+  });
+  if(maxConsec >= 3){
+    const penalty = Math.min(30, (maxConsec - 2) * 7);
+    score -= penalty;
+    breakdown.push({ label: `${maxConsec} consecutive losses detected`, penalty });
+  }
+
+  // Deduct for poor RR � average below 1.0
+  const rrVals = closed.filter(t => t.rr != null).map(t => Number(t.rr));
+  const avgRR = rrVals.length ? rrVals.reduce((a,b) => a+b, 0) / rrVals.length : null;
+  if(avgRR !== null && avgRR < 1.0){
+    const penalty = 10;
+    score -= penalty;
+    breakdown.push({ label: `Avg R:R ${avgRR.toFixed(2)} is below 1.0`, penalty });
+  }
+
+  return { score: Math.max(0, Math.min(100, Math.round(score))), breakdown, avgRR };
+}
+
+// ══ TRADING DNA CARD ════════════════════════════════════════════════════════
+function renderDNACard(){
+  const el = document.getElementById('dna-card');
+  if(!el) return;
+  const p = getTraderProfile();
+  const closed = getClosedJournalTrades();
+  const { score } = computePlanScore();
+
+  if(!closed.length){
+    el.innerHTML = `<div style="font-size:10px;color:var(--tx3);padding:4px 0;">Log trades to see your Trading DNA.</div>`;
+    return;
+  }
+
+  const winRate = p.winRate != null ? p.winRate + '%' : '�';
+  const avgRR   = p.avgRR   != null ? '1:' + p.avgRR.toFixed(2) : '�';
+  const best    = p.bestSetup ? p.bestSetup.key : (p.bestSymbol ? p.bestSymbol.key : '�');
+  const scoreColor = score >= 80 ? 'var(--tl)' : score >= 55 ? 'var(--am)' : 'var(--rd)';
+  const scoreLabel = score >= 80 ? 'Disciplined' : score >= 55 ? 'Developing' : 'Needs Work';
+
+  el.innerHTML = `
+    <div class="dna-card-inner">
+      <div class="dna-stat">
+        <div class="dna-val">${winRate}</div>
+        <div class="dna-lbl">Win Rate</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val">${avgRR}</div>
+        <div class="dna-lbl">Avg R:R</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val">${closed.length}</div>
+        <div class="dna-lbl">Trades</div>
+      </div>
+      <div class="dna-stat">
+        <div class="dna-val" title="${best}">${best.length > 8 ? best.slice(0,8)+'�' : best}</div>
+        <div class="dna-lbl">Top Setup</div>
+      </div>
+      <div class="dna-stat" style="border-left:2px solid var(--b1);padding-left:10px;">
+        <div class="dna-val" style="color:${scoreColor};">${score != null ? score : '�'}</div>
+        <div class="dna-lbl" style="color:${scoreColor};">${scoreLabel}</div>
+      </div>
+    </div>`;
+}
+
+// ══ WORKFLOW STRIP ═══════════════════════════════════════════════════════════
+function updateWorkflowStrip(){
+  const strip = document.getElementById('wf-strip');
+  if(!strip) return;
+
+  const hasBias     = !!curData?.length;
+  const hasDrawing  = typeof drawings !== 'undefined' && drawings.some(d => d._tapRefinement);
+  const hasTrade    = typeof drawings !== 'undefined' && drawings.some(d => d.type === 'long' || d.type === 'short');
+  const hasJournal  = journal.filter(e => !e.archived).length > 0;
+
+  const steps = [
+    { id:'wf-find',     active: hasBias,    done: hasBias },
+    { id:'wf-validate', active: hasBias,    done: hasDrawing },
+    { id:'wf-execute',  active: hasDrawing, done: hasTrade },
+    { id:'wf-review',   active: hasTrade,   done: hasJournal },
+  ];
+
+  steps.forEach(s => {
+    const el = document.getElementById(s.id);
+    if(!el) return;
+    el.className = 'wf-step' + (s.done ? ' wf-done' : s.active ? ' wf-active' : '');
+  });
+}
+
+// ══ ACTIVATION BANNER ═══════════════════════════════════════════════════════
+function updateActivationBanner(){
+  const banner  = document.getElementById('activation-banner');
+  const textEl  = document.getElementById('activation-banner-text');
+  const btnEl   = document.getElementById('activation-banner-btn');
+  if(!banner || !textEl || !btnEl) return;
+
+  const closed  = getClosedJournalTrades();
+  const all     = journal.filter(e => !e.archived);
+  const hasSetup = all.some(e => e.setup && e.setup.trim() !== '');
+
+  let text = '', btnLabel = '', btnAction = '';
+
+  if(all.length === 0){
+    text = 'Log your first trade to unlock Analytics & AI insights.';
+    btnLabel = 'Log Trade';
+    btnAction = "document.getElementById('open-journal-modal')?.click()";
+  } else if(closed.length < 5){
+    text = `${5 - closed.length} more closed trade${5-closed.length!==1?'s':''} needed to unlock full Analytics.`;
+    btnLabel = 'Log Trade';
+    btnAction = "document.getElementById('open-journal-modal')?.click()";
+  } else if(!hasSetup){
+    text = 'Add a Setup tag to your trades to unlock DNA insights.';
+    btnLabel = 'Open Journal';
+    btnAction = "document.getElementById('tab-journal')?.click()";
+  } else {
+    banner.style.display = 'none';
+    return;
+  }
+
+  textEl.textContent = text;
+  btnEl.textContent  = btnLabel;
+  btnEl.onclick = new Function(btnAction);
+  banner.style.display = 'flex';
+}
+
+// ══ CSV IMPORT ═══════════════════════════════════════════════════════════════
+function openCSVImport(){
+  const modal = document.getElementById('csv-import-modal');
+  if(modal){ modal.style.display = 'flex'; return; }
+
+  const m = document.createElement('div');
+  m.id = 'csv-import-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal-box" style="max-width:460px;">
+      <div class="modal-hdr">
+        <span style="font-weight:700;font-size:13px;">Import Trades from CSV</span>
+        <button onclick="document.getElementById('csv-import-modal').style.display='none'" style="background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+      </div>
+      <div style="padding:12px 14px;">
+        <p style="font-size:11px;color:var(--tx2);margin:0 0 10px;">Supports MT4/MT5 history exports, Binance order history, Bybit trade history, or a generic CSV with columns: symbol, direction, entry, exit, size, P&L.</p>
+        <input type="file" id="csv-file-input" accept=".csv,.txt" style="font-size:11px;color:var(--tx2);width:100%;margin-bottom:10px;" onchange="_handleCSVFile(this)">
+        <div id="csv-preview" style="font-size:10px;color:var(--tx3);min-height:30px;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+          <button onclick="document.getElementById('csv-import-modal').style.display='none'" class="j-btn">Cancel</button>
+          <button id="csv-import-btn" onclick="_processImportCSV()" class="j-btn" style="background:var(--bl);color:#fff;display:none;">Import</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.style.display = 'flex';
+}
+
+let _csvParsedTrades = [];
+function _handleCSVFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const rows = _parseCSVRows(text);
+    const fmt  = _detectBrokerFormat(rows[0] || {});
+    const trades = rows.map(r => _mapRowToTrade(r, fmt)).filter(Boolean);
+    _csvParsedTrades = trades;
+    const preview = document.getElementById('csv-preview');
+    const btn = document.getElementById('csv-import-btn');
+    if(!trades.length){
+      preview.textContent = 'No valid trades found. Check your file format.';
+      if(btn) btn.style.display = 'none';
+    } else {
+      preview.innerHTML = `<span style="color:var(--tl);">✓</span> Found <b>${trades.length}</b> trades (${fmt} format detected).`;
+      if(btn) btn.style.display = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function _parseCSVRows(text){
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if(lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  });
+}
+
+function _detectBrokerFormat(row){
+  const keys = Object.keys(row).join(' ').toLowerCase();
+  if(keys.includes('ticket') || keys.includes('profit') && keys.includes('open time')) return 'MT4/MT5';
+  if(keys.includes('orderno') || keys.includes('realized profit')) return 'Binance';
+  if(keys.includes('qty') && keys.includes('avg price')) return 'Bybit';
+  return 'Generic';
+}
+
+function _mapRowToTrade(row, fmt){
+  try{
+    let sym='', dir='long', entry=0, exit=0, size=1, pl=null, note='', time=null;
+    if(fmt === 'MT4/MT5'){
+      sym   = (row['symbol'] || row['item'] || '').toUpperCase();
+      dir   = (row['type'] || '').toLowerCase().includes('sell') ? 'short' : 'long';
+      entry = parseFloat(row['open price'] || row['price'] || 0);
+      exit  = parseFloat(row['close price'] || row['price'] || 0);
+      size  = parseFloat(row['size'] || row['lots'] || 1);
+      pl    = parseFloat(row['profit'] || 0);
+      time  = row['open time'] ? new Date(row['open time']).getTime() : Date.now();
+    } else if(fmt === 'Binance'){
+      sym   = (row['pair'] || row['symbol'] || '').toUpperCase();
+      dir   = (row['side'] || '').toLowerCase() === 'sell' ? 'short' : 'long';
+      entry = parseFloat(row['avg. price'] || row['price'] || 0);
+      size  = parseFloat(row['filled'] || row['qty'] || 1);
+      pl    = parseFloat(row['realized profit'] || 0);
+    } else if(fmt === 'Bybit'){
+      sym   = (row['symbol'] || '').toUpperCase();
+      dir   = (row['side'] || '').toLowerCase() === 'sell' ? 'short' : 'long';
+      entry = parseFloat(row['avg price'] || row['price'] || 0);
+      size  = parseFloat(row['qty'] || 1);
+      pl    = parseFloat(row['closed p&l'] || row['pnl'] || 0);
+    } else {
+      sym   = (row['symbol'] || row['pair'] || row['ticker'] || '').toUpperCase();
+      dir   = (row['direction'] || row['side'] || row['type'] || 'long').toLowerCase().includes('sell') || (row['direction']||'').toLowerCase() === 'short' ? 'short' : 'long';
+      entry = parseFloat(row['entry'] || row['open'] || 0);
+      exit  = parseFloat(row['exit'] || row['close'] || 0);
+      size  = parseFloat(row['size'] || row['qty'] || row['amount'] || 1);
+      pl    = row['pl'] != null ? parseFloat(row['pl']) : row['pnl'] != null ? parseFloat(row['pnl']) : null;
+    }
+    if(!sym || !isFinite(entry) || entry === 0) return null;
+    const outcome = pl != null ? (pl >= 0 ? 'win' : 'loss') : null;
+    return {
+      id: 'csv_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+      entryName: sym + ' Import',
+      sym, dir: dir === 'short' ? 'short' : 'long',
+      tf: '', entry, exit: exit || null, size, pl: pl != null ? pl : null,
+      outcome, rr: null, note, lessons: '', setup: '', emotions: [], tags: [],
+      time: time || Date.now(), archived: false,
+    };
+  } catch(e){ return null; }
+}
+
+function _processImportCSV(){
+  if(!_csvParsedTrades.length) return;
+  _confirmCSVImport(_csvParsedTrades);
+}
+
+function _confirmCSVImport(trades){
+  const existing = journal.map(t => t.id);
+  const fresh = trades.filter(t => !existing.includes(t.id));
+  if(!fresh.length){
+    document.getElementById('csv-preview').textContent = 'All trades already imported.';
+    return;
+  }
+  journal.unshift(...fresh);
+  saveJournal();
+  buildJournal();
+  document.getElementById('csv-import-modal').style.display = 'none';
+  toast(`Imported ${fresh.length} trade${fresh.length > 1 ? 's' : ''}!`);
+}
+
+// ══ PRE-TRADE CHECKLIST ══════════════════════════════════════════════════════
+function _preTradeCheck(cb){
+  const warnings = [];
+  const closed = getClosedJournalTrades();
+
+  // Check for recent consecutive losses (3+)
+  const recent = [...closed].reverse().slice(0, 5);
+  let streak = 0;
+  for(const t of recent){ if(t.outcome === 'loss') streak++; else break; }
+  if(streak >= 3) warnings.push(`You're on a ${streak}-loss streak. Is this setup A-grade?`);
+
+  // Check if we have a bias / copilot analysis for current symbol
+  const sym = typeof curSym !== 'undefined' ? curSym?.s : null;
+  const hasBias = sym && typeof tapAnalysisCache !== 'undefined' && tapAnalysisCache[sym]?.aiResult;
+  if(!hasBias) warnings.push('No AI analysis run for this symbol yet. Consider running Copilot first.');
+
+  if(warnings.length === 0){ cb(); return; }
+  _showPreTradeModal(warnings, cb);
+}
+
+function _showPreTradeModal(warnings, onConfirm){
+  const existing = document.getElementById('pretrade-modal');
+  if(existing) existing.remove();
+
+  const m = document.createElement('div');
+  m.id = 'pretrade-modal';
+  m.className = 'modal-overlay';
+  m.innerHTML = `
+    <div class="modal-box" style="max-width:380px;">
+      <div class="modal-hdr" style="border-bottom:1px solid var(--line);">
+        <span style="font-weight:700;font-size:13px;color:var(--am);">⚠ Pre-Trade Check</span>
+      </div>
+      <div style="padding:12px 14px;">
+        <ul style="margin:0 0 14px 16px;padding:0;font-size:11px;color:var(--tx2);line-height:1.7;">
+          ${warnings.map(w => `<li>${w}</li>`).join('')}
+        </ul>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="document.getElementById('pretrade-modal').remove()" class="j-btn">Cancel</button>
+          <button onclick="document.getElementById('pretrade-modal').remove();(${onConfirm.toString()})()" class="j-btn" style="background:var(--am);color:#111;">Proceed Anyway</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+function checkEmptyWidgets(){
+  // Hide widgets whose primary data container has no rendered content,
+  // but never un-hide widgets the user has explicitly hidden via Customise
+  for(const [wid, cid] of Object.entries(WIDGET_EMPTY_IDS)){
+    const content = document.getElementById(cid);
+    const widget  = document.querySelector(`[data-widget="${wid}"]`);
+    if(!content || !widget) continue;
+    if(analyticsHidden?.has(wid)) continue; // respect user's choice
+    const isEmpty = content.children.length === 0 && content.innerText.trim() === '';
+    if(isEmpty) widget.style.display = 'none';
+    // don't force-show � applyAnalyticsVisibility already handled that
+  }
+  // Show/hide analytics-stage section titles if all their widgets are hidden
+  document.querySelectorAll('#analytics-widgets .analytics-stage').forEach(stage => {
+    // Collect all widget siblings between this stage and the next
+    let el = stage.nextElementSibling;
+    const widgets = [];
+    while(el && !el.classList.contains('analytics-stage')){
+      if(el.hasAttribute('data-widget')) widgets.push(el);
+      el = el.nextElementSibling;
+    }
+    if(widgets.length > 0){
+      const allHidden = widgets.every(w => w.style.display === 'none');
+      stage.style.display = allHidden ? 'none' : '';
+    }
+  });
+}
+
+let _collapsibleInitDone = false;
+function initCollapsibleSections(){
+  if(_collapsibleInitDone) return;
+  _collapsibleInitDone = true;
+
+  // ── Analytics: each data-widget ──────────────────────────────────────────
+  document.querySelectorAll('#analytics-widgets [data-widget]').forEach(widget => {
+    const id = widget.getAttribute('data-widget');
+    widget.style.position = 'relative';
+
+    // Wrap all current children in a collapsible body
+    const body = document.createElement('div');
+    body.className = 'widget-collapse-body';
+    Array.from(widget.children).forEach(c => body.appendChild(c));
+    widget.appendChild(body);
+
+    // Floating toggle button in top-right corner
+    const btn = document.createElement('button');
+    btn.className = 'widget-toggle-btn';
+    btn.textContent = '▾';
+    btn.title = 'Collapse';
+    widget.insertBefore(btn, body);
+
+    // Restore saved collapse state
+    if(localStorage.getItem('wc_' + id) === '1'){
+      body.style.display = 'none';
+      btn.textContent = '▸';
+      btn.title = 'Expand';
+    }
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      btn.textContent = collapsed ? '▾' : '▸';
+      btn.title = collapsed ? 'Collapse' : 'Expand';
+      localStorage.setItem('wc_' + id, collapsed ? '0' : '1');
+    });
+  });
+
+  // ── AI tab: sec-title sections ────────────────────────────────────────────
+  const aiPanel = document.getElementById('rp-ai');
+  if(!aiPanel) return;
+  aiPanel.querySelectorAll('.sec-title').forEach(title => {
+    const raw = title.textContent.trim();
+    const sid = 'ais_' + raw.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    // Collect siblings until next sec-title
+    const siblings = [];
+    let next = title.nextElementSibling;
+    while(next && !next.classList.contains('sec-title')){
+      siblings.push(next);
+      next = next.nextElementSibling;
+    }
+    if(!siblings.length) return;
+
+    // Wrap siblings in collapsible body
+    const body = document.createElement('div');
+    body.className = 'widget-collapse-body';
+    title.parentNode.insertBefore(body, siblings[0]);
+    siblings.forEach(s => body.appendChild(s));
+
+    // Arrow appended to title text
+    const arrow = document.createElement('span');
+    arrow.className = 'widget-collapse-arrow';
+    arrow.textContent = '▾';
+    title.style.display = 'flex';
+    title.style.justifyContent = 'space-between';
+    title.style.alignItems = 'center';
+    title.style.cursor = 'pointer';
+    title.style.userSelect = 'none';
+    title.appendChild(arrow);
+
+    if(localStorage.getItem('wc_' + sid) === '1'){
+      body.style.display = 'none';
+      arrow.textContent = '▸';
+    }
+
+    title.addEventListener('click', () => {
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      arrow.textContent = collapsed ? '▾' : '▸';
+      localStorage.setItem('wc_' + sid, collapsed ? '0' : '1');
+    });
+  });
+}
+
 // DOMContentLoaded init
 document.addEventListener('DOMContentLoaded', ()=>{
   // Ritual modal (delayed so app loads first)
@@ -26319,6 +27691,34 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Onboarding tour (first-time users only)
   if(!_lsGet('tour-completed') && !_lsGet('journal')){ setTimeout(startOnboardingTour, 4000); }
 
+  // Collapsible sidebar sections
+  initCollapsibleSections();
+
+  // Activation banner
+  updateActivationBanner();
+
+  // Draw toolbar: wire chevron area to open flyouts, close on outside click
+  document.querySelectorAll('#draw-toolbar .dtb-item.group').forEach(item => {
+    const group = item.id.replace('dtbg-', '');
+    const btn = item.querySelector('.dtb-btn');
+    if (!btn) return;
+    btn.addEventListener('click', e => {
+      // If click landed on the chevron region (bottom-right 10x10px area)
+      const r = btn.getBoundingClientRect();
+      if (e.clientX >= r.right - 12 && e.clientY >= r.bottom - 12) {
+        e.stopPropagation();
+        _dtbOpenFlyoutId === group ? _dtbCloseFlyout() : _dtbOpenFlyout(group);
+      }
+    });
+  });
+  document.addEventListener('click', e => {
+    if (_dtbOpenFlyoutId && !e.target.closest('#draw-toolbar')) _dtbCloseFlyout();
+  });
+  // Keyboard shortcut: M = magnet
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key.toLowerCase() === 'm') _dtbToggleMagnet();
+  });
 
   // Initial status bar
   setTimeout(updateStatusBarStats, 500);
@@ -26359,10 +27759,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // Update status bar on a slower interval
 setInterval(()=>{ updateStatusBarStats(); }, 30000);
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 // AI CHART OVERLAY
 // Draws S/R levels, bias badge, and top pattern label directly on the canvas.
-// ══════════════════════════════════════════════════════════════════════════════
+// ������������������������������������������������������������������������������
 
 function toggleAIOverlay(){
   aiOverlayEnabled = !aiOverlayEnabled;

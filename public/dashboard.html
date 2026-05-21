@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — AI Research</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link active" href="dashboard.html">Research</a>
+      <a class="nav-link" href="index.html">Charts</a>
+    </nav>
+    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+  </header>
+
+  <div class="pulse-bar">
+    <div class="pulse-item" id="pulse-SPY">
+      <span class="pulse-label">S&amp;P 500</span>
+      <span class="pulse-price">—</span>
+      <span class="pulse-change">—</span>
+    </div>
+    <div class="pulse-item" id="pulse-QQQ">
+      <span class="pulse-label">NASDAQ 100</span>
+      <span class="pulse-price">—</span>
+      <span class="pulse-change">—</span>
+    </div>
+    <div class="pulse-item" id="pulse-BTC">
+      <span class="pulse-label">Bitcoin</span>
+      <span class="pulse-price">—</span>
+      <span class="pulse-change">—</span>
+    </div>
+    <div class="pulse-item" id="pulse-EUR">
+      <span class="pulse-label">EUR/USD</span>
+      <span class="pulse-price">—</span>
+      <span class="pulse-change">—</span>
+    </div>
+    <div class="pulse-item" id="pulse-GOLD">
+      <span class="pulse-label">Gold</span>
+      <span class="pulse-price">—</span>
+      <span class="pulse-change">—</span>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- Hero -->
+    <section class="hero" id="heroSection">
+      <div class="hero-inner">
+        <div class="hero-text">
+          <h1>Institutional AI Research</h1>
+          <p>Hedge fund–grade analysis on any stock, forex pair, or crypto. Multi-framework, probabilistic, unbiased.</p>
+        </div>
+        <div class="search-wrap">
+          <div class="search-box">
+            <div class="search-field">
+              <input type="text" id="symInput" placeholder="AAPL, EUR/USD, BTC/USD, NVDA..." autocomplete="off" spellcheck="false" />
+              <span class="type-pill" id="typePill"></span>
+            </div>
+            <button class="analyse-btn" id="analyseBtn">
+              Deep Analyse
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="quick-picks">
+            <span>Try:</span>
+            <button onclick="quickPick('NVDA')">NVDA</button>
+            <button onclick="quickPick('AAPL')">AAPL</button>
+            <button onclick="quickPick('BTC/USD')">BTC/USD</button>
+            <button onclick="quickPick('EUR/USD')">EUR/USD</button>
+            <button onclick="quickPick('TSLA')">TSLA</button>
+            <button onclick="quickPick('GLD')">GLD</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading -->
+    <section class="loading-section" id="loadingSection" style="display:none">
+      <div class="loader-card">
+        <p class="loader-sym" id="loaderSym"></p>
+        <div class="loader-ring"></div>
+        <div class="loader-steps">
+          <div class="loader-step" id="ls1">Fetching price history &amp; market data</div>
+          <div class="loader-step" id="ls2">Computing technical indicators</div>
+          <div class="loader-step" id="ls3">Pulling news, fundamentals &amp; macro context</div>
+          <div class="loader-step" id="ls4">Running institutional AI framework analysis</div>
+          <div class="loader-step" id="ls5">Building probabilistic report</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error -->
+    <section class="error-section" id="errorSection" style="display:none">
+      <div class="error-card">
+        <div class="error-icon">⚠</div>
+        <p id="errorMsg">Something went wrong.</p>
+        <button onclick="resetState()">Try Again</button>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ RESULTS ══ -->
+    <section class="results-section" id="resultsSection" style="display:none">
+
+      <!-- 1 · Verdict + Quick Stats -->
+      <div class="verdict-row">
+        <div class="verdict-card">
+          <div class="vc-header">
+            <div>
+              <div class="vc-symbol" id="vcSymbol">—</div>
+              <div class="vc-name"   id="vcName">—</div>
+            </div>
+            <div class="vc-type-badge" id="vcTypeBadge"></div>
+          </div>
+          <div class="vc-price-row">
+            <span class="vc-price" id="vcPrice">—</span>
+            <span class="vc-chg"   id="vcChg">—</span>
+          </div>
+          <div class="vc-verdict-wrap">
+            <div class="verdict-badge" id="verdictBadge">—</div>
+            <div class="confidence-wrap">
+              <div class="conf-label">AI Confidence</div>
+              <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+              <div class="conf-pct" id="confPct">—</div>
+            </div>
+          </div>
+          <p class="vc-thesis" id="vcThesis"></p>
+          <div class="conf-not-higher" id="confNotHigher"></div>
+        </div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+
+      <!-- 2 · Macro Environment -->
+      <div class="a-card macro-card">
+        <div class="a-card-header">
+          <span class="a-icon">🌐</span>
+          <h2>Macro Environment &amp; Market Regime</h2>
+          <span class="regime-badge" id="regimeBadge"></span>
+        </div>
+        <p class="a-text" id="macroText"></p>
+      </div>
+
+      <!-- 3 · Technical + Fundamental -->
+      <div class="analysis-row">
+        <div class="a-card">
+          <div class="a-card-header">
+            <span class="a-icon">📈</span>
+            <h2>Technical Analysis</h2>
+          </div>
+          <div class="indicators-strip" id="indicatorsStrip"></div>
+          <p class="a-text" id="techText"></p>
+        </div>
+        <div class="a-card">
+          <div class="a-card-header">
+            <span class="a-icon">📊</span>
+            <h2 id="fundTitle">Fundamental Analysis</h2>
+            <span class="valuation-badge" id="valuationBadge"></span>
+          </div>
+          <div class="fund-grid" id="fundGrid"></div>
+          <p class="a-text" id="fundText"></p>
+        </div>
+      </div>
+
+      <!-- 4 · Sentiment + Catalysts -->
+      <div class="analysis-row">
+        <div class="a-card">
+          <div class="a-card-header">
+            <span class="a-icon">🧠</span>
+            <h2>Sentiment &amp; Positioning</h2>
+            <span class="sentiment-badge" id="sentimentBadge"></span>
+          </div>
+          <p class="a-text" id="sentText"></p>
+        </div>
+        <div class="a-card">
+          <div class="a-card-header">
+            <span class="a-icon">⚡</span>
+            <h2>Catalysts &amp; News</h2>
+          </div>
+          <p class="a-text" id="catalystText"></p>
+          <div class="news-grid" id="newsGrid"></div>
+        </div>
+      </div>
+
+      <!-- 5 · Probabilistic Scenarios -->
+      <div class="a-card">
+        <div class="a-card-header">
+          <span class="a-icon">🎲</span>
+          <h2>Probabilistic Scenario Modeling</h2>
+          <span class="ev-badge" id="evBadge"></span>
+        </div>
+        <div class="scenario-grid" id="scenarioGrid"></div>
+      </div>
+
+      <!-- 6 · Risk Analysis -->
+      <div class="a-card risk-card">
+        <div class="a-card-header">
+          <span class="a-icon">⚠️</span>
+          <h2>Risk Analysis</h2>
+        </div>
+        <p class="a-text" id="riskText"></p>
+      </div>
+
+      <!-- 7 · Time Horizons -->
+      <div class="a-card">
+        <div class="a-card-header">
+          <span class="a-icon">⏱</span>
+          <h2>Outlook by Time Horizon</h2>
+        </div>
+        <div class="horizon-grid" id="horizonGrid"></div>
+      </div>
+
+      <!-- 8 · Risk-Managed Strategy -->
+      <div class="a-card trade-card">
+        <div class="a-card-header">
+          <span class="a-icon">🎯</span>
+          <h2>Risk-Managed Strategy</h2>
+        </div>
+        <div class="trade-levels" id="tradeLevels"></div>
+        <div class="strategy-grid" id="strategyGrid"></div>
+        <p class="trade-tf" id="tradeTf"></p>
+        <p class="disclaimer">AI-generated institutional analysis — informational purposes only. Not financial advice. Manage your own risk.</p>
+      </div>
+
+      <!-- 9 · Key Drivers + Invalidation -->
+      <div class="analysis-row">
+        <div class="a-card">
+          <div class="a-card-header">
+            <span class="a-icon">🔑</span>
+            <h2>Key Drivers</h2>
+          </div>
+          <ul class="key-list" id="keyReasonsList"></ul>
+        </div>
+        <div class="a-card invalidation-card">
+          <div class="a-card-header">
+            <span class="a-icon">🔄</span>
+            <h2>Invalidation Conditions</h2>
+          </div>
+          <ul class="invalidation-list" id="invalidationList"></ul>
+          <p class="a-text" id="changeViewText"></p>
+        </div>
+      </div>
+
+      <div class="new-search-wrap">
+        <button class="new-search-btn" onclick="resetState()">← Research Another Symbol</button>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="./dashboard.js"></script>
+</body>
+</html>
