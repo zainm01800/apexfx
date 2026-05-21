@@ -720,7 +720,7 @@ Respond ONLY with valid JSON — no markdown, no text before or after the JSON:
 {
   "verdict": "...",
   "confidence_level": "Low|Moderate|High|Very High",
-  "confidence_score": <0-100>,
+  "confidence_score": <integer 0-100. Calibration: 85-100=extremely rare, near-perfect alignment across all frameworks; 70-84=strong conviction, most signals aligned; 55-69=moderate conviction, meaningful uncertainty exists; 40-54=low conviction, conflicting signals; below 40=near-NO_EDGE. Do NOT default to 60. Score must reflect the actual evidence strength.>,
   "executive_summary": "3-4 sentence institutional overview of the opportunity/risk",
   "macro_environment": "3-4 sentences on macro regime and specific impact on this asset",
   "macro_regime": "risk-on|risk-off|late-cycle|recessionary|expansionary|euphoric|fearful|liquidity-driven|fundamentally-driven",
