@@ -290,26 +290,79 @@ function calcFibExtensions(bars) {
   }
 }
 
-// ── Per-ticker localStorage memory ───────────────────────────────────────────
-function memKey(sym) { return 'apexfx_v2_' + sym.replace(/[^A-Z0-9]/gi, '_').toUpperCase(); }
-function loadTickerMemory(sym) {
-  try { return JSON.parse(localStorage.getItem(memKey(sym))) || null; } catch { return null; }
-}
-function saveTickerMemory(sym, analysis, price) {
+// ── Supabase-backed analysis memory ──────────────────────────────────────────
+// Fetches prior analyses for a symbol from Supabase (falls back to [] on error)
+async function fetchTickerMemory(sym) {
   try {
-    const prev = loadTickerMemory(sym) || { history: [] };
-    prev.history = [{
-      date:       new Date().toISOString().slice(0, 10),
-      price:      +price.toFixed(4),
-      verdict:    analysis.verdict,
-      confidence: analysis.confidence_score,
-      target:     analysis.target_price,
-      entry:      analysis.entry_zone,
-      stop:       analysis.stop_loss,
-      summary:    (analysis.executive_summary || '').slice(0, 250),
-    }, ...prev.history].slice(0, 10);
-    localStorage.setItem(memKey(sym), JSON.stringify(prev));
-  } catch {}
+    const r = await fetch(`/api/memory?sym=${encodeURIComponent(sym)}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+// Saves a completed analysis to Supabase (fire-and-forget — don't await in UI flow)
+function saveToMemory(sym, type, analysis, price) {
+  fetch('/api/memory', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      symbol:       sym,
+      asset_type:   type,
+      price:        +price.toFixed(4),
+      verdict:      analysis.verdict,
+      confidence:   analysis.confidence_score,
+      target_price: analysis.target_price  || null,
+      entry_zone:   analysis.entry_zone    || null,
+      stop_loss:    analysis.stop_loss     || null,
+      risk_reward:  analysis.risk_reward   || null,
+      summary:      (analysis.executive_summary || '').slice(0, 500),
+    }),
+  }).catch(() => {}); // silent fail — memory is best-effort
+}
+
+// Resolve outcomes of pending analyses using actual candle data.
+// Called after candles are fetched — checks if TP or SL was hit since analysis date.
+function resolveOutcomes(pendingRows, candles) {
+  pendingRows.forEach(row => {
+    if (row.outcome !== 'pending' || !row.analysis_date) return;
+    const analysisTs = new Date(row.analysis_date).getTime() / 1000;
+    // Only look at bars after the analysis date
+    const barsAfter = candles.filter(b => b.time > analysisTs);
+    if (!barsAfter.length) return;
+
+    const tp  = parseFloat(row.target_price);
+    const sl  = parseFloat(row.stop_loss);
+    const ageMs = Date.now() - new Date(row.analysis_date).getTime();
+    const ageDays = ageMs / 86400000;
+
+    let outcome = null, outcomePrice = null;
+
+    if (!isNaN(tp) && !isNaN(sl)) {
+      for (const b of barsAfter) {
+        if (b.high >= tp)  { outcome = 'tp_hit'; outcomePrice = tp;  break; }
+        if (b.low  <= sl)  { outcome = 'sl_hit'; outcomePrice = sl;  break; }
+      }
+    }
+    if (!outcome && ageDays > 30) outcome = 'expired';
+    if (!outcome) return; // still genuinely pending
+
+    // PATCH outcome back to Supabase (fire-and-forget)
+    fetch('/api/memory', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id:            row.id,
+        outcome,
+        outcome_price: outcomePrice,
+        outcome_date:  new Date().toISOString().slice(0, 10),
+      }),
+    }).catch(() => {});
+
+    // Update row locally so the UI reflects it immediately
+    row.outcome = outcome;
+    row.outcome_price = outcomePrice;
+  });
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
@@ -713,13 +766,14 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   // ── Prior memory badge ──
   const memBadge = document.getElementById('memoryBadge');
   if (memBadge) {
-    const prev = tickerMemory?.history?.[0];
+    const prev = Array.isArray(tickerMemory) && tickerMemory.length ? tickerMemory[0] : null;
     if (prev) {
-      const priceNow = candles[candles.length - 1]?.close;
+      const priceNow  = candles[candles.length - 1]?.close;
       const priceThen = prev.price;
-      const chgSince = priceThen ? ((priceNow - priceThen) / priceThen * 100).toFixed(1) : null;
+      const chgSince  = priceThen ? ((priceNow - priceThen) / priceThen * 100).toFixed(1) : null;
+      const outcomeIcon = prev.outcome === 'tp_hit' ? '✅' : prev.outcome === 'sl_hit' ? '❌' : prev.outcome === 'expired' ? '⏱' : '⏳';
       memBadge.style.display = '';
-      memBadge.innerHTML = `<span class="mem-icon">🧠</span> Last analysed ${prev.date} at $${prev.price} — <strong>${prev.verdict}</strong> (${prev.confidence}% conf)${chgSince != null ? ` · Price ${chgSince >= 0 ? '+' : ''}${chgSince}% since` : ''}`;
+      memBadge.innerHTML = `<span class="mem-icon">🧠</span> Last analysed <strong>${prev.analysis_date}</strong> at $${prev.price} — <strong>${prev.verdict}</strong> (${prev.confidence}% conf) ${outcomeIcon}${chgSince != null ? ` · Price ${Number(chgSince) >= 0 ? '+' : ''}${chgSince}% since` : ''} · ${tickerMemory.length} prior ${tickerMemory.length === 1 ? 'analysis' : 'analyses'} in memory`;
     } else {
       memBadge.style.display = 'none';
     }
@@ -794,12 +848,18 @@ async function startResearch() {
 
     setStep(3);
 
-    // ── Step 3: News, fundamentals, macro context in parallel ──
-    const [news, quote, macroCtx] = await Promise.all([
+    // ── Step 3: News, fundamentals, macro context + memory — all in parallel ──
+    const [news, quote, macroCtx, supaMemory] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
+      fetchTickerMemory(sym),
     ]);
+
+    // Resolve outcomes of pending analyses now that we have fresh candles
+    const pendingRows = (supaMemory || []).filter(r => r.outcome === 'pending');
+    if (pendingRows.length) resolveOutcomes(pendingRows, candles);
+    const tickerMemory = supaMemory; // alias for readability below
 
     setStep(4);
 
@@ -809,7 +869,6 @@ async function startResearch() {
     const historicalScan = runHistoricalScan(candles);
     const newsImpact     = analyzeNewsImpact(news, candles);
     const fibExt         = calcFibExtensions(candles);
-    const tickerMemory   = loadTickerMemory(sym);
 
     // Raw daily OHLCV (last 20 bars — enough for pattern recognition, keeps tokens low)
     const ohlcvTable = candles.slice(-20).map(b =>
@@ -849,11 +908,15 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
         ).join('\n')
       : '';
 
-    // Memory block (prior analyses for this ticker)
-    const memoryBlock = tickerMemory?.history?.length
-      ? `\n━━━ PRIOR ANALYSIS MEMORY (${sym}) ━━━\n` + tickerMemory.history.slice(0, 3).map(h =>
-          `• ${h.date}: Price $${h.price} | Verdict: ${h.verdict} (${h.confidence}% conf) | Target: ${h.target || 'N/A'} | Entry: ${h.entry || 'N/A'} | Stop: ${h.stop || 'N/A'}`
-        ).join('\n')
+    // Memory block (prior analyses for this ticker — from Supabase)
+    const memoryBlock = Array.isArray(tickerMemory) && tickerMemory.length
+      ? `\n━━━ PRIOR ANALYSIS MEMORY (${sym}) ━━━\n` + tickerMemory.slice(0, 5).map(h => {
+          const outcomeStr = h.outcome === 'tp_hit' ? '✅ TP HIT'
+            : h.outcome === 'sl_hit'  ? '❌ SL HIT'
+            : h.outcome === 'expired' ? '⏱ EXPIRED (neither TP nor SL hit in 30d)'
+            : '⏳ PENDING';
+          return `• ${h.analysis_date}: $${h.price} → ${h.verdict} (${h.confidence}% conf) | Target: ${h.target_price || 'N/A'} | Stop: ${h.stop_loss || 'N/A'} | Outcome: ${outcomeStr}`;
+        }).join('\n')
       : '';
 
     // Fundamentals block (stocks only)
@@ -1059,8 +1122,8 @@ Respond ONLY with valid JSON. No text before or after.
       throw new Error('AI returned an unexpected response format. Please try again.');
     }
 
-    // Save this analysis to per-ticker memory for future context
-    saveTickerMemory(sym, analysis, curr);
+    // Save this analysis to Supabase memory (fire-and-forget)
+    saveToMemory(sym, type, analysis, curr);
 
     renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory });
     document.getElementById('analyseBtn').disabled = false;
