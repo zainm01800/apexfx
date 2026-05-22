@@ -285,6 +285,16 @@ body {
 .ind-chip .ic-val.bull    { color: var(--green); }
 .ind-chip .ic-val.bear    { color: var(--red); }
 .ind-chip .ic-val.neutral { color: var(--orange); }
+.ind-badge { display: flex; align-items: center; gap: 5px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 5px; padding: 4px 9px; font-size: 11px; font-family: var(--mono); font-weight: 700; }
+.ind-badge.bull { border-color: rgba(0,217,126,0.3); }
+.ind-badge.bear { border-color: rgba(255,66,85,0.3); }
+.ind-badge.neutral { border-color: rgba(255,170,0,0.3); }
+.ind-badge .ind-label { color: var(--text3); font-weight: 500; margin-right: 2px; }
+.ind-badge .ind-val { font-weight: 700; }
+.ind-badge.bull .ind-val { color: var(--green); }
+.ind-badge.bear .ind-val { color: var(--red); }
+.ind-badge.neutral .ind-val { color: var(--orange); }
+.ind-badge .ind-sub { color: var(--text3); font-size: 10px; font-weight: 400; }
 
 /* ── Fundamentals ── */
 .fund-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }

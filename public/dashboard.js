@@ -182,6 +182,96 @@ function calcVolTrend(bars) {
   const a20 = bars.slice(-20).reduce((s, b) => s + b.volume, 0) / 20;
   return r5 > a20 * 1.4 ? 'rising' : r5 < a20 * 0.6 ? 'falling' : 'normal';
 }
+function calcADX(bars, period = 14) {
+  if (bars.length < period * 2 + 2) return null;
+  const dmP = [], dmM = [], tr = [];
+  for (let i = 1; i < bars.length; i++) {
+    const h = bars[i].high, l = bars[i].low;
+    const ph = bars[i-1].high, pl = bars[i-1].low, pc = bars[i-1].close;
+    const up = h - ph, dn = pl - l;
+    dmP.push(up > dn && up > 0 ? up : 0);
+    dmM.push(dn > up && dn > 0 ? dn : 0);
+    tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+  }
+  const ws = (arr, p) => {
+    let s = arr.slice(0, p).reduce((a, b) => a + b, 0);
+    const r = [s];
+    for (let i = p; i < arr.length; i++) { s = s - s / p + arr[i]; r.push(s); }
+    return r;
+  };
+  const sTR = ws(tr, period), sDMP = ws(dmP, period), sDMM = ws(dmM, period);
+  const dx = sTR.map((t, i) => {
+    if (t === 0) return 0;
+    const diP = 100 * sDMP[i] / t, diM = 100 * sDMM[i] / t;
+    const s = diP + diM;
+    return s > 0 ? 100 * Math.abs(diP - diM) / s : 0;
+  });
+  if (dx.length < period) return null;
+  let adx = dx.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < dx.length; i++) adx = (adx * (period - 1) + dx[i]) / period;
+  return Math.round(adx);
+}
+
+function calcBBWidthPct(closes, period = 20) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  const std = Math.sqrt(slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period);
+  return mean > 0 ? +((4 * std / mean) * 100).toFixed(2) : null;
+}
+
+function calcVolumeProfile(bars) {
+  const lookback = bars.slice(-60);
+  if (lookback.length < 10) return null;
+  const buckets = 30;
+  const hi = Math.max(...lookback.map(b => b.high));
+  const lo = Math.min(...lookback.map(b => b.low));
+  const range = hi - lo;
+  if (range <= 0) return null;
+  const size = range / buckets;
+  const vol = new Array(buckets).fill(0);
+  lookback.forEach(bar => {
+    const barRange = bar.high - bar.low || 0.0001;
+    for (let i = 0; i < buckets; i++) {
+      const bLo = lo + i * size, bHi = bLo + size;
+      const overlap = Math.max(0, Math.min(bar.high, bHi) - Math.max(bar.low, bLo));
+      vol[i] += bar.volume * (overlap / barRange);
+    }
+  });
+  const pocIdx = vol.indexOf(Math.max(...vol));
+  const poc = lo + (pocIdx + 0.5) * size;
+  const totalVol = vol.reduce((a, b) => a + b, 0);
+  let cumVol = 0, vaLo = pocIdx, vaHi = pocIdx;
+  const target = totalVol * 0.70;
+  let lo2 = pocIdx, hi2 = pocIdx;
+  cumVol = vol[pocIdx];
+  while (cumVol < target && (lo2 > 0 || hi2 < buckets - 1)) {
+    const nextLo = lo2 > 0 ? vol[lo2 - 1] : -Infinity;
+    const nextHi = hi2 < buckets - 1 ? vol[hi2 + 1] : -Infinity;
+    if (nextHi >= nextLo && hi2 < buckets - 1) { hi2++; cumVol += vol[hi2]; }
+    else if (lo2 > 0) { lo2--; cumVol += vol[lo2]; }
+    else break;
+  }
+  return {
+    poc:  +poc.toFixed(4),
+    vah:  +(lo + (hi2 + 1) * size).toFixed(4),
+    val:  +(lo + lo2 * size).toFixed(4),
+  };
+}
+
+function calcRelStrength(assetCloses, benchCloses) {
+  if (!assetCloses?.length || !benchCloses?.length) return null;
+  const n = Math.min(assetCloses.length, benchCloses.length);
+  const ac = assetCloses.slice(-n), bc = benchCloses.slice(-n);
+  const ret = (arr, days) => arr.length > days
+    ? ((arr[arr.length-1] - arr[arr.length-1-days]) / arr[arr.length-1-days] * 100)
+    : null;
+  const rs1w  = ret(ac,5)  != null && ret(bc,5)  != null ? +(ret(ac,5)  - ret(bc,5) ).toFixed(2) : null;
+  const rs1m  = ret(ac,21) != null && ret(bc,21) != null ? +(ret(ac,21) - ret(bc,21)).toFixed(2) : null;
+  const rs3m  = ret(ac,63) != null && ret(bc,63) != null ? +(ret(ac,63) - ret(bc,63)).toFixed(2) : null;
+  return { rs1w, rs1m, rs3m };
+}
+
 function getTrend(c, sma20, sma50) {
   if (!sma20 || !sma50) return 'sideways';
   const p = c[c.length - 1];
@@ -288,6 +378,17 @@ function calcFibExtensions(bars) {
       e2618: +(high + range * 1.618).toFixed(dp),
     };
   }
+}
+
+async function fetchFearGreed() {
+  try {
+    const res = await fetch('https://api.alternative.me/fng/?limit=1');
+    if (!res.ok) return null;
+    const d = await res.json();
+    const item = d?.data?.[0];
+    if (!item) return null;
+    return { value: Number(item.value), label: item.value_classification };
+  } catch { return null; }
 }
 
 // ── Supabase-backed analysis memory ──────────────────────────────────────────
@@ -531,7 +632,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -572,7 +673,8 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   const chg7d  = closes.length > 7  ? (curr - closes[closes.length - 8])  / closes[closes.length - 8]  * 100 : null;
   const chg30d = closes.length > 30 ? (curr - closes[closes.length - 31]) / closes[closes.length - 31] * 100 : null;
 
-  document.getElementById('statsGrid').innerHTML = [
+  const statsGrid = document.getElementById('statsGrid');
+  statsGrid.innerHTML = [
     { l: 'RSI (14)',    v: rsi  != null ? String(rsi)     : '—', c: rsi  ? (rsi > 70  ? 'down' : rsi < 30  ? 'up' : 'neutral') : '' },
     { l: '7-Day',      v: chg7d  != null ? fmtPct(chg7d)  : '—', c: chg7d  != null ? (chg7d  >= 0 ? 'up' : 'down') : '' },
     { l: '30-Day',     v: chg30d != null ? fmtPct(chg30d) : '—', c: chg30d != null ? (chg30d >= 0 ? 'up' : 'down') : '' },
@@ -580,6 +682,22 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     { l: 'Resistance', v: resistances[0] != null ? fmtPrice(resistances[0], type) : '—', c: '' },
     { l: 'ATR (14)',   v: atr != null ? fmtPrice(atr, type) : '—', c: '' },
   ].map(s => `<div class="stat-item"><div class="stat-label">${s.l}</div><div class="stat-value ${s.c}">${s.v}</div></div>`).join('');
+
+  // Fear & Greed
+  if (fearGreed) {
+    const fgClass = fearGreed.value <= 30 ? 'up' : fearGreed.value >= 70 ? 'down' : '';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Fear &amp; Greed</div><div class="stat-value ${fgClass}">${fearGreed.value} — ${fearGreed.label}</div></div>`;
+  }
+  // Relative Strength
+  if (relStr?.rs1m != null) {
+    const rsClass = relStr.rs1m > 2 ? 'up' : relStr.rs1m < -2 ? 'down' : '';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">vs ${benchName} (1M)</div><div class="stat-value ${rsClass}">${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%</div></div>`;
+  }
+  // Volume Profile POC
+  if (volProfile) {
+    const pocAbove = candles[candles.length-1].close > volProfile.poc;
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Vol Profile POC</div><div class="stat-value ${pocAbove ? 'up' : 'down'}">${volProfile.poc} (${pocAbove ? 'above' : 'below'})</div></div>`;
+  }
 
   // ── Macro ──
   const reg = (a.macro_regime || '').toLowerCase().replace(/[_ ]/g, '-');
@@ -613,9 +731,20 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     ...(wTrend ? [{ l: 'Wkly',     v: wTrend, c: wTrend.includes('bull') ? 'bull' : 'bear' }] : []),
     ...(wRSI != null ? [{ l: 'Wkly RSI', v: String(wRSI), c: wRSI > 70 ? 'bear' : wRSI < 30 ? 'bull' : 'neutral' }] : []),
   ];
-  document.getElementById('indicatorsStrip').innerHTML = chips.map(c =>
+  const strip = document.getElementById('indicatorsStrip');
+  strip.innerHTML = chips.map(c =>
     `<div class="ind-chip"><span class="ic-lbl">${c.l}</span><span class="ic-val ${c.c}">${c.v}</span></div>`
   ).join('');
+
+  // ADX badge
+  if (adx != null) {
+    const adxClass = adx > 25 ? 'bull' : adx < 15 ? 'bear' : 'neutral';
+    strip.innerHTML += `<div class="ind-badge ${adxClass}"><span class="ind-label">ADX</span><span class="ind-val">${adx}</span><span class="ind-sub">${adx > 25 ? 'Strong' : adx > 15 ? 'Moderate' : 'Weak'}</span></div>`;
+  }
+  // BB Squeeze badge
+  if (bbWidth != null && bbWidth < 3) {
+    strip.innerHTML += `<div class="ind-badge neutral"><span class="ind-label">BB</span><span class="ind-val">SQUEEZE</span><span class="ind-sub">Breakout near</span></div>`;
+  }
 
   setText('techText', a.technical_analysis || '');
 
@@ -628,7 +757,8 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   vb.className   = `valuation-badge ${val}`;
 
   if (quote && type === 'Stock') {
-    document.getElementById('fundGrid').innerHTML = [
+    const fundGrid = document.getElementById('fundGrid');
+    fundGrid.innerHTML = [
       { k: 'Market Cap',     v: fmtMCap(quote.marketCap) },
       { k: 'P/E (TTM)',      v: quote.pe        ? fmtNum(quote.pe, 1) + 'x'        : '—' },
       { k: 'Forward P/E',   v: quote.forwardPE  ? fmtNum(quote.forwardPE, 1) + 'x' : '—' },
@@ -640,6 +770,15 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
       { k: 'Earn Growth',    v: quote.earningsGrowth ? fmtPct(quote.earningsGrowth * 100) : '—' },
       { k: 'Analyst Target', v: quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPrice) : '—' },
     ].map(i => `<div class="fund-item"><span class="fund-key">${i.k}</span><span class="fund-val">${i.v}</span></div>`).join('');
+    if (quote?.metrics) {
+      const m = quote.metrics;
+      if (m.debtEquityAnnual  != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">D/E Ratio</span><span class="fund-val">${fmtNum(m.debtEquityAnnual,2)}x</span></div>`;
+      if (m.evEbitdaAnnual    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">EV/EBITDA</span><span class="fund-val">${fmtNum(m.evEbitdaAnnual,1)}x</span></div>`;
+      if (m.psAnnual          != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">P/S Ratio</span><span class="fund-val">${fmtNum(m.psAnnual,1)}x</span></div>`;
+      if (m.fcfPerShareAnnual != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">FCF/Share</span><span class="fund-val">$${fmtNum(m.fcfPerShareAnnual)}</span></div>`;
+      if (m.grossMarginTTM    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Gross Margin</span><span class="fund-val">${fmtPct(m.grossMarginTTM*100)}</span></div>`;
+      if (m.roeTTM            != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">ROE (TTM)</span><span class="fund-val">${fmtPct(m.roeTTM*100)}</span></div>`;
+    }
   } else {
     document.getElementById('fundGrid').innerHTML = '';
   }
@@ -852,7 +991,7 @@ async function startResearch() {
     'Fetching multi-timeframe price history',
     'Computing 15+ technical indicators',
     'Pulling fundamentals, news, macro & memory',
-    'Running 4 specialist AI agents in parallel…',
+    'Running 4 specialist agents + debate round…',
     'Investment committee synthesising final verdict',
   ].forEach((t, i) => { const el = document.getElementById(`ls${i + 1}`); if (el) el.textContent = t; });
 
@@ -860,9 +999,10 @@ async function startResearch() {
 
   try {
     // ── Step 1: Daily + weekly candles in parallel ──
-    const [candles, weeklyCandles] = await Promise.all([
+    const [candles, weeklyCandles, benchCandles] = await Promise.all([
       fetchCandles(sym, type),
       fetchWeeklyCandles(sym, type),
+      type !== 'Forex' ? fetchCandles(type === 'Crypto' ? 'BTC/USD' : 'SPY', type === 'Crypto' ? 'Crypto' : 'ETF').catch(() => null) : Promise.resolve(null),
     ]);
     if (!candles || candles.length < 30) throw new Error(`No price data found for "${sym}". Check the symbol and try again.`);
     setStep(2);
@@ -897,14 +1037,21 @@ async function startResearch() {
     const wCurr   = wCloses?.[wCloses.length - 1];
     const wTrend  = wCloses && wCurr && wSMA20 ? (wCurr > wSMA20 ? 'bullish' : 'bearish') : null;
 
+    const adx       = calcADX(candles);
+    const bbWidth   = calcBBWidthPct(closes);
+    const volProfile= calcVolumeProfile(candles);
+    const relStr    = sym !== 'SPY' && sym !== 'BTC/USD' ? calcRelStrength(closes, benchCandles?.map(c => c.close)) : null;
+    const benchName = type === 'Crypto' ? 'BTC' : 'SPY';
+
     setStep(3);
 
     // ── Step 3: News, fundamentals, macro context + memory — all in parallel ──
-    const [news, quote, macroCtx, supaMemory] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
       fetchTickerMemory(sym),
+      fetchFearGreed(),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -996,6 +1143,18 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
           `${e.period}: ${e.surprisePct != null ? (e.surprisePct > 0 ? '+' : '') + e.surprisePct + '%' : 'N/A'}`
         ).join(' | ')}`;
       }
+      if (quote?.metrics) {
+        const m = quote.metrics;
+        const parts = [];
+        if (m.fcfPerShareAnnual != null) parts.push(`FCF/Share: $${fmtNum(m.fcfPerShareAnnual)}`);
+        if (m.debtEquityAnnual  != null) parts.push(`D/E: ${fmtNum(m.debtEquityAnnual, 2)}x`);
+        if (m.evEbitdaAnnual    != null) parts.push(`EV/EBITDA: ${fmtNum(m.evEbitdaAnnual, 1)}x`);
+        if (m.psAnnual          != null) parts.push(`P/S: ${fmtNum(m.psAnnual, 1)}x`);
+        if (m.roeTTM            != null) parts.push(`ROE: ${fmtPct(m.roeTTM * 100)}`);
+        if (m.grossMarginTTM    != null) parts.push(`Gross Margin: ${fmtPct(m.grossMarginTTM * 100)}`);
+        if (m.netProfitMarginTTM!= null) parts.push(`Net Margin: ${fmtPct(m.netProfitMarginTTM * 100)}`);
+        if (parts.length) fundBlock += `\n${parts.join(' | ')}`;
+      }
     }
 
     const newsText = news.slice(0, 6).map(n =>
@@ -1046,7 +1205,8 @@ SMA50:  ${sma50?.toFixed(dp) || 'N/A'} → price ${sma50 ? (curr > sma50 ? 'ABOV
 SMA200: ${sma200?.toFixed(dp) || 'N/A'} → price ${sma200 ? (curr > sma200 ? 'ABOVE ↑ (long-term uptrend)' : 'BELOW ↓ (long-term downtrend)') : 'N/A'}
 Bollinger Bands (20,2σ): Upper ${bb?.upper ?? 'N/A'} | Mid ${bb?.middle ?? 'N/A'} | Lower ${bb?.lower ?? 'N/A'} | %B: ${bb?.pctB ?? 'N/A'}%${bb != null ? (bb.pctB > 80 ? ' (near upper — overbought)' : bb.pctB < 20 ? ' (near lower — oversold)' : '') : ''}
 StochRSI(14): ${stochRsi ?? 'N/A'}${stochRsi != null ? (stochRsi > 80 ? ' ⚠ OVERBOUGHT' : stochRsi < 20 ? ' ⚠ OVERSOLD' : '') : ''}
-ATR(14): ${atr?.toFixed(dp) || 'N/A'} | Volume: ${volTrnd} | OBV: ${obv}
+ATR(14): ${atr?.toFixed(dp) || 'N/A'} | ADX(14): ${adx != null ? adx + (adx > 25 ? ' (strong trend)' : adx > 15 ? ' (developing trend)' : ' (weak/no trend)') : 'N/A'}
+BB Width: ${bbWidth != null ? bbWidth + '%' + (bbWidth < 3 ? ' ⚡ SQUEEZE — breakout imminent' : bbWidth > 8 ? ' (expanded — high vol)' : ' (normal)') : 'N/A'} | Volume: ${volTrnd} | OBV: ${obv}
 ${srText}
 ${fibText}
 ${fibExtText ? fibExtText : ''}
@@ -1058,6 +1218,15 @@ Weekly SMA20: ${wSMA20?.toFixed(dp) || 'N/A'} | Weekly SMA50: ${wSMA50?.toFixed(
 
 WEEKLY OHLCV (last 8 weeks, oldest→newest):
 ${weeklyTable}
+
+${relStr ? `\n━━━ RELATIVE STRENGTH vs ${benchName} ━━━
+1W RS: ${relStr.rs1w != null ? (relStr.rs1w > 0 ? '+' : '') + relStr.rs1w + '%' : 'N/A'} | 1M RS: ${relStr.rs1m != null ? (relStr.rs1m > 0 ? '+' : '') + relStr.rs1m + '%' : 'N/A'} | 3M RS: ${relStr.rs3m != null ? (relStr.rs3m > 0 ? '+' : '') + relStr.rs3m + '%' : 'N/A'}
+${relStr.rs1m != null ? (relStr.rs1m > 5 ? 'Significantly OUTPERFORMING benchmark' : relStr.rs1m < -5 ? 'Significantly UNDERPERFORMING benchmark' : 'In line with benchmark') : ''}` : ''}
+${volProfile ? `\n━━━ VOLUME PROFILE (60-day) ━━━
+POC (Point of Control): ${volProfile.poc} | VAH: ${volProfile.vah} | VAL: ${volProfile.val}
+${curr > volProfile.poc ? 'Price ABOVE POC — buyers in control of value area' : 'Price BELOW POC — sellers in control of value area'}` : ''}
+${fearGreed ? `\n━━━ MARKET SENTIMENT ━━━
+Fear & Greed Index: ${fearGreed.value}/100 (${fearGreed.label})${fearGreed.value <= 25 ? ' — EXTREME FEAR: historically excellent buy zone' : fearGreed.value >= 75 ? ' — EXTREME GREED: historically risky entry, elevated correction risk' : fearGreed.value <= 40 ? ' — Fear: cautious market, potential opportunity' : fearGreed.value >= 60 ? ' — Greed: elevated sentiment, watch for reversals' : ' — Neutral: balanced market sentiment'}` : ''}
 
 ━━━ DAILY PRICE ACTION (last 20 bars, oldest→newest) ━━━
 ${ohlcvTable}
@@ -1157,6 +1326,24 @@ Respond ONLY with valid JSON. No text before or after.
 
     ]);
 
+    // ── Debate round: Tech vs Risk (parallel) ──────────────────────────────
+    // Two focused rebuttals that force contradiction resolution before committee
+    const [techRebuttal, riskRebuttal] = await Promise.all([
+      callAgent(
+        'You are the technical analyst. Be direct and specific. 3 sentences maximum.',
+        `The risk manager said: "${sentRaw.slice(0, 400)}"\n\nRespond only to specific technical evidence that contradicts their concerns. What do the charts/indicators actually show that addresses their risks?`,
+        1200
+      ).catch(() => null),
+      callAgent(
+        'You are the risk manager. Be direct and specific. 3 sentences maximum.',
+        `The technical analyst said: "${techRaw.slice(0, 400)}"\n\nWhat specific risks does technical optimism ignore? What has the technical analyst missed or underweighted?`,
+        1200
+      ).catch(() => null),
+    ]);
+    const debateBlock = (techRebuttal || riskRebuttal)
+      ? `\n━━━ TECH vs RISK DEBATE ━━━\nTechnical rebuttal: ${techRebuttal || 'N/A'}\nRisk rebuttal: ${riskRebuttal || 'N/A'}`
+      : '';
+
     setStep(5);
 
     // ── Committee Agent: synthesise all specialist findings → final JSON ──────
@@ -1173,8 +1360,11 @@ ${macroRaw}
 
 ━━━ RISK MANAGER (bear case / devil's advocate) ━━━
 ${sentRaw}
+${debateBlock}
 
 ━━━ ADDITIONAL CONTEXT ━━━
+${fearGreed ? `Market Fear & Greed: ${fearGreed.value}/100 (${fearGreed.label})` : ''}
+${relStr?.rs1m != null ? `${sym} 1M Relative Strength vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
 ${scanBlock || 'No historical scan data.'}
 ${memoryBlock || 'No prior analyses in memory.'}
 
@@ -1245,7 +1435,7 @@ Respond ONLY with this exact JSON structure:
     // Save this analysis to Supabase memory (fire-and-forget)
     saveToMemory(sym, type, analysis, curr);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth });
     document.getElementById('analyseBtn').disabled = false;
 
   } catch (err) {

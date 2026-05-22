@@ -129,6 +129,16 @@ export default async function handler(req) {
       targetMeanPrice:  m['targetPrice'] ?? null,
       analystRecs,
       earningsHistory,
+      metrics: {
+        fcfPerShareAnnual:    m['fcfPerShareAnnual']    ?? null,
+        debtEquityAnnual:     m['totalDebt/totalEquityAnnual'] ?? null,
+        evEbitdaAnnual:       m['evEbitdaAnnual']       ?? null,
+        psAnnual:             m['psAnnual']             ?? null,
+        roeTTM:               m['roeTTM']               ?? null,
+        grossMarginTTM:       m['grossMarginTTM']       ?? null,
+        netProfitMarginTTM:   m['netProfitMarginTTM']   ?? null,
+        currentRatioAnnual:   m['currentRatioAnnual']   ?? null,
+      },
       insiderSentiment: (() => {
         const items = insiderData?.data;
         if (!Array.isArray(items) || !items.length) return null;
