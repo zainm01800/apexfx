@@ -1548,7 +1548,7 @@ DATA:
 ${sharedData}`,
         1800
       ).then(r => parseFactors(r, `Macro data for ${sym}`))
-       .catch(() => ({ tailwinds: ['Macro data unavailable'], headwinds: [], key_signal: 'N/A', regime: 'N/A' })),
+       .catch(() => ({ tailwinds: ['Macro data unavailable'], headwinds: [], key_signal: 'N/A', regime: 'N/A' }))),
 
       // Agent 4 — Risk Manager / Devil's Advocate (starts +1050 ms)
       stagger(1050).then(() => callAgent(
@@ -1569,7 +1569,7 @@ DATA:
 ${sharedData}`,
         1800
       ).then(r => parseFactors(r, `Risk data for ${sym}`))
-       .catch(() => ({ critical_risks: ['Risk data unavailable'], underappreciated_risks: [], bear_trigger: 'N/A', max_downside: 'N/A' })),
+       .catch(() => ({ critical_risks: ['Risk data unavailable'], underappreciated_risks: [], bear_trigger: 'N/A', max_downside: 'N/A' }))),
     ]);
 
     // ── PASS 2: Cross-critique debate ─────────────────────────────────────────
