@@ -105,6 +105,7 @@ export default async function handler(req) {
   messages.push({ role: 'user', content: prompt });
 
   // ── Try Gemini first (high limits, free) ─────────────────────────────────
+  let geminiError = null;
   if (GEMINI_KEY) {
     try {
       const text = await callProvider({
@@ -118,15 +119,16 @@ export default async function handler(req) {
       });
       return new Response(JSON.stringify({ text, provider: 'gemini' }), { status: 200, headers: corsHeaders });
     } catch (e) {
-      // Gemini quota or error — fall through to Groq if available
+      // Gemini failed — surface the actual error so we can diagnose it
+      // If Groq is available, fall through; otherwise return Gemini's error
       if (!GROQ_KEY) {
-        const retryAfterMs = e.retryAfterMs || null;
         return new Response(
-          JSON.stringify({ error: e.message, retryAfterMs }),
+          JSON.stringify({ error: `Gemini error: ${e.message}`, retryAfterMs: e.retryAfterMs || null }),
           { status: e.status || 500, headers: corsHeaders }
         );
       }
-      // else: fall through to Groq
+      // Groq fallback — but also include Gemini's error in response for debugging
+      geminiError = e.message;
     }
   }
 
@@ -148,8 +150,10 @@ export default async function handler(req) {
     if (e.status === 429) {
       const mins = retryAfterMs ? Math.ceil(retryAfterMs / 60000) : null;
       msg = mins
-        ? `AI rate limit reached. Resets in ~${mins} minute${mins !== 1 ? 's' : ''}. Add a free GEMINI_API_KEY in Vercel to avoid this.`
-        : 'AI rate limit reached. Add a free GEMINI_API_KEY in Vercel environment variables to avoid limits.';
+        ? `Groq rate limit. Resets in ~${mins} min.${geminiError ? ` Gemini also failed: ${geminiError}` : ''}`
+        : `Groq rate limit reached.${geminiError ? ` Gemini also failed: ${geminiError}` : ''}`;
+    } else if (geminiError) {
+      msg = `Groq error: ${msg} | Gemini error: ${geminiError}`;
     }
     return new Response(
       JSON.stringify({ error: msg, retryAfterMs }),
