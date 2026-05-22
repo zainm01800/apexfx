@@ -71,12 +71,12 @@ export default async function handler(req) {
     if (type === 'Stock' || type === 'ETF' || type === 'Futures' || type === 'Index') {
       // Company-specific news (last 14 days)
       const clean = sym.replace(/[^A-Z0-9.]/gi, '').toUpperCase();
-      const url = `${FBASE}/company-news?symbol=${encodeURIComponent(clean)}&from=${daysAgo(14)}&to=${today()}&token=${FINNHUB_KEY}`;
+      const url = `${FBASE}/company-news?symbol=${encodeURIComponent(clean)}&from=${daysAgo(60)}&to=${today()}&token=${FINNHUB_KEY}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length) {
-          items = data.slice(0, 20).map(mapItem).filter(i => i.title);
+          items = data.slice(0, 30).map(mapItem).filter(i => i.title);
         }
       }
       // Fallback to general market news

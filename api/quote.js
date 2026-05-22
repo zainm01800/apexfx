@@ -6,6 +6,11 @@ export const config = { runtime: 'edge' };
 
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 
+function dateStr(d) { return d.toISOString().slice(0, 10); }
+function today() { return dateStr(new Date()); }
+function threeMonthsAgo() { const d = new Date(); d.setMonth(d.getMonth() - 3); return dateStr(d); }
+function ninetyDaysLater() { const d = new Date(); d.setDate(d.getDate() + 90); return dateStr(d); }
+
 function isAllowedOrigin(origin, host) {
   if (!origin) return true;
   try {
@@ -59,12 +64,14 @@ export default async function handler(req) {
   try {
     const abort = AbortSignal.timeout(14000);
 
-    const [quoteData, profileData, metricsData, recommendationData, earningsData] = await Promise.all([
+    const [quoteData, profileData, metricsData, recommendationData, earningsData, insiderData, upcomingEarningsData] = await Promise.all([
       finnhubFetch(`/quote?symbol=${encodeURIComponent(ticker)}`, abort),
       finnhubFetch(`/stock/profile2?symbol=${encodeURIComponent(ticker)}`, abort),
       finnhubFetch(`/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all`, abort),
       finnhubFetch(`/stock/recommendation?symbol=${encodeURIComponent(ticker)}`, abort),
       finnhubFetch(`/stock/earnings?symbol=${encodeURIComponent(ticker)}`, abort),
+      finnhubFetch('/stock/insider-sentiment?symbol=' + encodeURIComponent(ticker) + '&from=' + threeMonthsAgo() + '&to=' + today(), abort),
+      finnhubFetch('/calendar/earnings?from=' + today() + '&to=' + ninetyDaysLater() + '&symbol=' + encodeURIComponent(ticker), abort),
     ]);
 
     const m = metricsData?.metric || {};
@@ -122,6 +129,18 @@ export default async function handler(req) {
       targetMeanPrice:  m['targetPrice'] ?? null,
       analystRecs,
       earningsHistory,
+      insiderSentiment: (() => {
+        const items = insiderData?.data;
+        if (!Array.isArray(items) || !items.length) return null;
+        // MSPR is "Monthly Share Purchase Ratio" — positive = net buying
+        const latest = items[0];
+        return { mspr: latest?.mspr ?? null, change: latest?.change ?? null };
+      })(),
+      nextEarningsDate: (() => {
+        const arr = upcomingEarningsData?.earningsCalendar;
+        if (!Array.isArray(arr) || !arr.length) return null;
+        return arr[0]?.date || null;
+      })(),
     };
 
     return new Response(JSON.stringify(quote), { headers: corsHeaders });

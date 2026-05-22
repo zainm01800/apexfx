@@ -190,6 +190,128 @@ function getTrend(c, sma20, sma50) {
   return p > sma50 ? 'mildly bullish' : 'mildly bearish';
 }
 
+// ── Historical setup scanner ──────────────────────────────────────────────────
+// Finds every past bar with similar RSI + trend + MACD state, computes forward returns
+function runHistoricalScan(bars) {
+  if (bars.length < 80) return null;
+  const closes = bars.map(b => b.close);
+  const curRSI   = calcRSI(closes);
+  const curSMA20 = calcSMA(closes, 20);
+  const curSMA50 = calcSMA(closes, 50);
+  const curTrend = getTrend(closes, curSMA20, curSMA50);
+  const curMACD  = calcMACD(closes);
+  const curMacdPos = curMACD != null ? curMACD > 0 : null;
+  if (!curRSI) return null;
+
+  const instances = [];
+  for (let i = 60; i < bars.length - 21; i++) {
+    const hCloses = closes.slice(0, i + 1);
+    const hRSI    = calcRSI(hCloses);
+    const hSMA20  = calcSMA(hCloses, 20);
+    const hSMA50  = calcSMA(hCloses, 50);
+    const hTrend  = getTrend(hCloses, hSMA20, hSMA50);
+    const hMACD   = calcMACD(hCloses);
+    if (!hRSI) continue;
+    const rsiMatch  = Math.abs(hRSI - curRSI) <= 12;
+    const trendMatch = hTrend === curTrend;
+    const macdMatch  = hMACD != null && curMacdPos != null ? (hMACD > 0) === curMacdPos : true;
+    if (!rsiMatch || !trendMatch || !macdMatch) continue;
+    const entry = closes[i];
+    const f5  = closes[i + 5]  != null ? (closes[i + 5]  - entry) / entry * 100 : null;
+    const f10 = closes[i + 10] != null ? (closes[i + 10] - entry) / entry * 100 : null;
+    const f20 = closes[i + 20] != null ? (closes[i + 20] - entry) / entry * 100 : null;
+    if (f5 != null && f20 != null) instances.push({ f5, f10: f10 ?? f5, f20 });
+  }
+  if (instances.length < 3) return null;
+  const avg = arr => arr.reduce((s, x) => s + x, 0) / arr.length;
+  const wr  = arr => (arr.filter(x => x > 0).length / arr.length * 100).toFixed(0);
+  return {
+    count:   instances.length,
+    avg5d:   avg(instances.map(x => x.f5)).toFixed(1),
+    avg10d:  avg(instances.map(x => x.f10)).toFixed(1),
+    avg20d:  avg(instances.map(x => x.f20)).toFixed(1),
+    win5d:   wr(instances.map(x => x.f5)),
+    win20d:  wr(instances.map(x => x.f20)),
+    best20d:  Math.max(...instances.map(x => x.f20)).toFixed(1),
+    worst20d: Math.min(...instances.map(x => x.f20)).toFixed(1),
+  };
+}
+
+// ── News → Price impact ───────────────────────────────────────────────────────
+// For each news item, find the nearest candle and compute next-1d / next-5d move
+function analyzeNewsImpact(news, bars) {
+  if (!news.length || bars.length < 6) return [];
+  return news.slice(0, 20).map(n => {
+    try {
+      const newsTs = new Date(n.date).getTime() / 1000;
+      let closest = -1, minDiff = Infinity;
+      bars.forEach((b, i) => { const d = Math.abs(b.time - newsTs); if (d < minDiff) { minDiff = d; closest = i; } });
+      if (closest < 0 || minDiff > 4 * 86400 || closest + 5 >= bars.length) return null;
+      const entry = bars[closest].close;
+      const next1d = bars[closest + 1]?.close;
+      const next5d = bars[closest + 5]?.close;
+      return {
+        title:    n.title.slice(0, 80),
+        date:     n.date?.slice(0, 10) || '',
+        impact1d: next1d != null ? +((next1d - entry) / entry * 100).toFixed(2) : null,
+        impact5d: next5d != null ? +((next5d - entry) / entry * 100).toFixed(2) : null,
+      };
+    } catch { return null; }
+  }).filter(Boolean);
+}
+
+// ── Fibonacci extensions (price targets beyond structure) ─────────────────────
+function calcFibExtensions(bars) {
+  const recent = bars.slice(-60);
+  if (recent.length < 20) return null;
+  const high   = Math.max(...recent.map(b => b.high));
+  const low    = Math.min(...recent.map(b => b.low));
+  const range  = high - low;
+  if (range <= 0) return null;
+  const highTs = recent.find(b => b.high === high)?.time || 0;
+  const lowTs  = recent.find(b => b.low  === low)?.time  || 0;
+  const dp = 4;
+  if (lowTs < highTs) {
+    // High came more recently → downside extension targets
+    return { direction: 'downside', swing: low,
+      e1272: +(low - range * 0.272).toFixed(dp),
+      e1618: +(low - range * 0.618).toFixed(dp),
+      e2000: +(low - range).toFixed(dp),
+      e2618: +(low - range * 1.618).toFixed(dp),
+    };
+  } else {
+    // Low came more recently → upside extension targets
+    return { direction: 'upside', swing: high,
+      e1272: +(high + range * 0.272).toFixed(dp),
+      e1618: +(high + range * 0.618).toFixed(dp),
+      e2000: +(high + range).toFixed(dp),
+      e2618: +(high + range * 1.618).toFixed(dp),
+    };
+  }
+}
+
+// ── Per-ticker localStorage memory ───────────────────────────────────────────
+function memKey(sym) { return 'apexfx_v2_' + sym.replace(/[^A-Z0-9]/gi, '_').toUpperCase(); }
+function loadTickerMemory(sym) {
+  try { return JSON.parse(localStorage.getItem(memKey(sym))) || null; } catch { return null; }
+}
+function saveTickerMemory(sym, analysis, price) {
+  try {
+    const prev = loadTickerMemory(sym) || { history: [] };
+    prev.history = [{
+      date:       new Date().toISOString().slice(0, 10),
+      price:      +price.toFixed(4),
+      verdict:    analysis.verdict,
+      confidence: analysis.confidence_score,
+      target:     analysis.target_price,
+      entry:      analysis.entry_zone,
+      stop:       analysis.stop_loss,
+      summary:    (analysis.executive_summary || '').slice(0, 250),
+    }, ...prev.history].slice(0, 10);
+    localStorage.setItem(memKey(sym), JSON.stringify(prev));
+  } catch {}
+}
+
 // ── API calls ─────────────────────────────────────────────────────────────────
 
 async function fetchCandles(sym, type) {
@@ -327,7 +449,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -520,6 +642,89 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     (a.invalidation_conditions || []).map(c => `<li>${c}</li>`).join('');
   setText('changeViewText', a.what_would_change_view || '');
 
+  // ── Historical Edge card ──
+  const heCard = document.getElementById('historicalEdgeCard');
+  if (heCard) {
+    if (historicalScan && historicalScan.count >= 3) {
+      const win5  = Number(historicalScan.win5d);
+      const win20 = Number(historicalScan.win20d);
+      const edgeClass = win20 >= 65 ? 'edge-bullish' : win20 <= 35 ? 'edge-bearish' : 'edge-neutral';
+      heCard.style.display = '';
+      heCard.querySelector('#heScanCount').textContent = `${historicalScan.count} similar setups found in 210-day history`;
+      heCard.querySelector('#heStats').innerHTML = `
+        <div class="he-stat"><span class="he-label">Avg 5d return</span><span class="he-val ${Number(historicalScan.avg5d) >= 0 ? 'pos' : 'neg'}">${historicalScan.avg5d > 0 ? '+' : ''}${historicalScan.avg5d}%</span></div>
+        <div class="he-stat"><span class="he-label">Avg 10d return</span><span class="he-val ${Number(historicalScan.avg10d) >= 0 ? 'pos' : 'neg'}">${historicalScan.avg10d > 0 ? '+' : ''}${historicalScan.avg10d}%</span></div>
+        <div class="he-stat"><span class="he-label">Avg 20d return</span><span class="he-val ${Number(historicalScan.avg20d) >= 0 ? 'pos' : 'neg'}">${historicalScan.avg20d > 0 ? '+' : ''}${historicalScan.avg20d}%</span></div>
+        <div class="he-stat"><span class="he-label">Win rate (5d)</span><span class="he-val ${edgeClass}">${historicalScan.win5d}%</span></div>
+        <div class="he-stat"><span class="he-label">Win rate (20d)</span><span class="he-val ${edgeClass}">${historicalScan.win20d}%</span></div>
+        <div class="he-stat"><span class="he-label">20d range</span><span class="he-val">${historicalScan.worst20d}% to +${historicalScan.best20d}%</span></div>`;
+    } else {
+      heCard.style.display = 'none';
+    }
+  }
+
+  // ── Price Targets card ──
+  const ptCard = document.getElementById('priceTargetsCard');
+  if (ptCard) {
+    const dp2 = type === 'Forex' ? 5 : 2;
+    const curr2 = candles[candles.length - 1]?.close;
+    const pct = (p, base) => base ? `(${((p - base) / base * 100).toFixed(1)}%)` : '';
+    let rows = '';
+    if (a.target_price) rows += `<div class="pt-row"><span class="pt-label">AI Primary Target</span><span class="pt-val target">${a.target_price} <small>${pct(parseFloat(a.target_price), curr2)}</small></span></div>`;
+    if (a.stop_loss)    rows += `<div class="pt-row"><span class="pt-label">Stop Loss</span><span class="pt-val stop">${a.stop_loss} <small>${pct(parseFloat(a.stop_loss), curr2)}</small></span></div>`;
+    const sc2 = a.scenarios || {};
+    if (sc2.bull?.target)    rows += `<div class="pt-row"><span class="pt-label">Bull scenario</span><span class="pt-val pos">${sc2.bull.target} <small>${sc2.bull.upside || ''}</small></span></div>`;
+    if (sc2.base?.target)    rows += `<div class="pt-row"><span class="pt-label">Base scenario</span><span class="pt-val">${sc2.base.target} <small>${sc2.base.change || ''}</small></span></div>`;
+    if (sc2.bear?.target)    rows += `<div class="pt-row"><span class="pt-label">Bear scenario</span><span class="pt-val neg">${sc2.bear.target} <small>${sc2.bear.downside || ''}</small></span></div>`;
+    if (quote?.targetMeanPrice) rows += `<div class="pt-row"><span class="pt-label">Analyst consensus</span><span class="pt-val">${'$' + fmtNum(quote.targetMeanPrice)} <small>${pct(quote.targetMeanPrice, curr2)}</small></span></div>`;
+    if (fibExt) {
+      const dir = fibExt.direction === 'upside' ? '↑' : '↓';
+      rows += `<div class="pt-row pt-fib-header"><span class="pt-label">Fib Extensions (${dir})</span><span class="pt-val"></span></div>`;
+      rows += `<div class="pt-row"><span class="pt-label">  127.2%</span><span class="pt-val">${fibExt.e1272}</span></div>`;
+      rows += `<div class="pt-row"><span class="pt-label">  161.8%</span><span class="pt-val">${fibExt.e1618}</span></div>`;
+      rows += `<div class="pt-row"><span class="pt-label">  200%</span><span class="pt-val">${fibExt.e2000}</span></div>`;
+      rows += `<div class="pt-row"><span class="pt-label">  261.8%</span><span class="pt-val">${fibExt.e2618}</span></div>`;
+    }
+    ptCard.querySelector('#ptRows').innerHTML = rows || '<p style="color:var(--text3)">No price target data available.</p>';
+    ptCard.style.display = '';
+  }
+
+  // ── News impact enrichment ──
+  const newsGrid = document.getElementById('newsGrid');
+  if (newsGrid) {
+    const impactMap = {};
+    (newsImpact || []).forEach(n => { if (n.title) impactMap[n.title.slice(0, 50)] = n; });
+    newsGrid.innerHTML = news.slice(0, 6).map(n => {
+      const key = (n.title || '').slice(0, 50);
+      const imp = impactMap[key];
+      const impHtml = imp ? `<div class="news-impact">${
+        imp.impact1d != null ? `<span class="${imp.impact1d >= 0 ? 'imp-pos' : 'imp-neg'}">1d: ${imp.impact1d >= 0 ? '+' : ''}${imp.impact1d}%</span>` : ''
+      }${
+        imp.impact5d != null ? `<span class="${imp.impact5d >= 0 ? 'imp-pos' : 'imp-neg'}">5d: ${imp.impact5d >= 0 ? '+' : ''}${imp.impact5d}%</span>` : ''
+      }</div>` : '';
+      return `<a class="news-item" href="${n.link || '#'}" target="_blank" rel="noopener noreferrer">
+        <div class="news-title">${n.title || ''}</div>
+        <div class="news-meta">${n.source || ''} · ${n.date ? new Date(n.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</div>
+        ${impHtml}
+      </a>`;
+    }).join('');
+  }
+
+  // ── Prior memory badge ──
+  const memBadge = document.getElementById('memoryBadge');
+  if (memBadge) {
+    const prev = tickerMemory?.history?.[0];
+    if (prev) {
+      const priceNow = candles[candles.length - 1]?.close;
+      const priceThen = prev.price;
+      const chgSince = priceThen ? ((priceNow - priceThen) / priceThen * 100).toFixed(1) : null;
+      memBadge.style.display = '';
+      memBadge.innerHTML = `<span class="mem-icon">🧠</span> Last analysed ${prev.date} at $${prev.price} — <strong>${prev.verdict}</strong> (${prev.confidence}% conf)${chgSince != null ? ` · Price ${chgSince >= 0 ? '+' : ''}${chgSince}% since` : ''}`;
+    } else {
+      memBadge.style.display = 'none';
+    }
+  }
+
   showSection('resultsSection');
   setTimeout(() => document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
@@ -600,6 +805,12 @@ async function startResearch() {
 
     // ── Build prompt ──────────────────────────────────────────────────────────
 
+    // Run historical scan + news impact + extensions (all client-side, no extra API calls)
+    const historicalScan = runHistoricalScan(candles);
+    const newsImpact     = analyzeNewsImpact(news, candles);
+    const fibExt         = calcFibExtensions(candles);
+    const tickerMemory   = loadTickerMemory(sym);
+
     // Raw daily OHLCV (last 20 bars — enough for pattern recognition, keeps tokens low)
     const ohlcvTable = candles.slice(-20).map(b =>
       `${fmtDate(b.time)} O:${b.open.toFixed(dp)} H:${b.high.toFixed(dp)} L:${b.low.toFixed(dp)} C:${b.close.toFixed(dp)} V:${fmtVol(b.volume)}`
@@ -618,12 +829,36 @@ async function startResearch() {
       `Support:    ${supports.length    ? supports.map(s => s.toFixed(dp)).join(' | ')    : 'none identified'}`,
     ].join('\n');
 
-    // Fibonacci
-    const fibText = `Range ${fib.low.toFixed(dp)}–${fib.high.toFixed(dp)} | 23.6%:${fib.f236} | 38.2%:${fib.f382} | 50%:${fib.f500} | 61.8%:${fib.f618} | 78.6%:${fib.f786}`;
+    // Fibonacci retracements + extensions
+    const fibText = `Retracements — Range ${fib.low.toFixed(dp)}–${fib.high.toFixed(dp)} | 23.6%:${fib.f236} | 38.2%:${fib.f382} | 50%:${fib.f500} | 61.8%:${fib.f618} | 78.6%:${fib.f786}`;
+    const fibExtText = fibExt
+      ? `Extensions (${fibExt.direction}) — 127.2%: ${fibExt.e1272} | 161.8%: ${fibExt.e1618} | 200%: ${fibExt.e2000} | 261.8%: ${fibExt.e2618}`
+      : '';
+
+    // Historical scan block
+    const scanBlock = historicalScan
+      ? `\n━━━ HISTORICAL SETUP SCAN (${historicalScan.count} similar RSI+trend+MACD setups in last 210d) ━━━
+Avg forward returns: 5d: ${historicalScan.avg5d}% | 10d: ${historicalScan.avg10d}% | 20d: ${historicalScan.avg20d}%
+Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 20d: +${historicalScan.best20d}% | Worst: ${historicalScan.worst20d}%`
+      : '';
+
+    // News impact block
+    const impactBlock = newsImpact.length
+      ? `\n━━━ NEWS → PRICE IMPACT (historical) ━━━\n` + newsImpact.slice(0, 8).map(n =>
+          `• [${n.date}] "${n.title}" → 1d: ${n.impact1d != null ? (n.impact1d > 0 ? '+' : '') + n.impact1d + '%' : 'N/A'} | 5d: ${n.impact5d != null ? (n.impact5d > 0 ? '+' : '') + n.impact5d + '%' : 'N/A'}`
+        ).join('\n')
+      : '';
+
+    // Memory block (prior analyses for this ticker)
+    const memoryBlock = tickerMemory?.history?.length
+      ? `\n━━━ PRIOR ANALYSIS MEMORY (${sym}) ━━━\n` + tickerMemory.history.slice(0, 3).map(h =>
+          `• ${h.date}: Price $${h.price} | Verdict: ${h.verdict} (${h.confidence}% conf) | Target: ${h.target || 'N/A'} | Entry: ${h.entry || 'N/A'} | Stop: ${h.stop || 'N/A'}`
+        ).join('\n')
+      : '';
 
     // Fundamentals block (stocks only)
     let fundBlock = '';
-    if (quote && type === 'Stock') {
+    if (quote && (type === 'Stock' || type === 'ETF')) {
       const w52pct = (quote.week52High && quote.week52Low)
         ? ((curr - quote.week52Low) / (quote.week52High - quote.week52Low) * 100).toFixed(0) + '% of 52W range'
         : '';
@@ -632,9 +867,10 @@ async function startResearch() {
 Market Cap: ${fmtMCap(quote.marketCap)} | Beta: ${fmtNum(quote.beta)}
 P/E (TTM): ${quote.pe ? fmtNum(quote.pe, 1) + 'x' : 'N/A'} | Forward P/E: ${quote.forwardPE ? fmtNum(quote.forwardPE, 1) + 'x' : 'N/A'}
 EPS: ${quote.eps ? '$' + fmtNum(quote.eps) : 'N/A'} | Div Yield: ${quote.dividendYield ? fmtPct(quote.dividendYield * 100) : 'N/A'}
-52W Range: $${fmtNum(quote.week52Low)} – $${fmtNum(quote.week52High)} | Current position: ${w52pct}
+52W Range: $${fmtNum(quote.week52Low)} – $${fmtNum(quote.week52High)} | Position: ${w52pct}
 Revenue Growth (YoY): ${quote.revenueGrowth ? fmtPct(quote.revenueGrowth * 100) : 'N/A'} | Earnings Growth: ${quote.earningsGrowth ? fmtPct(quote.earningsGrowth * 100) : 'N/A'}
-Analyst Mean Target: ${quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPrice) + ' (' + ((quote.targetMeanPrice - curr) / curr * 100).toFixed(1) + '% from current)' : 'N/A'}`;
+Analyst Mean Target: ${quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPrice) + ' (' + ((quote.targetMeanPrice - curr) / curr * 100).toFixed(1) + '% from current)' : 'N/A'}
+Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR): ${quote.insiderSentiment?.mspr != null ? quote.insiderSentiment.mspr.toFixed(3) + (quote.insiderSentiment.mspr > 0 ? ' (net buying)' : quote.insiderSentiment.mspr < 0 ? ' (net selling)' : ' (neutral)') : 'N/A'}`;
 
       if (quote.analystRecs) {
         const r = quote.analystRecs;
@@ -642,13 +878,13 @@ Analyst Mean Target: ${quote.targetMeanPrice ? '$' + fmtNum(quote.targetMeanPric
         fundBlock += `\nAnalyst Ratings (${r.period}): ${r.strongBuy} StrongBuy | ${r.buy} Buy | ${r.hold} Hold | ${r.sell} Sell | ${r.strongSell} StrongSell (n=${tot})`;
       }
       if (quote.earningsHistory?.length) {
-        fundBlock += `\nEarnings Surprises: ${quote.earningsHistory.map(e =>
+        fundBlock += `\nEarnings Surprises (last 4Q): ${quote.earningsHistory.map(e =>
           `${e.period}: ${e.surprisePct != null ? (e.surprisePct > 0 ? '+' : '') + e.surprisePct + '%' : 'N/A'}`
         ).join(' | ')}`;
       }
     }
 
-    const newsText = news.slice(0, 8).map(n =>
+    const newsText = news.slice(0, 6).map(n =>
       `• ${n.title} (${n.source || 'news'}, ${n.date ? new Date(n.date).toLocaleDateString() : 'recent'})`
     ).join('\n');
 
@@ -698,7 +934,8 @@ Bollinger Bands (20,2σ): Upper ${bb?.upper ?? 'N/A'} | Mid ${bb?.middle ?? 'N/A
 StochRSI(14): ${stochRsi ?? 'N/A'}${stochRsi != null ? (stochRsi > 80 ? ' ⚠ OVERBOUGHT' : stochRsi < 20 ? ' ⚠ OVERSOLD' : '') : ''}
 ATR(14): ${atr?.toFixed(dp) || 'N/A'} | Volume: ${volTrnd} | OBV: ${obv}
 ${srText}
-Fibonacci retracements: ${fibText}
+${fibText}
+${fibExtText ? fibExtText : ''}
 
 ━━━ WEEKLY TIMEFRAME ━━━
 Weekly trend: ${wTrend ?? 'N/A'} | Weekly RSI: ${wRSI ?? 'N/A'}${wRSI != null ? (wRSI > 70 ? ' ⚠ OVERBOUGHT' : wRSI < 30 ? ' ⚠ OVERSOLD' : '') : ''}
@@ -712,8 +949,11 @@ ${weeklyTable}
 ${ohlcvTable}
 ${fundBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
+${scanBlock}
+${impactBlock}
+${memoryBlock}
 
-━━━ NEWS & CATALYSTS (last 14 days) ━━━
+━━━ RECENT NEWS (last 60 days) ━━━
 ${newsText || 'No recent news available.'}
 
 ━━━ TASK ━━━
@@ -819,7 +1059,10 @@ Respond ONLY with valid JSON. No text before or after.
       throw new Error('AI returned an unexpected response format. Please try again.');
     }
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis });
+    // Save this analysis to per-ticker memory for future context
+    saveTickerMemory(sym, analysis, curr);
+
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory });
     document.getElementById('analyseBtn').disabled = false;
 
   } catch (err) {

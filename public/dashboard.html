@@ -114,6 +114,9 @@
         <span>This is an <strong>AI-generated estimate</strong> based on technical indicators and publicly available data. It is <strong>not financial advice</strong> and should not be the sole basis for any investment decision. Always do your own research and manage your own risk.</span>
       </div>
 
+      <!-- Memory badge (shown if this ticker was analysed before) -->
+      <div class="memory-badge" id="memoryBadge" style="display:none"></div>
+
       <!-- 1 · Verdict + Quick Stats -->
       <div class="verdict-row">
         <div class="verdict-card">
@@ -232,7 +235,26 @@
         <p class="trade-tf" id="tradeTf"></p>
       </div>
 
-      <!-- 9 · Key Drivers + Invalidation -->
+      <!-- 9 · Historical Edge (hidden until scan has data) -->
+      <div class="a-card he-card" id="historicalEdgeCard" style="display:none">
+        <div class="a-card-header">
+          <span class="a-icon">🔬</span>
+          <h2>Historical Setup Scanner</h2>
+          <span class="he-subtitle" id="heScanCount"></span>
+        </div>
+        <div class="he-stats-grid" id="heStats"></div>
+      </div>
+
+      <!-- 10 · Price Targets -->
+      <div class="a-card pt-card" id="priceTargetsCard" style="display:none">
+        <div class="a-card-header">
+          <span class="a-icon">🎯</span>
+          <h2>Price Targets &amp; Levels</h2>
+        </div>
+        <div class="pt-rows" id="ptRows"></div>
+      </div>
+
+      <!-- 11 · Key Drivers + Invalidation -->
       <div class="analysis-row">
         <div class="a-card">
           <div class="a-card-header">
