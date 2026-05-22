@@ -13,8 +13,10 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GROQ_KEY   = process.env.GROQ_API_KEY;
 
 // Gemini model to use (OpenAI-compatible endpoint)
-// gemini-2.0-flash: fast, smart, 1M context, 4M TPM free
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// gemini-3-flash-preview: latest generation, works on free tier keys
+// Fallback chain: gemini-3-flash-preview → gemini-flash-latest → Groq
+const GEMINI_MODEL         = 'gemini-3-flash-preview';
+const GEMINI_MODEL_FALLBACK = 'gemini-flash-latest';
 const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 // Groq fallback model
@@ -107,28 +109,41 @@ export default async function handler(req) {
   // ── Try Gemini first (high limits, free) ─────────────────────────────────
   let geminiError = null;
   if (GEMINI_KEY) {
-    try {
-      const text = await callProvider({
-        apiUrl:     GEMINI_URL,
-        apiKey:     GEMINI_KEY,
-        model:      GEMINI_MODEL,
-        messages,
-        maxTokens:  safeMaxTokens,
-        temperature: safeTemp,
-        timeoutMs:  safeTimeoutMs,
-      });
-      return new Response(JSON.stringify({ text, provider: 'gemini' }), { status: 200, headers: corsHeaders });
-    } catch (e) {
-      // Gemini failed — surface the actual error so we can diagnose it
-      // If Groq is available, fall through; otherwise return Gemini's error
-      if (!GROQ_KEY) {
-        return new Response(
-          JSON.stringify({ error: `Gemini error: ${e.message}`, retryAfterMs: e.retryAfterMs || null }),
-          { status: e.status || 500, headers: corsHeaders }
-        );
+    // Try primary model, then fallback model
+    for (const model of [GEMINI_MODEL, GEMINI_MODEL_FALLBACK]) {
+      try {
+        const text = await callProvider({
+          apiUrl:     GEMINI_URL,
+          apiKey:     GEMINI_KEY,
+          model,
+          messages,
+          maxTokens:  safeMaxTokens,
+          temperature: safeTemp,
+          timeoutMs:  safeTimeoutMs,
+        });
+        return new Response(JSON.stringify({ text, provider: 'gemini', model }), { status: 200, headers: corsHeaders });
+      } catch (e) {
+        // 503 = overloaded, 429 = quota — try next model; other errors stop immediately
+        if (e.status !== 503 && e.status !== 429) {
+          if (!GROQ_KEY) {
+            return new Response(
+              JSON.stringify({ error: `Gemini error: ${e.message}`, retryAfterMs: e.retryAfterMs || null }),
+              { status: e.status || 500, headers: corsHeaders }
+            );
+          }
+          geminiError = e.message;
+          break;
+        }
+        geminiError = `${model}: ${e.message}`;
+        // continue to next model in loop
       }
-      // Groq fallback — but also include Gemini's error in response for debugging
-      geminiError = e.message;
+    }
+    // If no Groq fallback, return the last Gemini error
+    if (!GROQ_KEY && geminiError) {
+      return new Response(
+        JSON.stringify({ error: `Gemini error: ${geminiError}`, retryAfterMs: null }),
+        { status: 503, headers: corsHeaders }
+      );
     }
   }
 
