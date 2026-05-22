@@ -429,7 +429,7 @@ async function fetchMacroContext(sym) {
 
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
-async function callAgent(system, prompt, maxTokens = 1500) {
+async function callAgent(system, prompt, maxTokens = 2500) {
   const res = await fetch('/api/ai', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1128,7 +1128,7 @@ Respond ONLY with valid JSON. No text before or after.
       callAgent(
         'You are a pure technical analyst. You ONLY analyse price structure, momentum, volume, and indicators. No fundamental opinions. Be direct and specific. Respond in plain text, 4-6 sentences.',
         `Analyse ${sym} (${type}) technically. Focus on: trend quality, momentum state, key support/resistance, overbought/oversold conditions, volume confirmation, and what the multi-timeframe structure says about short-term direction.\n\n${sharedData}`,
-        800
+        2500
       ).catch(e => `Technical analysis unavailable: ${e.message}`),
 
       // Agent 2 — Fundamental Analyst (stocks/ETFs only, else skip)
@@ -1136,7 +1136,7 @@ Respond ONLY with valid JSON. No text before or after.
         ? callAgent(
             'You are a fundamental analyst focused on business quality and valuation. No technical opinions. Be direct. Respond in plain text, 4-6 sentences.',
             `Analyse ${sym} fundamentally. Cover: valuation vs peers and history, earnings quality and trajectory, revenue growth sustainability, balance sheet strength, competitive moat, and whether the current price reflects fair value.\n\n${sharedData}`,
-            800
+            2500
           ).catch(e => `Fundamental analysis unavailable: ${e.message}`)
         : Promise.resolve(`Not applicable for ${type} assets.`),
 
@@ -1144,14 +1144,14 @@ Respond ONLY with valid JSON. No text before or after.
       callAgent(
         'You are a macro strategist. You ONLY analyse the macro environment and its specific impact on the given asset. No technical or fundamental opinions. Be direct. Respond in plain text, 4-6 sentences.',
         `Analyse the macro environment and its specific impact on ${sym} (${type}). Cover: current rate cycle, inflation trajectory, Fed/central bank stance, USD strength, risk-on vs risk-off conditions, sector rotation, and how macro tailwinds or headwinds affect this specific asset right now.\n\n${sharedData}`,
-        800
+        2500
       ).catch(e => `Macro analysis unavailable: ${e.message}`),
 
       // Agent 4 — Risk Manager (argues AGAINST any bullish thesis)
       callAgent(
         'You are a risk manager and devil\'s advocate. Your ONLY job is to identify what could go wrong — what destroys the bull thesis, what is overpriced, what risks are underappreciated. Be harsh, specific, and direct. Respond in plain text, 4-6 sentences.',
         `For ${sym} (${type}): identify the key risks. What breaks the bullish thesis? What structural risks are underappreciated? What could cause a 20-40% drawdown from here? What do the bears know that bulls are ignoring?\n\n${sharedData}`,
-        800
+        2500
       ).catch(e => `Risk analysis unavailable: ${e.message}`),
 
     ]);
@@ -1227,7 +1227,7 @@ Respond ONLY with this exact JSON structure:
   "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence"
 }`;
 
-    const committeeText = await callAgent(systemPrompt, committeePrompt, 3000);
+    const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
 
     let analysis;
     try {
