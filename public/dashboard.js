@@ -1292,53 +1292,55 @@ Respond ONLY with valid JSON. No text before or after.
     // Shared data block sent to each specialist
     const sharedData = prompt; // already built above — contains all indicators, OHLCV, macro etc.
 
+    // Stagger helper — spreads concurrent Gemini calls to avoid burst rate-limiting
+    const stagger = ms => new Promise(r => setTimeout(r, ms));
+
     const [techRaw, fundRaw, macroRaw, sentRaw] = await Promise.all([
 
-      // Agent 1 — Technical Trader
+      // Agent 1 — Technical Trader (starts immediately)
       callAgent(
         'You are a pure technical analyst. You ONLY analyse price structure, momentum, volume, and indicators. No fundamental opinions. Be direct and specific. Respond in plain text, 4-6 sentences.',
         `Analyse ${sym} (${type}) technically. Focus on: trend quality, momentum state, key support/resistance, overbought/oversold conditions, volume confirmation, and what the multi-timeframe structure says about short-term direction.\n\n${sharedData}`,
         2500
       ).catch(e => `Technical analysis unavailable: ${e.message}`),
 
-      // Agent 2 — Fundamental Analyst (stocks/ETFs only, else skip)
-      (type === 'Stock' || type === 'ETF')
+      // Agent 2 — Fundamental Analyst (starts +350 ms)
+      stagger(350).then(() => (type === 'Stock' || type === 'ETF')
         ? callAgent(
             'You are a fundamental analyst focused on business quality and valuation. No technical opinions. Be direct. Respond in plain text, 4-6 sentences.',
             `Analyse ${sym} fundamentally. Cover: valuation vs peers and history, earnings quality and trajectory, revenue growth sustainability, balance sheet strength, competitive moat, and whether the current price reflects fair value.\n\n${sharedData}`,
             2500
           ).catch(e => `Fundamental analysis unavailable: ${e.message}`)
-        : Promise.resolve(`Not applicable for ${type} assets.`),
+        : Promise.resolve(`Not applicable for ${type} assets.`)),
 
-      // Agent 3 — Macro Strategist
-      callAgent(
+      // Agent 3 — Macro Strategist (starts +700 ms)
+      stagger(700).then(() => callAgent(
         'You are a macro strategist. You ONLY analyse the macro environment and its specific impact on the given asset. No technical or fundamental opinions. Be direct. Respond in plain text, 4-6 sentences.',
         `Analyse the macro environment and its specific impact on ${sym} (${type}). Cover: current rate cycle, inflation trajectory, Fed/central bank stance, USD strength, risk-on vs risk-off conditions, sector rotation, and how macro tailwinds or headwinds affect this specific asset right now.\n\n${sharedData}`,
         2500
-      ).catch(e => `Macro analysis unavailable: ${e.message}`),
+      ).catch(e => `Macro analysis unavailable: ${e.message}`)),
 
-      // Agent 4 — Risk Manager (argues AGAINST any bullish thesis)
-      callAgent(
+      // Agent 4 — Risk Manager (starts +1050 ms)
+      stagger(1050).then(() => callAgent(
         'You are a risk manager and devil\'s advocate. Your ONLY job is to identify what could go wrong — what destroys the bull thesis, what is overpriced, what risks are underappreciated. Be harsh, specific, and direct. Respond in plain text, 4-6 sentences.',
         `For ${sym} (${type}): identify the key risks. What breaks the bullish thesis? What structural risks are underappreciated? What could cause a 20-40% drawdown from here? What do the bears know that bulls are ignoring?\n\n${sharedData}`,
         2500
-      ).catch(e => `Risk analysis unavailable: ${e.message}`),
+      ).catch(e => `Risk analysis unavailable: ${e.message}`)),
 
     ]);
 
-    // ── Debate round: Tech vs Risk (parallel) ──────────────────────────────
-    // Two focused rebuttals that force contradiction resolution before committee
+    // ── Debate round: Tech vs Risk (staggered) ────────────────────────────
     const [techRebuttal, riskRebuttal] = await Promise.all([
       callAgent(
         'You are the technical analyst. Be direct and specific. 3 sentences maximum.',
         `The risk manager said: "${sentRaw.slice(0, 400)}"\n\nRespond only to specific technical evidence that contradicts their concerns. What do the charts/indicators actually show that addresses their risks?`,
         1200
       ).catch(() => null),
-      callAgent(
+      stagger(400).then(() => callAgent(
         'You are the risk manager. Be direct and specific. 3 sentences maximum.',
         `The technical analyst said: "${techRaw.slice(0, 400)}"\n\nWhat specific risks does technical optimism ignore? What has the technical analyst missed or underweighted?`,
         1200
-      ).catch(() => null),
+      ).catch(() => null)),
     ]);
     const debateBlock = (techRebuttal || riskRebuttal)
       ? `\n━━━ TECH vs RISK DEBATE ━━━\nTechnical rebuttal: ${techRebuttal || 'N/A'}\nRisk rebuttal: ${riskRebuttal || 'N/A'}`
