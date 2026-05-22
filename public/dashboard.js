@@ -408,16 +408,24 @@ function saveToMemory(sym, type, analysis, price) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      symbol:       sym,
-      asset_type:   type,
-      price:        +price.toFixed(4),
-      verdict:      analysis.verdict,
-      confidence:   analysis.confidence_score,
-      target_price: analysis.target_price  || null,
-      entry_zone:   analysis.entry_zone    || null,
-      stop_loss:    analysis.stop_loss     || null,
-      risk_reward:  analysis.risk_reward   || null,
-      summary:      (analysis.executive_summary || '').slice(0, 500),
+      symbol:               sym,
+      asset_type:           type,
+      price:                +price.toFixed(4),
+      verdict:              analysis.verdict,
+      confidence:           analysis.confidence_score,
+      target_price:         analysis.target_price          || null,
+      entry_zone:           analysis.entry_zone            || null,
+      stop_loss:            analysis.stop_loss             || null,
+      risk_reward:          analysis.risk_reward           || null,
+      summary:              (analysis.executive_summary    || '').slice(0, 500),
+      // Richer fields for history comparison and AI learning
+      technical_analysis:   (analysis.technical_analysis  || '').slice(0, 800),
+      fundamental_analysis: (analysis.fundamental_analysis|| '').slice(0, 800),
+      macro_environment:    (analysis.macro_environment   || '').slice(0, 800),
+      risk_analysis:        (analysis.risk_analysis       || '').slice(0, 800),
+      key_reasons:          analysis.key_reasons          || null,
+      short_term_outlook:   (analysis.short_term_outlook  || '').slice(0, 300),
+      timeframe:            analysis.timeframe             || null,
     }),
   }).catch(() => {}); // silent fail — memory is best-effort
 }
@@ -1438,6 +1446,13 @@ Respond ONLY with this exact JSON structure:
     saveToMemory(sym, type, analysis, curr);
 
     renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth });
+
+    // Show comparison banner if this is a rescan from History
+    if (_compareOriginal && _compareOriginal.symbol === sym) {
+      showCompareBanner(_compareOriginal, { ...analysis, price: curr });
+      _compareOriginal = null;
+    }
+
     document.getElementById('analyseBtn').disabled = false;
 
   } catch (err) {
@@ -1592,6 +1607,51 @@ function initAutocomplete() {
   });
 }
 
+// ── Comparison banner (shown when arriving from History with ?compare=ID) ──────
+let _compareOriginal = null; // holds the historical row for comparison
+
+function showCompareBanner(original, fresh) {
+  let el = document.getElementById('compareBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'compareBanner';
+    el.className = 'compare-banner';
+    document.getElementById('resultsSection').prepend(el);
+  }
+
+  const priceThen = parseFloat(original.price);
+  const priceNow  = parseFloat(fresh.price || 0);
+  const priceDiff = priceThen && priceNow ? ((priceNow - priceThen) / priceThen * 100).toFixed(2) : null;
+  const confDiff  = (fresh.confidence_score || 0) - (original.confidence || 0);
+  const verdictChanged = original.verdict !== fresh.verdict;
+  const outcomeIcon   = original.outcome === 'tp_hit' ? '✅' : original.outcome === 'sl_hit' ? '❌' : original.outcome === 'expired' ? '⏱️' : '⏳';
+
+  el.innerHTML = `
+    <div class="cb-title">📊 Comparison — Previous scan vs Today</div>
+    <div class="cb-grid">
+      <div class="cb-col">
+        <div class="cb-label">Previous scan</div>
+        <div class="cb-date">${original.analysis_date}</div>
+        <div class="cb-verdict ${original.verdict?.toLowerCase().replace(/_/g,'-')}">${original.verdict}</div>
+        <div class="cb-conf">${original.confidence}% confidence</div>
+        <div class="cb-price">@ $${original.price}</div>
+        <div class="cb-outcome">${outcomeIcon} ${original.outcome?.replace(/_/g,' ') || 'pending'}</div>
+      </div>
+      <div class="cb-arrow">→</div>
+      <div class="cb-col">
+        <div class="cb-label">Today's scan</div>
+        <div class="cb-date">${new Date().toISOString().slice(0,10)}</div>
+        <div class="cb-verdict ${fresh.verdict?.toLowerCase().replace(/_/g,'-')}">${fresh.verdict}</div>
+        <div class="cb-conf">${fresh.confidence_score}% confidence ${confDiff !== 0 ? `<span class="${confDiff>0?'pos':'neg'}">(${confDiff>0?'+':''}${confDiff}%)</span>` : ''}</div>
+        <div class="cb-price">@ $${priceNow > 0 ? priceNow.toFixed(2) : '—'}</div>
+        ${priceDiff != null ? `<div class="cb-pricediff ${Number(priceDiff)>=0?'pos':'neg'}">Price ${Number(priceDiff)>=0?'+':''}${priceDiff}% since original scan</div>` : ''}
+      </div>
+    </div>
+    ${verdictChanged ? `<div class="cb-change-alert">⚡ Verdict changed: ${original.verdict} → ${fresh.verdict}</div>` : '<div class="cb-same">Verdict unchanged</div>'}
+    <button class="cb-close" onclick="this.closest('.compare-banner').remove()">Dismiss</button>
+  `;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initPulse();
@@ -1601,4 +1661,25 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDropdown();
     startResearch();
   });
+
+  // Handle ?sym=NVDA URL param (launched from History page)
+  const params = new URLSearchParams(window.location.search);
+  const symParam = params.get('sym');
+  if (symParam) {
+    const inp = document.getElementById('symInput');
+    inp.value = symParam.toUpperCase();
+    updateTypePill(symParam);
+  }
+
+  // Handle ?compare=ID (re-scan comparison launched from History)
+  const compareId = params.get('compare');
+  if (compareId) {
+    fetch(`/api/memory?all=true&limit=200`)
+      .then(r => r.json())
+      .then(rows => {
+        const row = rows.find(r => r.id === compareId);
+        if (row) _compareOriginal = row;
+      })
+      .catch(() => {});
+  }
 });

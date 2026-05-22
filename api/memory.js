@@ -1,6 +1,7 @@
 // /api/memory — Supabase-backed AI analysis memory
-// GET  /api/memory?sym=AAPL        — last 15 analyses + outcomes for this symbol
-// POST /api/memory  { ...fields }  — save a new analysis
+// GET  /api/memory?sym=AAPL          — last 15 analyses for this symbol
+// GET  /api/memory?all=true&limit=80 — all recent scans across every symbol
+// POST /api/memory  { ...fields }    — save a new analysis
 // PATCH /api/memory { id, outcome, outcome_price, outcome_date } — update outcome
 
 export const config = { runtime: 'edge' };
@@ -35,16 +36,20 @@ export default async function handler(req) {
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
-  // ── GET: fetch prior analyses for a symbol ──────────────────────────────────
+  // ── GET: fetch analyses ─────────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const sym = (url.searchParams.get('sym') || '').trim().toUpperCase();
-    if (!sym) return new Response(JSON.stringify([]), { headers: cors });
+    const sym    = (url.searchParams.get('sym') || '').trim().toUpperCase();
+    const all    = url.searchParams.get('all') === 'true';
+    const limit  = Math.min(200, parseInt(url.searchParams.get('limit') || '80', 10));
 
     try {
-      const res = await fetch(
-        `${TABLE}?symbol=eq.${encodeURIComponent(sym)}&order=created_at.desc&limit=15`,
-        { headers: supaHeaders() }
-      );
+      const query = all
+        ? `${TABLE}?order=created_at.desc&limit=${limit}`
+        : `${TABLE}?symbol=eq.${encodeURIComponent(sym)}&order=created_at.desc&limit=15`;
+
+      if (!all && !sym) return new Response(JSON.stringify([]), { headers: cors });
+
+      const res  = await fetch(query, { headers: supaHeaders() });
       const data = res.ok ? await res.json() : [];
       return new Response(JSON.stringify(Array.isArray(data) ? data : []), { headers: cors });
     } catch {
@@ -61,19 +66,27 @@ export default async function handler(req) {
     if (!body?.symbol) return new Response(JSON.stringify({ error: 'symbol required' }), { status: 400, headers: cors });
 
     const row = {
-      id:            `${body.symbol.toUpperCase()}_${Date.now()}`,
-      symbol:        body.symbol.toUpperCase(),
-      asset_type:    body.asset_type    || null,
-      analysis_date: new Date().toISOString().slice(0, 10),
-      price:         body.price         ?? null,
-      verdict:       body.verdict       || null,
-      confidence:    body.confidence    ?? null,
-      target_price:  body.target_price  || null,
-      entry_zone:    body.entry_zone    || null,
-      stop_loss:     body.stop_loss     || null,
-      risk_reward:   body.risk_reward   || null,
-      summary:       (body.summary || '').slice(0, 500),
-      outcome:       'pending',
+      id:              `${body.symbol.toUpperCase()}_${Date.now()}`,
+      symbol:          body.symbol.toUpperCase(),
+      asset_type:      body.asset_type       || null,
+      analysis_date:   new Date().toISOString().slice(0, 10),
+      price:           body.price            ?? null,
+      verdict:         body.verdict          || null,
+      confidence:      body.confidence       ?? null,
+      target_price:    body.target_price     || null,
+      entry_zone:      body.entry_zone       || null,
+      stop_loss:       body.stop_loss        || null,
+      risk_reward:     body.risk_reward      || null,
+      summary:         (body.summary || '').slice(0, 500),
+      // Richer fields for comparison / AI learning
+      technical_analysis:   (body.technical_analysis   || '').slice(0, 800),
+      fundamental_analysis: (body.fundamental_analysis || '').slice(0, 800),
+      macro_environment:    (body.macro_environment    || '').slice(0, 800),
+      risk_analysis:        (body.risk_analysis        || '').slice(0, 800),
+      key_reasons:          body.key_reasons ? JSON.stringify(body.key_reasons).slice(0, 500) : null,
+      short_term_outlook:   (body.short_term_outlook   || '').slice(0, 300),
+      timeframe:            body.timeframe             || null,
+      outcome:              'pending',
     };
 
     try {

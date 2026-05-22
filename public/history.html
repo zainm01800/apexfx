@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Scan History</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link" href="dashboard.html">Research</a>
+      <a class="nav-link" href="index.html">Charts</a>
+      <a class="nav-link active" href="history.html">History</a>
+    </nav>
+    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+  </header>
+
+  <main class="history-main">
+
+    <!-- Page title + stats -->
+    <div class="hist-header">
+      <div>
+        <h1 class="hist-title">Scan History</h1>
+        <p class="hist-subtitle">Every AI analysis you've run — with live outcome tracking.</p>
+      </div>
+      <div class="hist-summary" id="histSummary">
+        <div class="hs-stat" id="hsStat0"><span class="hs-val">—</span><span class="hs-label">Total Scans</span></div>
+        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span></div>
+        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span></div>
+        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Accuracy</span></div>
+      </div>
+    </div>
+
+    <!-- Filters / search -->
+    <div class="hist-filters">
+      <input class="hf-search" id="hfSearch" type="text" placeholder="Filter by symbol…" autocomplete="off" spellcheck="false" />
+      <div class="hf-pills">
+        <button class="hf-pill active" data-filter="all">All</button>
+        <button class="hf-pill" data-filter="pending">Pending</button>
+        <button class="hf-pill" data-filter="tp_hit">TP Hit ✅</button>
+        <button class="hf-pill" data-filter="sl_hit">SL Hit ❌</button>
+        <button class="hf-pill" data-filter="expired">Expired ⏱</button>
+      </div>
+      <div class="hf-pills">
+        <button class="hf-pill active" data-type="all">All Types</button>
+        <button class="hf-pill" data-type="Stock">Stocks</button>
+        <button class="hf-pill" data-type="Crypto">Crypto</button>
+        <button class="hf-pill" data-type="Forex">Forex</button>
+        <button class="hf-pill" data-type="ETF">ETFs</button>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="hist-loading" id="histLoading">
+      <div class="hist-spinner"></div>
+      <p>Loading scan history…</p>
+    </div>
+
+    <!-- Empty state -->
+    <div class="hist-empty" id="histEmpty" style="display:none">
+      <div class="hist-empty-icon">🔬</div>
+      <p>No scans yet. Run your first analysis on the <a href="dashboard.html">Research</a> page.</p>
+    </div>
+
+    <!-- Scan cards grid -->
+    <div class="scan-grid" id="scanGrid"></div>
+
+  </main>
+
+  <script src="./history.js"></script>
+</body>
+</html>
