@@ -17,6 +17,15 @@ CREATE TABLE IF NOT EXISTS apex_research_memory (
   risk_reward   TEXT,
   summary       TEXT,
 
+  -- Richer fields for history comparison and AI learning
+  technical_analysis   TEXT,
+  fundamental_analysis TEXT,
+  macro_environment    TEXT,
+  risk_analysis        TEXT,
+  key_reasons          TEXT,   -- JSON array serialised as text
+  short_term_outlook   TEXT,
+  timeframe            TEXT,
+
   -- Outcome tracking (updated after price resolves)
   outcome       TEXT DEFAULT 'pending',  -- 'pending' | 'tp_hit' | 'sl_hit' | 'expired'
   outcome_price NUMERIC,
