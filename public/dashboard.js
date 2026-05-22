@@ -380,6 +380,51 @@ function calcFibExtensions(bars) {
   }
 }
 
+// ── Confluence Score ──────────────────────────────────────────────────────────
+// Weights signals across daily + weekly timeframes into a single directional score.
+// bullPct = % of weighted signals pointing bullish (0–100)
+// Returns { bullPct, bearPct, direction, strength, signalCount }
+function calcConfluenceScore({ curr, sma20, sma50, sma200, wCurr, wSMA20, wSMA50, rsi, wRSI, macd, wMACD, volTrnd, adx, stochRsi }) {
+  const signals = []; // { bull: bool, weight: number, label: string }
+
+  // ── Daily trend (highest weight) ──
+  if (curr != null && sma20 != null) signals.push({ bull: curr > sma20,  weight: 2, label: 'Price vs SMA20' });
+  if (curr != null && sma50 != null) signals.push({ bull: curr > sma50,  weight: 2, label: 'Price vs SMA50' });
+  if (curr != null && sma200 != null) signals.push({ bull: curr > sma200, weight: 3, label: 'Price vs SMA200' });
+  if (sma20 != null && sma50 != null) signals.push({ bull: sma20 > sma50, weight: 2, label: 'SMA20 vs SMA50' });
+  if (sma50 != null && sma200 != null) signals.push({ bull: sma50 > sma200, weight: 2, label: 'SMA50 vs SMA200' });
+
+  // ── Daily momentum ──
+  if (rsi != null) signals.push({ bull: rsi > 50, weight: 2, label: 'RSI momentum' });
+  if (macd != null) signals.push({ bull: macd > 0, weight: 2, label: 'MACD' });
+  if (stochRsi != null) signals.push({ bull: stochRsi > 50, weight: 1, label: 'StochRSI' });
+
+  // ── Weekly trend (strong confirmatory weight) ──
+  if (wCurr != null && wSMA20 != null) signals.push({ bull: wCurr > wSMA20,  weight: 3, label: 'Weekly vs WMA20' });
+  if (wCurr != null && wSMA50 != null) signals.push({ bull: wCurr > wSMA50,  weight: 2, label: 'Weekly vs WMA50' });
+  if (wRSI  != null) signals.push({ bull: wRSI  > 50, weight: 2, label: 'Weekly RSI' });
+  if (wMACD != null) signals.push({ bull: wMACD > 0,  weight: 3, label: 'Weekly MACD' });
+
+  // ── Volume / trend strength ──
+  if (volTrnd === 'rising')   signals.push({ bull: true,  weight: 2, label: 'Volume rising' });
+  if (volTrnd === 'declining') signals.push({ bull: false, weight: 2, label: 'Volume declining' });
+  if (adx != null && adx > 25) signals.push({ bull: curr > (sma20 || curr), weight: 1, label: 'ADX trend strength' });
+
+  if (!signals.length) return null;
+
+  const totalWeight = signals.reduce((s, x) => s + x.weight, 0);
+  const bullWeight  = signals.filter(x => x.bull).reduce((s, x) => s + x.weight, 0);
+  const bullPct     = Math.round(bullWeight / totalWeight * 100);
+
+  return {
+    bullPct,
+    bearPct:     100 - bullPct,
+    direction:   bullPct >= 65 ? 'BULLISH' : bullPct <= 35 ? 'BEARISH' : 'MIXED',
+    strength:    bullPct >= 80 || bullPct <= 20 ? 'HIGH' : bullPct >= 65 || bullPct <= 35 ? 'MODERATE' : 'LOW',
+    signalCount: signals.length,
+  };
+}
+
 async function fetchFearGreed() {
   try {
     const res = await fetch('https://api.alternative.me/fng/?limit=1');
@@ -536,6 +581,26 @@ async function fetchMacroContext(sym) {
   } catch { return null; }
 }
 
+// Fetches quantified macro intermarket data (yield curve, HY OAS, VIX, DXY)
+async function fetchMacroIntermarket() {
+  try {
+    const r = await fetch('/api/macro-intermarket');
+    if (!r.ok) return null;
+    return r.json();
+  } catch { return null; }
+}
+
+// Fetches Piotroski F-Score, Beneish M-Score, Accrual Ratio, Altman Z-Score
+// Only called for Stock type; requires FMP_API_KEY on the server side.
+async function fetchQualityScores(sym) {
+  try {
+    const r = await fetch(`/api/quality-scores?sym=${encodeURIComponent(sym)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.available ? d : null;
+  } catch { return null; }
+}
+
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
 async function callAgent(system, prompt, maxTokens = 2500) {
@@ -640,7 +705,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -706,6 +771,29 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     const pocAbove = candles[candles.length-1].close > volProfile.poc;
     statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Vol Profile POC</div><div class="stat-value ${pocAbove ? 'up' : 'down'}">${volProfile.poc} (${pocAbove ? 'above' : 'below'})</div></div>`;
   }
+  // Confluence Score
+  if (confluenceScore) {
+    const csClass = confluenceScore.bullPct >= 65 ? 'up' : confluenceScore.bullPct <= 35 ? 'down' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Confluence</div><div class="stat-value ${csClass}">${confluenceScore.bullPct}% Bull (${confluenceScore.direction})</div></div>`;
+  }
+  // Yield Curve (from intermarket)
+  if (macroIntermarket?.yield_curve?.value != null) {
+    const yc = macroIntermarket.yield_curve;
+    const ycClass = yc.value < 0 ? 'down' : yc.value > 0.5 ? 'up' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Yield Curve (2s10s)</div><div class="stat-value ${ycClass}">${yc.value > 0 ? '+' : ''}${yc.value.toFixed(2)}% (${yc.label})</div></div>`;
+  }
+  // VIX (from intermarket)
+  if (macroIntermarket?.vix?.value != null) {
+    const vx = macroIntermarket.vix;
+    const vxClass = vx.value > 30 ? 'down' : vx.value < 18 ? 'up' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">VIX</div><div class="stat-value ${vxClass}">${vx.value.toFixed(1)} — ${vx.label}</div></div>`;
+  }
+  // Piotroski F-Score
+  if (qualityScores?.piotroski?.score != null) {
+    const fs = qualityScores.piotroski.score;
+    const fsClass = fs >= 7 ? 'up' : fs <= 3 ? 'down' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Piotroski F-Score</div><div class="stat-value ${fsClass}">${fs}/9 — ${qualityScores.piotroski.quality}</div></div>`;
+  }
 
   // ── Macro ──
   const reg = (a.macro_regime || '').toLowerCase().replace(/[_ ]/g, '-');
@@ -713,6 +801,27 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   rb.textContent = a.macro_regime ? a.macro_regime.replace(/-/g, ' ').toUpperCase() : '';
   rb.className = `regime-badge ${reg}`;
   setText('macroText', a.macro_environment || '');
+
+  // Remove any previously rendered intermarket strip to avoid duplication on rescan
+  document.querySelector('.intermarket-strip')?.remove();
+
+  // Append live intermarket data below the AI macro text
+  const macroTextEl = document.getElementById('macroText');
+  if (macroTextEl && macroIntermarket) {
+    const im = macroIntermarket;
+    const lines = [];
+    if (im.yield_curve?.signal)           lines.push(`📊 Yield Curve: ${im.yield_curve.signal}`);
+    if (im.hy_oas?.signal)                lines.push(`💳 HY Credit: ${im.hy_oas.signal}`);
+    if (im.vix?.signal)                   lines.push(`📉 VIX: ${im.vix.signal}`);
+    if (im.dxy?.signal)                   lines.push(`💵 DXY: ${im.dxy.signal}`);
+    if (im.bond_equity_correlation)       lines.push(`🔗 Bond/Equity: ${im.bond_equity_correlation}`);
+    if (lines.length) {
+      const div = document.createElement('div');
+      div.className = 'intermarket-strip';
+      div.innerHTML = lines.map(l => `<div class="im-line">${l}</div>`).join('');
+      macroTextEl.after(div);
+    }
+  }
 
   // ── Technical ──
   const macd    = calcMACD(closes);
@@ -786,6 +895,26 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
       if (m.fcfPerShareAnnual != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">FCF/Share</span><span class="fund-val">$${fmtNum(m.fcfPerShareAnnual)}</span></div>`;
       if (m.grossMarginTTM    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Gross Margin</span><span class="fund-val">${fmtPct(m.grossMarginTTM*100)}</span></div>`;
       if (m.roeTTM            != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">ROE (TTM)</span><span class="fund-val">${fmtPct(m.roeTTM*100)}</span></div>`;
+    }
+    // Quality Scores (Piotroski, Beneish, Accrual, Altman Z)
+    if (qualityScores) {
+      const qs = qualityScores;
+      if (qs.piotroski?.score != null) {
+        const fc = qs.piotroski.score >= 7 ? 'green' : qs.piotroski.score <= 3 ? 'red' : '';
+        fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Piotroski F-Score</span><span class="fund-val" style="color:${fc==='green'?'var(--green)':fc==='red'?'var(--red)':''}">${qs.piotroski.score}/9 (${qs.piotroski.quality})</span></div>`;
+      }
+      if (qs.beneish?.score != null) {
+        const bc = qs.beneish.flag === 'MANIPULATION_RISK' ? 'red' : 'green';
+        fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Beneish M-Score</span><span class="fund-val" style="color:${bc==='red'?'var(--red)':'var(--green)'}">${qs.beneish.score} (${qs.beneish.flag === 'MANIPULATION_RISK' ? '⚠ risk' : '✓ clean'})</span></div>`;
+      }
+      if (qs.accrual_ratio?.pct != null) {
+        const ac = qs.accrual_ratio.flag === 'HIGH_ACCRUALS' ? 'red' : qs.accrual_ratio.flag === 'CONSERVATIVE' ? 'green' : '';
+        fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Accrual Ratio</span><span class="fund-val" style="color:${ac==='red'?'var(--red)':ac==='green'?'var(--green)':''}">${qs.accrual_ratio.pct}%</span></div>`;
+      }
+      if (qs.altman_z?.score != null) {
+        const zc = qs.altman_z.zone === 'safe' ? 'green' : qs.altman_z.zone === 'distress' ? 'red' : '';
+        fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Altman Z-Score</span><span class="fund-val" style="color:${zc==='green'?'var(--green)':zc==='red'?'var(--red)':''}">${qs.altman_z.score} (${qs.altman_z.zone})</span></div>`;
+      }
     }
   } else {
     document.getElementById('fundGrid').innerHTML = '';
@@ -1051,15 +1180,25 @@ async function startResearch() {
     const relStr    = sym !== 'SPY' && sym !== 'BTC/USD' ? calcRelStrength(closes, benchCandles?.map(c => c.close)) : null;
     const benchName = type === 'Crypto' ? 'BTC' : 'SPY';
 
+    // ── Confluence Score — weighted multi-timeframe signal alignment ──────────
+    const confluenceScore = calcConfluenceScore({
+      curr, sma20, sma50, sma200,
+      wCurr, wSMA20, wSMA50,
+      rsi, wRSI, macd, wMACD,
+      volTrnd, adx, stochRsi,
+    });
+
     setStep(3);
 
-    // ── Step 3: News, fundamentals, macro context + memory — all in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed] = await Promise.all([
+    // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
       fetchTickerMemory(sym),
       fetchFearGreed(),
+      fetchMacroIntermarket(),
+      type === 'Stock' ? fetchQualityScores(sym) : Promise.resolve(null),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -1169,6 +1308,32 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       `• ${n.title} (${n.source || 'news'}, ${n.date ? new Date(n.date).toLocaleDateString() : 'recent'})`
     ).join('\n');
 
+    // ── Confluence Score block ─────────────────────────────────────────────────
+    const confluenceBlock = confluenceScore ? `
+━━━ MULTI-TIMEFRAME CONFLUENCE SCORE ━━━
+Signal Alignment: ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish (${confluenceScore.signalCount} weighted signals across daily + weekly)
+Direction: ${confluenceScore.direction} | Strength: ${confluenceScore.strength}
+${confluenceScore.bullPct >= 80 ? '⚡ STRONG BULLISH ALIGNMENT — high-conviction long setups supported' : ''}${confluenceScore.bullPct <= 20 ? '⚡ STRONG BEARISH ALIGNMENT — high-conviction short setups supported' : ''}${confluenceScore.direction === 'MIXED' ? '⚠️ MIXED SIGNALS — requires extra caution; NO_EDGE or WAIT may be most honest verdict' : ''}
+CONFIDENCE CALIBRATION RULE: Confidence score should generally not exceed (Confluence% + 20) unless exceptional circumstances justify it. A confluence of ${confluenceScore.bullPct}% → confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : '';
+
+    // ── Macro Intermarket block (FRED + Yahoo Finance) ─────────────────────────
+    const intermarketBlock = macroIntermarket ? `
+━━━ MACRO INTERMARKET SIGNALS (Live, Quantified) ━━━
+Yield Curve (10Y−2Y): ${macroIntermarket.yield_curve?.signal || 'N/A'} → Regime: ${macroIntermarket.yield_curve?.regime || 'N/A'}
+HY Credit Spreads (OAS): ${macroIntermarket.hy_oas?.signal || 'N/A'} → Regime: ${macroIntermarket.hy_oas?.regime || 'N/A'}
+VIX: ${macroIntermarket.vix?.signal || 'N/A'} → Regime: ${macroIntermarket.vix?.regime || 'N/A'}
+DXY (Dollar): ${macroIntermarket.dxy?.signal || 'N/A'}
+Bond-Equity Correlation: ${macroIntermarket.bond_equity_correlation || 'N/A'}` : '';
+
+    // ── Quality Scores block (Piotroski, Beneish, Accrual, Altman Z) ──────────
+    const qualityBlock = qualityScores ? `
+━━━ ACCOUNTING QUALITY SCORES (${qualityScores.period || 'Annual'}) ━━━
+Piotroski F-Score: ${qualityScores.piotroski?.score ?? 'N/A'}/9 (${qualityScores.piotroski?.quality || 'N/A'}) — ${qualityScores.piotroski?.interpretation || ''}
+Beneish M-Score: ${qualityScores.beneish?.score ?? 'N/A'} — ${qualityScores.beneish?.interpretation || ''}
+Accrual Ratio: ${qualityScores.accrual_ratio?.pct ?? 'N/A'}% — ${qualityScores.accrual_ratio?.interpretation || ''}
+Altman Z-Score: ${qualityScores.altman_z?.score ?? 'N/A'} — ${qualityScores.altman_z?.interpretation || ''}
+${qualityScores.quality_flags?.length ? '⚑ FLAGS:\n' + qualityScores.quality_flags.map(f => `  ${f}`).join('\n') : ''}` : '';
+
     const systemPrompt = `You are a ruthlessly honest quantitative trading analyst. The user has already been shown a clear disclaimer stating this is an AI estimate and not financial advice. They understand this. Therefore you have full permission to be completely direct, unhedged, and honest — there is no need to soften conclusions or add caveats.
 
 ABSOLUTE RULES — violating any of these is a failure:
@@ -1240,6 +1405,9 @@ Fear & Greed Index: ${fearGreed.value}/100 (${fearGreed.label})${fearGreed.value
 ${ohlcvTable}
 ${fundBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
+${intermarketBlock}
+${qualityBlock}
+${confluenceBlock}
 ${scanBlock}
 ${impactBlock}
 ${memoryBlock}
@@ -1293,97 +1461,229 @@ Respond ONLY with valid JSON. No text before or after.
   "why_confidence_not_higher": "What uncertainty prevents higher confidence"
 }`;
 
-    // ── Step 5: Multi-agent parallel analysis ────────────────────────────────
-    // 4 specialist agents run in parallel (same wall-clock time as 1 call),
-    // then a committee agent synthesises their findings into the final JSON.
+    // ── Step 5: Multi-agent parallel analysis — TWO-PASS ARCHITECTURE ─────────
+    // PASS 1: Each specialist enumerates evidence only (no verdict, no conclusion).
+    //         This prevents anchoring — agents surface facts, not spin.
+    // PASS 2: Cross-critique debate — agents challenge each other's weakest assumptions.
+    // FINAL:  Committee synthesises all factor lists + debate → single JSON verdict.
 
     // Shared data block sent to each specialist
-    const sharedData = prompt; // already built above — contains all indicators, OHLCV, macro etc.
+    const sharedData = prompt;
 
     // Stagger helper — spreads concurrent Gemini calls to avoid burst rate-limiting
     const stagger = ms => new Promise(r => setTimeout(r, ms));
 
-    const [techRaw, fundRaw, macroRaw, sentRaw] = await Promise.all([
+    // ── PASS 1: Structured Factor Enumeration ─────────────────────────────────
+    function parseFactors(raw, fallback) {
+      try {
+        const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (m) return JSON.parse(m[0]);
+      } catch {}
+      return { bullish_factors: [fallback], bearish_factors: [], key_signal: fallback, key_level: 'N/A' };
+    }
 
-      // Agent 1 — Technical Trader (starts immediately)
+    const [techRaw, fundRaw, macroRaw, riskRaw] = await Promise.all([
+
+      // Agent 1 — Technical Analyst (starts immediately)
       callAgent(
-        'You are a pure technical analyst. You ONLY analyse price structure, momentum, volume, and indicators. No fundamental opinions. Be direct and specific. Respond in plain text, 4-6 sentences.',
-        `Analyse ${sym} (${type}) technically. Focus on: trend quality, momentum state, key support/resistance, overbought/oversold conditions, volume confirmation, and what the multi-timeframe structure says about short-term direction.\n\n${sharedData}`,
-        2500
-      ).catch(e => `Technical analysis unavailable: ${e.message}`),
+        `You are a pure technical analyst at a hedge fund. Your job is to enumerate evidence — not reach conclusions. Be specific: cite exact indicator values, exact price levels, exact patterns. No vague statements.`,
+        `For ${sym} (${type}, price: ${curr.toFixed(dp)}):
+
+List the specific TECHNICAL evidence. Be data-driven.
+
+Respond ONLY with this JSON (no other text, no markdown):
+{
+  "bullish_factors": ["specific factor with data point", "specific factor", "specific factor"],
+  "bearish_factors": ["specific factor with data point", "specific factor", "specific factor"],
+  "key_signal": "the single most significant technical signal right now (1 sentence)",
+  "key_level": "the most critical price level and why it matters"
+}
+
+DATA:
+${sharedData}`,
+        1800
+      ).then(r => parseFactors(r, `Technical data for ${sym}`))
+       .catch(() => ({ bullish_factors: ['Technical data unavailable'], bearish_factors: [], key_signal: 'N/A', key_level: 'N/A' })),
 
       // Agent 2 — Fundamental Analyst (starts +350 ms)
       stagger(350).then(() => (type === 'Stock' || type === 'ETF')
         ? callAgent(
-            'You are a fundamental analyst focused on business quality and valuation. No technical opinions. Be direct. Respond in plain text, 4-6 sentences.',
-            `Analyse ${sym} fundamentally. Cover: valuation vs peers and history, earnings quality and trajectory, revenue growth sustainability, balance sheet strength, competitive moat, and whether the current price reflects fair value.\n\n${sharedData}`,
-            2500
-          ).catch(e => `Fundamental analysis unavailable: ${e.message}`)
-        : Promise.resolve(`Not applicable for ${type} assets.`)),
+            `You are a fundamental analyst at a hedge fund. Your job is to enumerate specific financial evidence — not reach conclusions. Cite exact numbers. No vague statements.`,
+            `For ${sym} (${type}):
+
+List the specific FUNDAMENTAL evidence. Reference exact metrics.
+
+Respond ONLY with this JSON (no other text, no markdown):
+{
+  "bullish_factors": ["specific factor with exact metric", "specific factor", "specific factor"],
+  "bearish_factors": ["specific factor with exact metric", "specific factor", "specific factor"],
+  "key_signal": "the most important fundamental signal right now (1 sentence)",
+  "valuation_view": "undervalued|fairly-valued|overvalued — one sentence explaining why"
+}
+
+DATA:
+${sharedData}`,
+            1800
+          ).then(r => parseFactors(r, `Fundamental data for ${sym}`))
+           .catch(() => ({ bullish_factors: ['Fundamental data unavailable'], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' }))
+        : Promise.resolve({ bullish_factors: [`${type} assets: fundamental analysis not applicable`], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' })),
 
       // Agent 3 — Macro Strategist (starts +700 ms)
       stagger(700).then(() => callAgent(
-        'You are a macro strategist. You ONLY analyse the macro environment and its specific impact on the given asset. No technical or fundamental opinions. Be direct. Respond in plain text, 4-6 sentences.',
-        `Analyse the macro environment and its specific impact on ${sym} (${type}). Cover: current rate cycle, inflation trajectory, Fed/central bank stance, USD strength, risk-on vs risk-off conditions, sector rotation, and how macro tailwinds or headwinds affect this specific asset right now.\n\n${sharedData}`,
-        2500
-      ).catch(e => `Macro analysis unavailable: ${e.message}`)),
+        `You are a macro strategist at a hedge fund. Your job is to enumerate specific macro evidence — not reach conclusions. Reference exact data (yield curve values, VIX levels, credit spreads). No vague statements.`,
+        `For ${sym} (${type}):
 
-      // Agent 4 — Risk Manager (starts +1050 ms)
+List the specific MACRO evidence and its directional implication for this asset.
+
+Respond ONLY with this JSON (no other text, no markdown):
+{
+  "tailwinds": ["specific macro tailwind with data", "specific tailwind", "specific tailwind"],
+  "headwinds": ["specific macro headwind with data", "specific headwind", "specific headwind"],
+  "key_signal": "the most important macro signal for this specific asset (1 sentence)",
+  "regime": "risk-on|risk-off|late-cycle|recessionary|expansionary"
+}
+
+DATA:
+${sharedData}`,
+        1800
+      ).then(r => parseFactors(r, `Macro data for ${sym}`))
+       .catch(() => ({ tailwinds: ['Macro data unavailable'], headwinds: [], key_signal: 'N/A', regime: 'N/A' })),
+
+      // Agent 4 — Risk Manager / Devil's Advocate (starts +1050 ms)
       stagger(1050).then(() => callAgent(
-        'You are a risk manager and devil\'s advocate. Your ONLY job is to identify what could go wrong — what destroys the bull thesis, what is overpriced, what risks are underappreciated. Be harsh, specific, and direct. Respond in plain text, 4-6 sentences.',
-        `For ${sym} (${type}): identify the key risks. What breaks the bullish thesis? What structural risks are underappreciated? What could cause a 20-40% drawdown from here? What do the bears know that bulls are ignoring?\n\n${sharedData}`,
-        2500
-      ).catch(e => `Risk analysis unavailable: ${e.message}`)),
+        `You are a risk manager and devil's advocate at a hedge fund. Your ONLY job is to enumerate specific risks — what destroys the bull thesis. Be harsh, specific, cite exact numbers. No softening.`,
+        `For ${sym} (${type}):
 
+Enumerate the specific RISKS. What breaks the bullish thesis? Be precise.
+
+Respond ONLY with this JSON (no other text, no markdown):
+{
+  "critical_risks": ["specific risk with supporting data", "specific risk", "specific risk"],
+  "underappreciated_risks": ["risk the bulls are ignoring", "risk", "risk"],
+  "bear_trigger": "the single most likely catalyst that causes a 20%+ drawdown (1 sentence)",
+  "max_downside": "realistic worst-case price level and the scenario that gets there"
+}
+
+DATA:
+${sharedData}`,
+        1800
+      ).then(r => parseFactors(r, `Risk data for ${sym}`))
+       .catch(() => ({ critical_risks: ['Risk data unavailable'], underappreciated_risks: [], bear_trigger: 'N/A', max_downside: 'N/A' })),
     ]);
 
-    // ── Debate round: Tech vs Risk (staggered) ────────────────────────────
-    const [techRebuttal, riskRebuttal] = await Promise.all([
+    // ── PASS 2: Cross-critique debate ─────────────────────────────────────────
+    // Agents challenge each other's weakest assumptions — reduces groupthink
+    const techBulls  = (techRaw.bullish_factors  || []).slice(0, 3).join('; ');
+    const fundView   = fundRaw.valuation_view || (fundRaw.bullish_factors || []).slice(0, 2).join('; ');
+    const riskBears  = (riskRaw.critical_risks || []).slice(0, 3).join('; ');
+    const macroTW    = (macroRaw.tailwinds      || macroRaw.bullish_factors || []).slice(0, 2).join('; ');
+
+    const [techVsRisk, riskVsTech, macroVsFund] = await Promise.all([
+      // Technical analyst challenges the top risk factors
       callAgent(
-        'You are the technical analyst. Be direct and specific. 3 sentences maximum.',
-        `The risk manager said: "${sentRaw.slice(0, 400)}"\n\nRespond only to specific technical evidence that contradicts their concerns. What do the charts/indicators actually show that addresses their risks?`,
-        1200
+        'You are the technical analyst. 2-3 sentences. Be blunt. Cite specific indicator values.',
+        `The risk manager flags these risks: "${riskBears}"\n\nWhich of these does the current technical picture specifically CONTRADICT? What do the charts show that addresses or dismisses these concerns? Be specific with levels and indicators.`,
+        900
       ).catch(() => null),
-      stagger(400).then(() => callAgent(
-        'You are the risk manager. Be direct and specific. 3 sentences maximum.',
-        `The technical analyst said: "${techRaw.slice(0, 400)}"\n\nWhat specific risks does technical optimism ignore? What has the technical analyst missed or underweighted?`,
-        1200
-      ).catch(() => null)),
+
+      // Risk manager challenges the technical optimism
+      stagger(350).then(() => callAgent(
+        'You are the risk manager. 2-3 sentences. Be harsh. Cite specific data.',
+        `The technical analyst points to: "${techBulls}"\n\nWhat critical risk does this technical optimism IGNORE? What fundamental or macro factor makes the technical picture less reliable here? Be specific.`,
+        900
+      )).catch(() => null),
+
+      // Macro strategist challenges fundamental valuation
+      stagger(700).then(() => callAgent(
+        'You are the macro strategist. 2-3 sentences. Be direct.',
+        `The fundamental analyst's view: "${fundView}"\n\nHow does the current macro environment (regime: ${macroRaw.regime || 'N/A'}) specifically challenge or support this fundamental thesis? What macro factor is the fundamental analyst underweighting?`,
+        900
+      )).catch(() => null),
     ]);
-    const debateBlock = (techRebuttal || riskRebuttal)
-      ? `\n━━━ TECH vs RISK DEBATE ━━━\nTechnical rebuttal: ${techRebuttal || 'N/A'}\nRisk rebuttal: ${riskRebuttal || 'N/A'}`
-      : '';
+
+    // Format factor lists for committee briefing
+    const fmtList = (arr, label) => arr?.length ? `  ${label}: ${arr.slice(0, 4).join(' | ')}` : '';
+    const techFactors = [
+      fmtList(techRaw.bullish_factors, '▲ Bullish'),
+      fmtList(techRaw.bearish_factors, '▼ Bearish'),
+      techRaw.key_signal ? `  Key signal: ${techRaw.key_signal}` : '',
+      techRaw.key_level  ? `  Key level:  ${techRaw.key_level}` : '',
+    ].filter(Boolean).join('\n');
+
+    const fundFactors = [
+      fmtList(fundRaw.bullish_factors, '▲ Bullish'),
+      fmtList(fundRaw.bearish_factors, '▼ Bearish'),
+      fundRaw.key_signal    ? `  Key signal:     ${fundRaw.key_signal}` : '',
+      fundRaw.valuation_view ? `  Valuation view: ${fundRaw.valuation_view}` : '',
+    ].filter(Boolean).join('\n');
+
+    const macroFactors = [
+      fmtList(macroRaw.tailwinds     || macroRaw.bullish_factors, '↑ Tailwinds'),
+      fmtList(macroRaw.headwinds     || macroRaw.bearish_factors, '↓ Headwinds'),
+      macroRaw.key_signal ? `  Key signal: ${macroRaw.key_signal}` : '',
+      macroRaw.regime     ? `  Regime:     ${macroRaw.regime}` : '',
+    ].filter(Boolean).join('\n');
+
+    const riskFactors = [
+      fmtList(riskRaw.critical_risks,        '🚨 Critical'),
+      fmtList(riskRaw.underappreciated_risks, '⚠️ Hidden'),
+      riskRaw.bear_trigger ? `  Bear trigger: ${riskRaw.bear_trigger}` : '',
+      riskRaw.max_downside ? `  Worst case:   ${riskRaw.max_downside}` : '',
+    ].filter(Boolean).join('\n');
+
+    const debateBlock = [
+      techVsRisk  ? `Technical analyst rebutting risks: ${techVsRisk}` : null,
+      riskVsTech  ? `Risk manager challenging technicals: ${riskVsTech}` : null,
+      macroVsFund ? `Macro vs fundamental: ${macroVsFund}` : null,
+    ].filter(Boolean).join('\n');
+
+    // Legacy aliases for display in renderResults specialist panel
+    const techRawText  = [techFactors,  techVsRisk  || ''].join('\n');
+    const fundRawText  = [fundFactors].join('\n');
+    const macroRawText = [macroFactors, macroVsFund || ''].join('\n');
+    const sentRawText  = [riskFactors,  riskVsTech  || ''].join('\n');
 
     setStep(5);
 
     // ── Committee Agent: synthesise all specialist findings → final JSON ──────
-    const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted their findings on ${sym} (current price: ${curr.toFixed(dp)}). Your job is to weigh their inputs, resolve disagreements, and deliver the final verdict.
+    const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict.
 
-━━━ TECHNICAL ANALYST ━━━
-${techRaw}
+━━━ TECHNICAL ANALYST — Evidence ━━━
+${techFactors}
 
-━━━ FUNDAMENTAL ANALYST ━━━
-${fundRaw}
+━━━ FUNDAMENTAL ANALYST — Evidence ━━━
+${fundFactors}
 
-━━━ MACRO STRATEGIST ━━━
-${macroRaw}
+━━━ MACRO STRATEGIST — Evidence ━━━
+${macroFactors}
 
-━━━ RISK MANAGER (bear case / devil's advocate) ━━━
-${sentRaw}
-${debateBlock}
+━━━ RISK MANAGER — Evidence ━━━
+${riskFactors}
 
-━━━ ADDITIONAL CONTEXT ━━━
-${fearGreed ? `Market Fear & Greed: ${fearGreed.value}/100 (${fearGreed.label})` : ''}
-${relStr?.rs1m != null ? `${sym} 1M Relative Strength vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
-${scanBlock || 'No historical scan data.'}
-${memoryBlock || 'No prior analyses in memory.'}
+━━━ CROSS-CRITIQUE DEBATE ━━━
+${debateBlock || 'Debate data unavailable.'}
+
+━━━ QUANTITATIVE CONTEXT ━━━
+${confluenceScore ? `Multi-Timeframe Confluence: ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish (${confluenceScore.direction}, ${confluenceScore.strength} strength, ${confluenceScore.signalCount} signals)
+CRITICAL: Confidence score should generally not exceed (Confluence% + 20) unless overwhelming evidence justifies it. Confluence of ${confluenceScore.bullPct}% → implied confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : ''}
+${fearGreed ? `Fear & Greed: ${fearGreed.value}/100 (${fearGreed.label})` : ''}
+${macroIntermarket?.yield_curve?.signal ? `Yield Curve: ${macroIntermarket.yield_curve.signal}` : ''}
+${macroIntermarket?.hy_oas?.signal ? `HY Credit: ${macroIntermarket.hy_oas.signal}` : ''}
+${macroIntermarket?.vix?.signal ? `VIX: ${macroIntermarket.vix.signal}` : ''}
+${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
+${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
+${scanBlock || ''}
+${memoryBlock || ''}
 
 Your task:
-1. Weigh the four specialist views against each other
-2. Identify where they agree (high conviction) and where they conflict (uncertainty)
-3. Give the risk manager's concerns serious weight — do not dismiss them
-4. Deliver a final verdict. If the specialists disagree materially, lean toward NO_EDGE or WAIT
-5. Be brutally honest — the user has been informed this is an AI estimate, not advice
+1. Read the EVIDENCE lists — count how many bullish vs bearish factors exist across all four analysts
+2. Identify where analysts AGREE (high conviction areas) and where they CONFLICT (uncertainty areas)
+3. The Risk Manager's evidence deserves EQUAL weight to bullish factors — do not dismiss risks
+4. Apply the Confluence Score as a hard calibration constraint on your confidence score
+5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD
+6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
+7. Be brutally honest — no performance, no softening, no default verdicts
 
 Respond ONLY with this exact JSON structure:
 
@@ -1437,7 +1737,7 @@ Respond ONLY with this exact JSON structure:
       if (!m) throw new Error('no JSON');
       analysis = JSON.parse(m[0]);
       // Store specialist notes on the analysis object for display
-      analysis._specialists = { technical: techRaw, fundamental: fundRaw, macro: macroRaw, risk: sentRaw };
+      analysis._specialists = { technical: techRawText, fundamental: fundRawText, macro: macroRawText, risk: sentRawText };
     } catch {
       throw new Error('AI returned an unexpected response format. Please try again.');
     }
@@ -1445,7 +1745,7 @@ Respond ONLY with this exact JSON structure:
     // Save this analysis to Supabase memory (fire-and-forget)
     saveToMemory(sym, type, analysis, curr);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {
