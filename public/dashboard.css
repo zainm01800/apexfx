@@ -342,6 +342,14 @@ body {
 .mem-icon { font-size: 15px; }
 .memory-badge strong { color: var(--accent); }
 
+/* ── Specialist agent panels ── */
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+@media (max-width: 700px) { .spec-grid { grid-template-columns: 1fr; } }
+.spec-panel { background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.spec-label { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.spec-text { font-size: 13px; color: var(--text2); line-height: 1.65; }
+.spec-disagreement { font-size: 12px; color: var(--text3); margin-top: 12px; padding: 8px 12px; background: rgba(250,200,80,.05); border: 1px solid rgba(250,200,80,.15); border-radius: 6px; }
+
 /* ── Historical Edge card ── */
 .he-card .a-card-header { gap: 10px; }
 .he-subtitle { font-size: 12px; color: var(--text3); margin-left: auto; }

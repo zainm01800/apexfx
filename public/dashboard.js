@@ -427,6 +427,34 @@ async function fetchMacroContext(sym) {
   } catch { return null; }
 }
 
+// ── Multi-agent AI call ───────────────────────────────────────────────────────
+// Calls /api/ai with a focused prompt. Returns the text or throws.
+async function callAgent(system, prompt, maxTokens = 1500) {
+  const res = await fetch('/api/ai', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt,
+      system,
+      max_tokens:  maxTokens,
+      temperature: 0.3,
+      timeoutMs:   55000,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    // Surface rate-limit errors properly
+    if (res.status === 429 || (data.retryAfterMs)) {
+      const mins = data.retryAfterMs ? Math.ceil(data.retryAfterMs / 60000) : null;
+      throw new Error(mins
+        ? `AI rate limit reached. Resets in ~${mins} min. Get a free GEMINI_API_KEY at aistudio.google.com to avoid this.`
+        : (data.error || 'AI rate limit reached.'));
+    }
+    throw new Error(data.error || `Agent error HTTP ${res.status}`);
+  }
+  return data.text || '';
+}
+
 // ── Market pulse ──────────────────────────────────────────────────────────────
 
 async function loadPulse(sym, type, elId) {
@@ -695,6 +723,28 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     (a.invalidation_conditions || []).map(c => `<li>${c}</li>`).join('');
   setText('changeViewText', a.what_would_change_view || '');
 
+  // ── Specialist agent breakdown card ──
+  const specCard = document.getElementById('specialistCard');
+  if (specCard && a._specialists) {
+    const s = a._specialists;
+    specCard.style.display = '';
+    specCard.querySelector('#specGrid').innerHTML = [
+      { icon: '📈', label: 'Technical Analyst',    text: s.technical   },
+      { icon: '📊', label: 'Fundamental Analyst',  text: s.fundamental },
+      { icon: '🌐', label: 'Macro Strategist',     text: s.macro       },
+      { icon: '⚠️', label: 'Risk Manager',         text: s.risk        },
+    ].map(ag => `
+      <div class="spec-panel">
+        <div class="spec-label">${ag.icon} ${ag.label}</div>
+        <div class="spec-text">${ag.text || '—'}</div>
+      </div>`).join('');
+    const disagreement = a.specialist_disagreements;
+    const discEl = specCard.querySelector('#specDisagreement');
+    if (discEl) discEl.textContent = disagreement ? `Committee note: ${disagreement}` : '';
+  } else if (specCard) {
+    specCard.style.display = 'none';
+  }
+
   // ── Historical Edge card ──
   const heCard = document.getElementById('historicalEdgeCard');
   if (heCard) {
@@ -800,9 +850,9 @@ async function startResearch() {
   [
     'Fetching multi-timeframe price history',
     'Computing 15+ technical indicators',
-    'Pulling fundamentals, news & macro regime',
-    'Running DeepSeek R1 deep reasoning engine',
-    'Building probabilistic institutional report',
+    'Pulling fundamentals, news, macro & memory',
+    'Running 4 specialist AI agents in parallel…',
+    'Investment committee synthesising final verdict',
   ].forEach((t, i) => { const el = document.getElementById(`ls${i + 1}`); if (el) el.textContent = t; });
 
   setStep(1);
@@ -1065,59 +1115,128 @@ Respond ONLY with valid JSON. No text before or after.
   "why_confidence_not_higher": "What uncertainty prevents higher confidence"
 }`;
 
-    const aiRes = await fetch('/api/ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt,
-        system:      systemPrompt,
-        model:       'llama-3.3-70b-versatile',
-        max_tokens:  6000,
-        temperature: 0.35,
-        timeoutMs:   58000,
-      }),
-    });
-    if (!aiRes.ok) {
-      const e = await aiRes.json().catch(() => ({}));
-      if (aiRes.status === 429) {
-        // Groq rate limit — calculate how long to wait
-        const retryMs = e.retryAfterMs || null;
-        let waitMsg = 'AI rate limit reached.';
-        if (retryMs) {
-          const mins = Math.ceil(retryMs / 60000);
-          waitMsg = mins >= 60
-            ? `AI rate limit reached. Groq quota resets in ~${Math.ceil(mins / 60)}h ${mins % 60}m. Try again later or upgrade your Groq plan at console.groq.com.`
-            : `AI rate limit reached. Groq quota resets in ~${mins} minute${mins !== 1 ? 's' : ''}. Please wait and try again.`;
-        } else {
-          waitMsg = 'AI rate limit reached (Groq free tier). Please wait a few minutes and try again, or upgrade your Groq plan at console.groq.com.';
-        }
-        throw new Error(waitMsg);
-      }
-      throw new Error(e.error || `AI service error (HTTP ${aiRes.status})`);
-    }
-    const aiData = await aiRes.json();
-    if (aiData.error) {
-      if (aiData.retryAfterMs || aiData.error?.toLowerCase().includes('rate') || aiData.error?.toLowerCase().includes('quota')) {
-        const mins = aiData.retryAfterMs ? Math.ceil(aiData.retryAfterMs / 60000) : null;
-        const waitMsg = mins
-          ? (mins >= 60
-            ? `AI rate limit reached. Groq quota resets in ~${Math.ceil(mins / 60)}h ${mins % 60}m. Try again later.`
-            : `AI rate limit reached. Groq quota resets in ~${mins} minute${mins !== 1 ? 's' : ''}. Please wait.`)
-          : 'AI rate limit reached (Groq free tier). Please wait a few minutes and try again.';
-        throw new Error(waitMsg);
-      }
-      throw new Error(aiData.error);
-    }
+    // ── Step 5: Multi-agent parallel analysis ────────────────────────────────
+    // 4 specialist agents run in parallel (same wall-clock time as 1 call),
+    // then a committee agent synthesises their findings into the final JSON.
+
+    // Shared data block sent to each specialist
+    const sharedData = prompt; // already built above — contains all indicators, OHLCV, macro etc.
+
+    const [techRaw, fundRaw, macroRaw, sentRaw] = await Promise.all([
+
+      // Agent 1 — Technical Trader
+      callAgent(
+        'You are a pure technical analyst. You ONLY analyse price structure, momentum, volume, and indicators. No fundamental opinions. Be direct and specific. Respond in plain text, 4-6 sentences.',
+        `Analyse ${sym} (${type}) technically. Focus on: trend quality, momentum state, key support/resistance, overbought/oversold conditions, volume confirmation, and what the multi-timeframe structure says about short-term direction.\n\n${sharedData}`,
+        800
+      ).catch(e => `Technical analysis unavailable: ${e.message}`),
+
+      // Agent 2 — Fundamental Analyst (stocks/ETFs only, else skip)
+      (type === 'Stock' || type === 'ETF')
+        ? callAgent(
+            'You are a fundamental analyst focused on business quality and valuation. No technical opinions. Be direct. Respond in plain text, 4-6 sentences.',
+            `Analyse ${sym} fundamentally. Cover: valuation vs peers and history, earnings quality and trajectory, revenue growth sustainability, balance sheet strength, competitive moat, and whether the current price reflects fair value.\n\n${sharedData}`,
+            800
+          ).catch(e => `Fundamental analysis unavailable: ${e.message}`)
+        : Promise.resolve(`Not applicable for ${type} assets.`),
+
+      // Agent 3 — Macro Strategist
+      callAgent(
+        'You are a macro strategist. You ONLY analyse the macro environment and its specific impact on the given asset. No technical or fundamental opinions. Be direct. Respond in plain text, 4-6 sentences.',
+        `Analyse the macro environment and its specific impact on ${sym} (${type}). Cover: current rate cycle, inflation trajectory, Fed/central bank stance, USD strength, risk-on vs risk-off conditions, sector rotation, and how macro tailwinds or headwinds affect this specific asset right now.\n\n${sharedData}`,
+        800
+      ).catch(e => `Macro analysis unavailable: ${e.message}`),
+
+      // Agent 4 — Risk Manager (argues AGAINST any bullish thesis)
+      callAgent(
+        'You are a risk manager and devil\'s advocate. Your ONLY job is to identify what could go wrong — what destroys the bull thesis, what is overpriced, what risks are underappreciated. Be harsh, specific, and direct. Respond in plain text, 4-6 sentences.',
+        `For ${sym} (${type}): identify the key risks. What breaks the bullish thesis? What structural risks are underappreciated? What could cause a 20-40% drawdown from here? What do the bears know that bulls are ignoring?\n\n${sharedData}`,
+        800
+      ).catch(e => `Risk analysis unavailable: ${e.message}`),
+
+    ]);
 
     setStep(5);
 
+    // ── Committee Agent: synthesise all specialist findings → final JSON ──────
+    const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted their findings on ${sym} (current price: ${curr.toFixed(dp)}). Your job is to weigh their inputs, resolve disagreements, and deliver the final verdict.
+
+━━━ TECHNICAL ANALYST ━━━
+${techRaw}
+
+━━━ FUNDAMENTAL ANALYST ━━━
+${fundRaw}
+
+━━━ MACRO STRATEGIST ━━━
+${macroRaw}
+
+━━━ RISK MANAGER (bear case / devil's advocate) ━━━
+${sentRaw}
+
+━━━ ADDITIONAL CONTEXT ━━━
+${scanBlock || 'No historical scan data.'}
+${memoryBlock || 'No prior analyses in memory.'}
+
+Your task:
+1. Weigh the four specialist views against each other
+2. Identify where they agree (high conviction) and where they conflict (uncertainty)
+3. Give the risk manager's concerns serious weight — do not dismiss them
+4. Deliver a final verdict. If the specialists disagree materially, lean toward NO_EDGE or WAIT
+5. Be brutally honest — the user has been informed this is an AI estimate, not advice
+
+Respond ONLY with this exact JSON structure:
+
+{
+  "verdict": "STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE",
+  "confidence_level": "Low|Moderate|High|Very High",
+  "confidence_score": <integer 0-100. High when specialists agree, low when they conflict. Most scores land 45-80. Only 85+ when near-unanimous bullish/bearish signals across all four agents.>,
+  "executive_summary": "3-4 sentences synthesising the committee view — what is the overall picture and why",
+  "macro_environment": "3-4 sentences on macro regime and specific impact on this asset",
+  "macro_regime": "risk-on|risk-off|late-cycle|recessionary|expansionary|euphoric|fearful|liquidity-driven|fundamentally-driven",
+  "fundamental_analysis": "3-4 sentences on fundamentals, valuation, business quality",
+  "valuation": "undervalued|fairly-valued|overvalued|irrationally-priced",
+  "technical_analysis": "3-4 sentences on technical picture and price structure",
+  "sentiment_analysis": "2-3 sentences on positioning, crowding, contrarian signals",
+  "sentiment_condition": "excessively-bullish|excessively-bearish|complacent|euphoric|fearful|neutral",
+  "catalyst_analysis": "2-3 sentences on near-term catalysts and underpriced risks",
+  "risk_analysis": "3-4 sentences — the bear case synthesised from risk manager findings",
+  "specialist_disagreements": "1-2 sentences on where the analysts disagreed and how you resolved it",
+  "scenarios": {
+    "bull":    { "probability": <int>, "target": "<price>", "upside": "<pct>",   "description": "<1 sentence>" },
+    "base":    { "probability": <int>, "target": "<price>", "change": "<pct>",   "description": "<1 sentence>" },
+    "bear":    { "probability": <int>, "target": "<price>", "downside": "<pct>", "description": "<1 sentence>" },
+    "extreme": { "probability": <int>, "target": "<price>", "downside": "<pct>", "description": "<1 sentence>" }
+  },
+  "expected_value": "positive|slightly-positive|neutral|slightly-negative|negative",
+  "risk_reward": "<e.g. 2.5:1>",
+  "short_term_outlook":  "1-2 sentences on days-to-4-week outlook",
+  "medium_term_outlook": "1-2 sentences on 1-3 month outlook",
+  "long_term_outlook":   "1-2 sentences on 3-12 month outlook",
+  "key_reasons": ["<reason 1>", "<reason 2>", "<reason 3>", "<reason 4>"],
+  "invalidation_conditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
+  "entry_zone": "<price or range>",
+  "stop_loss": "<price>",
+  "target_price": "<price>",
+  "entry_strategy": "How and when to build the position",
+  "position_sizing": "Recommended sizing relative to portfolio and why",
+  "stop_loss_logic": "Why this stop level and what it protects against",
+  "profit_taking_logic": "When and how to take profits, scaling strategy",
+  "hedging_considerations": "Any hedges worth considering",
+  "timeframe": "<recommended holding period>",
+  "what_would_change_view": "What specific development would flip this thesis",
+  "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence"
+}`;
+
+    const committeeText = await callAgent(systemPrompt, committeePrompt, 3000);
+
     let analysis;
     try {
-      // Strip DeepSeek R1 chain-of-thought thinking blocks before parsing JSON
-      const cleaned = aiData.text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      const cleaned = committeeText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
       const m = cleaned.match(/\{[\s\S]*\}/);
       if (!m) throw new Error('no JSON');
       analysis = JSON.parse(m[0]);
+      // Store specialist notes on the analysis object for display
+      analysis._specialists = { technical: techRaw, fundamental: fundRaw, macro: macroRaw, risk: sentRaw };
     } catch {
       throw new Error('AI returned an unexpected response format. Please try again.');
     }
