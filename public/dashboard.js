@@ -623,7 +623,7 @@ function quickPick(sym) {
   document.getElementById('symInput').value = sym;
   updateTypePill(sym);
   closeDropdown();
-  startResearch();
+  document.getElementById('symInput').focus();
 }
 function setText(id, val) {
   const el = document.getElementById(id);
