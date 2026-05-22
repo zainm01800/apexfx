@@ -59,23 +59,27 @@
         </div>
         <div class="search-wrap">
           <div class="search-box">
-            <div class="search-field">
-              <input type="text" id="symInput" placeholder="AAPL, EUR/USD, BTC/USD, NVDA..." autocomplete="off" spellcheck="false" />
+            <div class="search-field" id="searchField">
+              <input type="text" id="symInput" placeholder="Search any stock, crypto or forex..." autocomplete="off" spellcheck="false" />
               <span class="type-pill" id="typePill"></span>
+              <!-- Autocomplete dropdown -->
+              <div class="sym-dropdown" id="symDropdown"></div>
             </div>
             <button class="analyse-btn" id="analyseBtn">
               Deep Analyse
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
             </button>
           </div>
-          <div class="quick-picks">
-            <span>Try:</span>
-            <button onclick="quickPick('NVDA')">NVDA</button>
-            <button onclick="quickPick('AAPL')">AAPL</button>
-            <button onclick="quickPick('BTC/USD')">BTC/USD</button>
-            <button onclick="quickPick('EUR/USD')">EUR/USD</button>
-            <button onclick="quickPick('TSLA')">TSLA</button>
-            <button onclick="quickPick('GLD')">GLD</button>
+
+          <!-- Categorised quick picks -->
+          <div class="quick-picks-wrap">
+            <div class="qp-tabs">
+              <button class="qp-tab active" data-cat="trending">🔥 Trending</button>
+              <button class="qp-tab" data-cat="crypto">₿ Crypto</button>
+              <button class="qp-tab" data-cat="forex">💱 Forex</button>
+              <button class="qp-tab" data-cat="etfs">📦 ETFs</button>
+            </div>
+            <div class="qp-grid" id="qpGrid"></div>
           </div>
         </div>
       </div>

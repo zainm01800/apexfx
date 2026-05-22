@@ -521,6 +521,7 @@ function updateTypePill(sym) {
 function quickPick(sym) {
   document.getElementById('symInput').value = sym;
   updateTypePill(sym);
+  closeDropdown();
   startResearch();
 }
 function setText(id, val) {
@@ -1254,10 +1255,158 @@ Respond ONLY with this exact JSON structure:
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+// ── Quick picks data ──────────────────────────────────────────────────────────
+const QUICK_PICKS = {
+  trending: [
+    { s: 'NVDA',  n: 'NVIDIA' },     { s: 'AAPL',  n: 'Apple' },
+    { s: 'MSFT',  n: 'Microsoft' },   { s: 'META',  n: 'Meta' },
+    { s: 'AMZN',  n: 'Amazon' },      { s: 'GOOGL', n: 'Alphabet' },
+    { s: 'TSLA',  n: 'Tesla' },       { s: 'AMD',   n: 'AMD' },
+    { s: 'PLTR',  n: 'Palantir' },    { s: 'TSM',   n: 'TSMC' },
+    { s: 'NFLX',  n: 'Netflix' },     { s: 'UBER',  n: 'Uber' },
+  ],
+  crypto: [
+    { s: 'BTC/USD',  n: 'Bitcoin' },   { s: 'ETH/USD',  n: 'Ethereum' },
+    { s: 'SOL/USD',  n: 'Solana' },    { s: 'BNB/USD',  n: 'BNB' },
+    { s: 'XRP/USD',  n: 'Ripple' },    { s: 'ADA/USD',  n: 'Cardano' },
+    { s: 'AVAX/USD', n: 'Avalanche' }, { s: 'DOGE/USD', n: 'Dogecoin' },
+    { s: 'MATIC/USD',n: 'Polygon' },   { s: 'LINK/USD', n: 'Chainlink' },
+    { s: 'ARB/USD',  n: 'Arbitrum' },  { s: 'SUI/USD',  n: 'Sui' },
+  ],
+  forex: [
+    { s: 'EUR/USD', n: 'Euro / Dollar' },  { s: 'GBP/USD', n: 'Cable' },
+    { s: 'USD/JPY', n: 'Dollar / Yen' },   { s: 'USD/CHF', n: 'Swissy' },
+    { s: 'AUD/USD', n: 'Aussie' },         { s: 'USD/CAD', n: 'Loonie' },
+    { s: 'NZD/USD', n: 'Kiwi' },           { s: 'GBP/JPY', n: 'Guppy' },
+    { s: 'EUR/GBP', n: 'Euro / Pound' },   { s: 'EUR/JPY', n: 'Euro / Yen' },
+  ],
+  etfs: [
+    { s: 'SPY',  n: 'S&P 500' },      { s: 'QQQ',  n: 'NASDAQ 100' },
+    { s: 'IWM',  n: 'Russell 2000' }, { s: 'GLD',  n: 'Gold' },
+    { s: 'TLT',  n: '20yr Treasury' },{ s: 'XLK',  n: 'Tech Sector' },
+    { s: 'XLE',  n: 'Energy Sector' },{ s: 'XLF',  n: 'Financials' },
+    { s: 'ARKK', n: 'ARK Innovation'},{ s: 'SMH',  n: 'Semiconductors'},
+    { s: 'SOXX', n: 'Semis (SOXX)' }, { s: 'XBI',  n: 'Biotech' },
+  ],
+};
+
+function renderQuickPicks(cat) {
+  const grid = document.getElementById('qpGrid');
+  if (!grid) return;
+  const items = QUICK_PICKS[cat] || [];
+  grid.innerHTML = items.map(({ s, n }) =>
+    `<button class="qp-btn" onclick="quickPick('${s}')">
+      <span class="qp-sym">${s}</span>
+      <span class="qp-name">${n}</span>
+    </button>`
+  ).join('');
+}
+
+function initQuickPicks() {
+  renderQuickPicks('trending');
+  document.querySelectorAll('.qp-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.qp-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderQuickPicks(tab.dataset.cat);
+    });
+  });
+}
+
+// ── Symbol autocomplete ───────────────────────────────────────────────────────
+let _acTimer = null;
+let _acActive = -1; // keyboard nav index
+
+function closeDropdown() {
+  const dd = document.getElementById('symDropdown');
+  if (dd) { dd.innerHTML = ''; dd.classList.remove('open'); }
+  _acActive = -1;
+}
+
+function renderDropdown(results) {
+  const dd = document.getElementById('symDropdown');
+  if (!dd) return;
+  if (!results.length) { closeDropdown(); return; }
+
+  const typeColor = { Stock:'stock', ETF:'etf', Crypto:'crypto', Forex:'forex', REIT:'stock', ADR:'stock' };
+
+  dd.innerHTML = results.map((r, i) =>
+    `<div class="dd-item" data-idx="${i}" data-sym="${r.symbol}" onmousedown="event.preventDefault();quickPick('${r.symbol}')">
+      <span class="dd-sym">${r.symbol}</span>
+      <span class="dd-name">${r.name}</span>
+      <span class="dd-type ${typeColor[r.type] || 'stock'}">${r.type}</span>
+    </div>`
+  ).join('');
+  dd.classList.add('open');
+  _acActive = -1;
+}
+
+function highlightItem(idx) {
+  const items = document.querySelectorAll('#symDropdown .dd-item');
+  items.forEach((el, i) => el.classList.toggle('focused', i === idx));
+}
+
+async function doSearch(q) {
+  if (!q || q.length < 1) { closeDropdown(); return; }
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderDropdown(data);
+  } catch {}
+}
+
+function initAutocomplete() {
+  const inp = document.getElementById('symInput');
+  if (!inp) return;
+
+  inp.addEventListener('input', () => {
+    updateTypePill(inp.value);
+    clearTimeout(_acTimer);
+    const q = inp.value.trim();
+    if (!q) { closeDropdown(); return; }
+    _acTimer = setTimeout(() => doSearch(q), 200);
+  });
+
+  inp.addEventListener('keydown', e => {
+    const items = document.querySelectorAll('#symDropdown .dd-item');
+    const open  = items.length > 0;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) return;
+      _acActive = Math.min(_acActive + 1, items.length - 1);
+      highlightItem(_acActive);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _acActive = Math.max(_acActive - 1, -1);
+      highlightItem(_acActive);
+    } else if (e.key === 'Enter') {
+      if (open && _acActive >= 0) {
+        const sym = items[_acActive].dataset.sym;
+        quickPick(sym);
+      } else {
+        closeDropdown();
+        startResearch();
+      }
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#searchField')) closeDropdown();
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initPulse();
-  const inp = document.getElementById('symInput');
-  inp.addEventListener('input',   () => updateTypePill(inp.value));
-  inp.addEventListener('keydown', e  => { if (e.key === 'Enter') startResearch(); });
-  document.getElementById('analyseBtn').addEventListener('click', startResearch);
+  initQuickPicks();
+  initAutocomplete();
+  document.getElementById('analyseBtn').addEventListener('click', () => {
+    closeDropdown();
+    startResearch();
+  });
 });
