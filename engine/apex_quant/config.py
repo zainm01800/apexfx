@@ -134,6 +134,15 @@ class ValidationConfig(BaseModel):
     pbo: PboConfig = Field(default_factory=PboConfig)
 
 
+class SentimentConfig(BaseModel):
+    enabled: bool = False          # off by default; sentiment is filter-only, never a trigger
+    veto_threshold: float = 0.60   # contradiction strength above this -> veto to flat
+    damp_threshold: float = 0.30   # contradiction strength above this -> shrink the bet
+    app_url: str = ""              # base URL of the APEX app exposing /api/news + /api/ai
+    news_lookback_days: int = 5
+    max_age_days: int = 7          # don't apply "today's" news to decisions older than this
+
+
 class AppConfig(BaseModel):
     version: int = 1
     seed: int = 42
@@ -144,6 +153,7 @@ class AppConfig(BaseModel):
     risk: RiskConfig = Field(default_factory=RiskConfig)
     backtest: BacktestConfig = Field(default_factory=BacktestConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    sentiment: SentimentConfig = Field(default_factory=SentimentConfig)
 
     @property
     def store_path(self) -> Path:

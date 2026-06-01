@@ -105,3 +105,15 @@ validation:
     benchmark_sharpe: 0.0        # Deflated Sharpe null hypothesis
   pbo:
     n_splits: 16                 # combinatorial splits for Prob. of Backtest Overfitting
+
+# -- Sentiment filter (Phase 2) -------------------------------------------------
+# Wired to the existing APEX Groq/Finnhub news pipeline. FILTER/VETO ONLY - it can
+# shrink or cancel a signal that the news strongly contradicts, but it can NEVER
+# create or enlarge a position. Off by default.
+sentiment:
+  enabled: false
+  veto_threshold: 0.60
+  damp_threshold: 0.30
+  app_url: ""                    # e.g. http://localhost:3001 or your Vercel URL
+  news_lookback_days: 5
+  max_age_days: 7
