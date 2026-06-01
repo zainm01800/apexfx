@@ -1,0 +1,8 @@
+# The Vercel deployment is the static frontend (public/) + JS edge functions (api/).
+# Everything below is local-only and must NOT be uploaded/built by Vercel.
+engine/
+.claude/
+supabase/
+scripts/
+node_modules/
+.git/
