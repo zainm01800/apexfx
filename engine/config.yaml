@@ -1,0 +1,103 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# APEX Quant Engine — versioned configuration
+# Every tunable parameter lives here. NO magic numbers in code.
+# Bump `version` whenever any value changes — backtests record the version used.
+# ══════════════════════════════════════════════════════════════════════════════
+version: 1
+
+# Global reproducibility seed — applied to numpy, sklearn, hmmlearn, arch.
+seed: 42
+
+# ── Data layer ────────────────────────────────────────────────────────────────
+data:
+  provider: yahoo            # adapter id (see data/adapter.py registry)
+  timeframe: "1d"            # base bar size for Phase 1
+  store_dir: "data_store"    # local parquet cache (relative to engine/)
+  # Forex-first universe (mirrors the pairs the JS app already supports).
+  instruments:
+    - "EUR/USD"
+    - "GBP/USD"
+    - "USD/JPY"
+    - "USD/CHF"
+    - "AUD/USD"
+    - "USD/CAD"
+    - "NZD/USD"
+  # Forex trading week (UTC): opens Sun 22:00, closes Fri 22:00. Used by the
+  # quality checker to distinguish *expected* weekend gaps from data holes.
+  session:
+    week_open_dow: 6         # Sunday (Mon=0 ... Sun=6)
+    week_open_hour_utc: 22
+    week_close_dow: 4        # Friday
+    week_close_hour_utc: 22
+  quality:
+    max_gap_bars: 1          # daily bars: >1 missing business day flagged as a hole
+    duplicate_policy: "keep_last"
+
+# ── Feature / signal layer ──────────────────────────────────────────────────────
+features:
+  momentum_lookbacks: [21, 63, 126, 252]   # ~1m, 3m, 6m, 12m (trading days)
+  vol_windows: [21, 63]                     # realized-vol feature windows
+  trend_ma: 200                             # long MA for trend/structure
+  trend_slope_window: 21                    # slope measured over this window
+  carry_enabled: false                      # rate-differential — pluggable, off by default
+  cot_enabled: false                        # CFTC COT positioning — pluggable, off by default
+
+# ── Volatility model ──────────────────────────────────────────────────────────
+volatility:
+  realized_windows: [21, 63]
+  annualization_factor: 252      # daily → annual (sqrt applied in code)
+  garch:
+    p: 1
+    q: 1
+    mean: "Zero"                 # returns ~ unpredictable; model the variance only
+    dist: "t"                    # fat tails
+    horizon: 5                   # forward vol forecast horizon (bars)
+    min_obs: 250                 # don't fit GARCH on fewer than this many returns
+    rescale_factor: 100.0        # arch prefers returns in %; scale then unscale
+
+# ── Regime detection ──────────────────────────────────────────────────────────
+regime:
+  hmm:
+    n_states: 3
+    covariance_type: "full"
+    n_iter: 200
+    min_obs: 250
+  rule_based:
+    ma_window: 200
+    slope_window: 21
+    vol_percentile_window: 252
+    vol_high_pct: 0.70           # > 70th percentile vol → high-vol regime
+    vol_low_pct: 0.30            # < 30th percentile vol → low-vol regime
+    ranging_slope_eps: 0.0005    # |normalised slope| below this → ranging
+
+# ── Risk management (SUPREME — has veto over every signal) ──────────────────────
+risk:
+  target_portfolio_vol: 0.10     # 10% annualised volatility target
+  kelly_fraction: 0.25           # fractional Kelly — NEVER full Kelly
+  max_risk_per_trade: 0.01       # 1% of equity at risk per trade (hard cap)
+  max_total_exposure: 3.0        # gross notional ≤ 3× equity (hard cap)
+  max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity
+  correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
+  atr_window: 14
+  atr_stop_mult: 2.0             # stop distance = 2× ATR
+  drawdown_breaker: 0.20         # halt NEW positions once drawdown from peak ≥ 20%
+  min_position: 0.0              # positions below this round to zero (no trade)
+
+# ── Backtesting (built after the foundation checkpoint) ─────────────────────────
+backtest:
+  initial_equity: 100000
+  spread_pips: 1.0
+  pip_size_default: 0.0001       # JPY pairs override to 0.01 in code
+  commission_per_trade: 0.0
+  slippage_bps: 0.5
+
+# ── Validation (built after the foundation checkpoint) ──────────────────────────
+validation:
+  cpcv:
+    n_groups: 6                  # N: split history into 6 contiguous groups
+    n_test_groups: 2             # k: choose 2 as test → C(6,2)=15 backtest paths
+    embargo_pct: 0.01            # embargo 1% of bars around each test group
+  dsr:
+    benchmark_sharpe: 0.0        # Deflated Sharpe null hypothesis
+  pbo:
+    n_splits: 16                 # combinatorial splits for Prob. of Backtest Overfitting

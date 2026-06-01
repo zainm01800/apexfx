@@ -1,2 +1,10 @@
 .vercel
 .env*.local
+
+# ── Python quant engine ──
+engine/.venv/
+engine/**/__pycache__/
+engine/.pytest_cache/
+engine/data_store/
+engine/.env
+*.py[cod]
