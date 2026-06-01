@@ -29,6 +29,11 @@
         <p class="q-sub">Probabilistic signals with explicit uncertainty &middot; risk-first sizing &middot; validation-gated. <strong>The risk layer has veto over every signal.</strong></p>
       </div>
       <div class="q-controls">
+        <div class="q-method" id="strategySel" title="Signal strategy">
+          <button class="qm-btn active" data-strategy="baseline">Baseline</button>
+          <button class="qm-btn" data-strategy="ml_gbm">ML&middot;GBM</button>
+          <button class="qm-btn" data-strategy="ml_linear">ML&middot;Linear</button>
+        </div>
         <div class="q-method" id="regimeMethod" title="Regime classifier">
           <button class="qm-btn active" data-method="rule_based">Rule-based</button>
           <button class="qm-btn" data-method="hmm">HMM</button>

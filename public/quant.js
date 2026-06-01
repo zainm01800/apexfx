@@ -7,10 +7,12 @@
   if (params.get('api')) localStorage.setItem('apexEngineApi', params.get('api'));
 
   const FALLBACK_INSTRUMENTS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD'];
-  const STRATEGY = 'regime_gated_momentum';
+  // panel strategy id -> validation-cache strategy name
+  const VAL_NAME = { baseline: 'regime_gated_momentum', ml_gbm: 'ml_gbm', ml_linear: 'ml_gbm' };
 
   let _sym = null;
   let _method = 'rule_based';
+  let _strategy = 'baseline';
 
   // ── helpers ──
   const $ = (id) => document.getElementById(id);
@@ -88,7 +90,7 @@
   // ── signal ──
   async function loadSignal() {
     try {
-      const s = await api(`/signal/${encodeURIComponent(_sym)}`);
+      const s = await api(`/signal/${encodeURIComponent(_sym)}?strategy=${_strategy}`);
       const dirClass = { long: 'dir-long', short: 'dir-short', flat: 'dir-flat' }[s.direction] || 'dir-flat';
       let band = '';
       if (s.uncertainty) {
@@ -107,10 +109,17 @@
       const feats = s.contributing_features || {};
       const featRows = Object.entries(feats).map(([k, v]) =>
         `<div class="feat-row"><span class="fk">${esc(k)}</span><span class="fv">${v == null ? '—' : esc(v)}</span></div>`).join('');
+      let sentiment = '';
+      if (s.sentiment) {
+        const sc = s.sentiment.score;
+        const cls = sc > 0.05 ? 'pos' : sc < -0.05 ? 'neg' : 'neu';
+        sentiment = `<div class="sig-reason">📰 sentiment <span class="${cls}">${sc >= 0 ? '+' : ''}${sc}</span> (${s.sentiment.n_articles} headlines) — ${esc(s.sentiment.effect)}</div>`;
+      }
       $('signalBody').innerHTML = `
-        <div class="sig-dir ${dirClass}">${esc((s.direction || 'flat').toUpperCase())}</div>
+        <div class="sig-dir ${dirClass}">${esc((s.direction || 'flat').toUpperCase())}<span class="qc-tag" style="margin-left:10px">${esc(s.strategy || _strategy)}</span></div>
         ${band}
         ${s.reason ? `<div class="sig-reason">${esc(s.reason)}</div>` : ''}
+        ${sentiment}
         <div class="feat-list">${featRows}</div>`;
     } catch (e) { $('signalBody').innerHTML = errHtml(e); }
   }
@@ -118,7 +127,7 @@
   // ── risk ──
   async function loadRisk() {
     try {
-      const r = await api(`/risk/${encodeURIComponent(_sym)}?equity=100000`);
+      const r = await api(`/risk/${encodeURIComponent(_sym)}?equity=100000&strategy=${_strategy}`);
       $('riskEquity').textContent = `equity $${Number(r.assumed_equity || 0).toLocaleString()}`;
       const chips = (r.constraints_applied || []).map((c) => `<span class="cons-chip">${esc(c)}</span>`).join('');
       if (r.permitted) {
@@ -141,7 +150,7 @@
   // ── validation ──
   async function loadValidation() {
     try {
-      const v = await api(`/validation/${STRATEGY}?instrument=${encodeURIComponent(_sym)}`);
+      const v = await api(`/validation/${VAL_NAME[_strategy]}?instrument=${encodeURIComponent(_sym)}`);
       const verdict = v.verdict || {};
       const dsr = v.dsr || {}, pbo = v.pbo || {}, cpcv = v.cpcv || {};
       const pass = verdict.passed;
@@ -168,13 +177,22 @@
     return `<div class="val-missing">Couldn't load: ${esc(e.detail || e.message || 'error')}</div>`;
   }
 
-  // ── regime method toggle ──
-  document.querySelectorAll('.qm-btn').forEach((b) =>
+  // ── regime method toggle (scoped to its own group) ──
+  document.querySelectorAll('#regimeMethod .qm-btn').forEach((b) =>
     b.addEventListener('click', () => {
-      document.querySelectorAll('.qm-btn').forEach((x) => x.classList.remove('active'));
+      document.querySelectorAll('#regimeMethod .qm-btn').forEach((x) => x.classList.remove('active'));
       b.classList.add('active');
       _method = b.dataset.method;
       if (_sym) loadRegime();
+    }));
+
+  // ── strategy selector (signal/risk/validation depend on it) ──
+  document.querySelectorAll('#strategySel .qm-btn').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#strategySel .qm-btn').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      _strategy = b.dataset.strategy;
+      if (_sym) { loadSignal(); loadRisk(); loadValidation(); }
     }));
 
   boot();

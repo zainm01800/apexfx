@@ -65,6 +65,28 @@ def default_param_grid() -> list[dict]:
     ]
 
 
+def ml_factory(**params):
+    from apex_quant.strategies.ml_strategy import MLStrategy
+    return MLStrategy(**params)
+
+
+def ml_param_grid() -> list[dict]:
+    # GBM is the headline config; the linear and shorter-horizon variants are the
+    # multiple-testing set. Hyperparameters are only ever "chosen" inside folds.
+    return [
+        {"model": "gbm", "holding_horizon": 10},
+        {"model": "gbm", "holding_horizon": 15},
+        {"model": "linear", "holding_horizon": 10},
+    ]
+
+
+# name -> (factory, grid). Used by scripts/run_validation.py and the API.
+STRATEGY_SPECS = {
+    "regime_gated_momentum": (default_factory, default_param_grid),
+    "ml_gbm": (ml_factory, ml_param_grid),
+}
+
+
 def run_validation(
     pit: PointInTimeAccessor,
     instrument: str,

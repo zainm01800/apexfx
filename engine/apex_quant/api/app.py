@@ -79,14 +79,18 @@ def regime(instrument: str, method: str = Query("rule_based", pattern="^(rule_ba
     return _handle(service.regime, instrument, method)
 
 
+_STRAT_RE = "^(baseline|ml_gbm|ml_linear)$"
+
+
 @app.get("/signal/{instrument:path}", response_model=SignalResponse)
-def signal(instrument: str):
-    return _handle(service.signal, instrument)
+def signal(instrument: str, strategy: str = Query("baseline", pattern=_STRAT_RE)):
+    return _handle(service.signal, instrument, strategy)
 
 
 @app.get("/risk/{instrument:path}", response_model=RiskResponse)
-def risk(instrument: str, equity: float = Query(None, gt=0), peak_equity: float = Query(None, gt=0)):
-    return _handle(service.risk, instrument, equity, peak_equity)
+def risk(instrument: str, equity: float = Query(None, gt=0), peak_equity: float = Query(None, gt=0),
+         strategy: str = Query("baseline", pattern=_STRAT_RE)):
+    return _handle(service.risk, instrument, equity, peak_equity, strategy)
 
 
 @app.get("/features/{instrument:path}")

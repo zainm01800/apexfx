@@ -19,8 +19,11 @@ from apex_quant.features import compute_feature_matrix, default_features, featur
 from apex_quant.regime import classify_regime
 from apex_quant.risk import AccountState, MarketState, RiskManager
 from apex_quant.risk.stops import atr
-from apex_quant.strategies import RegimeGatedMomentum
+from apex_quant.sentiment import GroqNewsSentiment, SentimentFilter
+from apex_quant.strategies import MLStrategy, RegimeGatedMomentum
 from apex_quant.volatility import forecast_volatility
+
+STRATEGY_KINDS = ("baseline", "ml_gbm", "ml_linear")
 
 
 class EngineService:
@@ -30,8 +33,10 @@ class EngineService:
         self.adapter = get_adapter(self.cfg.data.provider)
         self._risk_mgr = RiskManager(self.cfg.risk)
         self._pit: dict[str, PointInTimeAccessor] = {}
-        self._strat: dict[str, RegimeGatedMomentum] = {}
+        self._strat: dict[tuple, object] = {}
         self._val_dir = self.cfg.store_path / "validation"
+        self._sentiment = GroqNewsSentiment(self.cfg.sentiment)
+        self._sfilter = SentimentFilter(self.cfg.sentiment)
 
     # -- data + strategy caches ------------------------------------------------
     def pit(self, instrument: str) -> PointInTimeAccessor:
@@ -44,13 +49,36 @@ class EngineService:
             self._pit[instrument] = PointInTimeAccessor(df)
         return self._pit[instrument]
 
-    def strategy(self, instrument: str) -> RegimeGatedMomentum:
-        if instrument not in self._strat:
+    @staticmethod
+    def _build_strategy(kind: str):
+        if kind == "ml_gbm":
+            return MLStrategy(model="gbm")
+        if kind == "ml_linear":
+            return MLStrategy(model="linear")
+        return RegimeGatedMomentum()
+
+    def strategy(self, instrument: str, kind: str = "baseline"):
+        if kind not in STRATEGY_KINDS:
+            raise ValueError(f"unknown strategy '{kind}'; choose {STRATEGY_KINDS}")
+        key = (instrument, kind)
+        if key not in self._strat:
             pit = self.pit(instrument)
-            strat = RegimeGatedMomentum()
+            strat = self._build_strategy(kind)
             strat.fit(pit, pit.as_of(pit.end).index)
-            self._strat[instrument] = strat
-        return self._strat[instrument]
+            self._strat[key] = strat
+        return self._strat[key]
+
+    def _apply_sentiment(self, sig, instrument, t):
+        """Return (possibly filtered signal, sentiment_block|None). No-op unless
+        sentiment is enabled AND a provider is reachable."""
+        if not self.cfg.sentiment.enabled:
+            return sig, None
+        sent = self._sentiment.score(instrument, t)
+        if sent is None:
+            return sig, None
+        filtered, msg = self._sfilter.apply(sig, sent)
+        return filtered, {"score": round(sent.score, 3), "confidence": round(sent.confidence, 2),
+                          "n_articles": sent.n_articles, "effect": msg}
 
     def refresh(self, instrument: str | None = None) -> None:
         if instrument:
@@ -72,19 +100,33 @@ class EngineService:
             "aggression_scalar": round(label.aggression_scalar(), 3),
         }
 
-    def signal(self, instrument: str) -> dict:
+    def signal(self, instrument: str, kind: str = "baseline") -> dict:
         pit = self.pit(instrument)
-        info = self.strategy(instrument).explain(pit, pit.end, instrument)
+        strat = self.strategy(instrument, kind)
+        info = strat.explain(pit, pit.end, instrument)
+        sig = strat.generate(pit, pit.end, instrument)
+        sig, sentiment_block = self._apply_sentiment(sig, instrument, pit.end)
+        if sentiment_block is not None:
+            info["direction"] = sig.direction.value
+            info["probability"] = sig.probability
+            info["confidence"] = sig.confidence
+            if sig.direction.value == "flat":
+                info["uncertainty"] = None
+            info["sentiment"] = sentiment_block
+        info["strategy"] = strat.name
         info["as_of"] = str(pit.end.date())
         return info
 
-    def risk(self, instrument: str, equity: float | None = None, peak_equity: float | None = None) -> dict:
+    def risk(self, instrument: str, equity: float | None = None, peak_equity: float | None = None,
+             kind: str = "baseline") -> dict:
         pit = self.pit(instrument)
         t = pit.end
         eq = equity or self.cfg.backtest.initial_equity
         peak = peak_equity or eq
 
-        sig = self.strategy(instrument).generate(pit, t, instrument)
+        strat = self.strategy(instrument, kind)
+        sig = strat.generate(pit, t, instrument)
+        sig, sentiment_block = self._apply_sentiment(sig, instrument, t)
         hist = pit.as_of(t)
         price = float(hist["close"].iloc[-1])
         vf = forecast_volatility(pit, t, method="ewma")
@@ -108,7 +150,10 @@ class EngineService:
             "regime": regime.name,
             "assumed_equity": eq,
             "signal_probability": round(sig.probability, 3),
+            "strategy": strat.name,
         })
+        if sentiment_block is not None:
+            out["sentiment"] = sentiment_block
         return out
 
     def features(self, instrument: str) -> dict:

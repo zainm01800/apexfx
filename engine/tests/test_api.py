@@ -36,7 +36,7 @@ def _inject_synthetic_data():
     strat = RegimeGatedMomentum()
     strat.fit(pit, df.index)
     service._pit["EUR/USD"] = pit
-    service._strat["EUR/USD"] = strat
+    service._strat[("EUR/USD", "baseline")] = strat   # other kinds build on the injected pit (offline)
     yield
     service.refresh()
 
@@ -99,3 +99,22 @@ def test_features_endpoint():
 def test_validation_missing_returns_404():
     r = client.get("/validation/regime_gated_momentum", params={"instrument": "EUR/USD"})
     assert r.status_code in (404, 200)  # 404 if no cache yet
+
+
+def test_signal_ml_strategy_param():
+    r = client.get("/signal/EUR/USD", params={"strategy": "ml_gbm"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["strategy"] == "ml_gbm"
+    assert body["direction"] in ("long", "short", "flat")
+
+
+def test_signal_rejects_unknown_strategy():
+    r = client.get("/signal/EUR/USD", params={"strategy": "magic"})
+    assert r.status_code == 422  # query pattern validation
+
+
+def test_risk_with_ml_strategy():
+    r = client.get("/risk/EUR/USD", params={"strategy": "ml_linear", "equity": 100000})
+    assert r.status_code == 200
+    assert r.json()["strategy"] == "ml_linear"
