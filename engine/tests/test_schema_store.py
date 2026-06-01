@@ -10,7 +10,7 @@ from apex_quant.data.schema import SchemaError, validate_ohlcv
 from apex_quant.data.store import ParquetStore
 
 
-# ── schema ──────────────────────────────────────────────────────────────────
+# -- schema ------------------------------------------------------------------
 def test_validate_ohlcv_accepts_clean(clean_daily):
     out = validate_ohlcv(clean_daily)
     assert list(out.columns) == ["open", "high", "low", "close", "volume"]
@@ -35,7 +35,7 @@ def test_validate_rejects_duplicates(clean_daily):
         validate_ohlcv(dup)
 
 
-# ── store (no network) ────────────────────────────────────────────────────────
+# -- store (no network) --------------------------------------------------------
 class _FakeAdapter(DataAdapter):
     def __init__(self, df):
         self._df = df

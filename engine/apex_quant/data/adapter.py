@@ -1,6 +1,6 @@
 """Data source adapter interface + registry.
 
-The engine never talks to a vendor API directly — it talks to a ``DataAdapter``.
+The engine never talks to a vendor API directly - it talks to a ``DataAdapter``.
 This keeps the source swappable (Yahoo today, a broker feed later) and lets the
 backtester run against a local store without code changes.
 """

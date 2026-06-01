@@ -1,4 +1,4 @@
-"""Data layer — typed OHLCV, source adapters, local store, and the
+"""Data layer - typed OHLCV, source adapters, local store, and the
 point-in-time accessor that structurally prevents look-ahead bias."""
 
 from apex_quant.data.adapter import DataAdapter, get_adapter

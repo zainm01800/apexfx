@@ -1,7 +1,7 @@
 """Local historical store (parquet) with cache-aside fetching.
 
 Backtests must be reproducible and offline-capable, so we persist fetched OHLCV
-to parquet and reuse it. The store is a *cache only* — it imposes no point-in-time
+to parquet and reuse it. The store is a *cache only* - it imposes no point-in-time
 semantics itself; leakage safety is the accessor's job.
 """
 

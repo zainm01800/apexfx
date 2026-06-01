@@ -25,7 +25,7 @@ ENGINE_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = ENGINE_ROOT / "config.yaml"
 
 
-# ── Section models ──────────────────────────────────────────────────────────────
+# -- Section models --------------------------------------------------------------
 class SessionConfig(BaseModel):
     week_open_dow: int = 6
     week_open_hour_utc: int = 22
@@ -152,12 +152,12 @@ class AppConfig(BaseModel):
         return p if p.is_absolute() else ENGINE_ROOT / p
 
 
-# ── Loading + env overrides ───────────────────────────────────────────────────
+# -- Loading + env overrides ---------------------------------------------------
 def _apply_env_overrides(raw: dict) -> dict:
     """Apply APEX_-prefixed env overrides for top-level scalars.
 
     Nested overrides use double underscore, e.g. ``APEX_RISK__KELLY_FRACTION=0.1``.
-    Kept deliberately small — config.yaml is the source of truth.
+    Kept deliberately small - config.yaml is the source of truth.
     """
     for key, val in os.environ.items():
         if not key.startswith("APEX_"):
@@ -209,7 +209,7 @@ def get_config() -> AppConfig:
     return load_config()
 
 
-# ── Reproducibility ───────────────────────────────────────────────────────────
+# -- Reproducibility -----------------------------------------------------------
 def set_global_seeds(seed: int | None = None) -> int:
     """Pin global RNG state for deterministic pipelines. Returns the seed used."""
     s = seed if seed is not None else get_config().seed
@@ -219,6 +219,6 @@ def set_global_seeds(seed: int | None = None) -> int:
 
 
 def get_rng(seed: int | None = None) -> np.random.Generator:
-    """A fresh, isolated numpy Generator — preferred over the global RNG."""
+    """A fresh, isolated numpy Generator - preferred over the global RNG."""
     s = seed if seed is not None else get_config().seed
     return np.random.default_rng(s)

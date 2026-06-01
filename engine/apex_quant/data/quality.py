@@ -1,7 +1,7 @@
 """Data-quality checks: gaps, duplicates, OHLC integrity, forex session/weekend.
 
 Forex trades ~24/5: it closes Friday evening and reopens Sunday evening (UTC).
-So a Fri→Mon jump on daily bars is an *expected* weekend gap, NOT a data hole.
+So a Fri->Mon jump on daily bars is an *expected* weekend gap, NOT a data hole.
 The checker uses a business-day calendar to tell the two apart, and reports
 findings rather than silently mutating data. ``clean`` is the explicit repair.
 """
@@ -144,7 +144,7 @@ def clean(
     When ``fix_ohlc`` is set, OHLC integrity violations (common in Yahoo forex
     feeds: open/close fractionally outside the high/low range) are repaired by
     clamping high = max(o,h,l,c) and low = min(o,h,l,c). This cannot introduce
-    look-ahead — it only widens the range to envelope values that, by
+    look-ahead - it only widens the range to envelope values that, by
     definition, must lie within it.
     """
     quality_cfg = quality_cfg or get_config().data.quality

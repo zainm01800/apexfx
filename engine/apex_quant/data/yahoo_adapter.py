@@ -45,7 +45,7 @@ def to_yahoo_ticker(instrument: str) -> str:
     the raw symbol for equities/ETFs."""
     if instrument in _FOREX_TICKERS:
         return _FOREX_TICKERS[instrument]
-    if "/" in instrument:  # generic forex like "XAU/USD" → "XAUUSD=X"
+    if "/" in instrument:  # generic forex like "XAU/USD" -> "XAUUSD=X"
         return instrument.replace("/", "") + "=X"
     return instrument
 

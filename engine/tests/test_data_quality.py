@@ -16,7 +16,7 @@ def test_clean_series_reports_clean(clean_daily):
 
 
 def test_weekend_gap_is_not_a_hole(clean_daily):
-    """The builder uses a business-day calendar — Fri→Mon must not be flagged."""
+    """The builder uses a business-day calendar - Fri->Mon must not be flagged."""
     rep = check_quality(clean_daily, instrument="EUR/USD")
     assert rep.n_holes == 0
     assert rep.missing_business_days == 0

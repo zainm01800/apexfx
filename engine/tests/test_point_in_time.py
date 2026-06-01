@@ -1,4 +1,4 @@
-"""Leakage suite — the build's most important guarantee.
+"""Leakage suite - the build's most important guarantee.
 
 These tests deliberately inject future data and confirm the point-in-time
 accessor blocks it. The negative-control test proves the methodology has teeth:
@@ -19,7 +19,7 @@ def sma_as_of(pit: PointInTimeAccessor, t, n: int) -> float:
     return float(pit.window(t, n)["close"].mean())
 
 
-# ── core leakage proofs ────────────────────────────────────────────────────────
+# -- core leakage proofs --------------------------------------------------------
 def test_no_future_leakage_in_pit_feature(clean_daily):
     """Corrupting every future bar must NOT change a PIT feature value at t0."""
     pit_clean = PointInTimeAccessor(clean_daily)
@@ -51,7 +51,7 @@ def test_leakage_detector_catches_a_leaky_feature(clean_daily):
     This proves the poison methodology would fail a genuinely leaky feature."""
 
     def leaky_mean(df_full: pd.DataFrame, t, n: int) -> float:
-        return float(df_full["close"].mean())  # uses ALL rows incl. future — bad
+        return float(df_full["close"].mean())  # uses ALL rows incl. future - bad
 
     t0 = clean_daily.index[len(clean_daily) // 2]
     base = leaky_mean(clean_daily, t0, 20)
@@ -63,7 +63,7 @@ def test_leakage_detector_catches_a_leaky_feature(clean_daily):
     assert leaked != pytest.approx(base)  # detector has teeth
 
 
-# ── accessor invariants ────────────────────────────────────────────────────────
+# -- accessor invariants --------------------------------------------------------
 def test_as_of_never_returns_future(clean_daily):
     pit = PointInTimeAccessor(clean_daily)
     for t in (clean_daily.index[0], clean_daily.index[50], clean_daily.index[-1]):

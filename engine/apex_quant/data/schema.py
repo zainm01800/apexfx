@@ -2,11 +2,11 @@
 
 Every DataFrame that flows through the engine obeys this contract:
 
-  • index:   tz-aware (UTC) ``DatetimeIndex`` named ``timestamp``, sorted ascending,
-             unique. Each bar's timestamp is its **close / information time** — i.e.
+  * index:   tz-aware (UTC) ``DatetimeIndex`` named ``timestamp``, sorted ascending,
+             unique. Each bar's timestamp is its **close / information time** - i.e.
              the bar is considered *known* only at or after this timestamp. This is
              the single convention the point-in-time accessor relies on.
-  • columns: exactly ``open, high, low, close, volume`` (float64).
+  * columns: exactly ``open, high, low, close, volume`` (float64).
 
 ``validate_ohlcv`` enforces the contract loudly so leakage / corruption surfaces
 at the boundary rather than deep inside a feature.
@@ -22,7 +22,7 @@ INDEX_NAME = "timestamp"
 
 
 class Bar(BaseModel):
-    """A single OHLCV bar — used in API responses and adapter ``get_latest``."""
+    """A single OHLCV bar - used in API responses and adapter ``get_latest``."""
 
     timestamp: pd.Timestamp
     open: float
@@ -48,7 +48,7 @@ def validate_ohlcv(df: pd.DataFrame, *, name: str = "frame") -> pd.DataFrame:
     """Validate (and lightly normalise) a frame against the OHLCV contract.
 
     Returns the same frame (with a UTC-normalised, sorted index) or raises
-    ``SchemaError``. Does NOT silently drop bad rows — corruption should be
+    ``SchemaError``. Does NOT silently drop bad rows - corruption should be
     explicit. Use :func:`apex_quant.data.quality.clean` to repair first.
     """
     if not isinstance(df, pd.DataFrame):
@@ -76,7 +76,7 @@ def validate_ohlcv(df: pd.DataFrame, *, name: str = "frame") -> pd.DataFrame:
 
     if out.index.has_duplicates:
         dupes = int(out.index.duplicated().sum())
-        raise SchemaError(f"{name}: index has {dupes} duplicate timestamp(s) — clean() first")
+        raise SchemaError(f"{name}: index has {dupes} duplicate timestamp(s) - clean() first")
 
     # OHLC integrity (NaN-tolerant comparisons handled by quality.check_quality)
     out[OHLCV_COLUMNS] = out[OHLCV_COLUMNS].astype("float64")

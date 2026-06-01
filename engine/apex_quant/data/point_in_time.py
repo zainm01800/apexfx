@@ -1,12 +1,12 @@
-"""Point-in-time accessor — the structural defence against look-ahead bias.
+"""Point-in-time accessor - the structural defence against look-ahead bias.
 
 A feature, label, or decision computed for time ``t`` may use ONLY data that
 existed at ``t``. Rather than trusting every call site to slice correctly, we
 funnel all historical access through this accessor:
 
-  • It holds the full series privately and never hands out a reference to it.
-  • ``as_of(t)`` returns a *copy* containing only rows with ``timestamp <= t``.
-  • ``walk()`` drives event-driven backtests, yielding a clean view per step.
+  * It holds the full series privately and never hands out a reference to it.
+  * ``as_of(t)`` returns a *copy* containing only rows with ``timestamp <= t``.
+  * ``walk()`` drives event-driven backtests, yielding a clean view per step.
 
 Because callers only ever receive ``<= t`` copies, a feature *cannot* see the
 future even by accident. The leakage test suite proves this by injecting a
@@ -33,14 +33,14 @@ class PointInTimeAccessor:
         # Defensive copy + contract check. The private frame is never exposed.
         self._df = validate_ohlcv(df) if validate else df.copy()
 
-    # ── introspection ────────────────────────────────────────────────────────
+    # -- introspection --------------------------------------------------------
     @property
     def start(self) -> pd.Timestamp | None:
         return self._df.index[0] if len(self._df) else None
 
     @property
     def end(self) -> pd.Timestamp | None:
-        """Last timestamp present in the underlying series (NOT a peek tool —
+        """Last timestamp present in the underlying series (NOT a peek tool -
         decisions must still pass an explicit ``t`` to :meth:`as_of`)."""
         return self._df.index[-1] if len(self._df) else None
 
@@ -52,9 +52,9 @@ class PointInTimeAccessor:
         ts = pd.Timestamp(t)
         return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
-    # ── the core leakage-safe slice ───────────────────────────────────────────
+    # -- the core leakage-safe slice -------------------------------------------
     def as_of(self, t: pd.Timestamp | str, *, inclusive: bool = True) -> pd.DataFrame:
-        """All bars known at ``t`` — i.e. ``timestamp <= t`` (or ``< t``).
+        """All bars known at ``t`` - i.e. ``timestamp <= t`` (or ``< t``).
 
         Returns a *copy*; mutating it cannot affect the accessor or leak future
         rows into another caller.
@@ -78,7 +78,7 @@ class PointInTimeAccessor:
         bar = self.latest(t, inclusive=inclusive)
         return None if bar is None else float(bar[column])
 
-    # ── event-driven iteration ────────────────────────────────────────────────
+    # -- event-driven iteration ------------------------------------------------
     def timestamps(
         self,
         start: pd.Timestamp | str | None = None,
@@ -101,7 +101,7 @@ class PointInTimeAccessor:
         """Yield ``(t, history_as_of_t)`` for each bar in ``[start, end]``.
 
         ``warmup`` skips the first N bars so features have enough history. The
-        yielded frame is exactly what was knowable at ``t`` — the backtest makes
+        yielded frame is exactly what was knowable at ``t`` - the backtest makes
         its decision at ``t`` using only this, then realises the next bar.
         """
         stamps = self.timestamps(start, end)
@@ -112,7 +112,7 @@ class PointInTimeAccessor:
 
     def require(self, t: pd.Timestamp | str, n: int) -> pd.DataFrame:
         """Like :meth:`window` but raises if fewer than ``n`` bars are available
-        at ``t`` — for features that cannot honestly compute on short history."""
+        at ``t`` - for features that cannot honestly compute on short history."""
         w = self.window(t, n)
         if len(w) < n:
             raise LookAheadError(
