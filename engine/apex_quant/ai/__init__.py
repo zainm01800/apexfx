@@ -5,9 +5,21 @@ No AI output is ever an order, and none sets a signal, size, or confidence.
 """
 
 from apex_quant.ai.client import AppAILLM, FakeLLM, LLMClient, extract_json
+from apex_quant.ai.debate import DebateResult, run_debate
+from apex_quant.ai.hypothesis import (
+    Hypothesis,
+    map_to_strategy,
+    parse_llm_hypotheses,
+    programmatic_proposer,
+    sanitize_config,
+)
+from apex_quant.ai.pipeline import ResearchReport, run_research
 from apex_quant.ai.retrieval import EvidencePack, PriorResult, gather_evidence
 
 __all__ = [
     "LLMClient", "AppAILLM", "FakeLLM", "extract_json",
     "EvidencePack", "PriorResult", "gather_evidence",
+    "Hypothesis", "sanitize_config", "map_to_strategy", "parse_llm_hypotheses",
+    "programmatic_proposer", "DebateResult", "run_debate",
+    "ResearchReport", "run_research",
 ]

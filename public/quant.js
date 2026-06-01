@@ -64,8 +64,8 @@
     _sym = sym;
     document.querySelectorAll('.q-inst').forEach((b) => b.classList.toggle('active', b.dataset.sym === sym));
     $('quantGrid').style.display = '';
-    ['regimeBody', 'signalBody', 'riskBody', 'validationBody'].forEach((id) => { $(id).innerHTML = '<div class="q-skel"></div>'; });
-    loadRegime(); loadSignal(); loadRisk(); loadValidation();
+    ['regimeBody', 'signalBody', 'riskBody', 'validationBody', 'researchBody'].forEach((id) => { $(id).innerHTML = '<div class="q-skel"></div>'; });
+    loadRegime(); loadSignal(); loadRisk(); loadValidation(); loadResearch();
   }
 
   // ── regime ──
@@ -170,6 +170,52 @@
       if (e.status === 404) {
         $('validationBody').innerHTML = `<div class="val-missing">No cached validation for <b>${esc(_sym)}</b> yet.<br/>Generate it offline:<br/><code>cd engine</code><br/><code>.venv\\Scripts\\python.exe scripts/run_validation.py ${esc(_sym)}</code></div>`;
       } else { $('validationBody').innerHTML = errHtml(e); }
+    }
+  }
+
+  // ── AI research ──
+  async function loadResearch() {
+    try {
+      const r = await api(`/research/${encodeURIComponent(_sym)}`);
+      const results = r.results || [];
+      const meta = `Generated for ${esc(r.generated_for || r.as_of || '')} · ${r.n_hypotheses || results.length} hypotheses · proposer: ${r.llm_used ? 'LLM debate' : 'programmatic'}`;
+      const hypos = results.map((h) => {
+        const v = h.validation;
+        const vb = v == null ? '<span class="vbadge v-skip">VALIDATION SKIPPED</span>'
+          : v.error ? '<span class="vbadge v-skip">VALIDATION ERROR</span>'
+          : v.passed ? `<span class="vbadge v-pass">VALIDATED ✓</span>`
+          : '<span class="vbadge v-fail">REJECTED</span>';
+        const verdict = (h.debate && h.debate.verdict) || 'test';
+        const dv = { test: 'v-test', refine: 'v-refine', discard: 'v-discard' }[verdict] || 'v-test';
+        const valLine = v && !v.error
+          ? `<div class="hypo-val">DSR ${v.dsr ?? '—'} · PBO ${v.pbo ?? '—'} · OOS ${v.frac_positive != null ? Math.round(v.frac_positive * 100) + '%' : '—'} of ${v.n_paths ?? '—'} paths +ve · obs SR ${v.observed_sharpe ?? '—'}</div>`
+          : (v && v.error ? `<div class="hypo-val">${esc(v.error)}</div>` : '');
+        const dbt = h.debate || {};
+        const debate = dbt.llm_used ? `
+          <div class="debate-row"><span class="dr-role dr-bull">Bull</span><span class="dr-text">${esc(dbt.bull || '')}</span></div>
+          <div class="debate-row"><span class="dr-role dr-bear">Bear</span><span class="dr-text">${esc(dbt.bear || '')}</span></div>
+          <div class="debate-row"><span class="dr-role dr-sup">Risk</span><span class="dr-text">${esc(dbt.supervisor || '')}</span></div>` : '';
+        return `
+          <div class="hypo">
+            <div class="hypo-head">
+              <span class="hypo-label">${esc(h.label || '')}</span>
+              <span class="vbadge ${dv}">${esc(verdict.toUpperCase())}</span>
+              ${vb}
+              <span class="hypo-by">via ${esc(h.proposed_by || '')}</span>
+            </div>
+            <div class="hypo-thesis">${esc(h.thesis || '')}</div>
+            ${debate}
+            ${valLine}
+          </div>`;
+      }).join('');
+      $('researchBody').innerHTML = `
+        <div class="research-disclaimer">${esc(r.disclaimer || '')}</div>
+        <div class="research-meta">${meta}</div>
+        ${hypos || '<div class="val-missing">No hypotheses.</div>'}`;
+    } catch (e) {
+      if (e.status === 404) {
+        $('researchBody').innerHTML = `<div class="val-missing">No AI research cached for <b>${esc(_sym)}</b> yet.<br/>Generate it (LLM optional — falls back to a programmatic proposer):<br/><code>cd engine</code><br/><code>.venv\\Scripts\\python.exe scripts/run_research.py ${esc(_sym)}</code></div>`;
+      } else { $('researchBody').innerHTML = errHtml(e); }
     }
   }
 

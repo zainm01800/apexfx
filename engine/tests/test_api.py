@@ -118,3 +118,11 @@ def test_risk_with_ml_strategy():
     r = client.get("/risk/EUR/USD", params={"strategy": "ml_linear", "equity": 100000})
     assert r.status_code == 200
     assert r.json()["strategy"] == "ml_linear"
+
+
+def test_research_endpoint():
+    r = client.get("/research/EUR/USD")
+    assert r.status_code in (404, 200)   # 404 if not generated yet; 200 if cached
+    if r.status_code == 200:
+        body = r.json()
+        assert "disclaimer" in body and "results" in body

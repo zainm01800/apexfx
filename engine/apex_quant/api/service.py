@@ -178,3 +178,18 @@ class EngineService:
         path = self._val_dir / f"{strategy}__{instrument.replace('/', '_')}.json"
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         return path
+
+    # -- AI research (Phase 3) — served from precomputed cache -----------------
+    @property
+    def _research_dir(self) -> Path:
+        return self.cfg.store_path / "research"
+
+    def research(self, instrument: str) -> dict | None:
+        path = self._research_dir / f"{instrument.replace('/', '_')}.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    def save_research(self, report: dict, instrument: str) -> Path:
+        self._research_dir.mkdir(parents=True, exist_ok=True)
+        path = self._research_dir / f"{instrument.replace('/', '_')}.json"
+        path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        return path

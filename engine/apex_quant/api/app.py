@@ -112,6 +112,20 @@ def validation(strategy: str, instrument: str = Query(...)):
     return report
 
 
+@app.get("/research/{instrument:path}")
+def research(instrument: str):
+    report = service.research(instrument)
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No cached AI research for {instrument}. "
+                "Run: .venv\\Scripts\\python.exe scripts/run_research.py"
+            ),
+        )
+    return report
+
+
 @app.post("/refresh")
 def refresh(instrument: str = Query(None)):
     service.refresh(instrument)
