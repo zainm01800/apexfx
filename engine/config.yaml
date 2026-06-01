@@ -68,7 +68,11 @@ regime:
     vol_percentile_window: 252
     vol_high_pct: 0.70           # > 70th percentile vol → high-vol regime
     vol_low_pct: 0.30            # < 30th percentile vol → low-vol regime
-    ranging_slope_eps: 0.0005    # |normalised slope| below this → ranging
+    # |normalised per-bar MA slope| below this -> ranging. Calibrated to the FX
+    # daily slope distribution (median ~1.8e-4); 5e-4 was mis-scaled (~1%/21d) and
+    # left the classifier almost always "ranging". Chosen from the slope
+    # distribution shape, NOT from returns, so this is not data-snooping.
+    ranging_slope_eps: 0.0002
 
 # ── Risk management (SUPREME — has veto over every signal) ──────────────────────
 risk:
