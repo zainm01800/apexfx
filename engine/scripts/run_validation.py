@@ -9,7 +9,10 @@ Usage:
 from __future__ import annotations
 
 import sys
+import warnings
 from pathlib import Path
+
+warnings.filterwarnings("ignore")  # quiet sklearn/lightgbm chatter across many folds
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

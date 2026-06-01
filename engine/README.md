@@ -123,9 +123,28 @@ and shows the regime, the calibrated signal with its uncertainty band, the
 risk-sized position, and the validation verdict. If the engine isn't running the
 panel shows an offline notice; the rest of APEX is unaffected.
 
+## Phase 2 — ML signal expansion
+
+Same risk layer, same validation gauntlet — now with learned signals:
+
+- **Meta-labelling** (`ml/`): a transparent primary rule (regime-gated momentum)
+  picks direction; a model predicts **P(this trade wins)** from triple-barrier labels.
+- **Models**: a regularised **LightGBM** ensemble + a **linear baseline** (the
+  honesty check), both **conformal-calibrated** so P(win) is trustworthy.
+- **Sentiment-as-a-filter** (`sentiment/`): wired to the existing Groq/Finnhub news
+  pipeline. **Veto/damp only — never initiates or enlarges a trade.** Off by default.
+- Select the strategy in the panel (Baseline / ML-GBM / ML-Linear) or via
+  `?strategy=` on `/signal` and `/risk`. Each is validated independently:
+  ```bash
+  .venv\Scripts\python.exe scripts/run_validation.py ml_gbm EUR/USD
+  ```
+  On FX majors the ML strategies are **also rejected** (DSR < 0.95, high PBO) — more
+  model complexity does not conjure an edge that isn't in the data. Working as intended.
+
 ## Status
 
-Phase 1 COMPLETE — data, features, volatility, regime, risk, strategy, backtest,
-validation, API, and frontend panel. 114 tests. See `config.yaml` `version`.
-Phase 2 (signal expansion: gradient-boosting ensemble + sentiment-as-filter) is
-gated on your go-ahead.
+Phase 1 + Phase 2 COMPLETE — data, features, volatility, regime, risk, baseline +
+ML strategies (LightGBM/linear, meta-labelled, conformal-calibrated), sentiment
+filter, backtest, CPCV/DSR/PBO validation, API, and frontend panel. 140 tests.
+Phase 3 (retrieval-grounded LLM hypothesis generation / bull-bear-risk debate that
+produces *ideas to validate*, never live orders) is gated on your go-ahead.
