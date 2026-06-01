@@ -20,7 +20,8 @@ import numpy as np
 import pandas as pd
 
 from apex_quant.config import AppConfig, get_config
-from apex_quant.strategies.labeling import atr_series, triple_barrier_label
+# NOTE: strategies.labeling is imported lazily inside build_dataset() to avoid a
+# circular import (strategies/__init__ -> ml_strategy -> ml.dataset).
 
 
 @dataclass
@@ -89,6 +90,8 @@ def build_dataset(
 ) -> MLDataset:
     """Assemble (X, y) for meta-labelling over the data known at ``train_end``
     (defaults to all available history)."""
+    from apex_quant.strategies.labeling import atr_series, triple_barrier_label  # lazy: breaks import cycle
+
     cfg = cfg or get_config()
     df = pit.as_of(train_end if train_end is not None else pit.end)
 

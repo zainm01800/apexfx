@@ -143,6 +143,17 @@ class SentimentConfig(BaseModel):
     max_age_days: int = 7          # don't apply "today's" news to decisions older than this
 
 
+class AiConfig(BaseModel):
+    """Phase 3 narrow-AI layer. The LLM proposes hypotheses to VALIDATE - it never
+    sets signals, sizing, or confidence, and nothing it outputs is ever an order."""
+    enabled: bool = False
+    app_url: str = ""              # APEX app base URL exposing /api/ai (+ /api/news)
+    n_hypotheses: int = 4
+    max_tokens: int = 1200
+    temperature: float = 0.5
+    use_news: bool = True          # ground hypotheses in recent headlines when available
+
+
 class AppConfig(BaseModel):
     version: int = 1
     seed: int = 42
@@ -154,6 +165,7 @@ class AppConfig(BaseModel):
     backtest: BacktestConfig = Field(default_factory=BacktestConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     sentiment: SentimentConfig = Field(default_factory=SentimentConfig)
+    ai: AiConfig = Field(default_factory=AiConfig)
 
     @property
     def store_path(self) -> Path:
