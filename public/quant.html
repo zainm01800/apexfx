@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Quant Engine</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./quant.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link" href="dashboard.html">Research</a>
+      <a class="nav-link" href="index.html">Charts</a>
+      <a class="nav-link" href="history.html">History</a>
+      <a class="nav-link active" href="quant.html">Quant</a>
+    </nav>
+    <div class="engine-pill" id="enginePill"><span class="engine-dot" id="engineDot"></span><span id="engineStatus">CONNECTING</span></div>
+  </header>
+
+  <main class="quant-main">
+    <div class="q-head">
+      <div>
+        <h1 class="q-title">Quant Engine</h1>
+        <p class="q-sub">Probabilistic signals with explicit uncertainty &middot; risk-first sizing &middot; validation-gated. <strong>The risk layer has veto over every signal.</strong></p>
+      </div>
+      <div class="q-controls">
+        <div class="q-method" id="regimeMethod" title="Regime classifier">
+          <button class="qm-btn active" data-method="rule_based">Rule-based</button>
+          <button class="qm-btn" data-method="hmm">HMM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Offline banner -->
+    <div class="engine-offline" id="offlineBanner" style="display:none">
+      <div class="eo-icon">&#9888;</div>
+      <div class="eo-body">
+        <div class="eo-title">Quant engine offline</div>
+        <div class="eo-text">This panel reads a local Python service. Start it, then reload:</div>
+        <code class="eo-cmd">cd engine<br/>.venv\Scripts\python.exe -m uvicorn apex_quant.api.app:app --port 8000</code>
+        <div class="eo-text eo-dim">Looking for the API at <span id="eoApi"></span>. The rest of APEX (charts, research, history) works without it.</div>
+      </div>
+    </div>
+
+    <!-- Instrument selector -->
+    <div class="q-instruments" id="instrumentBar"></div>
+
+    <!-- Cards -->
+    <div class="q-grid" id="quantGrid" style="display:none">
+      <section class="q-card" id="card-regime">
+        <div class="qc-head"><span class="qc-title">Market Regime</span><span class="qc-asof" id="regimeAsOf"></span></div>
+        <div class="qc-body" id="regimeBody"><div class="q-skel"></div></div>
+      </section>
+
+      <section class="q-card" id="card-signal">
+        <div class="qc-head"><span class="qc-title">Signal</span><span class="qc-tag">probabilistic, not a call</span></div>
+        <div class="qc-body" id="signalBody"><div class="q-skel"></div></div>
+      </section>
+
+      <section class="q-card" id="card-risk">
+        <div class="qc-head"><span class="qc-title">Risk-Sized Position</span><span class="qc-asof" id="riskEquity"></span></div>
+        <div class="qc-body" id="riskBody"><div class="q-skel"></div></div>
+      </section>
+
+      <section class="q-card q-card-wide" id="card-validation">
+        <div class="qc-head"><span class="qc-title">Validation Health</span><span class="qc-tag" id="valTag">CPCV &middot; Deflated Sharpe &middot; PBO</span></div>
+        <div class="qc-body" id="validationBody"><div class="q-skel"></div></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./quant.js"></script>
+</body>
+</html>

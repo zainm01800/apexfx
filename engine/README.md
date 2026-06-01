@@ -75,15 +75,57 @@ Every tunable lives in `config.yaml`. Override per-run with `APEX_`-prefixed env
 vars (nested keys use `__`), e.g. `APEX_RISK__KELLY_FRACTION=0.1`. Bump `version`
 whenever a value changes — backtests record the version they ran under.
 
-## Running a backtest / reading the validation report
+## Running a backtest
 
-> Built after the foundation checkpoint (backtest → validation → API → frontend).
-> This section will document how to run an end-to-end backtest and how to
-> interpret the CPCV paths, Deflated Sharpe Ratio, and Probability of Backtest
-> Overfitting. **A strategy only "passes" with positive DSR and low PBO across
-> CPCV paths — most candidate strategies should fail here. That is the system
-> working.**
+```python
+from apex_quant.data import get_adapter, clean, PointInTimeAccessor
+from apex_quant.strategies import RegimeGatedMomentum
+from apex_quant.backtest import Backtester
+
+df = clean(get_adapter("yahoo").get_history("EUR/USD", "2015-01-01", "2024-12-31"))
+pit = PointInTimeAccessor(df)
+split = df.index[len(df)//2]
+strat = RegimeGatedMomentum()
+strat.fit(pit, df.index[df.index <= split])           # calibrate on the first half only
+res = Backtester().run(pit, strat, "EUR/USD", start=split, warmup=0)
+print(res.summary())                                   # ret / Sharpe / maxDD / trades
+```
+
+## Reading the validation report
+
+```bash
+.venv\Scripts\python.exe scripts/run_validation.py EUR/USD GBP/USD
+```
+
+The report has three gates; a strategy passes only if **all three** agree:
+
+| Metric | Meaning | Pass |
+|--------|---------|------|
+| **Deflated Sharpe** | Sharpe corrected for the number of configs tried, skew & kurtosis | `> 0.95` |
+| **PBO** | Probability of Backtest Overfitting (in-sample-best underperforms OOS) | `< 0.50` |
+| **CPCV OOS** | Out-of-sample Sharpe distribution across combinatorial purged paths | median `> 0`, majority of paths positive |
+
+**Most candidate strategies should FAIL here. That is the system working, not a
+bug.** The bundled baseline (regime-gated momentum) is correctly *rejected* on FX
+majors — a weak edge dies in validation rather than in an account.
+
+## API + frontend panel
+
+```bash
+# 1. start the engine (local)
+.venv\Scripts\python.exe -m uvicorn apex_quant.api.app:app --port 8000
+# 2. serve the frontend (repo root) and open the "Quant" tab
+python -m http.server 3001 --directory public      # http://localhost:3001/quant.html
+```
+
+The `Quant` panel in the APEX app reads `/regime` `/signal` `/risk` `/validation`
+and shows the regime, the calibrated signal with its uncertainty band, the
+risk-sized position, and the validation verdict. If the engine isn't running the
+panel shows an offline notice; the rest of APEX is unaffected.
 
 ## Status
 
-Phase 1 — foundation (validation + risk + regime). See `config.yaml` `version`.
+Phase 1 COMPLETE — data, features, volatility, regime, risk, strategy, backtest,
+validation, API, and frontend panel. 114 tests. See `config.yaml` `version`.
+Phase 2 (signal expansion: gradient-boosting ensemble + sentiment-as-filter) is
+gated on your go-ahead.
