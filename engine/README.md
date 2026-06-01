@@ -141,10 +141,35 @@ Same risk layer, same validation gauntlet — now with learned signals:
   On FX majors the ML strategies are **also rejected** (DSR < 0.95, high PBO) — more
   model complexity does not conjure an edge that isn't in the data. Working as intended.
 
+## Phase 3 — narrow AI layer (hypothesis generation, never orders)
+
+The AI proposes; the validation engine disposes. End to end:
+
+1. **Ground** (`ai/retrieval.py`): hand the LLM the engine's OWN computed evidence
+   (regime, volatility, features, returns, and the verdicts of strategies already
+   tested) so it reasons over real numbers, not hallucinations.
+2. **Propose** (`ai/hypothesis.py`): the LLM emits hypotheses; each is forced through
+   a **whitelist + clamp** into a runnable config. An idea can only ever become a
+   validatable strategy variant — never arbitrary code. Programmatic fallback when no LLM.
+3. **Debate** (`ai/debate.py`): bull / bear / risk-supervisor stress-test each idea
+   and triage which are worth a validation run (not a trade decision).
+4. **Validate + rank** (`ai/pipeline.py`): survivors run through the SAME CPCV/DSR/PBO
+   harness; the report is ranked by the **validation verdict, never the AI's opinion**,
+   and carries an explicit "ideas, NOT orders" disclaimer.
+
+```bash
+# uses /api/ai when ai.app_url is set in config.yaml; otherwise programmatic proposer
+.venv\Scripts\python.exe scripts/run_research.py EUR/USD
+```
+
+**Safety property:** because no LLM output is ever executed — only validated — the
+layer is robust to prompt-injection. A malicious news headline can, at most, get a
+hypothesis proposed that then fails CPCV/DSR/PBO. On EUR/USD every AI-proposed
+hypothesis is **rejected** by validation — working as intended.
+
 ## Status
 
-Phase 1 + Phase 2 COMPLETE — data, features, volatility, regime, risk, baseline +
-ML strategies (LightGBM/linear, meta-labelled, conformal-calibrated), sentiment
-filter, backtest, CPCV/DSR/PBO validation, API, and frontend panel. 140 tests.
-Phase 3 (retrieval-grounded LLM hypothesis generation / bull-bear-risk debate that
-produces *ideas to validate*, never live orders) is gated on your go-ahead.
+Phases 1–3 COMPLETE. Data, features, volatility, regime, supreme risk layer,
+baseline + ML strategies (LightGBM/linear, meta-labelled, conformal-calibrated),
+sentiment filter, event-driven backtest, CPCV/DSR/PBO validation, narrow-AI
+hypothesis+debate research layer, FastAPI service, and frontend panel. **163 tests.**
