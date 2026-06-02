@@ -521,18 +521,30 @@ function resolveOutcomes(pendingRows, candles) {
 
 // ── API calls ─────────────────────────────────────────────────────────────────
 
-async function fetchCandles(sym, type) {
-  const to = Math.floor(Date.now() / 1000), from = to - 210 * 86400;
-  const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+// ── Trade style (timeframe) ───────────────────────────────────────────────────
+// The selected style drives which candle timeframe the WHOLE analysis runs on, and
+// tells the committee what horizon to plan entries / stops / take-profits for.
+const TRADE_STYLES = {
+  scalp:    { label: 'Scalp',    primaryTf: '15m', contextTf: '1h', primaryDays: 30,   contextDays: 60,   horizon: 'minutes to a few hours' },
+  intraday: { label: 'Intraday', primaryTf: '1h',  contextTf: '4h', primaryDays: 120,  contextDays: 360,  horizon: 'a few hours up to one trading day' },
+  swing:    { label: 'Swing',    primaryTf: '1d',  contextTf: '1w', primaryDays: 210,  contextDays: 730,  horizon: 'several days to a few weeks' },
+  position: { label: 'Position', primaryTf: '1w',  contextTf: '1M', primaryDays: 1825, contextDays: 3650, horizon: 'several weeks to months' },
+};
+let _tradeStyle = 'swing';
+function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
+
+async function fetchCandles(sym, type, tf = '1d', days = 210) {
+  const to = Math.floor(Date.now() / 1000), from = to - days * 86400;
+  const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`);
   if (!r.ok) throw new Error(`Price data unavailable (HTTP ${r.status})`);
   const d = await r.json();
   if (d.error) throw new Error(d.error);
   return d;
 }
-async function fetchWeeklyCandles(sym, type) {
+async function fetchWeeklyCandles(sym, type, tf = '1w', days = 730) {
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - 2 * 365 * 86400;
-    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1w&from=${from}&to=${to}`);
+    const to = Math.floor(Date.now() / 1000), from = to - days * 86400;
+    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`);
     if (!r.ok) return null;
     const d = await r.json();
     return Array.isArray(d) && d.length > 4 ? d : null;
@@ -1106,7 +1118,7 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
       <div class="strategy-text">${x.t}</div>
     </div>`).join('');
 
-  setText('tradeTf', a.timeframe ? `Suggested holding period: ${a.timeframe}` : '');
+  setText('tradeTf', `${tradeStyle().label} trade${a.timeframe ? ` · suggested holding period: ${a.timeframe}` : ''}`);
 
   // ── Key reasons ──
   document.getElementById('keyReasonsList').innerHTML =
@@ -1255,14 +1267,15 @@ async function startResearch() {
 
   setStep(1);
 
+  const ts = tradeStyle();   // selected timeframe drives the whole analysis
   try {
-    // ── Step 1: Daily + weekly candles in parallel ──
+    // ── Step 1: trade-timeframe + higher-timeframe context candles in parallel ──
     const [candles, weeklyCandles, benchCandles] = await Promise.all([
-      fetchCandles(sym, type),
-      fetchWeeklyCandles(sym, type),
-      type !== 'Forex' ? fetchCandles(type === 'Crypto' ? 'BTC/USD' : 'SPY', type === 'Crypto' ? 'Crypto' : 'ETF').catch(() => null) : Promise.resolve(null),
+      fetchCandles(sym, type, ts.primaryTf, ts.primaryDays),
+      fetchWeeklyCandles(sym, type, ts.contextTf, ts.contextDays),
+      type !== 'Forex' ? fetchCandles(type === 'Crypto' ? 'BTC/USD' : 'SPY', type === 'Crypto' ? 'Crypto' : 'ETF', ts.primaryTf, ts.primaryDays).catch(() => null) : Promise.resolve(null),
     ]);
-    if (!candles || candles.length < 30) throw new Error(`No price data found for "${sym}". Check the symbol and try again.`);
+    if (!candles || candles.length < 30) throw new Error(`No ${ts.primaryTf} price data found for "${sym}". Try a longer trade style or a different symbol.`);
     setStep(2);
 
     // ── Step 2: Compute all indicators ──
@@ -1795,8 +1808,19 @@ ENGINE DIRECTIVE: This is a disciplined, independent quant check. If the risk la
       engineBlock = `\nINDEPENDENT QUANT ENGINE: online but no quantitative coverage for ${sym}; not factored in.`;
     }
 
+    // ── Trade style: tailor the whole plan to the requested horizon ──
+    const tradeStyleBlock = `
+━━━ TRADE STYLE: ${ts.label.toUpperCase()} (hold ${ts.horizon}) ━━━
+The trader wants a ${ts.label} trade. ALL technical evidence above is computed on the ${ts.primaryTf} timeframe (higher-timeframe context: ${ts.contextTf}). Tailor the ENTIRE plan to this horizon:
+- WHEN TO BUY: give a concrete entry zone/price AND the trigger — e.g. "enter now at market", "buy the pullback to X", or "only on a break above Y".
+- WHEN TO SELL / TAKE PROFIT: a specific take-profit target (target_price) sized for a ${ts.label} move on ${ts.primaryTf} (scalps = tight, near price; positions = wider, structure-based).
+- WHERE TO STOP: a stop_loss appropriate to ${ts.primaryTf} volatility (use the ATR/levels in the evidence) with a sensible risk:reward.
+- The "timeframe" field MUST be a concrete ${ts.label} holding estimate (e.g. scalp "~30 min–4 h", swing "1–3 weeks", position "1–4 months").
+- Do NOT give daily-swing levels for a scalp, or scalp levels for a position trade. Match the horizon.`;
+
     // ── Committee Agent: synthesise all specialist findings → final JSON ──────
-    const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict.
+    const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict for a ${ts.label.toUpperCase()} trade.
+${tradeStyleBlock}
 
 ━━━ TECHNICAL ANALYST — Evidence ━━━
 ${techFactors}
@@ -1834,7 +1858,8 @@ Your task:
 5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
-8. Be brutally honest — no performance, no softening, no default verdicts
+8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
+9. Be brutally honest — no performance, no softening, no default verdicts
 
 Respond ONLY with this exact JSON structure:
 
@@ -2112,6 +2137,18 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDropdown();
     startResearch();
   });
+
+  // Trade-style selector
+  const tsPills = document.getElementById('tradeStylePills');
+  if (tsPills) {
+    tsPills.querySelectorAll('.ts-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        tsPills.querySelectorAll('.ts-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        _tradeStyle = btn.dataset.style;
+      });
+    });
+  }
 
   // Handle ?sym=NVDA URL param (launched from History page)
   const params = new URLSearchParams(window.location.search);

@@ -73,6 +73,17 @@
             </button>
           </div>
 
+          <!-- Trade style: drives the analysis timeframe + the entry/stop/take-profit horizon -->
+          <div class="trade-style-wrap">
+            <span class="ts-label">Trade style</span>
+            <div class="trade-style-pills" id="tradeStylePills">
+              <button class="ts-pill" data-style="scalp"    title="minutes to a few hours · 15m chart">⚡ Scalp</button>
+              <button class="ts-pill" data-style="intraday" title="hours to one day · 1h chart">🕐 Intraday</button>
+              <button class="ts-pill active" data-style="swing" title="days to weeks · daily chart">📈 Swing</button>
+              <button class="ts-pill" data-style="position" title="weeks to months · weekly chart">🗓️ Position</button>
+            </div>
+          </div>
+
           <!-- Categorised quick picks -->
           <div class="quick-picks-wrap">
             <div class="qp-tabs">
