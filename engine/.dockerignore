@@ -1,0 +1,14 @@
+# Keep the image lean: ship apex_quant/, config.yaml, requirements.txt, and the
+# small validation/research JSON cache. Everything below is excluded.
+.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+scripts/
+*.parquet
+data_store/**/*.parquet
+requirements.lock.txt
+*.md
+.env
+.env.example

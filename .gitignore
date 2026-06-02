@@ -5,6 +5,9 @@
 engine/.venv/
 engine/**/__pycache__/
 engine/.pytest_cache/
-engine/data_store/
 engine/.env
 *.py[cod]
+# Ignore the bulky/regenerable parquet price cache, but DO commit the small
+# validation/research JSON cache so it ships in the deployed engine image.
+engine/data_store/*.parquet
+engine/data_store/**/*.parquet

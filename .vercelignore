@@ -6,3 +6,4 @@ supabase/
 scripts/
 node_modules/
 .git/
+render.yaml

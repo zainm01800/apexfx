@@ -1,0 +1,24 @@
+# Render Blueprint — deploys the APEX Quant Engine as a Docker web service.
+# In Render: New + > Blueprint > connect this GitHub repo. It reads engine/Dockerfile.
+# Free plan works (spins down when idle; first request after sleep is slow).
+services:
+  - type: web
+    name: apex-quant-engine
+    runtime: docker
+    rootDir: engine
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APEX_CORS_ORIGINS
+        value: https://apexfx.vercel.app
+      # --- optional: enable the live LLM debate + news sentiment (reuses your
+      #     app's /api/ai + /api/news). Uncomment to turn on. ---
+      # - key: APEX_AI__ENABLED
+      #   value: "true"
+      # - key: APEX_AI__APP_URL
+      #   value: https://apexfx.vercel.app
+      # - key: APEX_SENTIMENT__ENABLED
+      #   value: "true"
+      # - key: APEX_SENTIMENT__APP_URL
+      #   value: https://apexfx.vercel.app

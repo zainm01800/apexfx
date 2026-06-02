@@ -1,0 +1,101 @@
+{
+  "instrument": "EUR/USD",
+  "as_of": "2024-12-31",
+  "generated_for": "2024-12-31",
+  "llm_used": false,
+  "n_hypotheses": 3,
+  "disclaimer": "These are hypotheses PROPOSED by an AI layer and JUDGED independently by the validation engine (CPCV / Deflated Sharpe / PBO). They are research ideas - NOT orders, signals, confidences, or recommendations to trade. Sizing and execution remain solely with the risk layer.",
+  "evidence_summary": "ranging/high-vol | vol 0.0667 | 3m -0.05813918108413363",
+  "results": [
+    {
+      "label": "baseline mom126 h17 rr2.0 rule_based",
+      "thesis": "Slower momentum filters chop in a noisy tape",
+      "rationale": "",
+      "proposed_by": "programmatic",
+      "config": {
+        "strategy": "baseline",
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 17,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based"
+      },
+      "debate": {
+        "bull": "(LLM unavailable)",
+        "bear": "(LLM unavailable)",
+        "supervisor": "No LLM configured; deferring to the validation engine.",
+        "verdict": "test",
+        "llm_used": false
+      },
+      "validation": {
+        "passed": false,
+        "dsr": 0.534,
+        "pbo": 0.88725,
+        "frac_positive": 0.4666666666666667,
+        "n_paths": 15,
+        "observed_sharpe": 0.09
+      },
+      "rank_score": 0.534
+    },
+    {
+      "label": "ml_gbm h12 rr1.5",
+      "thesis": "GBM meta-model may capture nonlinear feature interactions",
+      "rationale": "",
+      "proposed_by": "programmatic",
+      "config": {
+        "strategy": "ml_gbm",
+        "momentum_lookback": 63,
+        "vol_window": 63,
+        "holding_horizon": 12,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based"
+      },
+      "debate": {
+        "bull": "(LLM unavailable)",
+        "bear": "(LLM unavailable)",
+        "supervisor": "No LLM configured; deferring to the validation engine.",
+        "verdict": "test",
+        "llm_used": false
+      },
+      "validation": {
+        "passed": false,
+        "dsr": 0.415,
+        "pbo": 0.53325,
+        "frac_positive": 0.4,
+        "n_paths": 15,
+        "observed_sharpe": 0.06
+      },
+      "rank_score": 0.415
+    },
+    {
+      "label": "baseline mom21 h12 rr1.5 rule_based",
+      "thesis": "Short-lookback momentum reacts faster to the live move",
+      "rationale": "",
+      "proposed_by": "programmatic",
+      "config": {
+        "strategy": "baseline",
+        "momentum_lookback": 21,
+        "vol_window": 21,
+        "holding_horizon": 12,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based"
+      },
+      "debate": {
+        "bull": "(LLM unavailable)",
+        "bear": "(LLM unavailable)",
+        "supervisor": "No LLM configured; deferring to the validation engine.",
+        "verdict": "test",
+        "llm_used": false
+      },
+      "validation": {
+        "passed": false,
+        "dsr": 0.0,
+        "pbo": 0.86775,
+        "frac_positive": 0.26666666666666666,
+        "n_paths": 15,
+        "observed_sharpe": 0.0
+      },
+      "rank_score": 0.0
+    }
+  ]
+}
