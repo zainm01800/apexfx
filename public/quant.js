@@ -1,9 +1,13 @@
-// APEX Quant Engine panel — consumes the local Python service (read-only).
-// API base: ?api=... query param > localStorage > default localhost:8000.
+// APEX Quant Engine panel — consumes the Python service (read-only).
+// API base: ?api=... query param > localStorage > host-based default
+// (local engine during local dev; the hosted engine on the deployed site).
 
 (() => {
   const params = new URLSearchParams(location.search);
-  const API = (params.get('api') || localStorage.getItem('apexEngineApi') || 'http://127.0.0.1:8000').replace(/\/$/, '');
+  const _apiDefault = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+    ? 'http://127.0.0.1:8000'
+    : 'https://apex-quant-engine.onrender.com';
+  const API = (params.get('api') || localStorage.getItem('apexEngineApi') || _apiDefault).replace(/\/$/, '');
   if (params.get('api')) localStorage.setItem('apexEngineApi', params.get('api'));
 
   const FALLBACK_INSTRUMENTS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD'];

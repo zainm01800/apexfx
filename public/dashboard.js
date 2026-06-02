@@ -605,12 +605,14 @@ async function fetchQualityScores(sym) {
 // Independent regime + risk-sizing + CPCV/DSR/PBO validation from the local Python
 // engine. Fully graceful: if the engine isn't reachable (e.g. on the live site,
 // where it isn't hosted), this is skipped and the rest of Analyse is unaffected.
-// API base: ?engine= query param > localStorage('apexEngineApi') > localhost:8000.
-const ENGINE_API = (new URLSearchParams(location.search).get('engine')
-  || localStorage.getItem('apexEngineApi') || 'http://127.0.0.1:8000').replace(/\/$/, '');
-if (new URLSearchParams(location.search).get('engine')) {
-  localStorage.setItem('apexEngineApi', new URLSearchParams(location.search).get('engine'));
-}
+// API base: ?engine= query param > localStorage('apexEngineApi') > host-based default
+// (local engine during local dev; the hosted engine on the deployed site).
+const _engQp = new URLSearchParams(location.search).get('engine');
+const _engDefault = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+  ? 'http://127.0.0.1:8000'
+  : 'https://apex-quant-engine.onrender.com';
+const ENGINE_API = (_engQp || localStorage.getItem('apexEngineApi') || _engDefault).replace(/\/$/, '');
+if (_engQp) localStorage.setItem('apexEngineApi', _engQp);
 
 function _engFmt(p, d = 5) {
   const n = parseFloat(p);
