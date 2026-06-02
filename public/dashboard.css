@@ -550,7 +550,8 @@ body {
 .engine-status-chip.off { color: var(--text3); }
 .eng-intro { font-size: 13px; color: var(--text2); line-height: 1.55; margin: 0 0 14px; }
 .eng-intro strong { color: var(--text); }
-.eng-loading { font-size: 13px; color: var(--text2); }
+.eng-loading { font-size: 13px; color: var(--text2); line-height: 1.6; }
+.eng-loading .eng-dim, .eng-dim { color: var(--text3); font-size: 12px; }
 .eng-offline { font-size: 13px; color: var(--text2); line-height: 1.6; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .eng-offline strong { color: var(--text); }
 .eng-offline .eng-dim { display: block; margin-top: 8px; font-size: 12px; color: var(--text3); }

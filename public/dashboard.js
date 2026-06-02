@@ -626,12 +626,19 @@ async function loadEngineInsights(sym, type) {
   if (!card || !body) return;
   card.style.display = '';
   chip.textContent = '…'; chip.className = 'engine-status-chip';
-  body.innerHTML = '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…</div>';
 
-  // Quick reachability probe — keeps the live site (no hosted engine) snappy.
+  // A hosted (remote) engine on a free tier can take ~30–60s to wake from idle,
+  // so give it a long probe + a "waking up" note. A local engine is instant or
+  // genuinely absent, so keep that probe snappy.
+  const isRemote = !/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(ENGINE_API);
+  const probeMs = isRemote ? 75000 : 4000;
+  body.innerHTML = isRemote
+    ? '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…<br><span class="eng-dim">First request after idle can take ~30–60s to wake the free-tier host.</span></div>'
+    : '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…</div>';
+
   let online = false;
   try {
-    const h = await fetch(`${ENGINE_API}/health`, { signal: AbortSignal.timeout(4000) });
+    const h = await fetch(`${ENGINE_API}/health`, { signal: AbortSignal.timeout(probeMs) });
     online = h.ok;
   } catch { online = false; }
 
