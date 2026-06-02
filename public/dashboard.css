@@ -542,3 +542,26 @@ body {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .hero-text h1 { font-size: 24px; }
 }
+
+/* ── Quant Engine cross-check card ── */
+.engine-card { border-color: rgba(124,92,252,.3); }
+.engine-status-chip { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 3px 9px; border-radius: 6px; background: var(--bg2); color: var(--text3); border: 1px solid var(--border2); }
+.engine-status-chip.on  { color: var(--green); border-color: rgba(0,217,126,.4); }
+.engine-status-chip.off { color: var(--text3); }
+.eng-intro { font-size: 13px; color: var(--text2); line-height: 1.55; margin: 0 0 14px; }
+.eng-intro strong { color: var(--text); }
+.eng-loading { font-size: 13px; color: var(--text2); }
+.eng-offline { font-size: 13px; color: var(--text2); line-height: 1.6; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.eng-offline strong { color: var(--text); }
+.eng-offline .eng-dim { display: block; margin-top: 8px; font-size: 12px; color: var(--text3); }
+.eng-offline code, .eng-valdetail code { font-family: var(--mono); font-size: 11.5px; background: #000; color: var(--green); padding: 2px 6px; border-radius: 4px; }
+.eng-grid { display: flex; flex-direction: column; gap: 2px; }
+.eng-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.eng-k { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+.eng-v { font-family: var(--mono); font-size: 14px; font-weight: 700; text-align: right; }
+.eng-v.pos { color: var(--green); } .eng-v.neg { color: var(--red); } .eng-v.neu { color: var(--text2); }
+.eng-veto { font-size: 13px; color: var(--text2); background: var(--bg2); border-radius: 8px; padding: 9px 12px; margin: 8px 0; line-height: 1.5; }
+.eng-cons { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.eng-con { font-family: var(--mono); font-size: 10.5px; padding: 3px 8px; border-radius: 5px; background: var(--bg2); border: 1px solid var(--border2); color: var(--orange); }
+.eng-valdetail { font-size: 12px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+.eng-valdetail.eng-dim { color: var(--text3); }

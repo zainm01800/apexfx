@@ -601,6 +601,105 @@ async function fetchQualityScores(sym) {
   } catch { return null; }
 }
 
+// ── Quant Engine cross-check ──────────────────────────────────────────────────
+// Independent regime + risk-sizing + CPCV/DSR/PBO validation from the local Python
+// engine. Fully graceful: if the engine isn't reachable (e.g. on the live site,
+// where it isn't hosted), this is skipped and the rest of Analyse is unaffected.
+// API base: ?engine= query param > localStorage('apexEngineApi') > localhost:8000.
+const ENGINE_API = (new URLSearchParams(location.search).get('engine')
+  || localStorage.getItem('apexEngineApi') || 'http://127.0.0.1:8000').replace(/\/$/, '');
+if (new URLSearchParams(location.search).get('engine')) {
+  localStorage.setItem('apexEngineApi', new URLSearchParams(location.search).get('engine'));
+}
+
+function _engFmt(p, d = 5) {
+  const n = parseFloat(p);
+  return (p == null || isNaN(n)) ? '—' : (Math.abs(n) >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n.toFixed(d));
+}
+
+async function loadEngineInsights(sym, type) {
+  const card = document.getElementById('engineCard');
+  const body = document.getElementById('engineInsights');
+  const chip = document.getElementById('engineStatusChip');
+  if (!card || !body) return;
+  card.style.display = '';
+  chip.textContent = '…'; chip.className = 'engine-status-chip';
+  body.innerHTML = '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…</div>';
+
+  // Quick reachability probe — keeps the live site (no hosted engine) snappy.
+  let online = false;
+  try {
+    const h = await fetch(`${ENGINE_API}/health`, { signal: AbortSignal.timeout(4000) });
+    online = h.ok;
+  } catch { online = false; }
+
+  if (!online) {
+    chip.textContent = 'OFFLINE'; chip.classList.add('off');
+    body.innerHTML = `<div class="eng-offline">The quant engine isn't reachable, so this independent cross-check was skipped — <strong>the full AI analysis above is complete and unaffected.</strong>
+      <span class="eng-dim">To enable it, run the engine locally (<code>uvicorn apex_quant.api.app:app --port 8000</code>) or host it, then load this page with <code>?engine=&lt;url&gt;</code>. Trying: ${escHtmlSafe(ENGINE_API)}.</span></div>`;
+    return;
+  }
+  chip.textContent = 'ONLINE'; chip.classList.add('on');
+
+  const enc = encodeURIComponent(sym);
+  const [regime, risk, validation] = await Promise.all([
+    fetch(`${ENGINE_API}/regime/${enc}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${ENGINE_API}/risk/${enc}?equity=100000`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${ENGINE_API}/validation/regime_gated_momentum?instrument=${enc}`).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+
+  if (!regime && !risk) {
+    body.innerHTML = `<div class="eng-offline">The engine is online but couldn't analyse <b>${escHtmlSafe(sym)}</b> (it currently covers FX majors and equities). The AI analysis above is unaffected.</div>`;
+    return;
+  }
+
+  // ── Regime ──
+  let regimeHtml = '';
+  if (regime) {
+    regimeHtml = `<div class="eng-stat"><span class="eng-k">Market regime</span>
+      <span class="eng-v">${escHtmlSafe((regime.name || '').toUpperCase())} · ${(regime.confidence * 100).toFixed(0)}% conf</span></div>`;
+  }
+
+  // ── Risk layer (the disciplined verdict) ──
+  let riskHtml = '';
+  if (risk) {
+    if (risk.permitted) {
+      const chips = (risk.constraints_applied || []).map(c => `<span class="eng-con">${escHtmlSafe(c)}</span>`).join('');
+      riskHtml = `<div class="eng-stat"><span class="eng-k">Risk layer</span>
+          <span class="eng-v pos">${escHtmlSafe((risk.direction || '').toUpperCase())} · ${(risk.risk_fraction * 100).toFixed(2)}% of equity · notional $${Number(risk.notional || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+        <div class="eng-stat"><span class="eng-k">Entry / Stop / Target</span>
+          <span class="eng-v">${_engFmt(risk.price)} / ${_engFmt(risk.stop_price)} / ${_engFmt(risk.target_price)}</span></div>
+        ${chips ? `<div class="eng-cons">${chips}</div>` : ''}`;
+    } else {
+      const chips = (risk.constraints_applied || []).map(c => `<span class="eng-con">${escHtmlSafe(c)}</span>`).join('');
+      riskHtml = `<div class="eng-stat"><span class="eng-k">Risk layer</span>
+          <span class="eng-v neg">NO POSITION</span></div>
+        <div class="eng-veto">${escHtmlSafe(risk.rationale || 'Vetoed by the risk layer.')}</div>
+        ${chips ? `<div class="eng-cons">${chips}</div>` : ''}`;
+    }
+  }
+
+  // ── Validation verdict ──
+  let valHtml = '';
+  if (validation && validation.verdict) {
+    const pass = validation.verdict.passed;
+    const dsr = validation.dsr || {}, pbo = validation.pbo || {}, cpcv = validation.cpcv || {};
+    valHtml = `<div class="eng-stat"><span class="eng-k">Systematic validation</span>
+        <span class="eng-v ${pass ? 'pos' : 'neg'}">${pass ? 'PASSED' : 'REJECTED'}</span></div>
+      <div class="eng-valdetail">Momentum strategy on ${escHtmlSafe(sym)}: DSR ${dsr.dsr != null ? dsr.dsr.toFixed(2) : '—'} (need &gt;0.95) · PBO ${pbo.pbo != null ? pbo.pbo : '—'} (need &lt;0.5) · ${cpcv.frac_positive != null ? Math.round(cpcv.frac_positive * 100) + '%' : '—'} of ${cpcv.n_paths || '—'} OOS paths positive</div>`;
+  } else {
+    valHtml = `<div class="eng-stat"><span class="eng-k">Systematic validation</span>
+        <span class="eng-v neu">not yet run for ${escHtmlSafe(sym)}</span></div>
+      <div class="eng-valdetail eng-dim">Generate with <code>scripts/run_validation.py ${escHtmlSafe(sym)}</code></div>`;
+  }
+
+  body.innerHTML = `<div class="eng-grid">${regimeHtml}${riskHtml}${valHtml}</div>`;
+}
+
+function escHtmlSafe(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
 async function callAgent(system, prompt, maxTokens = 2500) {
@@ -1107,6 +1206,7 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   }
 
   showSection('resultsSection');
+  loadEngineInsights(sym, type);   // independent quant-engine cross-check (graceful if offline)
   setTimeout(() => document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
