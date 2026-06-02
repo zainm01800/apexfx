@@ -619,36 +619,18 @@ function _engFmt(p, d = 5) {
   return (p == null || isNaN(n)) ? '—' : (Math.abs(n) >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n.toFixed(d));
 }
 
-async function loadEngineInsights(sym, type) {
-  const card = document.getElementById('engineCard');
-  const body = document.getElementById('engineInsights');
-  const chip = document.getElementById('engineStatusChip');
-  if (!card || !body) return;
-  card.style.display = '';
-  chip.textContent = '…'; chip.className = 'engine-status-chip';
-
-  // A hosted (remote) engine on a free tier can take ~30–60s to wake from idle,
-  // so give it a long probe + a "waking up" note. A local engine is instant or
-  // genuinely absent, so keep that probe snappy.
+// Fetch the engine's regime + risk + validation once (graceful, cold-start aware).
+// Returns { online, supported, regime, risk, validation }. Reused by BOTH the AI
+// committee prompt (so the verdict accounts for it) and the engine card render.
+async function fetchEngineData(sym) {
   const isRemote = !/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(ENGINE_API);
   const probeMs = isRemote ? 75000 : 4000;
-  body.innerHTML = isRemote
-    ? '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…<br><span class="eng-dim">First request after idle can take ~30–60s to wake the free-tier host.</span></div>'
-    : '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…</div>';
-
   let online = false;
   try {
     const h = await fetch(`${ENGINE_API}/health`, { signal: AbortSignal.timeout(probeMs) });
     online = h.ok;
   } catch { online = false; }
-
-  if (!online) {
-    chip.textContent = 'OFFLINE'; chip.classList.add('off');
-    body.innerHTML = `<div class="eng-offline">The quant engine isn't reachable, so this independent cross-check was skipped — <strong>the full AI analysis above is complete and unaffected.</strong>
-      <span class="eng-dim">To enable it, run the engine locally (<code>uvicorn apex_quant.api.app:app --port 8000</code>) or host it, then load this page with <code>?engine=&lt;url&gt;</code>. Trying: ${escHtmlSafe(ENGINE_API)}.</span></div>`;
-    return;
-  }
-  chip.textContent = 'ONLINE'; chip.classList.add('on');
+  if (!online) return { online: false, supported: false, regime: null, risk: null, validation: null };
 
   const enc = encodeURIComponent(sym);
   const [regime, risk, validation] = await Promise.all([
@@ -656,8 +638,35 @@ async function loadEngineInsights(sym, type) {
     fetch(`${ENGINE_API}/risk/${enc}?equity=100000`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ENGINE_API}/validation/regime_gated_momentum?instrument=${enc}`).then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
+  return { online: true, supported: !!(regime || risk), regime, risk, validation };
+}
 
-  if (!regime && !risk) {
+// Thin wrapper kept for any direct callers: fetch + render the card.
+async function loadEngineInsights(sym, type) {
+  const card = document.getElementById('engineCard');
+  const body = document.getElementById('engineInsights');
+  if (card) card.style.display = '';
+  if (body) body.innerHTML = '<div class="eng-loading">Querying the quant engine (regime · risk · validation)…</div>';
+  renderEngineCard(sym, await fetchEngineData(sym));
+}
+
+function renderEngineCard(sym, data) {
+  const card = document.getElementById('engineCard');
+  const body = document.getElementById('engineInsights');
+  const chip = document.getElementById('engineStatusChip');
+  if (!card || !body) return;
+  card.style.display = '';
+
+  if (!data || !data.online) {
+    chip.textContent = 'OFFLINE'; chip.className = 'engine-status-chip off';
+    body.innerHTML = `<div class="eng-offline">The quant engine isn't reachable, so it wasn't factored into the verdict above — <strong>the AI analysis is still complete.</strong>
+      <span class="eng-dim">To enable it, run the engine locally (<code>uvicorn apex_quant.api.app:app --port 8000</code>) or host it. Trying: ${escHtmlSafe(ENGINE_API)}.</span></div>`;
+    return;
+  }
+  chip.textContent = 'ONLINE'; chip.className = 'engine-status-chip on';
+
+  const { regime, risk, validation } = data;
+  if (!data.supported) {
     body.innerHTML = `<div class="eng-offline">The engine is online but couldn't analyse <b>${escHtmlSafe(sym)}</b> (it currently covers FX majors and equities). The AI analysis above is unaffected.</div>`;
     return;
   }
@@ -813,7 +822,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -1215,7 +1224,10 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   }
 
   showSection('resultsSection');
-  loadEngineInsights(sym, type);   // independent quant-engine cross-check (graceful if offline)
+  // Render the engine card from the data already fetched for the verdict (no re-fetch).
+  // Fallback to a fresh fetch only if it wasn't passed (e.g. a direct renderResults call).
+  if (engineData !== undefined) renderEngineCard(sym, engineData);
+  else loadEngineInsights(sym, type);
   setTimeout(() => document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
@@ -1314,6 +1326,11 @@ async function startResearch() {
     const pendingRows = (supaMemory || []).filter(r => r.outcome === 'pending');
     if (pendingRows.length) resolveOutcomes(pendingRows, candles);
     const tickerMemory = supaMemory; // alias for readability below
+
+    // Fire the quant-engine fetch now so it overlaps the (slow) LLM agent calls.
+    // We await it just before committee synthesis so the final verdict + confidence
+    // account for the engine's regime / risk-veto / validation. Graceful if offline.
+    const enginePromise = fetchEngineData(sym);
 
     setStep(4);
 
@@ -1755,6 +1772,29 @@ ${sharedData}`,
 
     setStep(5);
 
+    // ── Quant engine: await the early-fired fetch so the committee can weigh it ──
+    const engineData = await enginePromise;
+    let engineBlock = '\nINDEPENDENT QUANT ENGINE: unavailable this run (not factored into the verdict).';
+    if (engineData && engineData.online && engineData.supported) {
+      const eR = engineData.regime, eRisk = engineData.risk, eVal = engineData.validation;
+      const riskLine = eRisk
+        ? (eRisk.permitted
+            ? `would size a ${String(eRisk.direction || '').toUpperCase()} position (~${((eRisk.risk_fraction || 0) * 100).toFixed(2)}% of equity at risk)`
+            : `NO POSITION — ${eRisk.rationale || 'vetoed by the risk layer'}`)
+        : 'n/a';
+      const valLine = (eVal && eVal.verdict)
+        ? `${eVal.verdict.passed ? 'PASSED' : 'REJECTED'} (DSR ${eVal.dsr?.dsr != null ? Number(eVal.dsr.dsr).toFixed(2) : 'n/a'} vs >0.95 bar, PBO ${eVal.pbo?.pbo ?? 'n/a'} vs <0.5 bar)`
+        : 'not available for this symbol';
+      engineBlock = `
+INDEPENDENT QUANT ENGINE (point-in-time, leakage-free, validation-gated — weigh heavily):
+- Regime: ${eR ? `${eR.name} (${Math.round((eR.confidence || 0) * 100)}% confidence)` : 'n/a'}
+- Risk layer (the supreme sizing authority): ${riskLine}
+- Systematic strategy validation: ${valLine}
+ENGINE DIRECTIVE: This is a disciplined, independent quant check. If the risk layer returns NO POSITION, or validation is REJECTED, treat that as strong DISCONFIRMING evidence — materially lower your confidence (do NOT output High/Very High confidence), and consider WAIT / NO_EDGE over an aggressive BUY/SELL. Explain any conflict. If it AGREES with your thesis, it modestly reinforces confidence.`;
+    } else if (engineData && engineData.online) {
+      engineBlock = `\nINDEPENDENT QUANT ENGINE: online but no quantitative coverage for ${sym}; not factored in.`;
+    }
+
     // ── Committee Agent: synthesise all specialist findings → final JSON ──────
     const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict.
 
@@ -1782,6 +1822,7 @@ ${macroIntermarket?.hy_oas?.signal ? `HY Credit: ${macroIntermarket.hy_oas.signa
 ${macroIntermarket?.vix?.signal ? `VIX: ${macroIntermarket.vix.signal}` : ''}
 ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
+${engineBlock}
 ${scanBlock || ''}
 ${memoryBlock || ''}
 
@@ -1792,7 +1833,8 @@ Your task:
 4. Apply the Confluence Score as a hard calibration constraint on your confidence score
 5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
-7. Be brutally honest — no performance, no softening, no default verdicts
+7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
+8. Be brutally honest — no performance, no softening, no default verdicts
 
 Respond ONLY with this exact JSON structure:
 
@@ -1854,7 +1896,7 @@ Respond ONLY with this exact JSON structure:
     // Save this analysis to Supabase memory (fire-and-forget)
     saveToMemory(sym, type, analysis, curr);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {
