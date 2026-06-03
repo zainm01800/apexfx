@@ -17,6 +17,7 @@ importScripts(
   '/lib/confluence.js',
   '/lib/strategies.js',
   '/lib/metrics.js',
+  '/lib/hypotheses.js',
   '/lib/runjob.js'
 );
 

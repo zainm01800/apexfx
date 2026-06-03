@@ -195,6 +195,37 @@
       </tr>`;
     }).join('');
     $('btRows').querySelectorAll('[data-trades]').forEach(b => b.onclick = () => showTrades(b.dataset.trades));
+    renderInsights();
+  }
+
+  // ── Improvement hypotheses (Layer 5) ────────────────────────────────────────
+  function renderInsights() {
+    if (!A.hypotheses) return;
+    const { meta, cards } = A.hypotheses.buildHypotheses(currentRows);
+    if (!cards.length) { $('insightsCard').style.display = 'none'; return; }
+    $('insightsCard').style.display = '';
+    const range = meta.dataFrom ? `${meta.dataFrom.slice(0, 10)} → ${meta.dataTo.slice(0, 10)}` : '—';
+    const framing = `<div class="bt-disclaimer" style="margin:0 0 14px">
+      <strong>Based on historical backtest data (${range}, ${meta.totalTrades.toLocaleString()} trades across ${meta.nEligible} eligible results).</strong>
+      ${meta.framing}</div>`;
+    const html = cards.map(c => {
+      let body = '';
+      if (c.id === 'signal_power') {
+        body = `<table class="bt-table"><thead><tr><th>Confluence signal</th><th>Avg lift (win% aligned − not)</th><th>Runs</th><th>Samples</th></tr></thead><tbody>${
+          c.signals.map(s => `<tr><td>${s.label}</td><td class="${s.avgLift > 2 ? 'pos' : s.avgLift < -2 ? 'neg' : ''}">${s.avgLift > 0 ? '+' : ''}${s.avgLift}</td><td>${s.runs}</td><td>${s.samples}</td></tr>`).join('')}</tbody></table>
+          <p class="bt-insight-h">${c.strongest ? c.strongest + ' ' : ''}${c.hypothesis}</p>`;
+      } else if (c.id === 'threshold') {
+        body = `<table class="bt-table"><thead><tr><th>Threshold</th><th>Avg expectancy</th><th>Avg win %</th><th>Avg Sharpe</th><th>~Trades</th></tr></thead><tbody>${
+          c.sweep.map(s => `<tr><td>${s.threshold}</td><td class="${s.avgExpectancy > 0 ? 'pos' : 'neg'}">${s.avgExpectancy}</td><td>${s.avgWinRate}%</td><td>${s.avgSharpe}</td><td>${s.avgTrades}</td></tr>`).join('')}</tbody></table>
+          <p class="bt-insight-h">${c.hypothesis}</p>`;
+      } else if (c.id === 'top_combos') {
+        body = Object.entries(c.perPair).map(([pair, arr]) => `<div class="bt-insight-pair"><b>${pair}</b>: ${arr.map(x => `${x.strategy}/${x.timeframe} (Sharpe ${x.sharpe != null ? (+x.sharpe).toFixed(2) : '—'}, ${x.nTrades} trades${x.bestRegime ? `, best in ${x.bestRegime}` : ''})`).join(' · ')}</div>`).join('');
+      } else if (c.id === 'tf_consistency') {
+        body = Object.entries(c.perPair).map(([pair, arr]) => `<div class="bt-insight-pair"><b>${pair}</b>: ${arr.map(x => `${x.timeframe} (med Sharpe ${x.medianSharpe}, ${x.n})`).join(' · ')}</div>`).join('');
+      }
+      return `<div class="bt-insight"><h3>${c.title}</h3><div class="bt-dim" style="margin:2px 0 8px">${c.note}</div>${body}</div>`;
+    }).join('');
+    $('insightsBody').innerHTML = framing + html;
   }
   function populateFilterOptions() {
     const pairs = [...new Set(currentRows.map(r => r.instrument))].sort();

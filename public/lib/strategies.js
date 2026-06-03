@@ -465,7 +465,7 @@ function buildStrategies(ctx) {
 
 const _strategies = {
   buildContext, simulate, buildStrategies, withRegimeFilter, ALLOW, COSTS, costPctFor, pipSizeFor,
-  BASE, CONFLUENCE,
+  BASE, CONFLUENCE, confluenceStrategy,
   // exported series helpers (for tests)
   smaSeries, emaSeries, rsiSeries, macdSeries, atrSeries, bbSeries, stochSeries, priorExtremeSeries,
 };

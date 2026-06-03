@@ -30,6 +30,7 @@ function runJob(payload, onProgress) {
   const { strategies: S, metrics: M } = _A();
   if (!Array.isArray(bars) || bars.length < 2) return [];
 
+  const H = _A().hypotheses;
   const ctx = S.buildContext(bars, { sym, assetClass, timeframe, weekly });
   const strats = S.buildStrategies(ctx);
   const dataFrom = new Date(bars[0].time * 1000).toISOString();
@@ -40,6 +41,11 @@ function runJob(payload, onProgress) {
     const st = strats[k];
     const sim = S.simulate(bars, st.strat, ctx);
     const m = M.computeMetrics(sim, ctx);
+    // Tier-1 hypotheses aggregates for the confluence strategy (stored as JSONB).
+    let signalLift = null, thresholdSweep = null;
+    if (st.id === 'confluence' && H) {
+      try { signalLift = H.signalLift(sim.trades); thresholdSweep = H.thresholdSweep(ctx); } catch (_) { /* best-effort */ }
+    }
     rows.push({
       id: `${sym}_${timeframe}_${st.id}_${runTs}`,
       run_id: runId,
@@ -66,8 +72,8 @@ function runJob(payload, onProgress) {
       low_sample: m.lowSample,
       shallow_sharpe: m.shallowSharpe,
       regime_breakdown: regimeBreakdown(sim.trades),
-      signal_lift: null,      // filled by the Layer 5 hypotheses engine
-      threshold_sweep: null,  // filled by the Layer 5 hypotheses engine
+      signal_lift: signalLift,        // confluence only (else null)
+      threshold_sweep: thresholdSweep, // confluence only (else null)
       params: st.params || {},
       app_version: appVersion,
     });

@@ -85,3 +85,9 @@
 .bt-modal-close { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; }
 .bt-modal-body { overflow: auto; padding: 16px 18px; }
 .bt-loading { color: var(--text2); padding: 20px; text-align: center; }
+
+.bt-insight { margin-bottom: 22px; }
+.bt-insight h3 { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+.bt-insight-h { color: var(--text); font-size: 12.5px; line-height: 1.6; margin-top: 8px; padding: 8px 11px; background: rgba(124,92,252,.07); border: 1px solid rgba(124,92,252,.2); border-radius: 8px; }
+.bt-insight-pair { font-family: var(--mono); font-size: 12px; color: var(--text2); padding: 3px 0; }
+.bt-insight-pair b { color: var(--text); }
