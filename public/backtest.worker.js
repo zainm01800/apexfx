@@ -11,14 +11,17 @@
 /* eslint-disable no-undef */
 'use strict';
 
+// Cache-bust the imports with the version the page passed in the worker URL
+// (?b=...) — importScripts can otherwise serve a stale lib from the HTTP cache.
+const _q = (self.location && self.location.search) ? self.location.search : '';
 importScripts(
-  '/lib/ta.js',
-  '/lib/regime.js',
-  '/lib/confluence.js',
-  '/lib/strategies.js',
-  '/lib/metrics.js',
-  '/lib/hypotheses.js',
-  '/lib/runjob.js'
+  '/lib/ta.js' + _q,
+  '/lib/regime.js' + _q,
+  '/lib/confluence.js' + _q,
+  '/lib/strategies.js' + _q,
+  '/lib/metrics.js' + _q,
+  '/lib/hypotheses.js' + _q,
+  '/lib/runjob.js' + _q
 );
 
 self.onmessage = function (e) {

@@ -9,6 +9,7 @@
   const A = window.APEX;
   const DS = A.datasource;
   const APP_VERSION = 'bt1';
+  const LIBV = 'b5';   // bump when public/lib/*.js change — busts the worker's importScripts cache
 
   // ── Universe (mirrors QUICK_PICKS / engine config) ──────────────────────────
   const UNIVERSE = {
@@ -66,7 +67,7 @@
   // ── Worker lifecycle ────────────────────────────────────────────────────────
   function ensureWorker() {
     if (worker) return worker;
-    worker = new Worker('./backtest.worker.js');
+    worker = new Worker('./backtest.worker.js?b=' + LIBV);
     return worker;
   }
   // Run one job in the worker; resolves with rows.
