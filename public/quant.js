@@ -6,7 +6,7 @@
   const params = new URLSearchParams(location.search);
   const _apiDefault = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
     ? 'http://127.0.0.1:8000'
-    : 'https://apex-quant-engine.onrender.com';
+    : '/api/quant';   // same-origin proxy → Render (avoids the browser-side 503/CORS on the free tier)
   const API = (params.get('api') || localStorage.getItem('apexEngineApi') || _apiDefault).replace(/\/$/, '');
   if (params.get('api')) localStorage.setItem('apexEngineApi', params.get('api'));
 

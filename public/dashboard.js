@@ -631,7 +631,7 @@ async function fetchBacktestKB(sym) {
 const _engQp = new URLSearchParams(location.search).get('engine');
 const _engDefault = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
   ? 'http://127.0.0.1:8000'
-  : 'https://apex-quant-engine.onrender.com';
+  : '/api/quant';   // same-origin proxy → Render (avoids the browser-side 503/CORS on the free tier)
 const ENGINE_API = (_engQp || localStorage.getItem('apexEngineApi') || _engDefault).replace(/\/$/, '');
 if (_engQp) localStorage.setItem('apexEngineApi', _engQp);
 
@@ -1064,8 +1064,9 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
       if (m.evEbitdaAnnual    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">EV/EBITDA</span><span class="fund-val">${fmtNum(m.evEbitdaAnnual,1)}x</span></div>`;
       if (m.psAnnual          != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">P/S Ratio</span><span class="fund-val">${fmtNum(m.psAnnual,1)}x</span></div>`;
       if (m.fcfPerShareAnnual != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">FCF/Share</span><span class="fund-val">$${fmtNum(m.fcfPerShareAnnual)}</span></div>`;
-      if (m.grossMarginTTM    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Gross Margin</span><span class="fund-val">${fmtPct(m.grossMarginTTM*100)}</span></div>`;
-      if (m.roeTTM            != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">ROE (TTM)</span><span class="fund-val">${fmtPct(m.roeTTM*100)}</span></div>`;
+      // Finnhub already reports these as percentages (e.g. 74.15 = 74.15%), so do NOT ×100.
+      if (m.grossMarginTTM    != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">Gross Margin</span><span class="fund-val">${fmtPct(m.grossMarginTTM)}</span></div>`;
+      if (m.roeTTM            != null) fundGrid.innerHTML += `<div class="fund-item"><span class="fund-key">ROE (TTM)</span><span class="fund-val">${fmtPct(m.roeTTM)}</span></div>`;
     }
     // Quality Scores (Piotroski, Beneish, Accrual, Altman Z)
     if (qualityScores) {
