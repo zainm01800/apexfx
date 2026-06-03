@@ -5,8 +5,8 @@ the knowledge base stays fresh and the Deep Analyse keeps getting smarter.
 
 Usage:
     cd engine
-    .venv\\Scripts\\python.exe scripts/run_backtests.py                  # default pairs
-    .venv\\Scripts\\python.exe scripts/run_backtests.py EUR/USD GBP/USD   # specific
+    .venv\\Scripts\\python.exe scripts/run_backtests.py                  # full universe
+    .venv\\Scripts\\python.exe scripts/run_backtests.py EUR/USD AAPL BTC/USD   # specific
 """
 
 from __future__ import annotations
@@ -23,9 +23,6 @@ from apex_quant.config import get_config  # noqa: E402
 from apex_quant.data import PointInTimeAccessor, clean, get_adapter  # noqa: E402
 from apex_quant.storage import post_backtest, upsert_backtests  # noqa: E402
 from apex_quant.validation.report import default_factory, ml_factory, run_validation  # noqa: E402
-
-DEFAULT_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"]
-
 
 def _sweep():
     """(config_label, factory, param_grid). grid[0] is the headline config; the
@@ -44,12 +41,14 @@ def _sweep():
 
 def main(instruments: list[str]) -> None:
     cfg = get_config()
+    instruments = instruments or cfg.universe
     adapter = get_adapter(cfg.data.provider)
     service = EngineService(cfg)
     end, start = "2024-12-31", "2014-01-01"
     rows, ok, fail = [], 0, 0
 
     for inst in instruments:
+        klass = cfg.asset_class_of(inst)
         try:
             df = clean(adapter.get_history(inst, start, end))
             if len(df) < 300:
@@ -57,6 +56,7 @@ def main(instruments: list[str]) -> None:
             pit = PointInTimeAccessor(df)
         except Exception as e:  # noqa: BLE001
             print(f"skip {inst}: {type(e).__name__}: {e}"); continue
+        print(f"[{klass}] {inst}: {len(df)} bars")
 
         for label, factory, grid in _sweep():
             try:
@@ -80,5 +80,6 @@ def main(instruments: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if "/" in a] or DEFAULT_PAIRS
-    main(args)
+    # Any positional args = explicit instrument ids (forex "EUR/USD", equity
+    # "AAPL", crypto "BTC/USD"). No args = the full configured universe.
+    main([a for a in sys.argv[1:] if a.strip()])

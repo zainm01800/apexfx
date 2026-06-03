@@ -28,6 +28,18 @@ _FOREX_TICKERS = {
     "EUR/GBP": "EURGBP=X",
 }
 
+# Crypto on Yahoo uses "BASE-USD" (e.g. BTC-USD), NOT the forex "=X" suffix.
+_CRYPTO_TICKERS = {
+    "BTC/USD": "BTC-USD",
+    "ETH/USD": "ETH-USD",
+    "SOL/USD": "SOL-USD",
+    "XRP/USD": "XRP-USD",
+    "ADA/USD": "ADA-USD",
+    "DOGE/USD": "DOGE-USD",
+    "BNB/USD": "BNB-USD",
+    "LTC/USD": "LTC-USD",
+}
+
 _TF_INTERVAL = {"1d": "1d", "1w": "1wk", "1M": "1mo"}
 
 _HEADERS = {
@@ -41,12 +53,19 @@ _HEADERS = {
 
 
 def to_yahoo_ticker(instrument: str) -> str:
-    """Map an APEX instrument id to a Yahoo ticker. Forex-aware; falls back to
-    the raw symbol for equities/ETFs."""
+    """Map an APEX instrument id to a Yahoo ticker. Crypto- and forex-aware;
+    falls back to the raw symbol for equities/ETFs."""
+    if instrument in _CRYPTO_TICKERS:
+        return _CRYPTO_TICKERS[instrument]
     if instrument in _FOREX_TICKERS:
         return _FOREX_TICKERS[instrument]
-    if "/" in instrument:  # generic forex like "XAU/USD" -> "XAUUSD=X"
-        return instrument.replace("/", "") + "=X"
+    if "/" in instrument:
+        base, _, quote = instrument.partition("/")
+        from apex_quant.config import CRYPTO_BASES
+
+        if base.upper() in CRYPTO_BASES:  # generic crypto like "AVAX/USD" -> "AVAX-USD"
+            return f"{base.upper()}-{quote.upper()}"
+        return instrument.replace("/", "") + "=X"  # generic forex like "XAU/USD" -> "XAUUSD=X"
     return instrument
 
 

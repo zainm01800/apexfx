@@ -1,9 +1,10 @@
 name: auto-backtest
 
-# Weekly retraining loop: re-runs the full backtest + CPCV/DSR/PBO sweep across all
-# pairs (the ML models refit on the latest data) and upserts the results into the
-# Supabase knowledge base, so the Deep Analyse keeps drawing on fresh, validated
-# evidence. No LLM is used, so this costs nothing in API quota.
+# Weekly retraining loop: re-runs the full backtest + CPCV/DSR/PBO sweep across the
+# whole universe — forex pairs, equities, and crypto (the ML models refit on the
+# latest data) — and upserts the results into the Supabase knowledge base, so the
+# Deep Analyse keeps drawing on fresh, validated evidence. No LLM is used, so this
+# costs nothing in API quota.
 
 on:
   schedule:
@@ -13,7 +14,7 @@ on:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    timeout-minutes: 330   # full multi-asset universe (~13 instruments × 4 configs)
     env:
       SUPABASE_URL: https://dtiuwllodzqpbwohzrgj.supabase.co
       SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k

@@ -22,6 +22,16 @@ data:
     - "AUD/USD"
     - "USD/CAD"
     - "NZD/USD"
+  # Equity / ETF universe — Yahoo native tickers, daily bars.
+  equities:
+    - "AAPL"
+    - "MSFT"
+    - "NVDA"
+    - "SPY"
+  # Crypto universe — "BASE/USD" ids; mapped to Yahoo "BASE-USD" in the adapter.
+  crypto:
+    - "BTC/USD"
+    - "ETH/USD"
   # Forex trading week (UTC): opens Sun 22:00, closes Fri 22:00. Used by the
   # quality checker to distinguish *expected* weekend gaps from data holes.
   session:
@@ -105,6 +115,32 @@ validation:
     benchmark_sharpe: 0.0        # Deflated Sharpe null hypothesis
   pbo:
     n_splits: 16                 # combinatorial splits for Prob. of Backtest Overfitting
+
+# ── Per-asset-class trading mechanics ───────────────────────────────────────────
+# The cost model and annualization differ by asset class. Forex quotes spreads in
+# pips and trades ~252 days/yr; equities & crypto quote spreads in basis points of
+# price; crypto trades 365 days/yr. A forex cost model on a $200 stock would
+# manufacture a fake edge — exactly what the validation gauntlet exists to catch.
+asset_classes:
+  forex:
+    annualization: 252
+    cost_model: pips
+    spread_pips: 1.0
+    pip_size: 0.0001
+    slippage_bps: 0.5
+    commission_per_trade: 0.0
+  equity:
+    annualization: 252
+    cost_model: bps
+    spread_bps: 2.0          # ~2 bps round-trip half-spread on a liquid large-cap
+    slippage_bps: 1.0
+    commission_per_trade: 0.0
+  crypto:
+    annualization: 365       # crypto trades every calendar day
+    cost_model: bps
+    spread_bps: 5.0          # wider effective spread than equities
+    slippage_bps: 2.0
+    commission_per_trade: 0.0
 
 # -- Sentiment filter (Phase 2) -------------------------------------------------
 # Wired to the existing APEX Groq/Finnhub news pipeline. FILTER/VETO ONLY - it can

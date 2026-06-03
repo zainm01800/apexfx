@@ -118,9 +118,10 @@ def run_validation(
     M = aligned.to_numpy()
     baseline_returns = returns_by_cfg[0]
 
-    # 2. DSR on the baseline, deflated by the whole trial set
+    # 2. DSR on the baseline, deflated by the whole trial set. Annualization is
+    # asset-class aware (crypto = 365 days/yr) so the reported Sharpe is correct.
     dsr = deflated_sharpe_ratio(baseline_returns.to_numpy(), trial_sharpes,
-                                cfg.volatility.annualization_factor)
+                                cfg.mechanics_for(instrument).annualization)
 
     # 3. PBO across the config grid
     pbo = (probability_of_backtest_overfitting(M, n_splits=cfg.validation.pbo.n_splits, seed=cfg.seed)

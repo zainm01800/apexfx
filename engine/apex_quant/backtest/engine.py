@@ -45,12 +45,26 @@ class Backtester:
         self.use_regime = use_regime
         self.vol_window = vol_window
         self._regime = RuleBasedRegime()
+        self._mech_cache: dict = {}
+
+    def _mech(self, instrument: str):
+        """Asset-class trading mechanics (cost model + annualization) for this
+        instrument, resolved once and cached."""
+        m = self._mech_cache.get(instrument)
+        if m is None:
+            m = self.cfg.mechanics_for(instrument)
+            self._mech_cache[instrument] = m
+        return m
 
     def _pip(self, instrument: str) -> float:
-        return 0.01 if "JPY" in instrument.upper() else self.bt.pip_size_default
+        return 0.01 if "JPY" in instrument.upper() else self._mech(instrument).pip_size
 
     def _fill(self, price: float, instrument: str, buying: bool) -> float:
-        cost = 0.5 * self.bt.spread_pips * self._pip(instrument) + self.bt.slippage_bps / 1e4 * price
+        m = self._mech(instrument)
+        if m.cost_model == "pips":
+            cost = 0.5 * m.spread_pips * self._pip(instrument) + m.slippage_bps / 1e4 * price
+        else:  # bps of price — equities & crypto
+            cost = (0.5 * m.spread_bps + m.slippage_bps) / 1e4 * price
         return price + cost if buying else price - cost
 
     def run(
@@ -83,8 +97,11 @@ class Backtester:
         low = df["low"].to_numpy()
         opens = df["open"].to_numpy()
         closes = close.to_numpy()
+        mech = self._mech(instrument)
+        ann = mech.annualization
+        commission = mech.commission_per_trade
         atr = atr_series(df, self.cfg.risk.atr_window)
-        vol = _vol_series(close, self.vol_window, self.cfg.volatility.annualization_factor)
+        vol = _vol_series(close, self.vol_window, ann)
 
         equity = self.bt.initial_equity
         realized = equity
@@ -100,8 +117,8 @@ class Backtester:
                 exit_price, reason = self._check_exit(position, high[i], low[i], closes[i], i, max_hold, instrument)
                 if exit_price is not None:
                     pnl = self._pnl(position, exit_price)
-                    realized += pnl - self.bt.commission_per_trade
-                    trades.append(self._record(position, exit_price, t, reason, pnl - self.bt.commission_per_trade, instrument))
+                    realized += pnl - commission
+                    trades.append(self._record(position, exit_price, t, reason, pnl - commission, instrument))
                     position = None
 
             # 2. execute pending entry at THIS bar's open
@@ -128,7 +145,7 @@ class Backtester:
         equity_series = pd.Series(
             [v for _, v in eq_points], index=pd.DatetimeIndex([ts for ts, _ in eq_points], name="timestamp")
         )
-        metrics = compute_metrics(equity_series, trades, self.cfg.volatility.annualization_factor)
+        metrics = compute_metrics(equity_series, trades, ann)
         return BacktestResult(instrument=instrument, equity=equity_series, trades=trades, metrics=metrics)
 
     # -- mechanics -------------------------------------------------------------

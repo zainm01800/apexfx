@@ -42,7 +42,9 @@ class DataConfig(BaseModel):
     provider: str = "yahoo"
     timeframe: str = "1d"
     store_dir: str = "data_store"
-    instruments: list[str] = Field(default_factory=list)
+    instruments: list[str] = Field(default_factory=list)   # forex universe
+    equities: list[str] = Field(default_factory=list)       # equity / ETF universe
+    crypto: list[str] = Field(default_factory=list)          # crypto universe
     session: SessionConfig = Field(default_factory=SessionConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
 
@@ -108,10 +110,46 @@ class RiskConfig(BaseModel):
 
 class BacktestConfig(BaseModel):
     initial_equity: float = 100_000
+    # Legacy forex cost defaults — kept for back-compat. The authoritative,
+    # per-asset cost model now lives in AssetClassesConfig (see asset_classes).
     spread_pips: float = 1.0
     pip_size_default: float = 0.0001
     commission_per_trade: float = 0.0
     slippage_bps: float = 0.5
+
+
+# Crypto bases used to classify a "BASE/USD" id as crypto rather than forex when
+# it isn't explicitly listed in the configured universe.
+CRYPTO_BASES = {
+    "BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "BNB", "LTC",
+    "DOT", "AVAX", "LINK", "MATIC", "BCH", "ATOM", "ETC", "XLM",
+}
+
+
+class AssetClassConfig(BaseModel):
+    """Trading mechanics for one asset class. Forex quotes spreads in *pips*;
+    equities and crypto quote them in *basis points of price* — using a forex
+    cost model on a $200 stock would manufacture a fake edge. Crypto trades 365
+    days/yr; forex and (cash) equities ~252."""
+    annualization: int = 252
+    cost_model: Literal["pips", "bps"] = "pips"
+    spread_pips: float = 1.0          # pips model only
+    pip_size: float = 0.0001          # pips model only (JPY pairs override in code)
+    spread_bps: float = 2.0           # bps model only
+    slippage_bps: float = 0.5
+    commission_per_trade: float = 0.0
+
+
+class AssetClassesConfig(BaseModel):
+    forex: AssetClassConfig = Field(default_factory=lambda: AssetClassConfig(
+        annualization=252, cost_model="pips", spread_pips=1.0, pip_size=0.0001,
+        slippage_bps=0.5, commission_per_trade=0.0))
+    equity: AssetClassConfig = Field(default_factory=lambda: AssetClassConfig(
+        annualization=252, cost_model="bps", spread_bps=2.0,
+        slippage_bps=1.0, commission_per_trade=0.0))
+    crypto: AssetClassConfig = Field(default_factory=lambda: AssetClassConfig(
+        annualization=365, cost_model="bps", spread_bps=5.0,
+        slippage_bps=2.0, commission_per_trade=0.0))
 
 
 class CpcvConfig(BaseModel):
@@ -166,12 +204,39 @@ class AppConfig(BaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     sentiment: SentimentConfig = Field(default_factory=SentimentConfig)
     ai: AiConfig = Field(default_factory=AiConfig)
+    asset_classes: AssetClassesConfig = Field(default_factory=AssetClassesConfig)
 
     @property
     def store_path(self) -> Path:
         """Absolute path to the local historical store."""
         p = Path(self.data.store_dir)
         return p if p.is_absolute() else ENGINE_ROOT / p
+
+    @property
+    def universe(self) -> list[str]:
+        """Every configured instrument across all asset classes (forex first)."""
+        return list(self.data.instruments) + list(self.data.equities) + list(self.data.crypto)
+
+    def asset_class_of(self, instrument: str) -> str:
+        """Classify an instrument id as 'forex' | 'equity' | 'crypto'. Explicit
+        membership in a configured universe wins; otherwise fall back to a
+        symbol-shape heuristic (BASE/USD with a known crypto base -> crypto, any
+        other slash -> forex, no slash -> equity)."""
+        if instrument in self.data.crypto:
+            return "crypto"
+        if instrument in self.data.equities:
+            return "equity"
+        if instrument in self.data.instruments:
+            return "forex"
+        if "/" in instrument:
+            base = instrument.split("/", 1)[0].upper()
+            return "crypto" if base in CRYPTO_BASES else "forex"
+        return "equity"
+
+    def mechanics_for(self, instrument: str) -> AssetClassConfig:
+        """Resolve the trading-mechanics (cost model + annualization) for an
+        instrument from its asset class."""
+        return getattr(self.asset_classes, self.asset_class_of(instrument))
 
 
 # -- Loading + env overrides ---------------------------------------------------
