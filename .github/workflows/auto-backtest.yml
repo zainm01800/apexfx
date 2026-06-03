@@ -14,8 +14,22 @@ jobs:
   backtest:
     runs-on: ubuntu-latest
     timeout-minutes: 110
+    env:
+      SUPABASE_URL: https://ksxznauzvlsgfghvpeew.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzeHpuYXV6dmxzZ2ZnaHZwZWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0ODg4MjIsImV4cCI6MjA4OTA2NDgyMn0.B5a2zl8Vr_Q51fB9_Pv1Q8SXnh41xELgJkrRu0BEkEk
     steps:
       - uses: actions/checkout@v4
+      - name: Verify Supabase table exists (fail fast if not)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_backtests?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "apex_backtests REST status: $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::apex_backtests not reachable (HTTP $code). Run supabase/backtests.sql in the Supabase SQL editor first."
+            exit 1
+          fi
+          echo "Table OK — proceeding."
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
