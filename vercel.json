@@ -4,6 +4,7 @@
     { "source": "/", "destination": "/dashboard.html", "permanent": false }
   ],
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/public/$1" }
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/public/$1" }
   ]
 }
