@@ -741,30 +741,63 @@ function escHtmlSafe(s) {
 
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
+// Robust: reads the body as text and parses safely, so a transient gateway
+// timeout / 5xx (which returns an HTML/text error page, not JSON) yields a
+// clear retryable message instead of a cryptic "Unexpected token" crash.
+// Retries once on a transient failure before giving up.
 async function callAgent(system, prompt, maxTokens = 2500) {
-  const res = await fetch('/api/ai', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      system,
-      max_tokens:  maxTokens,
-      temperature: 0.3,
-      timeoutMs:   55000,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    // Surface rate-limit errors properly
-    if (res.status === 429 || (data.retryAfterMs)) {
-      const mins = data.retryAfterMs ? Math.ceil(data.retryAfterMs / 60000) : null;
-      throw new Error(mins
-        ? `AI rate limit reached. Resets in ~${mins} min. Get a free GEMINI_API_KEY at aistudio.google.com to avoid this.`
-        : (data.error || 'AI rate limit reached.'));
+  const attempt = async () => {
+    const res = await fetch('/api/ai', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        system,
+        max_tokens:  maxTokens,
+        temperature: 0.3,
+        timeoutMs:   55000,
+      }),
+    });
+
+    const raw = await res.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = null; }
+
+    // Non-JSON body = platform error page (gateway timeout, 5xx, cold start).
+    if (data === null) {
+      const e = new Error(
+        res.status >= 500 || res.status === 0
+          ? `AI service hiccup (HTTP ${res.status || '—'}). Usually a brief timeout — retrying…`
+          : `AI returned an unexpected response (HTTP ${res.status}).`
+      );
+      e._transient = res.status >= 500 || res.status === 0 || res.status === 408;
+      throw e;
     }
-    throw new Error(data.error || `Agent error HTTP ${res.status}`);
+
+    if (!res.ok || data.error) {
+      // Surface rate-limit errors properly (not retryable here)
+      if (res.status === 429 || data.retryAfterMs) {
+        const mins = data.retryAfterMs ? Math.ceil(data.retryAfterMs / 60000) : null;
+        throw new Error(mins
+          ? `AI rate limit reached. Resets in ~${mins} min. Get a free GEMINI_API_KEY at aistudio.google.com to avoid this.`
+          : (data.error || 'AI rate limit reached.'));
+      }
+      const e = new Error(data.error || `Agent error HTTP ${res.status}`);
+      e._transient = res.status >= 500;
+      throw e;
+    }
+    return data.text || '';
+  };
+
+  try {
+    return await attempt();
+  } catch (e) {
+    if (e._transient) {
+      await new Promise(r => setTimeout(r, 1500));
+      return await attempt();   // one retry on transient gateway/5xx failures
+    }
+    throw e;
   }
-  return data.text || '';
 }
 
 // ── Market pulse ──────────────────────────────────────────────────────────────
