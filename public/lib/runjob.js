@@ -4,7 +4,7 @@
 // main thread) and directly in Node tests. No DOM, no network. → APEX.runjob
 'use strict';
 
-function _A() { const g = (typeof globalThis !== 'undefined') ? globalThis : self; return g.APEX; }
+function _apex() { const g = (typeof globalThis !== 'undefined') ? globalThis : self; return g.APEX; }
 
 // Win-rate / avg-PnL grouped by the entry-bar regime ("trend/vol"). Feeds the
 // regime x strategy matrix and the (Layer 5) hypotheses engine.
@@ -27,10 +27,10 @@ function regimeBreakdown(trades) {
 // onProgress(idx, total, strategyId) optional.
 function runJob(payload, onProgress) {
   const { bars, weekly = null, sym, assetClass, timeframe, runId, runTs, appVersion = null } = payload;
-  const { strategies: S, metrics: M } = _A();
+  const { strategies: S, metrics: M } = _apex();
   if (!Array.isArray(bars) || bars.length < 2) return [];
 
-  const H = _A().hypotheses;
+  const H = _apex().hypotheses;
   const ctx = S.buildContext(bars, { sym, assetClass, timeframe, weekly });
   const strats = S.buildStrategies(ctx);
   const dataFrom = new Date(bars[0].time * 1000).toISOString();

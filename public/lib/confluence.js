@@ -7,7 +7,7 @@
 // on that date. DOM-free → page, worker, Node. → APEX.confluence
 'use strict';
 
-function _ta() {
+function _taLib() {
   const g = (typeof globalThis !== 'undefined') ? globalThis : self;
   if (!g.APEX || !g.APEX.ta) throw new Error('APEX.ta must load before confluence.js');
   return g.APEX.ta;
@@ -64,7 +64,7 @@ function calcConfluenceScore(inputs) {
 // the live startResearch() wiring. `weekly` is the higher-timeframe (1w) bar array;
 // weekly scalars use only weekly bars whose timestamp <= daily[i].time.
 function confluenceInputsAtBar(daily, weekly, i) {
-  const ta = _ta();
+  const ta = _taLib();
   const d = daily.slice(0, i + 1);
   const closes = d.map(b => b.close);
   const curr = closes[closes.length - 1];
