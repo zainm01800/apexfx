@@ -1098,11 +1098,23 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     { label: 'Long-Term (3–12 months)',  text: a.long_term_outlook   },
   ].map(h => `<div class="horizon-card"><div class="horizon-label">${h.label}</div><div class="horizon-text">${h.text || '—'}</div></div>`).join('');
 
+  // ── Trade plan guide (prominent, actionable: direction + WHEN to enter) ──
+  const _v = (a.verdict || '').toUpperCase();
+  const _isLong = /BUY/.test(_v), _isShort = /SELL|SHORT/.test(_v);
+  const _dirLabel = _isLong ? 'LONG · BUY' : _isShort ? 'SHORT · SELL' : 'NO ACTIVE TRADE — conditional plan';
+  const _dirCls = _isLong ? 'pos' : _isShort ? 'neg' : 'neu';
+  const _tp2 = (a.take_profit_2 && String(a.take_profit_2) !== String(a.target_price)) ? a.take_profit_2 : null;
+  const _guide = document.getElementById('tradePlanGuide');
+  if (_guide) _guide.innerHTML = `
+    <div class="tpg-head"><span class="tpg-dir ${_dirCls}">${_dirLabel}</span><span class="tpg-style">${tradeStyle().label}${a.timeframe ? ` · ${escHtmlSafe(a.timeframe)}` : ''}</span></div>
+    ${a.entry_trigger ? `<div class="tpg-trigger"><strong>When to enter:</strong> ${escHtmlSafe(a.entry_trigger)}</div>` : ''}`;
+
   // ── Trade levels ──
   document.getElementById('tradeLevels').innerHTML = `
-    <div class="trade-level"><div class="tl-label">Entry Zone</div><div class="tl-value entry">${a.entry_zone  || '—'}</div></div>
+    <div class="trade-level"><div class="tl-label">Entry</div><div class="tl-value entry">${a.entry_zone  || '—'}</div></div>
     <div class="trade-level"><div class="tl-label">Stop Loss</div><div class="tl-value stop">${a.stop_loss   || '—'}</div></div>
-    <div class="trade-level"><div class="tl-label">Target Price</div><div class="tl-value target">${a.target_price || '—'}</div></div>
+    <div class="trade-level"><div class="tl-label">Take Profit${_tp2 ? ' 1' : ''}</div><div class="tl-value target">${a.target_price || '—'}</div></div>
+    ${_tp2 ? `<div class="trade-level"><div class="tl-label">Take Profit 2</div><div class="tl-value target">${_tp2}</div></div>` : ''}
     <div class="trade-level"><div class="tl-label">Risk : Reward</div><div class="tl-value rr">${a.risk_reward  || '—'}</div></div>`;
 
   // ── Strategy grid ──
@@ -1587,9 +1599,11 @@ Respond ONLY with valid JSON. No text before or after.
   "long_term_outlook":   "1-2 sentences on 3-12 month outlook",
   "key_reasons": ["<reason 1>", "<reason 2>", "<reason 3>", "<reason 4>"],
   "invalidation_conditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
-  "entry_zone": "<price or range>",
-  "stop_loss": "<price>",
-  "target_price": "<price>",
+  "entry_zone": "<concrete entry price or a tight zone — never blank>",
+  "entry_trigger": "WHEN/HOW to enter: e.g. 'enter at market now', 'buy the pullback to X', or 'wait for a break/close above Y then enter'. For WAIT/NO_EDGE give the conditional level that WOULD make it a valid entry.",
+  "stop_loss": "<concrete stop-loss price — never blank>",
+  "target_price": "<first take-profit price, TP1 — never blank>",
+  "take_profit_2": "<second take-profit / runner price, TP2 (use the same as TP1 if you only have one target)>",
   "entry_strategy": "How and when to build the position",
   "position_sizing": "Recommended sizing relative to portfolio and why",
   "stop_loss_logic": "Why this stop level and what it protects against",
@@ -1891,9 +1905,11 @@ Respond ONLY with this exact JSON structure:
   "long_term_outlook":   "1-2 sentences on 3-12 month outlook",
   "key_reasons": ["<reason 1>", "<reason 2>", "<reason 3>", "<reason 4>"],
   "invalidation_conditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
-  "entry_zone": "<price or range>",
-  "stop_loss": "<price>",
-  "target_price": "<price>",
+  "entry_zone": "<concrete entry price or a tight zone — never blank>",
+  "entry_trigger": "WHEN/HOW to enter: e.g. 'enter at market now', 'buy the pullback to X', or 'wait for a break/close above Y then enter'. For WAIT/NO_EDGE give the conditional level that WOULD make it a valid entry.",
+  "stop_loss": "<concrete stop-loss price — never blank>",
+  "target_price": "<first take-profit price, TP1 — never blank>",
+  "take_profit_2": "<second take-profit / runner price, TP2 (use the same as TP1 if you only have one target)>",
   "entry_strategy": "How and when to build the position",
   "position_sizing": "Recommended sizing relative to portfolio and why",
   "stop_loss_logic": "Why this stop level and what it protects against",
