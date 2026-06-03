@@ -1,0 +1,25 @@
+name: keep-engine-warm
+
+# Render's free tier sleeps after ~15 min idle, which makes the first scan show the
+# quant engine as "offline" while it cold-starts (~20-60s). Pinging /health every
+# ~10 min keeps it awake so it answers instantly. One always-on service fits inside
+# Render's 750 free instance-hours/month.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes (well under the 15-min sleep window)
+  workflow_dispatch: {}        # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the engine health endpoint
+        run: |
+          URL="https://apex-quant-engine.onrender.com/health"
+          for i in 1 2 3 4; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+            if [ "$code" = "200" ]; then echo "engine warm (HTTP $code)"; exit 0; fi
+            echo "attempt $i -> HTTP $code; waiting for cold start..."; sleep 25
+          done
+          echo "engine did not return 200 after retries"; exit 1
