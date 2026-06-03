@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "AUD/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.01076428836498072,
+    "oos_sharpe_std": 0.018470538323376095,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.0,
+    "oos_sharpe_paths": [
+      0.0,
+      0.0,
+      0.0,
+      -0.0344,
+      -0.0393,
+      0.0,
+      0.0,
+      -0.0337,
+      0.0,
+      0.0,
+      -0.0514,
+      0.0,
+      0.0,
+      0.0,
+      -0.0026
+    ]
+  },
+  "dsr": {
+    "dsr": 0.5688307322249089,
+    "observed_sharpe": 0.014909721891620955,
+    "observed_sharpe_ann": 0.23668449745418743,
+    "sr0": 0.012097090627200865,
+    "n_trials": 3,
+    "n_obs": 2866,
+    "skew": 19.52469504441682,
+    "kurtosis": 809.2306081210141
+  },
+  "pbo": {
+    "pbo": 1.0,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.569 <= 0.95 (multiple-testing deflation)",
+      "PBO 1.0 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 0% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "NZD/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.00027181288504583834,
+    "oos_sharpe_std": 0.0010527267770671228,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.06666666666666667,
+    "oos_sharpe_paths": [
+      0.0,
+      0.0,
+      0.0,
+      0.0041,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "dsr": {
+    "dsr": 0.0,
+    "observed_sharpe": 0.0,
+    "observed_sharpe_ann": 0.0,
+    "sr0": 0.0,
+    "n_trials": 3,
+    "n_obs": 2866,
+    "note": "insufficient data / zero variance"
+  },
+  "pbo": {
+    "pbo": 1.0,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+      "PBO 1.0 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 7% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

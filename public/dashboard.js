@@ -612,6 +612,15 @@ async function fetchQualityScores(sym) {
     return d?.available ? d : null;
   } catch { return null; }
 }
+// Backtest knowledge base (Supabase) — what has actually survived testing for this symbol.
+async function fetchBacktestKB(sym) {
+  try {
+    const r = await fetch(`/api/backtests?sym=${encodeURIComponent(sym)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.summary ? d.summary : null;
+  } catch { return null; }
+}
 
 // ── Quant Engine cross-check ──────────────────────────────────────────────────
 // Independent regime + risk-sizing + CPCV/DSR/PBO validation from the local Python
@@ -1337,7 +1346,7 @@ async function startResearch() {
     setStep(3);
 
     // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
@@ -1345,6 +1354,7 @@ async function startResearch() {
       fetchFearGreed(),
       fetchMacroIntermarket(),
       type === 'Stock' ? fetchQualityScores(sym) : Promise.resolve(null),
+      fetchBacktestKB(sym),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -1822,6 +1832,17 @@ ENGINE DIRECTIVE: This is a disciplined, independent quant check. If the risk la
       engineBlock = `\nINDEPENDENT QUANT ENGINE: online but no quantitative coverage for ${sym}; not factored in.`;
     }
 
+    // ── Backtest knowledge base (Supabase): what has actually survived testing ──
+    let backtestBlock = '';
+    if (backtestKB && backtestKB.n) {
+      backtestBlock = `
+BACKTEST KNOWLEDGE BASE (${sym}, ${backtestKB.n} stored backtests):
+- ${backtestKB.n_passed}/${backtestKB.n} strategy configs passed full CPCV/DSR/PBO validation (pass rate ${Math.round((backtestKB.pass_rate || 0) * 100)}%)
+- Best Deflated Sharpe on record: ${backtestKB.best_dsr != null ? Number(backtestKB.best_dsr).toFixed(2) : 'n/a'} (config "${backtestKB.best_config || '?'}"${backtestKB.best_passed ? ', which PASSED' : ', not passing'})
+- Track record: ${backtestKB.edge}
+PRIOR-EVIDENCE DIRECTIVE: this is the historical record of systematic strategies on this instrument. If NO config has ever passed validation, be sceptical of high-confidence systematic claims and lean conservative; if several passed, that supports a real edge here.`;
+    }
+
     // ── Trade style: tailor the whole plan to the requested horizon ──
     const tradeStyleBlock = `
 ━━━ TRADE STYLE: ${ts.label.toUpperCase()} (hold ${ts.horizon}) ━━━
@@ -1861,6 +1882,7 @@ ${macroIntermarket?.vix?.signal ? `VIX: ${macroIntermarket.vix.signal}` : ''}
 ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
 ${engineBlock}
+${backtestBlock}
 ${scanBlock || ''}
 ${memoryBlock || ''}
 

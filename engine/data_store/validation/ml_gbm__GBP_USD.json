@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "GBP/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.002114865951107744,
+    "oos_sharpe_std": 0.017730929586461767,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.2,
+    "oos_sharpe_paths": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.0631,
+      0.0,
+      0.0,
+      0.0,
+      0.0027,
+      0.0,
+      0.0,
+      0.02,
+      0.0,
+      0.0,
+      0.0087
+    ]
+  },
+  "dsr": {
+    "dsr": 0.5830608040199072,
+    "observed_sharpe": 0.013782722029200918,
+    "observed_sharpe_ann": 0.21879392927278288,
+    "sr0": 0.009876577992513834,
+    "n_trials": 3,
+    "n_obs": 2866,
+    "skew": 0.5028355439632329,
+    "kurtosis": 16.42568650601715
+  },
+  "pbo": {
+    "pbo": 0.4595,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.583 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.4595 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 20% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

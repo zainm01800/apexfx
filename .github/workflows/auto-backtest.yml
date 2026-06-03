@@ -1,0 +1,28 @@
+name: auto-backtest
+
+# Weekly retraining loop: re-runs the full backtest + CPCV/DSR/PBO sweep across all
+# pairs (the ML models refit on the latest data) and upserts the results into the
+# Supabase knowledge base, so the Deep Analyse keeps drawing on fresh, validated
+# evidence. No LLM is used, so this costs nothing in API quota.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"     # Mondays 06:17 UTC
+  workflow_dispatch: {}        # run on demand from the Actions tab
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System deps (LightGBM OpenMP runtime)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgomp1
+      - name: Install Python deps
+        run: pip install -r engine/requirements.txt
+      - name: Run backtest sweep -> Supabase knowledge base
+        working-directory: engine
+        run: python scripts/run_backtests.py
