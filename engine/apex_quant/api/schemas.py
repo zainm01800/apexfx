@@ -14,7 +14,8 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: int
-    instruments: list[str]
+    instruments: list[str]                       # full multi-asset universe
+    by_class: dict[str, list[str]] = {}          # {"forex": [...], "equity": [...], "crypto": [...]}
 
 
 class RegimeResponse(_Loose):

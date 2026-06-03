@@ -60,18 +60,26 @@ def _handle(fn, *args, **kwargs):
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
+def _by_class() -> dict[str, list[str]]:
+    return {
+        "forex": list(cfg.data.instruments),
+        "equity": list(cfg.data.equities),
+        "crypto": list(cfg.data.crypto),
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 @app.get("/", response_model=HealthResponse)
 def health():
     return HealthResponse(
         status="ok", service="apex-quant-engine", version=cfg.version,
-        instruments=cfg.data.instruments,
+        instruments=cfg.universe, by_class=_by_class(),
     )
 
 
 @app.get("/instruments")
 def instruments():
-    return {"instruments": cfg.data.instruments}
+    return {"instruments": cfg.universe, "by_class": _by_class()}
 
 
 @app.get("/regime/{instrument:path}", response_model=RegimeResponse)
