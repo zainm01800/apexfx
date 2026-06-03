@@ -1,19 +1,19 @@
-// /api/quant/* — same-origin proxy to the hosted quant engine on Render.
+// /api/quant — same-origin proxy to the hosted quant engine on Render.
 //
-// Why this exists: a browser calling the Render free-tier engine directly hits
-// HTTP 503 while the dyno is asleep/waking, and Render's 503 page carries no
-// CORS header — so the fetch fails outright ("Failed to fetch") and the quant
-// cross-check shows OFFLINE, even though the engine answers server-to-server
-// perfectly (curl gets 200 in <1s). Routing through this Vercel function makes
-// the call same-origin and runs it server-side (like curl), where it succeeds.
-// We also retry through the cold-start 502/503s so the first scan after the
-// engine has gone idle still gets a real answer instead of a dead OFFLINE card.
+// Why a flat ?p= route instead of /api/quant/<path>: a browser calling the
+// Render free-tier engine directly gets HTTP 503 while the dyno wakes, and
+// Render's 503 page has no CORS header, so the fetch dies as "Failed to fetch"
+// and the cross-check shows OFFLINE — even though the engine answers
+// server-to-server fine (curl: 200 in <1s). This proxy makes the call
+// same-origin and runs it server-side (like curl), where it succeeds, and
+// retries through cold-start 502/503s. The engine sub-path (incl. its own query
+// string) is passed URL-encoded in ?p=, so this stays a single FLAT route that
+// resolves exactly like /api/quote — no dynamic/catch-all routing to fight with
+// the /public catch-all rewrite. Built by public/{dashboard,quant}.js → engUrl().
 //
-//   GET /api/quant/health        -> engine /health
-//   GET /api/quant/regime/NVDA   -> engine /regime/NVDA
-//   GET /api/quant/risk/BTC%2FUSD?equity=100000 -> engine /risk/BTC%2FUSD?equity=100000
-// The path + query after "/api/quant" are forwarded verbatim (encoded slashes in
-// instrument ids are preserved exactly).
+//   /api/quant?p=%2Fhealth
+//   /api/quant?p=%2Fregime%2FNVDA
+//   /api/quant?p=%2Frisk%2FNVDA%3Fequity%3D100000
 
 export const config = { maxDuration: 60 };
 
@@ -23,18 +23,19 @@ const ATTEMPT_TIMEOUT_MS = 18000;  // per-try cap; a warm engine answers in <1s
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async function handler(req, res) {
-  // Same-origin in production, but keep this permissive for local dev tooling.
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'GET') { res.status(405).json({ error: 'method not allowed' }); return; }
 
-  const marker = '/api/quant';
-  const i = req.url.indexOf(marker);
-  let tail = i >= 0 ? req.url.slice(i + marker.length) : '';
-  if (!tail.startsWith('/')) tail = '/' + tail;
-  const target = ENGINE + tail;
+  let p = req.query && req.query.p;
+  if (Array.isArray(p)) p = p[0];
+  if (!p || typeof p !== 'string') { res.status(400).json({ error: 'missing ?p= engine path' }); return; }
+  if (!p.startsWith('/')) p = '/' + p;
+  // Forward only to the engine's own paths — never an arbitrary absolute URL.
+  if (p.startsWith('//') || /^\/+https?:/i.test(p)) { res.status(400).json({ error: 'invalid path' }); return; }
+  const target = ENGINE + p;
 
   const deadline = Date.now() + BUDGET_MS;
   let lastStatus = 0;

@@ -30,8 +30,13 @@
   const num = (x, d = 2) => (x == null || isNaN(x) ? '—' : Number(x).toFixed(d));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  // When pointed at the same-origin proxy, the engine sub-path goes in ?p= (so
+  // /api/quant stays a single flat route); locally we hit the engine directly.
+  const _useProxy = API === '/api/quant';
+  const _engUrl = (path) => (_useProxy ? `/api/quant?p=${encodeURIComponent(path)}` : `${API}${path}`);
+
   async function api(path) {
-    const res = await fetch(`${API}${path}`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(_engUrl(path), { headers: { Accept: 'application/json' } });
     if (!res.ok) {
       const err = new Error(`HTTP ${res.status}`);
       err.status = res.status;

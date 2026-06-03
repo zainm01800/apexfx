@@ -635,6 +635,11 @@ const _engDefault = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
 const ENGINE_API = (_engQp || localStorage.getItem('apexEngineApi') || _engDefault).replace(/\/$/, '');
 if (_engQp) localStorage.setItem('apexEngineApi', _engQp);
 
+// When pointed at the same-origin proxy, the engine sub-path goes in ?p= (so
+// /api/quant stays a single flat route); locally we hit the engine directly.
+const _engUseProxy = ENGINE_API === '/api/quant';
+const engUrl = (path) => (_engUseProxy ? `/api/quant?p=${encodeURIComponent(path)}` : `${ENGINE_API}${path}`);
+
 function _engFmt(p, d = 5) {
   const n = parseFloat(p);
   return (p == null || isNaN(n)) ? '—' : (Math.abs(n) >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n.toFixed(d));
@@ -648,16 +653,16 @@ async function fetchEngineData(sym) {
   const probeMs = isRemote ? 75000 : 4000;
   let online = false;
   try {
-    const h = await fetch(`${ENGINE_API}/health`, { signal: AbortSignal.timeout(probeMs) });
+    const h = await fetch(engUrl('/health'), { signal: AbortSignal.timeout(probeMs) });
     online = h.ok;
   } catch { online = false; }
   if (!online) return { online: false, supported: false, regime: null, risk: null, validation: null };
 
   const enc = encodeURIComponent(sym);
   const [regime, risk, validation] = await Promise.all([
-    fetch(`${ENGINE_API}/regime/${enc}`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${ENGINE_API}/risk/${enc}?equity=100000`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${ENGINE_API}/validation/regime_gated_momentum?instrument=${enc}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(engUrl(`/regime/${enc}`)).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(engUrl(`/risk/${enc}?equity=100000`)).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(engUrl(`/validation/regime_gated_momentum?instrument=${enc}`)).then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
   return { online: true, supported: !!(regime || risk), regime, risk, validation };
 }
