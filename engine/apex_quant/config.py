@@ -123,6 +123,7 @@ class BacktestConfig(BaseModel):
 CRYPTO_BASES = {
     "BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "BNB", "LTC",
     "DOT", "AVAX", "LINK", "MATIC", "BCH", "ATOM", "ETC", "XLM",
+    "ARB", "SUI",
 }
 
 

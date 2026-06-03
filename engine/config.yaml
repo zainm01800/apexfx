@@ -13,7 +13,7 @@ data:
   provider: yahoo            # adapter id (see data/adapter.py registry)
   timeframe: "1d"            # base bar size for Phase 1
   store_dir: "data_store"    # local parquet cache (relative to engine/)
-  # Forex-first universe (mirrors the pairs the JS app already supports).
+  # Forex universe — mirrors the dashboard quick-picks (public/dashboard.js).
   instruments:
     - "EUR/USD"
     - "GBP/USD"
@@ -22,16 +22,51 @@ data:
     - "AUD/USD"
     - "USD/CAD"
     - "NZD/USD"
-  # Equity / ETF universe — Yahoo native tickers, daily bars.
+    - "GBP/JPY"
+    - "EUR/GBP"
+    - "EUR/JPY"
+  # Equity / ETF universe — Yahoo native tickers, daily bars. Mirrors the
+  # dashboard "trending" + "etfs" quick-picks.
   equities:
     - "AAPL"
     - "MSFT"
     - "NVDA"
+    - "META"
+    - "AMZN"
+    - "GOOGL"
+    - "TSLA"
+    - "AMD"
+    - "PLTR"
+    - "TSM"
+    - "NFLX"
+    - "UBER"
     - "SPY"
+    - "QQQ"
+    - "IWM"
+    - "GLD"
+    - "TLT"
+    - "XLK"
+    - "XLE"
+    - "XLF"
+    - "ARKK"
+    - "SMH"
+    - "SOXX"
+    - "XBI"
   # Crypto universe — "BASE/USD" ids; mapped to Yahoo "BASE-USD" in the adapter.
+  # Mirrors the dashboard "crypto" quick-picks.
   crypto:
     - "BTC/USD"
     - "ETH/USD"
+    - "SOL/USD"
+    - "BNB/USD"
+    - "XRP/USD"
+    - "ADA/USD"
+    - "AVAX/USD"
+    - "DOGE/USD"
+    - "MATIC/USD"
+    - "LINK/USD"
+    - "ARB/USD"
+    - "SUI/USD"
   # Forex trading week (UTC): opens Sun 22:00, closes Fri 22:00. Used by the
   # quality checker to distinguish *expected* weekend gaps from data holes.
   session:
