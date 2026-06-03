@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Backtest Lab</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link" href="dashboard.html">Research</a>
+      <a class="nav-link" href="index.html">Charts</a>
+      <a class="nav-link" href="history.html">History</a>
+      <a class="nav-link" href="quant.html">Quant</a>
+      <a class="nav-link active" href="backtest.html">Backtest</a>
+    </nav>
+    <div class="bt-status-pill" id="runPill"><span class="bt-dot" id="runDot"></span><span id="runState">IDLE</span></div>
+  </header>
+
+  <main class="bt-main">
+
+    <div class="bt-hero">
+      <h1 class="bt-title">Backtest Lab</h1>
+      <p class="bt-sub">Every strategy family × every timeframe × every tracked pair, with regime-filtered twins and your live confluence as a formal strategy.</p>
+    </div>
+
+    <!-- Mandatory honest framing -->
+    <div class="bt-disclaimer">
+      <strong>⚠ Exploratory only — not validated edges.</strong>
+      These are <em>in-sample</em> historical backtests, net of a modelled spread but excluding commissions, funding and real-world slippage.
+      Past optimisation against history is <strong>not</strong> proof of future performance. Results with fewer than 30 trades, and Sharpe on 1m/5m, are statistically unreliable and flagged as such.
+      Everything here is context to consider, never instructions to follow.
+    </div>
+
+    <!-- ── Runner ─────────────────────────────────────────────────────────── -->
+    <section class="bt-card">
+      <div class="bt-card-head"><h2>Run a backtest</h2><span class="bt-hint" id="jobCount"></span></div>
+
+      <div class="bt-field">
+        <label>Instruments</label>
+        <div class="bt-chip-row" id="catChips"></div>
+        <div class="bt-grid" id="symGrid"></div>
+      </div>
+
+      <div class="bt-field">
+        <label>Timeframes <span class="bt-dim">(intraday history is shallow on Yahoo — flagged automatically)</span></label>
+        <div class="bt-chip-row" id="tfChips"></div>
+      </div>
+
+      <div class="bt-actions">
+        <button class="bt-btn primary" id="runBtn">▶ Run backtest</button>
+        <button class="bt-btn" id="pauseBtn" disabled>⏸ Pause</button>
+        <button class="bt-btn" id="cancelBtn" disabled>✕ Stop</button>
+      </div>
+
+      <div class="bt-progress" id="progressWrap" style="display:none">
+        <div class="bt-progress-bar"><div class="bt-progress-fill" id="progressFill"></div></div>
+        <div class="bt-progress-text" id="progressText">—</div>
+      </div>
+    </section>
+
+    <!-- ── Results dashboard ──────────────────────────────────────────────── -->
+    <section class="bt-card">
+      <div class="bt-card-head"><h2>Results</h2><span class="bt-hint" id="resultMeta"></span></div>
+
+      <div class="bt-filters">
+        <select id="fRun" title="Run"></select>
+        <select id="fPair" title="Pair"><option value="">All pairs</option></select>
+        <select id="fTf" title="Timeframe"><option value="">All timeframes</option></select>
+        <select id="fFamily" title="Strategy family"><option value="">All families</option></select>
+        <label class="bt-check"><input type="checkbox" id="fMinSample" checked> ≥30 trades only</label>
+        <select id="fSort" title="Sort by">
+          <option value="sharpe">Sort: Sharpe</option>
+          <option value="expectancy">Sort: Expectancy</option>
+          <option value="win_rate">Sort: Win rate</option>
+          <option value="profit_factor">Sort: Profit factor</option>
+          <option value="max_drawdown">Sort: Max drawdown (low)</option>
+          <option value="total_return">Sort: Total return</option>
+        </select>
+        <button class="bt-btn small" id="refreshBtn">↻ Reload</button>
+      </div>
+
+      <div class="bt-table-wrap">
+        <table class="bt-table" id="resultsTable">
+          <thead><tr>
+            <th>Pair</th><th>TF</th><th>Strategy</th><th>Trades</th><th>Sharpe</th>
+            <th>Return %</th><th>Max DD %</th><th>Win %</th><th>Expectancy</th><th>PF</th><th></th>
+          </tr></thead>
+          <tbody id="btRows"><tr><td colspan="11" class="bt-empty">No results yet — run a backtest, or reload if you've run one before.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Regime × strategy matrix ───────────────────────────────────────── -->
+    <section class="bt-card">
+      <div class="bt-card-head"><h2>Regime × strategy matrix</h2><span class="bt-hint">Win rate by entry regime — some strategies only work in specific regimes.</span></div>
+      <div class="bt-filters">
+        <select id="mPair" title="Pair"></select>
+        <select id="mTf" title="Timeframe"></select>
+      </div>
+      <div class="bt-table-wrap">
+        <table class="bt-table bt-matrix" id="matrixTable"><tbody id="matrixBody"><tr><td class="bt-empty">Pick a pair + timeframe with results.</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <!-- Insights placeholder (Layer 5) -->
+    <section class="bt-card" id="insightsCard" style="display:none">
+      <div class="bt-card-head"><h2>Improvement hypotheses</h2></div>
+      <div id="insightsBody"></div>
+    </section>
+
+  </main>
+
+  <!-- Trade drill-down modal -->
+  <div class="bt-modal" id="tradesModal" style="display:none">
+    <div class="bt-modal-box">
+      <div class="bt-modal-head"><span id="tradesTitle">Trades</span><button class="bt-modal-close" id="tradesClose">✕</button></div>
+      <div class="bt-modal-body" id="tradesBody"></div>
+    </div>
+  </div>
+
+  <script src="./lib/ta.js"></script>
+  <script src="./lib/regime.js"></script>
+  <script src="./lib/confluence.js"></script>
+  <script src="./lib/strategies.js"></script>
+  <script src="./lib/metrics.js"></script>
+  <script src="./lib/runjob.js"></script>
+  <script src="./lib/datasource.js"></script>
+  <script src="./backtest.js"></script>
+</body>
+</html>
