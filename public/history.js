@@ -61,9 +61,9 @@ async function resolveIfPending(rows) {
             }
           }
 
-          // If no resolution but analysis is >14 days old → expired
+          // If no resolution but analysis is >30 days old → expired
           const ageMs = Date.now() - new Date(row.analysis_date).getTime();
-          if (!resolved && ageMs > 14 * 86400 * 1000) resolved = 'expired';
+          if (!resolved && ageMs > 30 * 86400 * 1000) resolved = 'expired';
 
           if (resolved) {
             // Update in memory

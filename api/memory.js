@@ -104,7 +104,7 @@ export default async function handler(req) {
     }
   }
 
-  // ── PATCH: update outcome for a resolved analysis ───────────────────────────
+  // ── PATCH: resolve an outcome, OR refresh an existing open setup in place ────
   if (req.method === 'PATCH') {
     let body;
     try { body = await req.json(); } catch {
@@ -112,11 +112,40 @@ export default async function handler(req) {
     }
     if (!body?.id) return new Response(JSON.stringify({ error: 'id required' }), { status: 400, headers: cors });
 
-    const patch = {
-      outcome:       body.outcome       || 'expired',
-      outcome_price: body.outcome_price ?? null,
-      outcome_date:  body.outcome_date  || new Date().toISOString().slice(0, 10),
-    };
+    let patch;
+    if (body.refresh) {
+      // Same trade idea re-scanned → overwrite the row's read with the newer one
+      // and keep it open (pending). The id (and created_at) stay, so it's the
+      // same history card, now updated rather than a duplicate.
+      patch = {
+        analysis_date: new Date().toISOString().slice(0, 10),
+        outcome:       'pending',
+        outcome_price: null,
+        outcome_date:  null,
+        asset_type:    body.asset_type ?? null,
+        price:         body.price ?? null,
+        verdict:       body.verdict || null,
+        confidence:    body.confidence ?? null,
+        target_price:  body.target_price || null,
+        entry_zone:    body.entry_zone || null,
+        stop_loss:     body.stop_loss || null,
+        risk_reward:   body.risk_reward || null,
+        summary:              (body.summary || '').slice(0, 500),
+        technical_analysis:   (body.technical_analysis   || '').slice(0, 800),
+        fundamental_analysis: (body.fundamental_analysis || '').slice(0, 800),
+        macro_environment:    (body.macro_environment    || '').slice(0, 800),
+        risk_analysis:        (body.risk_analysis        || '').slice(0, 800),
+        key_reasons:          body.key_reasons ? JSON.stringify(body.key_reasons).slice(0, 500) : null,
+        short_term_outlook:   (body.short_term_outlook   || '').slice(0, 300),
+        timeframe:            body.timeframe || null,
+      };
+    } else {
+      patch = {
+        outcome:       body.outcome       || 'expired',
+        outcome_price: body.outcome_price ?? null,
+        outcome_date:  body.outcome_date  || new Date().toISOString().slice(0, 10),
+      };
+    }
 
     try {
       const res = await fetch(

@@ -447,32 +447,35 @@ async function fetchTickerMemory(sym) {
   } catch { return []; }
 }
 
-// Saves a completed analysis to Supabase (fire-and-forget — don't await in UI flow)
-function saveToMemory(sym, type, analysis, price) {
-  fetch('/api/memory', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      symbol:               sym,
-      asset_type:           type,
-      price:                +price.toFixed(4),
-      verdict:              analysis.verdict,
-      confidence:           analysis.confidence_score,
-      target_price:         analysis.target_price          || null,
-      entry_zone:           analysis.entry_zone            || null,
-      stop_loss:            analysis.stop_loss             || null,
-      risk_reward:          analysis.risk_reward           || null,
-      summary:              (analysis.executive_summary    || '').slice(0, 500),
-      // Richer fields for history comparison and AI learning
-      technical_analysis:   (analysis.technical_analysis  || '').slice(0, 800),
-      fundamental_analysis: (analysis.fundamental_analysis|| '').slice(0, 800),
-      macro_environment:    (analysis.macro_environment   || '').slice(0, 800),
-      risk_analysis:        (analysis.risk_analysis       || '').slice(0, 800),
-      key_reasons:          analysis.key_reasons          || null,
-      short_term_outlook:   (analysis.short_term_outlook  || '').slice(0, 300),
-      timeframe:            analysis.timeframe             || null,
-    }),
-  }).catch(() => {}); // silent fail — memory is best-effort
+// Saves a completed analysis to Supabase (fire-and-forget — don't await in UI flow).
+// If `updateId` is given, the SAME open setup is being re-scanned, so we refresh
+// that existing history row in place instead of creating a duplicate.
+function saveToMemory(sym, type, analysis, price, updateId = null) {
+  const fields = {
+    symbol:               sym,
+    asset_type:           type,
+    price:                +price.toFixed(4),
+    verdict:              analysis.verdict,
+    confidence:           analysis.confidence_score,
+    target_price:         analysis.target_price          || null,
+    entry_zone:           analysis.entry_zone            || null,
+    stop_loss:            analysis.stop_loss             || null,
+    risk_reward:          analysis.risk_reward           || null,
+    summary:              (analysis.executive_summary    || '').slice(0, 500),
+    // Richer fields for history comparison and AI learning
+    technical_analysis:   (analysis.technical_analysis  || '').slice(0, 800),
+    fundamental_analysis: (analysis.fundamental_analysis|| '').slice(0, 800),
+    macro_environment:    (analysis.macro_environment   || '').slice(0, 800),
+    risk_analysis:        (analysis.risk_analysis       || '').slice(0, 800),
+    key_reasons:          analysis.key_reasons          || null,
+    short_term_outlook:   (analysis.short_term_outlook  || '').slice(0, 300),
+    timeframe:            analysis.timeframe             || null,
+  };
+  const req = updateId
+    ? { method: 'PATCH', body: JSON.stringify({ id: updateId, refresh: true, ...fields }) }
+    : { method: 'POST',  body: JSON.stringify(fields) };
+  fetch('/api/memory', { headers: { 'Content-Type': 'application/json' }, ...req })
+    .catch(() => {}); // silent fail — memory is best-effort
 }
 
 // Resolve outcomes of pending analyses using actual candle data.
@@ -493,9 +496,15 @@ function resolveOutcomes(pendingRows, candles) {
     let outcome = null, outcomePrice = null;
 
     if (!isNaN(tp) && !isNaN(sl)) {
+      const dir = verdictDir(row.verdict);   // long: TP above / SL below; short: reversed
       for (const b of barsAfter) {
-        if (b.high >= tp)  { outcome = 'tp_hit'; outcomePrice = tp;  break; }
-        if (b.low  <= sl)  { outcome = 'sl_hit'; outcomePrice = sl;  break; }
+        if (dir === 'short') {
+          if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
+          if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+        } else {
+          if (b.high >= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
+          if (b.low  <= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+        }
       }
     }
     if (!outcome && ageDays > 30) outcome = 'expired';
@@ -532,6 +541,124 @@ const TRADE_STYLES = {
 };
 let _tradeStyle = 'swing';
 function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
+
+// ── Re-scan cooldown (paced by trade style) ───────────────────────────────────
+// Stops the SAME symbol from being re-analysed instantly (burns rate-limited AI
+// calls for no new information). A DIFFERENT symbol can always be run right away.
+// Windows roughly match how long each style's setup takes to actually play out.
+const COOLDOWN_MS = {
+  scalp:    5  * 60 * 1000,
+  intraday: 30 * 60 * 1000,
+  swing:    4  * 60 * 60 * 1000,
+  position: 24 * 60 * 60 * 1000,
+};
+const _cdKey = (sym) => `apex_lastscan_${String(sym).toUpperCase()}`;
+function cooldownRemainingMs(sym) {
+  const last = parseInt(localStorage.getItem(_cdKey(sym)) || '0', 10);
+  if (!last) return 0;
+  const window = COOLDOWN_MS[_tradeStyle] || COOLDOWN_MS.swing;
+  return Math.max(0, last + window - Date.now());
+}
+function markScanned(sym) { try { localStorage.setItem(_cdKey(sym), String(Date.now())); } catch {} }
+function fmtDuration(ms) {
+  const s = Math.ceil(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.ceil(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
+}
+
+// ── Trade-setup math: deterministic R:R + "same setup" detection ───────────────
+const MIN_RR = 1.5;   // setups whose reward:risk is below this are flagged as weak
+// Parse a single representative entry price from an entry_zone (number or range).
+function parseEntryPrice(entryZone) {
+  if (entryZone == null) return NaN;
+  const nums = String(entryZone).match(/-?\d+(?:\.\d+)?/g);
+  if (!nums) return NaN;
+  const vals = nums.map(Number).filter(n => !isNaN(n));
+  if (!vals.length) return NaN;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;   // midpoint of a range
+}
+// Compute risk:reward deterministically from entry / stop / target.
+// Returns { ratio, text, weak } or null if it can't be computed.
+function computeRR(entryZone, stop, target) {
+  const e = parseEntryPrice(entryZone), s = parseFloat(stop), t = parseFloat(target);
+  if ([e, s, t].some(v => isNaN(v))) return null;
+  const risk = Math.abs(e - s), reward = Math.abs(t - e);
+  if (risk <= 0) return null;
+  const ratio = reward / risk;
+  return { ratio, text: `${ratio.toFixed(1)}:1`, weak: ratio < MIN_RR };
+}
+// Bucket a verdict into a trade direction for setup comparison.
+function verdictDir(v) {
+  const u = (v || '').toUpperCase();
+  if (/BUY/.test(u)) return 'long';
+  if (/SELL|SHORT/.test(u)) return 'short';
+  return 'neutral';
+}
+// Two setups are "the same trade" if same direction and entry/stop/target are
+// each within ~2% — i.e. a refreshed read of the same idea, not a new one.
+function sameSetup(prior, a) {
+  if (!prior) return false;
+  if (verdictDir(prior.verdict) !== verdictDir(a.verdict)) return false;
+  const pairs = [
+    [parseEntryPrice(prior.entry_zone), parseEntryPrice(a.entry_zone)],
+    [parseFloat(prior.stop_loss),       parseFloat(a.stop_loss)],
+    [parseFloat(prior.target_price),    parseFloat(a.target_price)],
+  ];
+  for (const [x, y] of pairs) {
+    if (isNaN(x) || isNaN(y)) continue;            // not comparable → don't fail the match on it
+    const denom = Math.abs(x) || 1;
+    if (Math.abs(x - y) / denom > 0.02) return false;
+  }
+  return true;
+}
+
+// Force a re-scan that bypasses the cooldown (from the cooldown notice button).
+function forceRescan(sym) {
+  document.getElementById('symInput').value = sym;
+  startResearch._force = String(sym).toUpperCase();
+  startResearch();
+}
+
+// Cooldown notice (shown instead of running a too-soon re-scan). Counts down live.
+let _cdTimer = null;
+function showCooldownNotice(sym, ms) {
+  hideAll();
+  document.getElementById('analyseBtn').disabled = false;
+  let el = document.getElementById('cooldownSection');
+  if (!el) {
+    el = document.createElement('section');
+    el.id = 'cooldownSection';
+    el.className = 'error-section';
+    const anchor = document.getElementById('resultsSection');
+    anchor.parentNode.insertBefore(el, anchor);
+  }
+  el.style.display = '';
+  const safeSym = escHtmlSafe(String(sym).toUpperCase());
+  const render = (remain) => {
+    el.innerHTML = `
+      <div class="error-card">
+        <div class="error-icon">⏳</div>
+        <p>You just analysed <b>${safeSym}</b>. Re-scans of the same symbol are paced by trade style
+        (<b>${tradeStyle().label}</b>) so we don't waste rate-limited AI calls re-running an unchanged setup.</p>
+        <p style="color:var(--text2)">Re-scan available in <b>${fmtDuration(remain)}</b>.</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button onclick="forceRescan('${safeSym}')">Re-scan anyway</button>
+          <button class="btn-secondary" onclick="resetState()">Pick another symbol</button>
+        </div>
+      </div>`;
+  };
+  render(ms);
+  if (_cdTimer) clearInterval(_cdTimer);
+  const end = Date.now() + ms;
+  _cdTimer = setInterval(() => {
+    const remain = end - Date.now();
+    if (remain <= 0) { clearInterval(_cdTimer); _cdTimer = null; resetState(); return; }
+    render(remain);
+  }, 1000);
+}
 
 async function fetchCandles(sym, type, tf = '1d', days = 210) {
   const to = Math.floor(Date.now() / 1000), from = to - days * 86400;
@@ -835,13 +962,13 @@ function initPulse() {
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
 function showSection(id) {
-  ['loadingSection', 'errorSection', 'resultsSection'].forEach(s => {
-    document.getElementById(s).style.display = s === id ? '' : 'none';
+  ['loadingSection', 'errorSection', 'resultsSection', 'cooldownSection'].forEach(s => {
+    const el = document.getElementById(s); if (el) el.style.display = s === id ? '' : 'none';
   });
 }
 function hideAll() {
-  ['loadingSection', 'errorSection', 'resultsSection'].forEach(s => {
-    document.getElementById(s).style.display = 'none';
+  ['loadingSection', 'errorSection', 'resultsSection', 'cooldownSection'].forEach(s => {
+    const el = document.getElementById(s); if (el) el.style.display = 'none';
   });
 }
 function setStep(n) {
@@ -1155,7 +1282,8 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   const _guide = document.getElementById('tradePlanGuide');
   if (_guide) _guide.innerHTML = `
     <div class="tpg-head"><span class="tpg-dir ${_dirCls}">${_dirLabel}</span><span class="tpg-style">${tradeStyle().label}${a.timeframe ? ` · ${escHtmlSafe(a.timeframe)}` : ''}</span></div>
-    ${a.entry_trigger ? `<div class="tpg-trigger"><strong>When to enter:</strong> ${escHtmlSafe(a.entry_trigger)}</div>` : ''}`;
+    ${a.entry_trigger ? `<div class="tpg-trigger"><strong>When to enter:</strong> ${escHtmlSafe(a.entry_trigger)}</div>` : ''}
+    ${a._rr_weak ? `<div class="tpg-warn">⚠ Weak setup — reward-to-risk is only ${escHtmlSafe(a.risk_reward)}, below the ${MIN_RR}:1 minimum. The potential reward may not justify the risk; consider waiting for a better entry.</div>` : ''}`;
 
   // ── Trade levels ──
   document.getElementById('tradeLevels').innerHTML = `
@@ -1163,7 +1291,7 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     <div class="trade-level"><div class="tl-label">Stop Loss</div><div class="tl-value stop">${a.stop_loss   || '—'}</div></div>
     <div class="trade-level"><div class="tl-label">Take Profit${_tp2 ? ' 1' : ''}</div><div class="tl-value target">${a.target_price || '—'}</div></div>
     ${_tp2 ? `<div class="trade-level"><div class="tl-label">Take Profit 2</div><div class="tl-value target">${_tp2}</div></div>` : ''}
-    <div class="trade-level"><div class="tl-label">Risk : Reward</div><div class="tl-value rr">${a.risk_reward  || '—'}</div></div>`;
+    <div class="trade-level"><div class="tl-label">Risk : Reward</div><div class="tl-value rr${a._rr_weak ? ' weak' : ''}">${a.risk_reward  || '—'}${a._rr_weak ? ' ⚠' : ''}</div></div>`;
 
   // ── Strategy grid ──
   document.getElementById('strategyGrid').innerHTML = [
@@ -1310,6 +1438,14 @@ async function startResearch() {
   if (!raw) { document.getElementById('symInput').focus(); return; }
 
   const sym = raw.toUpperCase(), type = detectType(sym);
+
+  // Re-scan cooldown: block a too-soon re-run of the SAME symbol unless forced.
+  const _forced = startResearch._force === sym;
+  startResearch._force = null;
+  if (!_forced) {
+    const cdMs = cooldownRemainingMs(sym);
+    if (cdMs > 0) { showCooldownNotice(sym, cdMs); return; }
+  }
 
   document.getElementById('analyseBtn').disabled = true;
   document.getElementById('loaderSym').textContent = sym;
@@ -1463,6 +1599,31 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
           return `• ${h.analysis_date}: $${h.price} → ${h.verdict} (${h.confidence}% conf) | Target: ${h.target_price || 'N/A'} | Stop: ${h.stop_loss || 'N/A'} | Outcome: ${outcomeStr}`;
         }).join('\n')
       : '';
+
+    // Track-record block — the REALISED win/loss record of prior calls on this
+    // symbol, so the committee calibrates its confidence against what actually
+    // happened (learn from what was won or lost), not just what was predicted.
+    let trackRecordBlock = '';
+    if (Array.isArray(tickerMemory) && tickerMemory.length) {
+      const resolved = tickerMemory.filter(h => h.outcome === 'tp_hit' || h.outcome === 'sl_hit');
+      if (resolved.length) {
+        const wins   = resolved.filter(h => h.outcome === 'tp_hit').length;
+        const losses = resolved.length - wins;
+        const winRate = Math.round((wins / resolved.length) * 100);
+        const byDir = ['long', 'short'].map(dir => {
+          const set = resolved.filter(h => verdictDir(h.verdict) === dir);
+          if (!set.length) return null;
+          const w = set.filter(h => h.outcome === 'tp_hit').length;
+          return `${dir.toUpperCase()} ${w}W/${set.length - w}L`;
+        }).filter(Boolean).join(' · ');
+        const last = resolved[0];
+        trackRecordBlock = `\n━━━ REAL TRACK RECORD (${sym}) ━━━\n`
+          + `Resolved prior calls: ${resolved.length} → ${wins} TP-hit / ${losses} SL-hit (${winRate}% win rate).\n`
+          + (byDir ? `By direction: ${byDir}.\n` : '')
+          + (last ? `Most recent resolved: ${last.analysis_date} ${last.verdict} → ${last.outcome === 'tp_hit' ? '✅ WON' : '❌ LOST'}.\n` : '')
+          + `CALIBRATION: This is your ACTUAL realised hit-rate on ${sym}. If recent same-direction calls LOST, be more skeptical and trim confidence; if they WON, a genuine edge may exist — but avoid overconfidence. Factor this real history into the verdict.`;
+      }
+    }
 
     // Fundamentals block (stocks only)
     let fundBlock = '';
@@ -1924,6 +2085,7 @@ ${engineBlock}
 ${backtestBlock}
 ${scanBlock || ''}
 ${memoryBlock || ''}
+${trackRecordBlock || ''}
 
 Your task:
 1. Read the EVIDENCE lists — count how many bullish vs bearish factors exist across all four analysts
@@ -1934,7 +2096,8 @@ Your task:
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
-9. Be brutally honest — no performance, no softening, no default verdicts
+9. RISK:REWARD GATE — the levels must give reward:risk of at least ${MIN_RR}:1, where reward = |target_price − entry| and risk = |entry − stop_loss|. If the best honest setup at this horizon cannot reach ${MIN_RR}:1, do NOT force a poor-reward trade: say so in profit_taking_logic / entry_strategy and lean the verdict toward WAIT or NO_EDGE
+10. Be brutally honest — no performance, no softening, no default verdicts
 
 Respond ONLY with this exact JSON structure:
 
@@ -1995,8 +2158,19 @@ Respond ONLY with this exact JSON structure:
       throw new Error('AI returned an unexpected response format. Please try again.');
     }
 
-    // Save this analysis to Supabase memory (fire-and-forget)
-    saveToMemory(sym, type, analysis, curr);
+    // Deterministic risk:reward from the ACTUAL levels (the LLM's own string is
+    // frequently inconsistent with its entry/stop/target). Overrides it everywhere
+    // — render + saved memory — and flags setups below the MIN_RR threshold.
+    const _rr = computeRR(analysis.entry_zone, analysis.stop_loss, analysis.target_price);
+    if (_rr) { analysis.risk_reward = _rr.text; analysis._rr_ratio = _rr.ratio; analysis._rr_weak = _rr.weak; }
+
+    // Same OPEN setup → refresh the existing history row; otherwise a new idea.
+    const _priorOpen = (Array.isArray(tickerMemory) ? tickerMemory : []).find(r => r.outcome === 'pending') || null;
+    const _updateId  = (_priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
+
+    // Save (update the open same-setup row, or create a new one) + start cooldown.
+    saveToMemory(sym, type, analysis, curr, _updateId);
+    markScanned(sym);
 
     renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData });
 
