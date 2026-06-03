@@ -10,7 +10,13 @@
   const API = (params.get('api') || localStorage.getItem('apexEngineApi') || _apiDefault).replace(/\/$/, '');
   if (params.get('api')) localStorage.setItem('apexEngineApi', params.get('api'));
 
-  const FALLBACK_INSTRUMENTS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD'];
+  // Mirrors the engine's multi-asset universe (engine/config.yaml) so the panel
+  // still shows equities + crypto when the Render engine is cold and /health fails.
+  const FALLBACK_INSTRUMENTS = [
+    'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD',
+    'AAPL', 'MSFT', 'NVDA', 'SPY',
+    'BTC/USD', 'ETH/USD',
+  ];
   // panel strategy id -> validation-cache strategy name
   const VAL_NAME = { baseline: 'regime_gated_momentum', ml_gbm: 'ml_gbm', ml_linear: 'ml_gbm' };
 
