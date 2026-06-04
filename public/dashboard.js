@@ -450,7 +450,14 @@ async function fetchTickerMemory(sym) {
 // Saves a completed analysis to Supabase (fire-and-forget — don't await in UI flow).
 // If `updateId` is given, the SAME open setup is being re-scanned, so we refresh
 // that existing history row in place instead of creating a duplicate.
-function saveToMemory(sym, type, analysis, price, updateId = null) {
+function saveToMemory(sym, type, analysis, price, updateId = null, setupFeatures = null) {
+  // Attach the verdict's direction + stated confidence to the structural feature
+  // vector so future meta-label retrieval can also condition on side/conviction.
+  const features = setupFeatures ? {
+    ...setupFeatures,
+    dir:  /BUY|LONG/i.test(analysis.verdict || '') ? 1 : /SELL|SHORT/i.test(analysis.verdict || '') ? -1 : 0,
+    conf: analysis.confidence_score != null ? +(analysis.confidence_score / 100).toFixed(3) : null,
+  } : null;
   const fields = {
     symbol:               sym,
     asset_type:           type,
@@ -470,6 +477,7 @@ function saveToMemory(sym, type, analysis, price, updateId = null) {
     key_reasons:          analysis.key_reasons          || null,
     short_term_outlook:   (analysis.short_term_outlook  || '').slice(0, 300),
     timeframe:            analysis.timeframe             || null,
+    setup_features:       features,
   };
   const req = updateId
     ? { method: 'PATCH', body: JSON.stringify({ id: updateId, refresh: true, ...fields }) }
@@ -1168,6 +1176,81 @@ function calibrateConfidence(rawConf, calibration) {
   };
 }
 
+// ── Setup feature vector + meta-labeling (B1/B2/B3) ───────────────────────────
+// A compact, normalised vector describing the SETUP's market structure (known
+// BEFORE the verdict). Persisted with every scan so that, as outcomes resolve via
+// the triple-barrier rule (TP=+1 / SL=-1 / time-expiry=0), we can retrieve
+// STRUCTURALLY-similar past setups and measure how often the committee was right
+// on that KIND of setup — i.e. meta-labeling, the substrate for a future ML model.
+// Retrieval is on structure (regime/trend/momentum/vol/confluence), NOT the ticker
+// — the research showed surface (same-symbol) retrieval is the dominant RAG failure.
+function buildSetupFeatures({ type, style, closes, rsi, adx, bbWidth, confluence, regimeName }) {
+  const c01 = x => Math.max(0, Math.min(1, x));
+  const sma50 = calcSMA(closes, 50), sma200 = calcSMA(closes, 200);
+  const last = closes[closes.length - 1];
+  const trendAlign = (sma50 && sma200) ? (sma50 > sma200 ? 1 : -1) : 0;
+  const pxVsSma50 = sma50 ? c01((last / sma50 - 1) * 5 + 0.5) : 0.5;
+  return {
+    v: 1,
+    asset: type || null,
+    style: style || null,
+    regime: regimeName || null,
+    rsi:        rsi        != null ? +c01(rsi / 100).toFixed(3)      : null,
+    adx:        adx        != null ? +c01(adx / 60).toFixed(3)       : null,
+    vol:        bbWidth    != null ? +c01(bbWidth / 0.15).toFixed(3) : null,
+    confluence: confluence != null ? +c01(confluence / 100).toFixed(3) : null,
+    trendAlign,
+    pxVsSma50:  +pxVsSma50.toFixed(3),
+  };
+}
+
+// Structural distance between two setup vectors (0 = identical, higher = less alike).
+function setupDistance(a, b) {
+  const keys = ['rsi', 'adx', 'vol', 'confluence', 'pxVsSma50'];
+  let sum = 0, n = 0;
+  for (const k of keys) {
+    if (a[k] == null || b[k] == null) continue;
+    sum += (a[k] - b[k]) ** 2; n++;
+  }
+  if (!n) return Infinity;
+  let d = Math.sqrt(sum / n);
+  if (a.trendAlign !== b.trendAlign) d += 0.15;
+  if (a.regime && b.regime && a.regime !== b.regime) d += 0.15;
+  if (a.style  && b.style  && a.style  !== b.style)  d += 0.10;
+  return d;
+}
+
+// Meta-label: among RESOLVED past setups structurally similar to this one, how
+// often was the committee's verdict correct (TP hit)? Shrunk toward the overall
+// base rate by sample size (resists feedback-overfitting + thin-sample noise).
+// Returns null until enough genuinely-similar resolved setups exist.
+async function fetchMetaLabel(features) {
+  try {
+    if (!features) return null;
+    const r = await fetch('/api/memory?all=true&limit=200');
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return null;
+    const resolved = rows.filter(x => (x.outcome === 'tp_hit' || x.outcome === 'sl_hit') && x.setup_features);
+    if (resolved.length < 6) return null;
+    const scored = resolved.map(x => {
+      let f = x.setup_features;
+      if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+      return f ? { d: setupDistance(features, f), win: x.outcome === 'tp_hit' } : null;
+    }).filter(Boolean).sort((a, b) => a.d - b.d);
+    const near = scored.slice(0, 15).filter(s => s.d <= 0.45);   // only genuinely similar
+    if (near.length < 4) return null;
+    const wins   = near.filter(s => s.win).length;
+    const rawAcc = wins / near.length;
+    const base   = resolved.filter(x => x.outcome === 'tp_hit').length / resolved.length;
+    const w      = near.length / (near.length + 8);             // shrink toward base rate
+    return {
+      pCorrect: Math.round((w * rawAcc + (1 - w) * base) * 100),
+      n: near.length, wins, losses: near.length - wins, base: Math.round(base * 100),
+    };
+  } catch { return null; }
+}
+
 // ── Position-size calculator (results panel) ──────────────────────────────────
 // Pure risk math: shares/units = (account × risk%) ÷ per-unit risk (|entry−stop|).
 // Account size + risk% persist in localStorage so the trader sets them once.
@@ -1360,7 +1443,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -1482,6 +1565,10 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   if (seasonality) {
     const sClass = seasonality.avgReturn > 0.5 ? 'up' : seasonality.avgReturn < -0.5 ? 'down' : 'neutral';
     statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">${escHtmlSafe(seasonality.month)} Seasonality</div><div class="stat-value ${sClass}">${seasonality.avgReturn > 0 ? '+' : ''}${seasonality.avgReturn}% · ${seasonality.winRate}% pos</div></div>`;
+  }
+  if (metaLabel) {
+    const mClass = metaLabel.pCorrect >= 60 ? 'bull' : metaLabel.pCorrect < 45 ? 'bear' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item" title="Committee's realised accuracy on the ${metaLabel.n} most structurally-similar resolved setups (not the same ticker)"><div class="stat-label">Setup Reliability</div><div class="stat-value ${mClass}">${metaLabel.pCorrect}% · ${metaLabel.wins}W/${metaLabel.losses}L</div></div>`;
   }
 
   // ── Macro ──
@@ -2420,6 +2507,24 @@ ${sharedData}`;
 
     // ── Quant engine: await the early-fired fetch so the committee can weigh it ──
     const engineData = await enginePromise;
+
+    // ── Setup feature vector + meta-label (structural retrieval of similar setups) ─
+    const setupFeatures = buildSetupFeatures({
+      type, style: ts.label, closes,
+      rsi: calcRSI(closes), adx, bbWidth,
+      confluence: confluenceScore?.bullPct,
+      regimeName: engineData?.regime?.name,
+    });
+    const metaLabel = await fetchMetaLabel(setupFeatures);
+    let metaLabelBlock = '';
+    if (metaLabel) {
+      const directive = metaLabel.pCorrect < 45
+        ? 'This setup TYPE has a POOR track record — demand strong confluence or favour WAIT, and do NOT assign high confidence.'
+        : metaLabel.pCorrect >= 60
+          ? 'This setup type has historically WORKED — a genuine edge may exist, but still avoid overconfidence.'
+          : 'MIXED historical reliability for this setup type — weigh the live evidence carefully and keep confidence moderate.';
+      metaLabelBlock = `\n━━━ 🧠 SETUP RELIABILITY (meta-label) ━━━\nAcross the ${metaLabel.n} most STRUCTURALLY-SIMILAR resolved setups (matched on regime, trend, momentum, volatility & confluence — NOT the same ticker), the committee's verdict was correct ${metaLabel.pCorrect}% of the time (${metaLabel.wins}W / ${metaLabel.losses}L; overall base rate ${metaLabel.base}%).\nDIRECTIVE: ${directive}`;
+    }
     let engineBlock = '\nINDEPENDENT QUANT ENGINE: unavailable this run (not factored into the verdict).';
     if (engineData && engineData.online && engineData.supported) {
       const eR = engineData.regime, eRisk = engineData.risk, eVal = engineData.validation;
@@ -2506,6 +2611,7 @@ ${sectorBlock || ''}
 ${positioningBlock || ''}
 ${seasonalityBlock || ''}
 ${calibrationBlock || ''}
+${metaLabelBlock || ''}
 ${engineBlock}
 ${backtestBlock}
 ${strategyBtBlock}
@@ -2604,10 +2710,10 @@ Respond ONLY with this exact JSON structure:
     const _updateId  = (_priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
 
     // Save (update the open same-setup row, or create a new one) + start cooldown.
-    saveToMemory(sym, type, analysis, curr, _updateId);
+    saveToMemory(sym, type, analysis, curr, _updateId, setupFeatures);
     markScanned(sym);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {

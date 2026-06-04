@@ -86,15 +86,26 @@ export default async function handler(req) {
       key_reasons:          body.key_reasons ? JSON.stringify(body.key_reasons).slice(0, 500) : null,
       short_term_outlook:   (body.short_term_outlook   || '').slice(0, 300),
       timeframe:            body.timeframe             || null,
+      setup_features:       body.setup_features        || null,
       outcome:              'pending',
     };
 
     try {
-      const res = await fetch(TABLE, {
+      let res = await fetch(TABLE, {
         method:  'POST',
         headers: supaHeaders({ 'Prefer': 'return=minimal' }),
         body:    JSON.stringify(row),
       });
+      // Graceful fallback: if the setup_features column hasn't been migrated yet,
+      // Supabase 400s — strip it and retry so saving keeps working regardless.
+      if (!res.ok && row.setup_features != null) {
+        const { setup_features, ...rest } = row;
+        res = await fetch(TABLE, {
+          method:  'POST',
+          headers: supaHeaders({ 'Prefer': 'return=minimal' }),
+          body:    JSON.stringify(rest),
+        });
+      }
       return new Response(
         res.ok ? JSON.stringify({ ok: true, id: row.id }) : JSON.stringify({ error: `Supabase ${res.status}` }),
         { status: res.ok ? 200 : 500, headers: cors }
@@ -138,6 +149,7 @@ export default async function handler(req) {
         key_reasons:          body.key_reasons ? JSON.stringify(body.key_reasons).slice(0, 500) : null,
         short_term_outlook:   (body.short_term_outlook   || '').slice(0, 300),
         timeframe:            body.timeframe || null,
+        ...(body.setup_features ? { setup_features: body.setup_features } : {}),
       };
     } else {
       patch = {
@@ -148,14 +160,21 @@ export default async function handler(req) {
     }
 
     try {
-      const res = await fetch(
-        `${TABLE}?id=eq.${encodeURIComponent(body.id)}`,
-        {
+      const url = `${TABLE}?id=eq.${encodeURIComponent(body.id)}`;
+      let res = await fetch(url, {
+        method:  'PATCH',
+        headers: supaHeaders({ 'Prefer': 'return=minimal' }),
+        body:    JSON.stringify(patch),
+      });
+      // Same graceful fallback as POST: retry without setup_features if unmigrated.
+      if (!res.ok && patch.setup_features != null) {
+        const { setup_features, ...rest } = patch;
+        res = await fetch(url, {
           method:  'PATCH',
           headers: supaHeaders({ 'Prefer': 'return=minimal' }),
-          body:    JSON.stringify(patch),
-        }
-      );
+          body:    JSON.stringify(rest),
+        });
+      }
       return new Response(
         res.ok ? JSON.stringify({ ok: true }) : JSON.stringify({ error: 'update failed' }),
         { status: res.ok ? 200 : 500, headers: cors }
