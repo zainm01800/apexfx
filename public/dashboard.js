@@ -1208,6 +1208,19 @@ async function fetchPositioning(sym, type) {
   } catch { return null; }
 }
 
+// ── Crypto-native positioning + structure (funding, OI, L/S, dominance) ────────
+// Real-time perp derivatives + market structure — the data a crypto desk lives on
+// and which the generic technicals miss (crowding / squeeze risk, dry powder).
+async function fetchCryptoDerivs(sym, type) {
+  if (type !== 'Crypto') return null;
+  try {
+    const r = await fetch(`/api/crypto-derivs?sym=${encodeURIComponent(sym)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d && d.signal) ? d : null;
+  } catch { return null; }
+}
+
 // ── Seasonality — current calendar month's historical bias ────────────────────
 // Pulls ~5y of daily candles and computes the average month-over-month return and
 // hit-rate for the CURRENT calendar month across prior years. Cheap, client-side.
@@ -1603,7 +1616,7 @@ function methodEvidenceFlags(...texts) {
   return found;
 }
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel, cryptoDerivs }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -1730,6 +1743,26 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   if (metaLabel) {
     const mClass = metaLabel.pCorrect >= 60 ? 'bull' : metaLabel.pCorrect < 45 ? 'bear' : 'neutral';
     statsGrid.innerHTML += `<div class="stat-item" title="Committee's realised accuracy on the ${metaLabel.n} most structurally-similar resolved setups (not the same ticker)"><div class="stat-label">Setup Reliability</div><div class="stat-value ${mClass}">${metaLabel.pCorrect}% · ${metaLabel.wins}W/${metaLabel.losses}L</div></div>`;
+  }
+  // Crypto derivatives & structure (funding, long/short crowding, BTC dominance)
+  if (cryptoDerivs) {
+    const fd = cryptoDerivs.funding;
+    if (fd) {
+      const fCls = fd.label === 'neutral' ? 'neutral' : fd.rate_8h_pct > 0 ? 'down' : 'up';   // crowded longs = downside risk
+      statsGrid.innerHTML += `<div class="stat-item" title="Perp funding ${fd.rate_8h_pct}%/8h (~${fd.annualized_pct}%/yr) — ${fd.label}. Real-time crowding/squeeze read."><div class="stat-label">Perp Funding</div><div class="stat-value ${fCls}">${fd.rate_8h_pct > 0 ? '+' : ''}${fd.rate_8h_pct}% · ${fd.label.split(' ')[0]}</div></div>`;
+    }
+    if (cryptoDerivs.long_short) {
+      const ls = cryptoDerivs.long_short;
+      const lCls = (ls.pct_long >= 65 || ls.pct_long <= 35) ? 'neutral' : ls.pct_long >= 50 ? 'up' : 'down';
+      statsGrid.innerHTML += `<div class="stat-item" title="Retail account long/short ratio ${ls.account_ratio} — ${ls.label}. Contrarian at extremes."><div class="stat-label">Retail L/S</div><div class="stat-value ${lCls}">${ls.pct_long}% long${(ls.pct_long >= 65 || ls.pct_long <= 35) ? ' ⚠' : ''}</div></div>`;
+    }
+    if (cryptoDerivs.open_interest && cryptoDerivs.open_interest.change_7d_pct != null) {
+      const oi = cryptoDerivs.open_interest;
+      statsGrid.innerHTML += `<div class="stat-item" title="Open interest ${oi.btc.toLocaleString()} ${cryptoDerivs.base}, ${oi.change_7d_pct}% over 7d — ${oi.label}. Rising OI = fresh leverage."><div class="stat-label">Open Interest (7d)</div><div class="stat-value ${oi.change_7d_pct > 5 ? 'up' : oi.change_7d_pct < -5 ? 'down' : 'neutral'}">${oi.change_7d_pct > 0 ? '+' : ''}${oi.change_7d_pct}%</div></div>`;
+    }
+    if (cryptoDerivs.dominance_pct != null) {
+      statsGrid.innerHTML += `<div class="stat-item" title="Bitcoin dominance — BTC's share of total crypto market cap. Rising = risk-off within crypto."><div class="stat-label">BTC Dominance</div><div class="stat-value neutral">${cryptoDerivs.dominance_pct}%</div></div>`;
+    }
   }
 
   // ── Macro ──
@@ -2186,7 +2219,7 @@ async function startResearch() {
       : fetch(`/api/sector?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null);
 
     // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT, eventsData, sectorData, positioning, seasonality, calibration] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT, eventsData, sectorData, positioning, seasonality, calibration, cryptoDerivs] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
@@ -2201,6 +2234,7 @@ async function startResearch() {
       fetchPositioning(sym, type),
       fetchSeasonality(sym, type),
       fetchCalibration(),
+      fetchCryptoDerivs(sym, type),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -2398,6 +2432,14 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       positioningBlock = `\n━━━ COT SPECULATIVE POSITIONING (${positioning.source}, as of ${positioning.as_of}) — ⚠ WEAK EVIDENCE / SLOW CONTEXT ONLY ━━━\n${positioning.signal}\nEVIDENCE TIER: LOW. COT data is published with a ~3-day lag, weekly, and the academic record for it as a timing signal is weak and drawdown-heavy (forecasting ability only at extremes; mostly promoted by those selling COT tools). Use ONLY as slow crowding context — positioning at an extreme (≥75% or ≤25% one-sided) can precede mean reversion — and NEVER as a primary entry/timing reason or a confidence booster.`;
     }
 
+    // ── Crypto derivatives + market structure block (real-time, MEDIUM-HIGH tier) ─
+    let cryptoBlock = '';
+    if (cryptoDerivs && cryptoDerivs.signal) {
+      const ls = cryptoDerivs.long_short, fd = cryptoDerivs.funding;
+      const crowded = (ls && (ls.pct_long >= 65 || ls.pct_long <= 35)) || (fd && fd.label !== 'neutral');
+      cryptoBlock = `\n━━━ CRYPTO DERIVATIVES & MARKET STRUCTURE (${cryptoDerivs.source}, live) ━━━\n${cryptoDerivs.signal}\nHOW TO USE (real-time positioning — MEDIUM-HIGH evidence for crypto, unlike COT): this is the crowding/squeeze read the price chart alone cannot show. Funding tells you who is PAYING to hold their side; one-sided funding + crowded accounts at an extreme means a SQUEEZE against the crowd is a live risk — so do NOT take a high-conviction trade in the SAME direction the crowd is already maxed out on. Rising open interest into a move = fresh leverage (more fuel for a violent reversal); falling OI = deleveraging. High stablecoin dry powder = latent buying capacity on the sidelines.${crowded ? '\n⚠ Positioning is at/near an extreme — explicitly weigh squeeze risk against the technical trend before assigning high confidence.' : ''}`;
+    }
+
     // ── Seasonality block ──────────────────────────────────────────────────────
     let seasonalityBlock = '';
     if (seasonality) {
@@ -2514,6 +2556,7 @@ ${fundBlock}
 ${eventBlock}
 ${sectorBlock}
 ${positioningBlock}
+${cryptoBlock}
 ${seasonalityBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
 ${intermarketBlock}
@@ -2794,6 +2837,7 @@ ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.qualit
 ${eventBlock || ''}
 ${sectorBlock || ''}
 ${positioningBlock || ''}
+${cryptoBlock || ''}
 ${seasonalityBlock || ''}
 ${calibrationBlock || ''}
 ${metaLabelBlock || ''}
@@ -2913,7 +2957,7 @@ Respond ONLY with this exact JSON structure:
     saveToMemory(sym, type, analysis, curr, _updateId, setupFeatures);
     markScanned(sym);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel, cryptoDerivs });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {
