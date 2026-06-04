@@ -22,63 +22,78 @@ async function fetchAllScans() {
   return res.json();
 }
 
-// Resolve pending outcomes against fresh candle data (same logic as dashboard.js).
-// Fetches a BOUNDED daily window per symbol (from the oldest open scan → now) using
-// the params /api/candles actually understands (tf/from/to — it ignores resolution/bars).
+// Style-aware outcome resolution. Each trade style is graded on a matching-
+// granularity timeframe (so intrabar TP/SL is detected accurately) with an expiry
+// scaled to its holding horizon; the style is read from the row's persisted
+// setup_features (rows without it default to swing). Direction comes from verdictDir
+// so SHORT verdicts resolve correctly (they say "SHORT", not "sell").
+const STYLE_RES = {
+  scalp:    { tf: '15m', expiryDays: 3,   bufferDays: 1 },
+  intraday: { tf: '1h',  expiryDays: 7,   bufferDays: 2 },
+  swing:    { tf: '1d',  expiryDays: 30,  bufferDays: 5 },
+  position: { tf: '1d',  expiryDays: 120, bufferDays: 7 },
+};
+function resolutionFor(row) {
+  let f = row && row.setup_features;
+  if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+  const s = (f && f.style ? String(f.style) : 'swing').toLowerCase();
+  return STYLE_RES[s] || STYLE_RES.swing;
+}
+
 async function resolveIfPending(rows) {
   const pending = rows.filter(r => r.outcome === 'pending' && r.target_price && r.stop_loss && r.price);
   if (!pending.length) return;
 
-  // Group by symbol so we only fetch candles once per symbol
-  const bySymbol = {};
+  // Group by symbol + resolution timeframe (style-derived), fetching the right-
+  // granularity candles once per group.
+  const groups = {};
   for (const r of pending) {
-    if (!bySymbol[r.symbol]) bySymbol[r.symbol] = [];
-    bySymbol[r.symbol].push(r);
+    const res = resolutionFor(r);
+    const key = r.symbol + '|' + res.tf;
+    (groups[key] ||= { sym: r.symbol, type: r.asset_type || 'Stock', tf: res.tf, rows: [] }).rows.push({ row: r, res });
   }
 
   await Promise.allSettled(
-    Object.entries(bySymbol).map(async ([sym, symRows]) => {
+    Object.values(groups).map(async (g) => {
       try {
-        const type = symRows[0].asset_type || 'Stock';
-        // Bounded window: from 5 days before the oldest open scan to now.
-        const oldest = Math.min(...symRows.map(r => new Date(r.analysis_date).getTime() / 1000));
-        const from   = Math.floor(oldest - 5 * 86400);
+        const oldest = Math.min(...g.rows.map(x => rowTs(x.row) / 1000));
+        const buffer = Math.max(...g.rows.map(x => x.res.bufferDays)) * 86400;
+        const from   = Math.floor(oldest - buffer);
         const to     = Math.floor(Date.now() / 1000);
         const candleRes = await fetch(
-          `${API_CANDLES}?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`
+          `${API_CANDLES}?sym=${encodeURIComponent(g.sym)}&type=${encodeURIComponent(g.type)}&tf=${g.tf}&from=${from}&to=${to}`
         );
         if (!candleRes.ok) return;
         const candles = await candleRes.json();
         if (!Array.isArray(candles) || candles.length < 2) return;
 
-        for (const row of symRows) {
-          const entryDate = new Date(row.analysis_date).getTime() / 1000;
+        for (const { row, res } of g.rows) {
+          const entryTs = rowTs(row) / 1000;
           const tp = parseFloat(row.target_price);
           const sl = parseFloat(row.stop_loss);
-          if (!tp || !sl) continue;
+          if (isNaN(tp) || isNaN(sl)) continue;
+          const dir = verdictDir(row.verdict);
 
-          const afterEntry = candles.filter(c => c.time > entryDate);
+          const afterEntry = candles.filter(c => c.time > entryTs);
           let resolved = null;
-
-          for (const bar of afterEntry) {
-            const isBull = row.verdict?.toLowerCase().includes('buy');
-            const isBear = row.verdict?.toLowerCase().includes('sell');
-            if (isBull) {
-              if (bar.high >= tp)  { resolved = 'tp_hit';  break; }
-              if (bar.low  <= sl)  { resolved = 'sl_hit';  break; }
-            } else if (isBear) {
-              if (bar.low  <= tp)  { resolved = 'tp_hit';  break; }
-              if (bar.high >= sl)  { resolved = 'sl_hit';  break; }
+          if (dir !== 'neutral') {
+            for (const bar of afterEntry) {
+              if (dir === 'short') {
+                if (bar.low  <= tp) { resolved = 'tp_hit'; break; }
+                if (bar.high >= sl) { resolved = 'sl_hit'; break; }
+              } else {
+                if (bar.high >= tp) { resolved = 'tp_hit'; break; }
+                if (bar.low  <= sl) { resolved = 'sl_hit'; break; }
+              }
             }
           }
 
-          // If no resolution but analysis is >30 days old → expired
-          const ageMs = Date.now() - new Date(row.analysis_date).getTime();
-          if (!resolved && ageMs > 30 * 86400 * 1000) resolved = 'expired';
+          // No TP/SL hit but past the style's expiry window → expired.
+          const ageDays = (Date.now() / 1000 - entryTs) / 86400;
+          if (!resolved && ageDays > res.expiryDays) resolved = 'expired';
 
           if (resolved) {
             row.outcome = resolved;
-            // Patch Supabase (fire-and-forget)
             fetch(API_MEMORY, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },

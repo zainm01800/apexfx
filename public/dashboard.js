@@ -486,36 +486,63 @@ function saveToMemory(sym, type, analysis, price, updateId = null, setupFeatures
     .catch(() => {}); // silent fail — memory is best-effort
 }
 
+// ── Style-aware outcome resolution ────────────────────────────────────────────
+// Each trade style is graded on a matching-granularity timeframe (so intrabar TP/SL
+// is detected accurately) and an expiry scaled to its holding horizon. The style is
+// read from the row's persisted setup_features; rows without it default to swing.
+const STYLE_RES = {
+  scalp:    { tf: '15m', expiryDays: 3,   bufferDays: 1 },
+  intraday: { tf: '1h',  expiryDays: 7,   bufferDays: 2 },
+  swing:    { tf: '1d',  expiryDays: 30,  bufferDays: 5 },
+  position: { tf: '1d',  expiryDays: 120, bufferDays: 7 },
+};
+function resolutionFor(row) {
+  let f = row && row.setup_features;
+  if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+  const s = (f && f.style ? String(f.style) : 'swing').toLowerCase();
+  return STYLE_RES[s] || STYLE_RES.swing;
+}
+// Precise entry timestamp (seconds): created_at → epoch in the id → analysis_date.
+function entryTsOf(row) {
+  if (row.created_at) { const t = Date.parse(row.created_at); if (!isNaN(t)) return t / 1000; }
+  const m = String(row.id || '').match(/_(\d{10,})$/);
+  if (m) return parseInt(m[1], 10) / 1000;
+  return new Date(row.analysis_date).getTime() / 1000;
+}
+
 // Resolve outcomes of pending analyses using actual candle data.
-// Called after candles are fetched — checks if TP or SL was hit since analysis date.
-function resolveOutcomes(pendingRows, candles) {
+// `candleTf` is the timeframe of the passed candles; TP/SL detection only runs for
+// rows whose style resolves on that same timeframe — others are left for the History
+// page resolver (which fetches the right-granularity candles). Expiry is style-scaled.
+function resolveOutcomes(pendingRows, candles, candleTf) {
   pendingRows.forEach(row => {
     if (row.outcome !== 'pending' || !row.analysis_date) return;
-    const analysisTs = new Date(row.analysis_date).getTime() / 1000;
-    // Only look at bars after the analysis date
-    const barsAfter = candles.filter(b => b.time > analysisTs);
-    if (!barsAfter.length) return;
+    const res = resolutionFor(row);
+    const entryTs = entryTsOf(row);
+    const barsAfter = candles.filter(b => b.time > entryTs);
 
     const tp  = parseFloat(row.target_price);
     const sl  = parseFloat(row.stop_loss);
-    const ageMs = Date.now() - new Date(row.analysis_date).getTime();
-    const ageDays = ageMs / 86400000;
+    const ageDays = (Date.now() / 1000 - entryTs) / 86400;
 
     let outcome = null, outcomePrice = null;
 
-    if (!isNaN(tp) && !isNaN(sl)) {
+    // Only grade TP/SL when the candles we have match this row's resolution TF.
+    if (res.tf === candleTf && barsAfter.length && !isNaN(tp) && !isNaN(sl)) {
       const dir = verdictDir(row.verdict);   // long: TP above / SL below; short: reversed
-      for (const b of barsAfter) {
-        if (dir === 'short') {
-          if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
-          if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
-        } else {
-          if (b.high >= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
-          if (b.low  <= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+      if (dir !== 'neutral') {
+        for (const b of barsAfter) {
+          if (dir === 'short') {
+            if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
+            if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+          } else {
+            if (b.high >= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
+            if (b.low  <= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+          }
         }
       }
     }
-    if (!outcome && ageDays > 30) outcome = 'expired';
+    if (!outcome && ageDays > res.expiryDays) outcome = 'expired';
     if (!outcome) return; // still genuinely pending
 
     // PATCH outcome back to Supabase (fire-and-forget)
@@ -2117,7 +2144,7 @@ async function startResearch() {
 
     // Resolve outcomes of pending analyses now that we have fresh candles
     const pendingRows = (supaMemory || []).filter(r => r.outcome === 'pending');
-    if (pendingRows.length) resolveOutcomes(pendingRows, candles);
+    if (pendingRows.length) resolveOutcomes(pendingRows, candles, ts.primaryTf);
     const tickerMemory = supaMemory; // alias for readability below
 
     // Fire the quant-engine fetch now so it overlaps the (slow) LLM agent calls.
