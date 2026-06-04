@@ -1,0 +1,37 @@
+name: auto-scan
+
+# Runs a Deep Analyse on a fixed watchlist by driving the live dashboard headlessly,
+# so the AI committee's verdicts + setup_features vectors keep accumulating in
+# apex_research_memory with nobody clicking Analyse. This is what feeds the
+# confidence-calibration and structural meta-label loops (both are dormant until
+# enough resolved, feature-tagged rows exist). Each scan also resolves prior open
+# outcomes. No keys needed — it uses the deployed site, which holds the AI keys
+# server-side.
+
+on:
+  schedule:
+    - cron: "0 22 * * 1-5"     # weekdays 22:00 UTC (after the US close — daily bars are fresh)
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Comma-separated watchlist (overrides the default)"
+        required: false
+        default: ""
+
+jobs:
+  auto-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright (Chromium)
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Run auto-scan
+        env:
+          APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols }}
+        run: node scripts/auto-scan.mjs
