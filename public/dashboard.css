@@ -589,3 +589,52 @@ body {
 .tpg-style { font-family: var(--mono); font-size: 12px; color: var(--text3); }
 .tpg-trigger { font-size: 13px; color: var(--text); background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 10px 13px; line-height: 1.5; }
 .tpg-trigger strong { color: var(--purple); }
+
+/* ── Nav win-rate badge ── */
+.nav-winrate {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  padding: 4px 10px; border-radius: 7px; text-decoration: none; white-space: nowrap;
+  background: var(--card2); border: 1px solid var(--border2); color: var(--text2);
+  transition: border-color .15s, color .15s; margin-left: auto;
+}
+.nav-winrate:hover { color: var(--text); border-color: var(--purple); }
+.nav-winrate.good { color: var(--green); border-color: rgba(0,217,126,.3); }
+.nav-winrate.bad  { color: var(--red);   border-color: rgba(255,66,85,.3); }
+
+/* ── Pre-analysis flags (under the search box) ── */
+.pre-analysis { display: flex; flex-direction: column; gap: 8px; }
+.pa-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.pa-tv {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none;
+  color: var(--blue); background: rgba(59,158,255,.08);
+  border: 1px solid rgba(59,158,255,.25); border-radius: 8px; padding: 7px 13px;
+  transition: background .15s, border-color .15s;
+}
+.pa-tv:hover { background: rgba(59,158,255,.16); border-color: var(--blue); }
+.pa-pill {
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; white-space: nowrap;
+  border: 1px solid;
+}
+.pa-pill.pos { background: rgba(0,217,126,.1);  color: var(--green); border-color: rgba(0,217,126,.3); }
+.pa-pill.neg { background: rgba(255,66,85,.1);  color: var(--red);   border-color: rgba(255,66,85,.3); }
+.pa-banner {
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+  padding: 10px 14px; border-radius: 9px; border: 1px solid; text-align: center;
+}
+.pa-banner.danger { background: rgba(255,66,85,.1);  color: #ff6677; border-color: rgba(255,66,85,.35); }
+.pa-banner.warn   { background: rgba(245,208,32,.09); color: var(--yellow); border-color: rgba(245,208,32,.3); }
+
+/* ── Results action bar (TradingView · Share · Watchlist) ── */
+.results-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.results-actions:empty { display: none; }
+.ra-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  padding: 9px 14px; border-radius: 9px; cursor: pointer; text-decoration: none;
+  background: var(--card2); border: 1px solid var(--border2); color: var(--text2);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.ra-btn:hover { color: var(--text); border-color: var(--purple); background: var(--purple-glow); }
+.ra-tv:hover    { border-color: var(--blue);  color: var(--blue); background: rgba(59,158,255,.1); }
+.ra-watch:hover { border-color: var(--orange); color: var(--orange); background: rgba(255,170,0,.08); }

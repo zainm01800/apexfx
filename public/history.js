@@ -366,6 +366,301 @@ function initFilters() {
   }
 }
 
+// ── Accuracy scoreboard ─────────────────────────────────────────────────────
+// Aggregates realised outcomes across ALL scans into headline accuracy metrics.
+function computeAccuracy(rows) {
+  const total    = rows.length;
+  const resolved = rows.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+  const wins     = resolved.filter(r => r.outcome === 'tp_hit');
+  const losses   = resolved.filter(r => r.outcome === 'sl_hit');
+  const winRate  = resolved.length ? Math.round(wins.length / resolved.length * 100) : null;
+  const pctResolved = total ? Math.round(resolved.length / total * 100) : 0;
+
+  const avgConf = arr => arr.length ? Math.round(arr.reduce((s, r) => s + (Number(r.confidence) || 0), 0) / arr.length) : null;
+
+  const dirOf = r => {
+    const u = (r.verdict || '').toUpperCase();
+    if (/BUY/.test(u)) return 'buy';
+    if (/SELL|SHORT/.test(u)) return 'sell';
+    return 'other';
+  };
+  const buyRes  = resolved.filter(r => dirOf(r) === 'buy');
+  const sellRes = resolved.filter(r => dirOf(r) === 'sell');
+  const acc = set => set.length ? Math.round(set.filter(r => r.outcome === 'tp_hit').length / set.length * 100) : null;
+
+  const hiConf = resolved.filter(r => (Number(r.confidence) || 0) >= 80);
+
+  return {
+    total, resolvedN: resolved.length, pctResolved, winRate,
+    wins: wins.length, losses: losses.length,
+    avgWinConf: avgConf(wins), avgLossConf: avgConf(losses),
+    buyAcc: acc(buyRes),   buyN: buyRes.length,
+    sellAcc: acc(sellRes), sellN: sellRes.length,
+    hiConfAcc: acc(hiConf), hiConfN: hiConf.length,
+  };
+}
+
+function accStat(label, value, sub, cls) {
+  return `<div class="acc-stat">
+    <span class="acc-val ${cls || ''}">${value}</span>
+    <span class="acc-label">${label}</span>
+    ${sub ? `<span class="acc-sub">${sub}</span>` : ''}
+  </div>`;
+}
+
+function renderScoreboard() {
+  const el = document.getElementById('accBoard');
+  if (!el) return;
+  const a = computeAccuracy(_allRows);
+  if (!a.total) { el.innerHTML = ''; return; }
+
+  const wrCls = a.winRate == null ? '' : a.winRate >= 50 ? 'pos' : 'neg';
+  const cmp = (a.avgWinConf != null && a.avgLossConf != null)
+    ? `${a.avgWinConf}% on wins vs ${a.avgLossConf}% on losses` : '—';
+  const cmpCls = (a.avgWinConf != null && a.avgLossConf != null)
+    ? (a.avgWinConf >= a.avgLossConf ? 'pos' : 'neg') : '';
+
+  el.innerHTML = `
+    <div class="acc-title">🎯 Accuracy Scoreboard</div>
+    <div class="acc-grid">
+      ${accStat('Total Scans', a.total, `${a.resolvedN} resolved`, '')}
+      ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.resolvedN} still open`, '')}
+      ${accStat('Win Rate', a.winRate != null ? a.winRate + '%' : '—', a.resolvedN ? `${a.wins}W / ${a.losses}L` : 'no resolved calls', wrCls)}
+      ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
+      ${accStat('BUY Accuracy', a.buyAcc != null ? a.buyAcc + '%' : '—', a.buyN ? `${a.buyN} resolved BUYs` : 'none resolved', a.buyAcc == null ? '' : a.buyAcc >= 50 ? 'pos' : 'neg')}
+      ${accStat('SELL Accuracy', a.sellAcc != null ? a.sellAcc + '%' : '—', a.sellN ? `${a.sellN} resolved SELLs` : 'none resolved', a.sellAcc == null ? '' : a.sellAcc >= 50 ? 'pos' : 'neg')}
+    </div>
+    <div class="acc-calib ${a.hiConfAcc == null ? '' : a.hiConfAcc >= 50 ? 'pos' : 'neg'}">
+      When APEX says <strong>80%+ confidence</strong> →
+      ${a.hiConfN ? `<strong>${a.hiConfAcc}% accuracy</strong> across ${a.hiConfN} resolved high-conviction call${a.hiConfN === 1 ? '' : 's'}` : 'no resolved 80%+ calls yet'}
+    </div>`;
+}
+
+// ── View toggle (Scans ⟷ Watchlist) ─────────────────────────────────────────
+let _currentView = 'scans';
+
+function setView(view) {
+  _currentView = view;
+  document.querySelectorAll('.vt-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const isScans = view === 'scans';
+  document.querySelector('.hist-filters').style.display = isScans ? '' : 'none';
+  document.getElementById('scanGrid').style.display     = isScans ? '' : 'none';
+  document.getElementById('accBoard').style.display     = isScans ? '' : 'none';
+  const empty = document.getElementById('histEmpty');
+  if (empty && !isScans) empty.style.display = 'none';
+  document.getElementById('watchlistView').style.display = isScans ? 'none' : '';
+  if (isScans) renderGrid(); else renderWatchlist();
+}
+
+function initViewToggle() {
+  document.querySelectorAll('.vt-btn').forEach(btn => {
+    btn.addEventListener('click', () => setView(btn.dataset.view));
+  });
+}
+
+// ── Watchlist (localStorage) ─────────────────────────────────────────────────
+const WL_KEY    = 'apex_watchlist';
+const ALERT_KEY = 'apex_alerts';
+
+function getWatchlist() { try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch { return []; } }
+function setWatchlistStore(l) { try { localStorage.setItem(WL_KEY, JSON.stringify(l)); } catch {} }
+function getAlerts() { try { return JSON.parse(localStorage.getItem(ALERT_KEY) || '{}'); } catch { return {}; } }
+function setAlertsStore(a) { try { localStorage.setItem(ALERT_KEY, JSON.stringify(a)); } catch {} }
+
+const _wlPrices = {};   // sym → latest close, cached across renders
+
+async function fetchLivePrice(sym, type) {
+  try {
+    const to = Math.floor(Date.now() / 1000), from = to - 7 * 86400;
+    const r = await fetch(`${API_CANDLES}?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type || 'Stock')}&tf=1d&from=${from}&to=${to}`);
+    if (!r.ok) return null;
+    const c = await r.json();
+    if (!Array.isArray(c) || !c.length) return null;
+    return c[c.length - 1].close;
+  } catch { return null; }
+}
+
+// Parse the low/high bounds of an entry zone like "182.5 - 185" or "182.5".
+function entryBounds(entryZone) {
+  const nums = String(entryZone == null ? '' : entryZone).match(/-?\d+(?:\.\d+)?/g);
+  if (!nums) return null;
+  const v = nums.map(Number).filter(n => !isNaN(n));
+  if (!v.length) return null;
+  return { lo: Math.min(...v), hi: Math.max(...v) };
+}
+
+// Classify a watchlist row given its live price.
+function rowStatus(item, price) {
+  if (price == null) return { cls: 'pending', label: '⏳ —' };
+  const dir = verdictDir(item.verdict);
+  const sl  = parseFloat(item.stop_loss);
+  const tp  = parseFloat(item.target_price);
+  const eb  = entryBounds(item.entry_zone);
+
+  // Stop hit?
+  if (!isNaN(sl)) {
+    if (dir === 'short' && price >= sl) return { cls: 'stopped', label: '❌ Stop hit' };
+    if (dir !== 'short' && price <= sl) return { cls: 'stopped', label: '❌ Stop hit' };
+  }
+  // Target hit?
+  if (!isNaN(tp)) {
+    if (dir === 'short' && price <= tp) return { cls: 'target', label: '✅ Target hit' };
+    if (dir !== 'short' && price >= tp) return { cls: 'target', label: '✅ Target hit' };
+  }
+  // In the entry zone?
+  if (eb) {
+    const pad = (eb.hi - eb.lo) * 0.001 + Math.abs(eb.hi) * 0.0015;   // small tolerance
+    if (price >= eb.lo - pad && price <= eb.hi + pad) return { cls: 'inzone', label: '🟢 In entry zone' };
+  }
+  return { cls: 'pending', label: '⏳ Pending' };
+}
+
+function renderWatchlist() {
+  const list = getWatchlist();
+  const wrap  = document.getElementById('wlTableWrap');
+  const empty = document.getElementById('wlEmpty');
+  const body  = document.getElementById('wlBody');
+  if (!list.length) {
+    wrap.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.style.display = '';
+
+  const alerts = getAlerts();
+  body.innerHTML = list.map((item, i) => {
+    const price = _wlPrices[item.sym];
+    const st = rowStatus(item, price);
+    const vc = verdictClass(item.verdict);
+    const hasAlert = alerts[item.sym] != null;
+    return `
+      <tr class="wl-row ${st.cls}">
+        <td class="wl-sym">${escHtml(item.sym)}<span class="wl-type">${escHtml(item.type || '')}</span></td>
+        <td><span class="wl-verdict ${vc}">${escHtml((item.verdict || '—').replace(/_/g, ' '))}</span></td>
+        <td class="wl-mono">${item.confidence != null ? item.confidence + '%' : '—'}</td>
+        <td class="wl-mono">${item.entry_zone ? escHtml(String(item.entry_zone)) : '—'}</td>
+        <td class="wl-mono stop">${item.stop_loss ? fmtPrice(item.stop_loss) : '—'}</td>
+        <td class="wl-mono target">${item.target_price ? fmtPrice(item.target_price) : '—'}</td>
+        <td class="wl-mono now">${price != null ? fmtPrice(price) : '…'}</td>
+        <td><span class="wl-status ${st.cls}">${st.label}</span></td>
+        <td class="wl-actions">
+          <button class="wl-btn ${hasAlert ? 'on' : ''}" onclick="setAlert(${i})" title="${hasAlert ? 'Alert set at ' + alerts[item.sym] : 'Set a price alert'}">🔔${hasAlert ? '✓' : ''}</button>
+          <button class="wl-btn del" onclick="removeFromWatchlist(${i})" title="Remove">✕</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  // Fetch any missing live prices, then re-render once they land
+  const missing = list.filter(item => _wlPrices[item.sym] == null);
+  if (missing.length) {
+    Promise.allSettled(missing.map(async item => {
+      const p = await fetchLivePrice(item.sym, item.type);
+      if (p != null) _wlPrices[item.sym] = p;
+    })).then(() => { if (_currentView === 'watchlist') renderWatchlist(); checkAlerts(); });
+  }
+}
+
+function removeFromWatchlist(i) {
+  const list = getWatchlist();
+  if (i < 0 || i >= list.length) return;
+  const removed = list[i];
+  list.splice(i, 1);
+  setWatchlistStore(list);
+  // Drop any alert tied to a symbol no longer on the list
+  if (removed && !list.some(x => x.sym === removed.sym)) {
+    const alerts = getAlerts(); delete alerts[removed.sym]; setAlertsStore(alerts);
+  }
+  renderWatchlist();
+}
+
+// Set / clear a price-alert threshold for a watchlist row.
+function setAlert(i) {
+  const list = getWatchlist();
+  const item = list[i];
+  if (!item) return;
+  const alerts = getAlerts();
+  if (alerts[item.sym] != null) {            // toggle off if already set
+    delete alerts[item.sym];
+    setAlertsStore(alerts);
+    renderWatchlist();
+    return;
+  }
+  const eb = entryBounds(item.entry_zone);
+  const suggested = eb ? ((eb.lo + eb.hi) / 2) : (_wlPrices[item.sym] ?? item.currentPrice ?? '');
+  const input = window.prompt(`Set a price alert for ${item.sym}.\nYou'll be notified when the price reaches this level:`, suggested ? String(+(+suggested).toFixed(5)) : '');
+  if (input == null) return;
+  const threshold = parseFloat(input);
+  if (isNaN(threshold)) return;
+  const ref = _wlPrices[item.sym] ?? parseFloat(item.currentPrice) ?? threshold;
+  alerts[item.sym] = threshold;
+  // Remember which side of the threshold we started on, so we can detect a crossing
+  alerts[`${item.sym}__from`] = ref >= threshold ? 'above' : 'below';
+  setAlertsStore(alerts);
+  renderWatchlist();
+  checkAlerts();
+}
+
+// On load / focus, fire any alert whose threshold has been reached.
+function checkAlerts() {
+  const alerts = getAlerts();
+  const list = getWatchlist();
+  const triggered = [];
+  for (const item of list) {
+    const th = alerts[item.sym];
+    if (th == null) continue;
+    const price = _wlPrices[item.sym];
+    if (price == null) continue;
+    const from = alerts[`${item.sym}__from`];
+    const reached = from === 'above' ? price <= th : from === 'below' ? price >= th
+      : Math.abs(price - th) / (Math.abs(th) || 1) < 0.002;
+    if (reached) triggered.push({ sym: item.sym, th, price });
+  }
+  renderAlertBanner(triggered);
+}
+
+function renderAlertBanner(triggered) {
+  const el = document.getElementById('alertBanner');
+  if (!el) return;
+  if (!triggered.length) { el.innerHTML = ''; return; }
+  el.innerHTML = triggered.map(t =>
+    `<div class="alert-banner">⚠️ <strong>${escHtml(t.sym)}</strong> has reached your alert level (${fmtPrice(t.th)}) — now ${fmtPrice(t.price)}.
+      <button class="alert-dismiss" onclick="dismissAlert('${escHtml(t.sym)}')">Dismiss</button></div>`
+  ).join('');
+}
+
+function dismissAlert(sym) {
+  const alerts = getAlerts();
+  delete alerts[sym];
+  delete alerts[`${sym}__from`];
+  setAlertsStore(alerts);
+  checkAlerts();
+  if (_currentView === 'watchlist') renderWatchlist();
+}
+
+// Pre-fetch watchlist prices so the alert banner can fire on load (any view).
+async function primeWatchlistPrices() {
+  const list = getWatchlist();
+  if (!list.length) return;
+  await Promise.allSettled(list.map(async item => {
+    const p = await fetchLivePrice(item.sym, item.type);
+    if (p != null) _wlPrices[item.sym] = p;
+  }));
+  checkAlerts();
+}
+
+// Refresh live prices when the tab regains focus (lightweight polling).
+function refreshOnFocus() {
+  window.addEventListener('focus', () => {
+    const list = getWatchlist();
+    if (!list.length) return;
+    Promise.allSettled(list.map(async item => {
+      const p = await fetchLivePrice(item.sym, item.type);
+      if (p != null) _wlPrices[item.sym] = p;
+    })).then(() => { checkAlerts(); if (_currentView === 'watchlist') renderWatchlist(); });
+  });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -377,13 +672,18 @@ async function init() {
     // Resolve outcomes in background (updates _allRows in-place then re-renders)
     resolveIfPending(_allRows).then(() => {
       updateSummary();
-      renderGrid();
+      renderScoreboard();
+      if (_currentView === 'scans') renderGrid();
     }).catch(() => {});
 
     loadingEl.style.display = 'none';
     updateSummary();
+    renderScoreboard();
     renderGrid();
     initFilters();
+    initViewToggle();
+    refreshOnFocus();
+    primeWatchlistPrices();   // so an alert can fire on load even from the Scans view
   } catch (err) {
     loadingEl.innerHTML = `<p style="color:#f87171">Failed to load history: ${err.message}</p>`;
   }

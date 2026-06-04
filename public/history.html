@@ -16,7 +16,6 @@
     <div class="logo">APEX<span>FX</span></div>
     <nav class="nav">
       <a class="nav-link" href="dashboard.html">Research</a>
-      <a class="nav-link" href="index.html">Charts</a>
       <a class="nav-link active" href="history.html">History</a>
       <a class="nav-link" href="backtest.html">Backtest</a>
     </nav>
@@ -24,6 +23,9 @@
   </header>
 
   <main class="history-main">
+
+    <!-- Price-alert banner (shown when a watchlist alert threshold is reached) -->
+    <div class="alert-banner-wrap" id="alertBanner"></div>
 
     <!-- Page title + stats -->
     <div class="hist-header">
@@ -37,6 +39,15 @@
         <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span></div>
         <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Accuracy</span></div>
       </div>
+    </div>
+
+    <!-- Accuracy scoreboard -->
+    <div class="acc-board" id="accBoard"></div>
+
+    <!-- View toggle: Scan History vs Watchlist -->
+    <div class="view-toggle">
+      <button class="vt-btn active" data-view="scans">📜 Scan History</button>
+      <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
     </div>
 
     <!-- Filters / search -->
@@ -72,6 +83,26 @@
 
     <!-- Scan cards grid -->
     <div class="scan-grid" id="scanGrid"></div>
+
+    <!-- Watchlist view -->
+    <div class="watchlist-view" id="watchlistView" style="display:none">
+      <div class="wl-empty" id="wlEmpty" style="display:none">
+        <div class="hist-empty-icon">⭐</div>
+        <p>Your watchlist is empty. Run an analysis on the <a href="dashboard.html">Research</a> page, then tap <strong>Add to Watchlist</strong>.</p>
+      </div>
+      <div class="wl-table-wrap" id="wlTableWrap" style="display:none">
+        <table class="wl-table">
+          <thead>
+            <tr>
+              <th>Symbol</th><th>Call</th><th>Conf</th>
+              <th>Entry</th><th>Stop</th><th>Target</th>
+              <th>Now</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="wlBody"></tbody>
+        </table>
+      </div>
+    </div>
 
   </main>
 

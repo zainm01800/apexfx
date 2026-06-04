@@ -15,10 +15,10 @@
     <div class="logo">APEX<span>FX</span></div>
     <nav class="nav">
       <a class="nav-link active" href="dashboard.html">Research</a>
-      <a class="nav-link" href="index.html">Charts</a>
       <a class="nav-link" href="history.html">History</a>
       <a class="nav-link" href="backtest.html">Backtest</a>
     </nav>
+    <a class="nav-winrate" id="navWinRate" href="history.html" title="Overall realised win rate across all resolved calls" style="display:none"></a>
     <div class="live-pill"><span class="live-dot"></span>LIVE</div>
   </header>
 
@@ -72,6 +72,9 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
             </button>
           </div>
+
+          <!-- Pre-analysis flags: TradingView link, sector RS pill, earnings/macro warnings -->
+          <div class="pre-analysis" id="preAnalysis" style="display:none"></div>
 
           <!-- Trade style: drives the analysis timeframe + the entry/stop/take-profit horizon -->
           <div class="trade-style-wrap">
@@ -133,6 +136,9 @@
 
       <!-- Memory badge (shown if this ticker was analysed before) -->
       <div class="memory-badge" id="memoryBadge" style="display:none"></div>
+
+      <!-- Action bar: TradingView · Share · Watchlist -->
+      <div class="results-actions" id="resultsActions"></div>
 
       <!-- 1 · Verdict + Quick Stats -->
       <div class="verdict-row">

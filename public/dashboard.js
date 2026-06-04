@@ -909,6 +909,163 @@ function escHtmlSafe(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// ── TradingView deep-link ─────────────────────────────────────────────────────
+// Maps a symbol + asset type to a fully-qualified TradingView ticker so the chart
+// opens on the right exchange. Stocks default to NASDAQ unless known to be NYSE.
+const TV_NYSE = new Set([
+  'JPM','BAC','WFC','GS','MS','C','AXP','V','MA','BRK.B','XOM','CVX','COP','SLB',
+  'JNJ','PG','KO','PEP','DIS','WMT','HD','LOW','NKE','MCD','UNH','PFE','MRK','LLY','ABBV','TMO','ABT',
+  'BA','CAT','GE','HON','UPS','MMM','IBM','ORCL','CRM','ACN','T','VZ','NOW',
+  // NYSE-Arca ETFs
+  'SPY','IWM','GLD','SLV','USO','HYG','LQD','XLF','XLE','XLK','XLV','XLI','XLC','XLY','XLP','GDX','GDXJ','DIA','VTI','VOO','EEM','EFA','VNQ',
+]);
+const TV_NASDAQ_ETF = new Set(['QQQ','SMH','SOXX','ARKK','XBI','IBB','TLT']);
+
+function tvSymbol(sym, type) {
+  const s = String(sym).toUpperCase().trim();
+  if (type === 'Forex')  return 'FOREXCOM:' + s.replace(/[^A-Z]/g, '');
+  if (type === 'Crypto') {
+    const base = s.replace(/[/\-](USDT?|USD)$/, '').replace(/USDT?$/, '').replace(/[/\-]/g, '');
+    const ex = (base === 'BTC' || base === 'ETH') ? 'BITSTAMP:' : 'BINANCE:';
+    return ex + base + 'USD';
+  }
+  if (type === 'Futures') return s.replace('1!', '');
+  if (TV_NASDAQ_ETF.has(s)) return 'NASDAQ:' + s;
+  if (TV_NYSE.has(s))       return 'NYSE:' + s;
+  return 'NASDAQ:' + s;   // sensible default for most listed equities
+}
+function tvUrl(sym, type) {
+  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol(sym, type))}`;
+}
+
+// ── Last rendered result (for the Share / Watchlist buttons) ──────────────────
+let _lastResult = null;
+
+function buildShareText(r) {
+  const a = r.analysis || {};
+  const verdict = (a.verdict || 'HOLD').replace(/_/g, ' ');
+  const conf = a.confidence_score != null ? ` (${a.confidence_score}% confidence)` : '';
+  const lines = [`$${r.sym} — ${verdict}${conf}`];
+  const levels = [];
+  if (a.entry_zone)   levels.push(`Entry ${a.entry_zone}`);
+  if (a.target_price) levels.push(`Target ${a.target_price}`);
+  if (a.stop_loss)    levels.push(`Stop ${a.stop_loss}`);
+  if (a.risk_reward)  levels.push(`R:R ${a.risk_reward}`);
+  if (levels.length) lines.push(levels.join('  ·  '));
+  if (a.executive_summary) lines.push(a.executive_summary.trim().slice(0, 200));
+  lines.push('via APEX AI Research · apexfx.vercel.app');
+  return lines.join('\n');
+}
+function twitterIntent(r) {
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(buildShareText(r))}`;
+}
+async function shareAnalysis(btn) {
+  if (!_lastResult) return;
+  const text = buildShareText(_lastResult);
+  const original = btn.innerHTML;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.innerHTML = '✅ Copied!';
+  } catch {
+    btn.innerHTML = '⚠ Copy failed';
+  }
+  setTimeout(() => { btn.innerHTML = original; }, 1900);
+}
+function addToWatchlist(btn) {
+  if (!_lastResult) return;
+  const r = _lastResult, a = r.analysis || {};
+  const item = {
+    sym: r.sym, type: r.type,
+    verdict: a.verdict || null,
+    entry_zone: a.entry_zone || null,
+    stop_loss: a.stop_loss || null,
+    target_price: a.target_price || null,
+    confidence: a.confidence_score ?? null,
+    addedAt: Date.now(),
+    currentPrice: r.price ?? null,
+  };
+  try {
+    const list = JSON.parse(localStorage.getItem('apex_watchlist') || '[]');
+    const i = list.findIndex(x => x.sym === item.sym && x.type === item.type);
+    if (i >= 0) list[i] = item; else list.push(item);
+    localStorage.setItem('apex_watchlist', JSON.stringify(list));
+    const original = btn.innerHTML;
+    btn.innerHTML = '✅ On Watchlist';
+    setTimeout(() => { btn.innerHTML = original; }, 1900);
+  } catch {}
+}
+function renderResultsActions(r) {
+  const el = document.getElementById('resultsActions');
+  if (!el) return;
+  el.innerHTML = `
+    <a class="ra-btn ra-tv" href="${tvUrl(r.sym, r.type)}" target="_blank" rel="noopener noreferrer">📊 View chart on TradingView →</a>
+    <button class="ra-btn ra-share" onclick="shareAnalysis(this)">🔗 Share</button>
+    <a class="ra-btn ra-x" href="${twitterIntent(r)}" target="_blank" rel="noopener noreferrer">𝕏 Post</a>
+    <button class="ra-btn ra-watch" onclick="addToWatchlist(this)">⭐ Add to Watchlist</button>`;
+}
+
+// ── Pre-analysis flags (events + sector RS + TradingView), shown on selection ──
+let _preData = { sym: null, events: null, sector: null };
+
+async function loadPreAnalysis(sym, type) {
+  const box = document.getElementById('preAnalysis');
+  if (!box) return;
+  const S = String(sym).toUpperCase();
+  const tv = `<a class="pa-tv" href="${tvUrl(S, type)}" target="_blank" rel="noopener noreferrer">📊 View on TradingView →</a>`;
+  box.style.display = '';
+  box.innerHTML = `<div class="pa-row">${tv}</div>`;   // show TradingView immediately, flags fill in
+
+  const [events, sector] = await Promise.all([
+    fetch(`/api/events?sym=${encodeURIComponent(S)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/sector?sym=${encodeURIComponent(S)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  // Ignore a stale response if the user has since picked a different symbol
+  if (document.getElementById('symInput').value.trim().toUpperCase() !== S) return;
+  _preData = { sym: S, events, sector };
+  renderPreAnalysis(S, type, events, sector, tv);
+}
+
+function renderPreAnalysis(sym, type, events, sector, tv) {
+  const box = document.getElementById('preAnalysis');
+  if (!box) return;
+  let banners = '';
+  const earn = events?.earnings;
+  if (earn && earn.daysAway != null && earn.daysAway <= 7) {
+    banners += `<div class="pa-banner danger">⚠️ EARNINGS IN ${earn.daysAway} DAY${earn.daysAway === 1 ? '' : 'S'} — expect elevated volatility. Analysis risk is higher.</div>`;
+  }
+  const macro = Array.isArray(events?.macro) ? events.macro : [];
+  const nearMacro = macro.filter(m => m.daysAway != null && m.daysAway <= 3).sort((a, b) => a.daysAway - b.daysAway)[0];
+  if (nearMacro) {
+    banners += `<div class="pa-banner warn">📅 ${escHtmlSafe(nearMacro.type)} in ${nearMacro.daysAway} day${nearMacro.daysAway === 1 ? '' : 's'} — macro volatility risk elevated.</div>`;
+  }
+  let pill = '';
+  if (sector && sector.stock_return_30d != null && sector.sector_return_30d != null) {
+    pill = `<span class="pa-pill ${sector.outperforming ? 'pos' : 'neg'}">${sector.outperforming ? 'Outperforming' : 'Underperforming'} ${escHtmlSafe(sector.sector)} by ${escHtmlSafe(sector.vs_sector)} (30d)</span>`;
+  }
+  box.innerHTML = `${banners}<div class="pa-row">${tv}${pill}</div>`;
+}
+
+// ── Nav win-rate badge (overall realised hit-rate) ────────────────────────────
+async function loadNavWinRate() {
+  const el = document.getElementById('navWinRate');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/memory?all=true&limit=200');
+    if (!r.ok) return;
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return;
+    const tp = rows.filter(x => x.outcome === 'tp_hit').length;
+    const sl = rows.filter(x => x.outcome === 'sl_hit').length;
+    const resolved = tp + sl;
+    if (!resolved) return;
+    const wr = Math.round(tp / resolved * 100);
+    el.textContent = `Win rate: ${wr}%`;
+    el.classList.add(wr >= 50 ? 'good' : 'bad');
+    el.title = `${tp}W / ${sl}L across ${resolved} resolved calls`;
+    el.style.display = '';
+  } catch {}
+}
+
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
 // Robust: reads the body as text and parses safely, so a transient gateway
@@ -1024,6 +1181,9 @@ function resetState() {
   hideAll();
   document.getElementById('symInput').value = '';
   updateTypePill('');
+  const pa = document.getElementById('preAnalysis');
+  if (pa) { pa.style.display = 'none'; pa.innerHTML = ''; }
+  _preData = { sym: null, events: null, sector: null };
   document.getElementById('analyseBtn').disabled = false;
   document.getElementById('heroSection').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1038,6 +1198,7 @@ function quickPick(sym) {
   updateTypePill(sym);
   closeDropdown();
   document.getElementById('symInput').focus();
+  loadPreAnalysis(sym, detectType(sym));   // surface earnings/macro flags, sector RS + TradingView link
 }
 function setText(id, val) {
   const el = document.getElementById(id);
@@ -1076,6 +1237,10 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
 
   setText('vcThesis',      a.executive_summary || '');
   setText('confNotHigher', a.why_confidence_not_higher ? `Why not higher: ${a.why_confidence_not_higher}` : '');
+
+  // ── Action bar (TradingView · Share · Watchlist) ──
+  _lastResult = { sym: sym.toUpperCase(), type, analysis: a, price: curr };
+  renderResultsActions(_lastResult);
 
   // ── Stats grid ──
   const rsi    = calcRSI(closes);
@@ -1558,8 +1723,17 @@ async function startResearch() {
 
     setStep(3);
 
+    // Reuse the pre-analysis events/sector if they were already fetched for this
+    // symbol on selection; otherwise fetch fresh (edge-cached, so cheap).
+    const _evPromise  = (_preData.sym === sym && _preData.events !== null)
+      ? Promise.resolve(_preData.events)
+      : fetch(`/api/events?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+    const _secPromise = (_preData.sym === sym && _preData.sector !== null)
+      ? Promise.resolve(_preData.sector)
+      : fetch(`/api/sector?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+
     // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT, eventsData, sectorData] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
@@ -1569,6 +1743,8 @@ async function startResearch() {
       type === 'Stock' ? fetchQualityScores(sym) : Promise.resolve(null),
       fetchBacktestKB(sym),
       fetchStrategyBacktests(sym),
+      _evPromise,
+      _secPromise,
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -1733,6 +1909,33 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       `• ${n.title} (${n.source || 'news'}, ${n.date ? new Date(n.date).toLocaleDateString() : 'recent'})`
     ).join('\n');
 
+    // ── Upcoming events block (earnings + FOMC/CPI hard-flags) ─────────────────
+    let eventBlock = '';
+    if (eventsData) {
+      const e = eventsData.earnings;
+      const macroEvts = Array.isArray(eventsData.macro) ? eventsData.macro : [];
+      const parts = [];
+      if (e && e.daysAway != null) parts.push(`Earnings in ${e.daysAway} day${e.daysAway === 1 ? '' : 's'} (${e.date}).`);
+      macroEvts.forEach(m => { if (m.daysAway != null) parts.push(`${m.type} in ${m.daysAway} days (${m.date}).`); });
+      if (parts.length) {
+        eventBlock = `\n━━━ UPCOMING EVENTS ━━━\n${parts.join(' ')}`;
+        if (e && e.daysAway != null && e.daysAway <= 7) {
+          eventBlock += `\nEarnings in ${e.daysAway} days. Weight risk analysis heavily — event volatility is elevated; favour wider stops, reduced size, or WAIT if the setup must survive the print.`;
+        }
+        const nearMacro = macroEvts.filter(m => m.daysAway != null && m.daysAway <= 3).sort((a, b) => a.daysAway - b.daysAway)[0];
+        if (nearMacro) {
+          eventBlock += `\n${nearMacro.type} is ${nearMacro.daysAway} days away — macro volatility risk is elevated; factor this into stop placement and conviction.`;
+        }
+      }
+    }
+
+    // ── Sector relative strength block ─────────────────────────────────────────
+    let sectorBlock = '';
+    if (sectorData && sectorData.stock_return_30d != null && sectorData.sector_return_30d != null) {
+      const sr = sectorData;
+      sectorBlock = `\n━━━ SECTOR RELATIVE STRENGTH ━━━\n${sym} is ${sr.outperforming ? 'OUTPERFORMING' : 'UNDERPERFORMING'} its sector (${sr.sector}) by ${sr.vs_sector} over the last 30 days (${sym} ${sr.stock_return_30d > 0 ? '+' : ''}${sr.stock_return_30d}% vs sector ${sr.sector_return_30d > 0 ? '+' : ''}${sr.sector_return_30d}%). ${sr.outperforming ? 'Relative strength supports the long thesis; leaders tend to keep leading.' : 'Relative weakness is a caution flag — the name is lagging its peers.'}`;
+    }
+
     // ── Confluence Score block ─────────────────────────────────────────────────
     const confluenceBlock = confluenceScore ? `
 ━━━ MULTI-TIMEFRAME CONFLUENCE SCORE ━━━
@@ -1829,6 +2032,8 @@ Fear & Greed Index: ${fearGreed.value}/100 (${fearGreed.label})${fearGreed.value
 ━━━ DAILY PRICE ACTION (last 20 bars, oldest→newest) ━━━
 ${ohlcvTable}
 ${fundBlock}
+${eventBlock}
+${sectorBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
 ${intermarketBlock}
 ${qualityBlock}
@@ -2086,6 +2291,8 @@ ${macroIntermarket?.hy_oas?.signal ? `HY Credit: ${macroIntermarket.hy_oas.signa
 ${macroIntermarket?.vix?.signal ? `VIX: ${macroIntermarket.vix.signal}` : ''}
 ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
+${eventBlock || ''}
+${sectorBlock || ''}
 ${engineBlock}
 ${backtestBlock}
 ${strategyBtBlock}
@@ -2391,6 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPulse();
   initQuickPicks();
   initAutocomplete();
+  loadNavWinRate();   // overall realised win-rate badge in the nav
   document.getElementById('analyseBtn').addEventListener('click', () => {
     closeDropdown();
     startResearch();
@@ -2415,6 +2623,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inp = document.getElementById('symInput');
     inp.value = symParam.toUpperCase();
     updateTypePill(symParam);
+    loadPreAnalysis(symParam, detectType(symParam));   // show flags/TradingView for the launched symbol
   }
 
   // Handle ?compare=ID (re-scan comparison launched from History)
