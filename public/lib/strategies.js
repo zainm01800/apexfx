@@ -419,6 +419,51 @@ function confluenceStrategy(threshold = 65) {
   };
 }
 
+// ── Random-entry control (is the edge better than coin-flip entries?) ─────────
+// A null-model strategy: enters at RANDOM bars matched to the real strategy's trade
+// frequency, direction mix and median holding period, with the same ATR stop. Run
+// many of these → a distribution of "no-skill" returns. If the real strategy doesn't
+// beat most random clones, its return came from the exit mechanics + drift, not the
+// entry signal. This is the classic "vs random" / shuffled-entry benchmark.
+function randomEntryStrategy(ctx, p, holdBars, longRatio, rng) {
+  return {
+    entry(i) {
+      if (i < 1 || rng() >= p) return null;
+      const dir = rng() < longRatio ? 1 : -1;
+      return { dir, stop: atrStop(ctx, i, dir > 0 ? 2 : -2) };
+    },
+    exit(i, _c, pos) { return (i - pos.entryIdx) >= holdBars; },
+  };
+}
+// Returns null below a usable sample. realTotalReturn is the real strategy's net %.
+function randomEntryTest(bars, ctx, realTrades, realTotalReturn, opts) {
+  opts = opts || {};
+  const runs = opts.runs || 200;
+  const rng = opts.rng || Math.random;
+  const n = (realTrades || []).length;
+  if (n < 10 || !bars || bars.length < 50) return null;
+  const p = Math.min(0.9, n / bars.length);                     // match trade frequency
+  const holds = realTrades.map(t => t.barsHeld).filter(x => x > 0).sort((a, b) => a - b);
+  const holdBars = Math.max(1, holds.length ? holds[Math.floor(holds.length / 2)] : 5);  // median hold
+  const longRatio = realTrades.filter(t => t.dir > 0).length / n;
+  const rets = new Array(runs);
+  for (let r = 0; r < runs; r++) {
+    const sim = simulate(bars, randomEntryStrategy(ctx, p, holdBars, longRatio, rng), ctx);
+    let eq = 1; for (const x of sim.barReturns) eq *= (1 + x);
+    rets[r] = (eq - 1) * 100;
+  }
+  rets.sort((a, b) => a - b);
+  const beat = rets.reduce((c, x) => c + (realTotalReturn > x ? 1 : 0), 0);
+  const percentile = Math.round(beat / runs * 100);
+  return {
+    runs, percentile, holdBars,
+    realReturn: +(+realTotalReturn).toFixed(1),
+    randMedian: +rets[Math.floor(runs / 2)].toFixed(1),
+    randBest:   +rets[runs - 1].toFixed(1),
+    verdict: percentile >= 95 ? 'beats random' : percentile >= 80 ? 'edge unclear' : 'no edge vs random',
+  };
+}
+
 // ── Registry: base strategies + auto-generated regime-filtered twins ──────────
 const BASE = [
   { id: 'sma_10_50',   name: 'SMA 10/50 cross',   family: 'MA Trend',  make: maCross(10, 50, 'sma'),  twin: 'trend' },
@@ -465,7 +510,7 @@ function buildStrategies(ctx) {
 
 const _strategies = {
   buildContext, simulate, buildStrategies, withRegimeFilter, ALLOW, COSTS, costPctFor, pipSizeFor,
-  BASE, CONFLUENCE, confluenceStrategy,
+  BASE, CONFLUENCE, confluenceStrategy, randomEntryTest, randomEntryStrategy,
   // exported series helpers (for tests)
   smaSeries, emaSeries, rsiSeries, macdSeries, atrSeries, bbSeries, stochSeries, priorExtremeSeries,
 };

@@ -93,7 +93,50 @@ function computeMetrics(sim, ctx) {
   };
 }
 
-const _metrics = { computeMetrics, barsPerYear, BARS_PER_YEAR, MIN_SAMPLE };
+// ── Monte Carlo drawdown / return bands ───────────────────────────────────────
+// A single backtest is ONE path history happened to take. Bootstrap-resample the
+// per-trade returns (with replacement) to turn it into a distribution: how bad could
+// the drawdown plausibly get, and how often is the edge even profitable? Pure; works
+// off a trade list, no re-simulation. Returns null below a usable sample.
+function monteCarloDrawdown(trades, opts) {
+  opts = opts || {};
+  const runs = opts.runs || 2000;
+  const rnd = opts.rng || Math.random;
+  const rets = (trades || []).filter(t => t && t.pnlPct != null).map(t => t.pnlPct / 100);
+  const n = rets.length;
+  if (n < 5) return null;
+  // Observed trade-sequence drawdown (trades in their ACTUAL order) — the like-for-like
+  // reference for the resampled bands below (both are close-to-close, trade-level).
+  let oeq = 1, opeak = 1, oDD = 0;
+  for (const x of rets) { oeq *= (1 + x); if (oeq > opeak) opeak = oeq; const d = opeak > 0 ? (opeak - oeq) / opeak : 0; if (d > oDD) oDD = d; }
+  const ddObserved = +(oDD * 100).toFixed(1);
+  const maxDDs = new Array(runs), totals = new Array(runs);
+  for (let r = 0; r < runs; r++) {
+    let eq = 1, peak = 1, maxDD = 0;
+    for (let k = 0; k < n; k++) {
+      eq *= (1 + rets[(rnd() * n) | 0]);          // sample a trade with replacement
+      if (eq > peak) peak = eq;
+      const dd = peak > 0 ? (peak - eq) / peak : 0;
+      if (dd > maxDD) maxDD = dd;
+    }
+    maxDDs[r] = maxDD * 100;
+    totals[r] = (eq - 1) * 100;
+  }
+  const pctile = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.floor(p / 100 * s.length)))]; };
+  const posRate = totals.reduce((c, x) => c + (x > 0 ? 1 : 0), 0) / runs * 100;
+  return {
+    runs, n, ddObserved,
+    ddMedian:  +pctile(maxDDs, 50).toFixed(1),
+    ddP95:     +pctile(maxDDs, 95).toFixed(1),
+    ddWorst:   +Math.max.apply(null, maxDDs).toFixed(1),
+    retP5:     +pctile(totals, 5).toFixed(1),
+    retMedian: +pctile(totals, 50).toFixed(1),
+    retP95:    +pctile(totals, 95).toFixed(1),
+    posRate:   +posRate.toFixed(0),
+  };
+}
+
+const _metrics = { computeMetrics, monteCarloDrawdown, barsPerYear, BARS_PER_YEAR, MIN_SAMPLE };
 (function (g) { g.APEX = g.APEX || {}; g.APEX.metrics = _metrics; })(
   typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this)
 );

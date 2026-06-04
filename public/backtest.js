@@ -9,7 +9,7 @@
   const A = window.APEX;
   const DS = A.datasource;
   const APP_VERSION = 'bt1';
-  const LIBV = 'b5';   // bump when public/lib/*.js change — busts the worker's importScripts cache
+  const LIBV = 'b6';   // bump when public/lib/*.js change — busts the worker's importScripts cache
 
   // ── Universe (mirrors QUICK_PICKS / engine config) ──────────────────────────
   const UNIVERSE = {
@@ -318,11 +318,47 @@
     $('matrixBody').innerHTML = head + body;
   }
 
+  // ── Robustness panels: Monte Carlo drawdown bands + random-entry control ─────
+  function renderRobustnessPanels(mc, rnd) {
+    let html = '';
+    if (mc) {
+      html += `<div class="bt-rb">
+        <div class="bt-rb-title">🎲 Drawdown stress test — ${mc.runs} bootstrap resamples of the ${mc.n} trades</div>
+        <div class="bt-rb-grid">
+          <div><span class="bt-rb-v">${mc.ddObserved}%</span><span class="bt-rb-l">observed trade-seq DD</span></div>
+          <div><span class="bt-rb-v">${mc.ddMedian}%</span><span class="bt-rb-l">median resampled DD</span></div>
+          <div><span class="bt-rb-v neg">${mc.ddP95}%</span><span class="bt-rb-l">95th-pctile DD (bad path)</span></div>
+          <div><span class="bt-rb-v neg">${mc.ddWorst}%</span><span class="bt-rb-l">worst of ${mc.runs}</span></div>
+          <div><span class="bt-rb-v ${mc.posRate >= 50 ? 'pos' : 'neg'}">${mc.posRate}%</span><span class="bt-rb-l">resamples profitable</span></div>
+        </div>
+        <div class="bt-rb-note">Resampling completed-trade P&amp;Ls (not the headline bar-level DD). Return range: ${mc.retP5}% (5th) · ${mc.retMedian}% (median) · ${mc.retP95}% (95th). Your single backtest is ONE ordering — size for the bad ones.${mc.posRate < 60 ? ' A profitable rate well under 100% means much of the headline return is luck of ordering/composition.' : ''}</div>
+      </div>`;
+    }
+    if (rnd) {
+      const cls = rnd.percentile >= 95 ? 'pos' : rnd.percentile >= 80 ? 'mid' : 'neg';
+      html += `<div class="bt-rb ${cls}">
+        <div class="bt-rb-title">🪙 vs random entries — ${rnd.runs} coin-flip clones (same frequency, hold ${rnd.holdBars} bars)</div>
+        <div class="bt-rb-grid">
+          <div><span class="bt-rb-v">${rnd.realReturn}%</span><span class="bt-rb-l">this strategy's return</span></div>
+          <div><span class="bt-rb-v">${rnd.randMedian}%</span><span class="bt-rb-l">median random clone</span></div>
+          <div><span class="bt-rb-v">${rnd.randBest}%</span><span class="bt-rb-l">best random clone</span></div>
+          <div><span class="bt-rb-v ${cls}">${rnd.percentile}%</span><span class="bt-rb-l">random clones beaten</span></div>
+        </div>
+        <div class="bt-rb-note ${cls}">${rnd.percentile >= 95
+          ? `Beats ${rnd.percentile}% of same-frequency random-entry clones — the ENTRY SIGNAL (not just the stop/exit) is adding value. Still in-sample, not a validated edge.`
+          : rnd.percentile >= 80
+            ? `Beats ${rnd.percentile}% of random clones — suggestive but not conclusive; the entry signal may be only marginally better than chance.`
+            : `Beats only ${rnd.percentile}% of random-entry clones with the same trade count and holding period. On this data the entry signal is NO better than coin-flips — the return comes from drift/exit mechanics, not the edge.`}</div>
+      </div>`;
+    }
+    return html;
+  }
+
   // ── Trade drill-down: re-run the single strategy to list its trades ──────────
   async function showTrades(key) {
     const [sym, tf, stratId] = key.split('|');
     $('tradesTitle').textContent = `${sym} · ${tf} · ${stratId}`;
-    $('tradesBody').innerHTML = '<div class="bt-loading">Re-running strategy…</div>';
+    $('tradesBody').innerHTML = '<div class="bt-loading">Re-running strategy + robustness tests…</div>';
     $('tradesModal').style.display = '';
     try {
       const type = TYPE_OF[sym];
@@ -331,10 +367,19 @@
       const ctx = A.strategies.buildContext(bars, { sym, assetClass: type, timeframe: tf, weekly });
       const st = A.strategies.buildStrategies(ctx).find(s => s.id === stratId);
       if (!st) { $('tradesBody').innerHTML = '<div class="bt-empty">Strategy not found.</div>'; return; }
-      const { trades } = A.strategies.simulate(bars, st.strat, ctx);
+      const sim = A.strategies.simulate(bars, st.strat, ctx);
+      const trades = sim.trades;
       if (!trades.length) { $('tradesBody').innerHTML = '<div class="bt-empty">No trades.</div>'; return; }
+
+      // Robustness: Monte Carlo drawdown bands (cheap) + random-entry control
+      // (re-simulates; cap runs on big bar counts so the modal stays responsive).
+      const m = A.metrics.computeMetrics(sim, { assetClass: type, timeframe: tf });
+      const mc = A.metrics.monteCarloDrawdown(trades, { runs: 2000 });
+      const rnd = A.strategies.randomEntryTest(bars, ctx, trades, m.totalReturn, { runs: bars.length > 2000 ? 100 : 200 });
+      const robust = renderRobustnessPanels(mc, rnd);
+
       const fmtT = (idx) => new Date(bars[idx].time * 1000).toISOString().slice(0, 10);
-      $('tradesBody').innerHTML = `<div class="bt-dim" style="margin-bottom:8px">${trades.length} trades · net of modelled spread</div>
+      $('tradesBody').innerHTML = robust + `<div class="bt-dim" style="margin-bottom:8px">${trades.length} trades · net of modelled spread</div>
         <table class="bt-table"><thead><tr><th>#</th><th>Entry</th><th>Exit</th><th>Dir</th><th>Entry px</th><th>Exit px</th><th>PnL %</th><th>Bars</th><th>Reason</th><th>Regime</th></tr></thead>
         <tbody>${trades.map((t, i) => `<tr><td>${i + 1}</td><td>${fmtT(t.entryIdx)}</td><td>${fmtT(t.exitIdx)}</td>
           <td>${t.dir > 0 ? 'L' : 'S'}</td><td>${fmt(t.entryPrice, 5)}</td><td>${fmt(t.exitPrice, 5)}</td>
