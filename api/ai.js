@@ -18,11 +18,14 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GROQ_KEY   = process.env.GROQ_API_KEY;
 
 // Gemini model fallback chain (OpenAI-compatible endpoint)
-// Tries each in order; on 429/503 waits briefly then tries the next model before falling back to Groq
+// Tries each in order; on 429/503 waits briefly then tries the next model before falling back to Groq.
+// flash-lite (a NON-thinking model) is first on purpose: the "thinking" preview model spends part of
+// its token budget on hidden reasoning, which truncated the large committee JSON → parse failures.
+// flash-lite returns the full strict JSON reliably; the preview model stays as a later fallback.
 const GEMINI_MODELS = [
-  'gemini-3-flash-preview',
   'gemini-3.1-flash-lite',
   'gemini-flash-lite-latest',
+  'gemini-3-flash-preview',
   'gemini-flash-latest',
 ];
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';

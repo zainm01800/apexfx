@@ -2531,18 +2531,22 @@ Respond ONLY with this exact JSON structure:
     // scenarios + strategy), so a smaller budget TRUNCATES it → JSON parse failure.
     // The 504s that 6000 used to cause came from the Edge wall-clock limit, which is
     // now fixed by running /api/ai on the Node runtime with a raised maxDuration.
-    const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
-
-    let analysis;
-    try {
-      const cleaned = committeeText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-      const m = cleaned.match(/\{[\s\S]*\}/);
-      if (!m) throw new Error('no JSON');
-      analysis = JSON.parse(m[0]);
-      // Store specialist notes on the analysis object for display
-      analysis._specialists = { technical: techRawText, fundamental: fundRawText, macro: macroRawText, risk: sentRawText };
-    } catch {
-      throw new Error('AI returned an unexpected response format. Please try again.');
+    // Parse can still occasionally fail if a model returns malformed/truncated JSON,
+    // so we retry the call once before surfacing an error (a fresh call usually lands
+    // clean JSON — different model in the chain / less verbose generation).
+    let analysis = null;
+    for (let attempt = 0; attempt < 2 && !analysis; attempt++) {
+      const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
+      try {
+        const cleaned = committeeText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (!m) throw new Error('no JSON');
+        analysis = JSON.parse(m[0]);
+        // Store specialist notes on the analysis object for display
+        analysis._specialists = { technical: techRawText, fundamental: fundRawText, macro: macroRawText, risk: sentRawText };
+      } catch {
+        if (attempt === 1) throw new Error('AI returned an unexpected response format. Please try again.');
+      }
     }
 
     // Deterministic risk:reward from the ACTUAL levels (the LLM's own string is
