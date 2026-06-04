@@ -1443,6 +1443,42 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+// ── Decision-quality helpers (D1 EV framing + A7 method-evidence honesty) ─────
+// Parse a "1:2.5" / "2.5:1" / "2.5" risk:reward string into reward-per-1-unit-risk.
+function parseRewardRisk(rr) {
+  if (rr == null) return null;
+  const s = String(rr).trim();
+  const m = s.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+  if (m) {
+    const a = parseFloat(m[1]), b = parseFloat(m[2]);
+    if (!(a > 0) || !(b > 0)) return null;
+    return a === 1 ? b : (b === 1 ? a : b / a);   // normalise to reward per 1R risk
+  }
+  const n = parseFloat(s);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+// Named discretionary methods with no independently verified edge (research-flagged).
+const _UNPROVEN_METHODS = [
+  { re: /\binner circle trader\b|\bICT\b/,                 name: 'ICT' },
+  { re: /\bsmart money concepts?\b|\bSMC\b/i,              name: 'Smart Money Concepts' },
+  { re: /\border block/i,                                  name: 'Order Blocks' },
+  { re: /\bfair value gaps?\b|\bFVG\b/,                    name: 'Fair Value Gaps' },
+  { re: /\bliquidity (?:grab|sweep|raid|pool)/i,           name: 'Liquidity sweeps' },
+  { re: /\bjudas swing\b/i,                                name: 'Judas Swing' },
+  { re: /\boptimal trade entry\b|\bOTE\b/,                 name: 'OTE' },
+  { re: /\belliott waves?\b/i,                             name: 'Elliott Wave' },
+  { re: /\bharmonic (?:pattern|trading)\b|\bgartley\b|\bbat pattern\b/i, name: 'Harmonic patterns' },
+  { re: /\bgann\b/i,                                       name: 'Gann' },
+];
+// Scan the committee's prose for unproven-method references; returns unique names.
+function methodEvidenceFlags(...texts) {
+  const blob = texts.filter(Boolean).join(' \n ');
+  const found = [];
+  for (const m of _UNPROVEN_METHODS) if (m.re.test(blob) && !found.includes(m.name)) found.push(m.name);
+  return found;
+}
+
 function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
@@ -1752,10 +1788,29 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   const _dirLabel = _isLong ? 'LONG · BUY' : _isShort ? 'SHORT · SELL' : 'NO ACTIVE TRADE — conditional plan';
   const _dirCls = _isLong ? 'pos' : _isShort ? 'neg' : 'neu';
   const _tp2 = (a.take_profit_2 && String(a.take_profit_2) !== String(a.target_price)) ? a.take_profit_2 : null;
+  // Expected-value framing (D1): judge the BET, not the single outcome. A 45%
+  // win-rate trade at 1:3 is +EV; an 80% trade at 1:0.2 is −EV. Uses the
+  // CALIBRATED confidence so the edge number is honest.
+  const _rr = parseRewardRisk(a.risk_reward);
+  let _evBlock = '';
+  if ((_isLong || _isShort) && _rr) {
+    const p   = conf / 100;                          // calibrated win probability
+    const evR = +(p * _rr - (1 - p)).toFixed(2);     // expected value in R-multiples (risk = 1R)
+    _evBlock = `<div class="tpg-ev ${evR > 0 ? 'pos' : 'neg'}"><strong>Expected value:</strong> ${evR > 0 ? '+' : ''}${evR}R per trade <span class="tpg-ev-sub">${conf}% win prob × ${_rr.toFixed(1)}:1 reward — ${evR > 0 ? 'positive edge over many trades' : 'NEGATIVE edge: even a good-looking setup loses money long-run'}</span></div>`;
+  }
+  const _premortem = a.premortem
+    ? `<div class="tpg-premortem"><strong>⚠ Pre-mortem — if this loses:</strong> ${escHtmlSafe(a.premortem)}</div>` : '';
+  const _methods = methodEvidenceFlags(a.technical_analysis, a.executive_summary,
+    Array.isArray(a.key_reasons) ? a.key_reasons.join(' ') : a.key_reasons);
+  const _methodFlag = _methods.length
+    ? `<div class="tpg-method">⚠ References <strong>${_methods.map(escHtmlSafe).join(', ')}</strong> — popular but no independently verified edge (largely repackaged support/resistance & supply/demand). Treated as soft context only, not the basis for the verdict.</div>` : '';
   const _guide = document.getElementById('tradePlanGuide');
   if (_guide) _guide.innerHTML = `
     <div class="tpg-head"><span class="tpg-dir ${_dirCls}">${_dirLabel}</span><span class="tpg-style">${tradeStyle().label}${a.timeframe ? ` · ${escHtmlSafe(a.timeframe)}` : ''}</span></div>
     ${a.entry_trigger ? `<div class="tpg-trigger"><strong>When to enter:</strong> ${escHtmlSafe(a.entry_trigger)}</div>` : ''}
+    ${_evBlock}
+    ${_premortem}
+    ${_methodFlag}
     ${a._rr_weak ? `<div class="tpg-warn">⚠ Weak setup — reward-to-risk is only ${escHtmlSafe(a.risk_reward)}, below the ${MIN_RR}:1 minimum. The potential reward may not justify the risk; consider waiting for a better entry.</div>` : ''}`;
 
   // ── Trade levels ──
@@ -2631,6 +2686,8 @@ Your task:
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
 9. RISK:REWARD GATE — the levels must give reward:risk of at least ${MIN_RR}:1, where reward = |target_price − entry| and risk = |entry − stop_loss|. If the best honest setup at this horizon cannot reach ${MIN_RR}:1, do NOT force a poor-reward trade: say so in profit_taking_logic / entry_strategy and lean the verdict toward WAIT or NO_EDGE
 10. Be brutally honest — no performance, no softening, no default verdicts
+11. PRE-MORTEM (decision-quality discipline): before finalising, assume this trade has ALREADY hit its stop. Identify the single most likely reason it failed and put it in the premortem field — this surfaces the dominant risk and counters confirmation bias.
+12. METHOD HONESTY: do NOT treat named discretionary chart methods (ICT, Smart Money Concepts, order blocks, fair value gaps, liquidity sweeps, Elliott Wave, harmonics, Gann) as established edge — they have no independently verified track record and are largely repackaged support/resistance & supply/demand. You may reference them, but weight price action, volume, regime and confluence ABOVE any named pattern, and never raise confidence on the strength of such a method alone.
 
 Respond ONLY with this exact JSON structure:
 
@@ -2674,7 +2731,8 @@ Respond ONLY with this exact JSON structure:
   "hedging_considerations": "Any hedges worth considering",
   "timeframe": "<recommended holding period>",
   "what_would_change_view": "What specific development would flip this thesis",
-  "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence"
+  "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence",
+  "premortem": "PRE-MORTEM — assume the trade already hit its stop: in ONE sentence, the single most likely reason it failed (the dominant risk to this thesis)."
 }`;
 
     // 6000 tokens: the committee JSON is large (full multi-section report + 4

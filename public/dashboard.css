@@ -591,6 +591,18 @@ body {
 .tpg-style { font-family: var(--mono); font-size: 12px; color: var(--text3); }
 .tpg-trigger { font-size: 13px; color: var(--text); background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 10px 13px; line-height: 1.5; }
 .tpg-trigger strong { color: var(--purple); }
+/* Expected value (D1) */
+.tpg-ev { margin-top: 8px; font-size: 13px; padding: 10px 13px; border-radius: 8px; line-height: 1.5; border: 1px solid var(--border); }
+.tpg-ev.pos { background: rgba(74,222,128,.08); border-color: rgba(74,222,128,.3); }
+.tpg-ev.neg { background: rgba(248,113,113,.08); border-color: rgba(248,113,113,.3); }
+.tpg-ev.pos strong { color: #4ade80; } .tpg-ev.neg strong { color: #f87171; }
+.tpg-ev-sub { display: block; margin-top: 3px; font-size: 11.5px; color: var(--text3); }
+/* Pre-mortem (D2) */
+.tpg-premortem { margin-top: 8px; font-size: 12.5px; color: var(--text2); line-height: 1.5; padding: 10px 13px; border-radius: 8px; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.28); }
+.tpg-premortem strong { color: #fbbf24; }
+/* Method-evidence honesty (A7) */
+.tpg-method { margin-top: 8px; font-size: 12px; color: var(--text3); line-height: 1.5; padding: 9px 12px; border-radius: 8px; background: rgba(248,113,113,.05); border: 1px dashed rgba(248,113,113,.3); }
+.tpg-method strong { color: #f87171; }
 
 /* ── Nav win-rate badge ── */
 .nav-winrate {
