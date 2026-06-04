@@ -749,6 +749,30 @@ async function fetchBacktestKB(sym) {
   } catch { return null; }
 }
 
+// Summarise the in-browser Backtest Lab results for this symbol (apex_strategy_backtests
+// via /api/backtest-runs). Uses ONLY the most recent run, ≥30-trade results, so the
+// committee sees current, non-thin strategy evidence. Graceful: null if none yet.
+async function fetchStrategyBacktests(sym) {
+  try {
+    const r = await fetch(`/api/backtest-runs?instrument=${encodeURIComponent(sym)}&limit=300`);
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const latestRun = rows[0].run_id;
+    const cur = rows.filter(x => x.run_id === latestRun && x.n_trades >= 30 && x.sharpe != null);
+    if (!cur.length) return null;
+    const best = cur.slice().sort((a, b) => (b.sharpe ?? -9) - (a.sharpe ?? -9))[0];
+    return {
+      n: cur.length,
+      n_pos: cur.filter(x => x.total_return > 0).length,
+      best,
+      conf: cur.find(x => x.strategy === 'confluence') || null,
+      tfs: [...new Set(cur.map(x => x.timeframe))],
+      dataTo: cur[0].data_to,
+    };
+  } catch { return null; }
+}
+
 // ── Quant Engine cross-check ──────────────────────────────────────────────────
 // Independent regime + risk-sizing + CPCV/DSR/PBO validation from the local Python
 // engine. Fully graceful: if the engine isn't reachable (e.g. on the live site,
@@ -1521,7 +1545,7 @@ async function startResearch() {
     setStep(3);
 
     // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
@@ -1530,6 +1554,7 @@ async function startResearch() {
       fetchMacroIntermarket(),
       type === 'Stock' ? fetchQualityScores(sym) : Promise.resolve(null),
       fetchBacktestKB(sym),
+      fetchStrategyBacktests(sym),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -1973,6 +1998,17 @@ BACKTEST KNOWLEDGE BASE (${sym}, ${backtestKB.n} stored backtests):
 PRIOR-EVIDENCE DIRECTIVE: this is the historical record of systematic strategies on this instrument. If NO config has ever passed validation, be sceptical of high-confidence systematic claims and lean conservative; if several passed, that supports a real edge here.`;
     }
 
+    // ── Strategy Backtest Lab (in-browser, apex_strategy_backtests): exploratory ──
+    let strategyBtBlock = '';
+    if (strategyBT && strategyBT.n) {
+      const b = strategyBT.best, c = strategyBT.conf;
+      strategyBtBlock = `
+STRATEGY BACKTEST LAB (${sym}, ${strategyBT.n} strategies on ${strategyBT.tfs.join('/')}, as of ${(strategyBT.dataTo || '').slice(0, 10)}, net of modelled spread):
+- ${strategyBT.n_pos}/${strategyBT.n} simple/regime-filtered strategies were net-positive IN-SAMPLE.
+- Best by Sharpe: ${b.strategy} on ${b.timeframe} (Sharpe ${b.sharpe}, win ${b.win_rate}%, ${b.n_trades} trades).${c ? `\n- The live CONFLUENCE strategy backtests at Sharpe ${c.sharpe}, win ${c.win_rate}%, return ${c.total_return}% (${c.n_trades} trades, ${c.timeframe}).` : ''}
+STRATEGY-BACKTEST DIRECTIVE: EXPLORATORY in-sample history (no out-of-sample proof) — weigh LIGHTLY. If most simple strategies lose on this instrument, be sceptical of naive trend/indicator signals here; if the confluence strategy backtests well, that modestly supports the current technical read. Never treat this as a validated edge.`;
+    }
+
     // ── Trade style: tailor the whole plan to the requested horizon ──
     const tradeStyleBlock = `
 ━━━ TRADE STYLE: ${ts.label.toUpperCase()} (hold ${ts.horizon}) ━━━
@@ -2013,6 +2049,7 @@ ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' 
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
 ${engineBlock}
 ${backtestBlock}
+${strategyBtBlock}
 ${scanBlock || ''}
 ${memoryBlock || ''}
 ${trackRecordBlock || ''}

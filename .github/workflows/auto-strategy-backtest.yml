@@ -1,0 +1,31 @@
+name: auto-strategy-backtest
+
+# Runs the in-browser Backtest Lab server-side across the whole tracked universe
+# (every strategy family × the meaningful timeframes × every pair) and pushes the
+# results to apex_strategy_backtests via /api/backtest-runs. This keeps the
+# Backtest dashboard AND Deep Analyse supplied with fresh strategy backtests with
+# nobody clicking Run. Pure Node — no API keys, no LLM cost. Append-only.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"     # Mondays 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      timeframes:
+        description: "Comma-separated timeframes (default 1h,4h,1d,1w)"
+        required: false
+        default: "1h,4h,1d,1w"
+
+jobs:
+  strategy-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run strategy backtests -> cloud
+        env:
+          APEX_TFS: ${{ github.event.inputs.timeframes || '1h,4h,1d,1w' }}
+        run: node scripts/run-strategy-backtests.mjs
