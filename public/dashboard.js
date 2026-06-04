@@ -774,6 +774,30 @@ async function fetchBacktestKB(sym) {
 // Summarise the in-browser Backtest Lab results for this symbol (apex_strategy_backtests
 // via /api/backtest-runs). Uses ONLY the most recent run, ≥30-trade results, so the
 // committee sees current, non-thin strategy evidence. Graceful: null if none yet.
+// Inverse standard-normal CDF (Acklam's rational approximation; ~1e-9 accuracy).
+function _invNormCDF(p) {
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return Infinity;
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+  const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+  const pl = 0.02425, ph = 1 - pl;
+  let q, r;
+  if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p <= ph) { q = p - 0.5; r = q*q; return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+  q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+}
+
+// Expected MAXIMUM Sharpe across N skill-less trials (Bailey & Lopez de Prado,
+// False Strategy Theorem / EVT form). sigmaSR = dispersion of the trials' Sharpes.
+// A "best" Sharpe below this noise floor is what pure trial-and-error produces.
+function _expectedMaxSharpe(N, sigmaSR) {
+  if (!(N > 1) || !(sigmaSR > 0)) return 0;
+  const g = 0.5772156649;                       // Euler-Mascheroni
+  return sigmaSR * ((1 - g) * _invNormCDF(1 - 1 / N) + g * _invNormCDF(1 - 1 / (N * Math.E)));
+}
+
 async function fetchStrategyBacktests(sym) {
   try {
     const r = await fetch(`/api/backtest-runs?instrument=${encodeURIComponent(sym)}&limit=300`);
@@ -784,6 +808,18 @@ async function fetchStrategyBacktests(sym) {
     const cur = rows.filter(x => x.run_id === latestRun && x.n_trades >= 30 && x.sharpe != null);
     if (!cur.length) return null;
     const best = cur.slice().sort((a, b) => (b.sharpe ?? -9) - (a.sharpe ?? -9))[0];
+
+    // Multiple-testing correction (C1): the "best" Sharpe was selected across
+    // N strategy trials, so it is inflated. Compare it to the expected best-by-
+    // chance Sharpe and deflate. If it does not clear the noise floor, there is
+    // no demonstrated edge no matter how good the headline Sharpe looks.
+    const sharpes = cur.map(x => x.sharpe).filter(v => v != null);
+    const meanSR  = sharpes.reduce((s, v) => s + v, 0) / sharpes.length;
+    const sigmaSR = sharpes.length > 1
+      ? Math.sqrt(sharpes.reduce((s, v) => s + (v - meanSR) ** 2, 0) / (sharpes.length - 1)) : 0;
+    const expMax   = _expectedMaxSharpe(cur.length, sigmaSR);
+    const deflated = +(best.sharpe - expMax).toFixed(2);
+
     return {
       n: cur.length,
       n_pos: cur.filter(x => x.total_return > 0).length,
@@ -791,6 +827,10 @@ async function fetchStrategyBacktests(sym) {
       conf: cur.find(x => x.strategy === 'confluence') || null,
       tfs: [...new Set(cur.map(x => x.timeframe))],
       dataTo: cur[0].data_to,
+      n_trials: cur.length,
+      exp_max_sharpe: +expMax.toFixed(2),
+      deflated_best: deflated,
+      edge_survives: deflated > 0,
     };
   } catch { return null; }
 }
@@ -2619,8 +2659,9 @@ PRIOR-EVIDENCE DIRECTIVE: this is the historical record of systematic strategies
       strategyBtBlock = `
 STRATEGY BACKTEST LAB (${sym}, ${strategyBT.n} strategies on ${strategyBT.tfs.join('/')}, as of ${(strategyBT.dataTo || '').slice(0, 10)}, net of modelled spread):
 - ${strategyBT.n_pos}/${strategyBT.n} simple/regime-filtered strategies were net-positive IN-SAMPLE.
-- Best by Sharpe: ${b.strategy} on ${b.timeframe} (Sharpe ${b.sharpe}, win ${b.win_rate}%, ${b.n_trades} trades).${c ? `\n- The live CONFLUENCE strategy backtests at Sharpe ${c.sharpe}, win ${c.win_rate}%, return ${c.total_return}% (${c.n_trades} trades, ${c.timeframe}).` : ''}
-STRATEGY-BACKTEST DIRECTIVE: EXPLORATORY in-sample history (no out-of-sample proof) — weigh LIGHTLY. If most simple strategies lose on this instrument, be sceptical of naive trend/indicator signals here; if the confluence strategy backtests well, that modestly supports the current technical read. Never treat this as a validated edge.`;
+- Best by Sharpe: ${b.strategy} on ${b.timeframe} (Sharpe ${b.sharpe}, win ${b.win_rate}%, ${b.n_trades} trades).
+- MULTIPLE-TESTING CHECK (False Strategy Theorem): ${strategyBT.n_trials} strategies were tried, so the BEST Sharpe is selection-biased upward. Pure chance across ${strategyBT.n_trials} trials would yield a best Sharpe of ~${strategyBT.exp_max_sharpe}. Deflated best = ${strategyBT.deflated_best} → ${strategyBT.edge_survives ? 'the best strategy still clears the noise floor (weak positive signal)' : 'the best strategy DOES NOT exceed what random trial-and-error produces — treat as NO demonstrated edge'}.${c ? `\n- The live CONFLUENCE strategy backtests at Sharpe ${c.sharpe}, win ${c.win_rate}%, return ${c.total_return}% (${c.n_trades} trades, ${c.timeframe}).` : ''}
+STRATEGY-BACKTEST DIRECTIVE: EXPLORATORY in-sample history (no out-of-sample proof) — weigh LIGHTLY. ${strategyBT.edge_survives ? '' : 'The best result here is indistinguishable from noise given the number of strategies tried — do NOT let it raise confidence. '}If most simple strategies lose on this instrument, be sceptical of naive trend/indicator signals here; if the confluence strategy backtests well, that modestly supports the current technical read. Never treat this as a validated edge.`;
     }
 
     // ── Trade style: tailor the whole plan to the requested horizon ──
