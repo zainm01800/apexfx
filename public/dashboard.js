@@ -1846,124 +1846,54 @@ Respond ONLY with valid JSON. No text before or after.
       return { bullish_factors: [fallback], bearish_factors: [], key_signal: fallback, key_level: 'N/A' };
     }
 
-    const [techRaw, fundRaw, macroRaw, riskRaw] = await Promise.all([
+    // ── PASS 1+2 CONSOLIDATED ──────────────────────────────────────────────────
+    // One call reasons through ALL FOUR specialist lenses (technical / fundamental
+    // / macro / risk) AND runs the cross-critique debate — the same analytical
+    // framework as the old 4 specialist + 3 debate calls, but the data bundle is
+    // sent ONCE instead of 5×. ~7 fewer AI calls + far fewer tokens per scan. The
+    // committee synthesis (next call) is unchanged. Produces the same variables.
+    const _deskSystem = `You are a four-person hedge-fund analysis desk working a single name: a pure TECHNICAL analyst, a FUNDAMENTAL analyst, a MACRO strategist, and a RISK manager / devil's advocate. Each enumerates SPECIFIC evidence — exact indicator values, price levels, metrics, data points — and NEVER vague statements or conclusions. Reason through every lens with full rigour, independently, then run a brief cross-critique where members challenge each other's weakest assumptions (this reduces groupthink). Output ONLY the requested JSON.`;
 
-      // Agent 1 — Technical Analyst (starts immediately)
-      callAgent(
-        `You are a pure technical analyst at a hedge fund. Your job is to enumerate evidence — not reach conclusions. Be specific: cite exact indicator values, exact price levels, exact patterns. No vague statements.`,
-        `For ${sym} (${type}, price: ${curr.toFixed(dp)}):
+    const _fundInstruction = (type === 'Stock' || type === 'ETF')
+      ? 'For "fundamental", reference exact financial metrics.'
+      : `This is a ${type} asset, so set "fundamental" to {"bullish_factors":["${type} assets: fundamental analysis not applicable"],"bearish_factors":[],"key_signal":"N/A","valuation_view":"N/A"}.`;
 
-List the specific TECHNICAL evidence. Be data-driven.
-
-Respond ONLY with this JSON (no other text, no markdown):
-{
-  "bullish_factors": ["specific factor with data point", "specific factor", "specific factor"],
-  "bearish_factors": ["specific factor with data point", "specific factor", "specific factor"],
-  "key_signal": "the single most significant technical signal right now (1 sentence)",
-  "key_level": "the most critical price level and why it matters"
-}
-
-DATA:
-${sharedData}`,
-        1800
-      ).then(r => parseFactors(r, `Technical data for ${sym}`))
-       .catch(() => ({ bullish_factors: ['Technical data unavailable'], bearish_factors: [], key_signal: 'N/A', key_level: 'N/A' })),
-
-      // Agent 2 — Fundamental Analyst (starts +350 ms)
-      stagger(350).then(() => (type === 'Stock' || type === 'ETF')
-        ? callAgent(
-            `You are a fundamental analyst at a hedge fund. Your job is to enumerate specific financial evidence — not reach conclusions. Cite exact numbers. No vague statements.`,
-            `For ${sym} (${type}):
-
-List the specific FUNDAMENTAL evidence. Reference exact metrics.
+    const _deskPrompt = `For ${sym} (${type}, price: ${curr.toFixed(dp)}), produce all four specialists' evidence AND their cross-critique for a ${ts.label} trade. Enumerate specific, data-driven evidence (3 items per list, each with a concrete data point) — do NOT reach a verdict here. ${_fundInstruction}
 
 Respond ONLY with this JSON (no other text, no markdown):
 {
-  "bullish_factors": ["specific factor with exact metric", "specific factor", "specific factor"],
-  "bearish_factors": ["specific factor with exact metric", "specific factor", "specific factor"],
-  "key_signal": "the most important fundamental signal right now (1 sentence)",
-  "valuation_view": "undervalued|fairly-valued|overvalued — one sentence explaining why"
+  "technical":   { "bullish_factors": ["specific factor with data point","specific factor","specific factor"], "bearish_factors": ["specific factor with data point","specific factor","specific factor"], "key_signal": "the single most significant technical signal right now (1 sentence)", "key_level": "the most critical price level and why it matters" },
+  "fundamental": { "bullish_factors": ["specific factor with exact metric","specific factor","specific factor"], "bearish_factors": ["specific factor with exact metric","specific factor","specific factor"], "key_signal": "the most important fundamental signal right now (1 sentence)", "valuation_view": "undervalued|fairly-valued|overvalued — one sentence explaining why" },
+  "macro":       { "tailwinds": ["specific macro tailwind with data","specific tailwind","specific tailwind"], "headwinds": ["specific macro headwind with data","specific headwind","specific headwind"], "key_signal": "the most important macro signal for THIS specific asset (1 sentence)", "regime": "risk-on|risk-off|late-cycle|recessionary|expansionary" },
+  "risk":        { "critical_risks": ["specific risk with supporting data","specific risk","specific risk"], "underappreciated_risks": ["risk the bulls are ignoring","risk","risk"], "bear_trigger": "the single most likely catalyst that causes a 20%+ drawdown (1 sentence)", "max_downside": "realistic worst-case price level and the scenario that gets there" },
+  "debate": {
+    "technical_rebuts_risk": "TECHNICAL analyst, blunt, 2-3 sentences: which of the risk manager's concerns does the current technical picture specifically CONTRADICT? cite exact levels/indicators",
+    "risk_challenges_technical": "RISK manager, harsh, 2-3 sentences: what critical risk does the technical optimism IGNORE? what fundamental/macro factor makes the charts less reliable here? cite specific data",
+    "macro_vs_fundamental": "MACRO strategist, direct, 2-3 sentences: how does the current regime specifically challenge or support the fundamental thesis? what is the fundamental analyst underweighting?"
+  }
 }
 
 DATA:
-${sharedData}`,
-            1800
-          ).then(r => parseFactors(r, `Fundamental data for ${sym}`))
-           .catch(() => ({ bullish_factors: ['Fundamental data unavailable'], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' }))
-        : Promise.resolve({ bullish_factors: [`${type} assets: fundamental analysis not applicable`], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' })),
+${sharedData}`;
 
-      // Agent 3 — Macro Strategist (starts +700 ms)
-      stagger(700).then(() => callAgent(
-        `You are a macro strategist at a hedge fund. Your job is to enumerate specific macro evidence — not reach conclusions. Reference exact data (yield curve values, VIX levels, credit spreads). No vague statements.`,
-        `For ${sym} (${type}):
+    let _desk = {};
+    try {
+      const _raw = await callAgent(_deskSystem, _deskPrompt, 4000);
+      const _cleaned = _raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      const _m = _cleaned.match(/\{[\s\S]*\}/);
+      if (_m) _desk = JSON.parse(_m[0]);
+    } catch { /* fall through to per-lens fallbacks below */ }
 
-List the specific MACRO evidence and its directional implication for this asset.
-
-Respond ONLY with this JSON (no other text, no markdown):
-{
-  "tailwinds": ["specific macro tailwind with data", "specific tailwind", "specific tailwind"],
-  "headwinds": ["specific macro headwind with data", "specific headwind", "specific headwind"],
-  "key_signal": "the most important macro signal for this specific asset (1 sentence)",
-  "regime": "risk-on|risk-off|late-cycle|recessionary|expansionary"
-}
-
-DATA:
-${sharedData}`,
-        1800
-      ).then(r => parseFactors(r, `Macro data for ${sym}`))
-       .catch(() => ({ tailwinds: ['Macro data unavailable'], headwinds: [], key_signal: 'N/A', regime: 'N/A' }))),
-
-      // Agent 4 — Risk Manager / Devil's Advocate (starts +1050 ms)
-      stagger(1050).then(() => callAgent(
-        `You are a risk manager and devil's advocate at a hedge fund. Your ONLY job is to enumerate specific risks — what destroys the bull thesis. Be harsh, specific, cite exact numbers. No softening.`,
-        `For ${sym} (${type}):
-
-Enumerate the specific RISKS. What breaks the bullish thesis? Be precise.
-
-Respond ONLY with this JSON (no other text, no markdown):
-{
-  "critical_risks": ["specific risk with supporting data", "specific risk", "specific risk"],
-  "underappreciated_risks": ["risk the bulls are ignoring", "risk", "risk"],
-  "bear_trigger": "the single most likely catalyst that causes a 20%+ drawdown (1 sentence)",
-  "max_downside": "realistic worst-case price level and the scenario that gets there"
-}
-
-DATA:
-${sharedData}`,
-        1800
-      ).then(r => parseFactors(r, `Risk data for ${sym}`))
-       .catch(() => ({ critical_risks: ['Risk data unavailable'], underappreciated_risks: [], bear_trigger: 'N/A', max_downside: 'N/A' }))),
-    ]);
-
-    // ── PASS 2: Cross-critique debate ─────────────────────────────────────────
-    // Agents challenge each other's weakest assumptions — reduces groupthink
-    const techBulls  = (techRaw.bullish_factors  || []).slice(0, 3).join('; ');
-    const fundView   = fundRaw.valuation_view || (fundRaw.bullish_factors || []).slice(0, 2).join('; ');
-    const riskBears  = (riskRaw.critical_risks || []).slice(0, 3).join('; ');
-    const macroTW    = (macroRaw.tailwinds      || macroRaw.bullish_factors || []).slice(0, 2).join('; ');
-
-    const [techVsRisk, riskVsTech, macroVsFund] = await Promise.all([
-      // Technical analyst challenges the top risk factors
-      callAgent(
-        'You are the technical analyst. 2-3 sentences. Be blunt. Cite specific indicator values.',
-        `The risk manager flags these risks: "${riskBears}"\n\nWhich of these does the current technical picture specifically CONTRADICT? What do the charts show that addresses or dismisses these concerns? Be specific with levels and indicators.`,
-        900
-      ).catch(() => null),
-
-      // Risk manager challenges the technical optimism
-      stagger(350).then(() => callAgent(
-        'You are the risk manager. 2-3 sentences. Be harsh. Cite specific data.',
-        `The technical analyst points to: "${techBulls}"\n\nWhat critical risk does this technical optimism IGNORE? What fundamental or macro factor makes the technical picture less reliable here? Be specific.`,
-        900
-      )).catch(() => null),
-
-      // Macro strategist challenges fundamental valuation
-      stagger(700).then(() => callAgent(
-        'You are the macro strategist. 2-3 sentences. Be direct.',
-        `The fundamental analyst's view: "${fundView}"\n\nHow does the current macro environment (regime: ${macroRaw.regime || 'N/A'}) specifically challenge or support this fundamental thesis? What macro factor is the fundamental analyst underweighting?`,
-        900
-      )).catch(() => null),
-    ]);
+    const techRaw = _desk.technical || { bullish_factors: ['Technical data unavailable'], bearish_factors: [], key_signal: 'N/A', key_level: 'N/A' };
+    const fundRaw = (type === 'Stock' || type === 'ETF')
+      ? (_desk.fundamental || { bullish_factors: ['Fundamental data unavailable'], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' })
+      : { bullish_factors: [`${type} assets: fundamental analysis not applicable`], bearish_factors: [], key_signal: 'N/A', valuation_view: 'N/A' };
+    const macroRaw = _desk.macro || { tailwinds: ['Macro data unavailable'], headwinds: [], key_signal: 'N/A', regime: 'N/A' };
+    const riskRaw = _desk.risk || { critical_risks: ['Risk data unavailable'], underappreciated_risks: [], bear_trigger: 'N/A', max_downside: 'N/A' };
+    const _dbt = _desk.debate || {};
+    const techVsRisk  = _dbt.technical_rebuts_risk    || null;
+    const riskVsTech  = _dbt.risk_challenges_technical || null;
+    const macroVsFund = _dbt.macro_vs_fundamental      || null;
 
     // Format factor lists for committee briefing
     const fmtList = (arr, label) => arr?.length ? `  ${label}: ${arr.slice(0, 4).join(' | ')}` : '';
