@@ -390,6 +390,34 @@ function computeAccuracy(rows) {
 
   const hiConf = resolved.filter(r => (Number(r.confidence) || 0) >= 80);
 
+  // Brier score — mean squared error between the stated probability and the
+  // realised binary outcome (1 = TP hit, 0 = SL hit). Lower is better; 0.25 is the
+  // no-skill baseline (always saying 50%). This is the PROPER way to score
+  // confidence: a win-rate / ranking can look fine while the probabilities
+  // themselves are badly miscalibrated (overconfident).
+  let brier = null;
+  if (resolved.length) {
+    const sum = resolved.reduce((s, r) => {
+      const p = Math.min(1, Math.max(0, (Number(r.confidence) || 50) / 100));
+      const o = r.outcome === 'tp_hit' ? 1 : 0;
+      return s + (p - o) * (p - o);
+    }, 0);
+    brier = +(sum / resolved.length).toFixed(3);
+  }
+
+  // Reliability curve — realised hit-rate per stated-confidence band. A well-
+  // calibrated model sits near the diagonal (80% band actually wins ~80%).
+  const _bandMid = { '50–59': 55, '60–69': 65, '70–79': 75, '80–89': 85, '90+': 95 };
+  const reliability = [
+    { band: '50–59', lo: 0,  hi: 59 }, { band: '60–69', lo: 60, hi: 69 },
+    { band: '70–79', lo: 70, hi: 79 }, { band: '80–89', lo: 80, hi: 89 },
+    { band: '90+',   lo: 90, hi: 100 },
+  ].map(b => {
+    const set = resolved.filter(r => { const c = Number(r.confidence) || 0; return c >= b.lo && c <= b.hi; });
+    const a   = set.length ? Math.round(set.filter(r => r.outcome === 'tp_hit').length / set.length * 100) : null;
+    return { band: b.band, n: set.length, acc: a, gap: a == null ? null : a - _bandMid[b.band] };
+  }).filter(b => b.n > 0);
+
   return {
     total, resolvedN: resolved.length, pctResolved, winRate,
     wins: wins.length, losses: losses.length,
@@ -397,6 +425,7 @@ function computeAccuracy(rows) {
     buyAcc: acc(buyRes),   buyN: buyRes.length,
     sellAcc: acc(sellRes), sellN: sellRes.length,
     hiConfAcc: acc(hiConf), hiConfN: hiConf.length,
+    brier, reliability,
   };
 }
 
@@ -420,6 +449,17 @@ function renderScoreboard() {
   const cmpCls = (a.avgWinConf != null && a.avgLossConf != null)
     ? (a.avgWinConf >= a.avgLossConf ? 'pos' : 'neg') : '';
 
+  const relRows = (a.reliability || []).map(r => {
+    const cls = r.gap == null ? '' : Math.abs(r.gap) <= 10 ? 'pos' : 'neg';
+    const w   = r.acc == null ? 0 : Math.max(3, Math.min(100, r.acc));
+    return `<div class="acc-rel-row">
+      <span class="acc-rel-band">${r.band}%</span>
+      <span class="acc-rel-bar"><span class="acc-rel-fill ${cls}" style="width:${w}%"></span></span>
+      <span class="acc-rel-val ${cls}">${r.acc}% actual</span>
+      <span class="acc-rel-n">n=${r.n}</span>
+    </div>`;
+  }).join('');
+
   el.innerHTML = `
     <div class="acc-title">🎯 Accuracy Scoreboard</div>
     <div class="acc-grid">
@@ -429,7 +469,15 @@ function renderScoreboard() {
       ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
       ${accStat('BUY Accuracy', a.buyAcc != null ? a.buyAcc + '%' : '—', a.buyN ? `${a.buyN} resolved BUYs` : 'none resolved', a.buyAcc == null ? '' : a.buyAcc >= 50 ? 'pos' : 'neg')}
       ${accStat('SELL Accuracy', a.sellAcc != null ? a.sellAcc + '%' : '—', a.sellN ? `${a.sellN} resolved SELLs` : 'none resolved', a.sellAcc == null ? '' : a.sellAcc >= 50 ? 'pos' : 'neg')}
+      ${accStat('Brier Score', a.brier != null ? a.brier.toFixed(3) : '—',
+        a.brier == null ? 'need resolved calls' : a.brier <= 0.25 ? 'beats 50/50 guessing' : 'worse than a coin-flip',
+        a.brier == null ? '' : a.brier <= 0.25 ? 'pos' : 'neg')}
     </div>
+    ${relRows ? `<div class="acc-rel">
+      <div class="acc-rel-title">Calibration curve — stated confidence vs. what actually happened</div>
+      <div class="acc-rel-rows">${relRows}</div>
+      <div class="acc-rel-foot">Bands within ±10% of the diagonal are well-calibrated. Large gaps = over/under-confidence the live verdict now auto-corrects.</div>
+    </div>` : ''}
     <div class="acc-calib ${a.hiConfAcc == null ? '' : a.hiConfAcc >= 50 ? 'pos' : 'neg'}">
       When APEX says <strong>80%+ confidence</strong> →
       ${a.hiConfN ? `<strong>${a.hiConfAcc}% accuracy</strong> across ${a.hiConfN} resolved high-conviction call${a.hiConfN === 1 ? '' : 's'}` : 'no resolved 80%+ calls yet'}

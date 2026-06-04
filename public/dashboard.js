@@ -1141,6 +1141,33 @@ async function fetchCalibration() {
   } catch { return null; }
 }
 
+// ── Hard post-hoc confidence calibration (A1/A2) ──────────────────────────────
+// The committee is ALSO told its realised accuracy (the soft prompt loop above),
+// but LLM/model confidence stays systematically OVER-confident — a true ~55% win
+// rate gets stated as 70%+. So we additionally re-map the DISPLAYED number through
+// the realised hit-rate curve. Each band's raw->actual correction is shrunk toward
+// the raw value by sample size (Bayesian-style: a thin band barely moves the number,
+// a deep band moves it fully). The shrinkage also resists the feedback-loop / self-
+// learning overfitting that an unguarded "learn from your own outcomes" loop hits.
+function calibrateConfidence(rawConf, calibration) {
+  if (!calibration || !Array.isArray(calibration.lines) || !calibration.lines.length) return null;
+  const want = rawConf < 60 ? '50–59%'
+             : rawConf < 70 ? '60–69%'
+             : rawConf < 80 ? '70–79%'
+             : rawConf < 90 ? '80–89%'
+             : '90%+';
+  const line = calibration.lines.find(l => l.band === want);
+  if (!line) return null;                       // not enough resolved calls in this band yet
+  const SHRINK_K = 12;                           // pull toward raw until ~12 samples accrue
+  const w = line.n / (line.n + SHRINK_K);
+  const mapped = Math.round(w * line.acc + (1 - w) * rawConf);
+  return {
+    raw: rawConf,
+    mapped: Math.min(99, Math.max(1, mapped)),
+    bandN: line.n, bandAcc: line.acc, totalN: calibration.n,
+  };
+}
+
 // ── Position-size calculator (results panel) ──────────────────────────────────
 // Pure risk math: shares/units = (account × risk%) ÷ per-unit risk (|entry−stop|).
 // Account size + risk% persist in localStorage so the trader sets them once.
@@ -1333,7 +1360,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -1354,8 +1381,25 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   vbadge.textContent = rawVerdict.replace(/_/g, ' ');
   vbadge.className   = `verdict-badge ${rawVerdict.toLowerCase()}`;
 
-  const conf = Math.min(100, Math.max(0, Number(a.confidence_score) || 50));
+  const rawConf = Math.min(100, Math.max(0, Number(a.confidence_score) || 50));
+  // Hard post-hoc calibration: re-map the displayed number through the realised
+  // hit-rate curve so "78%" actually means 78%. Falls back to raw until enough
+  // resolved calls exist in that confidence band.
+  const cal  = calibrateConfidence(rawConf, calibration);
+  const conf = cal ? cal.mapped : rawConf;
   setText('confPct', `${conf}%`);
+  const calNote = document.getElementById('confCalibNote');
+  if (calNote) {
+    if (cal && Math.abs(cal.mapped - cal.raw) >= 2) {
+      calNote.innerHTML = `📊 Calibrated <b>${cal.raw}% → ${cal.mapped}%</b> from your ${cal.totalN} resolved calls — this confidence band has actually hit target ${cal.bandAcc}% of the time (n=${cal.bandN}).`;
+      calNote.style.display = '';
+    } else if (cal) {
+      calNote.innerHTML = `📊 Confidence calibrated against ${cal.totalN} resolved calls.`;
+      calNote.style.display = '';
+    } else {
+      calNote.style.display = 'none';
+    }
+  }
   const fill = document.getElementById('confFill');
   fill.style.width = '0%';
   fill.className = `conf-fill ${rawVerdict.toLowerCase()}`;
@@ -2563,7 +2607,7 @@ Respond ONLY with this exact JSON structure:
     saveToMemory(sym, type, analysis, curr, _updateId);
     markScanned(sym);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {

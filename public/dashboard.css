@@ -227,6 +227,8 @@ body {
 
 .vc-thesis { font-size: 13px; line-height: 1.75; color: var(--text2); border-top: 1px solid var(--border); padding-top: 14px; }
 .conf-not-higher { font-size: 12px; color: var(--text3); font-style: italic; line-height: 1.6; border-top: 1px solid var(--border); padding-top: 10px; }
+.conf-calib-note { font-size: 12px; color: var(--text2); line-height: 1.55; margin-top: 8px; padding: 9px 11px; background: rgba(124,92,252,.08); border: 1px solid rgba(124,92,252,.28); border-radius: 9px; }
+.conf-calib-note b { color: var(--accent, #7c5cfc); font-family: var(--mono); }
 
 /* ── Stats grid ── */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
