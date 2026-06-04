@@ -7,7 +7,12 @@
 // Add GEMINI_API_KEY in Vercel dashboard → Settings → Environment Variables
 // Get a free key at: https://aistudio.google.com
 
-export const config = { runtime: 'edge' };
+// Node.js runtime (default — no `runtime: 'edge'`) with a raised maxDuration.
+// The Edge runtime caps wall-clock around ~25s, which was 504-ing the heaviest
+// call (the 6000-token committee synthesis). Node + maxDuration gives it room to
+// finish. The handler still uses the Web Request/Response API (fully supported on
+// the Node runtime via the `fetch` export below), so no other logic changes.
+export const maxDuration = 60;
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GROQ_KEY   = process.env.GROQ_API_KEY;
@@ -68,7 +73,7 @@ async function callProvider({ apiUrl, apiKey, model, messages, maxTokens, temper
   return data.choices?.[0]?.message?.content || '';
 }
 
-export default async function handler(req) {
+async function handler(req) {
   const url    = new URL(req.url);
   const origin = req.headers.get('origin');
   const allowedOrigin = isAllowedOrigin(origin, url.host) ? (origin || url.origin) : url.origin;
@@ -189,3 +194,6 @@ export default async function handler(req) {
     );
   }
 }
+
+// Web-standard `fetch` export — runs `handler` on the Node.js runtime.
+export default { fetch: handler };

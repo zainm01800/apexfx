@@ -2527,10 +2527,11 @@ Respond ONLY with this exact JSON structure:
   "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence"
 }`;
 
-    // 4000 (not 6000) tokens: the committee JSON fits comfortably, and 6000-token
-    // generations were overrunning the Edge gateway's wall-clock limit → 504s. The
-    // desk call already runs reliably at 4000, so this matches a proven-safe budget.
-    const committeeText = await callAgent(systemPrompt, committeePrompt, 4000);
+    // 6000 tokens: the committee JSON is large (full multi-section report + 4
+    // scenarios + strategy), so a smaller budget TRUNCATES it → JSON parse failure.
+    // The 504s that 6000 used to cause came from the Edge wall-clock limit, which is
+    // now fixed by running /api/ai on the Node runtime with a raised maxDuration.
+    const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
 
     let analysis;
     try {
