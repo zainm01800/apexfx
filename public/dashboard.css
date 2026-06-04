@@ -361,6 +361,9 @@ body {
 .tl-value.rr.weak { color: var(--red); }
 .tpg-warn { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5;
   background: rgba(255,66,85,.1); color: var(--red); border: 1px solid rgba(255,66,85,.28); }
+.tpg-warn strong { color: var(--red); }
+.tpg-aplus { margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5;
+  background: rgba(0,217,126,.1); color: var(--green); border: 1px solid rgba(0,217,126,.28); }
 .btn-secondary { background: var(--bg2); color: var(--text2); border: 1px solid var(--border); }
 
 .strategy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

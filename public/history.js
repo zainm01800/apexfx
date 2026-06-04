@@ -77,7 +77,19 @@ async function resolveIfPending(rows) {
           const afterEntry = candles.filter(c => c.time > entryTs);
           let resolved = null;
           if (dir !== 'neutral') {
+            // Entry-fill gate: only grade TP/SL once price trades INTO the entry zone.
+            // An entry at/around the scan price fills at market; a pullback/breakout
+            // entry must be reached first — otherwise a TP "hit" without a fill is a
+            // phantom win that never actually happened.
+            const eb = entryBounds(row.entry_zone);
+            const scanPx = parseFloat(row.price);
+            const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
+            let filled = !eb || atMarket;
             for (const bar of afterEntry) {
+              if (!filled) {
+                if (bar.low <= eb.hi && bar.high >= eb.lo) filled = true;
+                else continue;
+              }
               if (dir === 'short') {
                 if (bar.low  <= tp) { resolved = 'tp_hit'; break; }
                 if (bar.high >= sl) { resolved = 'sl_hit'; break; }

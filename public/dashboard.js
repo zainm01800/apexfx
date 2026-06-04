@@ -531,7 +531,19 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
     if (res.tf === candleTf && barsAfter.length && !isNaN(tp) && !isNaN(sl)) {
       const dir = verdictDir(row.verdict);   // long: TP above / SL below; short: reversed
       if (dir !== 'neutral') {
+        // Entry-fill gate: a setup only becomes a real trade once price trades INTO
+        // its entry zone. An entry at/around the scan price is a market fill; an entry
+        // away from price (pullback/breakout) must be reached first — otherwise a TP
+        // hit without ever filling is a phantom win that never existed.
+        const eb = entryBounds(row.entry_zone);
+        const scanPx = parseFloat(row.price);
+        const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
+        let filled = !eb || atMarket;
         for (const b of barsAfter) {
+          if (!filled) {
+            if (b.low <= eb.hi && b.high >= eb.lo) filled = true;   // traded into the entry zone
+            else continue;
+          }
           if (dir === 'short') {
             if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
             if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
@@ -605,7 +617,14 @@ function fmtDuration(ms) {
 }
 
 // ── Trade-setup math: deterministic R:R + "same setup" detection ───────────────
-const MIN_RR = 1.5;   // setups whose reward:risk is below this are flagged as weak
+// Professional minimum reward:risk by trade style (research-backed): scalpers run
+// tighter R:R but compensate with high win rate; day/swing/position traders demand
+// more because their win rates are lower and holds longer. 1.5:1 is the absolute
+// floor anyone serious uses; 3:1+ is an "A+" setup. Sub-minimum setups are NOT trades
+// a professional would take — the scan downgrades them to WAIT.
+const MIN_RR_BY_STYLE = { scalp: 1.5, intraday: 2.0, swing: 2.0, position: 2.5 };
+const MIN_RR = 1.5;   // fallback floor
+function minRRForStyle(style) { return MIN_RR_BY_STYLE[style] || MIN_RR; }
 // Parse a single representative entry price from an entry_zone (number or range).
 function parseEntryPrice(entryZone) {
   if (entryZone == null) return NaN;
@@ -615,15 +634,23 @@ function parseEntryPrice(entryZone) {
   if (!vals.length) return NaN;
   return vals.reduce((a, b) => a + b, 0) / vals.length;   // midpoint of a range
 }
+// Low/high bounds of an entry zone ("182 - 185" → {lo:182, hi:185}); null if unparseable.
+function entryBounds(entryZone) {
+  const nums = String(entryZone == null ? '' : entryZone).match(/-?\d+(?:\.\d+)?/g);
+  if (!nums) return null;
+  const v = nums.map(Number).filter(n => !isNaN(n));
+  if (!v.length) return null;
+  return { lo: Math.min(...v), hi: Math.max(...v) };
+}
 // Compute risk:reward deterministically from entry / stop / target.
-// Returns { ratio, text, weak } or null if it can't be computed.
-function computeRR(entryZone, stop, target) {
+// Returns { ratio, text, weak, aPlus, minRR } or null if it can't be computed.
+function computeRR(entryZone, stop, target, minRR = MIN_RR) {
   const e = parseEntryPrice(entryZone), s = parseFloat(stop), t = parseFloat(target);
   if ([e, s, t].some(v => isNaN(v))) return null;
   const risk = Math.abs(e - s), reward = Math.abs(t - e);
   if (risk <= 0) return null;
   const ratio = reward / risk;
-  return { ratio, text: `${ratio.toFixed(1)}:1`, weak: ratio < MIN_RR };
+  return { ratio, text: `${ratio.toFixed(1)}:1`, weak: ratio < minRR, aPlus: ratio >= 3, minRR };
 }
 // Bucket a verdict into a trade direction for setup comparison.
 function verdictDir(v) {
@@ -1878,7 +1905,9 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     ${_evBlock}
     ${_premortem}
     ${_methodFlag}
-    ${a._rr_weak ? `<div class="tpg-warn">⚠ Weak setup — reward-to-risk is only ${escHtmlSafe(a.risk_reward)}, below the ${MIN_RR}:1 minimum. The potential reward may not justify the risk; consider waiting for a better entry.</div>` : ''}`;
+    ${a._rr_downgrade ? `<div class="tpg-warn">🛡️ <strong>Professional R:R gate:</strong> ${escHtmlSafe(a._rr_downgrade)}</div>`
+      : a._rr_weak ? `<div class="tpg-warn">⚠ Weak setup — reward-to-risk is only ${escHtmlSafe(a.risk_reward)}, below the ${a._rr_min || MIN_RR}:1 a professional ${tradeStyle().label} trade requires. Consider waiting for a better entry.</div>`
+      : a._rr_aplus ? `<div class="tpg-aplus">✅ A+ reward-to-risk (${escHtmlSafe(a.risk_reward)}) — pays at least 3× the risk.</div>` : ''}`;
 
   // ── Trade levels ──
   document.getElementById('tradeLevels').innerHTML = `
@@ -2059,6 +2088,7 @@ async function startResearch() {
   setStep(1);
 
   const ts = tradeStyle();   // selected timeframe drives the whole analysis
+  const styleMinRR = minRRForStyle(_tradeStyle);   // professional reward:risk floor for this style
   try {
     // ── Step 1: trade-timeframe + higher-timeframe context candles in parallel ──
     const [candles, weeklyCandles, benchCandles] = await Promise.all([
@@ -2752,7 +2782,7 @@ Your task:
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
-9. RISK:REWARD GATE — the levels must give reward:risk of at least ${MIN_RR}:1, where reward = |target_price − entry| and risk = |entry − stop_loss|. If the best honest setup at this horizon cannot reach ${MIN_RR}:1, do NOT force a poor-reward trade: say so in profit_taking_logic / entry_strategy and lean the verdict toward WAIT or NO_EDGE
+9. RISK:REWARD GATE (professional standard) — a professional will NOT take a ${ts.label} trade below ${styleMinRR}:1 reward:risk, where reward = |target_price − entry| and risk = |entry − stop_loss|. This is the minimum a disciplined ${ts.label} trader requires; 3:1+ is an A+ setup. If the best honest setup at this horizon cannot reach ${styleMinRR}:1, you MUST NOT output an actionable BUY/SELL/SHORT — return WAIT or NO_EDGE and state the specific entry/level that WOULD make the reward justify the risk. Do not force a sub-standard trade just to have a directional call.
 10. Be brutally honest — no performance, no softening, no default verdicts
 11. PRE-MORTEM (decision-quality discipline): before finalising, assume this trade has ALREADY hit its stop. Identify the single most likely reason it failed and put it in the premortem field — this surfaces the dominant risk and counters confirmation bias.
 12. METHOD HONESTY: do NOT treat named discretionary chart methods (ICT, Smart Money Concepts, order blocks, fair value gaps, liquidity sweeps, Elliott Wave, harmonics, Gann) as established edge — they have no independently verified track record and are largely repackaged support/resistance & supply/demand. You may reference them, but weight price action, volume, regime and confluence ABOVE any named pattern, and never raise confidence on the strength of such a method alone.
@@ -2827,9 +2857,21 @@ Respond ONLY with this exact JSON structure:
 
     // Deterministic risk:reward from the ACTUAL levels (the LLM's own string is
     // frequently inconsistent with its entry/stop/target). Overrides it everywhere
-    // — render + saved memory — and flags setups below the MIN_RR threshold.
-    const _rr = computeRR(analysis.entry_zone, analysis.stop_loss, analysis.target_price);
-    if (_rr) { analysis.risk_reward = _rr.text; analysis._rr_ratio = _rr.ratio; analysis._rr_weak = _rr.weak; }
+    // — render + saved memory — and grades against the style's professional floor.
+    const _rr = computeRR(analysis.entry_zone, analysis.stop_loss, analysis.target_price, styleMinRR);
+    if (_rr) {
+      analysis.risk_reward = _rr.text; analysis._rr_ratio = _rr.ratio;
+      analysis._rr_weak = _rr.weak; analysis._rr_min = styleMinRR; analysis._rr_aplus = _rr.aPlus;
+      // PROFESSIONAL GATE: an actionable directional call below the style's minimum
+      // reward:risk is not a trade a pro would take — downgrade it to WAIT (the
+      // directional read may be right, but this entry doesn't pay enough for the risk).
+      if (_rr.weak && verdictDir(analysis.verdict) !== 'neutral') {
+        analysis._downgraded_from = analysis.verdict;
+        analysis.verdict = 'WAIT';
+        analysis.confidence_score = Math.min(Number(analysis.confidence_score) || 50, 48);
+        analysis._rr_downgrade = `Auto-downgraded to WAIT — reward-to-risk is only ${_rr.text}, below the ${styleMinRR}:1 a professional requires for a ${ts.label} trade. The directional bias (${(analysis._downgraded_from || '').replace(/_/g, ' ')}) may be correct, but the entry here doesn't pay enough for the risk. Wait for a better price or a wider, structurally-sound target.`;
+      }
+    }
 
     // Same OPEN setup → refresh the existing history row; otherwise a new idea.
     const _priorOpen = (Array.isArray(tickerMemory) ? tickerMemory : []).find(r => r.outcome === 'pending') || null;
