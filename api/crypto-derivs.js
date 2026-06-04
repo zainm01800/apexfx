@@ -114,10 +114,68 @@ async function fetchStructure() {
 
 function fmtUsdShort(n) {
   if (n == null) return 'n/a';
-  if (n >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
-  if (n >= 1e9)  return '$' + (n / 1e9).toFixed(1) + 'B';
-  if (n >= 1e6)  return '$' + (n / 1e6).toFixed(0) + 'M';
-  return '$' + n.toLocaleString();
+  const s = n < 0 ? '-$' : '$', a = Math.abs(n);
+  if (a >= 1e12) return s + (a / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9)  return s + (a / 1e9).toFixed(1) + 'B';
+  if (a >= 1e6)  return s + (a / 1e6).toFixed(0) + 'M';
+  return s + a.toLocaleString();
+}
+
+// ── Implied volatility (Deribit DVOL index) — BTC/ETH only ────────────────────
+async function fetchVol(base) {
+  if (base !== 'BTC' && base !== 'ETH') return null;
+  const end = Date.now(), start = end - 8 * 86400 * 1000;
+  const j = await jget(`https://www.deribit.com/api/v2/public/get_volatility_index_data?currency=${base}&start_timestamp=${start}&end_timestamp=${end}&resolution=43200`);
+  const data = j?.result?.data;
+  if (!Array.isArray(data) || !data.length) return null;
+  const implied = +(+data[data.length - 1][4]).toFixed(1);   // [ts, o, h, l, close]
+  return implied ? { implied_dvol_pct: implied } : null;
+}
+
+// ── Spot-ETF flows (SoSoValue, keyless) — BTC/ETH only ────────────────────────
+const ETF_TYPE = { BTC: 'us-btc-spot', ETH: 'us-eth-spot' };
+async function fetchEtf(base) {
+  const type = ETF_TYPE[base];
+  if (!type) return null;
+  try {
+    const r = await fetch('https://api.sosovalue.xyz/openapi/v2/etf/historicalInflowChart', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...UA },
+      body: JSON.stringify({ type }), signal: AbortSignal.timeout(9000),
+    });
+    if (!r.ok) return null;
+    const data = (await r.json())?.data;          // newest day first
+    if (!Array.isArray(data) || !data.length) return null;
+    const day = +data[0].totalNetInflow;
+    let sum5 = 0; for (let i = 0; i < Math.min(5, data.length); i++) sum5 += (+data[i].totalNetInflow || 0);
+    let streak = 0; const sign = Math.sign(day);
+    if (sign !== 0) for (const d of data) { if (Math.sign(+d.totalNetInflow) === sign) streak++; else break; }
+    return {
+      latest_day_usd: Math.round(day),
+      net_5d_usd: Math.round(sum5),
+      streak_days: streak,
+      streak_dir: sign > 0 ? 'inflow' : sign < 0 ? 'outflow' : 'flat',
+      total_net_assets_usd: data[0].totalNetAssets ? Math.round(+data[0].totalNetAssets) : null,
+      as_of: data[0].date,
+    };
+  } catch { return null; }
+}
+
+// ── On-chain valuation (bitcoin-data.com, keyless) — BTC only ─────────────────
+async function fetchOnchain(base) {
+  if (base !== 'BTC') return null;
+  const [mvrv, nupl, sopr, rp] = await Promise.all([
+    jget('https://bitcoin-data.com/v1/mvrv/last'),
+    jget('https://bitcoin-data.com/v1/nupl/last'),
+    jget('https://bitcoin-data.com/v1/sopr/last'),
+    jget('https://bitcoin-data.com/v1/realized-price/last'),
+  ]);
+  const out = {};
+  if (mvrv && mvrv.mvrv != null && mvrv.mvrv !== 'NaN') out.mvrv = +(+mvrv.mvrv).toFixed(2);
+  if (nupl && nupl.nupl != null && nupl.nupl !== 'NaN') out.nupl = +(+nupl.nupl).toFixed(2);
+  if (sopr && sopr.sopr != null && sopr.sopr !== 'NaN') out.sopr = +(+sopr.sopr).toFixed(3);
+  if (rp && rp.realizedPrice != null) out.realized_price = Math.round(+rp.realizedPrice);
+  out.as_of = (sopr && sopr.d) || (mvrv && mvrv.d) || null;
+  return Object.keys(out).length > 1 ? out : null;
 }
 
 export default async function handler(req) {
@@ -138,10 +196,12 @@ export default async function handler(req) {
 
   const base = baseCoin(sym);
   try {
-    const [perp, structure] = await Promise.all([fetchPerp(base), fetchStructure()]);
+    const [perp, structure, vol, etf, onchain] = await Promise.all([
+      fetchPerp(base), fetchStructure(), fetchVol(base), fetchEtf(base), fetchOnchain(base),
+    ]);
 
     // Nothing usable at all → null so the frontend simply skips the block.
-    if (!perp.funding && !perp.open_interest && !perp.long_short && structure.dominance_pct == null) {
+    if (!perp.funding && !perp.open_interest && !perp.long_short && structure.dominance_pct == null && !vol && !etf && !onchain) {
       return new Response(JSON.stringify({ derivs: null }), { headers: cors });
     }
 
@@ -150,16 +210,29 @@ export default async function handler(req) {
     if (perp.funding) parts.push(`Perp funding ${perp.funding.rate_8h_pct > 0 ? '+' : ''}${perp.funding.rate_8h_pct}%/8h (~${perp.funding.annualized_pct > 0 ? '+' : ''}${perp.funding.annualized_pct}%/yr) — ${perp.funding.label}.`);
     if (perp.open_interest) parts.push(`Open interest ${perp.open_interest.btc.toLocaleString()} ${base}${perp.open_interest.usd ? ` (${fmtUsdShort(perp.open_interest.usd)})` : ''}${perp.open_interest.change_7d_pct != null ? `, ${perp.open_interest.change_7d_pct > 0 ? '+' : ''}${perp.open_interest.change_7d_pct}% over 7d — ${perp.open_interest.label}` : ''}.`);
     if (perp.long_short) parts.push(`Retail accounts ${perp.long_short.pct_long}% long (L/S ratio ${perp.long_short.account_ratio}) — ${perp.long_short.label}.`);
+    if (etf) parts.push(`Spot-ETF net flow ${fmtUsdShort(etf.latest_day_usd)} latest day, ${fmtUsdShort(etf.net_5d_usd)} over 5d (${etf.streak_days}-day ${etf.streak_dir} streak); ETF assets ${fmtUsdShort(etf.total_net_assets_usd)}.`);
+    if (onchain) {
+      const oc = [];
+      if (onchain.mvrv != null) oc.push(`MVRV ${onchain.mvrv} (${onchain.mvrv < 1 ? 'below realized cost — historically a value zone' : onchain.mvrv > 3.5 ? 'rich — historically near tops' : 'mid-cycle/fair'})`);
+      if (onchain.sopr != null) oc.push(`SOPR ${onchain.sopr} (${onchain.sopr < 1 ? 'coins moving at a LOSS — capitulation-ish' : 'coins moving in profit'})`);
+      if (onchain.nupl != null) oc.push(`NUPL ${onchain.nupl}`);
+      if (onchain.realized_price != null) oc.push(`realized price (aggregate cost basis) ${fmtUsdShort(onchain.realized_price)}`);
+      if (oc.length) parts.push(`On-chain: ${oc.join(', ')}.`);
+    }
+    if (vol) parts.push(`Implied vol (DVOL) ${vol.implied_dvol_pct}% annualized.`);
     if (structure.dominance_pct != null) parts.push(`BTC dominance ${structure.dominance_pct}%.`);
     if (structure.stablecoin_supply_usd != null) parts.push(`Stablecoin dry powder ${fmtUsdShort(structure.stablecoin_supply_usd)}.`);
 
     return new Response(JSON.stringify({
-      source: 'Binance Futures + CoinGecko',
+      source: 'Binance · CoinGecko · Deribit · SoSoValue · bitcoin-data',
       base,
       perp: perp.perp,
       funding: perp.funding,
       open_interest: perp.open_interest,
       long_short: perp.long_short,
+      vol,
+      etf,
+      onchain,
       dominance_pct: structure.dominance_pct,
       total_mcap_usd: structure.total_mcap_usd,
       stablecoin_supply_usd: structure.stablecoin_supply_usd,

@@ -1763,6 +1763,24 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     if (cryptoDerivs.dominance_pct != null) {
       statsGrid.innerHTML += `<div class="stat-item" title="Bitcoin dominance — BTC's share of total crypto market cap. Rising = risk-off within crypto."><div class="stat-label">BTC Dominance</div><div class="stat-value neutral">${cryptoDerivs.dominance_pct}%</div></div>`;
     }
+    // Spot-ETF 5-day net flow (real institutional demand)
+    if (cryptoDerivs.etf && cryptoDerivs.etf.net_5d_usd != null) {
+      const e = cryptoDerivs.etf;
+      const eCls = e.net_5d_usd > 0 ? 'up' : e.net_5d_usd < 0 ? 'down' : 'neutral';
+      const eFmt = (n) => { const s = n < 0 ? '-$' : '+$', a = Math.abs(n); return a >= 1e9 ? s + (a / 1e9).toFixed(1) + 'B' : s + (a / 1e6).toFixed(0) + 'M'; };
+      statsGrid.innerHTML += `<div class="stat-item" title="Spot Bitcoin/Ether ETF net flow over 5 days (SoSoValue) — real institutional demand. ${e.streak_days}-day ${e.streak_dir} streak."><div class="stat-label">ETF Flow (5d)</div><div class="stat-value ${eCls}">${eFmt(e.net_5d_usd)}</div></div>`;
+    }
+    // On-chain MVRV (valuation vs aggregate cost basis)
+    if (cryptoDerivs.onchain && cryptoDerivs.onchain.mvrv != null) {
+      const mv = cryptoDerivs.onchain.mvrv;
+      const mCls = mv < 1 ? 'up' : mv > 3.5 ? 'down' : 'neutral';
+      statsGrid.innerHTML += `<div class="stat-item" title="MVRV — market value vs realized (cost-basis) value. <1 = below aggregate cost (value zone); >3.5 = historically near tops. Realized price: ${cryptoDerivs.onchain.realized_price ? '$' + cryptoDerivs.onchain.realized_price.toLocaleString() : 'n/a'}."><div class="stat-label">MVRV</div><div class="stat-value ${mCls}">${mv}${cryptoDerivs.onchain.sopr != null ? ` · SOPR ${cryptoDerivs.onchain.sopr}` : ''}</div></div>`;
+    }
+    // Implied volatility (Deribit DVOL)
+    if (cryptoDerivs.vol && cryptoDerivs.vol.implied_dvol_pct != null) {
+      const iv = cryptoDerivs.vol.implied_dvol_pct;
+      statsGrid.innerHTML += `<div class="stat-item" title="Deribit DVOL — option-implied annualized volatility. Higher = market pricing bigger forward moves."><div class="stat-label">Implied Vol (DVOL)</div><div class="stat-value ${iv > 60 ? 'down' : iv < 40 ? 'up' : 'neutral'}">${iv}%</div></div>`;
+    }
   }
 
   // ── Macro ──
@@ -2432,12 +2450,32 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       positioningBlock = `\n━━━ COT SPECULATIVE POSITIONING (${positioning.source}, as of ${positioning.as_of}) — ⚠ WEAK EVIDENCE / SLOW CONTEXT ONLY ━━━\n${positioning.signal}\nEVIDENCE TIER: LOW. COT data is published with a ~3-day lag, weekly, and the academic record for it as a timing signal is weak and drawdown-heavy (forecasting ability only at extremes; mostly promoted by those selling COT tools). Use ONLY as slow crowding context — positioning at an extreme (≥75% or ≤25% one-sided) can precede mean reversion — and NEVER as a primary entry/timing reason or a confidence booster.`;
     }
 
-    // ── Crypto derivatives + market structure block (real-time, MEDIUM-HIGH tier) ─
+    // ── Crypto derivatives + flows + on-chain + vol block (real-time, MED-HIGH) ──
     let cryptoBlock = '';
     if (cryptoDerivs && cryptoDerivs.signal) {
       const ls = cryptoDerivs.long_short, fd = cryptoDerivs.funding;
       const crowded = (ls && (ls.pct_long >= 65 || ls.pct_long <= 35)) || (fd && fd.label !== 'neutral');
-      cryptoBlock = `\n━━━ CRYPTO DERIVATIVES & MARKET STRUCTURE (${cryptoDerivs.source}, live) ━━━\n${cryptoDerivs.signal}\nHOW TO USE (real-time positioning — MEDIUM-HIGH evidence for crypto, unlike COT): this is the crowding/squeeze read the price chart alone cannot show. Funding tells you who is PAYING to hold their side; one-sided funding + crowded accounts at an extreme means a SQUEEZE against the crowd is a live risk — so do NOT take a high-conviction trade in the SAME direction the crowd is already maxed out on. Rising open interest into a move = fresh leverage (more fuel for a violent reversal); falling OI = deleveraging. High stablecoin dry powder = latent buying capacity on the sidelines.${crowded ? '\n⚠ Positioning is at/near an extreme — explicitly weigh squeeze risk against the technical trend before assigning high confidence.' : ''}`;
+      // Realized vol (annualized) from the analysed candles, to compare with implied DVOL.
+      const _ppy = { '15m': 35040, '1h': 8760, '4h': 2190, '1d': 365, '1w': 52 }[ts.primaryTf] || 365;
+      let _rvol = null;
+      if (closes && closes.length > 31) {
+        const _sl = closes.slice(-31), _r = [];
+        for (let i = 1; i < _sl.length; i++) _r.push(Math.log(_sl[i] / _sl[i - 1]));
+        const _m = _r.reduce((a, b) => a + b, 0) / _r.length;
+        const _v = _r.reduce((a, b) => a + (b - _m) * (b - _m), 0) / (_r.length - 1);
+        _rvol = +(Math.sqrt(_v) * Math.sqrt(_ppy) * 100).toFixed(0);
+      }
+      let _volLine = '';
+      if (_rvol != null) {
+        const iv = cryptoDerivs.vol?.implied_dvol_pct;
+        _volLine = `\nRealized vol (30-bar, annualized) ~${_rvol}%.${iv ? ` Implied DVOL ${iv}% — ${iv > _rvol * 1.15 ? 'options pricing ELEVATED forward risk (fear premium)' : iv < _rvol * 0.85 ? 'implied < realized (complacency)' : 'in line with realized'}. Size stops/targets to this vol regime, not a fixed %.` : ''}`;
+      }
+      cryptoBlock = `\n━━━ CRYPTO DERIVATIVES, FLOWS, ON-CHAIN & VOL (${cryptoDerivs.source}, live) ━━━\n${cryptoDerivs.signal}${_volLine}
+HOW TO USE — the crypto-native board the price chart can't show (MEDIUM-HIGH tier, real-time/real data — weigh properly, but no single one is a standalone trigger):
+• POSITIONING (funding + retail L/S + OI): one-sided funding / crowd at an extreme = SQUEEZE risk against the crowd — do NOT stack high conviction in the direction the crowd is already maxed on. Rising OI = fresh leverage (reversal fuel).
+• SPOT-ETF FLOWS: the REAL institutional-demand signal — use this instead of guessing/quoting flow numbers. Sustained net outflows = genuine distribution headwind; inflows = real accumulation.
+• ON-CHAIN VALUATION: realized price is the aggregate cost basis and a heavily-watched support/resistance — price BELOW it = most holders underwater (capitulation risk), ABOVE it = unrealized-profit cushion. MVRV<1 = value zone, >3.5 = historically rich. SOPR<1 = coins selling at a loss.
+• High stablecoin dry powder = latent sideline buying capacity.${crowded ? '\n⚠ Positioning is at/near an extreme — explicitly weigh squeeze risk before assigning high confidence.' : ''}`;
     }
 
     // ── Seasonality block ──────────────────────────────────────────────────────
