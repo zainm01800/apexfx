@@ -199,12 +199,68 @@
     renderInsights();
   }
 
+  // ── Multiple-testing reality check (C1: False Strategy Theorem) ──────────────
+  // Inverse standard-normal CDF (Acklam) + expected MAXIMUM Sharpe across N
+  // skill-less trials (Bailey & Lopez de Prado). A "best" Sharpe below this noise
+  // floor is exactly what trying many strategies produces by chance.
+  function invNormCDF(p) {
+    if (p <= 0) return -Infinity; if (p >= 1) return Infinity;
+    const a = [-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+    const b = [-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+    const c = [-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+    const d = [7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+    const pl = 0.02425, ph = 1 - pl; let q, r;
+    if (p < pl) { q = Math.sqrt(-2*Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+    if (p <= ph) { q = p-0.5; r = q*q; return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+    q = Math.sqrt(-2*Math.log(1-p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+  function expectedMaxSharpe(N, sigma) {
+    if (!(N > 1) || !(sigma > 0)) return 0;
+    const g = 0.5772156649;
+    return sigma * ((1 - g) * invNormCDF(1 - 1/N) + g * invNormCDF(1 - 1/(N*Math.E)));
+  }
+  function multipleTestingPanel(allRows) {
+    if (!allRows || !allRows.length) return '';
+    const latest = allRows[0].run_id;
+    const elig = allRows.filter(r => r.run_id === latest && r.n_trades >= 30 && r.sharpe != null);
+    if (elig.length < 3) return '';
+    const sharpes = elig.map(r => r.sharpe);
+    const N = elig.length, mean = sharpes.reduce((s, v) => s + v, 0) / N;
+    const sigma = Math.sqrt(sharpes.reduce((s, v) => s + (v - mean) ** 2, 0) / (N - 1));
+    const best = Math.max(...sharpes);
+    const expMax = expectedMaxSharpe(N, sigma);
+    const deflated = +(best - expMax).toFixed(2);
+    const survives = deflated > 0, cls = survives ? 'pos' : 'neg';
+    const robust = elig.filter(r => r.n_trades >= 100).length;
+    return `<div class="bt-mt ${cls}">
+      <div class="bt-mt-title">⚖ Multiple-testing reality check — False Strategy Theorem</div>
+      <div class="bt-mt-grid">
+        <div><span class="bt-mt-v">${N}</span><span class="bt-mt-l">strategies tried</span></div>
+        <div><span class="bt-mt-v">${best.toFixed(2)}</span><span class="bt-mt-l">best Sharpe (in-sample)</span></div>
+        <div><span class="bt-mt-v">${expMax.toFixed(2)}</span><span class="bt-mt-l">noise floor (best by chance)</span></div>
+        <div><span class="bt-mt-v ${cls}">${deflated > 0 ? '+' : ''}${deflated}</span><span class="bt-mt-l">deflated edge</span></div>
+      </div>
+      <div class="bt-mt-note ${cls}">${survives
+        ? `The best strategy beats the noise floor by ${deflated} — a weak positive signal worth out-of-sample testing. Still in-sample only; not a validated edge.`
+        : `The best Sharpe (${best.toFixed(2)}) does NOT exceed what trying ${N} strategies yields by chance (~${expMax.toFixed(2)}). On this evidence there is NO demonstrated edge — treat these results as noise, not a strategy to trade.`}</div>
+      ${robust < N ? `<div class="bt-mt-sample">Only ${robust}/${N} results have ≥100 trades (the reliable minimum) — the rest are small-sample/exploratory.</div>` : ''}
+    </div>`;
+  }
+
   // ── Improvement hypotheses (Layer 5) ────────────────────────────────────────
   function renderInsights() {
-    if (!A.hypotheses) return;
-    const { meta, cards } = A.hypotheses.buildHypotheses(currentRows);
-    if (!cards.length) { $('insightsCard').style.display = 'none'; return; }
+    const mt = multipleTestingPanel(currentRows);
+    let framing = '', html = '';
+    if (A.hypotheses) {
+      const { meta, cards } = A.hypotheses.buildHypotheses(currentRows);
+      if (cards.length) { renderHypothesisCards(meta, cards); framing = _bt_framing; html = _bt_html; }
+    }
+    if (!mt && !html) { $('insightsCard').style.display = 'none'; return; }
     $('insightsCard').style.display = '';
+    $('insightsBody').innerHTML = (mt || '') + framing + html;
+  }
+  let _bt_framing = '', _bt_html = '';
+  function renderHypothesisCards(meta, cards) {
     const range = meta.dataFrom ? `${meta.dataFrom.slice(0, 10)} → ${meta.dataTo.slice(0, 10)}` : '—';
     const framing = `<div class="bt-disclaimer" style="margin:0 0 14px">
       <strong>Based on historical backtest data (${range}, ${meta.totalTrades.toLocaleString()} trades across ${meta.nEligible} eligible results).</strong>
@@ -226,7 +282,7 @@
       }
       return `<div class="bt-insight"><h3>${c.title}</h3><div class="bt-dim" style="margin:2px 0 8px">${c.note}</div>${body}</div>`;
     }).join('');
-    $('insightsBody').innerHTML = framing + html;
+    _bt_framing = framing; _bt_html = html;
   }
   function populateFilterOptions() {
     const pairs = [...new Set(currentRows.map(r => r.instrument))].sort();

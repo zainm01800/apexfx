@@ -91,3 +91,18 @@
 .bt-insight-h { color: var(--text); font-size: 12.5px; line-height: 1.6; margin-top: 8px; padding: 8px 11px; background: rgba(124,92,252,.07); border: 1px solid rgba(124,92,252,.2); border-radius: 8px; }
 .bt-insight-pair { font-family: var(--mono); font-size: 12px; color: var(--text2); padding: 3px 0; }
 .bt-insight-pair b { color: var(--text); }
+
+/* Multiple-testing reality check (False Strategy Theorem) */
+.bt-mt { margin: 0 0 18px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); }
+.bt-mt.pos { background: rgba(74,222,128,.06); border-color: rgba(74,222,128,.28); }
+.bt-mt.neg { background: rgba(248,113,113,.07); border-color: rgba(248,113,113,.3); }
+.bt-mt-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+.bt-mt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.bt-mt-grid > div { display: flex; flex-direction: column; gap: 3px; }
+.bt-mt-v { font-family: var(--mono); font-size: 19px; font-weight: 600; color: var(--text); }
+.bt-mt-v.pos { color: #4ade80; } .bt-mt-v.neg { color: #f87171; }
+.bt-mt-l { font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; line-height: 1.3; }
+.bt-mt-note { font-size: 12.5px; line-height: 1.55; color: var(--text2); }
+.bt-mt-note.pos { color: #86efac; } .bt-mt-note.neg { color: #fca5a5; }
+.bt-mt-sample { margin-top: 8px; font-size: 11.5px; color: var(--text3); }
+@media (max-width: 560px) { .bt-mt-grid { grid-template-columns: repeat(2, 1fr); } }
