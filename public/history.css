@@ -503,6 +503,35 @@
 }
 .alert-dismiss:hover { background: rgba(255,170,0,.15); }
 
+/* ── Portfolio heat / correlation ── */
+.wl-heat:empty { display: none; }
+.wl-heat {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.wl-heat-title {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px;
+}
+.wl-heat-warn {
+  font-size: 13px; line-height: 1.55; color: var(--orange);
+  background: rgba(255,170,0,.08); border: 1px solid rgba(255,170,0,.25);
+  border-radius: 9px; padding: 10px 13px; margin-bottom: 12px;
+}
+.wl-heat-pairs { display: flex; flex-wrap: wrap; gap: 8px; }
+.wl-corr {
+  font-family: var(--mono); font-size: 12px; color: var(--text2);
+  padding: 5px 11px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--bg2);
+}
+.wl-corr strong { font-weight: 700; }
+.wl-corr.hot  { border-color: rgba(248,113,113,.4); color: #f87171; background: rgba(248,113,113,.07); }
+.wl-corr.warm { border-color: rgba(255,170,0,.35);  color: var(--orange); background: rgba(255,170,0,.06); }
+.wl-corr.cool { border-color: rgba(74,222,128,.3);  color: #4ade80; background: rgba(74,222,128,.05); }
+
 /* ── Watchlist table ── */
 .wl-empty { text-align: center; padding: 70px 0; color: var(--text2); }
 .wl-empty p { font-size: 15px; line-height: 1.6; }

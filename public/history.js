@@ -559,6 +559,81 @@ function renderWatchlist() {
       if (p != null) _wlPrices[item.sym] = p;
     })).then(() => { if (_currentView === 'watchlist') renderWatchlist(); checkAlerts(); });
   }
+
+  // Portfolio heat / correlation (needs ≥2 holdings)
+  loadPortfolioHeat(list);
+}
+
+// ── Portfolio heat / correlation ─────────────────────────────────────────────
+// Highly-correlated holdings are effectively ONE position at multiplied size — the
+// classic risk that "5 different longs" are really 5× the same beta. We fetch each
+// holding's recent daily returns and surface pairs that move together.
+const _wlReturns = {};   // sym → array of daily returns (cached)
+
+async function fetchReturnSeries(sym, type) {
+  if (_wlReturns[sym]) return _wlReturns[sym];
+  try {
+    const to = Math.floor(Date.now() / 1000), from = to - 130 * 86400;
+    const r = await fetch(`${API_CANDLES}?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type || 'Stock')}&tf=1d&from=${from}&to=${to}`);
+    if (!r.ok) return null;
+    const c = await r.json();
+    if (!Array.isArray(c) || c.length < 20) return null;
+    const closes = c.map(b => b.close).filter(x => x != null);
+    const rets = closes.slice(1).map((v, i) => (v - closes[i]) / closes[i]);
+    _wlReturns[sym] = rets;
+    return rets;
+  } catch { return null; }
+}
+
+function pearson(a, b) {
+  const n = Math.min(a.length, b.length);
+  if (n < 15) return null;
+  const x = a.slice(-n), y = b.slice(-n);
+  const mx = x.reduce((s, v) => s + v, 0) / n, my = y.reduce((s, v) => s + v, 0) / n;
+  let num = 0, dx = 0, dy = 0;
+  for (let i = 0; i < n; i++) { const a1 = x[i] - mx, b1 = y[i] - my; num += a1 * b1; dx += a1 * a1; dy += b1 * b1; }
+  const den = Math.sqrt(dx * dy);
+  return den > 0 ? num / den : null;
+}
+
+async function loadPortfolioHeat(list) {
+  const el = document.getElementById('wlHeat');
+  if (!el) return;
+  if (!list || list.length < 2) { el.innerHTML = ''; return; }
+
+  await Promise.allSettled(list.map(item => fetchReturnSeries(item.sym, item.type)));
+  if (_currentView !== 'watchlist') return;
+
+  // Pairwise correlations
+  const pairs = [];
+  const involved = new Set();
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = _wlReturns[list[i].sym], b = _wlReturns[list[j].sym];
+      if (!a || !b) continue;
+      const c = pearson(a, b);
+      if (c == null) continue;
+      pairs.push({ a: list[i].sym, b: list[j].sym, c });
+      if (Math.abs(c) >= 0.7) { involved.add(list[i].sym); involved.add(list[j].sym); }
+    }
+  }
+  if (!pairs.length) { el.innerHTML = ''; return; }
+
+  const high = pairs.filter(p => Math.abs(p.c) >= 0.7).sort((a, b) => Math.abs(b.c) - Math.abs(a.c));
+  const corrClass = c => Math.abs(c) >= 0.7 ? 'hot' : Math.abs(c) >= 0.4 ? 'warm' : 'cool';
+  const top = pairs.slice().sort((a, b) => Math.abs(b.c) - Math.abs(a.c)).slice(0, 6);
+
+  let warn = '';
+  if (involved.size >= 2) {
+    warn = `<div class="wl-heat-warn">⚠️ ${involved.size} of your ${list.length} holdings are highly correlated (≥0.7) — they move as effectively one position, so your real risk is more concentrated than the count suggests. Consider sizing them as a group.</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="wl-heat-title">🔥 Portfolio Heat — correlation of recent daily moves</div>
+    ${warn}
+    <div class="wl-heat-pairs">
+      ${top.map(p => `<span class="wl-corr ${corrClass(p.c)}">${escHtml(p.a)} · ${escHtml(p.b)} <strong>${p.c >= 0 ? '+' : ''}${p.c.toFixed(2)}</strong></span>`).join('')}
+    </div>`;
 }
 
 function removeFromWatchlist(i) {

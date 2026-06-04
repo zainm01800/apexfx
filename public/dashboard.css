@@ -638,3 +638,24 @@ body {
 .ra-btn:hover { color: var(--text); border-color: var(--purple); background: var(--purple-glow); }
 .ra-tv:hover    { border-color: var(--blue);  color: var(--blue); background: rgba(59,158,255,.1); }
 .ra-watch:hover { border-color: var(--orange); color: var(--orange); background: rgba(255,170,0,.08); }
+
+/* ── Position-size calculator card ── */
+.ps-card { border-left: 3px solid var(--purple); }
+.ps-inputs { display: flex; gap: 14px; flex-wrap: wrap; }
+.ps-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
+.ps-field span { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.ps-field input {
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 10px 12px; font-family: var(--mono); font-size: 15px; font-weight: 600;
+  color: var(--text); outline: none; transition: border-color .15s; width: 100%;
+}
+.ps-field input:focus { border-color: var(--purple); }
+.ps-out { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 700px) { .ps-out { grid-template-columns: repeat(2, 1fr); } }
+.ps-stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.ps-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.ps-val { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--text); }
+.ps-val.accent { color: var(--purple); }
+.ps-val.pos { color: var(--green); }
+.ps-val.neg { color: var(--red); }
+.ps-note { font-size: 12px; color: var(--text3); line-height: 1.55; }

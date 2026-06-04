@@ -1066,6 +1066,132 @@ async function loadNavWinRate() {
   } catch {}
 }
 
+// ── COT speculative positioning (CFTC) ────────────────────────────────────────
+async function fetchPositioning(sym, type) {
+  try {
+    const r = await fetch(`/api/positioning?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d && d.net != null) ? d : null;
+  } catch { return null; }
+}
+
+// ── Seasonality — current calendar month's historical bias ────────────────────
+// Pulls ~5y of daily candles and computes the average month-over-month return and
+// hit-rate for the CURRENT calendar month across prior years. Cheap, client-side.
+async function fetchSeasonality(sym, type) {
+  try {
+    const bars = await fetchCandles(sym, type, '1d', 1825);
+    if (!Array.isArray(bars) || bars.length < 260) return null;
+    const byMonthYear = {};
+    for (const b of bars) {
+      const d = new Date(b.time * 1000);
+      (byMonthYear[`${d.getUTCFullYear()}-${d.getUTCMonth()}`] ||= []).push(b.close);
+    }
+    const monthReturns = {};
+    for (const [key, closes] of Object.entries(byMonthYear)) {
+      if (closes.length < 2) continue;
+      const m = parseInt(key.split('-')[1], 10);
+      (monthReturns[m] ||= []).push((closes[closes.length - 1] - closes[0]) / closes[0] * 100);
+    }
+    const curMonth = new Date().getUTCMonth();
+    const arr = monthReturns[curMonth];
+    if (!arr || arr.length < 3) return null;
+    const avg = arr.reduce((s, x) => s + x, 0) / arr.length;
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return {
+      month: monthNames[curMonth],
+      years: arr.length,
+      avgReturn: +avg.toFixed(2),
+      winRate: Math.round(arr.filter(x => x > 0).length / arr.length * 100),
+      best: +Math.max(...arr).toFixed(1),
+      worst: +Math.min(...arr).toFixed(1),
+    };
+  } catch { return null; }
+}
+
+// ── Calibration feedback — realised accuracy by stated-confidence bucket ───────
+// The model's own historical hit-rate, so the committee can self-correct for over/
+// under-confidence. Needs a minimum of resolved calls to be meaningful.
+async function fetchCalibration() {
+  try {
+    const r = await fetch('/api/memory?all=true&limit=200');
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return null;
+    const resolved = rows.filter(x => x.outcome === 'tp_hit' || x.outcome === 'sl_hit');
+    if (resolved.length < 8) return null;
+    const buckets = [
+      { label: '50–59%', lo: 0,  hi: 59 },
+      { label: '60–69%', lo: 60, hi: 69 },
+      { label: '70–79%', lo: 70, hi: 79 },
+      { label: '80–89%', lo: 80, hi: 89 },
+      { label: '90%+',   lo: 90, hi: 100 },
+    ];
+    const lines = [];
+    for (const b of buckets) {
+      const set = resolved.filter(x => { const c = Number(x.confidence) || 0; return c >= b.lo && c <= b.hi; });
+      if (set.length < 3) continue;
+      const acc = Math.round(set.filter(x => x.outcome === 'tp_hit').length / set.length * 100);
+      lines.push({ band: b.label, acc, n: set.length });
+    }
+    if (!lines.length) return null;
+    const tp = resolved.filter(x => x.outcome === 'tp_hit').length;
+    return { lines, overallAcc: Math.round(tp / resolved.length * 100), n: resolved.length };
+  } catch { return null; }
+}
+
+// ── Position-size calculator (results panel) ──────────────────────────────────
+// Pure risk math: shares/units = (account × risk%) ÷ per-unit risk (|entry−stop|).
+// Account size + risk% persist in localStorage so the trader sets them once.
+function _psGet(key, dflt) {
+  const v = parseFloat(localStorage.getItem(key));
+  return isNaN(v) ? dflt : v;
+}
+function renderPositionSizer(r) {
+  const el = document.getElementById('positionSizer');
+  if (!el) return;
+  const a = r.analysis || {};
+  const entry = parseEntryPrice(a.entry_zone);
+  const stop  = parseFloat(a.stop_loss);
+  const target = parseFloat(a.target_price);
+  if (isNaN(entry) || isNaN(stop) || Math.abs(entry - stop) <= 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const acct = _psGet('apex_ps_account', 10000);
+  const riskPct = _psGet('apex_ps_riskpct', 1);
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="a-card-header"><span class="a-icon">🧮</span><h2>Position-Size Calculator</h2></div>
+    <div class="ps-inputs">
+      <label class="ps-field"><span>Account size ($)</span><input type="number" id="psAccount" min="1" step="100" value="${acct}"></label>
+      <label class="ps-field"><span>Risk per trade (%)</span><input type="number" id="psRisk" min="0.1" max="100" step="0.1" value="${riskPct}"></label>
+    </div>
+    <div class="ps-out" id="psOut"></div>
+    <p class="ps-note">Sized off this setup's entry (${fmtPrice(entry, r.type)}) and stop (${fmtPrice(stop, r.type)}). Risk-first: you never lose more than your chosen % if the stop is honoured.</p>`;
+
+  const recompute = () => {
+    const account = Math.max(0, parseFloat(document.getElementById('psAccount').value) || 0);
+    const rp = Math.max(0, parseFloat(document.getElementById('psRisk').value) || 0);
+    localStorage.setItem('apex_ps_account', String(account));
+    localStorage.setItem('apex_ps_riskpct', String(rp));
+    const riskAmount = account * rp / 100;
+    const perUnit = Math.abs(entry - stop);
+    const units = perUnit > 0 ? riskAmount / perUnit : 0;
+    const notional = units * entry;
+    const rewardPerUnit = !isNaN(target) ? Math.abs(target - entry) : null;
+    const potReward = rewardPerUnit != null ? units * rewardPerUnit : null;
+    const unitLabel = r.type === 'Forex' ? 'units' : r.type === 'Crypto' ? 'coins' : 'shares';
+    document.getElementById('psOut').innerHTML = `
+      <div class="ps-stat"><span class="ps-lbl">Size</span><span class="ps-val accent">${units >= 1 ? Math.floor(units).toLocaleString() : units.toFixed(4)} ${unitLabel}</span></div>
+      <div class="ps-stat"><span class="ps-lbl">Position value</span><span class="ps-val">$${notional.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+      <div class="ps-stat"><span class="ps-lbl">Risk ($)</span><span class="ps-val neg">$${riskAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+      ${potReward != null ? `<div class="ps-stat"><span class="ps-lbl">Reward at TP ($)</span><span class="ps-val pos">$${potReward.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>` : ''}`;
+  };
+  document.getElementById('psAccount').addEventListener('input', recompute);
+  document.getElementById('psRisk').addEventListener('input', recompute);
+  recompute();
+}
+
 // ── Multi-agent AI call ───────────────────────────────────────────────────────
 // Calls /api/ai with a focused prompt. Returns the text or throws.
 // Robust: reads the body as text and parses safely, so a transient gateway
@@ -1207,7 +1333,7 @@ function setText(id, val) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData }) {
+function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis: a, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality }) {
   const closes = candles.map(c => c.close);
   const curr   = closes[closes.length - 1];
   const prev   = closes[closes.length - 2];
@@ -1238,9 +1364,10 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   setText('vcThesis',      a.executive_summary || '');
   setText('confNotHigher', a.why_confidence_not_higher ? `Why not higher: ${a.why_confidence_not_higher}` : '');
 
-  // ── Action bar (TradingView · Share · Watchlist) ──
+  // ── Action bar (TradingView · Share · Watchlist) + position-size calculator ──
   _lastResult = { sym: sym.toUpperCase(), type, analysis: a, price: curr };
   renderResultsActions(_lastResult);
+  renderPositionSizer(_lastResult);
 
   // ── Stats grid ──
   const rsi    = calcRSI(closes);
@@ -1299,6 +1426,18 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     const fs = qualityScores.piotroski.score;
     const fsClass = fs >= 7 ? 'up' : fs <= 3 ? 'down' : 'neutral';
     statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Piotroski F-Score</div><div class="stat-value ${fsClass}">${fs}/9 — ${qualityScores.piotroski.quality}</div></div>`;
+  }
+  // COT speculative positioning
+  if (positioning && positioning.net != null) {
+    const netLong = positioning.net >= 0;
+    const crowded = positioning.pct_long >= 75 || positioning.pct_long <= 25;
+    const cls = crowded ? 'neutral' : netLong ? 'up' : 'down';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">COT Specs (${escHtmlSafe(positioning.asset)})</div><div class="stat-value ${cls}">${positioning.pct_long}% long${crowded ? ' ⚠' : ''}</div></div>`;
+  }
+  // Seasonality (current month)
+  if (seasonality) {
+    const sClass = seasonality.avgReturn > 0.5 ? 'up' : seasonality.avgReturn < -0.5 ? 'down' : 'neutral';
+    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">${escHtmlSafe(seasonality.month)} Seasonality</div><div class="stat-value ${sClass}">${seasonality.avgReturn > 0 ? '+' : ''}${seasonality.avgReturn}% · ${seasonality.winRate}% pos</div></div>`;
   }
 
   // ── Macro ──
@@ -1733,7 +1872,7 @@ async function startResearch() {
       : fetch(`/api/sector?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}`).then(r => r.ok ? r.json() : null).catch(() => null);
 
     // ── Step 3: News, fundamentals, macro context + all new signals in parallel ──
-    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT, eventsData, sectorData] = await Promise.all([
+    const [news, quote, macroCtx, supaMemory, fearGreed, macroIntermarket, qualityScores, backtestKB, strategyBT, eventsData, sectorData, positioning, seasonality, calibration] = await Promise.all([
       fetchNews(sym, type),
       ['Stock', 'ETF'].includes(type) ? fetchQuote(sym, type) : Promise.resolve(null),
       fetchMacroContext(sym),
@@ -1745,6 +1884,9 @@ async function startResearch() {
       fetchStrategyBacktests(sym),
       _evPromise,
       _secPromise,
+      fetchPositioning(sym, type),
+      fetchSeasonality(sym, type),
+      fetchCalibration(),
     ]);
 
     // Resolve outcomes of pending analyses now that we have fresh candles
@@ -1936,6 +2078,28 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       sectorBlock = `\n━━━ SECTOR RELATIVE STRENGTH ━━━\n${sym} is ${sr.outperforming ? 'OUTPERFORMING' : 'UNDERPERFORMING'} its sector (${sr.sector}) by ${sr.vs_sector} over the last 30 days (${sym} ${sr.stock_return_30d > 0 ? '+' : ''}${sr.stock_return_30d}% vs sector ${sr.sector_return_30d > 0 ? '+' : ''}${sr.sector_return_30d}%). ${sr.outperforming ? 'Relative strength supports the long thesis; leaders tend to keep leading.' : 'Relative weakness is a caution flag — the name is lagging its peers.'}`;
     }
 
+    // ── COT speculative-positioning block ──────────────────────────────────────
+    let positioningBlock = '';
+    if (positioning && positioning.signal) {
+      positioningBlock = `\n━━━ COT SPECULATIVE POSITIONING (${positioning.source}, as of ${positioning.as_of}) ━━━\n${positioning.signal}\nUse this as a CROWDING / contrarian check: positioning at an extreme (≥75% or ≤25% one-sided) often precedes mean reversion, while a fresh build in the trade direction confirms momentum.`;
+    }
+
+    // ── Seasonality block ──────────────────────────────────────────────────────
+    let seasonalityBlock = '';
+    if (seasonality) {
+      const sn = seasonality;
+      seasonalityBlock = `\n━━━ SEASONALITY (${sn.month}, last ${sn.years} years) ━━━\nHistorically ${sym} has averaged ${sn.avgReturn > 0 ? '+' : ''}${sn.avgReturn}% in ${sn.month}, positive ${sn.winRate}% of the time (best +${sn.best}%, worst ${sn.worst}%). Treat as a soft bias, not a signal — weigh it lightly and only alongside the live technical/macro picture.`;
+    }
+
+    // ── Calibration block — the model's OWN realised accuracy by confidence band ─
+    // This is the self-correction loop: feed back how often calls at each stated
+    // confidence actually hit TP, so the committee can adjust for over/underconfidence.
+    let calibrationBlock = '';
+    if (calibration && calibration.lines?.length) {
+      const rows = calibration.lines.map(l => `  • Stated ${l.band} → ${l.acc}% actually hit TP (n=${l.n})`).join('\n');
+      calibrationBlock = `\n━━━ ⚖ CONFIDENCE CALIBRATION (your realised hit-rate by stated confidence, ${calibration.n} resolved calls; overall ${calibration.overallAcc}%) ━━━\n${rows}\nCALIBRATION DIRECTIVE: This is YOUR historical accuracy at each confidence level across ALL symbols. If a band's realised hit-rate is well BELOW the stated confidence, you have been systematically OVERCONFIDENT there — pick a confidence_score whose band has historically matched the real outcome. Do not state 85% if your 80–89% calls have only hit ~55%.`;
+    }
+
     // ── Confluence Score block ─────────────────────────────────────────────────
     const confluenceBlock = confluenceScore ? `
 ━━━ MULTI-TIMEFRAME CONFLUENCE SCORE ━━━
@@ -2034,6 +2198,8 @@ ${ohlcvTable}
 ${fundBlock}
 ${eventBlock}
 ${sectorBlock}
+${positioningBlock}
+${seasonalityBlock}
 ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
 ${intermarketBlock}
 ${qualityBlock}
@@ -2293,6 +2459,9 @@ ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' 
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
 ${eventBlock || ''}
 ${sectorBlock || ''}
+${positioningBlock || ''}
+${seasonalityBlock || ''}
+${calibrationBlock || ''}
 ${engineBlock}
 ${backtestBlock}
 ${strategyBtBlock}
@@ -2358,7 +2527,10 @@ Respond ONLY with this exact JSON structure:
   "why_confidence_not_higher": "What uncertainty or disagreement prevents higher confidence"
 }`;
 
-    const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
+    // 4000 (not 6000) tokens: the committee JSON fits comfortably, and 6000-token
+    // generations were overrunning the Edge gateway's wall-clock limit → 504s. The
+    // desk call already runs reliably at 4000, so this matches a proven-safe budget.
+    const committeeText = await callAgent(systemPrompt, committeePrompt, 4000);
 
     let analysis;
     try {
@@ -2386,7 +2558,7 @@ Respond ONLY with this exact JSON structure:
     saveToMemory(sym, type, analysis, curr, _updateId);
     markScanned(sym);
 
-    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData });
+    renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality });
 
     // Show comparison banner if this is a rescan from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {
