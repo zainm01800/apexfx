@@ -121,3 +121,20 @@
 .bt-rb-note { font-size: 12.5px; line-height: 1.55; color: var(--text2); }
 .bt-rb-note.pos { color: #86efac; } .bt-rb-note.neg { color: #fca5a5; } .bt-rb-note.mid { color: #fcd34d; }
 @media (max-width: 640px) { .bt-rb-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── Mobile polish ─────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .bt-main { padding: 16px 12px 64px; }
+  .bt-title { font-size: 22px; }
+  .bt-card { padding: 14px 13px 16px; }
+  .bt-card-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .bt-actions { flex-wrap: wrap; }
+  .bt-actions .bt-btn { flex: 1 1 auto; }
+  .bt-filters { gap: 6px; }
+  .bt-filters select { flex: 1 1 40%; min-width: 0; }
+  .bt-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .bt-table-wrap { -webkit-overflow-scrolling: touch; }
+  .bt-modal { padding: 8px; }
+  .bt-modal-box { max-height: 94vh; }
+  .bt-modal-body { padding: 12px; }
+}

@@ -680,3 +680,44 @@ body {
 .ps-val.pos { color: var(--green); }
 .ps-val.neg { color: var(--red); }
 .ps-note { font-size: 12px; color: var(--text3); line-height: 1.55; }
+
+/* ── Mobile polish + PWA safe-area (installed app on notched phones) ────────── */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .header { padding-top: env(safe-area-inset-top); height: calc(58px + env(safe-area-inset-top)); }
+}
+
+@media (max-width: 640px) {
+  /* Header: keep logo · nav · live on one line without overflow */
+  .header { padding-left: 12px; padding-right: 12px; gap: 8px; }
+  .logo { font-size: 15px; }
+  .nav { gap: 1px; }
+  .nav-link { padding: 6px 9px; font-size: 12px; }
+  .nav-winrate { margin-left: 4px; padding: 3px 7px; font-size: 10px; }
+  .live-pill { font-size: 10px; gap: 5px; }
+
+  /* Pulse bar tiles a touch tighter */
+  .pulse-item { min-width: 116px; padding: 9px 13px; gap: 7px; }
+  .pulse-label { font-size: 10px; }
+  .pulse-price, .pulse-change { font-size: 12px; }
+
+  /* Trade-style pills: equal-width row, label on its own line */
+  .trade-style-wrap { gap: 8px; }
+  .ts-label { width: 100%; text-align: center; }
+  .trade-style-pills { width: 100%; justify-content: space-between; gap: 4px; padding: 4px; }
+  .ts-pill { flex: 1 1 0; padding: 6px 4px; }
+  .ts-name { font-size: 12px; }
+  .ts-dur { font-size: 8.5px; }
+
+  /* Result action buttons: 2-up, full tap targets */
+  .results-actions .ra-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 11px 10px; }
+}
+
+@media (max-width: 430px) {
+  .nav-winrate { display: none; }     /* supplementary — give the nav room on small phones */
+  .nav-link { padding: 6px 8px; font-size: 11.5px; }
+  .hero-text h1 { font-size: 22px; }
+  .stats-grid { gap: 8px; }
+  .stat-value { font-size: 14px; }
+  .verdict-card { padding: 20px 18px; }
+  .a-card { padding: 18px 15px; }
+}

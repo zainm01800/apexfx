@@ -624,3 +624,14 @@
 @media (max-width: 520px) {
   .acc-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Mobile polish ─────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .history-main { padding: 24px 14px 80px; }
+  .acc-board { padding: 14px; }
+  .acc-grid { gap: 8px; }
+  .view-toggle { display: flex; width: 100%; }
+  .vt-btn { flex: 1; text-align: center; }
+  .wl-table-wrap { -webkit-overflow-scrolling: touch; }   /* momentum scroll for the wide table */
+  .scan-card { padding: 16px 15px; }
+}
