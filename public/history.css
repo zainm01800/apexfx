@@ -313,6 +313,85 @@
 }
 .sc-btn-chart:hover { border-color: var(--purple); color: var(--purple); }
 
+/* ── Realised-record badge (per symbol) ── */
+.sc-record-row { display: flex; }
+.sc-record {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.sc-record.rec-good { background: rgba(74,222,128,.1);  color: #4ade80; border-color: rgba(74,222,128,.3); }
+.sc-record.rec-bad  { background: rgba(248,113,113,.1); color: #f87171; border-color: rgba(248,113,113,.3); }
+
+/* ── Anti-anchoring flag ── */
+.sc-anchor {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--orange);
+  background: rgba(255,170,0,.08);
+  border: 1px solid rgba(255,170,0,.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1.4;
+}
+
+/* ── Thesis-evolution trail (collapsible) ── */
+.sc-trail {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.sc-trail summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  list-style: none;
+  user-select: none;
+  transition: color .15s;
+}
+.sc-trail summary::-webkit-details-marker { display: none; }
+.sc-trail summary:hover { color: var(--purple); }
+.sc-trail[open] summary { color: var(--text); margin-bottom: 8px; }
+.trail-list { display: flex; flex-direction: column; gap: 6px; }
+.trail-row {
+  display: grid;
+  grid-template-columns: auto auto auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tr-date { color: var(--text3); }
+.tr-verdict { font-weight: 700; }
+.tr-verdict.buy, .tr-verdict.strong-buy { color: #4ade80; }
+.tr-verdict.hold { color: var(--orange); }
+.tr-verdict.sell, .tr-verdict.strong-sell { color: #f87171; }
+.tr-conf { color: var(--text); }
+.tr-delta { margin-left: 4px; font-size: 10px; }
+.tr-delta.up { color: #4ade80; }
+.tr-delta.dn { color: #f87171; }
+.tr-delta.flat { color: var(--text3); }
+.tr-px { color: var(--text2); }
+.tr-tgt { color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
+.tr-outcome { font-weight: 600; }
+.tr-outcome.pending { color: var(--text3); }
+.tr-outcome.tp_hit  { color: #4ade80; }
+.tr-outcome.sl_hit  { color: #f87171; }
+.tr-outcome.expired { color: var(--orange); }
+@media (max-width: 560px) {
+  .trail-row { grid-template-columns: 1fr 1fr; white-space: normal; }
+}
+
 /* ── Verdict legend strip at top of page ── */
 .hist-legend {
   display: flex;

@@ -597,11 +597,8 @@ function verdictDir(v) {
   if (/SELL|SHORT/.test(u)) return 'short';
   return 'neutral';
 }
-// Two setups are "the same trade" if same direction and entry/stop/target are
-// each within ~2% — i.e. a refreshed read of the same idea, not a new one.
-function sameSetup(prior, a) {
-  if (!prior) return false;
-  if (verdictDir(prior.verdict) !== verdictDir(a.verdict)) return false;
+// Are entry/stop/target each within ~2% of the prior scan's?
+function levelsClose(prior, a) {
   const pairs = [
     [parseEntryPrice(prior.entry_zone), parseEntryPrice(a.entry_zone)],
     [parseFloat(prior.stop_loss),       parseFloat(a.stop_loss)],
@@ -613,6 +610,23 @@ function sameSetup(prior, a) {
     if (Math.abs(x - y) / denom > 0.02) return false;
   }
   return true;
+}
+// Did the prior scan happen on the same UTC calendar day as now?
+function sameUTCDay(priorRow) {
+  const today = new Date().toISOString().slice(0, 10);
+  const pd = (priorRow.analysis_date || '').slice(0, 10);
+  return pd && pd === today;
+}
+// Two scans are "the same evolving thesis" (→ refresh the open row, don't pile up a
+// duplicate) when the DIRECTION matches and EITHER: they're from the same day (so all
+// the rapid same-session re-scans collapse into one living card), OR the entry/stop/
+// target are still materially identical across days. A direction flip, or a genuinely
+// different setup on a later day, becomes a NEW history row — preserving the day-by-day
+// evolution trail the History page renders.
+function sameSetup(prior, a) {
+  if (!prior) return false;
+  if (verdictDir(prior.verdict) !== verdictDir(a.verdict)) return false;
+  return sameUTCDay(prior) || levelsClose(prior, a);
 }
 
 // Force a re-scan that bypasses the cooldown (from the cooldown notice button).
@@ -1650,6 +1664,31 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
       }
     }
 
+    // Anti-anchoring block — guards against re-asserting the SAME unconfirmed thesis
+    // with growing conviction. Fires when the most recent runs of calls on this symbol
+    // are all the same direction and NONE have resolved (no TP/SL hit) — the textbook
+    // confirmation-bias setup (e.g. repeated BUYs that the market hasn't validated).
+    let anchorBlock = '';
+    if (Array.isArray(tickerMemory) && tickerMemory.length >= 3) {
+      const dirs = tickerMemory.map(h => verdictDir(h.verdict));   // tickerMemory is newest-first
+      const d0 = dirs[0];
+      if (d0 !== 'neutral') {
+        let run = 0;
+        for (const d of dirs) { if (d === d0) run++; else break; }   // leading same-direction streak
+        const runRows = tickerMemory.slice(0, run);
+        const anyResolved = runRows.some(h => h.outcome === 'tp_hit' || h.outcome === 'sl_hit');
+        if (run >= 3 && !anyResolved) {
+          const confs = runRows.map(h => h.confidence).filter(c => c != null);   // newest → oldest
+          const rising = confs.length >= 2 && confs[0] >= confs[confs.length - 1];
+          anchorBlock = `\n━━━ ⚠ ANCHORING CHECK (${sym}) ━━━\n`
+            + `You have issued ${run} consecutive ${d0.toUpperCase()} calls on ${sym}, ALL still unresolved (neither TP nor SL hit)`
+            + (rising && confs.length >= 2 ? `, with confidence holding or RISING (${confs[confs.length - 1]}% → ${confs[0]}%)` : '')
+            + `.\nThis is a classic anchoring / confirmation-bias pattern: repeating a thesis with growing conviction while the market has produced NO confirming outcome.\n`
+            + `DIRECTIVE: Do NOT simply re-assert the prior ${d0.toUpperCase()} call. Either (a) cite genuinely NEW evidence that strengthens it, or (b) trim confidence / consider WAIT. Re-stating an unconfirmed thesis at equal-or-higher confidence demands explicit justification.`;
+        }
+      }
+    }
+
     // Fundamentals block (stocks only)
     let fundBlock = '';
     if (quote && (type === 'Stock' || type === 'ETF')) {
@@ -2053,6 +2092,7 @@ ${strategyBtBlock}
 ${scanBlock || ''}
 ${memoryBlock || ''}
 ${trackRecordBlock || ''}
+${anchorBlock || ''}
 
 Your task:
 1. Read the EVIDENCE lists — count how many bullish vs bearish factors exist across all four analysts
