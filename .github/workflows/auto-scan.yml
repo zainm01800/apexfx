@@ -7,10 +7,17 @@ name: auto-scan
 # enough resolved, feature-tagged rows exist). Each scan also resolves prior open
 # outcomes. No keys needed — it uses the deployed site, which holds the AI keys
 # server-side.
+#
+# Cadence: ONCE per symbol per day on purpose. The dashboard refreshes the same open
+# row for same-direction same-UTC-day re-scans (anti-duplicate), so a second daily
+# scan adds no new row — it would just burn AI calls. Weekdays scan the full list;
+# weekends scan crypto only, since stocks/FX are closed (their Friday daily bar is
+# stale) while crypto trades 24/7.
 
 on:
   schedule:
-    - cron: "0 22 * * 1-5"     # weekdays 22:00 UTC (after the US close — daily bars are fresh)
+    - cron: "0 22 * * 1-5"     # weekdays 22:00 UTC — full watchlist (after US close, daily bars fresh)
+    - cron: "0 22 * * 6,0"     # weekends 22:00 UTC — crypto only (stocks/FX closed; crypto 24/7)
   workflow_dispatch:
     inputs:
       symbols:
@@ -32,6 +39,8 @@ jobs:
           npm i --no-save playwright@1.49.1
           npx playwright install --with-deps chromium
       - name: Run auto-scan
+        # Manual run → use the symbols input. Weekend cron → crypto only. Weekday cron
+        # (or empty) → blank env, so the script falls back to its full default watchlist.
         env:
-          APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols }}
+          APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || (github.event.schedule == '0 22 * * 6,0' && 'BTC/USD,ETH/USD,SOL/USD') || '' }}
         run: node scripts/auto-scan.mjs
