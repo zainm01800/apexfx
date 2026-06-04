@@ -9,6 +9,8 @@
 
 export const config = { runtime: 'edge' };
 
+const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
+
 // ── Hard-coded macro calendar ────────────────────────────────────────────────
 // FOMC = the rate-decision day (2nd day of each 2-day meeting), per the Fed's
 // published 2026 schedule. CPI = the BLS release day. Both are announced months
@@ -64,6 +66,29 @@ async function fetchEarnings(sym) {
   return null;
 }
 
+// Finnhub fallback — Yahoo's quoteSummary often gates earningsDate behind a crumb,
+// so use Finnhub's earnings calendar (same source api/quote.js uses) when it does.
+async function fetchEarningsFinnhub(sym) {
+  if (!FINNHUB_KEY) return null;
+  try {
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    const to = new Date(today); to.setUTCDate(to.getUTCDate() + 120);
+    const fromStr = today.toISOString().slice(0, 10);
+    const toStr   = to.toISOString().slice(0, 10);
+    const url = `https://finnhub.io/api/v1/calendar/earnings?from=${fromStr}&to=${toStr}&symbol=${encodeURIComponent(sym.toUpperCase())}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(9000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const arr = json?.earningsCalendar;
+    if (!Array.isArray(arr) || !arr.length) return null;
+    const dateStr = arr.map(e => e.date).filter(Boolean).sort()[0];
+    if (!dateStr) return null;
+    const n = daysAway(dateStr);
+    if (n < 0) return null;
+    return { type: 'earnings', date: dateStr, daysAway: n, label: `Earnings in ${n} day${n === 1 ? '' : 's'}` };
+  } catch { return null; }
+}
+
 export default async function handler(req) {
   const url    = new URL(req.url);
   const origin = req.headers.get('origin');
@@ -92,6 +117,7 @@ export default async function handler(req) {
   let earnings = null;
   if (type === 'Stock' || type === 'ETF') {
     earnings = await fetchEarnings(sym).catch(() => null);
+    if (!earnings) earnings = await fetchEarningsFinnhub(sym).catch(() => null);
   }
 
   return new Response(JSON.stringify({ earnings, macro }), { headers: cors });
