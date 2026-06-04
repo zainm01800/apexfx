@@ -384,44 +384,74 @@ function calcFibExtensions(bars) {
 // Weights signals across daily + weekly timeframes into a single directional score.
 // bullPct = % of weighted signals pointing bullish (0–100)
 // Returns { bullPct, bearPct, direction, strength, signalCount }
+// Multi-timeframe confluence — DE-CORRELATED. The research is blunt that stacking
+// correlated indicators manufactures false confidence ("RSI + Stochastic both
+// oversold is one signal shown twice"; "Price > SMA20/50/200" is the SAME uptrend
+// fact counted three times). So each signal is tagged with a correlation FAMILY,
+// and within a family we keep the strongest signal at full weight and DECAY each
+// additional same-family signal (0.55^rank) — turning a raw vote count into an
+// effective-information score. A reading driven by one family is not real
+// confluence, so we surface `independentSignals` + `concentrated` and damp the
+// reported strength accordingly.
 function calcConfluenceScore({ curr, sma20, sma50, sma200, wCurr, wSMA20, wSMA50, rsi, wRSI, macd, wMACD, volTrnd, adx, stochRsi }) {
-  const signals = []; // { bull: bool, weight: number, label: string }
+  const signals = []; // { bull, weight, label, family }
 
-  // ── Daily trend (highest weight) ──
-  if (curr != null && sma20 != null) signals.push({ bull: curr > sma20,  weight: 2, label: 'Price vs SMA20' });
-  if (curr != null && sma50 != null) signals.push({ bull: curr > sma50,  weight: 2, label: 'Price vs SMA50' });
-  if (curr != null && sma200 != null) signals.push({ bull: curr > sma200, weight: 3, label: 'Price vs SMA200' });
-  if (sma20 != null && sma50 != null) signals.push({ bull: sma20 > sma50, weight: 2, label: 'SMA20 vs SMA50' });
-  if (sma50 != null && sma200 != null) signals.push({ bull: sma50 > sma200, weight: 2, label: 'SMA50 vs SMA200' });
+  // ── Daily trend / moving-average structure (one underlying fact) ──
+  if (curr != null && sma20 != null)  signals.push({ bull: curr > sma20,   weight: 2, label: 'Price vs SMA20',  family: 'dtrend' });
+  if (curr != null && sma50 != null)  signals.push({ bull: curr > sma50,   weight: 2, label: 'Price vs SMA50',  family: 'dtrend' });
+  if (curr != null && sma200 != null) signals.push({ bull: curr > sma200,  weight: 3, label: 'Price vs SMA200', family: 'dtrend' });
+  if (sma20 != null && sma50 != null) signals.push({ bull: sma20 > sma50,  weight: 2, label: 'SMA20 vs SMA50',  family: 'dtrend' });
+  if (sma50 != null && sma200 != null) signals.push({ bull: sma50 > sma200, weight: 2, label: 'SMA50 vs SMA200', family: 'dtrend' });
+  if (adx != null && adx > 25)        signals.push({ bull: curr > (sma20 || curr), weight: 1, label: 'ADX trend strength', family: 'dtrend' });
 
-  // ── Daily momentum ──
-  if (rsi != null) signals.push({ bull: rsi > 50, weight: 2, label: 'RSI momentum' });
-  if (macd != null) signals.push({ bull: macd > 0, weight: 2, label: 'MACD' });
-  if (stochRsi != null) signals.push({ bull: stochRsi > 50, weight: 1, label: 'StochRSI' });
+  // ── Daily momentum oscillators (correlated with each other) ──
+  if (rsi != null)      signals.push({ bull: rsi > 50,      weight: 2, label: 'RSI momentum', family: 'dmom' });
+  if (macd != null)     signals.push({ bull: macd > 0,      weight: 2, label: 'MACD',         family: 'dmom' });
+  if (stochRsi != null) signals.push({ bull: stochRsi > 50, weight: 1, label: 'StochRSI',     family: 'dmom' });
 
-  // ── Weekly trend (strong confirmatory weight) ──
-  if (wCurr != null && wSMA20 != null) signals.push({ bull: wCurr > wSMA20,  weight: 3, label: 'Weekly vs WMA20' });
-  if (wCurr != null && wSMA50 != null) signals.push({ bull: wCurr > wSMA50,  weight: 2, label: 'Weekly vs WMA50' });
-  if (wRSI  != null) signals.push({ bull: wRSI  > 50, weight: 2, label: 'Weekly RSI' });
-  if (wMACD != null) signals.push({ bull: wMACD > 0,  weight: 3, label: 'Weekly MACD' });
+  // ── Weekly trend structure ──
+  if (wCurr != null && wSMA20 != null) signals.push({ bull: wCurr > wSMA20, weight: 3, label: 'Weekly vs WMA20', family: 'wtrend' });
+  if (wCurr != null && wSMA50 != null) signals.push({ bull: wCurr > wSMA50, weight: 2, label: 'Weekly vs WMA50', family: 'wtrend' });
+  if (wMACD != null)                   signals.push({ bull: wMACD > 0,      weight: 3, label: 'Weekly MACD',     family: 'wtrend' });
 
-  // ── Volume / trend strength ──
-  if (volTrnd === 'rising')   signals.push({ bull: true,  weight: 2, label: 'Volume rising' });
-  if (volTrnd === 'declining') signals.push({ bull: false, weight: 2, label: 'Volume declining' });
-  if (adx != null && adx > 25) signals.push({ bull: curr > (sma20 || curr), weight: 1, label: 'ADX trend strength' });
+  // ── Weekly momentum (separate read from weekly trend) ──
+  if (wRSI != null) signals.push({ bull: wRSI > 50, weight: 2, label: 'Weekly RSI', family: 'wmom' });
+
+  // ── Volume (genuinely independent of price) ──
+  if (volTrnd === 'rising')    signals.push({ bull: true,  weight: 2, label: 'Volume rising',    family: 'vol' });
+  if (volTrnd === 'declining') signals.push({ bull: false, weight: 2, label: 'Volume declining', family: 'vol' });
 
   if (!signals.length) return null;
 
-  const totalWeight = signals.reduce((s, x) => s + x.weight, 0);
-  const bullWeight  = signals.filter(x => x.bull).reduce((s, x) => s + x.weight, 0);
-  const bullPct     = Math.round(bullWeight / totalWeight * 100);
+  // De-correlate within each family: strongest signal full weight, each further
+  // same-family signal decayed. bullPct is computed from these EFFECTIVE weights.
+  const DECAY = 0.55;
+  const byFamily = {};
+  for (const s of signals) (byFamily[s.family] ||= []).push(s);
+  let totalW = 0, bullW = 0;
+  const famW = {};
+  for (const fam in byFamily) {
+    const fs = byFamily[fam].slice().sort((a, b) => b.weight - a.weight);
+    let w = 0;
+    fs.forEach((s, i) => { const eff = s.weight * Math.pow(DECAY, i); totalW += eff; w += eff; if (s.bull) bullW += eff; });
+    famW[fam] = w;
+  }
+  const bullPct = Math.round(bullW / totalW * 100);
+  const independentSignals = Object.keys(byFamily).length;          // distinct info sources
+  const maxShare   = Math.max(...Object.values(famW)) / totalW;     // weight in the biggest family
+  const concentrated = maxShare >= 0.5;                             // dominated by one correlated cluster
+
+  let strength = bullPct >= 80 || bullPct <= 20 ? 'HIGH' : bullPct >= 65 || bullPct <= 35 ? 'MODERATE' : 'LOW';
+  if (concentrated) strength = strength === 'HIGH' ? 'MODERATE' : strength === 'MODERATE' ? 'LOW' : strength;
 
   return {
     bullPct,
     bearPct:     100 - bullPct,
     direction:   bullPct >= 65 ? 'BULLISH' : bullPct <= 35 ? 'BEARISH' : 'MIXED',
-    strength:    bullPct >= 80 || bullPct <= 20 ? 'HIGH' : bullPct >= 65 || bullPct <= 35 ? 'MODERATE' : 'LOW',
+    strength,
     signalCount: signals.length,
+    independentSignals,
+    concentrated,
   };
 }
 
@@ -1664,7 +1694,8 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   // Confluence Score
   if (confluenceScore) {
     const csClass = confluenceScore.bullPct >= 65 ? 'up' : confluenceScore.bullPct <= 35 ? 'down' : 'neutral';
-    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Confluence</div><div class="stat-value ${csClass}">${confluenceScore.bullPct}% Bull (${confluenceScore.direction})</div></div>`;
+    const csTitle = `${confluenceScore.independentSignals} independent signal families (correlated indicators down-weighted)${confluenceScore.concentrated ? ' · ⚠ concentrated in one family — not genuine confluence' : ''}`;
+    statsGrid.innerHTML += `<div class="stat-item" title="${csTitle}"><div class="stat-label">Confluence${confluenceScore.concentrated ? ' ⚠' : ''}</div><div class="stat-value ${csClass}">${confluenceScore.bullPct}% Bull (${confluenceScore.direction})</div></div>`;
   }
   // Yield Curve (from intermarket)
   if (macroIntermarket?.yield_curve?.value != null) {
@@ -1689,12 +1720,12 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     const netLong = positioning.net >= 0;
     const crowded = positioning.pct_long >= 75 || positioning.pct_long <= 25;
     const cls = crowded ? 'neutral' : netLong ? 'up' : 'down';
-    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">COT Specs (${escHtmlSafe(positioning.asset)})</div><div class="stat-value ${cls}">${positioning.pct_long}% long${crowded ? ' ⚠' : ''}</div></div>`;
+    statsGrid.innerHTML += `<div class="stat-item" title="Weak evidence / slow context only — COT is lagged (~3d), weekly, and a poor timing signal. Not a primary reason."><div class="stat-label">COT Specs (${escHtmlSafe(positioning.asset)}) · weak</div><div class="stat-value ${cls}">${positioning.pct_long}% long${crowded ? ' ⚠' : ''}</div></div>`;
   }
   // Seasonality (current month)
   if (seasonality) {
     const sClass = seasonality.avgReturn > 0.5 ? 'up' : seasonality.avgReturn < -0.5 ? 'down' : 'neutral';
-    statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">${escHtmlSafe(seasonality.month)} Seasonality</div><div class="stat-value ${sClass}">${seasonality.avgReturn > 0 ? '+' : ''}${seasonality.avgReturn}% · ${seasonality.winRate}% pos</div></div>`;
+    statsGrid.innerHTML += `<div class="stat-item" title="Weak evidence — calendar seasonality is contested/often data-mined and marginal after costs (n=${seasonality.years} yrs). A soft tie-breaker only."><div class="stat-label">${escHtmlSafe(seasonality.month)} Seasonality · weak</div><div class="stat-value ${sClass}">${seasonality.avgReturn > 0 ? '+' : ''}${seasonality.avgReturn}% · ${seasonality.winRate}% pos</div></div>`;
   }
   if (metaLabel) {
     const mClass = metaLabel.pCorrect >= 60 ? 'bull' : metaLabel.pCorrect < 45 ? 'bear' : 'neutral';
@@ -2364,14 +2395,14 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
     // ── COT speculative-positioning block ──────────────────────────────────────
     let positioningBlock = '';
     if (positioning && positioning.signal) {
-      positioningBlock = `\n━━━ COT SPECULATIVE POSITIONING (${positioning.source}, as of ${positioning.as_of}) ━━━\n${positioning.signal}\nUse this as a CROWDING / contrarian check: positioning at an extreme (≥75% or ≤25% one-sided) often precedes mean reversion, while a fresh build in the trade direction confirms momentum.`;
+      positioningBlock = `\n━━━ COT SPECULATIVE POSITIONING (${positioning.source}, as of ${positioning.as_of}) — ⚠ WEAK EVIDENCE / SLOW CONTEXT ONLY ━━━\n${positioning.signal}\nEVIDENCE TIER: LOW. COT data is published with a ~3-day lag, weekly, and the academic record for it as a timing signal is weak and drawdown-heavy (forecasting ability only at extremes; mostly promoted by those selling COT tools). Use ONLY as slow crowding context — positioning at an extreme (≥75% or ≤25% one-sided) can precede mean reversion — and NEVER as a primary entry/timing reason or a confidence booster.`;
     }
 
     // ── Seasonality block ──────────────────────────────────────────────────────
     let seasonalityBlock = '';
     if (seasonality) {
       const sn = seasonality;
-      seasonalityBlock = `\n━━━ SEASONALITY (${sn.month}, last ${sn.years} years) ━━━\nHistorically ${sym} has averaged ${sn.avgReturn > 0 ? '+' : ''}${sn.avgReturn}% in ${sn.month}, positive ${sn.winRate}% of the time (best +${sn.best}%, worst ${sn.worst}%). Treat as a soft bias, not a signal — weigh it lightly and only alongside the live technical/macro picture.`;
+      seasonalityBlock = `\n━━━ SEASONALITY (${sn.month}, last ${sn.years} years) — ⚠ WEAK EVIDENCE ━━━\nHistorically ${sym} has averaged ${sn.avgReturn > 0 ? '+' : ''}${sn.avgReturn}% in ${sn.month}, positive ${sn.winRate}% of the time (best +${sn.best}%, worst ${sn.worst}%, n=${sn.years} years).\nEVIDENCE TIER: LOW. Calendar seasonality is contested in the literature — often attributed to data-mining / a few outlier years, is marginal after costs, and ${sn.years} years is a tiny sample. Treat as a very soft tie-breaker only, NEVER a standalone reason, and do not let it raise confidence.`;
     }
 
     // ── Calibration block — the model's OWN realised accuracy by confidence band ─
@@ -2385,11 +2416,12 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
 
     // ── Confluence Score block ─────────────────────────────────────────────────
     const confluenceBlock = confluenceScore ? `
-━━━ MULTI-TIMEFRAME CONFLUENCE SCORE ━━━
-Signal Alignment: ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish (${confluenceScore.signalCount} weighted signals across daily + weekly)
+━━━ MULTI-TIMEFRAME CONFLUENCE SCORE (de-correlated) ━━━
+Signal Alignment: ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish — from ${confluenceScore.independentSignals} INDEPENDENT signal families (${confluenceScore.signalCount} raw indicators, but correlated ones within a family are down-weighted so the same trend/momentum read is not counted multiple times).
 Direction: ${confluenceScore.direction} | Strength: ${confluenceScore.strength}
-${confluenceScore.bullPct >= 80 ? '⚡ STRONG BULLISH ALIGNMENT — high-conviction long setups supported' : ''}${confluenceScore.bullPct <= 20 ? '⚡ STRONG BEARISH ALIGNMENT — high-conviction short setups supported' : ''}${confluenceScore.direction === 'MIXED' ? '⚠️ MIXED SIGNALS — requires extra caution; NO_EDGE or WAIT may be most honest verdict' : ''}
-CONFIDENCE CALIBRATION RULE: Confidence score should generally not exceed (Confluence% + 20) unless exceptional circumstances justify it. A confluence of ${confluenceScore.bullPct}% → confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : '';
+${confluenceScore.concentrated ? '⚠️ CONCENTRATED — most of this score comes from ONE correlated family (e.g. just the moving-average stack). That is NOT genuine confluence; do not treat it as strong multi-source agreement, and keep confidence moderate.' : ''}
+${confluenceScore.bullPct >= 80 && !confluenceScore.concentrated ? '⚡ STRONG BULLISH ALIGNMENT across independent families — high-conviction long setups supported' : ''}${confluenceScore.bullPct <= 20 && !confluenceScore.concentrated ? '⚡ STRONG BEARISH ALIGNMENT across independent families — high-conviction short setups supported' : ''}${confluenceScore.direction === 'MIXED' ? '⚠️ MIXED SIGNALS — requires extra caution; NO_EDGE or WAIT may be most honest verdict' : ''}
+CONFIDENCE CALIBRATION RULE: Confidence score should generally not exceed (Confluence% + 20) unless exceptional circumstances justify it${confluenceScore.concentrated ? ', and because this score is concentrated in one correlated family, stay well BELOW that ceiling' : ''}. A confluence of ${confluenceScore.bullPct}% → confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : '';
 
     // ── Macro Intermarket block (FRED + Yahoo Finance) ─────────────────────────
     const intermarketBlock = macroIntermarket ? `
@@ -2751,7 +2783,7 @@ ${riskFactors}
 ${debateBlock || 'Debate data unavailable.'}
 
 ━━━ QUANTITATIVE CONTEXT ━━━
-${confluenceScore ? `Multi-Timeframe Confluence: ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish (${confluenceScore.direction}, ${confluenceScore.strength} strength, ${confluenceScore.signalCount} signals)
+${confluenceScore ? `Multi-Timeframe Confluence (de-correlated): ${confluenceScore.bullPct}% bullish / ${confluenceScore.bearPct}% bearish (${confluenceScore.direction}, ${confluenceScore.strength} strength, ${confluenceScore.independentSignals} independent signal families${confluenceScore.concentrated ? ' — ⚠️ CONCENTRATED in one correlated family, not genuine confluence' : ''})
 CRITICAL: Confidence score should generally not exceed (Confluence% + 20) unless overwhelming evidence justifies it. Confluence of ${confluenceScore.bullPct}% → implied confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : ''}
 ${fearGreed ? `Fear & Greed: ${fearGreed.value}/100 (${fearGreed.label})` : ''}
 ${macroIntermarket?.yield_curve?.signal ? `Yield Curve: ${macroIntermarket.yield_curve.signal}` : ''}
