@@ -175,9 +175,10 @@
     return rows;
   }
   // ── Aggregate profit/loss summary across the (filtered) backtests ───────────
-  // "Is this set of strategies net profitable or not?" Leads with % profitable +
-  // median return (the meaningful, selection-bias-aware reads) and a combined sum
-  // (honestly framed — it's not a tradeable portfolio). Robust subset = ≥100 trades.
+  // "Is this set of strategies net profitable or not?" Returns are extremely fat-
+  // tailed (one multi-year crypto run can compound to 100,000%+), so a raw sum or
+  // average is meaningless — we lead with OUTLIER-ROBUST stats: % profitable, the
+  // median (typical) result, and walk-forward survival. Verdict = % profitable.
   function renderSummary(rows) {
     const el = $('btSummary');
     const withRet = rows.filter(r => r.total_return != null && !isNaN(r.total_return));
@@ -186,15 +187,15 @@
     const n = rets.length;
     const profitable = rets.filter(x => x > 0).length;
     const pctProf = Math.round(profitable / n * 100);
-    const sum = rets.reduce((a, b) => a + b, 0);
-    const avg = sum / n;
-    const median = n % 2 ? rets[(n - 1) / 2] : (rets[n / 2 - 1] + rets[n / 2]) / 2;
+    const med = (a) => a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null;
+    const median = med(rets);
     const robust = withRet.filter(r => r.n_trades >= 100).map(r => +r.total_return);
     const robustProf = robust.length ? Math.round(robust.filter(x => x > 0).length / robust.length * 100) : null;
     // Walk-forward survival: of strategies with a usable out-of-sample sample, how many
     // kept a positive edge out-of-sample? This is the honest headline.
     const oosElig = withRet.filter(r => r.oos_n_trades != null && r.oos_n_trades >= 10);
     const oosHeldPct = oosElig.length ? Math.round(oosElig.filter(r => r.oos_holds === true).length / oosElig.length * 100) : null;
+    const oosMedian = oosElig.length ? med(oosElig.map(r => +r.oos_return).sort((a, b) => a - b)) : null;
 
     // Verdict from % profitable (in-sample, so ~50% is the coin-flip line).
     let verdict, vcls;
@@ -211,12 +212,12 @@
       </div>
       <div class="bt-sum-grid">
         ${stat(pctProf + '%', `profitable (${profitable}/${n})`, pctProf >= 50 ? 'pos' : 'neg')}
-        ${stat(pct(median), 'median return', median > 0 ? 'pos' : 'neg')}
-        ${stat(pct(avg), 'average return', avg > 0 ? 'pos' : 'neg')}
-        ${stat((sum > 0 ? '+' : '') + sum.toFixed(0) + '%', 'combined return', sum > 0 ? 'pos' : 'neg')}
+        ${stat(pct(median), 'median (typical) return', median > 0 ? 'pos' : 'neg')}
         ${oosHeldPct != null ? stat(oosHeldPct + '%', `held up out-of-sample (${oosElig.length})`, oosHeldPct >= 50 ? 'pos' : 'neg') : stat('—', 'out-of-sample', '')}
+        ${oosMedian != null ? stat(pct(oosMedian), 'median OOS return', oosMedian > 0 ? 'pos' : 'neg') : ''}
+        ${robustProf != null ? stat(robustProf + '%', `profitable @ ≥100 trades (${robust.length})`, robustProf >= 50 ? 'pos' : 'neg') : ''}
       </div>
-      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). The honest metric is <strong>"held up out-of-sample"</strong> — how many kept a positive edge on held-out recent data; the rest is in-sample (~50% ≈ chance) and the "combined return" is a raw sum, not a tradeable portfolio.${oosHeldPct == null ? ' (Out-of-sample fills in after the next weekly backtest run.)' : ''}</div>`;
+      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). Returns are too fat-tailed to sum into a meaningful "total" (one lucky multi-year run dwarfs the rest), so the honest reads are the <strong>median</strong> (a typical result) and <strong>"held up out-of-sample"</strong> — how many kept a positive edge on held-out recent data.${oosHeldPct == null ? ' (Out-of-sample fills in after the next weekly backtest run.)' : ''}</div>`;
   }
 
   function renderResults() {
