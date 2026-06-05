@@ -3338,7 +3338,28 @@ async function saveValidation(target, analysis, curr) {
   } catch {}
 }
 
-function showValidationBanner(target, fresh) {
+// Learned track record of each re-check assessment: across resolved trades that were
+// re-checked, how the LAST re-check's assessment lined up with the actual outcome.
+function computeValidationReliability(rows) {
+  const b = { confirmed: { tp: 0, sl: 0 }, weakening: { tp: 0, sl: 0 }, invalidated: { tp: 0, sl: 0 } };
+  for (const r of (rows || [])) {
+    if (r.outcome !== 'tp_hit' && r.outcome !== 'sl_hit') continue;
+    let vs = r.validations;
+    if (typeof vs === 'string') { try { vs = JSON.parse(vs); } catch { vs = null; } }
+    if (!Array.isArray(vs) || !vs.length) continue;
+    const a = vs[vs.length - 1].assessment;
+    if (!b[a]) continue;
+    if (r.outcome === 'tp_hit') b[a].tp++; else b[a].sl++;
+  }
+  const out = {};
+  for (const k of ['confirmed', 'weakening', 'invalidated']) {
+    const n = b[k].tp + b[k].sl;
+    out[k] = { n, slRate: n ? Math.round(b[k].sl / n * 100) : null, tpRate: n ? Math.round(b[k].tp / n * 100) : null };
+  }
+  return out;
+}
+
+async function showValidationBanner(target, fresh) {
   let el = document.getElementById('compareBanner');
   if (!el) {
     el = document.createElement('div');
@@ -3347,6 +3368,17 @@ function showValidationBanner(target, fresh) {
     document.getElementById('resultsSection').prepend(el);
   }
   const rec = buildValidation(target, fresh, parseFloat(fresh.price));
+  // Learned track record for this kind of re-check (dormant until enough resolved).
+  let trackNote = '';
+  try {
+    const rows = await fetch('/api/memory?all=true&limit=200').then(r => r.json());
+    const vr = computeValidationReliability(rows);
+    const s = vr[rec.assessment];
+    if (s && s.n >= 4) {
+      const good = rec.assessment === 'confirmed';
+      trackNote = `<div class="vb-prog ${good ? 'pos' : 'neg'}">📊 Track record: past <strong>${rec.assessment}</strong> re-checks went on to hit the ${good ? `target ${s.tpRate}%` : `stop ${s.slRate}%`} of the time (n=${s.n})</div>`;
+    }
+  } catch {}
   const LABEL = { confirmed: '✅ STILL VALID', weakening: '⚠️ WEAKENING', invalidated: '❌ INVALIDATED', 'n/a': '🔁 RE-CHECKED' };
   const CLS   = { confirmed: 'pos', weakening: 'warn', invalidated: 'neg', 'n/a': '' };
   const confThen = target.confidence != null ? target.confidence + '%' : '—';
@@ -3360,6 +3392,7 @@ function showValidationBanner(target, fresh) {
     <div class="vb-verdict ${CLS[rec.assessment] || ''}">${LABEL[rec.assessment] || '🔁 RE-CHECKED'}</div>
     <div class="vb-row">Original call: <strong>${(target.verdict || '').replace(/_/g, ' ')}</strong> @ ${confThen} (${escapeAttr(target.analysis_date || '')}) → fresh read: <strong>${(fresh.verdict || '').replace(/_/g, ' ')}</strong> @ ${confNow}</div>
     ${progLine}
+    ${trackNote}
     <button class="cb-close" onclick="this.closest('.compare-banner').remove()">Dismiss</button>
   `;
 }

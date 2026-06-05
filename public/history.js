@@ -11,6 +11,7 @@ const API_CANDLES = '/api/candles';   // same endpoint dashboard uses
 // ── State ────────────────────────────────────────────────────────────────────
 let _allRows      = [];   // all rows from Supabase (flat)
 let _rowById      = {};   // id → row, for the Preview modal + Update lookups
+let _valReliability = {}; // learned: how re-check assessments predict outcomes
 let _filterOutcome = 'all';
 let _filterType    = 'all';
 let _filterSym     = '';
@@ -349,7 +350,7 @@ function renderCard(g) {
   const _vals = parseValidations(row.validations);
   const _lastVal = _vals.length ? _vals[_vals.length - 1] : null;
   const validRow = _lastVal
-    ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold?">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}</div>`
+    ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold? The 'historically' note is the realised track record of this kind of re-check.">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}<span class="sc-valid-stat">${escHtml(reliabilityNote(_lastVal.assessment))}</span></div>`
     : '';
 
   return `
@@ -422,6 +423,7 @@ function applyFilters(groups) {
 function renderGrid() {
   const grid = document.getElementById('scanGrid');
   const empty = document.getElementById('histEmpty');
+  _valReliability = computeValidationReliability(_allRows);   // refresh learned re-check stats
   const groups = applyFilters(buildGroups(_allRows));
 
   if (!groups.length) {
@@ -643,6 +645,39 @@ function computeAccuracy(rows) {
   };
 }
 
+// ── Re-check signal (validations feedback loop) ──────────────────────────────
+// THIS is what "consumes" the validity re-checks: across resolved trades that were
+// re-checked at least once, bucket by the LAST re-check's assessment and measure how
+// they actually resolved. Answers "does flagging a trade WEAKENING/INVALIDATED predict
+// a loss?" — and feeds that learned rate back onto the cards and re-check banners.
+// Dormant (n=0) until re-checked trades start resolving.
+function computeValidationReliability(rows) {
+  const b = { confirmed: { tp: 0, sl: 0 }, weakening: { tp: 0, sl: 0 }, invalidated: { tp: 0, sl: 0 } };
+  for (const r of rows) {
+    if (r.outcome !== 'tp_hit' && r.outcome !== 'sl_hit') continue;
+    const vs = parseValidations(r.validations);
+    if (!vs.length) continue;
+    const a = vs[vs.length - 1].assessment;   // the last re-check before it resolved
+    if (!b[a]) continue;
+    if (r.outcome === 'tp_hit') b[a].tp++; else b[a].sl++;
+  }
+  const out = { total: 0 };
+  for (const k of ['confirmed', 'weakening', 'invalidated']) {
+    const n = b[k].tp + b[k].sl;
+    out[k] = { n, slRate: n ? Math.round(b[k].sl / n * 100) : null, tpRate: n ? Math.round(b[k].tp / n * 100) : null };
+    out.total += n;
+  }
+  return out;
+}
+
+// Short learned annotation for a re-check of the given assessment (or '' if too thin).
+function reliabilityNote(assessment, minN = 4) {
+  const s = _valReliability[assessment];
+  if (!s || s.n < minN) return '';
+  if (assessment === 'confirmed') return ` · historically ${s.tpRate}% hit target (n=${s.n})`;
+  return ` · historically ${s.slRate}% hit stop (n=${s.n})`;
+}
+
 function accStat(label, value, sub, cls) {
   return `<div class="acc-stat">
     <span class="acc-val ${cls || ''}">${value}</span>
@@ -691,6 +726,30 @@ function renderScoreboard() {
     </div>`;
   }).join('');
 
+  // Re-check signal — the validations feedback loop made visible.
+  const vr = computeValidationReliability(scoped);
+  const VR_ROWS = [
+    { key: 'confirmed',   label: 'Confirmed',   side: 'target' },
+    { key: 'weakening',   label: 'Weakening',   side: 'stop' },
+    { key: 'invalidated', label: 'Invalidated', side: 'stop' },
+  ];
+  const vrRows = VR_ROWS.filter(x => vr[x.key].n > 0).map(x => {
+    const s = vr[x.key]; const good = x.side === 'target';
+    const rate = good ? s.tpRate : s.slRate; const cls = good ? 'pos' : 'neg';
+    return `<div class="acc-rel-row">
+      <span class="acc-rel-band">${x.label}</span>
+      <span class="acc-rel-bar"><span class="acc-rel-fill ${cls}" style="width:${Math.max(3, rate)}%"></span></span>
+      <span class="acc-rel-val ${cls}">${rate}% hit ${good ? 'target' : 'stop'}</span>
+      <span class="acc-rel-n">n=${s.n}</span>
+    </div>`;
+  }).join('');
+  const valPanel = `<div class="acc-rel">
+    <div class="acc-rel-title">🔁 Re-check signal — does a re-validation predict the outcome?</div>
+    ${vr.total ? `<div class="acc-rel-rows">${vrRows}</div>
+      <div class="acc-rel-foot">Of re-checked trades that have since resolved, how the LAST re-check's read lined up with reality. A high "Weakening → hit stop" rate means the Update button is a real early-warning — and that signal now shows on each re-checked card.</div>`
+      : `<div class="acc-rel-foot">No re-checked trades have resolved yet. Once a trade you hit <strong>Update</strong> on closes (TP or SL), this learns whether "weakening/invalidated" flags actually predict losses — and starts annotating re-checks with that track record.</div>`}
+  </div>`;
+
   el.innerHTML = `
     <div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
     <div class="acc-grid">
@@ -709,6 +768,7 @@ function renderScoreboard() {
       <div class="acc-rel-rows">${relRows}</div>
       <div class="acc-rel-foot">Bands within ±10% of the diagonal are well-calibrated. Large gaps = over/under-confidence the live verdict now auto-corrects.</div>
     </div>` : ''}
+    ${valPanel}
     <div class="acc-calib ${a.hiConfAcc == null ? '' : a.hiConfAcc >= 50 ? 'pos' : 'neg'}">
       When APEX says <strong>80%+ confidence</strong> →
       ${a.hiConfN ? `<strong>${a.hiConfAcc}% accuracy</strong> across ${a.hiConfN} resolved high-conviction call${a.hiConfN === 1 ? '' : 's'}` : 'no resolved 80%+ calls yet'}
