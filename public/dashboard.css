@@ -495,6 +495,19 @@ body {
   font-size: 12.5px; color: var(--text2); line-height: 1.5;
   margin: -6px 0 14px;
 }
+/* Validity re-check banner */
+.vb-verdict {
+  display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .03em;
+  padding: 6px 14px; border-radius: 9px; margin-bottom: 10px;
+  background: rgba(255,255,255,.05); border: 1px solid var(--border);
+}
+.vb-verdict.pos  { color: var(--green);  border-color: rgba(74,222,128,.4);  background: rgba(74,222,128,.1); }
+.vb-verdict.warn { color: var(--orange); border-color: rgba(255,170,0,.4);   background: rgba(255,170,0,.1); }
+.vb-verdict.neg  { color: #f87171;       border-color: rgba(248,113,113,.4); background: rgba(248,113,113,.1); }
+.vb-row { font-size: 13.5px; color: var(--text); line-height: 1.6; }
+.vb-prog { font-size: 13px; margin-top: 8px; color: var(--text2); }
+.vb-prog.pos { color: var(--green); }
+.vb-prog.neg { color: #f87171; }
 .cb-grid {
   display: grid; grid-template-columns: 1fr 32px 1fr; align-items: center; gap: 12px;
 }

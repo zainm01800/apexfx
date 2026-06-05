@@ -3039,21 +3039,28 @@ Respond ONLY with this exact JSON structure:
       }
     }
 
-    // Same OPEN setup → refresh the existing history row; otherwise a new idea.
-    // EXCEPTION: an explicit "Update" from History is non-destructive — it always
-    // writes a NEW dated row so the original trade is preserved in the trail.
-    const _priorOpen = (Array.isArray(tickerMemory) ? tickerMemory : []).find(r => r.outcome === 'pending') || null;
-    const _isUpdateScan = _updateMode && _compareOriginal && _compareOriginal.symbol === sym;
-    const _updateId  = (!_isUpdateScan && _priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
-
-    // Save (update the open same-setup row, or create a new one) + start cooldown.
-    saveToMemory(sym, type, analysis, curr, _updateId, setupFeatures);
+    // VALIDATION re-check (History "Update"): re-run the scan but DON'T create or
+    // refresh a trade — attach a validity record to the original trade instead.
+    const _isValidate = _validateMode && _validateTarget && _validateTarget.symbol === sym;
+    if (_isValidate) {
+      saveValidation(_validateTarget, analysis, curr);
+    } else {
+      // Same OPEN setup → refresh the existing history row; otherwise a new idea.
+      // EXCEPTION: a legacy "update" is non-destructive — writes a NEW dated row.
+      const _priorOpen = (Array.isArray(tickerMemory) ? tickerMemory : []).find(r => r.outcome === 'pending') || null;
+      const _isUpdateScan = _updateMode && _compareOriginal && _compareOriginal.symbol === sym;
+      const _updateId  = (!_isUpdateScan && _priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
+      saveToMemory(sym, type, analysis, curr, _updateId, setupFeatures);
+    }
     markScanned(sym);
 
     renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel, cryptoDerivs });
 
-    // Show comparison banner if this is a rescan / update from History
-    if (_compareOriginal && _compareOriginal.symbol === sym) {
+    // Banner: validity re-check, or the legacy compare/update banner.
+    if (_isValidate) {
+      showValidationBanner(_validateTarget, { ...analysis, price: curr });
+      _validateTarget = null; _validateMode = false;
+    } else if (_compareOriginal && _compareOriginal.symbol === sym) {
       showCompareBanner(_compareOriginal, { ...analysis, price: curr }, _updateMode);
       _compareOriginal = null;
       _updateMode = false;
@@ -3215,8 +3222,10 @@ function initAutocomplete() {
 
 // ── Comparison banner (shown when arriving from History with ?compare=ID) ──────
 let _compareOriginal = null; // holds the historical row for comparison
-let _updateMode = false;     // arrived via ?update=ID — preserve the original trade
+let _updateMode = false;     // arrived via ?update=ID — preserve the original trade (legacy)
 let _autoScan = false;       // arrived via ?auto=1 — bot scan (auto-scan workflow)
+let _validateMode = false;   // arrived via ?validate=ID — re-check an existing trade
+let _validateTarget = null;  // the original trade row being re-validated
 
 function showCompareBanner(original, fresh, isUpdate = false) {
   let el = document.getElementById('compareBanner');
@@ -3267,6 +3276,95 @@ function showCompareBanner(original, fresh, isUpdate = false) {
   `;
 }
 
+// ── Validity re-check (History "Update") ──────────────────────────────────────
+// Re-runs the scan against an existing trade and judges whether the original call
+// still holds — WITHOUT creating a new trade. Combines the fresh committee read
+// (same side? confidence up/down?) with objective price progress (how far toward the
+// target vs the stop since entry). Each record is appended to the trade's
+// `validations` array as research the learning loop can later mine.
+
+// How far price has travelled from entry toward the target (positive) vs the stop.
+function validationProgress(target, curr) {
+  const eb = entryBounds(target.entry_zone);
+  const entry = eb ? (eb.lo + eb.hi) / 2 : parseFloat(target.price);
+  const tp = parseFloat(target.target_price), sl = parseFloat(target.stop_loss);
+  const dir = verdictDir(target.verdict);
+  if (isNaN(entry) || isNaN(tp) || isNaN(sl) || dir === 'neutral') return null;
+  let toTarget, toStop;
+  if (dir === 'short') { toTarget = (entry - curr) / (entry - tp); toStop = (curr - entry) / (sl - entry); }
+  else                 { toTarget = (curr - entry) / (tp - entry); toStop = (entry - curr) / (entry - sl); }
+  const clamp = x => Math.round(Math.max(0, Math.min(1, x)) * 100);
+  if (toTarget >= 0 && toTarget >= toStop) return { pct: clamp(toTarget), toward: 'target' };
+  if (toStop > 0) return { pct: clamp(toStop), toward: 'stop' };
+  return { pct: 0, toward: 'target' };
+}
+
+function buildValidation(target, analysis, curr) {
+  const origDir = verdictDir(target.verdict);
+  const freshDir = verdictDir(analysis.verdict);
+  let assessment;
+  if (origDir === 'neutral')        assessment = 'n/a';        // original wasn't an actionable trade
+  else if (freshDir === origDir)    assessment = 'confirmed';  // still leans the same way
+  else if (freshDir === 'neutral')  assessment = 'weakening';  // no longer an active setup
+  else                              assessment = 'invalidated';// now leans the other way
+  const prog = validationProgress(target, curr);
+  return {
+    ts: new Date().toISOString(),
+    verdict: analysis.verdict,
+    confidence: analysis.confidence_score ?? null,
+    confidenceThen: target.confidence ?? null,
+    price: +(+curr).toFixed(5),
+    assessment,
+    progressPct: prog ? prog.pct : null,
+    progressToward: prog ? prog.toward : null,
+  };
+}
+
+// Read-modify-write the trade's validations array (single-user; races negligible).
+async function saveValidation(target, analysis, curr) {
+  const rec = buildValidation(target, analysis, curr);
+  try {
+    const rows = await fetch('/api/memory?all=true&limit=200').then(r => r.json()).catch(() => null);
+    let vals = [];
+    const row = Array.isArray(rows) ? rows.find(r => r.id === target.id) : null;
+    let v = row ? row.validations : null;
+    if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
+    if (Array.isArray(v)) vals = v;
+    vals.push(rec);
+    fetch('/api/memory', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: target.id, validations: vals }),
+    }).catch(() => {});
+  } catch {}
+}
+
+function showValidationBanner(target, fresh) {
+  let el = document.getElementById('compareBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'compareBanner';
+    el.className = 'compare-banner';
+    document.getElementById('resultsSection').prepend(el);
+  }
+  const rec = buildValidation(target, fresh, parseFloat(fresh.price));
+  const LABEL = { confirmed: '✅ STILL VALID', weakening: '⚠️ WEAKENING', invalidated: '❌ INVALIDATED', 'n/a': '🔁 RE-CHECKED' };
+  const CLS   = { confirmed: 'pos', weakening: 'warn', invalidated: 'neg', 'n/a': '' };
+  const confThen = target.confidence != null ? target.confidence + '%' : '—';
+  const confNow  = fresh.confidence_score != null ? fresh.confidence_score + '%' : '—';
+  const progLine = rec.progressPct != null
+    ? `<div class="vb-prog ${rec.progressToward === 'target' ? 'pos' : 'neg'}">📈 Price has moved <strong>${rec.progressPct}%</strong> of the way toward the ${rec.progressToward} since entry</div>`
+    : '';
+  el.innerHTML = `
+    <div class="cb-title">🔁 Validity Re-check — is this trade still good?</div>
+    <div class="cb-note">Your original trade is unchanged. This re-check was saved as research; it does not create a new trade.</div>
+    <div class="vb-verdict ${CLS[rec.assessment] || ''}">${LABEL[rec.assessment] || '🔁 RE-CHECKED'}</div>
+    <div class="vb-row">Original call: <strong>${(target.verdict || '').replace(/_/g, ' ')}</strong> @ ${confThen} (${escapeAttr(target.analysis_date || '')}) → fresh read: <strong>${(fresh.verdict || '').replace(/_/g, ' ')}</strong> @ ${confNow}</div>
+    ${progLine}
+    <button class="cb-close" onclick="this.closest('.compare-banner').remove()">Dismiss</button>
+  `;
+}
+function escapeAttr(s) { return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initPulse();
@@ -3300,21 +3398,24 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPreAnalysis(symParam, detectType(symParam));   // show flags/TradingView for the launched symbol
   }
 
-  // Handle ?compare=ID / ?update=ID (re-scan launched from History).
-  //  • compare → just show the before/after banner (legacy).
-  //  • update  → NON-DESTRUCTIVE: preserve the original trade (a fresh dated read is
-  //    added rather than overwriting the open row) and show the confidence update.
+  // Handle ?validate=ID / ?compare=ID / ?update=ID (re-scan launched from History).
+  //  • validate → re-check the EXISTING trade: run a fresh scan but DON'T create a new
+  //    trade; attach a validation record (still valid / weakening / invalidated) to the
+  //    original and save it as research. This is the current History "Update" button.
+  //  • update/compare → legacy paths (new dated row / before-after banner).
   if (params.get('auto') === '1') _autoScan = true;   // bot scan from the auto-scan workflow
-  const compareId = params.get('compare');
-  const updateId  = params.get('update');
-  const loadId    = updateId || compareId;
-  if (updateId) _updateMode = true;
+  const validateId = params.get('validate');
+  const compareId  = params.get('compare');
+  const updateId   = params.get('update');
+  const loadId     = validateId || updateId || compareId;
+  if (validateId) _validateMode = true;
+  if (updateId)   _updateMode = true;
   if (loadId) {
     fetch(`/api/memory?all=true&limit=200`)
       .then(r => r.json())
       .then(rows => {
         const row = rows.find(r => r.id === loadId);
-        if (row) _compareOriginal = row;
+        if (row) { _compareOriginal = row; _validateTarget = row; }
       })
       .catch(() => {});
   }

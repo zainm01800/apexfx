@@ -155,6 +155,10 @@ export default async function handler(req) {
       // Lesson-only patch: attach a post-mortem to an already-resolved row without
       // touching its outcome (so re-running History never re-grades a closed trade).
       patch = { lesson: String(body.lesson).slice(0, 600) };
+    } else if (body.validations != null && body.outcome == null) {
+      // Validations-only patch: store the trade's re-check history (validity loop).
+      // Client does read-modify-write on the array, so we just overwrite it here.
+      patch = { validations: Array.isArray(body.validations) ? body.validations.slice(0, 50) : [] };
     } else {
       patch = {
         outcome:       body.outcome       || 'expired',
@@ -172,10 +176,10 @@ export default async function handler(req) {
         body:    JSON.stringify(patch),
       });
       // Same graceful fallback as POST: retry without not-yet-migrated columns
-      // (setup_features / lesson) so resolving an outcome never breaks if the
+      // (setup_features / lesson / validations) so a write never breaks if the
       // optional column is missing.
-      if (!res.ok && (patch.setup_features != null || patch.lesson != null)) {
-        const { setup_features, lesson, ...rest } = patch;
+      if (!res.ok && (patch.setup_features != null || patch.lesson != null || patch.validations != null)) {
+        const { setup_features, lesson, validations, ...rest } = patch;
         // If lesson was the ONLY field (lesson-only patch) there's nothing left to
         // write, so skip the retry rather than send an empty PATCH.
         if (Object.keys(rest).length) {

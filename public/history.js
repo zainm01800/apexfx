@@ -210,12 +210,32 @@ function fmtDateTime(row) {
   return `${row.analysis_date || ''}${time ? ' · ' + time : ''}`;
 }
 
-// "Update" re-runs the FULL analysis on the Research page in non-destructive mode:
-// the original trade is preserved (a fresh dated read is added to the trail) and the
-// confidence change vs this call is shown. `update=ID` (not `compare`) is what tells
-// the dashboard to keep the original row instead of overwriting it.
+// "Update" re-runs the FULL analysis to RE-CHECK an existing trade's validity. It does
+// NOT create a new trade — the dashboard attaches a validation record (still valid /
+// weakening / invalidated + price progress) to the original via `validate=ID`.
 function updateUrl(row) {
-  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&update=${encodeURIComponent(row.id)}`;
+  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&validate=${encodeURIComponent(row.id)}`;
+}
+
+// Parse the validations array (JSONB → array / string / null) and return the latest.
+function parseValidations(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string' && v.trim()) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
+  return [];
+}
+const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', 'n/a': 'RE-CHECKED' };
+function validationSummary(v) {
+  const label = _VAL_LABEL[v.assessment] || 'RE-CHECKED';
+  const conf = v.confidence != null ? ` ${v.confidence}%` : '';
+  const then = v.confidenceThen != null && v.confidence != null && v.confidenceThen !== v.confidence ? ` (was ${v.confidenceThen}%)` : '';
+  const prog = v.progressPct != null ? ` · ${v.progressPct}% to ${v.progressToward}` : '';
+  return `${label} · ${(v.verdict || '').replace(/_/g, ' ')}${conf}${then}${prog}`;
+}
+// "Jun 5, 17:30 UTC" from a validation record's ISO timestamp.
+function fmtValTs(ts) {
+  const t = Date.parse(ts); if (isNaN(t)) return '';
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} · ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
 }
 
 function escHtml(str) {
@@ -325,6 +345,13 @@ function renderCard(g) {
     ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
     : '';
 
+  // Latest validity re-check (from the "Update" button) on the current call.
+  const _vals = parseValidations(row.validations);
+  const _lastVal = _vals.length ? _vals[_vals.length - 1] : null;
+  const validRow = _lastVal
+    ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold?">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}</div>`
+    : '';
+
   return `
     <div class="scan-card ${vc}">
       <div class="sc-head">
@@ -360,12 +387,14 @@ function renderCard(g) {
         ${row.risk_reward ? `<div class="sc-target-item"><span class="sc-tl">R:R</span><span class="sc-tv">${escHtml(row.risk_reward)}</span></div>`          : ''}
       </div>
 
+      ${validRow}
+
       ${lessonRow}
 
       ${trail}
 
       <div class="sc-actions">
-        <a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-run the full analysis — keeps this trade and shows the updated confidence">
+        <a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-check this trade's validity — re-runs the analysis without creating a new trade">
           🔄 Update
         </a>
         <button class="sc-btn sc-btn-preview" data-action="preview" data-id="${escHtml(row.id)}" title="See the full analysis behind this call">
@@ -451,6 +480,14 @@ function openPreview(id) {
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
     ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
+
+    ${(() => {
+      const vs = parseValidations(row.validations);
+      if (!vs.length) return '';
+      const items = vs.slice().reverse().map(v =>
+        `<li class="pv-val ${v.assessment}"><span class="pv-val-ts">${escHtml(fmtValTs(v.ts))}</span> ${escHtml(validationSummary(v))}</li>`).join('');
+      return `<div class="pv-section"><h4>Validity re-checks (${vs.length})</h4><ul class="pv-vals">${items}</ul></div>`;
+    })()}
 
     ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
 
