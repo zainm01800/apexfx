@@ -351,7 +351,19 @@ button.sc-btn { appearance: none; }
 .sc-valid.confirmed   { border-left-color: #4ade80; }
 .sc-valid.weakening   { border-left-color: var(--orange); }
 .sc-valid.invalidated { border-left-color: #f87171; }
+.sc-valid.activated     { border-left-color: #4ade80; }
+.sc-valid.still-waiting { border-left-color: var(--text3); }
 .sc-valid-stat { color: var(--text3); font-style: italic; }
+
+/* ── "Distance to entry" indicator (open trades you're waiting to enter) ── */
+.sc-prox {
+  font-size: 12.5px; line-height: 1.5; padding: 8px 12px; border-radius: 8px; margin-top: 2px;
+  background: rgba(59, 158, 255, .06); border: 1px solid var(--border2); border-left: 3px solid var(--blue);
+  color: var(--text2);
+}
+.sc-prox.inzone { background: rgba(74, 222, 128, .08); border-left-color: #4ade80; color: var(--text); }
+.sc-prox strong.closer  { color: #4ade80; }
+.sc-prox strong.further { color: #f87171; }
 /* Preview modal: validity re-check list */
 .pv-vals { margin: 0; padding-left: 0; list-style: none; }
 .pv-val { font-size: 13px; line-height: 1.55; padding: 6px 0 6px 10px; border-left: 3px solid var(--text3); margin-bottom: 6px; color: var(--text); }

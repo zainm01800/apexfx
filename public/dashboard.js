@@ -3309,7 +3309,7 @@ function buildValidation(target, analysis, curr) {
   const origDir = verdictDir(target.verdict);
   const freshDir = verdictDir(analysis.verdict);
   let assessment;
-  if (origDir === 'neutral')        assessment = 'n/a';        // original wasn't an actionable trade
+  if (origDir === 'neutral')        assessment = freshDir !== 'neutral' ? 'activated' : 'still-waiting';  // a WAIT that became (or stayed) a trade
   else if (freshDir === origDir)    assessment = 'confirmed';  // still leans the same way
   else if (freshDir === 'neutral')  assessment = 'weakening';  // no longer an active setup
   else                              assessment = 'invalidated';// now leans the other way
@@ -3385,8 +3385,8 @@ async function showValidationBanner(target, fresh) {
       trackNote = `<div class="vb-prog ${good ? 'pos' : 'neg'}">📊 Track record: past <strong>${rec.assessment}</strong> re-checks went on to hit the ${good ? `target ${s.tpRate}%` : `stop ${s.slRate}%`} of the time (n=${s.n})</div>`;
     }
   } catch {}
-  const LABEL = { confirmed: '✅ STILL VALID', weakening: '⚠️ WEAKENING', invalidated: '❌ INVALIDATED', 'n/a': '🔁 RE-CHECKED' };
-  const CLS   = { confirmed: 'pos', weakening: 'warn', invalidated: 'neg', 'n/a': '' };
+  const LABEL = { confirmed: '✅ STILL VALID', weakening: '⚠️ WEAKENING', invalidated: '❌ INVALIDATED', activated: '🟢 NOW ACTIONABLE', 'still-waiting': '⏳ STILL WAITING', 'n/a': '🔁 RE-CHECKED' };
+  const CLS   = { confirmed: 'pos', weakening: 'warn', invalidated: 'neg', activated: 'pos', 'still-waiting': '', 'n/a': '' };
   const confThen = target.confidence != null ? target.confidence + '%' : '—';
   const confNow  = fresh.confidence_score != null ? fresh.confidence_score + '%' : '—';
   const progLine = rec.progressPct != null
@@ -3456,6 +3456,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = rows.find(r => r.id === loadId);
         if (row) { _compareOriginal = row; _validateTarget = row; }
       })
-      .catch(() => {});
+      .catch(() => {})
+      // Signal the headless auto-scan that the validate target is loaded, so it never
+      // clicks Analyse before _validateTarget is set (which would create a new trade).
+      .finally(() => { try { window.__apexValidateReady = true; } catch {} });
+  } else {
+    try { window.__apexValidateReady = true; } catch {}
   }
 });

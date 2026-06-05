@@ -12,6 +12,7 @@ const API_CANDLES = '/api/candles';   // same endpoint dashboard uses
 let _allRows      = [];   // all rows from Supabase (flat)
 let _rowById      = {};   // id → row, for the Preview modal + Update lookups
 let _valReliability = {}; // learned: how re-check assessments predict outcomes
+let _livePx       = {};   // sym → latest price, for the "distance to entry" indicator
 let _filterOutcome = 'all';
 let _filterType    = 'all';
 let _filterSym     = '';
@@ -228,7 +229,23 @@ function parseValidations(v) {
   if (typeof v === 'string' && v.trim()) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
   return [];
 }
-const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', 'n/a': 'RE-CHECKED' };
+// How far the current price is from a trade's entry zone (0 = inside it), and whether
+// it has moved CLOSER since the reference read (the last re-check, else the scan).
+// This is the cheap "is it getting closer to the trade?" signal — no AI needed.
+function entryProximity(row, px) {
+  const b = entryBounds(row.entry_zone);
+  if (!b || px == null || isNaN(px)) return null;
+  const distOf = p => (p >= b.lo && p <= b.hi) ? 0 : Math.abs(p - (p < b.lo ? b.lo : b.hi)) / Math.abs(p) * 100;
+  const now = distOf(px);
+  const vals = parseValidations(row.validations);
+  const refPx = vals.length ? parseFloat(vals[vals.length - 1].price) : parseFloat(row.price);
+  const ref = (refPx != null && !isNaN(refPx)) ? distOf(refPx) : null;
+  let trend = null;
+  if (ref != null) trend = now < ref - 0.03 ? 'closer' : now > ref + 0.03 ? 'further' : null;
+  return { pct: now, inZone: now === 0, trend };
+}
+
+const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', activated: 'NOW ACTIONABLE', 'still-waiting': 'STILL WAITING', 'n/a': 'RE-CHECKED' };
 function validationSummary(v) {
   const label = _VAL_LABEL[v.assessment] || 'RE-CHECKED';
   const conf = v.confidence != null ? ` ${v.confidence}%` : '';
@@ -350,6 +367,15 @@ function renderCard(g) {
     ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
     : '';
 
+  // Live "distance to entry" — only for OPEN trades you're waiting to enter.
+  const _isOpen = (row.outcome == null || row.outcome === 'pending');
+  const _prox = _isOpen ? entryProximity(row, _livePx[row.symbol]) : null;
+  const proxRow = _prox
+    ? `<div class="sc-prox ${_prox.inZone ? 'inzone' : ''}" title="How far the live price is from this trade's entry zone">🎯 ${_prox.inZone
+        ? 'Price is in the entry zone now'
+        : `${_prox.pct.toFixed(_prox.pct < 1 ? 2 : 1)}% from entry${_prox.trend ? ` · moving <strong class="${_prox.trend === 'closer' ? 'closer' : 'further'}">${_prox.trend}</strong>` : ''}`}</div>`
+    : '';
+
   // Latest validity re-check (from the "Update" button) on the current call.
   const _vals = parseValidations(row.validations);
   const _lastVal = _vals.length ? _vals[_vals.length - 1] : null;
@@ -391,6 +417,8 @@ function renderCard(g) {
         ${row.stop_loss   ? `<div class="sc-target-item"><span class="sc-tl">Stop</span><span class="sc-tv stop">$${fmtPrice(row.stop_loss)}</span></div>`    : ''}
         ${row.risk_reward ? `<div class="sc-target-item"><span class="sc-tl">R:R</span><span class="sc-tv">${escHtml(row.risk_reward)}</span></div>`          : ''}
       </div>
+
+      ${proxRow}
 
       ${validRow}
 
@@ -1163,6 +1191,19 @@ async function generateLessons(rows, cap = 4) {
   return any;
 }
 
+// Fetch live prices for every OPEN trade's symbol so the cards can show how far
+// price is from the entry zone, then re-render. Cheap (last close per symbol), no AI.
+async function loadOpenTradePrices() {
+  const open = {};
+  for (const r of _allRows) {
+    if ((r.outcome == null || r.outcome === 'pending') && r.entry_zone) open[r.symbol] = r.asset_type || 'Stock';
+  }
+  const syms = Object.keys(open).filter(s => _livePx[s] == null);
+  if (!syms.length) return;
+  await Promise.allSettled(syms.map(async s => { const p = await fetchLivePrice(s, open[s]); if (p != null) _livePx[s] = p; }));
+  if (_currentView === 'scans') renderGrid();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -1192,6 +1233,7 @@ async function init() {
     initGridActions();
     refreshOnFocus();
     primeWatchlistPrices();   // so an alert can fire on load even from the Scans view
+    loadOpenTradePrices();    // distance-to-entry indicator on open trades
   } catch (err) {
     loadingEl.innerHTML = `<p style="color:#f87171">Failed to load history: ${err.message}</p>`;
   }
