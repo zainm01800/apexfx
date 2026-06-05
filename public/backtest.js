@@ -174,9 +174,51 @@
     rows.sort((a, b) => dir * (((b[sort] ?? -1e9)) - ((a[sort] ?? -1e9))));
     return rows;
   }
+  // ── Aggregate profit/loss summary across the (filtered) backtests ───────────
+  // "Is this set of strategies net profitable or not?" Leads with % profitable +
+  // median return (the meaningful, selection-bias-aware reads) and a combined sum
+  // (honestly framed — it's not a tradeable portfolio). Robust subset = ≥100 trades.
+  function renderSummary(rows) {
+    const el = $('btSummary');
+    const withRet = rows.filter(r => r.total_return != null && !isNaN(r.total_return));
+    if (withRet.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const rets = withRet.map(r => +r.total_return).sort((a, b) => a - b);
+    const n = rets.length;
+    const profitable = rets.filter(x => x > 0).length;
+    const pctProf = Math.round(profitable / n * 100);
+    const sum = rets.reduce((a, b) => a + b, 0);
+    const avg = sum / n;
+    const median = n % 2 ? rets[(n - 1) / 2] : (rets[n / 2 - 1] + rets[n / 2]) / 2;
+    const robust = withRet.filter(r => r.n_trades >= 100).map(r => +r.total_return);
+    const robustProf = robust.length ? Math.round(robust.filter(x => x > 0).length / robust.length * 100) : null;
+
+    // Verdict from % profitable (in-sample, so ~50% is the coin-flip line).
+    let verdict, vcls;
+    if (pctProf >= 55)      { verdict = 'NET PROFITABLE'; vcls = 'pos'; }
+    else if (pctProf >= 45) { verdict = 'MIXED / COIN-FLIP'; vcls = 'mid'; }
+    else                    { verdict = 'NET UNPROFITABLE'; vcls = 'neg'; }
+
+    const stat = (v, l, cls) => `<div class="bt-sum-stat"><span class="bt-sum-v ${cls || ''}">${v}</span><span class="bt-sum-l">${l}</span></div>`;
+    el.style.display = '';
+    el.innerHTML = `
+      <div class="bt-sum-head">
+        <span class="bt-sum-title">🧮 Backtest summary — ${n} result${n === 1 ? '' : 's'}</span>
+        <span class="bt-sum-verdict ${vcls}">${verdict}</span>
+      </div>
+      <div class="bt-sum-grid">
+        ${stat(pctProf + '%', `profitable (${profitable}/${n})`, pctProf >= 50 ? 'pos' : 'neg')}
+        ${stat(pct(median), 'median return', median > 0 ? 'pos' : 'neg')}
+        ${stat(pct(avg), 'average return', avg > 0 ? 'pos' : 'neg')}
+        ${stat((sum > 0 ? '+' : '') + sum.toFixed(0) + '%', 'combined return', sum > 0 ? 'pos' : 'neg')}
+        ${robustProf != null ? stat(robustProf + '%', `profitable @ ≥100 trades (${robust.length})`, robustProf >= 50 ? 'pos' : 'neg') : ''}
+      </div>
+      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). In-sample, so ~50% profitable ≈ chance — the "combined return" is a raw sum, not a tradeable portfolio. Weigh the reality check below for selection bias.</div>`;
+  }
+
   function renderResults() {
     const rows = filteredSorted();
     $('resultMeta').textContent = `${currentRows.length} rows`;
+    renderSummary(rows);
     populateFilterOptions();
     if (!rows.length) { $('btRows').innerHTML = `<tr><td colspan="11" class="bt-empty">No results match the filters.</td></tr>`; return; }
     $('btRows').innerHTML = rows.slice(0, 400).map((r, i) => {
