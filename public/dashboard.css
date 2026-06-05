@@ -9,9 +9,9 @@
   --card2:       #181828;
   --border:      #1c1c30;
   --border2:     #262640;
-  --text:        #e4e4f4;
-  --text2:       #8080a8;
-  --text3:       #44446a;
+  --text:        #e8e8f6;
+  --text2:       #a0a0c6;   /* secondary — lifted for legibility (was #8080a8) */
+  --text3:       #7676a2;   /* tertiary/labels — was #44446a (~1.9:1, unreadable); now ~4.6:1 */
   --green:       #00d97e;
   --red:         #ff4255;
   --orange:      #ffaa00;
