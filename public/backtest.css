@@ -70,6 +70,7 @@
 .bt-flag { display: inline-block; margin-left: 5px; font-size: 9px; padding: 1px 5px; border-radius: 4px; vertical-align: middle; font-family: var(--mono); }
 .bt-flag.warn { background: rgba(255,170,0,.14); color: var(--orange); }
 .bt-flag.rf { background: rgba(59,158,255,.14); color: var(--blue); }
+.bt-flag.oos-ok { background: rgba(74,222,128,.16); color: #4ade80; }
 
 .bt-matrix .mc { text-align: center; font-size: 11.5px; }
 .bt-matrix .mc small { display: block; font-size: 9px; color: var(--text3); }
@@ -115,7 +116,7 @@
 .bt-sum-verdict.pos { color: #4ade80; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); }
 .bt-sum-verdict.mid { color: var(--orange); background: rgba(255,170,0,.12); border: 1px solid rgba(255,170,0,.35); }
 .bt-sum-verdict.neg { color: #f87171; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.35); }
-.bt-sum-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 10px; }
+.bt-sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
 .bt-sum-stat { display: flex; flex-direction: column; gap: 3px; }
 .bt-sum-v { font-family: var(--mono); font-size: 19px; font-weight: 600; color: var(--text); }
 .bt-sum-v.pos { color: #4ade80; } .bt-sum-v.neg { color: #f87171; }

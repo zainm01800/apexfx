@@ -41,6 +41,7 @@ function runJob(payload, onProgress) {
     const st = strats[k];
     const sim = S.simulate(bars, st.strat, ctx);
     const m = M.computeMetrics(sim, ctx);
+    const wf = M.walkForward ? M.walkForward(sim, ctx) : null;   // out-of-sample hold-out
     // Tier-1 hypotheses aggregates for the confluence strategy (stored as JSONB).
     let signalLift = null, thresholdSweep = null;
     if (st.id === 'confluence' && H) {
@@ -71,6 +72,15 @@ function runJob(payload, onProgress) {
       profit_factor: m.profitFactor,
       low_sample: m.lowSample,
       shallow_sharpe: m.shallowSharpe,
+      // Walk-forward / out-of-sample (70/30 hold-out): the honest "did it keep working
+      // on unseen recent data?" read. null when there isn't enough data to split.
+      is_return:    wf ? wf.is_return    : null,
+      is_sharpe:    wf ? wf.is_sharpe    : null,
+      oos_return:   wf ? wf.oos_return   : null,
+      oos_sharpe:   wf ? wf.oos_sharpe   : null,
+      oos_win_rate: wf ? wf.oos_win_rate : null,
+      oos_n_trades: wf ? wf.oos_n_trades : null,
+      oos_holds:    wf ? wf.oos_holds    : null,
       regime_breakdown: regimeBreakdown(sim.trades),
       signal_lift: signalLift,        // confluence only (else null)
       threshold_sweep: thresholdSweep, // confluence only (else null)

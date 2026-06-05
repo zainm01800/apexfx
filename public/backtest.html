@@ -89,6 +89,7 @@
           <option value="profit_factor">Sort: Profit factor</option>
           <option value="max_drawdown">Sort: Max drawdown (low)</option>
           <option value="total_return">Sort: Total return</option>
+          <option value="oos_return">Sort: Out-of-sample return</option>
         </select>
         <button class="bt-btn small" id="refreshBtn">↻ Reload</button>
       </div>
@@ -100,9 +101,9 @@
         <table class="bt-table" id="resultsTable">
           <thead><tr>
             <th>Pair</th><th>TF</th><th>Strategy</th><th>Trades</th><th>Sharpe</th>
-            <th>Return %</th><th>Max DD %</th><th>Win %</th><th>Expectancy</th><th>PF</th><th></th>
+            <th>Return %</th><th title="Out-of-sample return on held-out recent data">OOS %</th><th>Max DD %</th><th>Win %</th><th>Expectancy</th><th>PF</th><th></th>
           </tr></thead>
-          <tbody id="btRows"><tr><td colspan="11" class="bt-empty">No results yet — run a backtest, or reload if you've run one before.</td></tr></tbody>
+          <tbody id="btRows"><tr><td colspan="12" class="bt-empty">No results yet — run a backtest, or reload if you've run one before.</td></tr></tbody>
         </table>
       </div>
     </section>

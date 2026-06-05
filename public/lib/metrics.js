@@ -93,6 +93,31 @@ function computeMetrics(sim, ctx) {
   };
 }
 
+// ── Walk-forward / out-of-sample split ────────────────────────────────────────
+// Measures the SAME fixed strategy on the older (in-sample) portion vs the held-out
+// recent (out-of-sample) portion of the data. A rule that only worked in-sample and
+// fell apart out-of-sample is overfit to a past regime — the OOS result is the honest
+// one for "would this work going forward?". Single 70/30 hold-out (older→test on newer).
+// Trades are bucketed by entry bar; bar-returns are sliced at the same index, so OOS
+// metrics reuse the exact same formulas as the full-period ones. Null if too little data.
+function walkForward(sim, ctx, frac) {
+  frac = frac || 0.7;
+  const barReturns = sim.barReturns || [];
+  const trades = sim.trades || [];
+  if (barReturns.length < 60) return null;       // too short to split meaningfully
+  const splitIdx = Math.floor(barReturns.length * frac);
+  const isM  = computeMetrics({ trades: trades.filter(t => t.entryIdx <  splitIdx), barReturns: barReturns.slice(0, splitIdx) }, ctx);
+  const oosM = computeMetrics({ trades: trades.filter(t => t.entryIdx >= splitIdx), barReturns: barReturns.slice(splitIdx) }, ctx);
+  const enough = oosM.nTrades >= 10;             // need a usable OOS sample to judge
+  const holds  = enough && oosM.totalReturn > 0 && oosM.sharpe > 0;
+  return {
+    is_return: isM.totalReturn, is_sharpe: isM.sharpe,
+    oos_return: oosM.totalReturn, oos_sharpe: oosM.sharpe,
+    oos_win_rate: oosM.winRate, oos_n_trades: oosM.nTrades,
+    oos_holds: holds, oos_enough: enough,
+  };
+}
+
 // ── Monte Carlo drawdown / return bands ───────────────────────────────────────
 // A single backtest is ONE path history happened to take. Bootstrap-resample the
 // per-trade returns (with replacement) to turn it into a distribution: how bad could
@@ -136,7 +161,7 @@ function monteCarloDrawdown(trades, opts) {
   };
 }
 
-const _metrics = { computeMetrics, monteCarloDrawdown, barsPerYear, BARS_PER_YEAR, MIN_SAMPLE };
+const _metrics = { computeMetrics, walkForward, monteCarloDrawdown, barsPerYear, BARS_PER_YEAR, MIN_SAMPLE };
 (function (g) { g.APEX = g.APEX || {}; g.APEX.metrics = _metrics; })(
   typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this)
 );

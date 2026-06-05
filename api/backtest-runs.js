@@ -35,7 +35,11 @@ const COLS = new Set([
   'max_drawdown', 'win_rate', 'avg_win_pct', 'avg_loss_pct', 'avg_win_pips', 'avg_loss_pips',
   'expectancy', 'profit_factor', 'low_sample', 'shallow_sharpe', 'regime_breakdown',
   'signal_lift', 'threshold_sweep', 'params', 'app_version',
+  // Walk-forward / out-of-sample (added 2026-06-06; stripped on retry if unmigrated)
+  'is_return', 'is_sharpe', 'oos_return', 'oos_sharpe', 'oos_win_rate', 'oos_n_trades', 'oos_holds',
 ]);
+// Walk-forward columns — dropped on the graceful retry if the table hasn't been migrated.
+const WF_COLS = ['is_return', 'is_sharpe', 'oos_return', 'oos_sharpe', 'oos_win_rate', 'oos_n_trades', 'oos_holds'];
 function clean(row) {
   const out = {};
   for (const k of Object.keys(row)) if (COLS.has(k)) out[k] = row[k];
@@ -82,12 +86,19 @@ export default async function handler(req) {
     const cleaned = rows.filter(r => r && r.id && r.instrument && r.strategy).map(clean);
     if (!cleaned.length) return new Response(JSON.stringify({ error: 'no valid rows' }), { status: 400, headers });
     try {
-      const res = await fetch(TABLE, {
+      const post = (payload) => fetch(TABLE, {
         method: 'POST',
         // merge-duplicates makes a retried job idempotent without overwriting other runs
         headers: supaHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
-        body: JSON.stringify(cleaned),
+        body: JSON.stringify(payload),
       });
+      let res = await post(cleaned);
+      // Graceful fallback: if the walk-forward columns aren't migrated yet, Supabase
+      // 400s on the unknown column — strip them and retry so saves never break.
+      if (!res.ok && cleaned.some(r => WF_COLS.some(k => k in r))) {
+        const stripped = cleaned.map(r => { const o = { ...r }; for (const k of WF_COLS) delete o[k]; return o; });
+        res = await post(stripped);
+      }
       if (res.ok) return new Response(JSON.stringify({ ok: true, n: cleaned.length }), { status: 200, headers });
       const detail = await res.text();
       return new Response(JSON.stringify({ error: `Supabase ${res.status}`, detail }), { status: 500, headers });

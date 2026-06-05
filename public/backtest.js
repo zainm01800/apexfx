@@ -9,7 +9,7 @@
   const A = window.APEX;
   const DS = A.datasource;
   const APP_VERSION = 'bt1';
-  const LIBV = 'b6';   // bump when public/lib/*.js change — busts the worker's importScripts cache
+  const LIBV = 'b7';   // bump when public/lib/*.js change — busts the worker's importScripts cache
 
   // ── Universe (mirrors QUICK_PICKS / engine config) ──────────────────────────
   const UNIVERSE = {
@@ -191,6 +191,10 @@
     const median = n % 2 ? rets[(n - 1) / 2] : (rets[n / 2 - 1] + rets[n / 2]) / 2;
     const robust = withRet.filter(r => r.n_trades >= 100).map(r => +r.total_return);
     const robustProf = robust.length ? Math.round(robust.filter(x => x > 0).length / robust.length * 100) : null;
+    // Walk-forward survival: of strategies with a usable out-of-sample sample, how many
+    // kept a positive edge out-of-sample? This is the honest headline.
+    const oosElig = withRet.filter(r => r.oos_n_trades != null && r.oos_n_trades >= 10);
+    const oosHeldPct = oosElig.length ? Math.round(oosElig.filter(r => r.oos_holds === true).length / oosElig.length * 100) : null;
 
     // Verdict from % profitable (in-sample, so ~50% is the coin-flip line).
     let verdict, vcls;
@@ -210,9 +214,9 @@
         ${stat(pct(median), 'median return', median > 0 ? 'pos' : 'neg')}
         ${stat(pct(avg), 'average return', avg > 0 ? 'pos' : 'neg')}
         ${stat((sum > 0 ? '+' : '') + sum.toFixed(0) + '%', 'combined return', sum > 0 ? 'pos' : 'neg')}
-        ${robustProf != null ? stat(robustProf + '%', `profitable @ ≥100 trades (${robust.length})`, robustProf >= 50 ? 'pos' : 'neg') : ''}
+        ${oosHeldPct != null ? stat(oosHeldPct + '%', `held up out-of-sample (${oosElig.length})`, oosHeldPct >= 50 ? 'pos' : 'neg') : stat('—', 'out-of-sample', '')}
       </div>
-      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). In-sample, so ~50% profitable ≈ chance — the "combined return" is a raw sum, not a tradeable portfolio. Weigh the reality check below for selection bias.</div>`;
+      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). The honest metric is <strong>"held up out-of-sample"</strong> — how many kept a positive edge on held-out recent data; the rest is in-sample (~50% ≈ chance) and the "combined return" is a raw sum, not a tradeable portfolio.${oosHeldPct == null ? ' (Out-of-sample fills in after the next weekly backtest run.)' : ''}</div>`;
   }
 
   function renderResults() {
@@ -220,17 +224,22 @@
     $('resultMeta').textContent = `${currentRows.length} rows`;
     renderSummary(rows);
     populateFilterOptions();
-    if (!rows.length) { $('btRows').innerHTML = `<tr><td colspan="11" class="bt-empty">No results match the filters.</td></tr>`; return; }
+    if (!rows.length) { $('btRows').innerHTML = `<tr><td colspan="12" class="bt-empty">No results match the filters.</td></tr>`; return; }
     $('btRows').innerHTML = rows.slice(0, 400).map((r, i) => {
+      // OOS flag: did the strategy's edge survive the held-out recent data?
+      const oosFlag = r.oos_holds === true ? '<span class="bt-flag oos-ok" title="edge held up out-of-sample">OOS✓</span>'
+        : (r.oos_n_trades != null && r.oos_n_trades >= 10 && r.oos_holds === false) ? '<span class="bt-flag warn" title="edge did NOT survive out-of-sample">OOS✗</span>' : '';
       const flags = (r.low_sample ? '<span class="bt-flag warn" title="fewer than 30 trades — exploratory only">thin</span>' : '') +
         (r.shallow_sharpe ? '<span class="bt-flag warn" title="1m/5m Sharpe is noisy">noisy</span>' : '') +
-        (r.regime_filtered ? '<span class="bt-flag rf" title="regime-filtered">RF</span>' : '');
+        (r.regime_filtered ? '<span class="bt-flag rf" title="regime-filtered">RF</span>' : '') + oosFlag;
       const sh = r.sharpe == null ? '—' : (+r.sharpe).toFixed(2);
+      const oosCell = r.oos_return == null ? '<span class="bt-dim">—</span>' : `<span class="${r.oos_return > 0 ? 'pos' : 'neg'}">${pct(r.oos_return)}</span>`;
       return `<tr class="${r.low_sample ? 'thin' : ''}">
         <td>${r.instrument}</td><td>${r.timeframe}</td>
         <td>${r.strategy}${flags}</td>
         <td>${r.n_trades}</td><td class="${r.sharpe > 0 ? 'pos' : r.sharpe < 0 ? 'neg' : ''}">${sh}</td>
         <td class="${r.total_return > 0 ? 'pos' : 'neg'}">${pct(r.total_return)}</td>
+        <td title="${r.oos_n_trades != null ? r.oos_n_trades + ' out-of-sample trades' : 'not enough data to split'}">${oosCell}</td>
         <td class="neg">${pct(r.max_drawdown)}</td>
         <td>${fmt(r.win_rate, 1)}%</td><td>${fmt(r.expectancy, 3)}</td>
         <td>${r.profit_factor == null ? '∞' : fmt(r.profit_factor, 2)}</td>

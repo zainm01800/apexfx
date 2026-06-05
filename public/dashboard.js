@@ -921,6 +921,12 @@ async function fetchStrategyBacktests(sym) {
     const expMax   = _expectedMaxSharpe(cur.length, sigmaSR);
     const deflated = +(best.sharpe - expMax).toFixed(2);
 
+    // Walk-forward / out-of-sample survival (the honest "did it keep working on
+    // unseen recent data?" read). Only counts strategies with a usable OOS sample.
+    const oosEligible = cur.filter(x => x.oos_n_trades != null && x.oos_n_trades >= 10);
+    const oosHeld     = oosEligible.filter(x => x.oos_holds === true);
+    const hasOOS      = oosEligible.length > 0;
+
     return {
       n: cur.length,
       n_pos: cur.filter(x => x.total_return > 0).length,
@@ -932,6 +938,11 @@ async function fetchStrategyBacktests(sym) {
       exp_max_sharpe: +expMax.toFixed(2),
       deflated_best: deflated,
       edge_survives: deflated > 0,
+      has_oos: hasOOS,
+      n_oos_eligible: oosEligible.length,
+      n_oos_held: oosHeld.length,
+      best_oos_holds: best.oos_holds === true,
+      best_oos_return: best.oos_return ?? null,
     };
   } catch { return null; }
 }
@@ -2886,8 +2897,8 @@ PRIOR-EVIDENCE DIRECTIVE: this is the historical record of systematic strategies
 STRATEGY BACKTEST LAB (${sym}, ${strategyBT.n} strategies on ${strategyBT.tfs.join('/')}, as of ${(strategyBT.dataTo || '').slice(0, 10)}, net of modelled spread):
 - ${strategyBT.n_pos}/${strategyBT.n} simple/regime-filtered strategies were net-positive IN-SAMPLE.
 - Best by Sharpe: ${b.strategy} on ${b.timeframe} (Sharpe ${b.sharpe}, win ${b.win_rate}%, ${b.n_trades} trades).
-- MULTIPLE-TESTING CHECK (False Strategy Theorem): ${strategyBT.n_trials} strategies were tried, so the BEST Sharpe is selection-biased upward. Pure chance across ${strategyBT.n_trials} trials would yield a best Sharpe of ~${strategyBT.exp_max_sharpe}. Deflated best = ${strategyBT.deflated_best} → ${strategyBT.edge_survives ? 'the best strategy still clears the noise floor (weak positive signal)' : 'the best strategy DOES NOT exceed what random trial-and-error produces — treat as NO demonstrated edge'}.${c ? `\n- The live CONFLUENCE strategy backtests at Sharpe ${c.sharpe}, win ${c.win_rate}%, return ${c.total_return}% (${c.n_trades} trades, ${c.timeframe}).` : ''}
-STRATEGY-BACKTEST DIRECTIVE: EXPLORATORY in-sample history (no out-of-sample proof) — weigh LIGHTLY. ${strategyBT.edge_survives ? '' : 'The best result here is indistinguishable from noise given the number of strategies tried — do NOT let it raise confidence. '}If most simple strategies lose on this instrument, be sceptical of naive trend/indicator signals here; if the confluence strategy backtests well, that modestly supports the current technical read. Never treat this as a validated edge.`;
+- MULTIPLE-TESTING CHECK (False Strategy Theorem): ${strategyBT.n_trials} strategies were tried, so the BEST Sharpe is selection-biased upward. Pure chance across ${strategyBT.n_trials} trials would yield a best Sharpe of ~${strategyBT.exp_max_sharpe}. Deflated best = ${strategyBT.deflated_best} → ${strategyBT.edge_survives ? 'the best strategy still clears the noise floor (weak positive signal)' : 'the best strategy DOES NOT exceed what random trial-and-error produces — treat as NO demonstrated edge'}.${strategyBT.has_oos ? `\n- WALK-FORWARD (out-of-sample, held-out recent data): only ${strategyBT.n_oos_held}/${strategyBT.n_oos_eligible} strategies with a usable OOS sample stayed profitable out-of-sample, and the best in-sample strategy ${strategyBT.best_oos_holds ? `DID hold up out-of-sample (OOS return ${strategyBT.best_oos_return}%) — the strongest evidence available here` : 'did NOT survive out-of-sample (its in-sample edge did not persist on unseen data)'}.` : ''}${c ? `\n- The live CONFLUENCE strategy backtests at Sharpe ${c.sharpe}, win ${c.win_rate}%, return ${c.total_return}% (${c.n_trades} trades, ${c.timeframe}).` : ''}
+STRATEGY-BACKTEST DIRECTIVE: weigh OUT-OF-SAMPLE survival above in-sample headline numbers. ${strategyBT.has_oos ? (strategyBT.best_oos_holds ? 'The best strategy survived the out-of-sample hold-out — that is a genuine (if modest) supporting signal for this kind of setup. ' : 'The in-sample winner did NOT survive out-of-sample, so do NOT let the headline backtest raise confidence — treat naive trend/indicator signals here with scepticism. ') : 'No out-of-sample data yet — treat the in-sample numbers as exploratory only and weigh LIGHTLY. '}${strategyBT.edge_survives ? '' : 'The best result also fails the multiple-testing noise floor. '}Never treat this as a validated edge.`;
     }
 
     // ── Trade style: tailor the whole plan to the requested horizon ──
