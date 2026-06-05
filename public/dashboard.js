@@ -530,6 +530,10 @@ const STYLE_RES = {
   swing:    { tf: '1d',  expiryDays: 30,  bufferDays: 5 },
   position: { tf: '1d',  expiryDays: 120, bufferDays: 7 },
 };
+// Bar length per timeframe — used to require a FULL bar-period of clearance after the
+// entry before a bar may grade TP/SL, so the entry-day bar (whose high/low may pre-date
+// the entry) can't fabricate an impossible hit (look-ahead). See resolveOutcomes.
+const TF_SECONDS = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
 function resolutionFor(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
@@ -553,7 +557,11 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
     if (row.outcome !== 'pending' || !row.analysis_date) return;
     const res = resolutionFor(row);
     const entryTs = entryTsOf(row);
-    const barsAfter = candles.filter(b => b.time > entryTs);
+    // No-look-ahead: a bar may only grade TP/SL if its session is fully after entry
+    // (one bar-period of clearance), so the entry-day bar — whose high/low can pre-date
+    // the trade — never fabricates an impossible hit.
+    const tfSec = TF_SECONDS[candleTf] || 86400;
+    const barsAfter = candles.filter(b => b.time >= entryTs + tfSec);
 
     const tp  = parseFloat(row.target_price);
     const sl  = parseFloat(row.stop_loss);

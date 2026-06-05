@@ -54,6 +54,9 @@ const STYLE_RES = {
   swing:    { tf: '1d',  expiryDays: 30,  bufferDays: 5 },
   position: { tf: '1d',  expiryDays: 120, bufferDays: 7 },
 };
+// Bar length per timeframe, used to require a FULL bar-period of clearance after the
+// entry before a bar may grade TP/SL (no-look-ahead — see resolveIfPending).
+const TF_SECONDS = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
 function resolutionFor(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
@@ -95,7 +98,14 @@ async function resolveIfPending(rows) {
           if (isNaN(tp) || isNaN(sl)) continue;
           const dir = verdictDir(row.verdict);
 
-          const afterEntry = candles.filter(c => c.time > entryTs);
+          // No-look-ahead gate: only grade bars whose session is FULLY after entry. A
+          // daily bar is timestamped at its close (the still-forming current bar at
+          // fetch-time), so `c.time > entryTs` alone lets the ENTRY-DAY bar through —
+          // and that bar's high/low may have printed BEFORE the trade was opened, which
+          // fabricates impossible TP/SL hits. Requiring one full bar-period of clearance
+          // drops the entry bar, so we never grade a level that pre-dates the entry.
+          const tfSec = TF_SECONDS[res.tf] || 86400;
+          const afterEntry = candles.filter(c => c.time >= entryTs + tfSec);
           let resolved = null;
           if (dir !== 'neutral') {
             // Entry-fill gate: only grade TP/SL once price trades INTO the entry zone.
