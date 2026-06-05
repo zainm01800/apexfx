@@ -193,6 +193,23 @@ function rowTs(row) {
   return 0;
 }
 
+// Scan time of day in UTC ("17:30 UTC") — shown alongside the date so trades scanned
+// on the same day (or across a midnight boundary) are never ambiguous. UTC matches the
+// candle data the outcomes are graded against. Empty when there's no usable timestamp.
+function fmtTimeUTC(row) {
+  const t = rowTs(row);
+  if (!t) return '';
+  // Skip midnight-only fallbacks (analysis_date with no real time component).
+  if (!row.created_at && !/_(\d{10,})$/.test(String(row.id || ''))) return '';
+  const d = new Date(t);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+}
+// Date + time, e.g. "2026-06-05 · 17:30 UTC".
+function fmtDateTime(row) {
+  const time = fmtTimeUTC(row);
+  return `${row.analysis_date || ''}${time ? ' · ' + time : ''}`;
+}
+
 // "Update" re-runs the FULL analysis on the Research page in non-destructive mode:
 // the original trade is preserved (a fresh dated read is added to the trail) and the
 // confidence change vs this call is shown. `update=ID` (not `compare`) is what tells
@@ -264,7 +281,7 @@ function renderTrailRow(scan, prevOlder) {
   }
   return `
     <div class="trail-row">
-      <span class="tr-date">${escHtml(scan.analysis_date || '')}</span>
+      <span class="tr-date">${escHtml(fmtDateTime(scan))}</span>
       <span class="tr-verdict ${vc}">${escHtml(vDisplay)}</span>
       <span class="tr-conf">${scan.confidence != null ? scan.confidence + '%' : '—'}${delta}</span>
       <span class="tr-px">@ ${fmtPrice(scan.price)}</span>
@@ -313,7 +330,7 @@ function renderCard(g) {
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">${scanCount} ${scanCount === 1 ? 'scan' : 'scans'} · latest ${escHtml(row.analysis_date || '')}</div>
+          <div class="sc-date">${scanCount} ${scanCount === 1 ? 'scan' : 'scans'} · latest ${escHtml(fmtDateTime(row))}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
@@ -420,7 +437,7 @@ function openPreview(id) {
     <div class="pv-head">
       <div>
         <div class="pv-sym">${escHtml(row.symbol)} <span class="pv-type">${escHtml(row.asset_type || 'Stock')}</span></div>
-        <div class="pv-date">Analysed ${escHtml(row.analysis_date || '')} · @ $${fmtPrice(row.price)}</div>
+        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))} · @ $${fmtPrice(row.price)}</div>
       </div>
       <button class="pv-close" data-action="pv-close" aria-label="Close">✕</button>
     </div>
