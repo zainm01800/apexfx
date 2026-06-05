@@ -182,6 +182,7 @@
   font-weight: 700;
   color: var(--text);
 }
+.sc-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: none; }
 .sc-type {
   font-size: 10px;
   text-transform: uppercase;
@@ -191,6 +192,17 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 7px;
+}
+.sc-auto {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--text2);
+  background: rgba(124, 92, 252, .1);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 2px 7px;
+  white-space: nowrap;
 }
 .sc-date {
   font-size: 11.5px;
@@ -434,10 +446,23 @@ button.sc-btn { appearance: none; }
   margin-bottom: 18px;
 }
 .acc-board:empty { display: none; }
+.acc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+}
 .acc-title {
   font-size: 12px; font-weight: 700; color: var(--text2);
-  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px;
+  text-transform: uppercase; letter-spacing: .08em;
 }
+.acc-scope { display: flex; gap: 4px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.acc-scope-btn {
+  font-size: 11.5px; font-weight: 600; color: var(--text2);
+  background: transparent; border: none; border-radius: 6px;
+  padding: 4px 11px; cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.acc-scope-btn:hover { color: var(--text); }
+.acc-scope-btn.active { background: var(--purple); color: #fff; }
+.acc-empty { font-size: 13px; color: var(--text2); padding: 6px 0; }
 .acc-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);

@@ -487,6 +487,10 @@ function saveToMemory(sym, type, analysis, price, updateId = null, setupFeatures
     ...setupFeatures,
     dir:  /BUY|LONG/i.test(analysis.verdict || '') ? 1 : /SELL|SHORT/i.test(analysis.verdict || '') ? -1 : 0,
     conf: analysis.confidence_score != null ? +(analysis.confidence_score / 100).toFixed(3) : null,
+    // Mark bot-generated scans (auto-scan workflow) so the History scoreboard can
+    // separate them from the user's own calls. setupDistance ignores this key, so it
+    // never affects structural matching / meta-label / lessons retrieval.
+    ...(_autoScan ? { auto: 1 } : {}),
   } : null;
   const fields = {
     symbol:               sym,
@@ -3204,6 +3208,7 @@ function initAutocomplete() {
 // ── Comparison banner (shown when arriving from History with ?compare=ID) ──────
 let _compareOriginal = null; // holds the historical row for comparison
 let _updateMode = false;     // arrived via ?update=ID — preserve the original trade
+let _autoScan = false;       // arrived via ?auto=1 — bot scan (auto-scan workflow)
 
 function showCompareBanner(original, fresh, isUpdate = false) {
   let el = document.getElementById('compareBanner');
@@ -3291,6 +3296,7 @@ document.addEventListener('DOMContentLoaded', () => {
   //  • compare → just show the before/after banner (legacy).
   //  • update  → NON-DESTRUCTIVE: preserve the original trade (a fresh dated read is
   //    added rather than overwriting the open row) and show the confidence update.
+  if (params.get('auto') === '1') _autoScan = true;   // bot scan from the auto-scan workflow
   const compareId = params.get('compare');
   const updateId  = params.get('update');
   const loadId    = updateId || compareId;

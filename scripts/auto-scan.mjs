@@ -19,11 +19,13 @@ import { chromium } from 'playwright';
 
 const BASE = (process.env.APEX_SCAN_BASE || 'https://apexfx.vercel.app').replace(/\/$/, '');
 
-// Diverse watchlist on purpose: stocks + ETFs + crypto + FX, across asset types and
-// likely regimes, so the structural meta-label sees variety (and several of these
-// also carry COT positioning). Edit freely — these are just the seeds.
+// Diverse watchlist on purpose: stocks + ETFs + crypto + FX, spread across SECTORS
+// (tech / financials / energy), asset classes, and likely regimes, so the structural
+// meta-label + lessons library see real variety (several also carry COT positioning).
+// Curated & liquid on purpose — random/illiquid tickers have flaky candle data and
+// never resolve, which is noise, not signal. Edit freely — these are just the seeds.
 const SYMBOLS = (process.env.APEX_SCAN_SYMBOLS ||
-  'NVDA,AAPL,MSFT,SPY,GLD,BTC/USD,ETH/USD,EUR/USD')
+  'NVDA,AAPL,MSFT,AMZN,TSLA,JPM,XOM,SPY,QQQ,GLD,TLT,BTC/USD,ETH/USD,SOL/USD,EUR/USD,USD/JPY')
   .split(',').map(s => s.trim()).filter(Boolean);
 
 const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow for one internal retry
@@ -31,7 +33,9 @@ const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow f
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function scanOne(page, sym) {
-  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}`, { waitUntil: 'load', timeout: 60000 });
+  // auto=1 tags the saved row's setup_features so the History scoreboard can tell
+  // bot-generated scans apart from the user's own calls (keeps personal stats honest).
+  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}&auto=1`, { waitUntil: 'load', timeout: 60000 });
   await page.waitForSelector('#analyseBtn', { timeout: 30000 });
   await sleep(1200);                      // let init() prefill the symbol + wire handlers
   await page.click('#analyseBtn');
