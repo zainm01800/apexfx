@@ -58,6 +58,8 @@ const STYLE_RES = {
 // Bar length per timeframe, used to require a FULL bar-period of clearance after the
 // entry before a bar may grade TP/SL (no-look-ahead — see resolveIfPending).
 const TF_SECONDS = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
+// UTC calendar day ("2026-06-05") for the daily no-look-ahead gate.
+function utcDay(ts) { return new Date(ts * 1000).toISOString().slice(0, 10); }
 function resolutionFor(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
@@ -99,14 +101,16 @@ async function resolveIfPending(rows) {
           if (isNaN(tp) || isNaN(sl)) continue;
           const dir = verdictDir(row.verdict);
 
-          // No-look-ahead gate: only grade bars whose session is FULLY after entry. A
-          // daily bar is timestamped at its close (the still-forming current bar at
-          // fetch-time), so `c.time > entryTs` alone lets the ENTRY-DAY bar through —
-          // and that bar's high/low may have printed BEFORE the trade was opened, which
-          // fabricates impossible TP/SL hits. Requiring one full bar-period of clearance
-          // drops the entry bar, so we never grade a level that pre-dates the entry.
+          // No-look-ahead gate. DAILY/WEEKLY: a daily bar's intraday high/low order is
+          // unknown and the entry-day bar can hold PRE-entry extremes, so only grade
+          // bars on a strictly LATER calendar day. (A "+24h past the exact entry time"
+          // gate is wrong here — for 00:00-stamped crypto bars it also throws away the
+          // first genuine next-day bar, which once hid real wins.) INTRADAY: bars are
+          // fine-grained, so one full bar-period of clearance past entry is enough.
           const tfSec = TF_SECONDS[res.tf] || 86400;
-          const afterEntry = candles.filter(c => c.time >= entryTs + tfSec);
+          const afterEntry = (res.tf === '1d' || res.tf === '1w')
+            ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
+            : candles.filter(c => c.time >= entryTs + tfSec);
           let resolved = null;
           if (dir !== 'neutral') {
             // Entry-fill gate: only grade TP/SL once price trades INTO the entry zone.

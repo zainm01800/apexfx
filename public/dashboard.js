@@ -534,6 +534,8 @@ const STYLE_RES = {
 // entry before a bar may grade TP/SL, so the entry-day bar (whose high/low may pre-date
 // the entry) can't fabricate an impossible hit (look-ahead). See resolveOutcomes.
 const TF_SECONDS = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
+// UTC calendar day ("2026-06-05") for the daily no-look-ahead gate.
+function utcDay(ts) { return new Date(ts * 1000).toISOString().slice(0, 10); }
 function resolutionFor(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
@@ -557,11 +559,14 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
     if (row.outcome !== 'pending' || !row.analysis_date) return;
     const res = resolutionFor(row);
     const entryTs = entryTsOf(row);
-    // No-look-ahead: a bar may only grade TP/SL if its session is fully after entry
-    // (one bar-period of clearance), so the entry-day bar — whose high/low can pre-date
-    // the trade — never fabricates an impossible hit.
+    // No-look-ahead. DAILY/WEEKLY: only grade bars on a strictly LATER calendar day
+    // (excludes the entry-day bar's possibly-pre-entry extremes, but keeps the first
+    // genuine next-day bar — a "+24h" gate wrongly dropped it for 00:00-stamped bars).
+    // INTRADAY: one full bar-period of clearance past entry.
     const tfSec = TF_SECONDS[candleTf] || 86400;
-    const barsAfter = candles.filter(b => b.time >= entryTs + tfSec);
+    const barsAfter = (candleTf === '1d' || candleTf === '1w')
+      ? candles.filter(b => utcDay(b.time) > utcDay(entryTs))
+      : candles.filter(b => b.time >= entryTs + tfSec);
 
     const tp  = parseFloat(row.target_price);
     const sl  = parseFloat(row.stop_loss);
