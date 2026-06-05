@@ -694,6 +694,12 @@ button.sc-btn { appearance: none; }
   .vt-btn { flex: 1; text-align: center; }
   .wl-table-wrap { -webkit-overflow-scrolling: touch; }   /* momentum scroll for the wide table */
   .scan-card { padding: 16px 15px; }
+  /* Even 2×2 summary tiles instead of an uneven 3+1 wrap */
+  .hist-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .hs-stat { flex: none; padding: 12px 14px; }
+  /* Keep the scoreboard header (title + scope toggle) from cramping */
+  .acc-header { gap: 8px; }
+  .acc-scope-btn { padding: 4px 9px; font-size: 11px; }
 }
 
 /* ── Preview modal ─────────────────────────────────────────────────────────── */

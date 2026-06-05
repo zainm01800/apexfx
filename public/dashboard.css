@@ -727,6 +727,10 @@ body {
 
   /* Result action buttons: 2-up, full tap targets */
   .results-actions .ra-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 11px 10px; }
+
+  /* Memory recap badge: icon sits with the first line when text wraps */
+  .memory-badge { align-items: flex-start; }
+  .mem-icon { line-height: 1.5; }
 }
 
 @media (max-width: 430px) {
