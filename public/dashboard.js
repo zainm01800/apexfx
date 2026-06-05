@@ -2679,7 +2679,7 @@ Respond ONLY with valid JSON. No text before or after.
   "long_term_outlook":   "1-2 sentences on 3-12 month outlook",
   "key_reasons": ["<reason 1>", "<reason 2>", "<reason 3>", "<reason 4>"],
   "invalidation_conditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
-  "entry_zone": "<concrete entry price or a tight zone — never blank>",
+  "entry_zone": "<the BEST entry LEVEL for this setup — a pullback / rally / breakout-retest zone, NOT just the current price (use current price only when price is already at a prime entry). A tight concrete zone, never blank>",
   "entry_trigger": "WHEN/HOW to enter: e.g. 'enter at market now', 'buy the pullback to X', or 'wait for a break/close above Y then enter'. For WAIT/NO_EDGE give the conditional level that WOULD make it a valid entry.",
   "stop_loss": "<concrete stop-loss price — never blank>",
   "target_price": "<first take-profit price, TP1 — never blank>",
@@ -2889,7 +2889,7 @@ STRATEGY-BACKTEST DIRECTIVE: EXPLORATORY in-sample history (no out-of-sample pro
     const tradeStyleBlock = `
 ━━━ TRADE STYLE: ${ts.label.toUpperCase()} (hold ${ts.horizon}) ━━━
 The trader wants a ${ts.label} trade. ALL technical evidence above is computed on the ${ts.primaryTf} timeframe (higher-timeframe context: ${ts.contextTf}). Tailor the ENTIRE plan to this horizon:
-- WHEN TO BUY: give a concrete entry zone/price AND the trigger — e.g. "enter now at market", "buy the pullback to X", or "only on a break above Y".
+- WHEN TO ENTER (prefer patience — do NOT chase): default to the BEST achievable entry, NOT the current price — a pullback to support/value for a long, a rally to resistance for a short, or the retest of a confirmed breakout. Put THAT level in entry_zone and only say "enter now at market" when price is ALREADY sitting at such a level. A real edge that needs price to come to a better level is still an actionable BUY/SELL with a PENDING entry (e.g. "buy the pullback to X", "sell the rally to X", "wait for a break+retest of Y") — NOT a WAIT. Say which case it is in entry_trigger, and measure reward:risk from that entry.
 - WHEN TO SELL / TAKE PROFIT: a specific take-profit target (target_price) sized for a ${ts.label} move on ${ts.primaryTf} (scalps = tight, near price; positions = wider, structure-based).
 - WHERE TO STOP: a stop_loss appropriate to ${ts.primaryTf} volatility (use the ATR/levels in the evidence) with a sensible risk:reward.
 - The "timeframe" field MUST be a concrete ${ts.label} holding estimate (e.g. scalp "~30 min–4 h", swing "1–3 weeks", position "1–4 months").
@@ -2948,6 +2948,7 @@ Your task:
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
+8b. ENTRY DISCIPLINE — prefer a PATIENT entry over chasing the current price. Place entry_zone at the best achievable level (pullback to support/value for longs, rally to resistance for shorts, breakout-retest otherwise); only "enter now at market" when price is ALREADY there. A directional edge that needs price to come to a better level is still an actionable BUY/SELL with a PENDING entry trigger (state the wait-for level in entry_trigger) — do NOT collapse it to WAIT just because the entry isn't live yet. Reward:risk is measured from THAT entry, which should improve the setup quality.
 9. RISK:REWARD GATE (professional standard) — a professional will NOT take a ${ts.label} trade below ${styleMinRR}:1 reward:risk, where reward = |target_price − entry| and risk = |entry − stop_loss|. This is the minimum a disciplined ${ts.label} trader requires; 3:1+ is an A+ setup. If the best honest setup at this horizon cannot reach ${styleMinRR}:1, you MUST NOT output an actionable BUY/SELL/SHORT — return WAIT or NO_EDGE and state the specific entry/level that WOULD make the reward justify the risk. Do not force a sub-standard trade just to have a directional call.
 10. Be brutally honest — no performance, no softening, no default verdicts
 11. PRE-MORTEM (decision-quality discipline): before finalising, assume this trade has ALREADY hit its stop. Identify the single most likely reason it failed and put it in the premortem field — this surfaces the dominant risk and counters confirmation bias.
@@ -2983,7 +2984,7 @@ Respond ONLY with this exact JSON structure:
   "long_term_outlook":   "1-2 sentences on 3-12 month outlook",
   "key_reasons": ["<reason 1>", "<reason 2>", "<reason 3>", "<reason 4>"],
   "invalidation_conditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
-  "entry_zone": "<concrete entry price or a tight zone — never blank>",
+  "entry_zone": "<the BEST entry LEVEL for this setup — a pullback / rally / breakout-retest zone, NOT just the current price (use current price only when price is already at a prime entry). A tight concrete zone, never blank>",
   "entry_trigger": "WHEN/HOW to enter: e.g. 'enter at market now', 'buy the pullback to X', or 'wait for a break/close above Y then enter'. For WAIT/NO_EDGE give the conditional level that WOULD make it a valid entry.",
   "stop_loss": "<concrete stop-loss price — never blank>",
   "target_price": "<first take-profit price, TP1 — never blank>",
