@@ -491,6 +491,10 @@ body {
   font-size: 13px; font-weight: 700; color: var(--blue);
   text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px;
 }
+.cb-note {
+  font-size: 12.5px; color: var(--text2); line-height: 1.5;
+  margin: -6px 0 14px;
+}
 .cb-grid {
   display: grid; grid-template-columns: 1fr 32px 1fr; align-items: center; gap: 12px;
 }

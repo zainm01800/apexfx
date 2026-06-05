@@ -151,12 +151,17 @@ export default async function handler(req) {
         timeframe:            body.timeframe || null,
         ...(body.setup_features ? { setup_features: body.setup_features } : {}),
       };
+    } else if (body.lesson != null && body.outcome == null) {
+      // Lesson-only patch: attach a post-mortem to an already-resolved row without
+      // touching its outcome (so re-running History never re-grades a closed trade).
+      patch = { lesson: String(body.lesson).slice(0, 600) };
     } else {
       patch = {
         outcome:       body.outcome       || 'expired',
         outcome_price: body.outcome_price ?? null,
         outcome_date:  body.outcome_date  || new Date().toISOString().slice(0, 10),
       };
+      if (body.lesson != null) patch.lesson = String(body.lesson).slice(0, 600);
     }
 
     try {
@@ -166,14 +171,20 @@ export default async function handler(req) {
         headers: supaHeaders({ 'Prefer': 'return=minimal' }),
         body:    JSON.stringify(patch),
       });
-      // Same graceful fallback as POST: retry without setup_features if unmigrated.
-      if (!res.ok && patch.setup_features != null) {
-        const { setup_features, ...rest } = patch;
-        res = await fetch(url, {
-          method:  'PATCH',
-          headers: supaHeaders({ 'Prefer': 'return=minimal' }),
-          body:    JSON.stringify(rest),
-        });
+      // Same graceful fallback as POST: retry without not-yet-migrated columns
+      // (setup_features / lesson) so resolving an outcome never breaks if the
+      // optional column is missing.
+      if (!res.ok && (patch.setup_features != null || patch.lesson != null)) {
+        const { setup_features, lesson, ...rest } = patch;
+        // If lesson was the ONLY field (lesson-only patch) there's nothing left to
+        // write, so skip the retry rather than send an empty PATCH.
+        if (Object.keys(rest).length) {
+          res = await fetch(url, {
+            method:  'PATCH',
+            headers: supaHeaders({ 'Prefer': 'return=minimal' }),
+            body:    JSON.stringify(rest),
+          });
+        }
       }
       return new Response(
         res.ok ? JSON.stringify({ ok: true }) : JSON.stringify({ error: 'update failed' }),

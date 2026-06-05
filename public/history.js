@@ -10,9 +10,21 @@ const API_CANDLES = '/api/candles';   // same endpoint dashboard uses
 
 // ── State ────────────────────────────────────────────────────────────────────
 let _allRows      = [];   // all rows from Supabase (flat)
+let _rowById      = {};   // id → row, for the Preview modal + Update lookups
 let _filterOutcome = 'all';
 let _filterType    = 'all';
 let _filterSym     = '';
+
+function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] = r; }
+
+// key_reasons is persisted as a JSON string; tolerate array / string / null.
+function parseReasons(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string' && v.trim()) {
+    try { const a = JSON.parse(v); return Array.isArray(a) ? a : [v]; } catch { return [v]; }
+  }
+  return [];
+}
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
@@ -162,12 +174,12 @@ function rowTs(row) {
   return 0;
 }
 
-function rescanUrl(row) {
-  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&compare=${encodeURIComponent(row.id)}`;
-}
-
-function chartUrl(row) {
-  return `index.html?sym=${encodeURIComponent(row.symbol)}`;
+// "Update" re-runs the FULL analysis on the Research page in non-destructive mode:
+// the original trade is preserved (a fresh dated read is added to the trail) and the
+// confidence change vs this call is shown. `update=ID` (not `compare`) is what tells
+// the dashboard to keep the original row instead of overwriting it.
+function updateUrl(row) {
+  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&update=${encodeURIComponent(row.id)}`;
 }
 
 function escHtml(str) {
@@ -207,7 +219,11 @@ function buildGroups(rows) {
       anchorFlag = `Re-scanned ${openSame.length}× ${verdictDir(current.verdict).toUpperCase()}, none resolved yet`;
     }
 
-    return { symbol, current, trail, scans, resolved: resolved.length, wins, losses, winRate, anchorFlag, ts: rowTs(current) };
+    // Surface the most recent post-mortem lesson in the group (resolved scans are
+    // already newest-first within `scans`).
+    const lesson = (scans.find(s => s.lesson) || {}).lesson || null;
+
+    return { symbol, current, trail, scans, resolved: resolved.length, wins, losses, winRate, anchorFlag, lesson, ts: rowTs(current) };
   });
 
   groups.sort((a, b) => b.ts - a.ts);   // most recently active symbol first
@@ -267,6 +283,12 @@ function renderCard(g) {
 
   const scanCount = g.scans.length;
 
+  // Post-mortem lesson — shown on the current call when it (or any resolved scan in
+  // the group) has one. This is the "what went wrong / right" the engine learns from.
+  const lessonRow = g.lesson
+    ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
+    : '';
+
   return `
     <div class="scan-card ${vc}">
       <div class="sc-head">
@@ -299,15 +321,17 @@ function renderCard(g) {
         ${row.risk_reward ? `<div class="sc-target-item"><span class="sc-tl">R:R</span><span class="sc-tv">${escHtml(row.risk_reward)}</span></div>`          : ''}
       </div>
 
+      ${lessonRow}
+
       ${trail}
 
       <div class="sc-actions">
-        <a class="sc-btn sc-btn-rescan" href="${rescanUrl(row)}" title="Re-run the analysis and compare to this scan">
-          🔄 Rescan &amp; Compare
+        <a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-run the full analysis — keeps this trade and shows the updated confidence">
+          🔄 Update
         </a>
-        <a class="sc-btn sc-btn-chart" href="${chartUrl(row)}" title="Open chart for this symbol">
-          📈 Chart
-        </a>
+        <button class="sc-btn sc-btn-preview" data-action="preview" data-id="${escHtml(row.id)}" title="See the full analysis behind this call">
+          👁 Preview
+        </button>
       </div>
     </div>
   `;
@@ -339,6 +363,93 @@ function renderGrid() {
   }
   empty.style.display = 'none';
   grid.innerHTML = groups.map(renderCard).join('');
+}
+
+// ── Preview modal ───────────────────────────────────────────────────────────
+// Renders the FULL saved analysis (the same write-up the Research tab produced)
+// in a popup — read-only, straight from the stored row, no re-scan needed.
+
+function _section(title, body) {
+  if (!body || !String(body).trim()) return '';
+  return `<div class="pv-section"><h4>${escHtml(title)}</h4><p>${escHtml(body)}</p></div>`;
+}
+
+function openPreview(id) {
+  const row = _rowById[id];
+  if (!row) return;
+  const modal = document.getElementById('previewModal');
+  const body  = document.getElementById('pvBody');
+  if (!modal || !body) return;
+
+  const vc = verdictClass(row.verdict);
+  const vDisplay = (row.verdict || '—').replace(/_/g, ' ').toUpperCase();
+  const reasons = parseReasons(row.key_reasons);
+  const outcomeCls = row.outcome || 'pending';
+
+  const targets = [
+    row.entry_zone   ? ['Entry',  escHtml(String(row.entry_zone)), 'entry']  : null,
+    row.target_price ? ['Target', '$' + fmtPrice(row.target_price), 'target'] : null,
+    row.stop_loss    ? ['Stop',   '$' + fmtPrice(row.stop_loss), 'stop']    : null,
+    row.risk_reward  ? ['R:R',    escHtml(String(row.risk_reward)), '']      : null,
+  ].filter(Boolean).map(([l, v, c]) =>
+    `<div class="pv-target"><span class="pv-tl">${l}</span><span class="pv-tv ${c}">${v}</span></div>`).join('');
+
+  body.innerHTML = `
+    <div class="pv-head">
+      <div>
+        <div class="pv-sym">${escHtml(row.symbol)} <span class="pv-type">${escHtml(row.asset_type || 'Stock')}</span></div>
+        <div class="pv-date">Analysed ${escHtml(row.analysis_date || '')} · @ $${fmtPrice(row.price)}</div>
+      </div>
+      <button class="pv-close" data-action="pv-close" aria-label="Close">✕</button>
+    </div>
+
+    <div class="pv-verdict-row">
+      <span class="pv-verdict ${vc}">${vDisplay}</span>
+      <span class="pv-conf">${row.confidence != null ? row.confidence + '%' : '—'} confidence</span>
+      <span class="pv-outcome ${outcomeCls}">${outcomeLabel(row.outcome)}</span>
+    </div>
+
+    ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
+
+    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
+
+    ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
+
+    ${reasons.length ? `<div class="pv-section"><h4>Key reasons</h4><ul class="pv-reasons">${reasons.map(r => `<li>${escHtml(String(r))}</li>`).join('')}</ul></div>` : ''}
+
+    ${_section('Technical analysis',   row.technical_analysis)}
+    ${_section('Fundamental analysis', row.fundamental_analysis)}
+    ${_section('Macro environment',    row.macro_environment)}
+    ${_section('Risk analysis',        row.risk_analysis)}
+    ${_section('Short-term outlook',   row.short_term_outlook)}
+
+    <div class="pv-foot">
+      <a class="pv-btn" href="${updateUrl(row)}">🔄 Run an update on ${escHtml(row.symbol)}</a>
+    </div>`;
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closePreview() {
+  const modal = document.getElementById('previewModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// One delegated listener handles Preview opens, the close button, and backdrop click.
+function initGridActions() {
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-action]');
+    if (t) {
+      const action = t.dataset.action;
+      if (action === 'preview')  { e.preventDefault(); openPreview(t.dataset.id); return; }
+      if (action === 'pv-close') { e.preventDefault(); closePreview(); return; }
+    }
+    // Click on the modal backdrop (outside the panel) closes it.
+    if (e.target.id === 'previewModal') closePreview();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePreview(); });
 }
 
 function updateSummary() {
@@ -811,6 +922,90 @@ function refreshOnFocus() {
   });
 }
 
+// ── Post-mortem lessons ──────────────────────────────────────────────────────
+// When a trade resolves, generate a short "what went right / wrong" lesson and
+// persist it. The live committee later retrieves lessons from STRUCTURALLY-similar
+// setups (see dashboard.js fetchLessons) and feeds them into new verdicts, so the
+// engine learns from each closed trade instead of repeating the mistake.
+
+// Minimal AI caller (mirrors dashboard.js callAgent; one retry on a transient 5xx).
+async function callAgent(system, prompt, maxTokens = 400) {
+  const attempt = async () => {
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, system, max_tokens: maxTokens, temperature: 0.3, timeoutMs: 55000 }),
+    });
+    const raw = await res.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = null; }
+    if (data === null) { const e = new Error('AI hiccup'); e._transient = res.status >= 500 || res.status === 0; throw e; }
+    if (!res.ok || data.error) { const e = new Error(data.error || `HTTP ${res.status}`); e._transient = res.status >= 500; throw e; }
+    return data.text || '';
+  };
+  try { return await attempt(); }
+  catch (e) { if (e._transient) { await new Promise(r => setTimeout(r, 1500)); return await attempt(); } throw e; }
+}
+
+function outcomePlain(o) {
+  if (o === 'tp_hit')  return 'WON — price reached the target before the stop';
+  if (o === 'sl_hit')  return 'LOST — price hit the stop-loss before the target';
+  if (o === 'expired') return 'EXPIRED — neither target nor stop was reached within the trade window';
+  return 'unresolved';
+}
+
+// Pull a one/two-sentence lesson out of the model's reply (tolerates raw text or JSON).
+function parseLesson(text) {
+  if (!text) return null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) { try { const o = JSON.parse(m[0]); if (o && o.lesson) return String(o.lesson).trim(); } catch {} }
+  return String(text).replace(/^["'\s]+|["'\s]+$/g, '').slice(0, 500) || null;
+}
+
+async function generateLessonFor(row) {
+  const reasons = parseReasons(row.key_reasons);
+  const heldDays = Math.max(0, Math.round((rowTs(row) ? (Date.now() - rowTs(row)) / 86400000 : 0)));
+  const system = 'You are a blunt trading post-mortem analyst. You review a CLOSED trade idea against what actually happened and extract the single most useful, transferable lesson. Be specific and honest — name the mistake if there was one. Reply ONLY with strict JSON: {"lesson":"<1-2 sentences>"}.';
+  const prompt = `CLOSED TRADE on ${row.symbol} (${row.asset_type || 'Stock'}).
+Original call: ${(row.verdict || '').replace(/_/g, ' ')} at ${row.confidence != null ? row.confidence + '% confidence' : 'unknown confidence'}.
+Entry zone: ${row.entry_zone || '—'} | Target: ${row.target_price || '—'} | Stop: ${row.stop_loss || '—'} | R:R: ${row.risk_reward || '—'}.
+Scan price: ${row.price || '—'}. Held ~${heldDays} day(s).
+Original thesis (key reasons): ${reasons.length ? reasons.map(r => '• ' + r).join(' ') : (row.summary || '—')}
+Technical read at the time: ${row.technical_analysis || '—'}
+
+ACTUAL RESULT: ${outcomePlain(row.outcome)}.
+
+Write the lesson: what did the thesis get right or wrong, and the ONE thing to watch for on a structurally-similar setup next time? Strict JSON only.`;
+  const text = await callAgent(system, prompt, 400);
+  return parseLesson(text);
+}
+
+// Generate + persist lessons for newly-resolved rows that don't have one yet.
+// Capped per page load so we never fan out a huge batch of AI calls at once.
+async function generateLessons(rows, cap = 4) {
+  const need = rows.filter(r =>
+    (r.outcome === 'tp_hit' || r.outcome === 'sl_hit' || r.outcome === 'expired') &&
+    (r.lesson == null || r.lesson === '')
+  ).slice(0, cap);
+  if (!need.length) return false;
+
+  let any = false;
+  await Promise.allSettled(need.map(async (row) => {
+    try {
+      const lesson = await generateLessonFor(row);
+      if (!lesson) return;
+      row.lesson = lesson;
+      any = true;
+      fetch(API_MEMORY, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, lesson }),
+      }).catch(() => {});
+    } catch {}
+  }));
+  return any;
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -818,13 +1013,18 @@ async function init() {
 
   try {
     _allRows = await fetchAllScans();
+    indexRows();
 
-    // Resolve outcomes in background (updates _allRows in-place then re-renders)
-    resolveIfPending(_allRows).then(() => {
-      updateSummary();
-      renderScoreboard();
-      if (_currentView === 'scans') renderGrid();
-    }).catch(() => {});
+    // Resolve outcomes in background, THEN generate post-mortem lessons for anything
+    // newly closed (and any older resolved row still missing one), then re-render.
+    resolveIfPending(_allRows)
+      .then(() => generateLessons(_allRows))
+      .then(() => {
+        indexRows();
+        updateSummary();
+        renderScoreboard();
+        if (_currentView === 'scans') renderGrid();
+      }).catch(() => {});
 
     loadingEl.style.display = 'none';
     updateSummary();
@@ -832,6 +1032,7 @@ async function init() {
     renderGrid();
     initFilters();
     initViewToggle();
+    initGridActions();
     refreshOnFocus();
     primeWatchlistPrices();   // so an alert can fire on load even from the Scans view
   } catch (err) {

@@ -1388,6 +1388,33 @@ async function fetchMetaLabel(features) {
   } catch { return null; }
 }
 
+// Retrieve post-mortem lessons from STRUCTURALLY-similar resolved trades (matched on
+// regime/trend/momentum/volatility, NOT the same ticker — surface-ticker retrieval is
+// the #1 RAG failure). These qualitative "what went wrong" notes are fed into the
+// committee so the engine stops repeating its own mistakes. Returns up to 3 nearest.
+async function fetchLessons(features) {
+  try {
+    if (!features) return [];
+    const r = await fetch('/api/memory?all=true&limit=200');
+    if (!r.ok) return [];
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return [];
+    const withLesson = rows.filter(x =>
+      x.lesson && String(x.lesson).trim() &&
+      (x.outcome === 'tp_hit' || x.outcome === 'sl_hit' || x.outcome === 'expired') &&
+      x.setup_features);
+    if (!withLesson.length) return [];
+    const scored = withLesson.map(x => {
+      let f = x.setup_features;
+      if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+      return f ? { d: setupDistance(features, f), row: x } : null;
+    }).filter(Boolean).sort((a, b) => a.d - b.d);
+    return scored.slice(0, 3).filter(s => s.d <= 0.55).map(s => ({
+      sym: s.row.symbol, verdict: s.row.verdict, outcome: s.row.outcome, lesson: s.row.lesson,
+    }));
+  } catch { return []; }
+}
+
 // ── Position-size calculator (results panel) ──────────────────────────────────
 // Pure risk math: shares/units = (account × risk%) ÷ per-unit risk (|entry−stop|).
 // Account size + risk% persist in localStorage so the trader sets them once.
@@ -2790,6 +2817,18 @@ ${sharedData}`;
           : 'MIXED historical reliability for this setup type — weigh the live evidence carefully and keep confidence moderate.';
       metaLabelBlock = `\n━━━ 🧠 SETUP RELIABILITY (meta-label) ━━━\nAcross the ${metaLabel.n} most STRUCTURALLY-SIMILAR resolved setups (matched on regime, trend, momentum, volatility & confluence — NOT the same ticker), the committee's verdict was correct ${metaLabel.pCorrect}% of the time (${metaLabel.wins}W / ${metaLabel.losses}L; overall base rate ${metaLabel.base}%).\nDIRECTIVE: ${directive}`;
     }
+
+    // Qualitative post-mortems from structurally-similar resolved trades — the "what
+    // went wrong / right" the engine learns from each closed call (see History tab).
+    const lessons = await fetchLessons(setupFeatures);
+    let lessonsBlock = '';
+    if (lessons.length) {
+      const items = lessons.map(l => {
+        const res = l.outcome === 'tp_hit' ? 'WON' : l.outcome === 'sl_hit' ? 'LOST' : 'EXPIRED';
+        return `• [${l.sym} ${(l.verdict || '').replace(/_/g, ' ')} → ${res}] ${l.lesson}`;
+      }).join('\n');
+      lessonsBlock = `\n━━━ 📓 LESSONS FROM SIMILAR PAST TRADES ━━━\nPost-mortems from structurally-similar resolved trades (matched on market structure, NOT the same ticker):\n${items}\nDIRECTIVE: Treat these as hard-won feedback. If THIS setup is about to repeat a mistake flagged above, lower confidence or favour WAIT. If it echoes a past win, that's mild corroboration — not a guarantee. Do not blindly anchor to them.`;
+    }
     let engineBlock = '\nINDEPENDENT QUANT ENGINE: unavailable this run (not factored into the verdict).';
     if (engineData && engineData.online && engineData.supported) {
       const eR = engineData.regime, eRisk = engineData.risk, eVal = engineData.validation;
@@ -2879,6 +2918,7 @@ ${cryptoBlock || ''}
 ${seasonalityBlock || ''}
 ${calibrationBlock || ''}
 ${metaLabelBlock || ''}
+${lessonsBlock || ''}
 ${engineBlock}
 ${backtestBlock}
 ${strategyBtBlock}
@@ -2988,8 +3028,11 @@ Respond ONLY with this exact JSON structure:
     }
 
     // Same OPEN setup → refresh the existing history row; otherwise a new idea.
+    // EXCEPTION: an explicit "Update" from History is non-destructive — it always
+    // writes a NEW dated row so the original trade is preserved in the trail.
     const _priorOpen = (Array.isArray(tickerMemory) ? tickerMemory : []).find(r => r.outcome === 'pending') || null;
-    const _updateId  = (_priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
+    const _isUpdateScan = _updateMode && _compareOriginal && _compareOriginal.symbol === sym;
+    const _updateId  = (!_isUpdateScan && _priorOpen && sameSetup(_priorOpen, analysis)) ? _priorOpen.id : null;
 
     // Save (update the open same-setup row, or create a new one) + start cooldown.
     saveToMemory(sym, type, analysis, curr, _updateId, setupFeatures);
@@ -2997,10 +3040,11 @@ Respond ONLY with this exact JSON structure:
 
     renderResults({ sym, type, candles, weeklyCandles, quote, news, analysis, historicalScan, newsImpact, fibExt, tickerMemory, fearGreed, relStr, benchName, volProfile, adx, bbWidth, confluenceScore, macroIntermarket, qualityScores, engineData, positioning, seasonality, calibration, metaLabel, cryptoDerivs });
 
-    // Show comparison banner if this is a rescan from History
+    // Show comparison banner if this is a rescan / update from History
     if (_compareOriginal && _compareOriginal.symbol === sym) {
-      showCompareBanner(_compareOriginal, { ...analysis, price: curr });
+      showCompareBanner(_compareOriginal, { ...analysis, price: curr }, _updateMode);
       _compareOriginal = null;
+      _updateMode = false;
     }
 
     document.getElementById('analyseBtn').disabled = false;
@@ -3159,8 +3203,9 @@ function initAutocomplete() {
 
 // ── Comparison banner (shown when arriving from History with ?compare=ID) ──────
 let _compareOriginal = null; // holds the historical row for comparison
+let _updateMode = false;     // arrived via ?update=ID — preserve the original trade
 
-function showCompareBanner(original, fresh) {
+function showCompareBanner(original, fresh, isUpdate = false) {
   let el = document.getElementById('compareBanner');
   if (!el) {
     el = document.createElement('div');
@@ -3175,12 +3220,19 @@ function showCompareBanner(original, fresh) {
   const confDiff  = (fresh.confidence_score || 0) - (original.confidence || 0);
   const verdictChanged = original.verdict !== fresh.verdict;
   const outcomeIcon   = original.outcome === 'tp_hit' ? '✅' : original.outcome === 'sl_hit' ? '❌' : original.outcome === 'expired' ? '⏱️' : '⏳';
+  const title = isUpdate
+    ? '🔄 Confidence Update — your saved trade vs a fresh scan'
+    : '📊 Comparison — Previous scan vs Today';
+  const note = isUpdate
+    ? '<div class="cb-note">Your original trade is kept intact in History — this fresh read was added alongside it.</div>'
+    : '';
 
   el.innerHTML = `
-    <div class="cb-title">📊 Comparison — Previous scan vs Today</div>
+    <div class="cb-title">${title}</div>
+    ${note}
     <div class="cb-grid">
       <div class="cb-col">
-        <div class="cb-label">Previous scan</div>
+        <div class="cb-label">${isUpdate ? 'Saved trade' : 'Previous scan'}</div>
         <div class="cb-date">${original.analysis_date}</div>
         <div class="cb-verdict ${original.verdict?.toLowerCase().replace(/_/g,'-')}">${original.verdict}</div>
         <div class="cb-conf">${original.confidence}% confidence</div>
@@ -3189,7 +3241,7 @@ function showCompareBanner(original, fresh) {
       </div>
       <div class="cb-arrow">→</div>
       <div class="cb-col">
-        <div class="cb-label">Today's scan</div>
+        <div class="cb-label">${isUpdate ? 'Fresh scan (just now)' : "Today's scan"}</div>
         <div class="cb-date">${new Date().toISOString().slice(0,10)}</div>
         <div class="cb-verdict ${fresh.verdict?.toLowerCase().replace(/_/g,'-')}">${fresh.verdict}</div>
         <div class="cb-conf">${fresh.confidence_score}% confidence ${confDiff !== 0 ? `<span class="${confDiff>0?'pos':'neg'}">(${confDiff>0?'+':''}${confDiff}%)</span>` : ''}</div>
@@ -3235,13 +3287,19 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPreAnalysis(symParam, detectType(symParam));   // show flags/TradingView for the launched symbol
   }
 
-  // Handle ?compare=ID (re-scan comparison launched from History)
+  // Handle ?compare=ID / ?update=ID (re-scan launched from History).
+  //  • compare → just show the before/after banner (legacy).
+  //  • update  → NON-DESTRUCTIVE: preserve the original trade (a fresh dated read is
+  //    added rather than overwriting the open row) and show the confidence update.
   const compareId = params.get('compare');
-  if (compareId) {
+  const updateId  = params.get('update');
+  const loadId    = updateId || compareId;
+  if (updateId) _updateMode = true;
+  if (loadId) {
     fetch(`/api/memory?all=true&limit=200`)
       .then(r => r.json())
       .then(rows => {
-        const row = rows.find(r => r.id === compareId);
+        const row = rows.find(r => r.id === loadId);
         if (row) _compareOriginal = row;
       })
       .catch(() => {});

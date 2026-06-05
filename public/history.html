@@ -115,6 +115,13 @@
 
   </main>
 
+  <!-- Preview modal: full saved analysis (read-only) -->
+  <div class="pv-modal" id="previewModal" style="display:none">
+    <div class="pv-panel">
+      <div class="pv-body" id="pvBody"></div>
+    </div>
+  </div>
+
   <script src="./history.js"></script>
   <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>
