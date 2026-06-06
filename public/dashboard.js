@@ -1198,11 +1198,20 @@ function renderPreAnalysis(sym, type, events, sector, tv) {
   if (nearMacro) {
     banners += `<div class="pa-banner warn">📅 ${escHtmlSafe(nearMacro.type)} in ${nearMacro.daysAway} day${nearMacro.daysAway === 1 ? '' : 's'} — macro volatility risk elevated.</div>`;
   }
+  // Market session / hours — warn loudly when the market is closed or data is stale.
+  const ms = marketSession(type);
+  if (ms.closed) {
+    banners += `<div class="pa-banner danger">🔒 ${escHtmlSafe(ms.session)} — the market is CLOSED, so the latest price is a stale close and intraday signals aren't reliable. Treat any setup as a PLAN for the next open (beware a gap), not a live entry.</div>`;
+  } else if (ms.stale) {
+    banners += `<div class="pa-banner warn">🌙 ${escHtmlSafe(ms.session)} — outside regular hours; prices are thin/unreliable. Treat extended-hours levels with caution.</div>`;
+  }
+  const sessPill = `<span class="pa-pill ${ms.closed ? 'neg' : (ms.liquidity === 'peak' || ms.liquidity === 'high') ? 'pos' : ''}" title="${escHtmlSafe(ms.guidance)}">🕐 ${escHtmlSafe(ms.session)} · ${escHtmlSafe(ms.liquidity)} liquidity</span>`;
+
   let pill = '';
   if (sector && sector.stock_return_30d != null && sector.sector_return_30d != null) {
     pill = `<span class="pa-pill ${sector.outperforming ? 'pos' : 'neg'}">${sector.outperforming ? 'Outperforming' : 'Underperforming'} ${escHtmlSafe(sector.sector)} by ${escHtmlSafe(sector.vs_sector)} (30d)</span>`;
   }
-  box.innerHTML = `${banners}<div class="pa-row">${tv}${pill}</div>`;
+  box.innerHTML = `${banners}<div class="pa-row">${tv}${sessPill}${pill}</div>`;
 }
 
 // ── Nav win-rate badge (overall realised hit-rate) ────────────────────────────
@@ -2192,6 +2201,67 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
   setTimeout(() => document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
+// ── Market session & hours awareness ──────────────────────────────────────────
+// Which trading session is active for this instrument, whether the market is open,
+// and research-grounded best-practices per session — fed to the committee so it
+// tailors the read to liquidity/volatility, and FLAGS stale data when the market is
+// closed (weekend/holiday) so it won't treat a stale price as actionable.
+// All times UTC. Sessions: Sydney/Tokyo (Asian), London (07–16), New York (12–21),
+// London–NY overlap (12–16) = peak. US equities regular 14:30–21:00.
+const US_MARKET_HOLIDAYS = new Set([   // NYSE 2026 (also covers the FX "holiday" cases)
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25',
+  '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+]);
+function marketSession(type) {
+  const now = new Date();
+  const day = now.getUTCDay();                       // 0=Sun … 6=Sat
+  const h = now.getUTCHours() + now.getUTCMinutes() / 60;
+  const dateStr = now.toISOString().slice(0, 10);
+  const weekend = (day === 6 || day === 0);
+  const t = (type || '').toLowerCase();
+
+  if (t.includes('crypto')) {
+    const peak = (h >= 13 && h < 18);                // ~16:00 UTC global peak
+    const sess = (h >= 7 && h < 12) ? 'London (EU) hours' : (h >= 12 && h < 21) ? 'US hours' : (h < 9) ? 'Asian hours' : 'off-peak hours';
+    return {
+      open: true, closed: false, stale: false,
+      session: sess + (peak ? ' · peak ~16:00 UTC' : ''),
+      liquidity: weekend ? 'thin (weekend)' : peak ? 'high' : 'normal',
+      guidance: `Crypto trades 24/7. ${peak ? 'You are in the peak-volatility window (London PM / NY AM, ~16:00 UTC): cleanest moves, breakouts/trend trades favoured.' : 'Off the peak window — moves are often choppier.'}${weekend ? ' WEEKEND: spot volume drops ~20–40% and the order book is thin, so expect wider spreads and sharp, low-conviction moves from small orders (worse for alts). Treat breakouts sceptically, size down, and prefer waiting for the weekday open to confirm.' : ''}`,
+    };
+  }
+
+  if (t.includes('forex')) {
+    const closed = (day === 6) || (day === 0 && h < 22) || (day === 5 && h >= 22);   // Fri 22:00 → Sun 22:00 UTC
+    if (closed) return { open: false, closed: true, stale: true, session: 'CLOSED — weekend', liquidity: 'closed',
+      guidance: 'The FX market is CLOSED for the weekend. The latest price is Friday\'s close and any intraday signal is STALE — do not treat live levels as actionable. Beware a weekend GAP on the Sunday/Monday re-open (weekend news can gap straight through stops). Use this only to PLAN; do not enter.' };
+    const overlap = (h >= 12 && h < 16), london = (h >= 7 && h < 16), ny = (h >= 12 && h < 21);
+    if (overlap) return { open: true, closed: false, stale: false, session: 'London–New York OVERLAP', liquidity: 'peak',
+      guidance: 'Peak liquidity & volatility of the day — cleanest directional moves and tightest spreads. Best window for breakout / trend trades; big moves and reversals happen fast, so size stops for the volatility.' };
+    if (london) return { open: true, closed: false, stale: false, session: 'London', liquidity: 'high',
+      guidance: 'The most active session (~38% of FX turnover): decisive directional moves, tight spreads. The London open (~07:00–10:00 UTC) typically breaks the Asian range and sets the daily bias — favour breakout / trend-continuation over fading.' };
+    if (ny) return { open: true, closed: false, stale: false, session: 'New York (post-overlap)', liquidity: 'moderate',
+      guidance: 'After the London close (~16:00 UTC) liquidity thins and trends can stall or reverse — be wary of chasing late-day breakouts; lean toward taking profit over initiating fresh trend trades.' };
+    return { open: true, closed: false, stale: false, session: 'Asian (Tokyo/Sydney)', liquidity: 'low',
+      guidance: 'Lowest-volatility session — EUR/USD typically ranges only ~30–40% of its daily range. It tends to build a RANGE, not trend: favour range / mean-reversion off the extremes and AVOID breakout trades on EUR/GBP majors (false breaks are common). JPY / AUD / NZD pairs are the most active now.' };
+  }
+
+  // Stock / ETF — US regular hours 14:30–21:00 UTC, Mon–Fri, ex-holidays.
+  const holiday = US_MARKET_HOLIDAYS.has(dateStr);
+  if (weekend || holiday) return { open: false, closed: true, stale: true, session: holiday ? 'CLOSED — US holiday' : 'CLOSED — weekend', liquidity: 'closed',
+    guidance: `The US market is CLOSED${holiday ? ' for a holiday' : ' for the weekend'}. The latest price is the last session's close and intraday reads are STALE — don't treat live levels as actionable. Beware a GAP on the re-open from weekend/overnight news. Use this to PLAN, not to enter.` };
+  if (h < 14.5 || h >= 21) return { open: false, closed: false, stale: true, session: h < 14.5 ? 'Pre-market' : 'After-hours', liquidity: 'thin',
+    guidance: 'Outside US regular hours (14:30–21:00 UTC). Pre/after-hours is THIN and volatile — wide spreads, unreliable prints, and moves that often don\'t hold into the regular session. Treat the last regular close as the reference and extended-hours levels with caution.' };
+  if (h < 15.5) return { open: true, closed: false, stale: false, session: 'US open (first hour)', liquidity: 'high',
+    guidance: 'The opening hour is the most volatile of the day — biggest, fastest moves and the cleanest directional setups, but also the most whipsaw. Let the first few minutes settle and size stops for the volatility.' };
+  if (h >= 16.5 && h < 19) return { open: true, closed: false, stale: false, session: 'Midday lull', liquidity: 'low',
+    guidance: 'The midday lull (~11:30–14:00 ET) is the quietest, choppiest part of the day — the worst window for new directional trades and breakouts often fail here. Favour patience / range behaviour.' };
+  if (h >= 20) return { open: true, closed: false, stale: false, session: 'Power hour (close)', liquidity: 'high',
+    guidance: 'The final hour is the second most active — institutions execute remaining orders so volume rises, but reversals are fast. Good for momentum; manage risk into the close.' };
+  return { open: true, closed: false, stale: false, session: 'US mid-session', liquidity: 'moderate',
+    guidance: 'Regular hours, moderate liquidity between the open and the afternoon — normal conditions.' };
+}
+
 // ── Main research flow ────────────────────────────────────────────────────────
 
 async function startResearch() {
@@ -2494,6 +2564,10 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
       }
     }
 
+    // ── Market session & hours block ───────────────────────────────────────────
+    const session = marketSession(type);
+    const sessionBlock = `\n━━━ MARKET SESSION & HOURS ━━━\nRight now: ${session.session} · liquidity ${session.liquidity}${session.open ? ' · market OPEN' : session.closed ? ' · market CLOSED' : ' · outside regular hours'}.\n${session.guidance}\nDIRECTIVE: factor the session into the read — match the strategy to the liquidity/volatility regime above, and lower confidence for moves made in thin conditions.${(session.closed || session.stale) ? ' CRITICAL: the market is closed / data is STALE, so the latest price and intraday signals are NOT reliable for a live decision — do NOT issue an actionable BUY/SELL to enter NOW; frame any setup as a plan for the next open and explicitly warn about gap risk. Lean toward WAIT.' : ''}`;
+
     // ── Sector relative strength block ─────────────────────────────────────────
     let sectorBlock = '';
     if (sectorData && sectorData.stock_return_30d != null && sectorData.sector_return_30d != null) {
@@ -2649,6 +2723,7 @@ Fear & Greed Index: ${fearGreed.value}/100 (${fearGreed.label})${fearGreed.value
 ${ohlcvTable}
 ${fundBlock}
 ${eventBlock}
+${sessionBlock}
 ${sectorBlock}
 ${positioningBlock}
 ${cryptoBlock}
@@ -2942,6 +3017,7 @@ ${macroIntermarket?.vix?.signal ? `VIX: ${macroIntermarket.vix.signal}` : ''}
 ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' : ''}${relStr.rs1m}%` : ''}
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
 ${eventBlock || ''}
+${sessionBlock || ''}
 ${sectorBlock || ''}
 ${positioningBlock || ''}
 ${cryptoBlock || ''}
