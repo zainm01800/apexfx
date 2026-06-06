@@ -1782,7 +1782,10 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
 
   const rawVerdict = (a.verdict || 'HOLD').toUpperCase().replace(/ /g, '_');
   const vbadge = document.getElementById('verdictBadge');
-  vbadge.textContent = rawVerdict.replace(/_/g, ' ');
+  // Accessibility: carry a shape icon alongside the word so the verdict never
+  // relies on red/green colour alone (~1 in 12 men are red-green colourblind).
+  const _vIcon = /BUY|LONG/.test(rawVerdict) ? '▲ ' : /SELL|SHORT/.test(rawVerdict) ? '▼ ' : '⏸ ';
+  vbadge.textContent = _vIcon + rawVerdict.replace(/_/g, ' ');
   vbadge.className   = `verdict-badge ${rawVerdict.toLowerCase()}`;
 
   const rawConf = Math.min(100, Math.max(0, Number(a.confidence_score) || 50));

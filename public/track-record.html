@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>APEX — Public Track Record</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#09090f" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+  <style>
+    .tr-main { max-width: 1000px; margin: 0 auto; padding: 30px 20px 70px; }
+    .tr-hero h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em;
+      background: linear-gradient(135deg, var(--text), #a090ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .tr-hero p { color: var(--text2); margin-top: 10px; max-width: 660px; line-height: 1.65; font-size: 14px; }
+    .tr-asof { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 10px; }
+    .tr-section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); font-weight: 600; margin: 28px 0 12px; }
+    .tr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .tr-table th { text-align: left; color: var(--text3); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .tr-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.04); font-family: var(--mono); white-space: nowrap; }
+    .tr-win { color: var(--green); } .tr-loss { color: var(--red); }
+    .tr-empty { color: var(--text2); padding: 32px; text-align: center; line-height: 1.7; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+    .tr-note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link" href="dashboard.html">Research</a>
+      <a class="nav-link" href="history.html">History</a>
+      <a class="nav-link" href="backtest.html">Backtest</a>
+      <a class="nav-link active" href="track-record.html">Track Record</a>
+    </nav>
+    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+  </header>
+
+  <main class="tr-main">
+    <div class="tr-hero">
+      <h1>Public Track Record</h1>
+      <p>Every AI verdict the engine has made that has since resolved — <strong>wins and losses, timestamped, nothing hidden.</strong> Most trading tools show you only their winners. We show all of it, because the only honest measure of an analysis is whether its stated confidence actually holds up over time.</p>
+      <div class="tr-asof" id="trAsOf"></div>
+    </div>
+    <div id="trBody"><div class="tr-empty">Loading the record…</div></div>
+    <footer class="app-footer" style="margin-top:40px">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+  </main>
+
+  <script src="./track-record.js"></script>
+</body>
+</html>

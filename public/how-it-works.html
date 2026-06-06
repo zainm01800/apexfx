@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>APEX — How It Works</title>
+  <meta name="description" content="How APEX FX analyses markets: a multi-agent AI committee, an independent quant engine, statistical overfitting validation, and confidence calibrated against its own public track record. And — honestly — what it does NOT do." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#09090f" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <style>
+    .hiw-main { max-width: 760px; margin: 0 auto; padding: 32px 22px 80px; }
+    .hiw-main h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text), #a090ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hiw-lede { color: var(--text2); font-size: 15px; line-height: 1.7; margin-bottom: 8px; }
+    .hiw-main h2 { font-size: 18px; font-weight: 600; margin: 34px 0 10px; color: var(--text); }
+    .hiw-main p { color: var(--text2); line-height: 1.7; margin-bottom: 12px; font-size: 14px; }
+    .hiw-main li { color: var(--text2); line-height: 1.65; margin: 6px 0 6px 18px; font-size: 14px; }
+    .hiw-main strong { color: var(--text); }
+    .hiw-step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .hiw-num { font-family: var(--mono); font-weight: 600; color: var(--purple); flex-shrink: 0; width: 26px; }
+    .hiw-step h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .hiw-step p { font-size: 13px; margin: 0; }
+    .hiw-callout { background: rgba(124,92,252,.08); border: 1px solid rgba(124,92,252,.28); border-radius: 12px; padding: 16px 18px; margin: 24px 0; }
+    .hiw-callout.warn { background: rgba(255,170,0,.07); border-color: rgba(255,170,0,.28); }
+    .hiw-callout h2 { margin-top: 0; }
+    .hiw-cta { display: inline-block; margin-top: 10px; color: var(--purple); text-decoration: none; font-weight: 600; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="logo">APEX<span>FX</span></div>
+    <nav class="nav">
+      <a class="nav-link" href="dashboard.html">Research</a>
+      <a class="nav-link" href="history.html">History</a>
+      <a class="nav-link" href="backtest.html">Backtest</a>
+      <a class="nav-link" href="track-record.html">Track Record</a>
+    </nav>
+    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+  </header>
+
+  <main class="hiw-main">
+    <h1>How APEX works</h1>
+    <p class="hiw-lede">APEX is an <strong>honesty-first research tool</strong>, not a crystal ball. It reads the market the way a disciplined desk would — many independent angles, weighed against each other, with the risks given equal weight — and it keeps an honest, public score of how often it's actually right. Here's exactly what happens when you hit <em>Deep Analyse</em>, in plain language.</p>
+
+    <h2>The pipeline</h2>
+
+    <div class="hiw-step"><div class="hiw-num">1</div><div><h3>Gather the evidence</h3><p>Price history across timeframes, technicals, fundamentals & accounting quality (for stocks), macro / intermarket signals, positioning, seasonality, and — for crypto — perp funding, open interest, ETF flows and on-chain data.</p></div></div>
+    <div class="hiw-step"><div class="hiw-num">2</div><div><h3>A committee of specialist AI analysts debate it</h3><p>Separate technical, fundamental, macro and risk perspectives are formed, then debated — and the final verdict is produced by an <strong>ensemble of different AI models</strong>, not one. When they disagree, confidence drops and the verdict leans toward WAIT. Disagreement is treated as a signal, not papered over.</p></div></div>
+    <div class="hiw-step"><div class="hiw-num">3</div><div><h3>An independent quant engine checks it</h3><p>A separate statistical engine detects the market regime, sizes risk with a capped fractional-Kelly rule (and can veto a trade), and runs the setup through proper overfitting validation — combinatorial purged cross-validation, the Deflated Sharpe Ratio and Probability of Backtest Overfitting. Most strategies <em>fail</em> this on purpose — that's the system working.</p></div></div>
+    <div class="hiw-step"><div class="hiw-num">4</div><div><h3>The confidence is calibrated against our own record</h3><p>A raw "78%" from an AI means little. APEX re-maps the displayed confidence using its <strong>realised hit-rate</strong> — so the number reflects how often calls at that level have actually worked, scored with a Brier score and reliability curve. It also flags its own weak inputs (e.g. ICT/SMC, COT, seasonality) rather than dressing them up as edge.</p></div></div>
+    <div class="hiw-step"><div class="hiw-num">5</div><div><h3>You get a verdict + a real trade plan</h3><p>BUY / SELL / WAIT, a calibrated confidence, an expected-value framing, a pre-mortem ("if this loses, why?"), and concrete entry / stop / take-profit levels tailored to your chosen trade style.</p></div></div>
+
+    <div class="hiw-callout">
+      <h2>Why you can trust the number</h2>
+      <p>Every resolved call — <strong>win or loss</strong> — is logged to a public, timestamped record. We show the losses competitors hide, because the only honest measure of an analysis is whether its stated confidence holds up over many calls.</p>
+      <a class="hiw-cta" href="track-record.html">See the public track record →</a>
+    </div>
+
+    <div class="hiw-callout warn">
+      <h2>What APEX does NOT do</h2>
+      <ul>
+        <li><strong>It does not predict the future.</strong> No tool can. Our edge is risk management, regime awareness and honest validation — not fortune-telling.</li>
+        <li><strong>It is not financial advice.</strong> It's research and education. Every decision and every loss is yours.</li>
+        <li><strong>It doesn't claim a win rate it can't show.</strong> If the public record isn't good, you'll see that too.</li>
+        <li><strong>The AI is a reasoning layer, not a price oracle.</strong> Language models can't forecast markets; we use them to weigh evidence transparently, and lean on the statistical engine for rigour.</li>
+        <li><strong>Data can be delayed.</strong> On the free data feed, intraday prices may lag ~15 minutes — best suited to swing and position trades.</li>
+      </ul>
+    </div>
+
+    <p style="margin-top:22px"><a class="hiw-cta" href="dashboard.html">← Run an analysis</a></p>
+
+    <footer class="app-footer" style="margin-top:36px">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research.</footer>
+  </main>
+
+</body>
+</html>

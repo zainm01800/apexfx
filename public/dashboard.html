@@ -16,6 +16,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
+  <!-- Lightweight client-error capture. Surfaces uncaught errors in the console with
+       an [APEX-ERR] tag so failures are visible during use/testing — zero dependency.
+       To ship errors to a dashboard, paste your Sentry loader <script> (from your
+       Sentry project) above this and it takes over; set window.APEX_SENTRY_DSN. -->
+  <script>
+    (function () {
+      function cap(kind, detail) { try { console.error('[APEX-ERR]', kind, detail); } catch (e) {} }
+      window.addEventListener('error', function (e) { cap('error', (e && e.message) || e); });
+      window.addEventListener('unhandledrejection', function (e) { cap('promise', (e && e.reason && (e.reason.message || e.reason)) || e); });
+    })();
+  </script>
 </head>
 <body>
 
@@ -25,6 +36,7 @@
       <a class="nav-link active" href="dashboard.html">Research</a>
       <a class="nav-link" href="history.html">History</a>
       <a class="nav-link" href="backtest.html">Backtest</a>
+      <a class="nav-link" href="track-record.html">Track Record</a>
     </nav>
     <a class="nav-winrate" id="navWinRate" href="history.html" title="Overall realised win rate across all resolved calls" style="display:none"></a>
     <div class="live-pill"><span class="live-dot"></span>LIVE</div>
@@ -338,7 +350,7 @@
     </section>
   </main>
 
-  <footer class="app-footer">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research.</footer>
+  <footer class="app-footer">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
 
   <script src="./dashboard.js"></script>
   <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
