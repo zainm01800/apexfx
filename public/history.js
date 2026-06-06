@@ -328,39 +328,47 @@ function escHtml(str) {
 // "current" call; the rest form the evolution trail. Also computes the realised
 // win/loss record and an anti-anchoring flag for the symbol.
 function buildGroups(rows) {
+  // Symbol-level realised record — shown on each of that symbol's trade cards so you
+  // still see the pair's overall hit-rate without folding distinct trades together.
   const bySym = {};
-  for (const r of rows) {
-    (bySym[r.symbol] ||= []).push(r);
+  for (const r of rows) (bySym[r.symbol] ||= []).push(r);
+  const recOf = {};
+  for (const [sym, scans] of Object.entries(bySym)) {
+    const resolved = scans.filter(s => s.outcome === 'tp_hit' || s.outcome === 'sl_hit');
+    const wins = resolved.filter(s => s.outcome === 'tp_hit').length;
+    recOf[sym] = { resolved: resolved.length, wins, losses: resolved.length - wins,
+      winRate: resolved.length ? Math.round((wins / resolved.length) * 100) : null };
   }
 
-  const groups = Object.entries(bySym).map(([symbol, scans]) => {
-    scans.sort((a, b) => rowTs(b) - rowTs(a));   // newest first
-    const current = scans[0];
-    const trail   = scans.slice(1);
-
-    const resolved = scans.filter(s => s.outcome === 'tp_hit' || s.outcome === 'sl_hit');
-    const wins     = resolved.filter(s => s.outcome === 'tp_hit').length;
-    const losses   = resolved.length - wins;
-    const winRate  = resolved.length ? Math.round((wins / resolved.length) * 100) : null;
-
-    // Anti-anchoring: ≥3 open (pending) same-direction scans with non-falling
-    // confidence and nothing resolved — i.e. the same idea re-asserted with growing
-    // conviction but no evidence it's working yet.
-    const openSame = scans.filter(s => s.outcome === 'pending' && verdictDir(s.verdict) === verdictDir(current.verdict));
-    let anchorFlag = null;
-    if (verdictDir(current.verdict) !== 'neutral' && openSame.length >= 3 && !resolved.length) {
-      anchorFlag = `Re-scanned ${openSame.length}× ${verdictDir(current.verdict).toUpperCase()}, none resolved yet`;
-    }
-
-    // Surface the most recent post-mortem lesson in the group (resolved scans are
-    // already newest-first within `scans`).
-    const lesson = (scans.find(s => s.lesson) || {}).lesson || null;
-
-    return { symbol, current, trail, scans, resolved: resolved.length, wins, losses, winRate, anchorFlag, lesson, ts: rowTs(current) };
+  // ONE card per TRADE. Same-direction re-scans already REFRESH a single DB row, so a
+  // symbol only has multiple rows when they are genuinely DIFFERENT trades (a closed
+  // one, a new direction, a post-resolution re-scan). Each gets its own card; a trade's
+  // own evolution lives in its re-check history (validations), not in other trades.
+  const cards = rows.map(row => {
+    const rec = recOf[row.symbol];
+    return {
+      symbol: row.symbol, current: row, scans: [row], trail: [],
+      resolved: rec.resolved, wins: rec.wins, losses: rec.losses, winRate: rec.winRate,
+      anchorFlag: null, lesson: row.lesson || null, ts: rowTs(row),
+    };
   });
+  cards.sort((a, b) => b.ts - a.ts);   // newest trade first
+  return cards;
+}
 
-  groups.sort((a, b) => b.ts - a.ts);   // most recently active symbol first
-  return groups;
+// One re-check (validation) row in a trade's evolution trail.
+function renderValRow(v) {
+  const lbl = _VAL_LABEL[v.assessment] || 'RE-CHECKED';
+  const conf = (v.confidenceThen != null && v.confidence != null && v.confidenceThen !== v.confidence)
+    ? `${v.confidenceThen}%→${v.confidence}%`
+    : (v.confidence != null ? `${v.confidence}%` : '');
+  return `
+    <div class="trail-row">
+      <span class="tr-date">${escHtml(fmtValTs(v.ts))}</span>
+      <span class="tr-verdict">${escHtml(lbl)}</span>
+      <span class="tr-conf">${conf}</span>
+      <span class="tr-px">@ ${v.price != null ? fmtPrice(v.price) : '—'}</span>
+    </div>`;
 }
 
 // ── Rendering ───────────────────────────────────────────────────────────────────
@@ -403,18 +411,19 @@ function renderCard(g) {
     ? `<div class="sc-anchor" title="Repeated same-direction calls with no resolved outcome — beware anchoring">⚠ ${escHtml(g.anchorFlag)}</div>`
     : '';
 
-  // Evolution trail (older scans), newest of the older-set first; delta vs the one before it
+  // This trade's re-check history (validations) IS its evolution. Distinct trades are
+  // separate cards now, so the trail shows how THIS trade was re-checked over time
+  // (newest first) — not other, unrelated trades on the same symbol.
+  const _vals = parseValidations(row.validations);
   let trail = '';
-  if (g.trail.length) {
-    const rowsHtml = g.trail.map((s, i) => renderTrailRow(s, g.trail[i + 1])).join('');
+  if (_vals.length) {
+    const rowsHtml = _vals.slice().reverse().map(renderValRow).join('');
     trail = `
       <details class="sc-trail">
-        <summary>📜 ${g.trail.length} earlier ${g.trail.length === 1 ? 'scan' : 'scans'} — thesis evolution</summary>
+        <summary>📜 ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} — how this trade evolved</summary>
         <div class="trail-list">${rowsHtml}</div>
       </details>`;
   }
-
-  const scanCount = g.scans.length;
 
   // Post-mortem lesson — shown on the current call when it (or any resolved scan in
   // the group) has one. This is the "what went wrong / right" the engine learns from.
@@ -450,8 +459,7 @@ function renderCard(g) {
         : 'No trade yet — the entry/stop/target below are the levels it would need to <strong>become</strong> a valid trade, not a live position.'}</div>`
     : '';
 
-  // Latest validity re-check (from the "Update" button) on the current call.
-  const _vals = parseValidations(row.validations);
+  // Latest validity re-check (from the "Update" button) on this trade.
   const _lastVal = _vals.length ? _vals[_vals.length - 1] : null;
   const validRow = _lastVal
     ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold? The 'historically' note is the realised track record of this kind of re-check.">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}<span class="sc-valid-stat">${escHtml(reliabilityNote(_lastVal.assessment))}</span></div>`
@@ -462,9 +470,7 @@ function renderCard(g) {
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">${scanCount === 1
-            ? `1 scan · ${escHtml(fmtDateTime(row))}`
-            : `${scanCount} scans · first ${escHtml(fmtDateTime(g.scans[g.scans.length - 1]))} → latest ${escHtml(fmtDateTime(row))}`}</div>
+          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
