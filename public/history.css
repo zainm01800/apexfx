@@ -772,7 +772,14 @@ button.sc-btn { appearance: none; }
 @keyframes pvIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .pv-body { padding: 22px 22px 26px; }
 
-.pv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* Sticky so the ✕ close stays reachable while the analysis scrolls — critical on
+   mobile where the panel is full-screen with no outside-tap area or keyboard Escape. */
+.pv-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  position: sticky; top: 0; z-index: 4;
+  margin: -22px -22px 4px; padding: 16px 22px 12px;
+  background: var(--bg, #0d0d14); border-bottom: 1px solid var(--border);
+}
 .pv-sym { font-size: 20px; font-weight: 800; }
 .pv-type {
   font-size: 11px; font-weight: 600; color: var(--text2);
@@ -843,4 +850,6 @@ button.sc-btn { appearance: none; }
   .pv-modal { padding: 0; }
   .pv-panel { max-width: 100%; max-height: 100vh; min-height: 100vh; border-radius: 0; border: none; }
   .pv-body { padding: 18px 15px 30px; }
+  /* match the sticky header's negative margins to the mobile body padding */
+  .pv-head { margin: -18px -15px 4px; padding: 14px 15px 10px; padding-top: max(14px, env(safe-area-inset-top)); }
 }
