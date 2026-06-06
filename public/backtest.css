@@ -155,3 +155,15 @@
   .bt-modal-box { max-height: 94vh; }
   .bt-modal-body { padding: 12px; }
 }
+
+/* Run-management + AI-safety additions */
+.bt-aisafe {
+  font-size: 12.5px; line-height: 1.55; color: var(--text2);
+  background: rgba(0,217,126,.06); border: 1px solid rgba(0,217,126,.22);
+  border-radius: 10px; padding: 9px 13px; margin-bottom: 14px;
+}
+.bt-aisafe strong { color: var(--text); }
+.bt-btn:disabled { opacity: .45; cursor: not-allowed; }
+.bt-btn.danger { color: #f87171; border-color: rgba(248,113,113,.32); }
+.bt-btn.danger:hover:not(:disabled) { background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.55); }
+.bt-fsep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; flex: none; }

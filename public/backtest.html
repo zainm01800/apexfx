@@ -77,8 +77,13 @@
     <section class="bt-card">
       <div class="bt-card-head"><h2>Results</h2><span class="bt-hint" id="resultMeta"></span></div>
 
+      <!-- Reassurance: exploring here can't corrupt your live AI verdicts. -->
+      <div class="bt-aisafe">🛡 Your scans are safe: the AI analysis only reads a run that's <strong>broad</strong> (≥6 strategies on an instrument). Quick, one-off backtests here are ignored by the committee — so explore freely without skewing your live calls.</div>
+
       <div class="bt-filters">
-        <select id="fRun" title="Run"></select>
+        <select id="fRun" title="Pick a stored run to view"></select>
+        <button class="bt-btn small danger" id="delRunBtn" title="Delete the selected run from storage" disabled>🗑 Delete run</button>
+        <span class="bt-fsep"></span>
         <select id="fPair" title="Pair"><option value="">All pairs</option></select>
         <select id="fTf" title="Timeframe"><option value="">All timeframes</option></select>
         <select id="fFamily" title="Strategy family"><option value="">All families</option></select>
@@ -92,6 +97,7 @@
           <option value="max_drawdown">Sort: Max drawdown (low)</option>
           <option value="total_return">Sort: Total return</option>
         </select>
+        <button class="bt-btn small" id="resetFiltersBtn" title="Clear pair / timeframe / family filters">Reset</button>
         <button class="bt-btn small" id="refreshBtn">↻ Reload</button>
       </div>
 

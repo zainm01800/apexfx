@@ -21,7 +21,7 @@ function supaHeaders(extra = {}) {
 function cors(origin) {
   return {
     'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
@@ -102,6 +102,23 @@ export default async function handler(req) {
       if (res.ok) return new Response(JSON.stringify({ ok: true, n: cleaned.length }), { status: 200, headers });
       const detail = await res.text();
       return new Response(JSON.stringify({ error: `Supabase ${res.status}`, detail }), { status: 500, headers });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    }
+  }
+
+  // ── DELETE: remove an entire run by run_id (run-management) ──────────────────
+  if (req.method === 'DELETE') {
+    const runId = url.searchParams.get('run_id');
+    if (!runId) return new Response(JSON.stringify({ error: 'run_id required' }), { status: 400, headers });
+    try {
+      const res = await fetch(`${TABLE}?run_id=eq.${encodeURIComponent(runId)}`, {
+        method: 'DELETE',
+        headers: supaHeaders({ Prefer: 'return=minimal' }),
+      });
+      if (res.ok) return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+      const detail = await res.text();
+      return new Response(JSON.stringify({ error: `Supabase ${res.status}`, detail }), { status: res.status, headers });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
     }

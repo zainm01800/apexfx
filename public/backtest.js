@@ -448,8 +448,24 @@
       const r = await fetch('/api/backtest-runs?runs=true');
       const runs = r.ok ? await r.json() : [];
       const sel = $('fRun');
-      sel.innerHTML = `<option value="">Latest stored</option>` + runs.slice(0, 30).map(x => `<option value="${x.run_id}">${x.run_id} · ${(x.inserted_at || '').slice(0, 16).replace('T', ' ')}</option>`).join('');
+      sel.innerHTML = `<option value="">Latest stored run</option>` + runs.slice(0, 30).map(x => {
+        const when = (x.inserted_at || '').slice(0, 16).replace('T', ' ');
+        const short = String(x.run_id).slice(-6);
+        return `<option value="${x.run_id}">${when} · run …${short}</option>`;
+      }).join('');
+      $('delRunBtn').disabled = !sel.value;
     } catch {}
+  }
+  async function deleteSelectedRun() {
+    const runId = $('fRun').value;
+    if (!runId) { flashMeta('Pick a specific run to delete (not "Latest").'); return; }
+    if (!confirm(`Delete this run and ALL its stored results?\n\n${runId}\n\nThis can't be undone.`)) return;
+    $('delRunBtn').disabled = true;
+    try {
+      const r = await fetch('/api/backtest-runs?run_id=' + encodeURIComponent(runId), { method: 'DELETE' });
+      if (r.ok) { flashMeta('✓ Run deleted.'); await refreshRunFilter(); $('fRun').value = ''; loadStored(''); }
+      else { const e = await r.json().catch(() => ({})); flashMeta(`⚠ Delete failed (${e.error || r.status}) — the table may not allow deletes yet.`); $('delRunBtn').disabled = false; }
+    } catch (e) { flashMeta('⚠ Delete failed: ' + e.message); $('delRunBtn').disabled = false; }
   }
   async function loadStored(runId) {
     $('resultMeta').textContent = 'Loading…';
@@ -469,8 +485,10 @@
     $('runBtn').onclick = startRun;
     $('pauseBtn').onclick = () => { if (!running) return; paused = !paused; setRunState('running'); };
     $('cancelBtn').onclick = () => { cancelled = true; paused = false; };
-    ['fRun','fPair','fTf','fFamily','fSort'].forEach(id => $(id).onchange = () => { if (id === 'fRun') loadStored($('fRun').value); else renderResults(); });
+    ['fRun','fPair','fTf','fFamily','fSort'].forEach(id => $(id).onchange = () => { if (id === 'fRun') { $('delRunBtn').disabled = !$('fRun').value; loadStored($('fRun').value); } else renderResults(); });
     $('fMinSample').onchange = renderResults;
+    $('delRunBtn').onclick = deleteSelectedRun;
+    $('resetFiltersBtn').onclick = () => { $('fPair').value = ''; $('fTf').value = ''; $('fFamily').value = ''; $('fMinSample').checked = true; renderResults(); flashMeta('Filters reset.'); };
     $('refreshBtn').onclick = () => loadStored($('fRun').value);
     $('mPair').onchange = renderMatrix; $('mTf').onchange = renderMatrix;
     $('tradesClose').onclick = () => { $('tradesModal').style.display = 'none'; };
