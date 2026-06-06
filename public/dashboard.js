@@ -1780,6 +1780,18 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     const ycClass = yc.value < 0 ? 'down' : yc.value > 0.5 ? 'up' : 'neutral';
     statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Yield Curve (2s10s)</div><div class="stat-value ${ycClass}">${yc.value > 0 ? '+' : ''}${yc.value.toFixed(2)}% (${yc.label})</div></div>`;
   }
+  // Data-feed freshness — shows the measured age of the latest bar so the delay is
+  // visible, and warns (⚠) when the market is open but the feed appears delayed.
+  if (candles && candles.length > 2) {
+    const ageMin = Math.round((Date.now() / 1000 - candles[candles.length - 1].time) / 60);
+    const barMin = Math.max(1, Math.round((candles[candles.length - 1].time - candles[candles.length - 2].time) / 60));
+    const ms = marketSession(type);
+    const delayed = ms.open && ageMin > barMin * 1.5 + 12;
+    const cls = !ms.open ? 'neutral' : delayed ? 'down' : 'up';
+    const label = ageMin < 90 ? `${ageMin}m old` : ageMin < 1440 ? `${Math.round(ageMin / 60)}h old` : `${Math.round(ageMin / 1440)}d old`;
+    const tip = !ms.open ? 'Market closed — this is the last close, not live.' : delayed ? `Market open but the free feed looks ~${ageMin} min behind — intraday precision is reduced; the committee shades confidence down.` : 'Feed is fresh / near real-time.';
+    statsGrid.innerHTML += `<div class="stat-item" title="${tip}"><div class="stat-label">Data feed${delayed ? ' ⚠' : ''}</div><div class="stat-value ${cls}">${label}</div></div>`;
+  }
   // VIX (from intermarket)
   if (macroIntermarket?.vix?.value != null) {
     const vx = macroIntermarket.vix;
@@ -2594,6 +2606,18 @@ Next Earnings: ${quote.nextEarningsDate || 'N/A'} | Insider Sentiment (3M MSPR):
     const session = marketSession(type);
     const sessionBlock = `\n━━━ MARKET SESSION & HOURS ━━━\nRight now: ${session.session} · liquidity ${session.liquidity}${session.open ? ' · market OPEN' : session.closed ? ' · market CLOSED' : ' · outside regular hours'}.\n${session.guidance}\nDIRECTIVE: factor the session into the read — match the strategy to the liquidity/volatility regime above, and lower confidence for moves made in thin conditions.${(session.closed || session.stale) ? ' CRITICAL: the market is closed / data is STALE, so the latest price and intraday signals are NOT reliable for a live decision — do NOT issue an actionable BUY/SELL to enter NOW; frame any setup as a plan for the next open and explicitly warn about gap risk. Lean toward WAIT.' : ''}`;
 
+    // ── Data-feed freshness / delay check ──────────────────────────────────────
+    // Empirically measure how old the latest bar is. When the market is OPEN but the
+    // latest bar lags real time, the free Yahoo feed is delayed — flag it so the
+    // committee doesn't over-trust an intraday price (matters most for scalp/intraday).
+    const _barMin = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440, '1w': 10080, '1M': 43200 }[ts.primaryTf] || 1440;
+    const dataAgeMin = candles?.length ? Math.round((Date.now() / 1000 - candles[candles.length - 1].time) / 60) : null;
+    const feedDelayed = !!(session.open && dataAgeMin != null && dataAgeMin > _barMin * 1.5 + 12);   // beyond ~1.5 bars + buffer
+    const delayMaterial = feedDelayed && ['1m', '5m', '15m', '1h'].includes(ts.primaryTf);            // short-TF → delay matters
+    const freshnessBlock = feedDelayed
+      ? `\n━━━ DATA-FEED FRESHNESS ━━━\nThe market is OPEN but the latest ${ts.primaryTf} bar is ~${dataAgeMin} min old — the free price feed appears DELAYED.${delayMaterial ? ` For this short-timeframe (${ts.label}) trade that is MATERIAL: the live price may be ~${dataAgeMin} min behind, so do NOT over-trust precise intraday levels — widen entry tolerance and shade confidence down.` : ' For this longer-timeframe trade the delay is immaterial.'}`
+      : '';
+
     // ── Sector relative strength block ─────────────────────────────────────────
     let sectorBlock = '';
     if (sectorData && sectorData.stock_return_30d != null && sectorData.sector_return_30d != null) {
@@ -2769,6 +2793,7 @@ ${ohlcvTable}
 ${fundBlock}
 ${eventBlock}
 ${sessionBlock}
+${freshnessBlock}
 ${sectorBlock}
 ${positioningBlock}
 ${cryptoBlock}
@@ -3067,6 +3092,7 @@ ${relStr?.rs1m != null ? `${sym} 1M RS vs ${benchName}: ${relStr.rs1m > 0 ? '+' 
 ${qualityScores?.quality_flags?.length ? `Quality flags:\n${qualityScores.quality_flags.join('\n')}` : ''}
 ${eventBlock || ''}
 ${sessionBlock || ''}
+${freshnessBlock || ''}
 ${sectorBlock || ''}
 ${positioningBlock || ''}
 ${cryptoBlock || ''}
