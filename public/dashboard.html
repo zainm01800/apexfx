@@ -93,6 +93,7 @@
               <button class="ts-pill active" data-style="swing" title="Swing · analysed on the daily chart · hold roughly several days to a few weeks"><span class="ts-name">📈 Swing</span><span class="ts-dur">days–weeks · 1D</span></button>
               <button class="ts-pill" data-style="position" title="Position · analysed on the weekly chart · hold roughly several weeks to months"><span class="ts-name">🗓️ Position</span><span class="ts-dur">weeks–months · 1W</span></button>
             </div>
+            <div class="style-lag-notice" id="styleLagNotice" style="display:none">⚠ Prices use a free feed that can lag ~15&nbsp;min — best suited to swing/position trades; treat scalp/intraday entries as <strong>approximate</strong>.</div>
           </div>
 
           <!-- Categorised quick picks -->
@@ -336,6 +337,8 @@
 
     </section>
   </main>
+
+  <footer class="app-footer">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research.</footer>
 
   <script src="./dashboard.js"></script>
   <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>

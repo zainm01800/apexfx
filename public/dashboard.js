@@ -635,6 +635,11 @@ const TRADE_STYLES = {
 };
 let _tradeStyle = 'swing';
 function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
+// Honest disclosure: the free price feed lags intraday, so flag scalp/intraday styles.
+function updateStyleLagNotice() {
+  const el = document.getElementById('styleLagNotice');
+  if (el) el.style.display = (_tradeStyle === 'scalp' || _tradeStyle === 'intraday') ? '' : 'none';
+}
 
 // ── Re-scan cooldown (paced by trade style) ───────────────────────────────────
 // Stops the SAME symbol from being re-analysed instantly (burns rate-limited AI
@@ -2143,9 +2148,12 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     Array.isArray(a.key_reasons) ? a.key_reasons.join(' ') : a.key_reasons);
   const _methodFlag = _methods.length
     ? `<div class="tpg-method">⚠ References <strong>${_methods.map(escHtmlSafe).join(', ')}</strong> — popular but no independently verified edge (largely repackaged support/resistance & supply/demand). Treated as soft context only, not the basis for the verdict.</div>` : '';
+  const _lagNote = (_tradeStyle === 'scalp' || _tradeStyle === 'intraday')
+    ? `<div class="tpg-lag">⚠ Free price feed can lag ~15&nbsp;min — treat these ${tradeStyle().label.toLowerCase()} entry/stop levels as <strong>approximate</strong>, not exact live fills. Swing/position styles are less affected.</div>` : '';
   const _guide = document.getElementById('tradePlanGuide');
   if (_guide) _guide.innerHTML = `
     <div class="tpg-head"><span class="tpg-dir ${_dirCls}">${_dirLabel}</span><span class="tpg-style">${tradeStyle().label}${a.timeframe ? ` · ${escHtmlSafe(a.timeframe)}` : ''}</span></div>
+    ${_lagNote}
     ${a.entry_trigger ? `<div class="tpg-trigger"><strong>When to enter:</strong> ${escHtmlSafe(a.entry_trigger)}</div>` : ''}
     ${_evBlock}
     ${_premortem}
@@ -3686,6 +3694,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tsPills.querySelectorAll('.ts-pill').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         _tradeStyle = btn.dataset.style;
+        updateStyleLagNotice();
       });
     });
   }
@@ -3707,6 +3716,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _tradeStyle = styleParam;
     tsPills.querySelectorAll('.ts-pill').forEach(b => b.classList.toggle('active', b.dataset.style === styleParam));
   }
+  updateStyleLagNotice();   // reflect the (possibly preselected) style
 
   // Handle ?validate=ID / ?compare=ID / ?update=ID (re-scan launched from History).
   //  • validate → re-check the EXISTING trade: run a fresh scan but DON'T create a new

@@ -742,3 +742,24 @@ body {
   .verdict-card { padding: 20px 18px; }
   .a-card { padding: 18px 15px; }
 }
+
+/* Honest data-lag disclosure for scalp/intraday — non-alarmist, matches dark UI */
+.style-lag-notice {
+  margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--orange);
+  background: rgba(255, 170, 0, .08); border: 1px solid rgba(255, 170, 0, .25);
+  border-radius: 8px; padding: 7px 11px;
+}
+.tpg-lag {
+  font-size: 12px; line-height: 1.5; color: var(--orange);
+  background: rgba(255, 170, 0, .08); border: 1px solid rgba(255, 170, 0, .22);
+  border-radius: 8px; padding: 7px 11px; margin: 6px 0;
+}
+.style-lag-notice strong, .tpg-lag strong { color: var(--text); }
+
+/* Persistent "not financial advice" footer (shared across all pages via dashboard.css) */
+.app-footer {
+  max-width: 1240px; margin: 30px auto 18px; padding: 13px 20px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text3); font-size: 11.5px; line-height: 1.6; text-align: center;
+}
+.app-footer strong { color: var(--text2); }
