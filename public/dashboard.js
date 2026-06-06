@@ -2831,6 +2831,15 @@ RULES: (a) the de-correlated Confluence Score above already collapses redundant 
 On the ${entryTfRead.tf} chart right now: price ${entryTfRead.close.toFixed(dp)}, short-term trend ${entryTfRead.trend.toUpperCase()} (vs its 20/50 MAs), RSI ${entryTfRead.rsi != null ? Math.round(entryTfRead.rsi) : 'n/a'}, momentum ${entryTfRead.macdUp ? 'UP (MACD>0)' : 'DOWN (MACD<0)'}, last ${entryTfRead.tf} candle ${entryTfRead.candle}, volume ${entryTfRead.vol}. Nearest ${entryTfRead.tf} structure: resistance ~${entryTfRead.high.toFixed(dp)} / support ~${entryTfRead.low.toFixed(dp)}.
 DIRECTIVE: this is the REAL lower-timeframe data — use it to confirm the precise entry. The entry is only "live/confirmed" when this ${entryTfRead.tf} read AGREES with the trade direction (long → ${entryTfRead.tf} trend turning up / reclaiming its 20MA with momentum up at support; short → the mirror). If the ${entryTfRead.tf} currently DISAGREES with the ${ts.primaryTf} setup, the entry is NOT confirmed yet — say so and keep it WAIT / pending entry until the lower timeframe confirms.` : '';
 
+    // ── Research priors (peer-reviewed) — weak Bayesian tie-breakers, not overrides ──
+    const researchPriorsBlock = `
+━━━ RESEARCH PRIORS (peer-reviewed evidence — weak tie-breakers, NEVER overrides) ━━━
+Anchor conviction in what has actually REPLICATED out-of-sample, and discount what hasn't:
+• Durable, multi-asset edges — lean WITH the setup when it aligns: TREND / time-series momentum, CARRY (esp. FX), cross-sectional MOMENTUM & VALUE, and post-earnings drift (PEAD) for stocks. Trend/technical edge is REGIME-DEPENDENT — real in clearly trending or stressed markets, weak in chop.
+• Treat with skepticism: lone oscillator / chart-pattern signals (little robust standalone edge), and ANY famous retail setup — documented anomalies fade ~26% out-of-sample and ~58% post-publication (McLean & Pontiff 2016), so "well-known" usually means "already arbitraged".
+• Most apparent edges are partly data-mined (only a small fraction survive multiple-testing correction) — a clean-looking signal is not automatically real.
+RULE: use these to BREAK TIES and TEMPER confidence only. The live evidence above and the realised track record dominate. Do NOT inflate confidence just because a setup matches a famous factor's name.`;
+
     // ── Macro Intermarket block (FRED + Yahoo Finance) ─────────────────────────
     const intermarketBlock = macroIntermarket ? `
 ━━━ MACRO INTERMARKET SIGNALS (Live, Quantified) ━━━
@@ -2932,6 +2941,7 @@ ${qualityBlock}
 ${confluenceBlock}
 ${confluenceFrameworkBlock}
 ${entryTfBlock}
+${researchPriorsBlock}
 ${scanBlock}
 ${impactBlock}
 ${memoryBlock}
@@ -3193,6 +3203,7 @@ The trader wants a ${ts.label} trade. ALL technical evidence above is computed o
 ${tradeStyleBlock}
 ${confluenceFrameworkBlock}
 ${entryTfBlock}
+${researchPriorsBlock}
 
 ━━━ TECHNICAL ANALYST — Evidence ━━━
 ${techFactors}
