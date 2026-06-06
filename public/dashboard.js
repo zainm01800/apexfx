@@ -1509,7 +1509,7 @@ function renderPositionSizer(r) {
 // timeout / 5xx (which returns an HTML/text error page, not JSON) yields a
 // clear retryable message instead of a cryptic "Unexpected token" crash.
 // Retries once on a transient failure before giving up.
-async function callAgent(system, prompt, maxTokens = 2500) {
+async function callAgent(system, prompt, maxTokens = 2500, opts = {}) {
   const attempt = async () => {
     const res = await fetch('/api/ai', {
       method:  'POST',
@@ -1520,6 +1520,10 @@ async function callAgent(system, prompt, maxTokens = 2500) {
         max_tokens:  maxTokens,
         temperature: 0.3,
         timeoutMs:   55000,
+        // Optional explicit provider/model — used by the committee ensemble for
+        // genuine model diversity. /api/ai falls back to its chain if it's down.
+        ...(opts.provider ? { provider: opts.provider } : {}),
+        ...(opts.model ? { model: opts.model } : {}),
       }),
     });
 
@@ -1562,6 +1566,81 @@ async function callAgent(system, prompt, maxTokens = 2500) {
     }
     throw e;
   }
+}
+
+// ── Committee ensemble — genuine model diversity ──────────────────────────────
+// The competitive edge of running SEVERAL genuinely-different frontier models is that
+// they don't share blind spots, so disagreement becomes signal. We run the FINAL
+// verdict on multiple models in parallel and combine them. Member {} = the default
+// provider chain (Gemini); the others force a specific provider/model. The "desk"
+// evidence-gathering call stays single-model to respect the free-tier budget.
+const COMMITTEE_MODELS = [
+  { label: 'Gemini' },                                                          // default chain
+  { label: 'Llama-3.3-70B', provider: 'groq', model: 'llama-3.3-70b-versatile' },
+  // A 3rd genuinely-different model can be added here when budget allows.
+];
+// How many members to actually use. Manual scans get the full ensemble; the bulk
+// auto-scan stays single-model so 16 scans/day don't blow the free Groq daily cap.
+const ENSEMBLE_SIZE = { manual: 2, auto: 1 };
+
+function _parseVerdictJSON(text) {
+  const cleaned = String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('no JSON');
+  return JSON.parse(m[0]);
+}
+
+// Run the committee prompt across N genuinely-different models in parallel; each gets
+// 2 attempts to land clean JSON. Returns the members that succeeded (graceful: a dead
+// provider just drops out, the scan never breaks).
+async function runCommitteeEnsemble(system, prompt, n) {
+  const members = COMMITTEE_MODELS.slice(0, Math.max(1, n || 1));
+  const runMember = async (mem) => {
+    for (let a = 0; a < 2; a++) {
+      try { return { label: mem.label, analysis: _parseVerdictJSON(await callAgent(system, prompt, 6000, mem)) }; }
+      catch { /* retry once, then drop */ }
+    }
+    return null;
+  };
+  return (await Promise.all(members.map(runMember))).filter(Boolean);
+}
+
+const _median = (arr) => {
+  const s = [...arr].sort((a, b) => a - b);
+  if (!s.length) return null;
+  return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[s.length / 2 - 1] + s[s.length / 2]) / 2);
+};
+
+// Combine ensemble members → one verdict. Majority/most-decisive direction, MEDIAN
+// confidence, and an agreement score. Disagreement is signal: a split lowers confidence
+// and (when there's no real majority) leans the verdict to WAIT.
+function combineEnsemble(members) {
+  if (members.length === 1) return members[0].analysis;
+  const dirOf = a => verdictDir(a.verdict);
+  const n = members.length;
+  const dirs = members.map(m => dirOf(m.analysis));
+  const counts = dirs.reduce((acc, d) => (acc[d] = (acc[d] || 0) + 1, acc), {});
+  const majorityDir = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const agree = counts[majorityDir];
+  const medianConf = _median(members.map(m => Number(m.analysis.confidence_score) || 50));
+  // Base verdict = most decisive (highest confidence) among the majority direction.
+  const base = members.filter(m => dirOf(m.analysis) === majorityDir)
+    .sort((a, b) => (Number(b.analysis.confidence_score) || 0) - (Number(a.analysis.confidence_score) || 0))[0];
+  const analysis = { ...base.analysis };
+  let conf = medianConf;
+  if (agree < n) conf = Math.round(medianConf * (0.6 + 0.4 * (agree / n)));   // any disagreement → shade down
+  // No real majority (tie) or the majority itself is neutral → lean WAIT.
+  if (agree <= n / 2 || majorityDir === 'neutral') {
+    if (verdictDir(analysis.verdict) !== 'neutral') { analysis._ensemble_downgrade = analysis.verdict; analysis.verdict = 'WAIT'; }
+    conf = Math.min(conf, 50);
+  }
+  analysis.confidence_score = conf;
+  analysis._ensemble = {
+    n, agree, score: `${agree}/${n}`, unanimous: agree === n,
+    models: members.map(m => m.label),
+    breakdown: members.map((m, i) => ({ model: m.label, dir: dirs[i], verdict: m.analysis.verdict, conf: Number(m.analysis.confidence_score) || null })),
+  };
+  return analysis;
 }
 
 // ── Market pulse ──────────────────────────────────────────────────────────────
@@ -1779,6 +1858,14 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     const yc = macroIntermarket.yield_curve;
     const ycClass = yc.value < 0 ? 'down' : yc.value > 0.5 ? 'up' : 'neutral';
     statsGrid.innerHTML += `<div class="stat-item"><div class="stat-label">Yield Curve (2s10s)</div><div class="stat-value ${ycClass}">${yc.value > 0 ? '+' : ''}${yc.value.toFixed(2)}% (${yc.label})</div></div>`;
+  }
+  // Model-ensemble agreement — how many independent models agreed on the direction.
+  // Full agreement = higher conviction; a split lowers confidence / leans the call to WAIT.
+  if (a._ensemble && a._ensemble.n > 1) {
+    const e = a._ensemble;
+    const cls = e.unanimous ? 'up' : e.agree <= e.n / 2 ? 'down' : 'neutral';
+    const tip = 'Independent models — ' + e.breakdown.map(b => `${b.model}: ${String(b.verdict || '').replace(/_/g, ' ')}${b.conf != null ? ' ' + b.conf + '%' : ''}`).join(' · ') + (e.unanimous ? '. Full agreement → conviction.' : '. Disagreement → confidence shaded down / leans WAIT.');
+    statsGrid.innerHTML += `<div class="stat-item" title="${tip.replace(/"/g, '&quot;')}"><div class="stat-label">Model agreement</div><div class="stat-value ${cls}">${e.score} agree${e.unanimous ? ' ✓' : ''}</div></div>`;
   }
   // Data-feed freshness — shows the measured age of the latest bar so the delay is
   // visible, and warns (⚠) when the market is open but the feed appears delayed.
@@ -3176,20 +3263,17 @@ Respond ONLY with this exact JSON structure:
     // Parse can still occasionally fail if a model returns malformed/truncated JSON,
     // so we retry the call once before surfacing an error (a fresh call usually lands
     // clean JSON — different model in the chain / less verbose generation).
-    let analysis = null;
-    for (let attempt = 0; attempt < 2 && !analysis; attempt++) {
-      const committeeText = await callAgent(systemPrompt, committeePrompt, 6000);
-      try {
-        const cleaned = committeeText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        const m = cleaned.match(/\{[\s\S]*\}/);
-        if (!m) throw new Error('no JSON');
-        analysis = JSON.parse(m[0]);
-        // Store specialist notes on the analysis object for display
-        analysis._specialists = { technical: techRawText, fundamental: fundRawText, macro: macroRawText, risk: sentRawText };
-      } catch {
-        if (attempt === 1) throw new Error('AI returned an unexpected response format. Please try again.');
-      }
-    }
+    // ENSEMBLE the final verdict across genuinely-different models (manual scans) for
+    // diversity; the bulk auto-scan stays single-model for budget. Graceful: if a
+    // provider is down its member drops out and we use whoever answered.
+    const _ensembleN = _autoScan ? ENSEMBLE_SIZE.auto : ENSEMBLE_SIZE.manual;
+    const _members = await runCommitteeEnsemble(systemPrompt, committeePrompt, _ensembleN);
+    if (!_members.length) throw new Error('AI returned an unexpected response format. Please try again.');
+    let analysis = combineEnsemble(_members);
+    // Store specialist notes on the analysis object for display
+    analysis._specialists = { technical: techRawText, fundamental: fundRawText, macro: macroRawText, risk: sentRawText };
+    // Persist the model-agreement summary onto the saved row (setup_features JSONB).
+    if (analysis._ensemble && setupFeatures) setupFeatures.ensemble = { score: analysis._ensemble.score, agree: analysis._ensemble.agree, n: analysis._ensemble.n, unanimous: analysis._ensemble.unanimous, models: analysis._ensemble.models };
 
     // Deterministic risk:reward from the ACTUAL levels (the LLM's own string is
     // frequently inconsistent with its entry/stop/target). Overrides it everywhere

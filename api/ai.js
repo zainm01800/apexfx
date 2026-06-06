@@ -107,6 +107,12 @@ async function handler(req) {
   const safeTemp       = Math.max(0, Math.min(1,    Number(temperature) || 0.35));
   const safeTimeoutMs  = Math.max(5000, Math.min(60000, Number(timeoutMs) || 55000));
 
+  // Optional explicit provider/model (used by the committee ensemble for model
+  // diversity). Honoured first, then we fall back to the normal chain so a scan
+  // never breaks if the requested provider is down.
+  const reqProvider = typeof body.provider === 'string' ? body.provider.toLowerCase() : null;
+  const reqModel    = typeof body.model === 'string' && body.model.length <= 100 ? body.model : null;
+
   if (!prompt || typeof prompt !== 'string' || prompt.length > 200000) {
     return new Response(JSON.stringify({ error: 'Invalid prompt' }), { status: 400, headers: corsHeaders });
   }
@@ -117,85 +123,58 @@ async function handler(req) {
   }
   messages.push({ role: 'user', content: prompt });
 
-  // ── Try Gemini (4-model fallback chain with retry) ───────────────────────
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  let geminiError = null;
 
-  if (GEMINI_KEY) {
-    for (const model of GEMINI_MODELS) {
-      // Each model gets 2 attempts (catches transient burst-limit 429s)
+  // ── Gemini (model fallback chain with retry). If a specific Gemini model was
+  // requested, try it first, then the rest of the chain. ────────────────────────
+  async function runGemini() {
+    if (!GEMINI_KEY) throw Object.assign(new Error('Gemini not configured'), { status: 503 });
+    const wanted = (reqProvider === 'gemini' && reqModel) ? reqModel : null;
+    const models = wanted ? [wanted, ...GEMINI_MODELS.filter(m => m !== wanted)] : GEMINI_MODELS;
+    let err = null;
+    for (const model of models) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const text = await callProvider({
-            apiUrl:      GEMINI_URL,
-            apiKey:      GEMINI_KEY,
-            model,
-            messages,
-            maxTokens:   safeMaxTokens,
-            temperature: safeTemp,
-            timeoutMs:   safeTimeoutMs,
-          });
-          return new Response(JSON.stringify({ text, provider: 'gemini', model }), { status: 200, headers: corsHeaders });
+          const text = await callProvider({ apiUrl: GEMINI_URL, apiKey: GEMINI_KEY, model, messages, maxTokens: safeMaxTokens, temperature: safeTemp, timeoutMs: safeTimeoutMs });
+          return { text, provider: 'gemini', model };
         } catch (e) {
           const isRateLimit = e.status === 429 || e.status === 503;
-          if (!isRateLimit) {
-            // Hard error (auth, bad request etc.) — skip straight to Groq
-            geminiError = `${model}: ${e.message}`;
-            if (!GROQ_KEY) {
-              return new Response(
-                JSON.stringify({ error: `Gemini error: ${geminiError}` }),
-                { status: e.status || 500, headers: corsHeaders }
-              );
-            }
-            break; // break inner loop → skip remaining attempts for this model
-          }
-          geminiError = `${model}: HTTP ${e.status}`;
-          if (attempt === 0) {
-            // Wait 1.5 s then retry the same model once before trying next
-            await sleep(1500);
-          }
-          // attempt === 1 → fall through to next model in outer loop
+          err = isRateLimit ? `${model}: HTTP ${e.status}` : `${model}: ${e.message}`;
+          if (!isRateLimit) break;            // hard error → next model
+          if (attempt === 0) await sleep(1500);
         }
       }
     }
-
-    // All Gemini models exhausted
-    if (!GROQ_KEY) {
-      return new Response(
-        JSON.stringify({ error: `Gemini unavailable: ${geminiError}` }),
-        { status: 503, headers: corsHeaders }
-      );
-    }
+    throw Object.assign(new Error(`Gemini unavailable: ${err}`), { status: 503 });
   }
 
-  // ── Groq fallback ─────────────────────────────────────────────────────────
-  try {
-    const text = await callProvider({
-      apiUrl:     GROQ_URL,
-      apiKey:     GROQ_KEY,
-      model:      GROQ_MODEL,
-      messages,
-      maxTokens:  safeMaxTokens,
-      temperature: safeTemp,
-      timeoutMs:  safeTimeoutMs,
-    });
-    return new Response(JSON.stringify({ text, provider: 'groq' }), { status: 200, headers: corsHeaders });
-  } catch (e) {
-    const retryAfterMs = e.retryAfterMs || null;
-    let msg = e.message;
-    if (e.status === 429) {
-      const mins = retryAfterMs ? Math.ceil(retryAfterMs / 60000) : null;
-      msg = mins
-        ? `Groq rate limit. Resets in ~${mins} min.${geminiError ? ` Gemini also failed: ${geminiError}` : ''}`
-        : `Groq rate limit reached.${geminiError ? ` Gemini also failed: ${geminiError}` : ''}`;
-    } else if (geminiError) {
-      msg = `Groq error: ${msg} | Gemini error: ${geminiError}`;
-    }
-    return new Response(
-      JSON.stringify({ error: msg, retryAfterMs }),
-      { status: e.status || 500, headers: corsHeaders }
-    );
+  // ── Groq (honours a requested model, else the default Llama). ─────────────────
+  async function runGroq() {
+    if (!GROQ_KEY) throw Object.assign(new Error('Groq not configured'), { status: 503 });
+    const model = (reqProvider === 'groq' && reqModel) ? reqModel : GROQ_MODEL;
+    const text = await callProvider({ apiUrl: GROQ_URL, apiKey: GROQ_KEY, model, messages, maxTokens: safeMaxTokens, temperature: safeTemp, timeoutMs: safeTimeoutMs });
+    return { text, provider: 'groq', model };
   }
+
+  // Provider order: honour the explicit request first, then fall back to the other
+  // so the scan never breaks if the requested provider is unavailable.
+  const order = reqProvider === 'groq' ? [runGroq, runGemini] : [runGemini, runGroq];
+
+  let lastErr = null;
+  for (const run of order) {
+    try {
+      const out = await run();
+      return new Response(JSON.stringify(out), { status: 200, headers: corsHeaders });
+    } catch (e) { lastErr = e; }
+  }
+
+  const retryAfterMs = lastErr?.retryAfterMs || null;
+  let msg = lastErr?.message || 'AI providers unavailable';
+  if (lastErr?.status === 429) {
+    const mins = retryAfterMs ? Math.ceil(retryAfterMs / 60000) : null;
+    msg = mins ? `Rate limited. Resets in ~${mins} min.` : 'Rate limit reached on all providers.';
+  }
+  return new Response(JSON.stringify({ error: msg, retryAfterMs }), { status: lastErr?.status || 500, headers: corsHeaders });
 }
 
 // Web-standard `fetch` export — runs `handler` on the Node.js runtime.
