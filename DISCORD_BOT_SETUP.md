@@ -1,8 +1,11 @@
 # APEX Discord bot — 5-minute setup
 
-The bot adds a `/analyse <ticker>` slash command to any Discord server. It returns
-APEX's most recent **published verdict** for that ticker (BUY/SELL/WAIT + confidence
-+ entry/stop/target) with links to the full analysis and the public track record.
+The bot adds three slash commands to any Discord server:
+- **`/analyse <ticker>`** — APEX's most recent published verdict (BUY/SELL/WAIT +
+  confidence + entry/stop/target) with links to the full analysis + track record.
+- **`/track-record`** — live win-rate, BUY/SELL accuracy & Brier across all resolved
+  calls (wins *and* losses).
+- **`/help`** — what APEX is + the command list.
 It reads cached verdicts from Supabase — it does **not** run a fresh AI committee, so
 it's instant, free, and can't be abused to burn your AI quota.
 
