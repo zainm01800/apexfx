@@ -507,9 +507,9 @@ function renderCard(g) {
       ${trail}
 
       <div class="sc-actions">
-        <a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-check this trade's validity — re-runs the analysis without creating a new trade">
-          🔄 Update
-        </a>
+        ${_isOpen
+          ? `<a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-check this OPEN trade's validity — re-runs the analysis and refreshes this trade without creating a new one">🔄 Update</a>`
+          : `<a class="sc-btn sc-btn-update" href="dashboard.html?sym=${encodeURIComponent(row.symbol)}" title="This trade is finished (${outcomeLabel(row.outcome)}) and frozen. Run a fresh scan to open a NEW, separate trade for ${escHtml(row.symbol)}">🔁 Scan again</a>`}
         <button class="sc-btn sc-btn-preview" data-action="preview" data-id="${escHtml(row.id)}" title="See the full analysis behind this call">
           👁 Preview
         </button>

@@ -3702,7 +3702,14 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(r => r.json())
       .then(rows => {
         const row = rows.find(r => r.id === loadId);
-        if (row) { _compareOriginal = row; _validateTarget = row; }
+        // A FINISHED trade (TP/SL hit) is frozen — never re-validate/update it. If a
+        // resolved id is passed (e.g. a stale History page), drop validate/update mode
+        // so this becomes a normal scan that opens a NEW, separate trade for the pair.
+        if (row && (row.outcome === 'tp_hit' || row.outcome === 'sl_hit')) {
+          _validateMode = false; _updateMode = false;
+        } else if (row) {
+          _compareOriginal = row; _validateTarget = row;
+        }
       })
       .catch(() => {})
       // Signal the headless auto-scan that the validate target is loaded, so it never
