@@ -878,8 +878,8 @@ async function fetchBacktestKB(sym) {
 }
 
 // Summarise the in-browser Backtest Lab results for this symbol (apex_strategy_backtests
-// via /api/backtest-runs). Uses ONLY the most recent run, ≥30-trade results, so the
-// committee sees current, non-thin strategy evidence. Graceful: null if none yet.
+// via /api/backtest-runs). Uses the most recent BROAD run (≥6 qualifying, ≥30-trade
+// results) so an ad-hoc user run can't skew the committee; null if none broad enough.
 // Inverse standard-normal CDF (Acklam's rational approximation; ~1e-9 accuracy).
 function _invNormCDF(p) {
   if (p <= 0) return -Infinity;
@@ -910,10 +910,24 @@ async function fetchStrategyBacktests(sym) {
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows) || !rows.length) return null;
-    const latestRun = rows[0].run_id;
-    const cur = rows.filter(x => x.run_id === latestRun && x.n_trades >= 30 && x.sharpe != null);
-    if (!cur.length) return null;
-    const best = cur.slice().sort((a, b) => (b.sharpe ?? -9) - (a.sharpe ?? -9))[0];
+    // ROBUSTNESS: do NOT just grab the newest run — a user's ad-hoc 1–2 combo backtest
+    // would then become the committee's reference and skew it. Group recent runs
+    // (API returns newest first) and use the most recent run that is BROAD enough to be
+    // representative (≥ MIN_COVERAGE qualifying results). Thin exploratory runs are
+    // ignored; if none are broad enough we return null (no backtest context is safer
+    // than misleading context). The deflated-Sharpe + OOS checks below handle the rest.
+    const MIN_COVERAGE = 6;
+    const runOrder = [], byRun = {};
+    for (const x of rows) { (byRun[x.run_id] ||= []).push(x); if (byRun[x.run_id].length === 1) runOrder.push(x.run_id); }
+    let cur = null;
+    for (const rid of runOrder) {
+      const q = byRun[rid].filter(x => x.n_trades >= 30 && x.sharpe != null);
+      if (q.length >= MIN_COVERAGE) { cur = q; break; }
+    }
+    if (!cur) return null;
+    // Headline edge prefers RELIABLE (≥100-trade) results when the run has them.
+    const reliable = cur.filter(x => x.n_trades >= 100);
+    const best = (reliable.length ? reliable : cur).slice().sort((a, b) => (b.sharpe ?? -9) - (a.sharpe ?? -9))[0];
 
     // Multiple-testing correction (C1): the "best" Sharpe was selected across
     // N strategy trials, so it is inflated. Compare it to the expected best-by-

@@ -83,14 +83,14 @@
         <select id="fTf" title="Timeframe"><option value="">All timeframes</option></select>
         <select id="fFamily" title="Strategy family"><option value="">All families</option></select>
         <label class="bt-check"><input type="checkbox" id="fMinSample" checked> ≥30 trades only</label>
-        <select id="fSort" title="Sort by">
-          <option value="sharpe">Sort: Sharpe</option>
+        <select id="fSort" title="Sort by — out-of-sample leads because it's the honest, non-cherry-pickable number">
+          <option value="oos_return" selected>Sort: Out-of-sample (honest) ★</option>
+          <option value="sharpe">Sort: Sharpe (in-sample)</option>
           <option value="expectancy">Sort: Expectancy</option>
           <option value="win_rate">Sort: Win rate</option>
           <option value="profit_factor">Sort: Profit factor</option>
           <option value="max_drawdown">Sort: Max drawdown (low)</option>
           <option value="total_return">Sort: Total return</option>
-          <option value="oos_return">Sort: Out-of-sample return</option>
         </select>
         <button class="bt-btn small" id="refreshBtn">↻ Reload</button>
       </div>
