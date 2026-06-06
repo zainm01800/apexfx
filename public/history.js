@@ -68,14 +68,45 @@ function resolutionFor(row) {
   return STYLE_RES[s] || STYLE_RES.swing;
 }
 
-async function resolveIfPending(rows) {
-  const pending = rows.filter(r => r.outcome === 'pending' && r.target_price && r.stop_loss && r.price);
-  if (!pending.length) return;
+// TP/SL grading for ONE row against its candles (no expiry). Returns 'tp_hit' |
+// 'sl_hit' | null. Shared by the pending-resolution AND the phantom self-heal paths
+// so the two can never diverge. Honours the no-look-ahead gate (daily = strictly later
+// calendar day; intraday = one bar-period clearance) + the entry-fill gate (a TP/SL
+// only counts once price has actually traded INTO the entry zone).
+function gradeRow(row, res, candles) {
+  const tp = parseFloat(row.target_price), sl = parseFloat(row.stop_loss);
+  if (isNaN(tp) || isNaN(sl)) return null;
+  const dir = verdictDir(row.verdict);
+  if (dir === 'neutral') return null;
+  const entryTs = rowTs(row) / 1000;
+  const tfSec = TF_SECONDS[res.tf] || 86400;
+  const afterEntry = (res.tf === '1d' || res.tf === '1w')
+    ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
+    : candles.filter(c => c.time >= entryTs + tfSec);
+  const eb = entryBounds(row.entry_zone);
+  const scanPx = parseFloat(row.price);
+  const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
+  let filled = !eb || atMarket;
+  for (const bar of afterEntry) {
+    if (!filled) { if (bar.low <= eb.hi && bar.high >= eb.lo) filled = true; else continue; }
+    if (dir === 'short') { if (bar.low  <= tp) return 'tp_hit'; if (bar.high >= sl) return 'sl_hit'; }
+    else                 { if (bar.high >= tp) return 'tp_hit'; if (bar.low  <= sl) return 'sl_hit'; }
+  }
+  return null;
+}
 
-  // Group by symbol + resolution timeframe (style-derived), fetching the right-
-  // granularity candles once per group.
+async function resolveIfPending(rows) {
+  // Resolve PENDING rows, and SELF-HEAL already-resolved tp/sl rows: revert any
+  // "phantom" whose entry never filled / that no longer holds under the current rules
+  // (a stale resolution the grader can't otherwise reach). Only reverts resolved →
+  // pending/expired; NEVER flips tp↔sl (intrabar ambiguity), so it can't flip-flop.
+  const relevant = rows.filter(r => r.target_price && r.stop_loss && r.price &&
+    (r.outcome === 'pending' || r.outcome === 'tp_hit' || r.outcome === 'sl_hit'));
+  if (!relevant.length) return;
+
+  // Group by symbol + resolution timeframe, fetching the right-granularity candles once.
   const groups = {};
-  for (const r of pending) {
+  for (const r of relevant) {
     const res = resolutionFor(r);
     const key = r.symbol + '|' + res.tf;
     (groups[key] ||= { sym: r.symbol, type: r.asset_type || 'Stock', tf: res.tf, rows: [] }).rows.push({ row: r, res });
@@ -96,59 +127,32 @@ async function resolveIfPending(rows) {
         if (!Array.isArray(candles) || candles.length < 2) return;
 
         for (const { row, res } of g.rows) {
-          const entryTs = rowTs(row) / 1000;
-          const tp = parseFloat(row.target_price);
-          const sl = parseFloat(row.stop_loss);
-          if (isNaN(tp) || isNaN(sl)) continue;
-          const dir = verdictDir(row.verdict);
+          const graded  = gradeRow(row, res, candles);
+          const ageDays = (Date.now() / 1000 - rowTs(row) / 1000) / 86400;
 
-          // No-look-ahead gate. DAILY/WEEKLY: a daily bar's intraday high/low order is
-          // unknown and the entry-day bar can hold PRE-entry extremes, so only grade
-          // bars on a strictly LATER calendar day. (A "+24h past the exact entry time"
-          // gate is wrong here — for 00:00-stamped crypto bars it also throws away the
-          // first genuine next-day bar, which once hid real wins.) INTRADAY: bars are
-          // fine-grained, so one full bar-period of clearance past entry is enough.
-          const tfSec = TF_SECONDS[res.tf] || 86400;
-          const afterEntry = (res.tf === '1d' || res.tf === '1w')
-            ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
-            : candles.filter(c => c.time >= entryTs + tfSec);
-          let resolved = null;
-          if (dir !== 'neutral') {
-            // Entry-fill gate: only grade TP/SL once price trades INTO the entry zone.
-            // An entry at/around the scan price fills at market; a pullback/breakout
-            // entry must be reached first — otherwise a TP "hit" without a fill is a
-            // phantom win that never actually happened.
-            const eb = entryBounds(row.entry_zone);
-            const scanPx = parseFloat(row.price);
-            const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
-            let filled = !eb || atMarket;
-            for (const bar of afterEntry) {
-              if (!filled) {
-                if (bar.low <= eb.hi && bar.high >= eb.lo) filled = true;
-                else continue;
-              }
-              if (dir === 'short') {
-                if (bar.low  <= tp) { resolved = 'tp_hit'; break; }
-                if (bar.high >= sl) { resolved = 'sl_hit'; break; }
-              } else {
-                if (bar.high >= tp) { resolved = 'tp_hit'; break; }
-                if (bar.low  <= sl) { resolved = 'sl_hit'; break; }
-              }
+          if (row.outcome === 'pending') {
+            const resolved = graded || (ageDays > res.expiryDays ? 'expired' : null);
+            if (resolved) {
+              row.outcome = resolved;
+              fetch(API_MEMORY, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: new Date().toISOString().slice(0, 10) }),
+              }).catch(() => {});
             }
-          }
-
-          // No TP/SL hit but past the style's expiry window → expired.
-          const ageDays = (Date.now() / 1000 - entryTs) / 86400;
-          if (!resolved && ageDays > res.expiryDays) resolved = 'expired';
-
-          if (resolved) {
-            row.outcome = resolved;
+          } else if (graded === null) {
+            // PHANTOM self-heal: stored tp/sl that current data no longer supports
+            // (e.g. the entry never filled). Revert — expired if old enough (the setup
+            // never triggered), else pending so it can resolve correctly later.
+            const reverted = ageDays > res.expiryDays ? 'expired' : 'pending';
+            row.outcome = reverted;
             fetch(API_MEMORY, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: new Date().toISOString().slice(0, 10) }),
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: row.id, outcome: reverted, outcome_price: null,
+                outcome_date: reverted === 'expired' ? new Date().toISOString().slice(0, 10) : null, lesson: '' }),
             }).catch(() => {});
           }
+          // graded matches the stored outcome → leave it; differs (tp↔sl) → leave it
+          // (don't flip-flop on intrabar ambiguity).
         }
       } catch {}
     })
