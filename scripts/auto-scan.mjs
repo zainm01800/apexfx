@@ -39,6 +39,13 @@ const US_HOLIDAYS_2026 = new Set([
 
 const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow for one internal retry
 
+// Trade styles to scan each pick in. Default '' = the site's default (swing). Set
+// APEX_SCAN_STYLES="swing,intraday" to cover both horizons in one run — intraday
+// trades resolve in hours/days (vs weeks for swing), so the forward track record (the
+// real, un-fakeable validation) builds credibility faster.
+const STYLES = (process.env.APEX_SCAN_STYLES || '').split(',').map(s => s.trim()).filter(Boolean);
+const STYLE_LIST = STYLES.length ? STYLES : [''];
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // What's tradeable today (UTC): weekends + US holidays → CRYPTO ONLY (stocks/forex are
@@ -104,10 +111,13 @@ async function selectSymbols() {
   };
 }
 
-async function scanOne(page, sym) {
+async function scanOne(page, sym, style = '') {
   // auto=1 tags the saved row's setup_features so the History scoreboard can tell
   // bot-generated scans apart from the user's own calls (keeps personal stats honest).
-  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}&auto=1`, { waitUntil: 'load', timeout: 60000 });
+  // &style lets one run cover multiple horizons (e.g. swing + the faster-resolving
+  // intraday) so the forward track record accumulates quicker.
+  const styleQ = style ? `&style=${encodeURIComponent(style)}` : '';
+  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}&auto=1${styleQ}`, { waitUntil: 'load', timeout: 60000 });
   await page.waitForSelector('#analyseBtn', { timeout: 30000 });
   await sleep(1200);                      // let init() prefill the symbol + wire handlers
   await page.click('#analyseBtn');
@@ -164,6 +174,7 @@ async function main() {
   const { syms: SYMBOLS, plan } = await selectSymbols();
   console.log(`[auto-scan] day=${plan.dayType} · eligible pool=${plan.poolSize} · scanning ${SYMBOLS.length} via ${plan.source}`);
   console.log(`[auto-scan] symbols: ${SYMBOLS.join(', ')}`);
+  console.log(`[auto-scan] styles per symbol: ${STYLE_LIST.map(s => s || '(default swing)').join(', ')} → ${SYMBOLS.length * STYLE_LIST.length} scans`);
   if (plan.counts) console.log(`[auto-scan] chosen scan-counts (lower = under-sampled → favoured): ${plan.counts.join(', ')}`);
   if (PLAN_ONLY) { console.log('[auto-scan] PLAN ONLY — not launching the browser. ✔'); return; }
   console.log(`[auto-scan] target: ${BASE}`);
@@ -173,25 +184,28 @@ async function main() {
 
   const summary = { ok: 0, error: 0, cooldown: 0 };
   for (const sym of SYMBOLS) {
-    const t0 = Date.now();
-    try {
-      const r = await scanOne(page, sym);
-      const secs = ((Date.now() - t0) / 1000).toFixed(0);
-      if (r.status === 'ok') {
-        summary.ok++;
-        console.log(`  ✓ ${sym.padEnd(9)} ${r.verdict} ${r.conf}  (${secs}s)`);
-      } else if (r.status === 'cooldown') {
-        summary.cooldown++;
-        console.log(`  ⏳ ${sym.padEnd(9)} skipped (cooldown)  (${secs}s)`);
-      } else {
+    for (const style of STYLE_LIST) {
+      const t0 = Date.now();
+      const tag = style ? `${sym} ${style}` : sym;
+      try {
+        const r = await scanOne(page, sym, style);
+        const secs = ((Date.now() - t0) / 1000).toFixed(0);
+        if (r.status === 'ok') {
+          summary.ok++;
+          console.log(`  ✓ ${tag.padEnd(16)} ${r.verdict} ${r.conf}  (${secs}s)`);
+        } else if (r.status === 'cooldown') {
+          summary.cooldown++;
+          console.log(`  ⏳ ${tag.padEnd(16)} skipped (cooldown)  (${secs}s)`);
+        } else {
+          summary.error++;
+          console.log(`  ✗ ${tag.padEnd(16)} ${r.msg}  (${secs}s)`);
+        }
+      } catch (e) {
         summary.error++;
-        console.log(`  ✗ ${sym.padEnd(9)} ${r.msg}  (${secs}s)`);
+        console.log(`  ✗ ${tag.padEnd(16)} ${e.message?.split('\n')[0] || e}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
       }
-    } catch (e) {
-      summary.error++;
-      console.log(`  ✗ ${sym.padEnd(9)} ${e.message?.split('\n')[0] || e}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+      await sleep(1500);   // small spacer to ease rate limits
     }
-    await sleep(1500);   // small spacer between symbols to ease rate limits
   }
 
   // ── Auto re-validation of OPEN trades ───────────────────────────────────────

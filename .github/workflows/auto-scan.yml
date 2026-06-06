@@ -31,7 +31,7 @@ on:
 jobs:
   auto-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,8 +42,12 @@ jobs:
           npm i --no-save playwright@1.49.1
           npx playwright install --with-deps chromium
       - name: Run auto-scan
-        # Empty inputs → the script rotates randomly over today's eligible pool.
+        # Each pick is scanned in BOTH swing (core) and intraday (resolves in hours/days,
+        # so the forward track record builds credibility faster). 10 picks × 2 styles =
+        # 20 forward trades/day from one browser launch (CI-bounded). Empty symbols →
+        # the script rotates coverage-weighted over today's eligible pool.
         env:
           APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
-          APEX_SCAN_COUNT: ${{ github.event.inputs.count || '' }}
+          APEX_SCAN_COUNT: ${{ github.event.inputs.count || '10' }}
+          APEX_SCAN_STYLES: "swing,intraday"
         run: node scripts/auto-scan.mjs
