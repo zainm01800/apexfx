@@ -229,20 +229,42 @@ function parseValidations(v) {
   if (typeof v === 'string' && v.trim()) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
   return [];
 }
+function fmtAway(x) { return (x < 1 ? x.toFixed(2) : x.toFixed(1)) + '%'; }
+
 // How far the current price is from a trade's entry zone (0 = inside it), and whether
-// it has moved CLOSER since the reference read (the last re-check, else the scan).
-// This is the cheap "is it getting closer to the trade?" signal — no AI needed.
+// price has moved toward or away from entry SINCE THE ORIGINAL SCAN (the stable, intuitive
+// "since the call was made" reference — not the last re-check, which was confusing).
 function entryProximity(row, px) {
   const b = entryBounds(row.entry_zone);
   if (!b || px == null || isNaN(px)) return null;
   const distOf = p => (p >= b.lo && p <= b.hi) ? 0 : Math.abs(p - (p < b.lo ? b.lo : b.hi)) / Math.abs(p) * 100;
   const now = distOf(px);
-  const vals = parseValidations(row.validations);
-  const refPx = vals.length ? parseFloat(vals[vals.length - 1].price) : parseFloat(row.price);
-  const ref = (refPx != null && !isNaN(refPx)) ? distOf(refPx) : null;
-  let trend = null;
-  if (ref != null) trend = now < ref - 0.03 ? 'closer' : now > ref + 0.03 ? 'further' : null;
-  return { pct: now, inZone: now === 0, trend };
+  const scanPx = parseFloat(row.price);
+  const scanDist = !isNaN(scanPx) ? distOf(scanPx) : null;
+  let dir = null;   // vs the original scan price
+  if (scanDist != null) {
+    const delta = now - scanDist;
+    dir = Math.abs(delta) < 0.1 ? 'flat' : delta < 0 ? 'closer' : 'further';
+  }
+  return { pct: now, inZone: now === 0, dir };
+}
+
+// Plain-English status of an OPEN trade vs the live price — answers "is it entered or
+// not?". LIVE = price in the entry zone now; APPROACHING/DRIFTING = moving toward/away
+// from entry since the scan; WAITING = sitting roughly still and not yet at entry.
+const _STATUS = {
+  live:        { txt: '🟢 LIVE',        tip: 'Price is in the entry zone now — this trade can be entered.' },
+  approaching: { txt: '🔵 APPROACHING', tip: 'Not entered yet, but price has moved toward the entry since the scan.' },
+  drifting:    { txt: '🟠 DRIFTING',    tip: 'Not entered — price has moved AWAY from the entry since the scan.' },
+  waiting:     { txt: '⏳ WAITING',     tip: 'Not entered — price is sitting away from the entry zone.' },
+};
+function tradeStatus(row, px) {
+  if (!(row.outcome == null || row.outcome === 'pending')) return null;   // resolved → outcome shown elsewhere
+  const p = entryProximity(row, px);
+  if (!p) return null;
+  const cls = p.inZone ? 'live' : p.dir === 'closer' ? 'approaching' : p.dir === 'further' ? 'drifting' : 'waiting';
+  const s = _STATUS[cls];
+  return { cls, label: s.txt, tip: s.tip, sub: p.inZone ? '' : fmtAway(p.pct) + ' away' };
 }
 
 const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', activated: 'NOW ACTIONABLE', 'still-waiting': 'STILL WAITING', 'n/a': 'RE-CHECKED' };
@@ -367,13 +389,19 @@ function renderCard(g) {
     ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
     : '';
 
-  // Live "distance to entry" — only for OPEN trades you're waiting to enter.
+  // Live status + "distance to entry" — only for OPEN trades you're waiting to enter.
+  // The status badge (LIVE / APPROACHING / DRIFTING / WAITING) answers "is it entered
+  // now?"; the distance line shows how far. Direction is judged vs the ORIGINAL scan.
   const _isOpen = (row.outcome == null || row.outcome === 'pending');
+  const _status = _isOpen ? tradeStatus(row, _livePx[row.symbol]) : null;
+  const statusBadge = _status
+    ? `<span class="sc-status ${_status.cls}" title="${escHtml(_status.tip)}">${_status.label}${_status.sub ? ` · ${_status.sub}` : ''}</span>`
+    : '';
   const _prox = _isOpen ? entryProximity(row, _livePx[row.symbol]) : null;
   const proxRow = _prox
-    ? `<div class="sc-prox ${_prox.inZone ? 'inzone' : ''}" title="How far the live price is from this trade's entry zone">🎯 ${_prox.inZone
+    ? `<div class="sc-prox ${_prox.inZone ? 'inzone' : ''}" title="How far the live price is from this trade's entry zone (vs the original scan)">🎯 ${_prox.inZone
         ? 'Price is in the entry zone now'
-        : `${_prox.pct.toFixed(_prox.pct < 1 ? 2 : 1)}% from entry${_prox.trend ? ` · moving <strong class="${_prox.trend === 'closer' ? 'closer' : 'further'}">${_prox.trend}</strong>` : ''}`}</div>`
+        : `${fmtAway(_prox.pct)} from the entry zone${_prox.dir === 'further' ? ' — moved away since the scan' : _prox.dir === 'closer' ? ' — moved closer since the scan' : ''}`}</div>`
     : '';
 
   // Latest validity re-check (from the "Update" button) on the current call.
@@ -388,7 +416,9 @@ function renderCard(g) {
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">${scanCount} ${scanCount === 1 ? 'scan' : 'scans'} · latest ${escHtml(fmtDateTime(row))}</div>
+          <div class="sc-date">${scanCount === 1
+            ? `1 scan · ${escHtml(fmtDateTime(row))}`
+            : `${scanCount} scans · first ${escHtml(fmtDateTime(g.scans[g.scans.length - 1]))} → latest ${escHtml(fmtDateTime(row))}`}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
@@ -399,6 +429,7 @@ function renderCard(g) {
       <div class="sc-verdict-row">
         <span class="sc-verdict ${vc}">${vDisplay}</span>
         <span class="sc-conf">${row.confidence != null ? row.confidence + '%' : '—'} confidence</span>
+        ${statusBadge}
       </div>
 
       ${recordBadge ? `<div class="sc-record-row">${recordBadge}</div>` : ''}
