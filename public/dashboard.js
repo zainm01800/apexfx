@@ -628,10 +628,10 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
 // The selected style drives which candle timeframe the WHOLE analysis runs on, and
 // tells the committee what horizon to plan entries / stops / take-profits for.
 const TRADE_STYLES = {
-  scalp:    { label: 'Scalp',    primaryTf: '15m', contextTf: '1h', entryTf: '5m',  primaryDays: 30,   contextDays: 60,   horizon: 'minutes to a few hours' },
-  intraday: { label: 'Intraday', primaryTf: '1h',  contextTf: '4h', entryTf: '15m', primaryDays: 120,  contextDays: 360,  horizon: 'a few hours up to one trading day' },
-  swing:    { label: 'Swing',    primaryTf: '1d',  contextTf: '1w', entryTf: '4h',  primaryDays: 210,  contextDays: 730,  horizon: 'several days to a few weeks' },
-  position: { label: 'Position', primaryTf: '1w',  contextTf: '1M', entryTf: '1d',  primaryDays: 1825, contextDays: 3650, horizon: 'several weeks to months' },
+  scalp:    { label: 'Scalp',    primaryTf: '15m', contextTf: '1h', entryTf: '5m',  entryDays: 10,  primaryDays: 30,   contextDays: 60,   horizon: 'minutes to a few hours' },
+  intraday: { label: 'Intraday', primaryTf: '1h',  contextTf: '4h', entryTf: '15m', entryDays: 25,  primaryDays: 120,  contextDays: 360,  horizon: 'a few hours up to one trading day' },
+  swing:    { label: 'Swing',    primaryTf: '1d',  contextTf: '1w', entryTf: '4h',  entryDays: 90,  primaryDays: 210,  contextDays: 730,  horizon: 'several days to a few weeks' },
+  position: { label: 'Position', primaryTf: '1w',  contextTf: '1M', entryTf: '1d',  entryDays: 400, primaryDays: 1825, contextDays: 3650, horizon: 'several weeks to months' },
 };
 let _tradeStyle = 'swing';
 function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
@@ -2300,10 +2300,13 @@ async function startResearch() {
   const styleMinRR = minRRForStyle(_tradeStyle);   // professional reward:risk floor for this style
   try {
     // ── Step 1: trade-timeframe + higher-timeframe context candles in parallel ──
-    const [candles, weeklyCandles, benchCandles] = await Promise.all([
+    const [candles, weeklyCandles, benchCandles, entryCandles] = await Promise.all([
       fetchCandles(sym, type, ts.primaryTf, ts.primaryDays),
       fetchWeeklyCandles(sym, type, ts.contextTf, ts.contextDays),
       type !== 'Forex' ? fetchCandles(type === 'Crypto' ? 'BTC/USD' : 'SPY', type === 'Crypto' ? 'Crypto' : 'ETF', ts.primaryTf, ts.primaryDays).catch(() => null) : Promise.resolve(null),
+      // The LOWER entry-trigger timeframe (e.g. 4h for a swing) so the committee can
+      // actually CONFIRM the entry on it, not just infer it. Graceful: null if shallow.
+      fetchCandles(sym, type, ts.entryTf, ts.entryDays).catch(() => null),
     ]);
     if (!candles || candles.length < 30) throw new Error(`No ${ts.primaryTf} price data found for "${sym}". Try a longer trade style or a different symbol.`);
     setStep(2);
@@ -2337,6 +2340,29 @@ async function startResearch() {
     const wMACD   = wCloses ? calcMACD(wCloses)      : null;
     const wCurr   = wCloses?.[wCloses.length - 1];
     const wTrend  = wCloses && wCurr && wSMA20 ? (wCurr > wSMA20 ? 'bullish' : 'bearish') : null;
+
+    // ── Entry-timeframe read — the LOWER TF (e.g. 4h for a swing), so the committee
+    // can CONFIRM the precise entry on it instead of inferring. Graceful: null if the
+    // lower-TF data is too shallow (intraday history is short on the data source).
+    let entryTfRead = null;
+    if (Array.isArray(entryCandles) && entryCandles.length >= 30) {
+      const eC = entryCandles.map(c => c.close);
+      const eClose = eC[eC.length - 1];
+      const eLast = entryCandles[entryCandles.length - 1];
+      const eSMA20 = calcSMA(eC, 20), eSMA50 = calcSMA(eC, 50);
+      const recent = entryCandles.slice(-40);
+      entryTfRead = {
+        tf: ts.entryTf,
+        close: eClose,
+        rsi: calcRSI(eC),
+        macdUp: (calcMACD(eC) ?? 0) > 0,
+        trend: (eSMA20 && eSMA50) ? (eClose > eSMA20 && eSMA20 > eSMA50 ? 'up' : eClose < eSMA20 && eSMA20 < eSMA50 ? 'down' : 'mixed') : 'mixed',
+        high: Math.max(...recent.map(c => c.high)),
+        low: Math.min(...recent.map(c => c.low)),
+        vol: calcVolTrend(entryCandles),
+        candle: eLast.close > eLast.open ? 'bullish' : eLast.close < eLast.open ? 'bearish' : 'doji',
+      };
+    }
 
     const adx       = calcADX(candles);
     const bbWidth   = calcBBWidthPct(closes);
@@ -2647,6 +2673,12 @@ A high-probability ${ts.label} entry needs CONFLUENCE — several INDEPENDENT fa
 4. VOLUME / participation — genuine volume behind the move, so the level isn't a thin false break.
 RULES: (a) the de-correlated Confluence Score above already collapses redundant same-family indicators — do NOT re-inflate confidence by counting the MA stack three times. (b) The ENTRY must be confluent, not merely a price number — the entry_trigger you output should be "price AT a static level, confirmed by a ${ts.entryTf} reversal/break candle + momentum/volume", e.g. "buy the pullback to X on a ${ts.entryTf} bullish reversal"; "price reached X" alone is NOT an entry. (c) If fewer than three independent categories align, or the trade fights the ${ts.contextTf} trend with no extreme to mean-revert from, output WAIT / NO_EDGE and state exactly which confluence is missing.`;
 
+    // ── Entry-timeframe read block (actual lower-TF data, fixes "inferred" entry) ──
+    const entryTfBlock = entryTfRead ? `
+━━━ ENTRY-TIMEFRAME READ (${entryTfRead.tf} — ACTUAL lower-TF data for the entry trigger) ━━━
+On the ${entryTfRead.tf} chart right now: price ${entryTfRead.close.toFixed(dp)}, short-term trend ${entryTfRead.trend.toUpperCase()} (vs its 20/50 MAs), RSI ${entryTfRead.rsi != null ? Math.round(entryTfRead.rsi) : 'n/a'}, momentum ${entryTfRead.macdUp ? 'UP (MACD>0)' : 'DOWN (MACD<0)'}, last ${entryTfRead.tf} candle ${entryTfRead.candle}, volume ${entryTfRead.vol}. Nearest ${entryTfRead.tf} structure: resistance ~${entryTfRead.high.toFixed(dp)} / support ~${entryTfRead.low.toFixed(dp)}.
+DIRECTIVE: this is the REAL lower-timeframe data — use it to confirm the precise entry. The entry is only "live/confirmed" when this ${entryTfRead.tf} read AGREES with the trade direction (long → ${entryTfRead.tf} trend turning up / reclaiming its 20MA with momentum up at support; short → the mirror). If the ${entryTfRead.tf} currently DISAGREES with the ${ts.primaryTf} setup, the entry is NOT confirmed yet — say so and keep it WAIT / pending entry until the lower timeframe confirms.` : '';
+
     // ── Macro Intermarket block (FRED + Yahoo Finance) ─────────────────────────
     const intermarketBlock = macroIntermarket ? `
 ━━━ MACRO INTERMARKET SIGNALS (Live, Quantified) ━━━
@@ -2746,6 +2778,7 @@ ${intermarketBlock}
 ${qualityBlock}
 ${confluenceBlock}
 ${confluenceFrameworkBlock}
+${entryTfBlock}
 ${scanBlock}
 ${impactBlock}
 ${memoryBlock}
@@ -3006,6 +3039,7 @@ The trader wants a ${ts.label} trade. ALL technical evidence above is computed o
     const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict for a ${ts.label.toUpperCase()} trade.
 ${tradeStyleBlock}
 ${confluenceFrameworkBlock}
+${entryTfBlock}
 
 ━━━ TECHNICAL ANALYST — Evidence ━━━
 ${techFactors}
