@@ -2395,6 +2395,21 @@ async function startResearch() {
 
   setStep(1);
 
+  // A validity re-check MUST run in the SAME style as the original trade — an intraday
+  // trade is re-checked as intraday, never swing. Force it from the trade's own
+  // setup_features regardless of the UI pill, so an accidental style change (or a stale
+  // default) can't mismatch the re-check to a trade of a different timeframe.
+  if (_validateMode && _validateTarget && _validateTarget.symbol === sym) {
+    let _f = _validateTarget.setup_features;
+    if (typeof _f === 'string') { try { _f = JSON.parse(_f); } catch { _f = null; } }
+    const _k = _f && _f.style ? String(_f.style).toLowerCase() : null;
+    if (_k && TRADE_STYLES[_k]) {
+      _tradeStyle = _k;
+      const _pill = document.querySelector(`#tradeStylePills .ts-pill[data-style="${_k}"]`);
+      if (_pill) { document.querySelectorAll('#tradeStylePills .ts-pill').forEach(b => b.classList.remove('active')); _pill.classList.add('active'); }
+    }
+  }
+
   const ts = tradeStyle();   // selected timeframe drives the whole analysis
   const styleMinRR = minRRForStyle(_tradeStyle);   // professional reward:risk floor for this style
   try {
@@ -3683,6 +3698,14 @@ document.addEventListener('DOMContentLoaded', () => {
     inp.value = symParam.toUpperCase();
     updateTypePill(symParam);
     loadPreAnalysis(symParam, detectType(symParam));   // show flags/TradingView for the launched symbol
+  }
+
+  // ?style= (from the History "Update" link) → preselect the trade's OWN style so the
+  // re-check runs on the right timeframe (e.g. intraday, not the default swing).
+  const styleParam = (params.get('style') || '').toLowerCase();
+  if (styleParam && TRADE_STYLES[styleParam] && tsPills) {
+    _tradeStyle = styleParam;
+    tsPills.querySelectorAll('.ts-pill').forEach(b => b.classList.toggle('active', b.dataset.style === styleParam));
   }
 
   // Handle ?validate=ID / ?compare=ID / ?update=ID (re-scan launched from History).

@@ -234,7 +234,11 @@ function fmtDateTime(row) {
 // NOT create a new trade — the dashboard attaches a validation record (still valid /
 // weakening / invalidated + price progress) to the original via `validate=ID`.
 function updateUrl(row) {
-  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&validate=${encodeURIComponent(row.id)}`;
+  // Carry the trade's OWN style so the re-check runs on the same timeframe (an intraday
+  // trade is re-checked as intraday, not the dashboard's default swing).
+  const st = tradeStyleOf(row);
+  const styleQ = st ? `&style=${encodeURIComponent(st.label.toLowerCase())}` : '';
+  return `dashboard.html?sym=${encodeURIComponent(row.symbol)}&validate=${encodeURIComponent(row.id)}${styleQ}`;
 }
 
 // Parse the validations array (JSONB → array / string / null) and return the latest.
