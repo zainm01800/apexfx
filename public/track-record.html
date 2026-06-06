@@ -26,6 +26,10 @@
     .tr-win { color: var(--green); } .tr-loss { color: var(--red); }
     .tr-empty { color: var(--text2); padding: 32px; text-align: center; line-height: 1.7; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
     .tr-note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
+    .tr-honesty { margin-top: 30px; padding: 16px 18px; border-radius: 12px; background: rgba(124,92,252,.06); border: 1px solid rgba(124,92,252,.22); }
+    .tr-honesty ul { margin: 8px 0 0; padding-left: 18px; }
+    .tr-honesty li { color: var(--text2); font-size: 13px; line-height: 1.7; margin: 5px 0; }
+    .tr-honesty strong { color: var(--text); }
   </style>
 </head>
 <body>
@@ -48,6 +52,16 @@
       <div class="tr-asof" id="trAsOf"></div>
     </div>
     <div id="trBody"><div class="tr-empty">Loading the record…</div></div>
+
+    <div class="tr-honesty">
+      <div class="tr-section-title" style="margin-top:0">How this record stays honest</div>
+      <ul>
+        <li><strong>Logged before the outcome.</strong> Every verdict — direction, confidence, entry/stop/target — is recorded the moment it's made. Nothing is backfilled.</li>
+        <li><strong>Losses are never deleted.</strong> Wins and losses are shown side by side. No cherry-picking.</li>
+        <li><strong>Graded automatically.</strong> A scheduled job decides win/loss purely from whether the market price reached the stop or take-profit we stated — the score isn't hand-edited.</li>
+        <li><strong>Coming next:</strong> each call cryptographically timestamped to the Bitcoin blockchain, so anyone can prove it was committed before the move.</li>
+      </ul>
+    </div>
     <footer class="app-footer" style="margin-top:40px">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
   </main>
 

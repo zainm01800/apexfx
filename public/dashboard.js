@@ -2163,7 +2163,8 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     ${_methodFlag}
     ${a._rr_downgrade ? `<div class="tpg-warn">🛡️ <strong>Professional R:R gate:</strong> ${escHtmlSafe(a._rr_downgrade)}</div>`
       : a._rr_weak ? `<div class="tpg-warn">⚠ Weak setup — reward-to-risk is only ${escHtmlSafe(a.risk_reward)}, below the ${a._rr_min || MIN_RR}:1 a professional ${tradeStyle().label} trade requires. Consider waiting for a better entry.</div>`
-      : a._rr_aplus ? `<div class="tpg-aplus">✅ A+ reward-to-risk (${escHtmlSafe(a.risk_reward)}) — pays at least 3× the risk.</div>` : ''}`;
+      : a._rr_aplus ? `<div class="tpg-aplus">✅ A+ reward-to-risk (${escHtmlSafe(a.risk_reward)}) — pays at least 3× the risk.</div>` : ''}
+    <div class="tpg-legal">Information &amp; education only — <strong>not financial advice</strong> and not a personal recommendation. You decide and act for yourself.</div>`;
 
   // ── Trade levels ──
   document.getElementById('tradeLevels').innerHTML = `

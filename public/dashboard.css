@@ -81,6 +81,8 @@ body {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .hero-text p { font-size: 15px; color: var(--text2); max-width: 520px; line-height: 1.65; }
+.hero-text p + p { margin-top: 10px; }
+.hero-notfor { font-size: 12.5px !important; color: var(--text3) !important; font-style: italic; }
 
 .search-wrap { display: flex; flex-direction: column; gap: 14px; }
 .search-box { display: flex; gap: 10px; align-items: stretch; }
@@ -627,6 +629,9 @@ body {
 /* Method-evidence honesty (A7) */
 .tpg-method { margin-top: 8px; font-size: 12px; color: var(--text3); line-height: 1.5; padding: 9px 12px; border-radius: 8px; background: rgba(248,113,113,.05); border: 1px dashed rgba(248,113,113,.3); }
 .tpg-method strong { color: #f87171; }
+/* Per-verdict legal line (impersonal, kept on every trade plan) */
+.tpg-legal { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); line-height: 1.5; }
+.tpg-legal strong { color: var(--text2); }
 
 /* ── Nav win-rate badge ── */
 .nav-winrate {
