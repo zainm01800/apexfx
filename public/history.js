@@ -253,18 +253,37 @@ function entryProximity(row, px) {
   return { pct: now, inZone: now === 0, dir };
 }
 
-// Plain-English status of an OPEN trade vs the live price — answers "is it entered or
-// not?". LIVE = price in the entry zone now; APPROACHING/DRIFTING = moving toward/away
-// from entry since the scan; WAITING = sitting roughly still and not yet at entry.
+// How the card should treat a verdict:
+//  'trade' = a real directional setup → entry/stop/target are a LIVE plan.
+//  'watch' = WAIT / NO_EDGE / HOLD → NOT a trade; the levels are conditional ("the
+//            level it would need to become valid"), so status is WATCHING, never LIVE.
+//  'avoid' = AVOID / REDUCE / HEDGE → actively no trade.
+function verdictKind(v) {
+  const u = (v || '').toUpperCase();
+  if (/BUY|SELL|SHORT|LONG/.test(u)) return 'trade';
+  if (/AVOID|REDUCE|HEDGE/.test(u))  return 'avoid';
+  return 'watch';   // WAIT, NO_EDGE, HOLD, or unknown
+}
+
 const _STATUS = {
   live:        { txt: '🟢 LIVE',        tip: 'Price is in the entry zone now — this trade can be entered.' },
   approaching: { txt: '🔵 APPROACHING', tip: 'Not entered yet, but price has moved toward the entry since the scan.' },
   drifting:    { txt: '🟠 DRIFTING',    tip: 'Not entered — price has moved AWAY from the entry since the scan.' },
   waiting:     { txt: '⏳ WAITING',     tip: 'Not entered — price is sitting away from the entry zone.' },
 };
+// Plain-English status of an OPEN scan vs the live price — verdict-aware so a WAIT is
+// never shown as "LIVE". Answers "is this an actual trade right now, or not?".
 function tradeStatus(row, px) {
   if (!(row.outcome == null || row.outcome === 'pending')) return null;   // resolved → outcome shown elsewhere
+  const kind = verdictKind(row.verdict);
+  if (kind === 'avoid') return { cls: 'avoid', label: '⛔ NO TRADE', sub: '', tip: 'The verdict is to avoid / reduce — not a setup to enter.' };
   const p = entryProximity(row, px);
+  if (kind === 'watch') {
+    if (!p)         return { cls: 'watch',     label: '👀 WATCHING',       sub: '', tip: 'No trade yet — waiting for the setup to become valid. The levels are conditional, not a live entry.' };
+    if (p.inZone)   return { cls: 'watch-hit', label: '⚡ LEVEL REACHED',   sub: 're-check', tip: 'Price has reached the watch level — hit Update to re-check whether it is now an actual trade.' };
+    return            { cls: 'watch',          label: '👀 WATCHING',       sub: fmtAway(p.pct) + ' to level', tip: 'No trade yet — the levels are conditional, not a live entry.' };
+  }
+  // kind === 'trade'
   if (!p) return null;
   const cls = p.inZone ? 'live' : p.dir === 'closer' ? 'approaching' : p.dir === 'further' ? 'drifting' : 'waiting';
   const s = _STATUS[cls];
@@ -393,19 +412,28 @@ function renderCard(g) {
     ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
     : '';
 
-  // Live status + "distance to entry" — only for OPEN trades you're waiting to enter.
-  // The status badge (LIVE / APPROACHING / DRIFTING / WAITING) answers "is it entered
-  // now?"; the distance line shows how far. Direction is judged vs the ORIGINAL scan.
+  // Live status + "distance to entry" — verdict-aware. For a real trade: LIVE /
+  // APPROACHING / DRIFTING / WAITING. For a WAIT/NO_EDGE: WATCHING / LEVEL-REACHED
+  // (the levels are a conditional "watch" plan, NOT a live entry). For AVOID: NO TRADE.
   const _isOpen = (row.outcome == null || row.outcome === 'pending');
+  const _kind = verdictKind(row.verdict);
+  const _level = _kind === 'trade' ? 'entry zone' : 'watch level';
   const _status = _isOpen ? tradeStatus(row, _livePx[row.symbol]) : null;
   const statusBadge = _status
     ? `<span class="sc-status ${_status.cls}" title="${escHtml(_status.tip)}">${_status.label}${_status.sub ? ` · ${_status.sub}` : ''}</span>`
     : '';
-  const _prox = _isOpen ? entryProximity(row, _livePx[row.symbol]) : null;
+  const _prox = (_isOpen && _kind !== 'avoid') ? entryProximity(row, _livePx[row.symbol]) : null;
   const proxRow = _prox
-    ? `<div class="sc-prox ${_prox.inZone ? 'inzone' : ''}" title="How far the live price is from this trade's entry zone (vs the original scan)">🎯 ${_prox.inZone
-        ? 'Price is in the entry zone now'
-        : `${fmtAway(_prox.pct)} from the entry zone${_prox.dir === 'further' ? ' — moved away since the scan' : _prox.dir === 'closer' ? ' — moved closer since the scan' : ''}`}</div>`
+    ? `<div class="sc-prox ${_prox.inZone ? 'inzone' : ''}" title="How far the live price is from this scan's ${_level} (vs the original scan)">🎯 ${_prox.inZone
+        ? `Price is at the ${_level} now`
+        : `${fmtAway(_prox.pct)} from the ${_level}${_prox.dir === 'further' ? ' — moved away since the scan' : _prox.dir === 'closer' ? ' — moved closer since the scan' : ''}`}</div>`
+    : '';
+
+  // For non-trade verdicts, make clear the entry/stop/target are conditional, not live.
+  const condNote = (_isOpen && _kind !== 'trade')
+    ? `<div class="sc-cond" title="This isn't an actionable trade right now">⏸ ${_kind === 'avoid'
+        ? 'No trade — the verdict is to avoid/reduce; any levels below are context only.'
+        : 'No trade yet — the entry/stop/target below are the levels it would need to <strong>become</strong> a valid trade, not a live position.'}</div>`
     : '';
 
   // Latest validity re-check (from the "Update" button) on the current call.
@@ -446,10 +474,12 @@ function renderCard(g) {
 
       ${row.summary ? `<p class="sc-summary">${escHtml(row.summary)}</p>` : ''}
 
-      <div class="sc-targets">
-        ${row.entry_zone  ? `<div class="sc-target-item"><span class="sc-tl">Entry</span><span class="sc-tv entry">${escHtml(row.entry_zone)}</span></div>`  : ''}
-        ${row.target_price? `<div class="sc-target-item"><span class="sc-tl">Target</span><span class="sc-tv target">$${fmtPrice(row.target_price)}</span></div>` : ''}
-        ${row.stop_loss   ? `<div class="sc-target-item"><span class="sc-tl">Stop</span><span class="sc-tv stop">$${fmtPrice(row.stop_loss)}</span></div>`    : ''}
+      ${condNote}
+
+      <div class="sc-targets${_isOpen && _kind !== 'trade' ? ' conditional' : ''}">
+        ${row.entry_zone  ? `<div class="sc-target-item"><span class="sc-tl">${_kind === 'trade' ? 'Entry' : 'Watch'}</span><span class="sc-tv entry">${escHtml(row.entry_zone)}</span></div>`  : ''}
+        ${row.target_price? `<div class="sc-target-item"><span class="sc-tl">${_kind === 'trade' ? 'Target' : 'If-target'}</span><span class="sc-tv target">$${fmtPrice(row.target_price)}</span></div>` : ''}
+        ${row.stop_loss   ? `<div class="sc-target-item"><span class="sc-tl">${_kind === 'trade' ? 'Stop' : 'If-stop'}</span><span class="sc-tv stop">$${fmtPrice(row.stop_loss)}</span></div>`    : ''}
         ${row.risk_reward ? `<div class="sc-target-item"><span class="sc-tl">R:R</span><span class="sc-tv">${escHtml(row.risk_reward)}</span></div>`          : ''}
       </div>
 

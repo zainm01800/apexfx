@@ -228,6 +228,19 @@
 .sc-status.approaching { color: var(--blue); background: rgba(59,158,255,.12); border-color: rgba(59,158,255,.32); }
 .sc-status.drifting    { color: var(--orange); background: rgba(255,170,0,.12); border-color: rgba(255,170,0,.32); }
 .sc-status.waiting     { color: var(--text2); background: var(--bg2); }
+.sc-status.watch       { color: var(--text2); background: var(--bg2); }
+.sc-status.watch-hit   { color: var(--yellow); background: rgba(245,208,32,.12); border-color: rgba(245,208,32,.35); }
+.sc-status.avoid       { color: #f87171; background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.3); }
+
+/* "Not a live trade" note for WAIT / NO_EDGE / AVOID verdicts */
+.sc-cond {
+  font-size: 12px; line-height: 1.5; color: var(--text2);
+  background: var(--bg2); border: 1px dashed var(--border2); border-radius: 8px;
+  padding: 8px 12px; margin: 2px 0;
+}
+.sc-cond strong { color: var(--text); }
+/* Conditional levels are de-emphasised so they don't read as a live plan */
+.sc-targets.conditional { opacity: .72; }
 .sc-verdict {
   font-size: 13px;
   font-weight: 800;
