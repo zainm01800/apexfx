@@ -230,6 +230,8 @@
 .sc-status.waiting     { color: var(--text2); background: var(--bg2); }
 .sc-status.watch       { color: var(--text2); background: var(--bg2); }
 .sc-status.watch-hit   { color: var(--yellow); background: rgba(245,208,32,.12); border-color: rgba(245,208,32,.35); }
+.sc-status.clickable   { cursor: pointer; text-decoration: none; transition: filter .15s, box-shadow .15s; }
+.sc-status.clickable:hover { filter: brightness(1.18); box-shadow: 0 0 0 1px rgba(245,208,32,.45); }
 .sc-status.avoid       { color: #f87171; background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.3); }
 
 /* "Not a live trade" note for WAIT / NO_EDGE / AVOID verdicts */

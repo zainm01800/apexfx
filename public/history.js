@@ -419,8 +419,12 @@ function renderCard(g) {
   const _kind = verdictKind(row.verdict);
   const _level = _kind === 'trade' ? 'entry zone' : 'watch level';
   const _status = _isOpen ? tradeStatus(row, _livePx[row.symbol]) : null;
+  // When price has reached a WAIT's watch level, the badge IS the re-check action —
+  // make it a real clickable link (same as the Update button), not dead text.
   const statusBadge = _status
-    ? `<span class="sc-status ${_status.cls}" title="${escHtml(_status.tip)}">${_status.label}${_status.sub ? ` · ${_status.sub}` : ''}</span>`
+    ? (_status.cls === 'watch-hit'
+        ? `<a class="sc-status watch-hit clickable" href="${updateUrl(row)}" title="${escHtml(_status.tip)}">${_status.label}${_status.sub ? ` · ${_status.sub}` : ''}</a>`
+        : `<span class="sc-status ${_status.cls}" title="${escHtml(_status.tip)}">${_status.label}${_status.sub ? ` · ${_status.sub}` : ''}</span>`)
     : '';
   const _prox = (_isOpen && _kind !== 'avoid') ? entryProximity(row, _livePx[row.symbol]) : null;
   const proxRow = _prox
