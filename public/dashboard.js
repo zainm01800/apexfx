@@ -628,10 +628,10 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
 // The selected style drives which candle timeframe the WHOLE analysis runs on, and
 // tells the committee what horizon to plan entries / stops / take-profits for.
 const TRADE_STYLES = {
-  scalp:    { label: 'Scalp',    primaryTf: '15m', contextTf: '1h', primaryDays: 30,   contextDays: 60,   horizon: 'minutes to a few hours' },
-  intraday: { label: 'Intraday', primaryTf: '1h',  contextTf: '4h', primaryDays: 120,  contextDays: 360,  horizon: 'a few hours up to one trading day' },
-  swing:    { label: 'Swing',    primaryTf: '1d',  contextTf: '1w', primaryDays: 210,  contextDays: 730,  horizon: 'several days to a few weeks' },
-  position: { label: 'Position', primaryTf: '1w',  contextTf: '1M', primaryDays: 1825, contextDays: 3650, horizon: 'several weeks to months' },
+  scalp:    { label: 'Scalp',    primaryTf: '15m', contextTf: '1h', entryTf: '5m',  primaryDays: 30,   contextDays: 60,   horizon: 'minutes to a few hours' },
+  intraday: { label: 'Intraday', primaryTf: '1h',  contextTf: '4h', entryTf: '15m', primaryDays: 120,  contextDays: 360,  horizon: 'a few hours up to one trading day' },
+  swing:    { label: 'Swing',    primaryTf: '1d',  contextTf: '1w', entryTf: '4h',  primaryDays: 210,  contextDays: 730,  horizon: 'several days to a few weeks' },
+  position: { label: 'Position', primaryTf: '1w',  contextTf: '1M', entryTf: '1d',  primaryDays: 1825, contextDays: 3650, horizon: 'several weeks to months' },
 };
 let _tradeStyle = 'swing';
 function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
@@ -2634,6 +2634,19 @@ ${confluenceScore.concentrated ? '⚠️ CONCENTRATED — most of this score com
 ${confluenceScore.bullPct >= 80 && !confluenceScore.concentrated ? '⚡ STRONG BULLISH ALIGNMENT across independent families — high-conviction long setups supported' : ''}${confluenceScore.bullPct <= 20 && !confluenceScore.concentrated ? '⚡ STRONG BEARISH ALIGNMENT across independent families — high-conviction short setups supported' : ''}${confluenceScore.direction === 'MIXED' ? '⚠️ MIXED SIGNALS — requires extra caution; NO_EDGE or WAIT may be most honest verdict' : ''}
 CONFIDENCE CALIBRATION RULE: Confidence score should generally not exceed (Confluence% + 20) unless exceptional circumstances justify it${confluenceScore.concentrated ? ', and because this score is concentrated in one correlated family, stay well BELOW that ceiling' : ''}. A confluence of ${confluenceScore.bullPct}% → confidence ceiling ~${Math.min(100, confluenceScore.bullPct + 20)}%.` : '';
 
+    // ── Entry-confluence framework (top-down, style-specific) ──────────────────
+    // Research-grounded: a high-probability entry needs several INDEPENDENT factors
+    // agreeing across the right timeframe stack — and the ENTRY itself (not just a
+    // price level) must be confluent. The 3-TF stack here is the style's own.
+    const confluenceFrameworkBlock = `
+━━━ ENTRY-CONFLUENCE FRAMEWORK (${ts.label} — top-down) ━━━
+A high-probability ${ts.label} entry needs CONFLUENCE — several INDEPENDENT factors agreeing, read top-down: ${ts.contextTf} for the higher-timeframe TREND/bias → ${ts.primaryTf} for the SETUP (all the technical evidence above is on this TF) → ${ts.entryTf} for the precise ENTRY TRIGGER. Require alignment across at least THREE of these INDEPENDENT categories (not three flavours of the same one) before an actionable BUY/SELL:
+1. STATIC structure — price reacting at a real level: prior support/resistance, a supply/demand zone, range edge, round number, or a Fibonacci confluence.
+2. DYNAMIC structure — agreement with the moving-average stack / trendline / VWAP, and trading WITH the ${ts.contextTf} higher-timeframe trend (not against it) unless it is an explicit mean-reversion play at a stretched extreme.
+3. MOMENTUM — RSI / MACD / StochRSI confirming the direction (a momentum divergence at the level is a strong plus), and NOT already exhausted/overbought INTO the move.
+4. VOLUME / participation — genuine volume behind the move, so the level isn't a thin false break.
+RULES: (a) the de-correlated Confluence Score above already collapses redundant same-family indicators — do NOT re-inflate confidence by counting the MA stack three times. (b) The ENTRY must be confluent, not merely a price number — the entry_trigger you output should be "price AT a static level, confirmed by a ${ts.entryTf} reversal/break candle + momentum/volume", e.g. "buy the pullback to X on a ${ts.entryTf} bullish reversal"; "price reached X" alone is NOT an entry. (c) If fewer than three independent categories align, or the trade fights the ${ts.contextTf} trend with no extreme to mean-revert from, output WAIT / NO_EDGE and state exactly which confluence is missing.`;
+
     // ── Macro Intermarket block (FRED + Yahoo Finance) ─────────────────────────
     const intermarketBlock = macroIntermarket ? `
 ━━━ MACRO INTERMARKET SIGNALS (Live, Quantified) ━━━
@@ -2732,6 +2745,7 @@ ${macroCtx ? `\n━━━ LIVE MACRO CONTEXT ━━━\n${macroCtx}` : ''}
 ${intermarketBlock}
 ${qualityBlock}
 ${confluenceBlock}
+${confluenceFrameworkBlock}
 ${scanBlock}
 ${impactBlock}
 ${memoryBlock}
@@ -2991,6 +3005,7 @@ The trader wants a ${ts.label} trade. ALL technical evidence above is computed o
     // ── Committee Agent: synthesise all specialist findings → final JSON ──────
     const committeePrompt = `You are the head of an investment committee. Four specialist analysts have submitted structured evidence — NOT conclusions — on ${sym} (current price: ${curr.toFixed(dp)}). The analysts have also debated each other. Your job is to weigh the EVIDENCE, resolve disagreements, and deliver the final verdict for a ${ts.label.toUpperCase()} trade.
 ${tradeStyleBlock}
+${confluenceFrameworkBlock}
 
 ━━━ TECHNICAL ANALYST — Evidence ━━━
 ${techFactors}
