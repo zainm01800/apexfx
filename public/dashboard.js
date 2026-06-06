@@ -2200,8 +2200,10 @@ async function startResearch() {
 
   const sym = raw.toUpperCase(), type = detectType(sym);
 
-  // Re-scan cooldown: block a too-soon re-run of the SAME symbol unless forced.
-  const _forced = startResearch._force === sym;
+  // Re-scan cooldown: block a too-soon re-run of the SAME symbol unless forced. A
+  // DELIBERATE re-check / update (from History) always bypasses it — the cooldown is
+  // only there to stop accidental rapid re-scans, not an intentional re-validation.
+  const _forced = startResearch._force === sym || _validateMode || _updateMode;
   startResearch._force = null;
   if (!_forced) {
     const cdMs = cooldownRemainingMs(sym);
