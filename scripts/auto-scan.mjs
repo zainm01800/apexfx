@@ -10,27 +10,99 @@
 // rest. Over time this accumulates the resolved, feature-tagged rows that the
 // confidence-calibration and structural meta-label loops need before they activate.
 //
-// USAGE:  node scripts/auto-scan.mjs
-// CONFIG: set APEX_SCAN_SYMBOLS="NVDA,EUR/USD,BTC/USD" to override the watchlist,
-//         APEX_SCAN_BASE to point at a different deployment.
+// USAGE:  node scripts/auto-scan.mjs            (rotate randomly over the universe)
+//         node scripts/auto-scan.mjs --plan     (print what it WOULD scan, no browser)
+// CONFIG: APEX_SCAN_SYMBOLS="NVDA,EUR/USD" overrides the rotation with a fixed list,
+//         APEX_SCAN_COUNT=16 sets how many to scan this run,
+//         APEX_SCAN_BASE points at a different deployment.
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { chromium } from 'playwright';
 
 const BASE = (process.env.APEX_SCAN_BASE || 'https://apexfx.vercel.app').replace(/\/$/, '');
 
-// Diverse watchlist on purpose: stocks + ETFs + crypto + FX, spread across SECTORS
-// (tech / financials / energy), asset classes, and likely regimes, so the structural
-// meta-label + lessons library see real variety (several also carry COT positioning).
-// Curated & liquid on purpose — random/illiquid tickers have flaky candle data and
-// never resolve, which is noise, not signal. Edit freely — these are just the seeds.
-const SYMBOLS = (process.env.APEX_SCAN_SYMBOLS ||
-  'NVDA,AAPL,MSFT,AMZN,TSLA,JPM,XOM,SPY,QQQ,GLD,TLT,BTC/USD,ETH/USD,SOL/USD,EUR/USD,USD/JPY')
-  .split(',').map(s => s.trim()).filter(Boolean);
+// The instrument UNIVERSE — mirrors public/backtest.js (keep in sync). Rotating
+// RANDOMLY across this whole pool (instead of a fixed 8) gives the calibration +
+// meta-label loops a broad, balanced dataset over time. Liquid names only — flaky
+// candle data never resolves, which is noise not signal.
+const UNIVERSE = {
+  Forex:  ['EUR/USD','GBP/USD','USD/JPY','USD/CHF','AUD/USD','USD/CAD','NZD/USD','GBP/JPY','EUR/GBP','EUR/JPY'],
+  Crypto: ['BTC/USD','ETH/USD','SOL/USD','BNB/USD','XRP/USD','ADA/USD','AVAX/USD','DOGE/USD','MATIC/USD','LINK/USD','ARB/USD','SUI/USD'],
+  Stock:  ['NVDA','AAPL','MSFT','META','AMZN','GOOGL','TSLA','AMD','PLTR','TSM','NFLX','UBER'],
+  ETF:    ['SPY','QQQ','IWM','GLD','TLT','XLK','XLE','XLF','ARKK','SMH','SOXX','XBI'],
+};
+// 2026 NYSE holidays — treat like weekends (stocks + ETFs closed → crypto only).
+const US_HOLIDAYS_2026 = new Set([
+  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25',
+  '2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+]);
 
 const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow for one internal retry
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// What's tradeable today (UTC): weekends + US holidays → CRYPTO ONLY (stocks/forex are
+// closed, so their bars are stale and never resolve cleanly); weekdays → everything.
+function dayType(d = new Date()) {
+  const forced = process.env.APEX_SCAN_FORCE_DAY;   // 'weekday'|'weekend'|'us-holiday' — testing/manual
+  if (forced) return { type: forced, cryptoOnly: forced !== 'weekday' };
+  const day = d.getUTCDay(), dateStr = d.toISOString().slice(0, 10);
+  if (day === 0 || day === 6)        return { type: 'weekend',    cryptoOnly: true };
+  if (US_HOLIDAYS_2026.has(dateStr)) return { type: 'US-holiday', cryptoOnly: true };
+  return { type: 'weekday', cryptoOnly: false };
+}
+const eligiblePool = (dt) => dt.cryptoOnly ? [...UNIVERSE.Crypto] : Object.values(UNIVERSE).flat();
+
+// How many times each symbol has already been scanned — so we can bias the random
+// pick toward UNDER-sampled names and fill the dataset in balanced. null on failure.
+async function getScanCounts() {
+  try {
+    const rows = await fetch(`${BASE}/api/memory?all=true&limit=500`).then(r => r.json());
+    if (!Array.isArray(rows)) return null;
+    const c = {};
+    for (const r of rows) if (r.symbol) c[r.symbol] = (c[r.symbol] || 0) + 1;
+    return c;
+  } catch { return null; }
+}
+
+// Weighted random sample WITHOUT replacement; weight = 1/(scans+1) so rarely-scanned
+// instruments are favoured. Uniform when counts is null (query failed).
+function weightedSample(pool, n, counts) {
+  const items = pool.map(s => ({ s, w: counts ? 1 / ((counts[s] || 0) + 1) : 1 }));
+  const out = [];
+  n = Math.min(n, items.length);
+  for (let k = 0; k < n; k++) {
+    const total = items.reduce((a, b) => a + b.w, 0);
+    let r = Math.random() * total, idx = 0;
+    for (; idx < items.length; idx++) { r -= items[idx].w; if (r <= 0) break; }
+    idx = Math.min(idx, items.length - 1);
+    out.push(items[idx].s);
+    items.splice(idx, 1);
+  }
+  return out;
+}
+
+// Decide this run's symbols: explicit override, else a coverage-weighted random draw
+// from today's eligible pool. Returns {syms, plan} where plan explains the choice.
+async function selectSymbols() {
+  if (process.env.APEX_SCAN_SYMBOLS) {
+    const syms = process.env.APEX_SCAN_SYMBOLS.split(',').map(s => s.trim()).filter(Boolean);
+    return { syms, plan: { source: 'APEX_SCAN_SYMBOLS override', dayType: 'n/a', poolSize: syms.length, counts: null } };
+  }
+  const dt = dayType();
+  const pool = eligiblePool(dt);
+  const N = Math.min(Math.max(1, parseInt(process.env.APEX_SCAN_COUNT || '16', 10)), pool.length);
+  const counts = await getScanCounts();
+  const syms = weightedSample(pool, N, counts);
+  return {
+    syms,
+    plan: {
+      source: counts ? 'coverage-weighted random' : 'uniform random (scan-count query failed)',
+      dayType: dt.type, poolSize: pool.length, N,
+      counts: counts ? syms.map(s => `${s}:${counts[s] || 0}`) : null,
+    },
+  };
+}
 
 async function scanOne(page, sym) {
   // auto=1 tags the saved row's setup_features so the History scoreboard can tell
@@ -87,8 +159,14 @@ async function validateOne(page, sym, id) {
 }
 
 async function main() {
-  console.log(`[auto-scan] ${SYMBOLS.length} symbols against ${BASE}`);
-  console.log(`[auto-scan] watchlist: ${SYMBOLS.join(', ')}`);
+  const PLAN_ONLY = process.argv.includes('--plan') || process.env.APEX_SCAN_PLAN === '1';
+
+  const { syms: SYMBOLS, plan } = await selectSymbols();
+  console.log(`[auto-scan] day=${plan.dayType} · eligible pool=${plan.poolSize} · scanning ${SYMBOLS.length} via ${plan.source}`);
+  console.log(`[auto-scan] symbols: ${SYMBOLS.join(', ')}`);
+  if (plan.counts) console.log(`[auto-scan] chosen scan-counts (lower = under-sampled → favoured): ${plan.counts.join(', ')}`);
+  if (PLAN_ONLY) { console.log('[auto-scan] PLAN ONLY — not launching the browser. ✔'); return; }
+  console.log(`[auto-scan] target: ${BASE}`);
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });

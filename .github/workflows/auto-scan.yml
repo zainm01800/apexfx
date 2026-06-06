@@ -8,20 +8,23 @@ name: auto-scan
 # outcomes. No keys needed — it uses the deployed site, which holds the AI keys
 # server-side.
 #
-# Cadence: ONCE per symbol per day on purpose. The dashboard refreshes the same open
-# row for same-direction same-UTC-day re-scans (anti-duplicate), so a second daily
-# scan adds no new row — it would just burn AI calls. Weekdays scan the full list;
-# weekends scan crypto only, since stocks/FX are closed (their Friday daily bar is
-# stale) while crypto trades 24/7.
+# Cadence: ONCE daily. The script picks a coverage-weighted RANDOM subset of the
+# universe and decides eligibility itself by day (weekends + US holidays → crypto only,
+# since stocks/FX are closed; weekdays → all asset classes), so the workflow no longer
+# needs day-specific branches. The dashboard refreshes the same open row for same-
+# direction same-UTC-day re-scans (anti-duplicate), so it never double-counts.
 
 on:
   schedule:
-    - cron: "0 22 * * 1-5"     # weekdays 22:00 UTC — full watchlist (after US close, daily bars fresh)
-    - cron: "0 22 * * 6,0"     # weekends 22:00 UTC — crypto only (stocks/FX closed; crypto 24/7)
+    - cron: "7 22 * * *"       # daily 22:00 UTC (after US close → daily bars fresh)
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Comma-separated watchlist (overrides the default)"
+        description: "Comma-separated list (overrides the random rotation)"
+        required: false
+        default: ""
+      count:
+        description: "How many to scan this run (default 16)"
         required: false
         default: ""
 
@@ -39,8 +42,8 @@ jobs:
           npm i --no-save playwright@1.49.1
           npx playwright install --with-deps chromium
       - name: Run auto-scan
-        # Manual run → use the symbols input. Weekend cron → crypto only. Weekday cron
-        # (or empty) → blank env, so the script falls back to its full default watchlist.
+        # Empty inputs → the script rotates randomly over today's eligible pool.
         env:
-          APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || (github.event.schedule == '0 22 * * 6,0' && 'BTC/USD,ETH/USD,SOL/USD') || '' }}
+          APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
+          APEX_SCAN_COUNT: ${{ github.event.inputs.count || '' }}
         run: node scripts/auto-scan.mjs
