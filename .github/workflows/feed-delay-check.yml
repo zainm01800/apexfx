@@ -1,0 +1,22 @@
+name: feed-delay-check
+
+# Measures the real Yahoo data-feed delay per asset class during US market hours, so
+# we have an actual number for the stock/forex feed lag (crypto is already ~real-time).
+# Result is printed to the run log and the workflow summary.
+
+on:
+  schedule:
+    - cron: "10 15 * * 1-5"     # weekdays 15:10 UTC — during US market hours (incl. Monday)
+  workflow_dispatch:
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Measure feed delay
+        run: node scripts/feed-delay.mjs
