@@ -1,0 +1,53 @@
+name: proximity-watch
+
+# When an open trade's live price gets very close to its entry zone, auto re-run the
+# committee (validity re-check) so the call is fresh right when it matters. Two jobs:
+# a cheap "scan" runs every tick; the expensive Playwright "recheck" only runs when the
+# scan actually found something near entry — so on a private repo CI stays cheap.
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"     # every 2 hours
+  workflow_dispatch:
+    inputs:
+      pct:
+        description: "Trigger threshold (% from entry)"
+        required: false
+        default: "0.4"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      candidates: ${{ steps.find.outputs.candidates }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Find trades near entry (no browser)
+        id: find
+        env:
+          APEX_PROX_PCT: ${{ github.event.inputs.pct || '0.4' }}
+        run: node scripts/proximity-watch.mjs --scan
+
+  recheck:
+    needs: scan
+    if: needs.scan.outputs.count != '0' && needs.scan.outputs.count != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright (Chromium)
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Re-validate the close trades
+        env:
+          APEX_PROX_IDS: ${{ needs.scan.outputs.candidates }}
+        run: node scripts/proximity-watch.mjs --recheck
