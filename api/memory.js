@@ -50,12 +50,17 @@ export default async function handler(req) {
     const all    = url.searchParams.get('all') === 'true';
     const lean   = url.searchParams.get('lean') === 'true';
     const open   = url.searchParams.get('open') === 'true';
+    const resolved = url.searchParams.get('resolved') === 'true';
     const limit  = Math.min(1000, parseInt(url.searchParams.get('limit') || '80', 10));
 
     // Everything EXCEPT the large prose fields (summary + the 4 analysis texts etc.).
     const LEAN_COLS = 'id,symbol,asset_type,analysis_date,price,verdict,confidence,target_price,entry_zone,stop_loss,risk_reward,timeframe,outcome,outcome_price,outcome_date,created_at,setup_features,lesson,validations';
     const select  = lean ? `&select=${LEAN_COLS}` : '';
-    const openFlt = open ? '&or=(outcome.is.null,outcome.eq.pending)' : '';
+    // open=true → unresolved only; resolved=true → graded TP/SL rows only (the
+    // learning loops use this so old resolved swing/position trades never fall
+    // off a recent-rows window as scan volume grows).
+    const openFlt = open ? '&or=(outcome.is.null,outcome.eq.pending)'
+                  : resolved ? '&outcome=in.(tp_hit,sl_hit)' : '';
 
     try {
       const query = id

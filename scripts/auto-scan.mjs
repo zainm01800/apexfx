@@ -186,7 +186,9 @@ async function selectJobs() {
     skippedOpen += pool.length - stylePool.length;
     const picked = weightedSample(stylePool, n, counts ? (s) => counts[`${s}|${style}`] || 0 : null);
     for (const sym of picked) {
-      jobs.push({ sym, style });
+      // ~15% directive-blind control arm (APEX_SCAN_CONTROL_PCT to tune/disable).
+      const control = Math.random() < (parseFloat(process.env.APEX_SCAN_CONTROL_PCT || '15') / 100);
+      jobs.push({ sym, style, control });
       if (counts) cells.push(`${sym}/${style}:${counts[`${sym}|${style}`] || 0}`);
     }
   }
@@ -201,13 +203,17 @@ async function selectJobs() {
   };
 }
 
-async function scanOne(page, sym, style = '') {
+async function scanOne(page, sym, style = '', control = false) {
   // auto=1 tags the saved row's setup_features so the History scoreboard can tell
   // bot-generated scans apart from the user's own calls (keeps personal stats honest).
   // &style lets one run cover multiple horizons (e.g. swing + the faster-resolving
   // intraday) so the forward track record accumulates quicker.
+  // &control=1 = DIRECTIVE-BLIND: the committee gets no calibration/meta-label/lesson
+  // feedback blocks. ~15% of scans run blind as a permanent control arm — an A/B of
+  // whether the learning loops help, and a guard against feedback self-fulfillment.
   const styleQ = style ? `&style=${encodeURIComponent(style)}` : '';
-  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}&auto=1${styleQ}`, { waitUntil: 'load', timeout: 60000 });
+  const ctrlQ  = control ? '&control=1' : '';
+  await page.goto(`${BASE}/dashboard.html?sym=${encodeURIComponent(sym)}&auto=1${styleQ}${ctrlQ}`, { waitUntil: 'load', timeout: 60000 });
   await page.waitForSelector('#analyseBtn', { timeout: 30000 });
   await sleep(1200);                      // let init() prefill the symbol + wire handlers
   await page.click('#analyseBtn');
@@ -273,11 +279,11 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   const summary = { ok: 0, error: 0, cooldown: 0 };
-  for (const { sym, style } of JOBS) {
+  for (const { sym, style, control } of JOBS) {
     const t0 = Date.now();
-    const tag = `${sym} ${style}`;
+    const tag = `${sym} ${style}${control ? ' [ctrl]' : ''}`;
     try {
-      const r = await scanOne(page, sym, style);
+      const r = await scanOne(page, sym, style, control);
       const secs = ((Date.now() - t0) / 1000).toFixed(0);
       if (r.status === 'ok') {
         summary.ok++;

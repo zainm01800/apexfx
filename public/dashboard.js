@@ -491,6 +491,9 @@ function saveToMemory(sym, type, analysis, price, updateId = null, setupFeatures
     // separate them from the user's own calls. setupDistance ignores this key, so it
     // never affects structural matching / meta-label / lessons retrieval.
     ...(_autoScan ? { auto: 1 } : {}),
+    // Control-arm rows are tagged so the A/B (directive-fed vs directive-blind
+    // resolved outcomes) can be evaluated later. Ignored by setupDistance.
+    ...(_controlArm ? { control: 1 } : {}),
   } : null;
   const fields = {
     symbol:               sym,
@@ -1238,7 +1241,7 @@ async function loadNavWinRate() {
   const el = document.getElementById('navWinRate');
   if (!el) return;
   try {
-    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return;
     const rows = await r.json();
     if (!Array.isArray(rows)) return;
@@ -1316,7 +1319,9 @@ async function fetchSeasonality(sym, type) {
 // under-confidence. Needs a minimum of resolved calls to be meaningful.
 async function fetchCalibration() {
   try {
-    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
+    // resolved=true → the FULL graded history (old resolved swing/position rows
+    // must never fall off a recent-rows window as scan volume grows).
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1420,7 +1425,7 @@ function setupDistance(a, b) {
 async function fetchMetaLabel(features) {
   try {
     if (!features) return null;
-    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1431,8 +1436,13 @@ async function fetchMetaLabel(features) {
       if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
       return f ? { d: setupDistance(features, f), win: x.outcome === 'tp_hit' } : null;
     }).filter(Boolean).sort((a, b) => a.d - b.d);
+    // Evidence gate (learning-loop research): with few, loosely-similar neighbours a
+    // k-NN directive is noise wearing the costume of evidence — injecting it measurably
+    // HURTS (Halawi 2024: Brier 0.240 vs 0.175 below ~5 relevant items; the skeptic's
+    // dimensionality math says <10 neighbours ≈ the global base rate + variance).
+    // Below 10 genuinely-similar resolved setups: silence.
     const near = scored.slice(0, 15).filter(s => s.d <= 0.45);   // only genuinely similar
-    if (near.length < 4) return null;
+    if (near.length < 10) return null;
     const wins   = near.filter(s => s.win).length;
     const rawAcc = wins / near.length;
     const base   = resolved.filter(x => x.outcome === 'tp_hit').length / resolved.length;
@@ -1451,7 +1461,7 @@ async function fetchMetaLabel(features) {
 async function fetchLessons(features) {
   try {
     if (!features) return [];
-    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return [];
     const rows = await r.json();
     if (!Array.isArray(rows)) return [];
@@ -2798,9 +2808,21 @@ HOW TO USE — the crypto-native board the price chart can't show (MEDIUM-HIGH t
     // This is the self-correction loop: feed back how often calls at each stated
     // confidence actually hit TP, so the committee can adjust for over/underconfidence.
     let calibrationBlock = '';
-    if (calibration && calibration.lines?.length) {
-      const rows = calibration.lines.map(l => `  • Stated ${l.band} → ${l.acc}% actually hit TP (n=${l.n})`).join('\n');
-      calibrationBlock = `\n━━━ ⚖ CONFIDENCE CALIBRATION (your realised hit-rate by stated confidence, ${calibration.n} resolved calls; overall ${calibration.overallAcc}%) ━━━\n${rows}\nCALIBRATION DIRECTIVE: This is YOUR historical accuracy at each confidence level across ALL symbols. If a band's realised hit-rate is well BELOW the stated confidence, you have been systematically OVERCONFIDENT there — pick a confidence_score whose band has historically matched the real outcome. Do not state 85% if your 80–89% calls have only hit ~55%.`;
+    if (!_controlArm && calibration && calibration.lines?.length) {
+      // Evidence gate (learning-loop research): a per-band line needs ~25+ resolved
+      // calls before its hit-rate means anything (±10pp CI even at n=100). Thin
+      // bands injected as "feedback" are noise the committee will anchor on.
+      // Below-threshold bands are omitted; if none qualify, an overall-only line
+      // (which aggregates across bands) is sent once there are ≥10 resolved calls.
+      // The HARD post-hoc remap (calibrateConfidence) is unaffected — its Bayesian
+      // shrinkage handles thin bands mathematically and sits outside the LLM.
+      const solid = calibration.lines.filter(l => l.n >= 25);
+      if (solid.length) {
+        const rows = solid.map(l => `  • Stated ${l.band} → ${l.acc}% actually hit TP (n=${l.n})`).join('\n');
+        calibrationBlock = `\n━━━ ⚖ CONFIDENCE CALIBRATION (your realised hit-rate by stated confidence, ${calibration.n} resolved calls; overall ${calibration.overallAcc}%) ━━━\n${rows}\nCALIBRATION DIRECTIVE: This is YOUR historical accuracy at each confidence level across ALL symbols. If a band's realised hit-rate is well BELOW the stated confidence, you have been systematically OVERCONFIDENT there — pick a confidence_score whose band has historically matched the real outcome. Do not state 85% if your 80–89% calls have only hit ~55%.`;
+      } else if (calibration.n >= 10) {
+        calibrationBlock = `\n━━━ ⚖ CONFIDENCE CALIBRATION ━━━\nAcross ${calibration.n} resolved calls (all confidence levels pooled), ${calibration.overallAcc}% hit TP. Per-band data is still too thin to act on — calibrate your confidence against this overall base rate and avoid extreme confidence in either direction.`;
+      }
     }
 
     // ── Confluence Score block ─────────────────────────────────────────────────
@@ -3122,7 +3144,7 @@ ${sharedData}`;
       confluence: confluenceScore?.bullPct,
       regimeName: engineData?.regime?.name,
     });
-    const metaLabel = await fetchMetaLabel(setupFeatures);
+    const metaLabel = _controlArm ? null : await fetchMetaLabel(setupFeatures);
     let metaLabelBlock = '';
     if (metaLabel) {
       const directive = metaLabel.pCorrect < 45
@@ -3135,7 +3157,7 @@ ${sharedData}`;
 
     // Qualitative post-mortems from structurally-similar resolved trades — the "what
     // went wrong / right" the engine learns from each closed call (see History tab).
-    const lessons = await fetchLessons(setupFeatures);
+    const lessons = _controlArm ? [] : await fetchLessons(setupFeatures);
     let lessonsBlock = '';
     if (lessons.length) {
       const items = lessons.map(l => {
@@ -3530,6 +3552,15 @@ function initAutocomplete() {
 let _compareOriginal = null; // holds the historical row for comparison
 let _updateMode = false;     // arrived via ?update=ID — preserve the original trade (legacy)
 let _autoScan = false;       // arrived via ?auto=1 — bot scan (auto-scan workflow)
+let _controlArm = false;     // arrived via ?control=1 — DIRECTIVE-BLIND scan: the
+                             // calibration/meta-label/lessons feedback blocks are NOT
+                             // injected into the committee prompt. ~15% of auto-scans
+                             // run blind as a permanent control arm: it (a) measures
+                             // whether the learning loops actually help (A/B on
+                             // resolved outcomes) and (b) stops the k-NN feedback loop
+                             // from entrenching its own early noise (cold-start
+                             // self-fulfillment). The HARD post-hoc confidence remap
+                             // still applies — it lives outside the LLM.
 let _validateMode = false;   // arrived via ?validate=ID — re-check an existing trade
 let _validateTarget = null;  // the original trade row being re-validated
 
@@ -3679,7 +3710,7 @@ async function showValidationBanner(target, fresh) {
   // Learned track record for this kind of re-check (dormant until enough resolved).
   let trackNote = '';
   try {
-    const rows = await fetch('/api/memory?all=true&lean=true&limit=1000').then(r => r.json());
+    const rows = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000').then(r => r.json());
     const vr = computeValidationReliability(rows);
     const s = vr[rec.assessment];
     if (s && s.n >= 4) {
@@ -3755,6 +3786,7 @@ document.addEventListener('DOMContentLoaded', () => {
   //    original and save it as research. This is the current History "Update" button.
   //  • update/compare → legacy paths (new dated row / before-after banner).
   if (params.get('auto') === '1') _autoScan = true;   // bot scan from the auto-scan workflow
+  if (params.get('control') === '1') _controlArm = true;   // directive-blind control-arm scan
   const validateId = params.get('validate');
   const compareId  = params.get('compare');
   const updateId   = params.get('update');
