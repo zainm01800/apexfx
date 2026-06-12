@@ -37,17 +37,34 @@ export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
   // ── GET: fetch analyses ─────────────────────────────────────────────────────
+  //   ?sym=NVDA                  — last 50 analyses for one symbol
+  //   ?all=true&limit=N          — recent scans across every symbol (cap 1000)
+  //   ?id=<row id>               — one specific row (returned as a 1-element array)
+  //   &lean=true                 — drop the big prose fields (~6× smaller rows; what
+  //                                the calibration/meta-label/track-record loops use,
+  //                                so 1000-row reads stay cheap at 200 scans/week)
+  //   &open=true                 — only unresolved rows (outcome null/pending)
   if (req.method === 'GET') {
     const sym    = (url.searchParams.get('sym') || '').trim().toUpperCase();
+    const id     = (url.searchParams.get('id') || '').trim();
     const all    = url.searchParams.get('all') === 'true';
-    const limit  = Math.min(200, parseInt(url.searchParams.get('limit') || '80', 10));
+    const lean   = url.searchParams.get('lean') === 'true';
+    const open   = url.searchParams.get('open') === 'true';
+    const limit  = Math.min(1000, parseInt(url.searchParams.get('limit') || '80', 10));
+
+    // Everything EXCEPT the large prose fields (summary + the 4 analysis texts etc.).
+    const LEAN_COLS = 'id,symbol,asset_type,analysis_date,price,verdict,confidence,target_price,entry_zone,stop_loss,risk_reward,timeframe,outcome,outcome_price,outcome_date,created_at,setup_features,lesson,validations';
+    const select  = lean ? `&select=${LEAN_COLS}` : '';
+    const openFlt = open ? '&or=(outcome.is.null,outcome.eq.pending)' : '';
 
     try {
-      const query = all
-        ? `${TABLE}?order=created_at.desc&limit=${limit}`
-        : `${TABLE}?symbol=eq.${encodeURIComponent(sym)}&order=created_at.desc&limit=15`;
+      const query = id
+        ? `${TABLE}?id=eq.${encodeURIComponent(id)}&limit=1`
+        : all
+          ? `${TABLE}?order=created_at.desc&limit=${limit}${select}${openFlt}`
+          : `${TABLE}?symbol=eq.${encodeURIComponent(sym)}&order=created_at.desc&limit=50${select}${openFlt}`;
 
-      if (!all && !sym) return new Response(JSON.stringify([]), { headers: cors });
+      if (!id && !all && !sym) return new Response(JSON.stringify([]), { headers: cors });
 
       const res  = await fetch(query, { headers: supaHeaders() });
       const data = res.ok ? await res.json() : [];

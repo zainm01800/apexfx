@@ -70,7 +70,7 @@
       <div class="tr-note">Every resolved call is shown — no cherry-picking. A verdict resolves when price reaches the take-profit (✓) or stop-loss (✗) it stated.</div>`;
   }
 
-  fetch('/api/memory?all=true&limit=200')
+  fetch('/api/memory?all=true&lean=true&limit=1000')
     .then((r) => r.ok ? r.json() : [])
     .then((rows) => {
       if (!Array.isArray(rows)) rows = [];

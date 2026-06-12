@@ -1,30 +1,34 @@
 name: auto-scan
 
-# Runs a Deep Analyse on a fixed watchlist by driving the live dashboard headlessly,
-# so the AI committee's verdicts + setup_features vectors keep accumulating in
-# apex_research_memory with nobody clicking Analyse. This is what feeds the
-# confidence-calibration and structural meta-label loops (both are dormant until
-# enough resolved, feature-tagged rows exist). Each scan also resolves prior open
-# outcomes. No keys needed — it uses the deployed site, which holds the AI keys
-# server-side.
+# Runs Deep Analyses by driving the live dashboard headlessly, so the AI committee's
+# verdicts + setup_features vectors keep accumulating in apex_research_memory with
+# nobody clicking Analyse. This feeds the confidence-calibration and structural
+# meta-label loops. Each scan also resolves prior open outcomes. No keys needed —
+# it uses the deployed site, which holds the AI keys server-side.
 #
-# Cadence: ONCE daily. The script picks a coverage-weighted RANDOM subset of the
-# universe and decides eligibility itself by day (weekends + US holidays → crypto only,
-# since stocks/FX are closed; weekdays → all asset classes), so the workflow no longer
-# needs day-specific branches. The dashboard refreshes the same open row for same-
-# direction same-UTC-day re-scans (anti-duplicate), so it never double-counts.
+# Cadence: TWICE daily on weekdays, once on weekends — ~200 scans/week total across
+# ALL four trade styles, allocated per the learning-loop research (intraday 30% /
+# swing 30% / scalp 20% / position 20%):
+#   - midday  (15:10 UTC, Mon–Fri): scalp 6 + intraday 10 — US + London markets are
+#     OPEN, which scalp/intraday need; these resolve in hours–days (fast learning).
+#   - evening (22:07 UTC, daily):   swing 10 + position 6 on fresh post-close daily
+#     bars; weekends/US holidays the script itself switches to crypto-only, all four
+#     styles (5 each). Re-validation of open trades runs in the evening only.
+# The script excludes instrument×style cells that already have an OPEN trade
+# (pseudo-replication guard) and re-validates those instead.
 
 on:
   schedule:
-    - cron: "7 22 * * *"       # daily 22:00 UTC (after US close → daily bars fresh)
+    - cron: "10 15 * * 1-5"    # midday (weekdays): scalp + intraday, markets open
+    - cron: "7 22 * * *"       # evening (daily): swing + position / weekend crypto mix
   workflow_dispatch:
     inputs:
       symbols:
         description: "Comma-separated list (overrides the random rotation)"
         required: false
         default: ""
-      count:
-        description: "How many to scan this run (default 16)"
+      mix:
+        description: "Style mix e.g. scalp:4,intraday:8 (overrides the mode default)"
         required: false
         default: ""
 
@@ -42,12 +46,11 @@ jobs:
           npm i --no-save playwright@1.49.1
           npx playwright install --with-deps chromium
       - name: Run auto-scan
-        # Each pick is scanned in BOTH swing (core) and intraday (resolves in hours/days,
-        # so the forward track record builds credibility faster). 10 picks × 2 styles =
-        # 20 forward trades/day from one browser launch (CI-bounded). Empty symbols →
-        # the script rotates coverage-weighted over today's eligible pool.
         env:
           APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
-          APEX_SCAN_COUNT: ${{ github.event.inputs.count || '10' }}
-          APEX_SCAN_STYLES: "swing,intraday"
+          APEX_SCAN_MIX: ${{ github.event.inputs.mix || '' }}
+          # Which cron fired decides the style mix; manual dispatches default to evening.
+          APEX_SCAN_MODE: ${{ github.event.schedule == '10 15 * * 1-5' && 'midday' || 'evening' }}
+          # Open-trade re-validation only on the evening run (keeps AI usage bounded).
+          APEX_REVALIDATE_MAX: ${{ github.event.schedule == '10 15 * * 1-5' && '0' || '10' }}
         run: node scripts/auto-scan.mjs

@@ -12,9 +12,11 @@
 //
 // USAGE:  node scripts/auto-scan.mjs            (rotate randomly over the universe)
 //         node scripts/auto-scan.mjs --plan     (print what it WOULD scan, no browser)
-// CONFIG: APEX_SCAN_SYMBOLS="NVDA,EUR/USD" overrides the rotation with a fixed list,
-//         APEX_SCAN_COUNT=16 sets how many to scan this run,
-//         APEX_SCAN_BASE points at a different deployment.
+// CONFIG: APEX_SCAN_MODE=midday|evening         picks the default style mix (else by UTC hour)
+//         APEX_SCAN_MIX="scalp:6,intraday:10"   explicit style→count mix (overrides mode)
+//         APEX_SCAN_SYMBOLS="NVDA,EUR/USD"      fixed list (scanned in every mix style)
+//         APEX_SCAN_STYLES+APEX_SCAN_COUNT      legacy: COUNT picks × each style
+//         APEX_SCAN_BASE                        points at a different deployment
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { chromium } from 'playwright';
@@ -39,12 +41,58 @@ const US_HOLIDAYS_2026 = new Set([
 
 const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow for one internal retry
 
-// Trade styles to scan each pick in. Default '' = the site's default (swing). Set
-// APEX_SCAN_STYLES="swing,intraday" to cover both horizons in one run — intraday
-// trades resolve in hours/days (vs weeks for swing), so the forward track record (the
-// real, un-fakeable validation) builds credibility faster.
-const STYLES = (process.env.APEX_SCAN_STYLES || '').split(',').map(s => s.trim()).filter(Boolean);
-const STYLE_LIST = STYLES.length ? STYLES : [''];
+// ── Style mix ──────────────────────────────────────────────────────────────────
+// Every trade style is scanned, but with different weights per run window so the
+// learning loops get balanced data at ~200 scans/week total:
+//   midday  (weekdays, markets OPEN)  → scalp + intraday — these need a live tape,
+//            and they resolve in hours/days, so they feed calibration fastest.
+//   evening (daily, after US close)   → swing + position on fresh daily/weekly bars.
+//   weekends/US holidays              → crypto only (24/7), all four styles.
+// Weekly volume: 5×(16+16) + 2×20 = 200 attempted scans, allocated per the
+// learning-loop research: intraday 60 (30%) + swing 60 (30%) are the learning
+// workhorses (7–30d resolution, best label fidelity); scalp 40 (20%) is capped
+// because 15-min-delayed data makes its labels least trustworthy; position 40
+// (20%) because 120-day expiries teach the slowest.
+// Override with APEX_SCAN_MIX="style:count,..." or legacy APEX_SCAN_STYLES+COUNT.
+const DEFAULT_MIX = {
+  midday:  { scalp: 6, intraday: 10 },                       // 16 — markets open
+  evening: { swing: 10, position: 6 },                       // 16 — daily bars fresh
+  offday:  { scalp: 5, intraday: 5, swing: 5, position: 5 }, // 20 — crypto only
+};
+
+function runMode(d = new Date()) {
+  const m = (process.env.APEX_SCAN_MODE || '').trim().toLowerCase();
+  if (m === 'midday' || m === 'evening') return m;
+  return d.getUTCHours() < 19 ? 'midday' : 'evening';
+}
+
+function parseMix(str) {
+  const mix = {};
+  for (const part of String(str).split(',')) {
+    const [style, n] = part.split(':').map(s => s.trim());
+    if (style && parseInt(n, 10) > 0) mix[style.toLowerCase()] = parseInt(n, 10);
+  }
+  return Object.keys(mix).length ? mix : null;
+}
+
+// Resolve this run's style→count mix from env or the defaults for today/this window.
+function resolveMix(dt) {
+  if (process.env.APEX_SCAN_MIX) {
+    const m = parseMix(process.env.APEX_SCAN_MIX);
+    if (m) return { mix: m, source: 'APEX_SCAN_MIX' };
+  }
+  // Legacy: APEX_SCAN_STYLES + APEX_SCAN_COUNT → COUNT picks scanned in EACH style.
+  if (process.env.APEX_SCAN_STYLES) {
+    const styles = process.env.APEX_SCAN_STYLES.split(',').map(s => s.trim()).filter(Boolean);
+    const n = Math.max(1, parseInt(process.env.APEX_SCAN_COUNT || '10', 10));
+    const m = {};
+    for (const s of styles) m[s] = n;
+    return { mix: m, source: 'APEX_SCAN_STYLES (legacy)' };
+  }
+  if (dt.cryptoOnly) return { mix: { ...DEFAULT_MIX.offday }, source: 'default offday (crypto-only)' };
+  const mode = runMode();
+  return { mix: { ...DEFAULT_MIX[mode] }, source: `default ${mode}` };
+}
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -60,22 +108,30 @@ function dayType(d = new Date()) {
 }
 const eligiblePool = (dt) => dt.cryptoOnly ? [...UNIVERSE.Crypto] : Object.values(UNIVERSE).flat();
 
-// How many times each symbol has already been scanned — so we can bias the random
-// pick toward UNDER-sampled names and fill the dataset in balanced. null on failure.
+// How many times each (symbol × style) cell has already been scanned — so each
+// style's draw is biased toward names UNDER-sampled in THAT style, filling the
+// dataset in balanced across the whole style×instrument grid. null on failure.
 async function getScanCounts() {
   try {
-    const rows = await fetch(`${BASE}/api/memory?all=true&limit=500`).then(r => r.json());
+    const rows = await fetch(`${BASE}/api/memory?all=true&lean=true&limit=1000`).then(r => r.json());
     if (!Array.isArray(rows)) return null;
-    const c = {};
-    for (const r of rows) if (r.symbol) c[r.symbol] = (c[r.symbol] || 0) + 1;
+    const c = {};   // 'SYM|style' → count  (missing style = legacy swing scans)
+    for (const r of rows) {
+      if (!r.symbol) continue;
+      let f = r.setup_features;
+      if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+      const style = (f && f.style ? String(f.style) : 'swing').toLowerCase();
+      const key = `${r.symbol}|${style}`;
+      c[key] = (c[key] || 0) + 1;
+    }
     return c;
   } catch { return null; }
 }
 
 // Weighted random sample WITHOUT replacement; weight = 1/(scans+1) so rarely-scanned
-// instruments are favoured. Uniform when counts is null (query failed).
-function weightedSample(pool, n, counts) {
-  const items = pool.map(s => ({ s, w: counts ? 1 / ((counts[s] || 0) + 1) : 1 }));
+// cells are favoured. Uniform when weightOf is null (count query failed).
+function weightedSample(pool, n, weightOf) {
+  const items = pool.map(s => ({ s, w: weightOf ? 1 / (weightOf(s) + 1) : 1 }));
   const out = [];
   n = Math.min(n, items.length);
   for (let k = 0; k < n; k++) {
@@ -89,24 +145,58 @@ function weightedSample(pool, n, counts) {
   return out;
 }
 
-// Decide this run's symbols: explicit override, else a coverage-weighted random draw
-// from today's eligible pool. Returns {syms, plan} where plan explains the choice.
-async function selectSymbols() {
+// Decide this run's jobs: explicit symbol override (scanned in every mix style), else
+// per-style coverage-weighted random draws from today's eligible pool. Each style
+// draws INDEPENDENTLY (a symbol can be picked for scalp and swing — different trades).
+// Returns { jobs: [{sym, style}], plan }.
+async function selectJobs() {
+  const dt = dayType();
+  const { mix, source: mixSource } = resolveMix(dt);
+
   if (process.env.APEX_SCAN_SYMBOLS) {
     const syms = process.env.APEX_SCAN_SYMBOLS.split(',').map(s => s.trim()).filter(Boolean);
-    return { syms, plan: { source: 'APEX_SCAN_SYMBOLS override', dayType: 'n/a', poolSize: syms.length, counts: null } };
+    const styles = Object.keys(mix);
+    const jobs = [];
+    for (const sym of syms) for (const style of styles) jobs.push({ sym, style });
+    return { jobs, plan: { source: 'APEX_SCAN_SYMBOLS override', dayType: dt.type, mix, mixSource, poolSize: syms.length, cells: null } };
   }
-  const dt = dayType();
+
   const pool = eligiblePool(dt);
-  const N = Math.min(Math.max(1, parseInt(process.env.APEX_SCAN_COUNT || '16', 10)), pool.length);
   const counts = await getScanCounts();
-  const syms = weightedSample(pool, N, counts);
+
+  // Pseudo-replication guard (learning-loop research): while an instrument×style
+  // trade is still OPEN, don't open a second one — the re-validation phase already
+  // re-checks it. Stacked same-cell trades share one market move, so they'd inflate
+  // the record's nominal N without adding independent information.
+  let openCells = new Set();
+  try {
+    const open = await fetch(`${BASE}/api/memory?all=true&open=true&lean=true&limit=1000`).then(r => r.json());
+    for (const r of (Array.isArray(open) ? open : [])) {
+      if (!r.symbol || !r.target_price || !r.stop_loss) continue;
+      let f = r.setup_features;
+      if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+      openCells.add(`${r.symbol}|${(f && f.style ? String(f.style) : 'swing').toLowerCase()}`);
+    }
+  } catch { openCells = new Set(); }
+
+  const jobs = [], cells = [];
+  let skippedOpen = 0;
+  for (const [style, n] of Object.entries(mix)) {
+    const stylePool = pool.filter(s => !openCells.has(`${s}|${style}`));
+    skippedOpen += pool.length - stylePool.length;
+    const picked = weightedSample(stylePool, n, counts ? (s) => counts[`${s}|${style}`] || 0 : null);
+    for (const sym of picked) {
+      jobs.push({ sym, style });
+      if (counts) cells.push(`${sym}/${style}:${counts[`${sym}|${style}`] || 0}`);
+    }
+  }
   return {
-    syms,
+    jobs,
     plan: {
-      source: counts ? 'coverage-weighted random' : 'uniform random (scan-count query failed)',
-      dayType: dt.type, poolSize: pool.length, N,
-      counts: counts ? syms.map(s => `${s}:${counts[s] || 0}`) : null,
+      source: counts ? 'per-style coverage-weighted random' : 'uniform random (count query failed)',
+      dayType: dt.type, mix, mixSource, poolSize: pool.length,
+      openCellsExcluded: skippedOpen,
+      cells: cells.length ? cells : null,
     },
   };
 }
@@ -171,11 +261,11 @@ async function validateOne(page, sym, id) {
 async function main() {
   const PLAN_ONLY = process.argv.includes('--plan') || process.env.APEX_SCAN_PLAN === '1';
 
-  const { syms: SYMBOLS, plan } = await selectSymbols();
-  console.log(`[auto-scan] day=${plan.dayType} · eligible pool=${plan.poolSize} · scanning ${SYMBOLS.length} via ${plan.source}`);
-  console.log(`[auto-scan] symbols: ${SYMBOLS.join(', ')}`);
-  console.log(`[auto-scan] styles per symbol: ${STYLE_LIST.map(s => s || '(default swing)').join(', ')} → ${SYMBOLS.length * STYLE_LIST.length} scans`);
-  if (plan.counts) console.log(`[auto-scan] chosen scan-counts (lower = under-sampled → favoured): ${plan.counts.join(', ')}`);
+  const { jobs: JOBS, plan } = await selectJobs();
+  const mixStr = Object.entries(plan.mix).map(([s, n]) => `${s}×${n}`).join(' + ');
+  console.log(`[auto-scan] day=${plan.dayType} · mode mix=${mixStr} (${plan.mixSource}) · pool=${plan.poolSize} · ${JOBS.length} scans via ${plan.source}${plan.openCellsExcluded ? ` · ${plan.openCellsExcluded} open cells excluded (re-validated instead)` : ''}`);
+  console.log(`[auto-scan] jobs: ${JOBS.map(j => `${j.sym}(${j.style})`).join(', ')}`);
+  if (plan.cells) console.log(`[auto-scan] chosen cell-counts (lower = under-sampled → favoured): ${plan.cells.join(', ')}`);
   if (PLAN_ONLY) { console.log('[auto-scan] PLAN ONLY — not launching the browser. ✔'); return; }
   console.log(`[auto-scan] target: ${BASE}`);
 
@@ -183,29 +273,27 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   const summary = { ok: 0, error: 0, cooldown: 0 };
-  for (const sym of SYMBOLS) {
-    for (const style of STYLE_LIST) {
-      const t0 = Date.now();
-      const tag = style ? `${sym} ${style}` : sym;
-      try {
-        const r = await scanOne(page, sym, style);
-        const secs = ((Date.now() - t0) / 1000).toFixed(0);
-        if (r.status === 'ok') {
-          summary.ok++;
-          console.log(`  ✓ ${tag.padEnd(16)} ${r.verdict} ${r.conf}  (${secs}s)`);
-        } else if (r.status === 'cooldown') {
-          summary.cooldown++;
-          console.log(`  ⏳ ${tag.padEnd(16)} skipped (cooldown)  (${secs}s)`);
-        } else {
-          summary.error++;
-          console.log(`  ✗ ${tag.padEnd(16)} ${r.msg}  (${secs}s)`);
-        }
-      } catch (e) {
+  for (const { sym, style } of JOBS) {
+    const t0 = Date.now();
+    const tag = `${sym} ${style}`;
+    try {
+      const r = await scanOne(page, sym, style);
+      const secs = ((Date.now() - t0) / 1000).toFixed(0);
+      if (r.status === 'ok') {
+        summary.ok++;
+        console.log(`  ✓ ${tag.padEnd(20)} ${r.verdict} ${r.conf}  (${secs}s)`);
+      } else if (r.status === 'cooldown') {
+        summary.cooldown++;
+        console.log(`  ⏳ ${tag.padEnd(20)} skipped (cooldown)  (${secs}s)`);
+      } else {
         summary.error++;
-        console.log(`  ✗ ${tag.padEnd(16)} ${e.message?.split('\n')[0] || e}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+        console.log(`  ✗ ${tag.padEnd(20)} ${r.msg}  (${secs}s)`);
       }
-      await sleep(1500);   // small spacer to ease rate limits
+    } catch (e) {
+      summary.error++;
+      console.log(`  ✗ ${tag.padEnd(20)} ${e.message?.split('\n')[0] || e}  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
     }
+    await sleep(1500);   // small spacer to ease rate limits
   }
 
   // ── Auto re-validation of OPEN trades ───────────────────────────────────────
@@ -217,7 +305,9 @@ async function main() {
     // Clear cooldowns set during the scan loop so we can re-check freely.
     await page.evaluate(() => { try { localStorage.clear(); } catch {} });
     const open = await page.evaluate(async () => {
-      const rows = await fetch('/api/memory?all=true&limit=200').then(r => r.json()).catch(() => []);
+      // open=true → ALL unresolved trades regardless of age (at 200 scans/week an
+      // open trade can be far older than any recent-rows window).
+      const rows = await fetch('/api/memory?all=true&open=true&lean=true&limit=1000').then(r => r.json()).catch(() => []);
       return (Array.isArray(rows) ? rows : [])
         .filter(r => (r.outcome == null || r.outcome === 'pending') && r.target_price && r.stop_loss
           && /BUY|SELL|SHORT|LONG|WAIT|HOLD|NO_EDGE/i.test(r.verdict || ''))

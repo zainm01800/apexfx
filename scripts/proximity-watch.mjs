@@ -45,7 +45,9 @@ async function lastPrice(sym, type) {
 }
 
 async function findClose() {
-  const rows = await fetch(`${BASE}/api/memory?all=true&limit=200`).then(r => r.json()).catch(() => []);
+  // open=true → ALL unresolved trades regardless of age (an open position-style
+  // trade can be months old and must never fall off a recent-rows window).
+  const rows = await fetch(`${BASE}/api/memory?all=true&open=true&lean=true&limit=1000`).then(r => r.json()).catch(() => []);
   const open = (Array.isArray(rows) ? rows : []).filter(r =>
     (r.outcome == null || r.outcome === 'pending') && r.entry_zone && r.target_price && r.stop_loss &&
     /BUY|SELL|SHORT|LONG|WAIT|NO_EDGE|HOLD/i.test(r.verdict || ''));

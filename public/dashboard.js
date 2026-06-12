@@ -1238,7 +1238,7 @@ async function loadNavWinRate() {
   const el = document.getElementById('navWinRate');
   if (!el) return;
   try {
-    const r = await fetch('/api/memory?all=true&limit=200');
+    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
     if (!r.ok) return;
     const rows = await r.json();
     if (!Array.isArray(rows)) return;
@@ -1316,7 +1316,7 @@ async function fetchSeasonality(sym, type) {
 // under-confidence. Needs a minimum of resolved calls to be meaningful.
 async function fetchCalibration() {
   try {
-    const r = await fetch('/api/memory?all=true&limit=200');
+    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1420,7 +1420,7 @@ function setupDistance(a, b) {
 async function fetchMetaLabel(features) {
   try {
     if (!features) return null;
-    const r = await fetch('/api/memory?all=true&limit=200');
+    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1451,7 +1451,7 @@ async function fetchMetaLabel(features) {
 async function fetchLessons(features) {
   try {
     if (!features) return [];
-    const r = await fetch('/api/memory?all=true&limit=200');
+    const r = await fetch('/api/memory?all=true&lean=true&limit=1000');
     if (!r.ok) return [];
     const rows = await r.json();
     if (!Array.isArray(rows)) return [];
@@ -3630,7 +3630,9 @@ function buildValidation(target, analysis, curr) {
 async function saveValidation(target, analysis, curr) {
   const rec = buildValidation(target, analysis, curr);
   try {
-    const rows = await fetch('/api/memory?all=true&limit=200').then(r => r.json()).catch(() => null);
+    // By-id lookup: at 200 scans/week an open trade can be far older than any
+    // recent-rows window, so never search for it in a limited list.
+    const rows = await fetch(`/api/memory?id=${encodeURIComponent(target.id)}`).then(r => r.json()).catch(() => null);
     let vals = [];
     const row = Array.isArray(rows) ? rows.find(r => r.id === target.id) : null;
     let v = row ? row.validations : null;
@@ -3677,7 +3679,7 @@ async function showValidationBanner(target, fresh) {
   // Learned track record for this kind of re-check (dormant until enough resolved).
   let trackNote = '';
   try {
-    const rows = await fetch('/api/memory?all=true&limit=200').then(r => r.json());
+    const rows = await fetch('/api/memory?all=true&lean=true&limit=1000').then(r => r.json());
     const vr = computeValidationReliability(rows);
     const s = vr[rec.assessment];
     if (s && s.n >= 4) {
@@ -3760,7 +3762,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (validateId) _validateMode = true;
   if (updateId)   _updateMode = true;
   if (loadId) {
-    fetch(`/api/memory?all=true&limit=200`)
+    fetch(`/api/memory?id=${encodeURIComponent(loadId)}`)
       .then(r => r.json())
       .then(rows => {
         const row = rows.find(r => r.id === loadId);
