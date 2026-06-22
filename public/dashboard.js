@@ -1412,6 +1412,7 @@ function setupDistance(a, b) {
   }
   if (!n) return Infinity;
   let d = Math.sqrt(sum / n);
+  if (a.asset && b.asset && a.asset !== b.asset) d += 0.15;   // penalise cross-asset class matching
   if (a.trendAlign !== b.trendAlign) d += 0.15;
   if (a.regime && b.regime && a.regime !== b.regime) d += 0.15;
   if (a.style  && b.style  && a.style  !== b.style)  d += 0.10;

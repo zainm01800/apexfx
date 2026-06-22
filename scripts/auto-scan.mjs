@@ -53,11 +53,10 @@ const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow f
 // workhorses (7–30d resolution, best label fidelity); scalp 40 (20%) is capped
 // because 15-min-delayed data makes its labels least trustworthy; position 40
 // (20%) because 120-day expiries teach the slowest.
-// Override with APEX_SCAN_MIX="style:count,..." or legacy APEX_SCAN_STYLES+COUNT.
 const DEFAULT_MIX = {
-  midday:  { scalp: 6, intraday: 10 },                       // 16 — markets open
-  evening: { swing: 10, position: 6 },                       // 16 — daily bars fresh
-  offday:  { scalp: 5, intraday: 5, swing: 5, position: 5 }, // 20 — crypto only
+  midday:  { scalp: 10, intraday: 15 },                       // 25 — markets open (was 16)
+  evening: { swing: 15, position: 10 },                       // 25 — daily bars fresh (was 16)
+  offday:  { scalp: 8, intraday: 8, swing: 8, position: 8 },  // 32 — crypto only (was 20)
 };
 
 function runMode(d = new Date()) {

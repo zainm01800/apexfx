@@ -19,8 +19,8 @@ name: auto-scan
 
 on:
   schedule:
-    - cron: "10 15 * * 1-5"    # midday (weekdays): scalp + intraday, markets open
-    - cron: "7 22 * * *"       # evening (daily): swing + position / weekend crypto mix
+    - cron: "0 8-22/2 * * 1-5"    # every 2 hours from 08:00 to 22:00 UTC on weekdays (8 runs/day)
+    - cron: "0 22 * * *"          # evening run daily at 22:00 UTC (swing/position check and weekend crypto check)
   workflow_dispatch:
     inputs:
       symbols:
@@ -49,8 +49,5 @@ jobs:
         env:
           APEX_SCAN_SYMBOLS: ${{ github.event.inputs.symbols || '' }}
           APEX_SCAN_MIX: ${{ github.event.inputs.mix || '' }}
-          # Which cron fired decides the style mix; manual dispatches default to evening.
-          APEX_SCAN_MODE: ${{ github.event.schedule == '10 15 * * 1-5' && 'midday' || 'evening' }}
-          # Open-trade re-validation only on the evening run (keeps AI usage bounded).
-          APEX_REVALIDATE_MAX: ${{ github.event.schedule == '10 15 * * 1-5' && '0' || '10' }}
+          APEX_REVALIDATE_MAX: '10'
         run: node scripts/auto-scan.mjs
