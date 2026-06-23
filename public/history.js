@@ -471,12 +471,15 @@ function renderCard(g) {
     ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold? The 'historically' note is the realised track record of this kind of re-check.">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}<span class="sc-valid-stat">${escHtml(reliabilityNote(_lastVal.assessment))}</span></div>`
     : '';
 
+  const isResolved = row.outcome && row.outcome !== 'pending';
+  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+
   return `
     <div class="scan-card ${vc}">
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}</div>
+          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}${resolvedStr}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
@@ -580,6 +583,9 @@ function openPreview(id) {
   const reasons = parseReasons(row.key_reasons);
   const outcomeCls = row.outcome || 'pending';
 
+  const isResolved = row.outcome && row.outcome !== 'pending';
+  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+
   const targets = [
     row.entry_zone   ? ['Entry',  escHtml(String(row.entry_zone)), 'entry']  : null,
     row.target_price ? ['Target', '$' + fmtPrice(row.target_price), 'target'] : null,
@@ -592,7 +598,7 @@ function openPreview(id) {
     <div class="pv-head">
       <div>
         <div class="pv-sym">${escHtml(row.symbol)} <span class="pv-type">${escHtml(row.asset_type || 'Stock')}</span></div>
-        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))} · @ $${fmtPrice(row.price)}</div>
+        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))} · @ $${fmtPrice(row.price)}${resolvedStr}</div>
       </div>
       <button class="pv-close" data-action="pv-close" aria-label="Close">✕</button>
     </div>
