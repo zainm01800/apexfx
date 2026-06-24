@@ -116,7 +116,7 @@ function gradeRow(row, res, candles) {
 
   const eb = entryBounds(row.entry_zone);
   const scanPx = parseFloat(row.price);
-  const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
+  const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
   let filled = !eb || atMarket;
   let filledAt = filled ? entryTs : null;
   for (const bar of afterEntry) {

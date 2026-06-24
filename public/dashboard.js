@@ -587,7 +587,7 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
         // hit without ever filling is a phantom win that never existed.
         const eb = entryBounds(row.entry_zone);
         const scanPx = parseFloat(row.price);
-        const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
+        const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
         let filled = !eb || atMarket;
         for (const b of barsAfter) {
           if (!filled) {
