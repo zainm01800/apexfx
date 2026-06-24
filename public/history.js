@@ -92,9 +92,28 @@ function gradeRow(row, res, candles) {
   if (dir === 'neutral') return null;
   const entryTs = rowTs(row) / 1000;
   const tfSec = TF_SECONDS[res.tf] || 86400;
-  const afterEntry = (res.tf === '1d' || res.tf === '1w')
+  let afterEntry = (res.tf === '1d' || res.tf === '1w')
     ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
     : candles.filter(c => c.time >= entryTs + tfSec);
+
+  // Sanitize opening print spikes for Stocks/ETFs (Yahoo Finance data anomalies)
+  const type = row.asset_type || 'Stock';
+  if (type === 'Stock' || type === 'ETF') {
+    afterEntry = afterEntry.map((c, i) => {
+      const isFirstOfDay = (i === 0) || (new Date(c.time * 1000).getUTCDate() !== new Date(afterEntry[i-1].time * 1000).getUTCDate());
+      if (isFirstOfDay) {
+        const bodyMax = Math.max(c.open, c.close);
+        const bodyMin = Math.min(c.open, c.close);
+        // Clip extreme spikes (Form T / opening auction cross prints in Yahoo Finance API)
+        // limit high to 0.4% above bodyMax, low to 0.4% below bodyMin
+        const clippedHigh = Math.min(c.high, bodyMax * 1.004);
+        const clippedLow  = Math.max(c.low,  bodyMin * 0.996);
+        return { ...c, high: clippedHigh, low: clippedLow };
+      }
+      return c;
+    });
+  }
+
   const eb = entryBounds(row.entry_zone);
   const scanPx = parseFloat(row.price);
   const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
