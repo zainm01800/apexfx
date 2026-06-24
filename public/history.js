@@ -129,11 +129,11 @@ function gradeRow(row, res, candles) {
       }
     }
     if (dir === 'short') {
-      if (bar.low  <= tp) { row.filled_at = filledAt; return 'tp_hit'; }
-      if (bar.high >= sl) { row.filled_at = filledAt; return 'sl_hit'; }
+      if (bar.low  <= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (bar.high >= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     } else {
-      if (bar.high >= tp) { row.filled_at = filledAt; return 'tp_hit'; }
-      if (bar.low  <= sl) { row.filled_at = filledAt; return 'sl_hit'; }
+      if (bar.high >= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (bar.low  <= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     }
   }
   if (filled) row.filled_at = filledAt;
@@ -179,9 +179,11 @@ async function resolveIfPending(rows) {
             const resolved = graded || (ageDays > res.expiryDays ? 'expired' : null);
             if (resolved) {
               row.outcome = resolved;
+              const resolvedTime = row._resolved_at ? new Date(row._resolved_at).toISOString() : new Date().toISOString();
+              row.outcome_date = resolvedTime;
               fetch(API_MEMORY, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: new Date().toISOString().slice(0, 10) }),
+                body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: resolvedTime }),
               }).catch(() => {});
             }
           } else if (graded === null) {
@@ -190,10 +192,12 @@ async function resolveIfPending(rows) {
             // never triggered), else pending so it can resolve correctly later.
             const reverted = ageDays > res.expiryDays ? 'expired' : 'pending';
             row.outcome = reverted;
+            const outcomeDate = reverted === 'expired' ? new Date().toISOString() : null;
+            row.outcome_date = outcomeDate;
             fetch(API_MEMORY, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: row.id, outcome: reverted, outcome_price: null,
-                outcome_date: reverted === 'expired' ? new Date().toISOString().slice(0, 10) : null, lesson: '' }),
+                outcome_date: outcomeDate, lesson: '' }),
             }).catch(() => {});
           }
           // graded matches the stored outcome → leave it; differs (tp↔sl) → leave it
@@ -287,6 +291,20 @@ function fmtTimeUTC(row) {
 function fmtDateTime(row) {
   const time = fmtTimeUTC(row);
   return `${row.analysis_date || ''}${time ? ' · ' + time : ''}`;
+}
+
+// Format outcome date/time, e.g. "2026-06-05 · 17:30 UTC" or fallback to "2026-06-05" if no time exists.
+function fmtOutcomeDateTime(outcomeDate) {
+  if (!outcomeDate) return '';
+  if (outcomeDate.includes('T') || outcomeDate.includes(' ')) {
+    const d = new Date(outcomeDate);
+    if (!isNaN(d.getTime())) {
+      const datePart = d.toISOString().slice(0, 10);
+      const timePart = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+      return `${datePart} · ${timePart}`;
+    }
+  }
+  return outcomeDate;
 }
 
 // "Update" re-runs the FULL analysis to RE-CHECK an existing trade's validity. It does
@@ -529,7 +547,7 @@ function renderCard(g) {
     : '';
 
   const isResolved = row.outcome && row.outcome !== 'pending';
-  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(fmtOutcomeDateTime(row.outcome_date))}` : '';
   const activeStr = getActiveTimeDisplay(row);
 
   return `
@@ -642,7 +660,7 @@ function openPreview(id) {
   const outcomeCls = row.outcome || 'pending';
 
   const isResolved = row.outcome && row.outcome !== 'pending';
-  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(fmtOutcomeDateTime(row.outcome_date))}` : '';
   const activeStr = getActiveTimeDisplay(row);
 
   const targets = [

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS apex_research_memory (
   -- Outcome tracking (updated after price resolves)
   outcome       TEXT DEFAULT 'pending',  -- 'pending' | 'tp_hit' | 'sl_hit' | 'expired'
   outcome_price NUMERIC,
-  outcome_date  DATE,
+  outcome_date  TIMESTAMPTZ,
 
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );

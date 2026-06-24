@@ -575,7 +575,7 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
     const sl  = parseFloat(row.stop_loss);
     const ageDays = (Date.now() / 1000 - entryTs) / 86400;
 
-    let outcome = null, outcomePrice = null;
+    let outcome = null, outcomePrice = null, outcomeTime = null;
 
     // Only grade TP/SL when the candles we have match this row's resolution TF.
     if (res.tf === candleTf && barsAfter.length && !isNaN(tp) && !isNaN(sl)) {
@@ -595,17 +595,19 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
             else continue;
           }
           if (dir === 'short') {
-            if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
-            if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+            if (b.low  <= tp) { outcome = 'tp_hit'; outcomePrice = tp; outcomeTime = b.time * 1000; break; }
+            if (b.high >= sl) { outcome = 'sl_hit'; outcomePrice = sl; outcomeTime = b.time * 1000; break; }
           } else {
-            if (b.high >= tp) { outcome = 'tp_hit'; outcomePrice = tp; break; }
-            if (b.low  <= sl) { outcome = 'sl_hit'; outcomePrice = sl; break; }
+            if (b.high >= tp) { outcome = 'tp_hit'; outcomePrice = tp; outcomeTime = b.time * 1000; break; }
+            if (b.low  <= sl) { outcome = 'sl_hit'; outcomePrice = sl; outcomeTime = b.time * 1000; break; }
           }
         }
       }
     }
     if (!outcome && ageDays > res.expiryDays) outcome = 'expired';
     if (!outcome) return; // still genuinely pending
+
+    const outcomeDate = outcomeTime ? new Date(outcomeTime).toISOString() : new Date().toISOString();
 
     // PATCH outcome back to Supabase (fire-and-forget)
     fetch('/api/memory', {
@@ -615,13 +617,14 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
         id:            row.id,
         outcome,
         outcome_price: outcomePrice,
-        outcome_date:  new Date().toISOString().slice(0, 10),
+        outcome_date:  outcomeDate,
       }),
     }).catch(() => {});
 
     // Update row locally so the UI reflects it immediately
     row.outcome = outcome;
     row.outcome_price = outcomePrice;
+    row.outcome_date = outcomeDate;
   });
 }
 
