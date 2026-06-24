@@ -118,11 +118,25 @@ function gradeRow(row, res, candles) {
   const scanPx = parseFloat(row.price);
   const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.003 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.003;
   let filled = !eb || atMarket;
+  let filledAt = filled ? entryTs : null;
   for (const bar of afterEntry) {
-    if (!filled) { if (bar.low <= eb.hi && bar.high >= eb.lo) filled = true; else continue; }
-    if (dir === 'short') { if (bar.low  <= tp) return 'tp_hit'; if (bar.high >= sl) return 'sl_hit'; }
-    else                 { if (bar.high >= tp) return 'tp_hit'; if (bar.low  <= sl) return 'sl_hit'; }
+    if (!filled) {
+      if (bar.low <= eb.hi && bar.high >= eb.lo) {
+        filled = true;
+        filledAt = bar.time;
+      } else {
+        continue;
+      }
+    }
+    if (dir === 'short') {
+      if (bar.low  <= tp) { row.filled_at = filledAt; return 'tp_hit'; }
+      if (bar.high >= sl) { row.filled_at = filledAt; return 'sl_hit'; }
+    } else {
+      if (bar.high >= tp) { row.filled_at = filledAt; return 'tp_hit'; }
+      if (bar.low  <= sl) { row.filled_at = filledAt; return 'sl_hit'; }
+    }
   }
+  if (filled) row.filled_at = filledAt;
   return null;
 }
 
@@ -232,6 +246,30 @@ function rowTs(row) {
   if (m) return parseInt(m[1], 10);
   if (row.analysis_date) { const t = Date.parse(row.analysis_date); if (!isNaN(t)) return t; }
   return 0;
+}
+
+// Localized entry trigger / market open time indicator for Stocks/ETFs
+function getActiveTimeDisplay(row) {
+  if (row.asset_type !== 'Stock' && row.asset_type !== 'ETF') return '';
+  const t = rowTs(row);
+  if (!t) return '';
+  const d = new Date(t);
+  const scanHour = d.getUTCHours() + d.getUTCMinutes() / 60;
+  
+  // US stock markets open at 13:30 UTC. If scanned pre-market:
+  if (scanHour < 13.5) {
+    if (row.filled_at) {
+      const fd = new Date(row.filled_at * 1000);
+      const localTime = fd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const utcTime = `${String(fd.getUTCHours()).padStart(2,'0')}:${String(fd.getUTCMinutes()).padStart(2,'0')} UTC`;
+      return ` · Active ${utcTime} (${localTime})`;
+    }
+    const openDate = new Date(d);
+    openDate.setUTCHours(13, 30, 0, 0);
+    const localOpen = openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return ` · Active from Market Open (13:30 UTC / ${localOpen})`;
+  }
+  return '';
 }
 
 // Scan time of day in UTC ("17:30 UTC") — shown alongside the date so trades scanned
@@ -492,13 +530,14 @@ function renderCard(g) {
 
   const isResolved = row.outcome && row.outcome !== 'pending';
   const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+  const activeStr = getActiveTimeDisplay(row);
 
   return `
     <div class="scan-card ${vc}">
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}${resolvedStr}</div>
+          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${activeStr}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}${resolvedStr}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
@@ -604,6 +643,7 @@ function openPreview(id) {
 
   const isResolved = row.outcome && row.outcome !== 'pending';
   const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(row.outcome_date)}` : '';
+  const activeStr = getActiveTimeDisplay(row);
 
   const targets = [
     row.entry_zone   ? ['Entry',  escHtml(String(row.entry_zone)), 'entry']  : null,
@@ -617,7 +657,7 @@ function openPreview(id) {
     <div class="pv-head">
       <div>
         <div class="pv-sym">${escHtml(row.symbol)} <span class="pv-type">${escHtml(row.asset_type || 'Stock')}</span></div>
-        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))} · @ $${fmtPrice(row.price)}${resolvedStr}</div>
+        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))}${activeStr} · @ $${fmtPrice(row.price)}${resolvedStr}</div>
       </div>
       <button class="pv-close" data-action="pv-close" aria-label="Close">✕</button>
     </div>
