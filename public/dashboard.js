@@ -1314,10 +1314,31 @@ async function fetchSeasonality(sym, type) {
   } catch { return null; }
 }
 
+// Helper to identify weekend scans
+function isWeekendRow(row) {
+  let t = 0;
+  if (row.created_at) { const parsed = Date.parse(row.created_at); if (!isNaN(parsed)) t = parsed; }
+  if (!t) {
+    const m = String(row.id || '').match(/_(\d{10,})$/);
+    if (m) t = parseInt(m[1], 10);
+  }
+  if (!t && row.analysis_date) { const parsed = Date.parse(row.analysis_date); if (!isNaN(parsed)) t = parsed; }
+  if (!t) return false;
+  const d = new Date(t);
+  const day = d.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function isWeekendNow() {
+  const d = new Date();
+  const day = d.getUTCDay();
+  return day === 0 || day === 6;
+}
+
 // ── Calibration feedback — realised accuracy by stated-confidence bucket ───────
 // The model's own historical hit-rate, so the committee can self-correct for over/
 // under-confidence. Needs a minimum of resolved calls to be meaningful.
-async function fetchCalibration() {
+async function fetchCalibration(currentType) {
   try {
     // resolved=true → the FULL graded history (old resolved swing/position rows
     // must never fall off a recent-rows window as scan volume grows).
@@ -1325,7 +1346,18 @@ async function fetchCalibration() {
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
-    const resolved = rows.filter(x => x.outcome === 'tp_hit' || x.outcome === 'sl_hit');
+
+    let resolved = rows.filter(x => x.outcome === 'tp_hit' || x.outcome === 'sl_hit');
+    
+    // Separate weekend crypto data from weekday crypto data (due to significant volume differences)
+    if (currentType === 'Crypto') {
+      const wantWeekend = isWeekendNow();
+      resolved = resolved.filter(x => {
+        if (x.asset_type !== 'Crypto') return true;
+        return isWeekendRow(x) === wantWeekend;
+      });
+    }
+
     if (resolved.length < 8) return null;
     const buckets = [
       { label: '50–59%', lo: 0,  hi: 59 },
@@ -1430,7 +1462,17 @@ async function fetchMetaLabel(features) {
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
-    const resolved = rows.filter(x => (x.outcome === 'tp_hit' || x.outcome === 'sl_hit') && x.setup_features);
+    let resolved = rows.filter(x => (x.outcome === 'tp_hit' || x.outcome === 'sl_hit') && x.setup_features);
+
+    // Separate weekend crypto data from weekday crypto data (due to significant volume differences)
+    if (features.asset === 'Crypto') {
+      const wantWeekend = isWeekendNow();
+      resolved = resolved.filter(x => {
+        if (x.asset_type !== 'Crypto') return true;
+        return isWeekendRow(x) === wantWeekend;
+      });
+    }
+
     if (resolved.length < 6) return null;
     const scored = resolved.map(x => {
       let f = x.setup_features;
@@ -1466,10 +1508,20 @@ async function fetchLessons(features) {
     if (!r.ok) return [];
     const rows = await r.json();
     if (!Array.isArray(rows)) return [];
-    const withLesson = rows.filter(x =>
+    let withLesson = rows.filter(x =>
       x.lesson && String(x.lesson).trim() &&
       (x.outcome === 'tp_hit' || x.outcome === 'sl_hit' || x.outcome === 'expired') &&
       x.setup_features);
+
+    // Separate weekend crypto data from weekday crypto data (due to significant volume differences)
+    if (features.asset === 'Crypto') {
+      const wantWeekend = isWeekendNow();
+      withLesson = withLesson.filter(x => {
+        if (x.asset_type !== 'Crypto') return true;
+        return isWeekendRow(x) === wantWeekend;
+      });
+    }
+
     if (!withLesson.length) return [];
     const scored = withLesson.map(x => {
       let f = x.setup_features;
@@ -2555,7 +2607,7 @@ async function startResearch() {
       _secPromise,
       fetchPositioning(sym, type),
       fetchSeasonality(sym, type),
-      fetchCalibration(),
+      fetchCalibration(type),
       fetchCryptoDerivs(sym, type),
     ]);
 

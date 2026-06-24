@@ -2,7 +2,7 @@
 
 Multi-asset (FX / equities / crypto) trading-analysis dashboard. Three tiers:
 
-1. **Frontend** (`public/`) — static app on Vercel (`apexfx.vercel.app`). Tabs: Dashboard, Quant, Backtest, History. Entry `index.html` + `app.js`; shared pure libs in `public/lib/*`.
+1. **Frontend** (`public/`) — static app on Vercel (`apexfx.vercel.app`). Tabs: Research (`dashboard.html`), Charts (`index.html`), History, Backtest. (The standalone Quant page was removed 2026-06-04 — the quant engine still feeds Deep Analyse inline via `fetchEngineData` + the `/api/quant` proxy.) Shared pure libs in `public/lib/*`.
 2. **Vercel serverless API** (`api/`) — keeps keys server-side; proxies Groq (AI), Finnhub, Yahoo; Supabase-backed `memory`/`backtests`/`backtest-runs`/`quality-scores`.
 3. **Python quant engine** (`engine/apex_quant/`) — FastAPI on Render (`apex-quant-engine.onrender.com`). Signal/risk/**validation** engine; edge = risk mgmt + regime + validation, NOT prediction. Tests: `cd engine && .venv\Scripts\python.exe -m pytest -q`.
 
