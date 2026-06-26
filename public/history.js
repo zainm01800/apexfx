@@ -253,30 +253,6 @@ function rowTs(row) {
   return 0;
 }
 
-// Localized entry trigger / market open time indicator for Stocks/ETFs
-function getActiveTimeDisplay(row) {
-  if (row.asset_type !== 'Stock' && row.asset_type !== 'ETF') return '';
-  const t = rowTs(row);
-  if (!t) return '';
-  const d = new Date(t);
-  const scanHour = d.getUTCHours() + d.getUTCMinutes() / 60;
-  
-  // US stock markets open at 13:30 UTC. If scanned pre-market:
-  if (scanHour < 13.5) {
-    if (row.filled_at) {
-      const fd = new Date(row.filled_at * 1000);
-      const localTime = fd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const utcTime = `${String(fd.getUTCHours()).padStart(2,'0')}:${String(fd.getUTCMinutes()).padStart(2,'0')} UTC`;
-      return ` · Active ${utcTime} (${localTime})`;
-    }
-    const openDate = new Date(d);
-    openDate.setUTCHours(13, 30, 0, 0);
-    const localOpen = openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return ` · Active from Market Open (13:30 UTC / ${localOpen})`;
-  }
-  return '';
-}
-
 // Scan time of day in UTC ("17:30 UTC") — shown alongside the date so trades scanned
 // on the same day (or across a midnight boundary) are never ambiguous. UTC matches the
 // candle data the outcomes are graded against. Empty when there's no usable timestamp.
@@ -391,10 +367,18 @@ function validationSummary(v) {
   return `${label} · ${(v.verdict || '').replace(/_/g, ' ')}${conf}${then}${prog}`;
 }
 // "Jun 5, 17:30 UTC" from a validation record's ISO timestamp.
+function fmtUTC(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} · ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+}
 function fmtValTs(ts) {
   const t = Date.parse(ts); if (isNaN(t)) return '';
-  const d = new Date(t);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} · ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+  return fmtUTC(new Date(t));
+}
+// filled_at is UNIX SECONDS (set by gradeRow during resolution), unlike the ISO
+// strings used elsewhere — needs its own formatter.
+function fmtUnixUTC(tsSec) {
+  if (!tsSec) return '';
+  return fmtUTC(new Date(tsSec * 1000));
 }
 
 function escHtml(str) {
@@ -438,19 +422,57 @@ function buildGroups(rows) {
   return cards;
 }
 
-// One re-check (validation) row in a trade's evolution trail.
-function renderValRow(v) {
-  const lbl = _VAL_LABEL[v.assessment] || 'RE-CHECKED';
-  const conf = (v.confidenceThen != null && v.confidence != null && v.confidenceThen !== v.confidence)
-    ? `${v.confidenceThen}%→${v.confidence}%`
-    : (v.confidence != null ? `${v.confidence}%` : '');
-  return `
-    <div class="trail-row">
-      <span class="tr-date">${escHtml(fmtValTs(v.ts))}</span>
-      <span class="tr-verdict">${escHtml(lbl)}</span>
-      <span class="tr-conf">${conf}</span>
-      <span class="tr-px">@ ${v.price != null ? fmtPrice(v.price) : '—'}</span>
-    </div>`;
+// ── Trade lifeline ───────────────────────────────────────────────────────────
+// The full chronological story of ONE trade, every step stamped with its own date
+// + time so "when did this actually happen" is never implicit: Scanned -> Entered
+// (when price actually traded into the entry zone — distinct from the scan time for
+// a pullback/breakout entry) -> each re-check, in order -> Ended. Always visible on
+// the card (not hidden behind a details toggle) — this IS the requested feature.
+function buildLifeline(row) {
+  const steps = [{ icon: '🔍', label: 'Scanned', time: fmtDateTime(row), cls: 'scan' }];
+
+  const kind = verdictKind(row.verdict);
+  const isOpen = (row.outcome == null || row.outcome === 'pending');
+  if (kind === 'trade') {
+    if (row.filled_at) {
+      // Distinguish an immediate market fill from a pullback/breakout entry that
+      // took real time to trade into — both are useful, different facts.
+      const sameAsScan = Math.abs(row.filled_at - rowTs(row) / 1000) < 60;
+      steps.push({
+        icon: '✅', label: sameAsScan ? 'Entered (at market)' : 'Entered',
+        time: fmtUnixUTC(row.filled_at), cls: 'enter',
+      });
+    } else if (isOpen) {
+      steps.push({ icon: '⏳', label: 'Not entered yet', time: '', cls: 'wait' });
+    }
+  }
+
+  for (const v of parseValidations(row.validations)) {
+    steps.push({
+      icon: '🔁', label: _VAL_LABEL[v.assessment] || 'Re-checked',
+      time: fmtValTs(v.ts), sub: validationSummary(v) + reliabilityNote(v.assessment),
+      cls: `recheck ${v.assessment || ''}`,
+    });
+  }
+
+  if (!isOpen) {
+    const endCls = row.outcome === 'tp_hit' ? 'win' : row.outcome === 'sl_hit' ? 'loss' : 'neutral';
+    steps.push({
+      icon: row.outcome === 'tp_hit' ? '🎯' : row.outcome === 'sl_hit' ? '🛑' : '⏱',
+      label: outcomeLabel(row.outcome).replace(/^\S+\s/, ''),   // drop the emoji baked into outcomeLabel
+      time: row.outcome_date ? fmtOutcomeDateTime(row.outcome_date) : '',
+      cls: endCls,
+    });
+  }
+
+  return `<div class="sc-lifeline">${steps.map(s => `
+    <div class="ll-step ll-${s.cls}">
+      <span class="ll-icon">${s.icon}</span>
+      <div class="ll-body">
+        <div class="ll-row"><span class="ll-label">${escHtml(s.label)}</span>${s.time ? `<span class="ll-time">${escHtml(s.time)}</span>` : ''}</div>
+        ${s.sub ? `<div class="ll-sub">${escHtml(s.sub)}</div>` : ''}
+      </div>
+    </div>`).join('<div class="ll-connector"></div>')}</div>`;
 }
 
 // ── Rendering ───────────────────────────────────────────────────────────────────
@@ -493,19 +515,9 @@ function renderCard(g) {
     ? `<div class="sc-anchor" title="Repeated same-direction calls with no resolved outcome — beware anchoring">⚠ ${escHtml(g.anchorFlag)}</div>`
     : '';
 
-  // This trade's re-check history (validations) IS its evolution. Distinct trades are
-  // separate cards now, so the trail shows how THIS trade was re-checked over time
-  // (newest first) — not other, unrelated trades on the same symbol.
-  const _vals = parseValidations(row.validations);
-  let trail = '';
-  if (_vals.length) {
-    const rowsHtml = _vals.slice().reverse().map(renderValRow).join('');
-    trail = `
-      <details class="sc-trail">
-        <summary>📜 ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} — how this trade evolved</summary>
-        <div class="trail-list">${rowsHtml}</div>
-      </details>`;
-  }
+  // The full chronological story — scanned, entered, every re-check, ended — each
+  // stamped with its own date+time. Always visible (see buildLifeline).
+  const lifeline = buildLifeline(row);
 
   // Post-mortem lesson — shown on the current call when it (or any resolved scan in
   // the group) has one. This is the "what went wrong / right" the engine learns from.
@@ -541,22 +553,12 @@ function renderCard(g) {
         : 'No trade yet — the entry/stop/target below are the levels it would need to <strong>become</strong> a valid trade, not a live position.'}</div>`
     : '';
 
-  // Latest validity re-check (from the "Update" button) on this trade.
-  const _lastVal = _vals.length ? _vals[_vals.length - 1] : null;
-  const validRow = _lastVal
-    ? `<div class="sc-valid ${_lastVal.assessment}" title="Latest validity re-check — does the original call still hold? The 'historically' note is the realised track record of this kind of re-check.">🔁 <strong>Re-checked ${escHtml(fmtValTs(_lastVal.ts))}:</strong> ${escHtml(validationSummary(_lastVal))}<span class="sc-valid-stat">${escHtml(reliabilityNote(_lastVal.assessment))}</span></div>`
-    : '';
-
-  const isResolved = row.outcome && row.outcome !== 'pending';
-  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(fmtOutcomeDateTime(row.outcome_date))}` : '';
-  const activeStr = getActiveTimeDisplay(row);
-
   return `
     <div class="scan-card ${vc}">
       <div class="sc-head">
         <div>
           <div class="sc-sym">${escHtml(g.symbol)}</div>
-          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}${activeStr}${_vals.length ? ` · ${_vals.length} re-check${_vals.length === 1 ? '' : 's'} (latest ${escHtml(fmtValTs(_lastVal.ts))})` : ''}${resolvedStr}</div>
+          <div class="sc-date">Scanned ${escHtml(fmtDateTime(row))}</div>
         </div>
         <div class="sc-tags">
           <span class="sc-type">${escHtml(row.asset_type || 'Stock')}</span>
@@ -579,6 +581,8 @@ function renderCard(g) {
         <span class="sc-outcome ${row.outcome || 'pending'}">${outcomeLabel(row.outcome)}</span>
       </div>
 
+      ${lifeline}
+
       ${row.summary ? `<p class="sc-summary">${escHtml(row.summary)}</p>` : ''}
 
       ${condNote}
@@ -592,11 +596,7 @@ function renderCard(g) {
 
       ${proxRow}
 
-      ${validRow}
-
       ${lessonRow}
-
-      ${trail}
 
       <div class="sc-actions">
         ${_isOpen
@@ -660,10 +660,6 @@ function openPreview(id) {
   const reasons = parseReasons(row.key_reasons);
   const outcomeCls = row.outcome || 'pending';
 
-  const isResolved = row.outcome && row.outcome !== 'pending';
-  const resolvedStr = (isResolved && row.outcome_date) ? ` · Ended ${escHtml(fmtOutcomeDateTime(row.outcome_date))}` : '';
-  const activeStr = getActiveTimeDisplay(row);
-
   const targets = [
     row.entry_zone   ? ['Entry',  escHtml(String(row.entry_zone)), 'entry']  : null,
     row.target_price ? ['Target', '$' + fmtPrice(row.target_price), 'target'] : null,
@@ -676,7 +672,7 @@ function openPreview(id) {
     <div class="pv-head">
       <div>
         <div class="pv-sym">${escHtml(row.symbol)} <span class="pv-type">${escHtml(row.asset_type || 'Stock')}</span></div>
-        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))}${activeStr} · @ $${fmtPrice(row.price)}${resolvedStr}</div>
+        <div class="pv-date">Analysed ${escHtml(fmtDateTime(row))} · @ $${fmtPrice(row.price)}</div>
       </div>
       <button class="pv-close" data-action="pv-close" aria-label="Close">✕</button>
     </div>
@@ -689,15 +685,9 @@ function openPreview(id) {
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
-    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
+    <div class="pv-section"><h4>Timeline</h4>${buildLifeline(row)}</div>
 
-    ${(() => {
-      const vs = parseValidations(row.validations);
-      if (!vs.length) return '';
-      const items = vs.slice().reverse().map(v =>
-        `<li class="pv-val ${v.assessment}"><span class="pv-val-ts">${escHtml(fmtValTs(v.ts))}</span> ${escHtml(validationSummary(v))}</li>`).join('');
-      return `<div class="pv-section"><h4>Validity re-checks (${vs.length})</h4><ul class="pv-vals">${items}</ul></div>`;
-    })()}
+    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
 
     ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
 
