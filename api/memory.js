@@ -185,7 +185,7 @@ export default async function handler(req) {
       patch = {
         outcome:       body.outcome       || 'expired',
         outcome_price: body.outcome_price ?? null,
-        outcome_date:  body.outcome_date  || new Date().toISOString().slice(0, 10),
+        outcome_date:  body.outcome_date  || new Date().toISOString(),
       };
       if (body.lesson != null) patch.lesson = String(body.lesson).slice(0, 600);
     }
