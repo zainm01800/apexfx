@@ -399,6 +399,64 @@ button.sc-btn { appearance: none; }
 .ll-time { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
 .ll-sub { font-size: 12px; color: var(--text2); line-height: 1.5; margin-top: 1px; }
 
+/* ── Collapsible lifeline wrapper ── */
+.sc-lifeline-wrap {
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 6px 0;
+}
+.sc-lifeline-wrap summary { list-style: none; }
+.sc-lifeline-wrap summary::-webkit-details-marker { display: none; }
+
+.sc-lifeline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg2);
+  transition: background 0.15s;
+}
+.sc-lifeline-toggle:hover { background: var(--bg3, var(--border)); }
+
+.ll-toggle-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ll-toggle-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text3);
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ll-toggle-chevron {
+  font-size: 13px;
+  color: var(--text3);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.sc-lifeline-wrap[open] .ll-toggle-chevron { transform: rotate(180deg); }
+
+/* Inner lifeline when open: slight top separator */
+.sc-lifeline-wrap[open] .sc-lifeline {
+  padding: 10px 12px 8px;
+  border-top: 1px solid var(--border2);
+}
+.sc-lifeline-wrap .sc-lifeline { margin: 0; }
+
 /* Step-type accents on the icon */
 .ll-step.ll-scan .ll-icon   { border-color: var(--border2); }
 .ll-step.ll-enter .ll-icon  { background: rgba(124,92,252,.12); border-color: var(--purple); }

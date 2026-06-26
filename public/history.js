@@ -465,14 +465,36 @@ function buildLifeline(row) {
     });
   }
 
-  return `<div class="sc-lifeline">${steps.map(s => `
+  const stepCount = steps.length;
+  // Show expanded by default when there are re-checks (more than scan + optional end step)
+  const hasRechecks = steps.some(s => s.cls.startsWith('recheck'));
+  const openAttr = hasRechecks ? ' open' : '';
+
+  // Build a short summary label: first + last step text
+  const firstStep = steps[0];
+  const lastStep  = steps[steps.length - 1];
+  const summaryLabel = stepCount === 1
+    ? escHtml(firstStep.label)
+    : `${escHtml(firstStep.label)} → ${escHtml(lastStep.label)}`;
+  const stepWord = stepCount === 1 ? '1 step' : `${stepCount} steps`;
+
+  const stepsHtml = steps.map(s => `
     <div class="ll-step ll-${s.cls}">
       <span class="ll-icon">${s.icon}</span>
       <div class="ll-body">
         <div class="ll-row"><span class="ll-label">${escHtml(s.label)}</span>${s.time ? `<span class="ll-time">${escHtml(s.time)}</span>` : ''}</div>
         ${s.sub ? `<div class="ll-sub">${escHtml(s.sub)}</div>` : ''}
       </div>
-    </div>`).join('<div class="ll-connector"></div>')}</div>`;
+    </div>`).join('<div class="ll-connector"></div>');
+
+  return `<details class="sc-lifeline-wrap"${openAttr}>
+    <summary class="sc-lifeline-toggle">
+      <span class="ll-toggle-label">${summaryLabel}</span>
+      <span class="ll-toggle-meta">${stepWord}</span>
+      <span class="ll-toggle-chevron">▾</span>
+    </summary>
+    <div class="sc-lifeline">${stepsHtml}</div>
+  </details>`;
 }
 
 // ── Rendering ───────────────────────────────────────────────────────────────────
@@ -516,7 +538,7 @@ function renderCard(g) {
     : '';
 
   // The full chronological story — scanned, entered, every re-check, ended — each
-  // stamped with its own date+time. Always visible (see buildLifeline).
+  // stamped with its own date+time. Collapsible: expands automatically when re-checks exist.
   const lifeline = buildLifeline(row);
 
   // Post-mortem lesson — shown on the current call when it (or any resolved scan in
