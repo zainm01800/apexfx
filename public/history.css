@@ -288,6 +288,15 @@
 .sc-outcome.tp_hit   { background: rgba(74,222,128,.12); color: #4ade80; }
 .sc-outcome.sl_hit   { background: rgba(248,113,113,.12); color: #f87171; }
 .sc-outcome.expired  { background: rgba(255,170,0,.1);   color: var(--orange); }
+.sc-outcome-time {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.75;
+  margin-left: 6px;
+  white-space: nowrap;
+}
 
 /* Summary blurb */
 .sc-summary {

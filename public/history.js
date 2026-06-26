@@ -600,7 +600,7 @@ function renderCard(g) {
 
       <div class="sc-price-row">
         <span class="sc-price">@ $${fmtPrice(row.price)}</span>
-        <span class="sc-outcome ${row.outcome || 'pending'}">${outcomeLabel(row.outcome)}</span>
+        <span class="sc-outcome ${row.outcome || 'pending'}" title="${row.outcome_date ? 'Resolved: ' + fmtOutcomeDateTime(row.outcome_date) : ''}">${outcomeLabel(row.outcome)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
       </div>
 
       ${lifeline}
@@ -702,7 +702,7 @@ function openPreview(id) {
     <div class="pv-verdict-row">
       <span class="pv-verdict ${vc}">${vDisplay}</span>
       <span class="pv-conf">${row.confidence != null ? row.confidence + '%' : '—'} confidence</span>
-      <span class="pv-outcome ${outcomeCls}">${outcomeLabel(row.outcome)}</span>
+      <span class="pv-outcome ${outcomeCls}">${outcomeLabel(row.outcome)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
     </div>
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
