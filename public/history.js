@@ -358,13 +358,22 @@ function tradeStatus(row, px) {
   return { cls, label: s.txt, tip: s.tip, sub: p.inZone ? '' : fmtAway(p.pct) + ' away' };
 }
 
+// Position-management verdict display labels (when an Update re-check returns a PM verdict)
+const _PM_LABELS = {
+  HOLD_TRADE:        { label: 'Hold Trade',        icon: '✅', cls: 'recheck confirmed' },
+  MOVE_TO_BREAKEVEN: { label: 'Move to Breakeven', icon: '🛡', cls: 'recheck weakening' },
+  TIGHTEN_STOP:      { label: 'Tighten Stop',      icon: '📐', cls: 'recheck confirmed' },
+  SCALE_OUT:         { label: 'Scale Out',          icon: '📤', cls: 'recheck weakening' },
+  CLOSE_TRADE:       { label: 'Close Trade',        icon: '🚪', cls: 'recheck invalidated' },
+};
 const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', activated: 'NOW ACTIONABLE', 'still-waiting': 'STILL WAITING', 'n/a': 'RE-CHECKED' };
 function validationSummary(v) {
-  const label = _VAL_LABEL[v.assessment] || 'RE-CHECKED';
+  const pm = _PM_LABELS[(v.verdict || '').toUpperCase()];
+  const label = pm ? pm.label : (_VAL_LABEL[v.assessment] || 'RE-CHECKED');
   const conf = v.confidence != null ? ` ${v.confidence}%` : '';
   const then = v.confidenceThen != null && v.confidence != null && v.confidenceThen !== v.confidence ? ` (was ${v.confidenceThen}%)` : '';
   const prog = v.progressPct != null ? ` · ${v.progressPct}% to ${v.progressToward}` : '';
-  return `${label} · ${(v.verdict || '').replace(/_/g, ' ')}${conf}${then}${prog}`;
+  return `${label}${conf}${then}${prog}`;
 }
 // "Jun 5, 17:30 UTC" from a validation record's ISO timestamp.
 function fmtUTC(d) {
@@ -448,10 +457,13 @@ function buildLifeline(row) {
   }
 
   for (const v of parseValidations(row.validations)) {
+    const pm = _PM_LABELS[(v.verdict || '').toUpperCase()];
     steps.push({
-      icon: '🔁', label: _VAL_LABEL[v.assessment] || 'Re-checked',
-      time: fmtValTs(v.ts), sub: validationSummary(v) + reliabilityNote(v.assessment),
-      cls: `recheck ${v.assessment || ''}`,
+      icon: pm ? pm.icon : '🔁',
+      label: pm ? pm.label : (_VAL_LABEL[v.assessment] || 'Re-checked'),
+      time: fmtValTs(v.ts),
+      sub: validationSummary(v) + reliabilityNote(v.assessment),
+      cls: pm ? pm.cls : `recheck ${v.assessment || ''}`,
     });
   }
 

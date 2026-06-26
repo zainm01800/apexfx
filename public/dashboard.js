@@ -2681,6 +2681,48 @@ Avg forward returns: 5d: ${historicalScan.avg5d}% | 10d: ${historicalScan.avg10d
 Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 20d: +${historicalScan.best20d}% | Worst: ${historicalScan.worst20d}%`
       : '';
 
+    // ── Position-management block (validate mode only) ─────────────────────────
+    // When re-checking an OPEN trade the AI must give position management verdicts
+    // (HOLD_TRADE, CLOSE_TRADE, etc.) NOT fresh entry verdicts (WAIT, SHORT, BUY).
+    let positionMgmtBlock = '';
+    const _pmTarget = (_validateMode && _validateTarget && _validateTarget.symbol === sym) ? _validateTarget : null;
+    if (_pmTarget) {
+      const origDir   = verdictDir(_pmTarget.verdict);
+      const origVerd  = (_pmTarget.verdict || '').replace(/_/g, ' ');
+      const entryZone = _pmTarget.entry_zone || 'N/A';
+      const stopLoss  = _pmTarget.stop_loss  || 'N/A';
+      const target    = _pmTarget.target_price || 'N/A';
+      const origConf  = _pmTarget.confidence != null ? _pmTarget.confidence + '%' : 'N/A';
+      const origDate  = (_pmTarget.analysis_date || '').slice(0, 10);
+      const priceThen = _pmTarget.price != null ? (+_pmTarget.price).toFixed(dp) : 'N/A';
+      // Progress toward TP/SL
+      const prog = validationProgress(_pmTarget, curr);
+      const progLine = prog ? `Price is now ${prog.pct}% of the way toward the ${prog.toward}.` : '';
+      positionMgmtBlock = `
+━━━ OPEN POSITION RE-CHECK — YOU ARE MANAGING AN EXISTING ${origDir.toUpperCase()} TRADE ━━━
+This is NOT a new entry decision. A real trade is already open:
+  Direction : ${origDir.toUpperCase()} (original verdict: ${origVerd})
+  Opened    : ${origDate} @ ${priceThen}
+  Entry zone: ${entryZone}
+  Take-profit: ${target}
+  Stop-loss  : ${stopLoss}
+  Confidence then: ${origConf}
+  Current price  : ${curr.toFixed(dp)} ${progLine}
+
+YOUR SOLE TASK is to assess what the HOLDER of this ${origDir.toUpperCase()} trade should do RIGHT NOW.
+Do NOT pretend this is a fresh analysis. Do NOT issue new-entry verdicts (WAIT/BUY/SHORT).
+The valid verdicts for a position re-check are ONLY:
+  HOLD_TRADE        — thesis intact, nothing to do, stay in
+  MOVE_TO_BREAKEVEN — risk is rising; move stop to entry to protect capital
+  TIGHTEN_STOP      — significant profit banked; trail the stop to lock in gains
+  SCALE_OUT         — partial take-profit now; let a runner go for the rest
+  CLOSE_TRADE       — thesis is broken or risk clearly outweighs reward; exit entirely
+
+Decide based on: (a) how much the original thesis still holds on fresh evidence,
+(b) how far price is toward TP vs SL, (c) any new signals that change the picture.
+Be direct and specific. The holder needs a clear action, not another WAIT.`;
+    }
+
     // News impact block
     const impactBlock = newsImpact.length
       ? `\n━━━ NEWS → PRICE IMPACT (historical) ━━━\n` + newsImpact.slice(0, 8).map(n =>
@@ -3044,6 +3086,7 @@ ${memoryBlock}
 ━━━ RECENT NEWS (last 60 days) ━━━
 ${newsText || 'No recent news available.'}
 
+${positionMgmtBlock}
 ━━━ TASK ━━━
 Analyze all data above. Be direct. Do not hedge. Do not default.
 Read the price action carefully — what is actually happening? Are bulls or bears in control? What does the volume say? Where is this asset headed?
@@ -3051,7 +3094,7 @@ Read the price action carefully — what is actually happening? Are bulls or bea
 Respond ONLY with valid JSON. No text before or after.
 
 {
-  "verdict": "STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE",
+  "verdict": "${_pmTarget ? 'HOLD_TRADE|MOVE_TO_BREAKEVEN|TIGHTEN_STOP|SCALE_OUT|CLOSE_TRADE' : 'STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE'}",
   "confidence_level": "Low|Moderate|High|Very High",
   "confidence_score": <integer 0-100. Base this on how many indicators and frameworks align. If 7 out of 9 signals point the same direction, score 75+. If signals are split 5-4, score 45-55. If genuinely uncertain, score below 50. 60-65 is a valid score only if evidence is genuinely in that middle band — not as a default.>,
   "executive_summary": "3-4 sentence institutional overview of the opportunity/risk",
@@ -3341,13 +3384,14 @@ ${scanBlock || ''}
 ${memoryBlock || ''}
 ${trackRecordBlock || ''}
 ${anchorBlock || ''}
+${positionMgmtBlock || ''}
 
 Your task:
 1. Read the EVIDENCE lists — count how many bullish vs bearish factors exist across all four analysts
 2. Identify where analysts AGREE (high conviction areas) and where they CONFLICT (uncertainty areas)
 3. The Risk Manager's evidence deserves EQUAL weight to bullish factors — do not dismiss risks
 4. Apply the Confluence Score as a hard calibration constraint on your confidence score
-5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD
+5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD${_pmTarget ? ' (but in position re-check mode, WAIT is invalid — use HOLD_TRADE, MOVE_TO_BREAKEVEN, or CLOSE_TRADE instead)' : ''}
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
@@ -3356,11 +3400,16 @@ Your task:
 10. Be brutally honest — no performance, no softening, no default verdicts
 11. PRE-MORTEM (decision-quality discipline): before finalising, assume this trade has ALREADY hit its stop. Identify the single most likely reason it failed and put it in the premortem field — this surfaces the dominant risk and counters confirmation bias.
 12. METHOD HONESTY: do NOT treat named discretionary chart methods (ICT, Smart Money Concepts, order blocks, fair value gaps, liquidity sweeps, Elliott Wave, harmonics, Gann) as established edge — they have no independently verified track record and are largely repackaged support/resistance & supply/demand. You may reference them, but weight price action, volume, regime and confluence ABOVE any named pattern, and never raise confidence on the strength of such a method alone.
+${_pmTarget ? `
+⚠ POSITION RE-CHECK MODE: You are managing an existing ${verdictDir(_pmTarget.verdict).toUpperCase()} trade, not opening a new one.
+The ONLY valid verdicts here are: HOLD_TRADE | MOVE_TO_BREAKEVEN | TIGHTEN_STOP | SCALE_OUT | CLOSE_TRADE.
+Any other verdict (WAIT, BUY, SHORT, NO_EDGE, etc.) is INVALID for this response.
+The executive_summary and key_reasons must explain the position management decision.` : ''}
 
 Respond ONLY with this exact JSON structure:
 
 {
-  "verdict": "STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE",
+  "verdict": "${_pmTarget ? 'HOLD_TRADE|MOVE_TO_BREAKEVEN|TIGHTEN_STOP|SCALE_OUT|CLOSE_TRADE' : 'STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE'}",
   "confidence_level": "Low|Moderate|High|Very High",
   "confidence_score": <integer 0-100. High when specialists agree, low when they conflict. Most scores land 45-80. Only 85+ when near-unanimous bullish/bearish signals across all four agents.>,
   "executive_summary": "3-4 sentences synthesising the committee view — what is the overall picture and why",
@@ -3709,14 +3758,27 @@ function validationProgress(target, curr) {
   return { pct: 0, toward: 'target' };
 }
 
+// Position-management verdicts map to standard assessments so learning loops still work.
+const PM_VERDICT_ASSESSMENT = {
+  HOLD_TRADE:        'confirmed',
+  MOVE_TO_BREAKEVEN: 'weakening',
+  TIGHTEN_STOP:      'confirmed',    // still in trade, but protecting gains
+  SCALE_OUT:         'weakening',    // partial exit — thesis losing steam
+  CLOSE_TRADE:       'invalidated',  // exit entirely
+};
 function buildValidation(target, analysis, curr) {
   const origDir = verdictDir(target.verdict);
   const freshDir = verdictDir(analysis.verdict);
+  const v = (analysis.verdict || '').toUpperCase();
   let assessment;
-  if (origDir === 'neutral')        assessment = freshDir !== 'neutral' ? 'activated' : 'still-waiting';  // a WAIT that became (or stayed) a trade
-  else if (freshDir === origDir)    assessment = 'confirmed';  // still leans the same way
-  else if (freshDir === 'neutral')  assessment = 'weakening';  // no longer an active setup
-  else                              assessment = 'invalidated';// now leans the other way
+  // If a position-management verdict was returned, use its direct mapping.
+  if (PM_VERDICT_ASSESSMENT[v]) {
+    assessment = PM_VERDICT_ASSESSMENT[v];
+  } else if (origDir === 'neutral') {
+    assessment = freshDir !== 'neutral' ? 'activated' : 'still-waiting';
+  } else if (freshDir === origDir)    assessment = 'confirmed';
+  else if (freshDir === 'neutral')    assessment = 'weakening';
+  else                                assessment = 'invalidated';
   const prog = validationProgress(target, curr);
   return {
     ts: new Date().toISOString(),
@@ -3791,6 +3853,17 @@ async function showValidationBanner(target, fresh) {
       trackNote = `<div class="vb-prog ${good ? 'pos' : 'neg'}">📊 Track record: past <strong>${rec.assessment}</strong> re-checks went on to hit the ${good ? `target ${s.tpRate}%` : `stop ${s.slRate}%`} of the time (n=${s.n})</div>`;
     }
   } catch {}
+  // Use the raw position-management verdict as the label when it's a PM re-check;
+  // fall back to the generic assessment labels for classic re-checks.
+  const PM_LABELS = {
+    HOLD_TRADE:        '✅ HOLD TRADE — stay in',
+    MOVE_TO_BREAKEVEN: '🛡 MOVE TO BREAKEVEN — protect capital',
+    TIGHTEN_STOP:      '📐 TIGHTEN STOP — lock in gains',
+    SCALE_OUT:         '📤 SCALE OUT — take partial profits',
+    CLOSE_TRADE:       '🚪 CLOSE TRADE — exit now',
+  };
+  const rawVerdict = (fresh.verdict || '').toUpperCase();
+  const pmLabel = PM_LABELS[rawVerdict];
   const LABEL = { confirmed: '✅ STILL VALID', weakening: '⚠️ WEAKENING', invalidated: '❌ INVALIDATED', activated: '🟢 NOW ACTIONABLE', 'still-waiting': '⏳ STILL WAITING', 'n/a': '🔁 RE-CHECKED' };
   const CLS   = { confirmed: 'pos', weakening: 'warn', invalidated: 'neg', activated: 'pos', 'still-waiting': '', 'n/a': '' };
   const confThen = target.confidence != null ? target.confidence + '%' : '—';
