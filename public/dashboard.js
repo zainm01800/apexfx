@@ -567,9 +567,26 @@ function resolveOutcomes(pendingRows, candles, candleTf) {
     // genuine next-day bar — a "+24h" gate wrongly dropped it for 00:00-stamped bars).
     // INTRADAY: one full bar-period of clearance past entry.
     const tfSec = TF_SECONDS[candleTf] || 86400;
-    const barsAfter = (candleTf === '1d' || candleTf === '1w')
+    let barsAfter = (candleTf === '1d' || candleTf === '1w')
       ? candles.filter(b => utcDay(b.time) > utcDay(entryTs))
       : candles.filter(b => b.time >= entryTs + tfSec);
+
+    // Sanitize opening-print spikes for Stocks/ETFs (Yahoo Finance data anomaly).
+    // The literal first bar of a session can be a garbled opening-auction cross
+    // whose distortion can corrupt the open/close, not just the wick — verified
+    // live: NFLX 2026-06-26 13:30 UTC printed O:71.60 L:71.54 (a phantom "TP hit"
+    // on a 72.20 target) while the rest of the session traded 73.2-75.2 and the real
+    // exchange tape never went near 72. A wick-clip doesn't help when the body
+    // itself is the bad print, so EXCLUDE the bar entirely (confirmed against the
+    // live NFLX data to correctly recover sl_hit). Mirrors history.js's gradeRow —
+    // keep both in sync if this logic changes.
+    const _resType = row.asset_type || 'Stock';
+    if (_resType === 'Stock' || _resType === 'ETF') {
+      barsAfter = barsAfter.filter((c, i) => {
+        const isFirstOfDay = (i === 0) || (new Date(c.time * 1000).getUTCDate() !== new Date(barsAfter[i - 1].time * 1000).getUTCDate());
+        return !isFirstOfDay;
+      });
+    }
 
     const tp  = parseFloat(row.target_price);
     const sl  = parseFloat(row.stop_loss);

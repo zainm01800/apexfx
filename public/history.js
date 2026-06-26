@@ -96,21 +96,22 @@ function gradeRow(row, res, candles) {
     ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
     : candles.filter(c => c.time >= entryTs + tfSec);
 
-  // Sanitize opening print spikes for Stocks/ETFs (Yahoo Finance data anomalies)
+  // Sanitize opening print spikes for Stocks/ETFs (Yahoo Finance data anomalies).
+  // The literal FIRST bar of each session (the opening-auction print) can be a
+  // garbled cross where Yahoo's free feed reports a wildly distorted range — and
+  // verified live (NFLX 2026-06-26 13:30 UTC: O:71.60 H:73.56 L:71.54 C:73.51) the
+  // distortion can corrupt the OPEN/CLOSE too, not just an extreme wick — that bar
+  // alone made a 72.20 SHORT target look "hit" while every other 15m bar that
+  // session traded 73.2-75.2 and the real exchange tape never went near 72. A
+  // wick-clip (bodyMin*0.996) doesn't help when the body itself is the bad print,
+  // so EXCLUDE the opening bar entirely from grading (and from the entry-fill
+  // check) rather than trying to repair its values — confirmed against the live
+  // NFLX data to correctly recover the real sl_hit at 15:30 UTC.
   const type = row.asset_type || 'Stock';
   if (type === 'Stock' || type === 'ETF') {
-    afterEntry = afterEntry.map((c, i) => {
+    afterEntry = afterEntry.filter((c, i) => {
       const isFirstOfDay = (i === 0) || (new Date(c.time * 1000).getUTCDate() !== new Date(afterEntry[i-1].time * 1000).getUTCDate());
-      if (isFirstOfDay) {
-        const bodyMax = Math.max(c.open, c.close);
-        const bodyMin = Math.min(c.open, c.close);
-        // Clip extreme spikes (Form T / opening auction cross prints in Yahoo Finance API)
-        // limit high to 0.4% above bodyMax, low to 0.4% below bodyMin
-        const clippedHigh = Math.min(c.high, bodyMax * 1.004);
-        const clippedLow  = Math.max(c.low,  bodyMin * 0.996);
-        return { ...c, high: clippedHigh, low: clippedLow };
-      }
-      return c;
+      return !isFirstOfDay;
     });
   }
 
