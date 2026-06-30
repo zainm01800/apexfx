@@ -3912,9 +3912,14 @@ async function saveValidation(target, analysis, curr) {
     if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
     if (Array.isArray(v)) vals = v;
     vals.push(rec);
+    const patchBody = { id: target.id, validations: vals };
+    if (analysis.verdict === 'CLOSE_TRADE') {
+      patchBody.outcome = 'invalidated';
+      patchBody.outcome_date = new Date().toISOString();
+    }
     fetch('/api/memory', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: target.id, validations: vals }),
+      body: JSON.stringify(patchBody),
     }).catch(() => {});
   } catch {}
 }

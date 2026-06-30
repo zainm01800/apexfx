@@ -180,18 +180,21 @@ async function resolveIfPending(rows) {
           const graded  = gradeRow(row, res, candles);
           const ageDays = (Date.now() / 1000 - rowTs(row) / 1000) / 86400;
 
+          const validations = parseValidations(row.validations);
+          const closedEarlyVal = validations.find(v => v.verdict === 'CLOSE_TRADE' || v.assessment === 'invalidated');
+
           if (row.outcome === 'pending') {
-            const resolved = graded || (ageDays > res.expiryDays ? 'expired' : null);
+            const resolved = closedEarlyVal ? 'invalidated' : (graded || (ageDays > res.expiryDays ? 'expired' : null));
             if (resolved) {
               row.outcome = resolved;
-              const resolvedTime = row._resolved_at ? new Date(row._resolved_at).toISOString() : new Date().toISOString();
+              const resolvedTime = closedEarlyVal ? closedEarlyVal.ts : (row._resolved_at ? new Date(row._resolved_at).toISOString() : new Date().toISOString());
               row.outcome_date = resolvedTime;
               fetch(API_MEMORY, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: resolvedTime }),
               }).catch(() => {});
             }
-          } else if (graded === null) {
+          } else if (graded === null && !closedEarlyVal) {
             // PHANTOM self-heal: stored tp/sl that current data no longer supports
             // (e.g. the entry never filled). Revert — expired if old enough (the setup
             // never triggered), else pending so it can resolve correctly later.
@@ -237,6 +240,7 @@ function outcomeLabel(o) {
     case 'tp_hit':  return '✅ TP Hit';
     case 'sl_hit':  return '❌ SL Hit';
     case 'expired': return '⏱ Expired';
+    case 'invalidated': return '❌ Closed Early';
     default:        return '⏳ Pending';
   }
 }
@@ -957,26 +961,32 @@ function initFilters() {
 // Aggregates realised outcomes across ALL scans into headline accuracy metrics.
 function computeAccuracy(rows) {
   const total    = rows.length;
-  let resolved = rows.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+  // All completed/finished trades (either hit TP/SL, expired, or closed early)
+  const finished = rows.filter(r => r.outcome && r.outcome !== 'pending');
 
   // Sort resolved trades newest first by resolution time (outcome_date) if available, or scan time (rowTs) as fallback
-  resolved.sort((a, b) => {
+  finished.sort((a, b) => {
     const tA = a.outcome_date ? new Date(a.outcome_date).getTime() : rowTs(a);
     const tB = b.outcome_date ? new Date(b.outcome_date).getTime() : rowTs(b);
     return tB - tA;
   });
 
+  // For the sample limit, we slice from the finished trades list
+  let activeSet = finished;
   if (_scoreLimit !== 'all') {
     const limit = parseInt(_scoreLimit, 10);
     if (isFinite(limit)) {
-      resolved = resolved.slice(0, limit);
+      activeSet = finished.slice(0, limit);
     }
   }
+
+  // Filter only the ones that hit TP or SL (excluding expired/invalidated for win rate/brier score)
+  const resolved = activeSet.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
 
   const wins     = resolved.filter(r => r.outcome === 'tp_hit');
   const losses   = resolved.filter(r => r.outcome === 'sl_hit');
   const winRate  = resolved.length ? Math.round(wins.length / resolved.length * 100) : null;
-  const pctResolved = total ? Math.round(resolved.length / total * 100) : 0;
+  const pctResolved = total ? Math.round(finished.length / total * 100) : 0;
 
   const avgConf = arr => arr.length ? Math.round(arr.reduce((s, r) => s + (Number(r.confidence) || 0), 0) / arr.length) : null;
 
@@ -1021,7 +1031,7 @@ function computeAccuracy(rows) {
   }).filter(b => b.n > 0);
 
   let netR = 0;
-  for (const r of resolved) {
+  for (const r of activeSet) {
     if (r.outcome === 'tp_hit') {
       const parsed = parseRewardRisk(r.risk_reward);
       netR += (parsed !== null ? parsed : 2.0); // default to 2.0R reward if unparsed
@@ -1031,7 +1041,7 @@ function computeAccuracy(rows) {
   }
 
   return {
-    total, resolvedN: resolved.length, pctResolved, winRate,
+    total, finishedN: finished.length, resolvedN: resolved.length, pctResolved, winRate,
     wins: wins.length, losses: losses.length,
     avgWinConf: avgConf(wins), avgLossConf: avgConf(losses),
     buyAcc: acc(buyRes),   buyN: buyRes.length,
@@ -1113,9 +1123,9 @@ function renderScoreboard() {
     </div>
   `;
 
-  if (!a.resolvedN) {
+  if (!a.finishedN) {
     el.innerHTML = `<div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
-      <div class="acc-empty">No resolved scans in this filtered selection.</div>`;
+      <div class="acc-empty">No completed scans in this filtered selection.</div>`;
     return;
   }
 
@@ -1163,7 +1173,7 @@ function renderScoreboard() {
   let profVal = 'BREAKEVEN';
   let profSub = '0.00 R';
   let profCls = '';
-  if (a.resolvedN > 0) {
+  if (a.finishedN > 0) {
     if (a.netR > 0) {
       profVal = 'PROFITABLE';
       profSub = `+${a.netR.toFixed(2)} R`;
@@ -1175,14 +1185,14 @@ function renderScoreboard() {
     }
   } else {
     profVal = '—';
-    profSub = 'no resolved calls';
+    profSub = 'no completed calls';
   }
 
   el.innerHTML = `
     <div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
     <div class="acc-grid">
-      ${accStat('Total Scans', a.total, `${a.resolvedN} resolved`, '')}
-      ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.resolvedN} still open`, '')}
+      ${accStat('Total Scans', a.total, `${a.finishedN} completed`, '')}
+      ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.finishedN} still open`, '')}
       ${accStat('Win Rate', a.winRate != null ? a.winRate + '%' : '—', a.resolvedN ? `${a.wins}W / ${a.losses}L` : 'no resolved calls', wrCls)}
       ${accStat('Profitability', profVal, profSub, profCls)}
       ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
