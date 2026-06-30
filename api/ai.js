@@ -94,13 +94,14 @@ async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== 'POST')   return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: corsHeaders });
 
-  if (!GEMINI_KEY && !GROQ_KEY) {
-    return new Response(JSON.stringify({ error: 'AI service not configured. Add GEMINI_API_KEY or GROQ_API_KEY in Vercel environment variables.' }), { status: 503, headers: corsHeaders });
-  }
-
   let body;
   try { body = await req.json(); }
   catch { return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: corsHeaders }); }
+
+  const useLocal = body && (body.useLocalLlm || process.env.APEX_LOCAL_LLM_ENABLED === 'true');
+  if (!useLocal && !GEMINI_KEY && !GROQ_KEY) {
+    return new Response(JSON.stringify({ error: 'AI service not configured. Add GEMINI_API_KEY or GROQ_API_KEY in Vercel environment variables.' }), { status: 503, headers: corsHeaders });
+  }
 
   const { prompt, system, max_tokens = 2000, temperature = 0.35, timeoutMs = 55000 } = body;
   const safeMaxTokens  = Math.max(1, Math.min(8000, Number(max_tokens)  || 2000));
@@ -122,6 +123,26 @@ async function handler(req) {
     messages.push({ role: 'system', content: system });
   }
   messages.push({ role: 'user', content: prompt });
+
+  // ── Local LLM Routing (Ollama / LM Studio) ─────────────────────────────────
+  if (useLocal) {
+    const localUrl = body.localLlmUrl || process.env.APEX_LOCAL_LLM_URL || 'http://localhost:11434/v1/chat/completions';
+    const localModel = body.localLlmModel || process.env.APEX_LOCAL_LLM_MODEL || 'llama3';
+    try {
+      const text = await callProvider({
+        apiUrl: localUrl,
+        apiKey: 'none',
+        model: localModel,
+        messages,
+        maxTokens: safeMaxTokens,
+        temperature: safeTemp,
+        timeoutMs: safeTimeoutMs
+      });
+      return new Response(JSON.stringify({ text, provider: 'local', model: localModel }), { status: 200, headers: corsHeaders });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: `Local LLM failed: ${e.message}` }), { status: 502, headers: corsHeaders });
+    }
+  }
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 

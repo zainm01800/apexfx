@@ -188,3 +188,18 @@ sentiment:
   app_url: ""                    # e.g. http://localhost:3001 or your Vercel URL
   news_lookback_days: 5
   max_age_days: 7
+
+# ── Phase 3 AI Quant layer ──────────────────────────────────────────────────────
+# Proposes hypotheses to validate. Grounded in the Node app's /api/ai proxy.
+# Set enabled to true and configure your local LLM details if running locally.
+ai:
+  enabled: false
+  app_url: "http://localhost:3001"   # Node app base URL exposing /api/ai
+  n_hypotheses: 4
+  max_tokens: 1200
+  temperature: 0.5
+  use_news: true
+  use_local_llm: false               # route requests through the app to a local model
+  local_llm_url: "http://localhost:11434/v1/chat/completions"  # local LLM server URL (e.g. Ollama/LM Studio)
+  local_llm_model: "llama3"          # name of the local model to run (e.g. llama3, qwen2.5-coder)
+

@@ -191,6 +191,9 @@ class AiConfig(BaseModel):
     max_tokens: int = 1200
     temperature: float = 0.5
     use_news: bool = True          # ground hypotheses in recent headlines when available
+    use_local_llm: bool = False
+    local_llm_url: str = ""
+    local_llm_model: str = ""
 
 
 class AppConfig(BaseModel):

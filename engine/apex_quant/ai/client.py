@@ -47,7 +47,14 @@ class AppAILLM(LLMClient):
         try:
             import httpx
 
-            payload = {"prompt": prompt, "max_tokens": max_tokens, "temperature": temperature}
+            payload = {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "useLocalLlm": getattr(self.cfg, "use_local_llm", False),
+                "localLlmUrl": getattr(self.cfg, "local_llm_url", ""),
+                "localLlmModel": getattr(self.cfg, "local_llm_model", ""),
+            }
             if system:
                 payload["system"] = system
             with httpx.Client(timeout=self.timeout) as client:
