@@ -30,6 +30,22 @@
     .tr-honesty ul { margin: 8px 0 0; padding-left: 18px; }
     .tr-honesty li { color: var(--text2); font-size: 13px; line-height: 1.7; margin: 5px 0; }
     .tr-honesty strong { color: var(--text); }
+
+    /* Profitability card */
+    .tr-profit-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 20px; margin-top: 22px; }
+    .tr-profit-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .tr-tabs { display: flex; gap: 6px; }
+    .tr-tab { background: var(--bg2, #0c0c16); border: 1px solid var(--border); color: var(--text2); border-radius: 7px;
+      padding: 6px 13px; font-size: 12.5px; cursor: pointer; font-family: var(--mono); transition: all .15s; }
+    .tr-tab:hover { border-color: var(--purple); color: var(--text); }
+    .tr-tab.active { background: rgba(124,92,252,.16); border-color: var(--purple); color: #c8b8ff; }
+    .tr-profit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; padding: 12px 14px; border-radius: 10px; }
+    .tr-profit-banner.pos { background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.3); }
+    .tr-profit-banner.neg { background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.3); }
+    .tr-profit-badge { font-weight: 700; font-size: 13px; padding: 4px 11px; border-radius: 20px; white-space: nowrap; }
+    .tr-profit-badge.pos { background: rgba(74,222,128,.18); color: #4ade80; }
+    .tr-profit-badge.neg { background: rgba(248,113,113,.18); color: #f87171; }
+    .tr-profit-sub { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -51,6 +67,8 @@
       <p>Every AI verdict the engine has made that has since resolved — <strong>wins and losses, timestamped, nothing hidden.</strong> Most trading tools show you only their winners. We show all of it, because the only honest measure of an analysis is whether its stated confidence actually holds up over time.</p>
       <div class="tr-asof" id="trAsOf"></div>
     </div>
+    <div class="tr-profit-card" id="trProfit"></div>
+
     <div id="trBody"><div class="tr-empty">Loading the record…</div></div>
 
     <div class="tr-honesty">
@@ -65,6 +83,7 @@
     <footer class="app-footer" style="margin-top:40px">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
   </main>
 
+  <script src="./app-mode.js"></script>
   <script src="./track-record.js"></script>
 </body>
 </html>

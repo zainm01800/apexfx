@@ -8,6 +8,49 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const dirOf = (r) => { const u = (r.verdict || '').toUpperCase(); if (/BUY|LONG/.test(u)) return 'buy'; if (/SELL|SHORT/.test(u)) return 'sell'; return 'other'; };
 
+  // Parse "1:2.5" / "2.5:1" / "2.5" into reward-per-1-unit-risk (mirrors dashboard.js).
+  function parseRewardRisk(rr) {
+    if (rr == null) return null;
+    const s = String(rr).trim();
+    const m = s.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+    if (m) {
+      const a = parseFloat(m[1]), b = parseFloat(m[2]);
+      if (!(a > 0) || !(b > 0)) return null;
+      return a === 1 ? b : (b === 1 ? a : b / a);
+    }
+    const n = parseFloat(s);
+    return isFinite(n) && n > 0 ? n : null;
+  }
+
+  // Profitability in R-MULTIPLES — the honest way to score a varied-RR trade log: a
+  // loss is always -1R (you lost exactly what you risked); a win is the stated
+  // reward:risk (e.g. a 3:1 win = +3R). Expectancy = avg R per trade; if positive,
+  // sizing every trade at a fixed 1% risk would have grown the account over the
+  // window. EXPIRED trades are excluded (no real fill -> no real P&L to score), not
+  // counted as either a win or a loss.
+  function computeProfitability(rows, sinceMs) {
+    const resolved = rows.filter((r) =>
+      (r.outcome === 'tp_hit' || r.outcome === 'sl_hit') &&
+      (sinceMs == null || Date.parse(r.outcome_date || r.created_at || 0) >= sinceMs));
+    if (!resolved.length) return { n: 0 };
+    let totalR = 0, wins = 0, rrSum = 0, rrN = 0;
+    for (const r of resolved) {
+      const rr = parseRewardRisk(r.risk_reward);
+      if (rr != null) { rrSum += rr; rrN++; }
+      if (r.outcome === 'tp_hit') { wins++; totalR += (rr != null ? rr : 1); }
+      else { totalR -= 1; }
+    }
+    const n = resolved.length;
+    const expectancy = +(totalR / n).toFixed(2);
+    return {
+      n, wins, losses: n - wins,
+      winRate: Math.round(wins / n * 100),
+      avgRR: rrN ? +(rrSum / rrN).toFixed(2) : null,
+      expectancy, totalR: +totalR.toFixed(1),
+      profitable: expectancy > 0,
+    };
+  }
+
   function compute(rows) {
     const resolved = rows.filter((r) => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
     const wins = resolved.filter((r) => r.outcome === 'tp_hit');
@@ -38,6 +81,45 @@
     const recent = resolved.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 40);
     return { total: rows.length, resolvedN: resolved.length, winRate, wins: wins.length, losses: resolved.length - wins.length,
       buyAcc: acc(buy), buyN: buy.length, sellAcc: acc(sell), sellN: sell.length, brier, rel, recent };
+  }
+
+  // ── Profitability card (week / month / lifetime tabs) ──────────────────────
+  const DAY_MS = 86400000;
+  const PROFIT_WINDOWS = { week: 7 * DAY_MS, month: 30 * DAY_MS, lifetime: null };
+  let _allRowsCache = [];
+  let _profitWindow = 'lifetime';
+
+  function renderProfitCard() {
+    const el = $('trProfit');
+    if (!el) return;
+    const sinceMs = PROFIT_WINDOWS[_profitWindow] != null ? Date.now() - PROFIT_WINDOWS[_profitWindow] : null;
+    const p = computeProfitability(_allRowsCache, sinceMs);
+    const tabs = Object.keys(PROFIT_WINDOWS).map((w) =>
+      `<button class="tr-tab ${w === _profitWindow ? 'active' : ''}" data-window="${w}">${w[0].toUpperCase()}${w.slice(1)}</button>`).join('');
+
+    if (!p.n) {
+      el.innerHTML = `<div class="tr-profit-head"><div class="tr-section-title" style="margin:0">Profitability</div><div class="tr-tabs">${tabs}</div></div>
+        <div class="tr-empty" style="padding:18px">No calls resolved in this window yet.</div>`;
+    } else {
+      const cls = p.profitable ? 'pos' : 'neg';
+      el.innerHTML = `
+        <div class="tr-profit-head"><div class="tr-section-title" style="margin:0">Profitability</div><div class="tr-tabs">${tabs}</div></div>
+        <div class="tr-profit-banner ${cls}">
+          <span class="tr-profit-badge ${cls}">${p.profitable ? '✓ Profitable' : '✗ Not profitable'}</span>
+          <span class="tr-profit-sub">${p.expectancy > 0 ? '+' : ''}${p.expectancy}R expectancy per trade — risking a fixed 1% per trade over this window would have returned ${p.totalR > 0 ? '+' : ''}${p.totalR}% (${p.n} resolved trade${p.n === 1 ? '' : 's'})</span>
+        </div>
+        <div class="acc-grid">
+          ${`<div class="acc-stat"><span class="acc-val">${p.n}</span><span class="acc-label">Resolved</span><span class="acc-sub">${p.wins}W / ${p.losses}L</span></div>`}
+          ${`<div class="acc-stat"><span class="acc-val ${p.winRate >= 50 ? 'pos' : 'neg'}">${p.winRate}%</span><span class="acc-label">Win Rate</span></div>`}
+          ${`<div class="acc-stat"><span class="acc-val">${p.avgRR != null ? p.avgRR.toFixed(1) + ':1' : '—'}</span><span class="acc-label">Avg R:R</span><span class="acc-sub">stated, on resolved calls</span></div>`}
+          ${`<div class="acc-stat"><span class="acc-val ${cls}">${p.expectancy > 0 ? '+' : ''}${p.expectancy}R</span><span class="acc-label">Expectancy</span><span class="acc-sub">avg realised R per trade</span></div>`}
+          ${`<div class="acc-stat"><span class="acc-val ${cls}">${p.totalR > 0 ? '+' : ''}${p.totalR}R</span><span class="acc-label">Total R</span><span class="acc-sub">sum, this window</span></div>`}
+        </div>
+        <div class="tr-note">A loss always counts as -1R (you lost exactly what you risked); a win counts as the stated reward:risk (e.g. a 3:1 win = +3R). Expired/never-filled calls are excluded — no real position, no real P&L.</div>`;
+    }
+    el.querySelectorAll('.tr-tab').forEach((b) => b.addEventListener('click', () => {
+      _profitWindow = b.dataset.window; renderProfitCard();
+    }));
   }
 
   function render(a, rawCount) {
@@ -74,6 +156,8 @@
     .then((r) => r.ok ? r.json() : [])
     .then((rows) => {
       if (!Array.isArray(rows)) rows = [];
+      _allRowsCache = rows;
+      renderProfitCard();
       render(compute(rows), rows.length);
       const el = $('trAsOf');
       if (el) el.textContent = 'Live — read directly from the database on every page load.';
