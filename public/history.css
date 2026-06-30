@@ -552,7 +552,7 @@ button.sc-btn { appearance: none; }
 .acc-empty { font-size: 13px; color: var(--text2); padding: 6px 0; }
 .acc-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 .acc-stat {

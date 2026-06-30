@@ -1020,6 +1020,16 @@ function computeAccuracy(rows) {
     return { band: b.band, n: set.length, acc: a, gap: a == null ? null : a - _bandMid[b.band] };
   }).filter(b => b.n > 0);
 
+  let netR = 0;
+  for (const r of resolved) {
+    if (r.outcome === 'tp_hit') {
+      const parsed = parseRewardRisk(r.risk_reward);
+      netR += (parsed !== null ? parsed : 2.0); // default to 2.0R reward if unparsed
+    } else if (r.outcome === 'sl_hit') {
+      netR -= 1.0; // standard 1R risk loss
+    }
+  }
+
   return {
     total, resolvedN: resolved.length, pctResolved, winRate,
     wins: wins.length, losses: losses.length,
@@ -1027,7 +1037,7 @@ function computeAccuracy(rows) {
     buyAcc: acc(buyRes),   buyN: buyRes.length,
     sellAcc: acc(sellRes), sellN: sellRes.length,
     hiConfAcc: acc(hiConf), hiConfN: hiConf.length,
-    brier, reliability,
+    brier, reliability, netR,
   };
 }
 
@@ -1150,12 +1160,31 @@ function renderScoreboard() {
       : `<div class="acc-rel-foot">No re-checked trades have resolved yet. Once a trade you hit <strong>Update</strong> on closes (TP or SL), this learns whether "weakening/invalidated" flags actually predict losses — and starts annotating re-checks with that track record.</div>`}
   </div>`;
 
+  let profVal = 'BREAKEVEN';
+  let profSub = '0.00 R';
+  let profCls = '';
+  if (a.resolvedN > 0) {
+    if (a.netR > 0) {
+      profVal = 'PROFITABLE';
+      profSub = `+${a.netR.toFixed(2)} R`;
+      profCls = 'pos';
+    } else if (a.netR < 0) {
+      profVal = 'UNPROFITABLE';
+      profSub = `${a.netR.toFixed(2)} R`;
+      profCls = 'neg';
+    }
+  } else {
+    profVal = '—';
+    profSub = 'no resolved calls';
+  }
+
   el.innerHTML = `
     <div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
     <div class="acc-grid">
       ${accStat('Total Scans', a.total, `${a.resolvedN} resolved`, '')}
       ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.resolvedN} still open`, '')}
       ${accStat('Win Rate', a.winRate != null ? a.winRate + '%' : '—', a.resolvedN ? `${a.wins}W / ${a.losses}L` : 'no resolved calls', wrCls)}
+      ${accStat('Profitability', profVal, profSub, profCls)}
       ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
       ${accStat('BUY Accuracy', a.buyAcc != null ? a.buyAcc + '%' : '—', a.buyN ? `${a.buyN} resolved BUYs` : 'none resolved', a.buyAcc == null ? '' : a.buyAcc >= 50 ? 'pos' : 'neg')}
       ${accStat('SELL Accuracy', a.sellAcc != null ? a.sellAcc + '%' : '—', a.sellN ? `${a.sellN} resolved SELLs` : 'none resolved', a.sellAcc == null ? '' : a.sellAcc >= 50 ? 'pos' : 'neg')}
