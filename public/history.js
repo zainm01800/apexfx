@@ -97,7 +97,7 @@ function gradeRow(row, res, candles) {
   const tfSec = TF_SECONDS[res.tf] || 86400;
   let afterEntry = (res.tf === '1d' || res.tf === '1w')
     ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
-    : candles.filter(c => c.time >= entryTs + tfSec);
+    : candles.filter(c => c.time + tfSec > entryTs);
 
   // Sanitize opening print spikes for Stocks/ETFs (Yahoo Finance data anomalies).
   // The literal FIRST bar of each session (the opening-auction print) can be a

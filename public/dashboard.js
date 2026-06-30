@@ -2729,9 +2729,17 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
       const atMarket = !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
       if (atMarket) return true; // filled at market instantly
       
+      let _f = _validateTarget.setup_features;
+      if (typeof _f === 'string') { try { _f = JSON.parse(_f); } catch { _f = null; } }
+      const _style = (_f && _f.style) ? String(_f.style).toLowerCase() : 'swing';
+      const res = STYLE_RES[_style] || STYLE_RES.swing;
+      const tfSec = TF_SECONDS[res.tf] || 86400;
+
       const entryTs = getRowTs(_validateTarget) / 1000;
-      // Filter candles that occurred at or after the scan time
-      const afterEntry = candles.filter(c => c.time >= entryTs);
+      // Filter candles that occurred during or after the scan time
+      const afterEntry = (res.tf === '1d' || res.tf === '1w')
+        ? candles.filter(c => c.time >= entryTs)
+        : candles.filter(c => c.time + tfSec > entryTs);
       for (const bar of afterEntry) {
         if (bar.low <= eb.hi && bar.high >= eb.lo) {
           return true; // Price traded into the entry zone!
