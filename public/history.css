@@ -56,6 +56,7 @@
 .hs-val.green  { color: #4ade80; }
 .hs-val.red    { color: #f87171; }
 .hs-val.accent { color: var(--purple); }
+.hs-val.orange { color: var(--orange); }
 .hs-label {
   font-size: 11px;
   color: var(--text3);

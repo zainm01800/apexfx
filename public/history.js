@@ -885,6 +885,8 @@ function updateSummary() {
   const symbols  = new Set(summaryRows.map(r => r.symbol)).size;
   const tp       = summaryRows.filter(r => r.outcome === 'tp_hit').length;
   const sl       = summaryRows.filter(r => r.outcome === 'sl_hit').length;
+  const closed   = summaryRows.filter(r => r.outcome === 'invalidated').length;
+  const expired  = summaryRows.filter(r => r.outcome === 'expired').length;
   const resolved = tp + sl;
   const accuracy = resolved > 0 ? Math.round(tp / resolved * 100) : null;
   
@@ -904,6 +906,8 @@ function updateSummary() {
   setText('hsStat0', `${symbols}`,                              `Symbols · ${total} scans`);
   setText('hsStat1', tp,                                        'TP Hit',  'green');
   setText('hsStat2', sl,                                        'SL Hit',  'red');
+  setText('hsStat5', closed,                                    'Closed Early', 'orange');
+  setText('hsStat6', expired,                                   'Expired', 'orange');
   setText('hsStat3', accuracy != null ? accuracy + '%' : '—%',  'Accuracy', 'accent');
   setText('hsStat4', avgRR != null ? avgRR + ':1' : '—',        'Average R:R', 'accent');
 }

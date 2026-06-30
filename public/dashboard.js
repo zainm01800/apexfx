@@ -2853,7 +2853,8 @@ ${durationBlock}`;
       ? `\n━━━ PRIOR ANALYSIS MEMORY (${sym}) ━━━\n` + tickerMemory.slice(0, 5).map(h => {
           const outcomeStr = h.outcome === 'tp_hit' ? '✅ TP HIT'
             : h.outcome === 'sl_hit'  ? '❌ SL HIT'
-            : h.outcome === 'expired' ? '⏱ EXPIRED (neither TP nor SL hit in 30d)'
+            : h.outcome === 'expired' ? '⏱ EXPIRED (neither TP nor SL hit)'
+            : h.outcome === 'invalidated' ? '❌ CLOSED EARLY (AI re-check)'
             : '⏳ PENDING';
           return `• ${h.analysis_date}: $${h.price} → ${h.verdict} (${h.confidence}% conf) | Target: ${h.target_price || 'N/A'} | Stop: ${h.stop_loss || 'N/A'} | Outcome: ${outcomeStr}`;
         }).join('\n')
@@ -2866,7 +2867,8 @@ ${durationBlock}`;
     if (Array.isArray(tickerMemory) && tickerMemory.length) {
       const resolved = tickerMemory.filter(h => h.outcome === 'tp_hit' || h.outcome === 'sl_hit');
       const expired  = tickerMemory.filter(h => h.outcome === 'expired').length;
-      if (resolved.length || expired > 0) {
+      const closedEarly = tickerMemory.filter(h => h.outcome === 'invalidated').length;
+      if (resolved.length || expired > 0 || closedEarly > 0) {
         const wins   = resolved.filter(h => h.outcome === 'tp_hit').length;
         const losses = resolved.length - wins;
         const winRate = resolved.length ? Math.round((wins / resolved.length) * 100) : 0;
@@ -2878,10 +2880,10 @@ ${durationBlock}`;
         }).filter(Boolean).join(' · ');
         const last = resolved.length ? resolved[0] : null;
         trackRecordBlock = `\n━━━ REAL TRACK RECORD (${sym}) ━━━\n`
-          + `Resolved prior calls: ${resolved.length} → ${wins} TP-hit / ${losses} SL-hit (${winRate}% win rate) · ${expired} expired (neither hit within target timeframe).\n`
+          + `Resolved prior calls: ${resolved.length} → ${wins} TP-hit / ${losses} SL-hit (${winRate}% win rate) · ${expired} expired · ${closedEarly} closed early by AI.\n`
           + (byDir ? `By direction: ${byDir}.\n` : '')
           + (last ? `Most recent resolved: ${last.analysis_date} ${last.verdict} → ${last.outcome === 'tp_hit' ? '✅ WON' : '❌ LOST'}.\n` : '')
-          + `CALIBRATION: This is your ACTUAL realised hit-rate on ${sym}. If recent same-direction calls LOST, be more skeptical and trim confidence; if they WON, a genuine edge may exist. If many calls are EXPIRED, it indicates this asset tends to consolidate sideways for long periods — adjust targets closer or avoid entry.`;
+          + `CALIBRATION: This is your ACTUAL realised hit-rate on ${sym}. If recent same-direction calls LOST, be more skeptical and trim confidence; if they WON, a genuine edge may exist. If many calls are EXPIRED or CLOSED EARLY, it indicates this asset tends to consolidate sideways for long periods or is highly volatile with decaying setups — adjust targets closer or avoid entry.`;
       }
     }
 
