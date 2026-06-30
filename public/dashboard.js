@@ -3124,10 +3124,12 @@ ABSOLUTE RULES — violating any of these is a failure:
 3. NEVER soften a bearish view with vague language. If the asset is broken, say it clearly with AVOID, SHORT, or REDUCE_EXPOSURE.
 4. NEVER soften a bullish view either. If the setup is strong, say STRONG_BUY or BUY — not SPECULATIVE_BUY or WAIT.
 5. NO_EDGE is always available. It is more honest than a forced verdict. Use it freely when evidence is genuinely mixed.
-6. You must respond with ONLY valid JSON. No markdown. No preamble. No "note:". No disclaimers.
+6. AVOID BIAS: Do not treat extended oscillators (RSI > 70, StochRSI > 80) as automatic short signals. In strong uptrends, prices can remain extended for long periods. Similarly, oversold oscillators in a strong downtrend are not automatic buy signals. Respect the macro trend.
+7. You must respond with ONLY valid JSON. No markdown. No preamble. No "note:". No disclaimers.
 
 CALIBRATION EXAMPLES — use these as anchors:
-- confidence_score 88: RSI 72 overbought, price at BB upper, StochRSI 92, weekly MACD crossing down, approaching major resistance. Extremely high-conviction SHORT setup.
+- confidence_score 90: Strong daily/weekly uptrend, price consolidating then breaking out on high volume, all key SMAs aligned bullishly, MACD positive. Extremely high-conviction BUY setup.
+- confidence_score 82: RSI 72 overbought, price at BB upper, StochRSI 92, weekly MACD crossing down, approaching major resistance. Extremely high-conviction SHORT setup.
 - confidence_score 77: Strong uptrend, price above all SMAs, MACD positive, OBV accumulation, but RSI 64 — not overbought, room to run. Solid BUY.
 - confidence_score 63: Mixed signals — daily bullish but weekly bearish MACD, volume declining, near 61.8% Fibonacci. Genuine uncertainty. WAIT for confirmation.
 - confidence_score 45: Three indicators bullish, three bearish, flat OBV, macro unclear. NO_EDGE is the correct answer.
