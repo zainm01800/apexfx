@@ -487,15 +487,37 @@ function buildLifeline(row) {
     }
   }
 
+  const collapsedVals = [];
   for (const v of parseValidations(row.validations)) {
     const isFilled = isFilledAtTimestamp(row, v.ts);
     const pm = getPmLabel(v.verdict, isFilled);
+    const label = pm ? pm.label : (_VAL_LABEL[v.assessment] || 'Re-checked');
+    const icon = pm ? pm.icon : '🔁';
+    const time = fmtValTs(v.ts);
+    const sub = validationSummary(v, isFilled) + reliabilityNote(v.assessment);
+    const cls = pm ? pm.cls : `recheck ${v.assessment || ''}`;
+
+    const last = collapsedVals[collapsedVals.length - 1];
+    if (last && last.label === label) {
+      last.count++;
+      last.latestTime = time;
+      last.sub = sub; // keep latest progress/reason info
+    } else {
+      collapsedVals.push({
+        icon, label, firstTime: time, latestTime: time, sub, cls, count: 1
+      });
+    }
+  }
+
+  for (const cv of collapsedVals) {
+    const displayLabel = cv.count > 1 ? `${cv.label} (x${cv.count})` : cv.label;
+    const displayTime = cv.count > 1 ? `${cv.firstTime} – ${cv.latestTime}` : cv.firstTime;
     steps.push({
-      icon: pm ? pm.icon : '🔁',
-      label: pm ? pm.label : (_VAL_LABEL[v.assessment] || 'Re-checked'),
-      time: fmtValTs(v.ts),
-      sub: validationSummary(v, isFilled) + reliabilityNote(v.assessment),
-      cls: pm ? pm.cls : `recheck ${v.assessment || ''}`,
+      icon: cv.icon,
+      label: displayLabel,
+      time: displayTime,
+      sub: cv.sub,
+      cls: cv.cls,
     });
   }
 
