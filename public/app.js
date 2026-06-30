@@ -1,4 +1,4 @@
-﻿// Extracted from inline <script> blocks in index.html
+// Extracted from inline <script> blocks in index.html
 
 // ── OVERLAY PANEL + NAV GLUE SCRIPT ─────────────────────────────────────────
 // Overlay panel controller
@@ -12305,6 +12305,13 @@ async function aiComplete(prompt, {
   temperature = 0,
   timeoutMs = 30000,
 } = {}){
+  if (localStorage.getItem('apex_local_llm_enabled') === 'true' && window.callLocalLLM) {
+    try {
+      return await window.callLocalLLM('', prompt, max_tokens);
+    } catch(err) {
+      console.error('[APEX] Local LLM connection failed. Falling back to cloud.', err);
+    }
+  }
   let res;
   const apiBase = getLocalApiBase();
   try {

@@ -36,10 +36,113 @@ function marketOpen(type) {
   return h >= 14.5 && h < 21;
 }
 
-async function lastPrice(sym, type) {
-  const to = Math.floor(Date.now() / 1000), from = to - 7 * 86400;
-  for (const tf of ['1h', '1d']) {
-    try { const c = await fetch(`${BASE}/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`).then(r => r.json()); if (Array.isArray(c) && c.length) return c[c.length - 1].close; } catch {}
+const STYLE_RES = {
+  scalp:    { tf: '15m', expiryDays: 3,   bufferDays: 1 },
+  intraday: { tf: '1h',  expiryDays: 7,   bufferDays: 2 },
+  swing:    { tf: '1d',  expiryDays: 30,  bufferDays: 5 },
+  position: { tf: '1d',  expiryDays: 120, bufferDays: 7 },
+};
+const TF_SECONDS = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
+function utcDay(ts) { return new Date(ts * 1000).toISOString().slice(0, 10); }
+function verdictDir(v) {
+  const u = (v || '').toUpperCase();
+  if (/BUY/.test(u)) return 'long';
+  if (/SELL|SHORT/.test(u)) return 'short';
+  return 'neutral';
+}
+function rowTs(row) {
+  if (row.created_at) { const t = Date.parse(row.created_at); if (!isNaN(t)) return t; }
+  const m = String(row.id || '').match(/_(\d{10,})$/);
+  if (m) return parseInt(m[1], 10);
+  if (row.analysis_date) { const t = Date.parse(row.analysis_date); if (!isNaN(t)) return t; }
+  return 0;
+}
+function resolutionFor(row) {
+  let f = row && row.setup_features;
+  if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+  const s = (f && f.style ? String(f.style) : 'swing').toLowerCase();
+  return STYLE_RES[s] || STYLE_RES.swing;
+}
+
+function gradeRow(row, res, candles) {
+  const tp = parseFloat(row.target_price), sl = parseFloat(row.stop_loss);
+  if (isNaN(tp) || isNaN(sl)) return null;
+  const dir = verdictDir(row.verdict);
+  if (dir === 'neutral') return null;
+  const entryTs = rowTs(row) / 1000;
+  const tfSec = TF_SECONDS[res.tf] || 86400;
+  let afterEntry = (res.tf === '1d' || res.tf === '1w')
+    ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
+    : candles.filter(c => c.time >= entryTs + tfSec);
+
+  const type = row.asset_type || 'Stock';
+  if (type === 'Stock' || type === 'ETF') {
+    afterEntry = afterEntry.filter((c, i) => {
+      const isFirstOfDay = (i === 0) || (new Date(c.time * 1000).getUTCDate() !== new Date(afterEntry[i-1].time * 1000).getUTCDate());
+      return !isFirstOfDay;
+    });
+  }
+
+  const eb = entryBounds(row.entry_zone);
+  const scanPx = parseFloat(row.price);
+  const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
+  let filled = !eb || atMarket;
+  let filledAt = filled ? entryTs : null;
+  for (const bar of afterEntry) {
+    if (!filled) {
+      if (bar.low <= eb.hi && bar.high >= eb.lo) {
+        filled = true;
+        filledAt = bar.time;
+      } else {
+        continue;
+      }
+    }
+    if (dir === 'short') {
+      if (bar.low  <= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (bar.high >= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+    } else {
+      if (bar.high >= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (bar.low  <= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+    }
+  }
+  if (filled) row.filled_at = filledAt;
+  return null;
+}
+
+async function resolveAndCheckTrade(r) {
+  const res = resolutionFor(r);
+  const oldest = rowTs(r) / 1000;
+  const buffer = res.bufferDays * 86400;
+  const from = Math.floor(oldest - buffer);
+  const tfSec = TF_SECONDS[res.tf] || 86400;
+  const to = Math.floor(Date.now() / 1000 / tfSec) * tfSec;
+  const type = r.asset_type || 'Stock';
+  
+  try {
+    const candleUrl = `${BASE}/api/candles?sym=${encodeURIComponent(r.symbol)}&type=${encodeURIComponent(type)}&tf=${res.tf}&from=${from}&to=${to}`;
+    const candles = await fetch(candleUrl).then(res => res.json()).catch(() => null);
+    if (!Array.isArray(candles) || candles.length < 2) return null;
+
+    const graded = gradeRow(r, res, candles);
+    const ageDays = (Date.now() / 1000 - oldest) / 86400;
+    const resolved = graded || (ageDays > res.expiryDays ? 'expired' : null);
+    
+    if (resolved) {
+      console.log(`[prox-watch] Auto-resolving trade ${r.id} -> ${resolved}`);
+      const resolvedTime = r._resolved_at ? new Date(r._resolved_at).toISOString() : new Date().toISOString();
+      await fetch(`${BASE}/api/memory`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: r.id, outcome: resolved, outcome_date: resolvedTime }),
+      }).catch(err => console.error(`Failed to patch outcome for ${r.id}:`, err));
+      
+      r.outcome = resolved;
+      return null;
+    }
+    
+    return candles[candles.length - 1].close;
+  } catch (err) {
+    console.error(`Error resolving trade ${r.id}:`, err);
   }
   return null;
 }
@@ -55,7 +158,7 @@ async function findClose() {
   for (const r of open) {
     if (!marketOpen(r.asset_type)) continue;
     const b = entryBounds(r.entry_zone); if (!b) continue;
-    const px = await lastPrice(r.symbol, r.asset_type || 'Stock'); if (px == null) continue;
+    const px = await resolveAndCheckTrade(r); if (px == null) continue;
     const d = distPct(px, b); if (d > THRESHOLD) continue;
     let v = r.validations; if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
     const lastTs = Array.isArray(v) && v.length ? Date.parse(v[v.length - 1].ts) : 0;

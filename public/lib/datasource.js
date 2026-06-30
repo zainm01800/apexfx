@@ -15,7 +15,8 @@ const yahooProvider = {
   // Fetch the maximum available history for sym/type/tf. Returns OHLCV bars
   // [{time,open,high,low,close,volume}] ascending, or throws.
   async getCandles(sym, type, tf, { signal } = {}) {
-    const to = Math.floor(Date.now() / 1000);
+    const tfSec = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 }[tf] || 86400;
+    const to = Math.floor(Date.now() / 1000 / tfSec) * tfSec;
     const from = to - (MAX_DAYS[tf] || 3649) * 86400;
     const url = `/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`;
     const r = await fetch(url, { signal });

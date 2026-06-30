@@ -16,6 +16,9 @@ let _livePx       = {};   // sym → latest price, for the "distance to entry" i
 let _filterOutcome = 'all';
 let _filterType    = 'all';
 let _filterSym     = '';
+let _filterDir     = 'all';
+let _filterManual  = false;
+let _filterTimeframe = 'all';
 
 function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] = r; }
 
@@ -164,7 +167,8 @@ async function resolveIfPending(rows) {
         const oldest = Math.min(...g.rows.map(x => rowTs(x.row) / 1000));
         const buffer = Math.max(...g.rows.map(x => x.res.bufferDays)) * 86400;
         const from   = Math.floor(oldest - buffer);
-        const to     = Math.floor(Date.now() / 1000);
+        const tfSec  = TF_SECONDS[g.tf] || 86400;
+        const to     = Math.floor(Date.now() / 1000 / tfSec) * tfSec;
         const candleRes = await fetch(
           `${API_CANDLES}?sym=${encodeURIComponent(g.sym)}&type=${encodeURIComponent(g.type)}&tf=${g.tf}&from=${from}&to=${to}`
         );
@@ -366,9 +370,32 @@ const _PM_LABELS = {
   SCALE_OUT:         { label: 'Scale Out',          icon: '📤', cls: 'recheck weakening' },
   CLOSE_TRADE:       { label: 'Close Trade',        icon: '🚪', cls: 'recheck invalidated' },
 };
+
+function isFilledAtTimestamp(row, valTs) {
+  if (!row.filled_at) return false;
+  const t = Date.parse(valTs);
+  if (isNaN(t)) return false;
+  return (t / 1000) >= row.filled_at;
+}
+
+function getPmLabel(verdict, isFilledAtVal) {
+  const v = (verdict || '').toUpperCase();
+  const pm = _PM_LABELS[v];
+  if (!pm) return null;
+  if (!isFilledAtVal) {
+    if (v === 'HOLD_TRADE') {
+      return { label: 'Still Waiting', icon: '⏳', cls: 'recheck confirmed' };
+    }
+    if (v === 'CLOSE_TRADE') {
+      return { label: 'Cancel Setup', icon: '❌', cls: 'recheck invalidated' };
+    }
+  }
+  return pm;
+}
+
 const _VAL_LABEL = { confirmed: 'STILL VALID', weakening: 'WEAKENING', invalidated: 'INVALIDATED', activated: 'NOW ACTIONABLE', 'still-waiting': 'STILL WAITING', 'n/a': 'RE-CHECKED' };
-function validationSummary(v) {
-  const pm = _PM_LABELS[(v.verdict || '').toUpperCase()];
+function validationSummary(v, isFilled = false) {
+  const pm = getPmLabel(v.verdict, isFilled);
   const label = pm ? pm.label : (_VAL_LABEL[v.assessment] || 'RE-CHECKED');
   const conf = v.confidence != null ? ` ${v.confidence}%` : '';
   const then = v.confidenceThen != null && v.confidence != null && v.confidenceThen !== v.confidence ? ` (was ${v.confidenceThen}%)` : '';
@@ -457,12 +484,13 @@ function buildLifeline(row) {
   }
 
   for (const v of parseValidations(row.validations)) {
-    const pm = _PM_LABELS[(v.verdict || '').toUpperCase()];
+    const isFilled = isFilledAtTimestamp(row, v.ts);
+    const pm = getPmLabel(v.verdict, isFilled);
     steps.push({
       icon: pm ? pm.icon : '🔁',
       label: pm ? pm.label : (_VAL_LABEL[v.assessment] || 'Re-checked'),
       time: fmtValTs(v.ts),
-      sub: validationSummary(v) + reliabilityNote(v.assessment),
+      sub: validationSummary(v, isFilled) + reliabilityNote(v.assessment),
       cls: pm ? pm.cls : `recheck ${v.assessment || ''}`,
     });
   }
@@ -650,10 +678,25 @@ function renderCard(g) {
 // the type filter, and (for outcome) ANY scan in the group has that outcome — so
 // filtering "TP Hit" surfaces every instrument that has ever hit a target.
 function applyFilters(groups) {
+  const now = Date.now();
+  const weekMs = 7 * 86400 * 1000;
+  const monthMs = 30 * 86400 * 1000;
+  const yearMs = 365 * 86400 * 1000;
+
   return groups.filter(g => {
+    const row = g.current;
     if (_filterSym && !g.symbol.toUpperCase().includes(_filterSym.toUpperCase())) return false;
-    if (_filterType !== 'all' && g.current.asset_type !== _filterType) return false;
+    if (_filterType !== 'all' && row.asset_type !== _filterType) return false;
     if (_filterOutcome !== 'all' && !g.scans.some(s => (s.outcome || 'pending') === _filterOutcome)) return false;
+    if (_filterDir !== 'all' && verdictDir(row.verdict) !== _filterDir) return false;
+    if (_filterManual && isAuto(row)) return false;
+    
+    if (_filterTimeframe !== 'all') {
+      const ts = rowTs(row);
+      if (_filterTimeframe === 'week' && ts < now - weekMs) return false;
+      if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
+      if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
+    }
     return true;
   });
 }
@@ -662,6 +705,8 @@ function renderGrid() {
   const grid = document.getElementById('scanGrid');
   const empty = document.getElementById('histEmpty');
   _valReliability = computeValidationReliability(_allRows);   // refresh learned re-check stats
+  updateSummary(); // keep stats reactive
+  renderScoreboard(); // keep scoreboard reactive
   const groups = applyFilters(buildGroups(_allRows));
 
   if (!groups.length) {
@@ -762,18 +807,68 @@ function initGridActions() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePreview(); });
 }
 
+function parseRewardRisk(rr) {
+  if (rr == null) return null;
+  const s = String(rr).trim();
+  const m = s.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+  if (m) {
+    const a = parseFloat(m[1]), b = parseFloat(m[2]);
+    if (!(a > 0) || !(b > 0)) return null;
+    return a === 1 ? b : (b === 1 ? a : b / a);
+  }
+  const n = parseFloat(s);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+function getFilteredRowsForSummary() {
+  const now = Date.now();
+  const weekMs = 7 * 86400 * 1000;
+  const monthMs = 30 * 86400 * 1000;
+  const yearMs = 365 * 86400 * 1000;
+
+  return _allRows.filter(row => {
+    if (_filterSym && !row.symbol.toUpperCase().includes(_filterSym.toUpperCase())) return false;
+    if (_filterType !== 'all' && row.asset_type !== _filterType) return false;
+    if (_filterDir !== 'all' && verdictDir(row.verdict) !== _filterDir) return false;
+    if (_filterManual && isAuto(row)) return false;
+    
+    if (_filterTimeframe !== 'all') {
+      const ts = rowTs(row);
+      if (_filterTimeframe === 'week' && ts < now - weekMs) return false;
+      if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
+      if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
+    }
+    return true;
+  });
+}
+
 function updateSummary() {
-  const total    = _allRows.length;
-  const symbols  = new Set(_allRows.map(r => r.symbol)).size;
-  const tp       = _allRows.filter(r => r.outcome === 'tp_hit').length;
-  const sl       = _allRows.filter(r => r.outcome === 'sl_hit').length;
+  const summaryRows = getFilteredRowsForSummary();
+  const total    = summaryRows.length;
+  const symbols  = new Set(summaryRows.map(r => r.symbol)).size;
+  const tp       = summaryRows.filter(r => r.outcome === 'tp_hit').length;
+  const sl       = summaryRows.filter(r => r.outcome === 'sl_hit').length;
   const resolved = tp + sl;
   const accuracy = resolved > 0 ? Math.round(tp / resolved * 100) : null;
+  
+  // Calculate average R:R for completed/resolved trades in the filtered selection
+  const completed = summaryRows.filter(r => r.outcome && r.outcome !== 'pending');
+  let rrSum = 0;
+  let rrCount = 0;
+  for (const r of completed) {
+    const val = parseRewardRisk(r.risk_reward);
+    if (val !== null) {
+      rrSum += val;
+      rrCount++;
+    }
+  }
+  const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : null;
 
   setText('hsStat0', `${symbols}`,                              `Symbols · ${total} scans`);
   setText('hsStat1', tp,                                        'TP Hit',  'green');
   setText('hsStat2', sl,                                        'SL Hit',  'red');
   setText('hsStat3', accuracy != null ? accuracy + '%' : '—%',  'Accuracy', 'accent');
+  setText('hsStat4', avgRR != null ? avgRR + ':1' : '—',        'Average R:R', 'accent');
 }
 
 function setText(id, val, label, cls) {
@@ -804,6 +899,39 @@ function initFilters() {
       renderGrid();
     });
   });
+
+  document.querySelectorAll('[data-dir]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-dir]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _filterDir = btn.dataset.dir;
+      renderGrid();
+    });
+  });
+
+  document.querySelectorAll('[data-timeframe]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-timeframe]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _filterTimeframe = btn.dataset.timeframe;
+      renderGrid();
+    });
+  });
+
+  const manualBtn = document.getElementById('hfManualOnly');
+  if (manualBtn) {
+    manualBtn.addEventListener('click', () => {
+      _filterManual = !_filterManual;
+      if (_filterManual) {
+        manualBtn.classList.add('active');
+        manualBtn.textContent = 'Manual scans only 👤';
+      } else {
+        manualBtn.classList.remove('active');
+        manualBtn.textContent = 'All scans';
+      }
+      renderGrid();
+    });
+  }
 
   const searchEl = document.getElementById('hfSearch');
   if (searchEl) {
@@ -926,8 +1054,9 @@ function setScoreScope(s) { _scoreScope = s; renderScoreboard(); }
 function renderScoreboard() {
   const el = document.getElementById('accBoard');
   if (!el) return;
-  const autoN  = _allRows.filter(isAuto).length;
-  const scoped = _scoreScope === 'mine' ? _allRows.filter(r => !isAuto(r)) : _allRows;
+  const summaryRows = getFilteredRowsForSummary();
+  const autoN  = summaryRows.filter(isAuto).length;
+  const scoped = _scoreScope === 'mine' ? summaryRows.filter(r => !isAuto(r)) : summaryRows;
   const a = computeAccuracy(scoped);
   // Only offer the toggle once auto-scans actually exist (otherwise it's noise).
   const scopeToggle = autoN ? `
@@ -1042,7 +1171,7 @@ const _wlPrices = {};   // sym → latest close, cached across renders
 
 async function fetchLivePrice(sym, type) {
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - 7 * 86400;
+    const to = Math.floor(Date.now() / 1000 / 86400) * 86400, from = to - 7 * 86400;
     const r = await fetch(`${API_CANDLES}?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type || 'Stock')}&tf=1d&from=${from}&to=${to}`);
     if (!r.ok) return null;
     const c = await r.json();
@@ -1144,7 +1273,7 @@ const _wlReturns = {};   // sym → array of daily returns (cached)
 async function fetchReturnSeries(sym, type) {
   if (_wlReturns[sym]) return _wlReturns[sym];
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - 130 * 86400;
+    const to = Math.floor(Date.now() / 1000 / 86400) * 86400, from = to - 130 * 86400;
     const r = await fetch(`${API_CANDLES}?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type || 'Stock')}&tf=1d&from=${from}&to=${to}`);
     if (!r.ok) return null;
     const c = await r.json();
@@ -1340,6 +1469,13 @@ function initAutoRefresh() {
 
 // Minimal AI caller (mirrors dashboard.js callAgent; one retry on a transient 5xx).
 async function callAgent(system, prompt, maxTokens = 400) {
+  if (localStorage.getItem('apex_local_llm_enabled') === 'true' && window.callLocalLLM) {
+    try {
+      return await window.callLocalLLM(system, prompt, maxTokens);
+    } catch (err) {
+      console.error('[APEX] Local LLM connection failed. Falling back to cloud.', err);
+    }
+  }
   const attempt = async () => {
     const res = await fetch('/api/ai', {
       method: 'POST',
@@ -1375,6 +1511,103 @@ function parseLesson(text) {
 async function generateLessonFor(row) {
   const reasons = parseReasons(row.key_reasons);
   const heldDays = Math.max(0, Math.round((rowTs(row) ? (Date.now() - rowTs(row)) / 86400000 : 0)));
+  const vals = parseValidations(row.validations);
+
+  let valSummary = '';
+  if (vals.length > 0) {
+    valSummary = vals.map((v, i) => {
+      const dateStr = v.ts ? new Date(v.ts).toISOString().slice(0, 10) : `Update #${i+1}`;
+      return `• [${dateStr}] Verdict: ${v.verdict || 'N/A'} (price: $${v.price}, assessment: ${v.assessment}, progress: ${v.progressPct != null ? v.progressPct + '%' : '0%'} toward ${v.progressToward || 'target'})`;
+    }).join('\n');
+  }
+
+  // Fetch candles to enrich the lesson prompt with exact price movements (especially for expired trades)
+  let candleEnrichment = '';
+  try {
+    const res = resolutionFor(row);
+    const oldest = rowTs(row) / 1000;
+    const buffer = res.bufferDays * 86400;
+    const from = Math.floor(oldest - buffer);
+    const tfSec = TF_SECONDS[res.tf] || 86400;
+    const to = Math.floor(Date.now() / 1000 / tfSec) * tfSec;
+    const candleRes = await fetch(
+      `${API_CANDLES}?sym=${encodeURIComponent(row.symbol)}&type=${encodeURIComponent(row.asset_type || 'Stock')}&tf=${res.tf}&from=${from}&to=${to}`
+    );
+    if (candleRes.ok) {
+      const candles = await candleRes.json();
+      if (Array.isArray(candles) && candles.length > 0) {
+        const entryTs = rowTs(row) / 1000;
+        const tfSec = TF_SECONDS[res.tf] || 86400;
+        const afterEntry = (res.tf === '1d' || res.tf === '1w')
+          ? candles.filter(c => utcDay(c.time) > utcDay(entryTs))
+          : candles.filter(c => c.time >= entryTs + tfSec);
+
+        const eb = entryBounds(row.entry_zone);
+        const scanPx = parseFloat(row.price);
+        const tp = parseFloat(row.target_price);
+        const sl = parseFloat(row.stop_loss);
+        const dir = verdictDir(row.verdict);
+
+        if (afterEntry.length > 0) {
+          const atMarket = eb && !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
+          let filled = !eb || atMarket;
+          let filledAt = filled ? entryTs : null;
+          let minDistancePct = Infinity;
+          let closestPrice = null;
+
+          for (const bar of afterEntry) {
+            if (!filled) {
+              if (bar.low <= eb.hi && bar.high >= eb.lo) {
+                filled = true;
+                filledAt = bar.time;
+              } else {
+                const midEntry = (eb.lo + eb.hi) / 2;
+                const distanceLo = Math.abs(bar.low - midEntry);
+                const distanceHi = Math.abs(bar.high - midEntry);
+                const barMinDist = Math.min(distanceLo, distanceHi);
+                const barMinPct = (barMinDist / midEntry) * 100;
+                if (barMinPct < minDistancePct) {
+                  minDistancePct = barMinPct;
+                  closestPrice = distanceLo < distanceHi ? bar.low : bar.high;
+                }
+              }
+            }
+          }
+
+          let maxFavorableMove = 0;
+          let maxAdverseMove = 0;
+          if (filled && !isNaN(tp) && !isNaN(sl)) {
+            const entryVal = eb ? (eb.lo + eb.hi) / 2 : scanPx;
+            for (const bar of afterEntry) {
+              if (bar.time < filledAt) continue;
+              if (dir === 'short') {
+                const fav = entryVal - bar.low;
+                const adv = bar.high - entryVal;
+                if (fav > maxFavorableMove) maxFavorableMove = fav;
+                if (adv > maxAdverseMove) maxAdverseMove = adv;
+              } else {
+                const fav = bar.high - entryVal;
+                const adv = entryVal - bar.low;
+                if (fav > maxFavorableMove) maxFavorableMove = fav;
+                if (adv > maxAdverseMove) maxAdverseMove = adv;
+              }
+            }
+          }
+
+          candleEnrichment = `
+━━━ POST-MORTEM PRICE MOVEMENT DETAILS ━━━
+• Entry zone filled: ${filled ? `YES (filled on ${new Date(filledAt * 1000).toISOString().slice(0, 10)})` : 'NO'}
+${!filled && closestPrice !== null && eb ? `• Nearest price to entry zone ($${eb.lo.toFixed(2)}-$${eb.hi.toFixed(2)}): $${closestPrice.toFixed(2)} (${minDistancePct.toFixed(2)}% away)` : ''}
+${filled && maxFavorableMove > 0 ? `• Maximum movement in trade direction (favorable): $${maxFavorableMove.toFixed(4)}` : ''}
+${filled && maxAdverseMove > 0 ? `• Maximum movement against trade direction (adverse): $${maxAdverseMove.toFixed(4)}` : ''}
+`;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching candles for post-mortem:', err);
+  }
+
   const system = 'You are a blunt trading post-mortem analyst. You review a CLOSED trade idea against what actually happened and extract the single most useful, transferable lesson. Be specific and honest — name the mistake if there was one. Reply ONLY with strict JSON: {"lesson":"<1-2 sentences>"}.';
   const prompt = `CLOSED TRADE on ${row.symbol} (${row.asset_type || 'Stock'}).
 Original call: ${(row.verdict || '').replace(/_/g, ' ')} at ${row.confidence != null ? row.confidence + '% confidence' : 'unknown confidence'}.
@@ -1382,10 +1615,12 @@ Entry zone: ${row.entry_zone || '—'} | Target: ${row.target_price || '—'} | 
 Scan price: ${row.price || '—'}. Held ~${heldDays} day(s).
 Original thesis (key reasons): ${reasons.length ? reasons.map(r => '• ' + r).join(' ') : (row.summary || '—')}
 Technical read at the time: ${row.technical_analysis || '—'}
-
+${candleEnrichment}
+${vals.length ? `━━━ RE-CHECK RESCAN HISTORY (validations) ━━━\nDuring the trade's life, the following re-checks (rescans) were run:\n${valSummary}\n` : ''}
 ACTUAL RESULT: ${outcomePlain(row.outcome)}.
 
-Write the lesson: what did the thesis get right or wrong, and the ONE thing to watch for on a structurally-similar setup next time? Strict JSON only.`;
+Write the lesson: what did the thesis get right or wrong? ${vals.length ? `Also evaluate the re-check (rescan) verdicts: were their position-management recommendations (e.g. HOLD_TRADE, CLOSE_TRADE, TIGHTEN_STOP, MOVE_TO_BREAKEVEN) correct or incorrect in hindsight? If incorrect, what did the re-check miss?` : ''} Summarize the ONE key transferable lesson to watch for on a structurally-similar setup next time. Strict JSON only.`;
+
   const text = await callAgent(system, prompt, 400);
   return parseLesson(text);
 }

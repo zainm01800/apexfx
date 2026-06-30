@@ -811,8 +811,18 @@ function showCooldownNotice(sym, ms) {
   }, 1000);
 }
 
+function alignedTimes(tf, days) {
+  const tfSec = {
+    '1m': 60, '5m': 300, '15m': 900, '30m': 1800,
+    '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000
+  }[tf] || 86400;
+  const to = Math.floor(Date.now() / 1000 / tfSec) * tfSec;
+  const from = to - days * 86400;
+  return { from, to };
+}
+
 async function fetchCandles(sym, type, tf = '1d', days = 210) {
-  const to = Math.floor(Date.now() / 1000), from = to - days * 86400;
+  const { from, to } = alignedTimes(tf, days);
   const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`);
   if (!r.ok) throw new Error(`Price data unavailable (HTTP ${r.status})`);
   const d = await r.json();
@@ -821,7 +831,7 @@ async function fetchCandles(sym, type, tf = '1d', days = 210) {
 }
 async function fetchWeeklyCandles(sym, type, tf = '1w', days = 730) {
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - days * 86400;
+    const { from, to } = alignedTimes(tf, days);
     const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=${tf}&from=${from}&to=${to}`);
     if (!r.ok) return null;
     const d = await r.json();
@@ -847,7 +857,7 @@ async function fetchMacroContext(sym) {
   // Skip when the symbol is one of the macro instruments itself
   if (['SPY', 'QQQ', 'TLT'].includes(sym.toUpperCase())) return null;
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - 40 * 86400;
+    const { from, to } = alignedTimes('1d', 40);
     const [spyBars, qqqBars, tltBars] = await Promise.all([
       fetch(`/api/candles?sym=SPY&type=ETF&tf=1d&from=${from}&to=${to}`).then(r => r.ok ? r.json() : []).catch(() => []),
       fetch(`/api/candles?sym=QQQ&type=ETF&tf=1d&from=${from}&to=${to}`).then(r => r.ok ? r.json() : []).catch(() => []),
@@ -1612,6 +1622,13 @@ function renderPositionSizer(r) {
 // clear retryable message instead of a cryptic "Unexpected token" crash.
 // Retries once on a transient failure before giving up.
 async function callAgent(system, prompt, maxTokens = 2500, opts = {}) {
+  if (localStorage.getItem('apex_local_llm_enabled') === 'true' && window.callLocalLLM) {
+    try {
+      return await window.callLocalLLM(system, prompt, maxTokens);
+    } catch (err) {
+      console.error('[APEX] Local LLM connection failed. Falling back to cloud.', err);
+    }
+  }
   const attempt = async () => {
     const res = await fetch('/api/ai', {
       method:  'POST',
@@ -1749,7 +1766,7 @@ function combineEnsemble(members) {
 
 async function loadPulse(sym, type, elId) {
   try {
-    const to = Math.floor(Date.now() / 1000), from = to - 5 * 86400;
+    const { from, to } = alignedTimes('1d', 5);
     const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
     if (!r.ok) return;
     const bars = await r.json();
@@ -2685,7 +2702,49 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
     // When re-checking an OPEN trade the AI must give position management verdicts
     // (HOLD_TRADE, CLOSE_TRADE, etc.) NOT fresh entry verdicts (WAIT, SHORT, BUY).
     let positionMgmtBlock = '';
-    const _pmTarget = (_validateMode && _validateTarget && _validateTarget.symbol === sym) ? _validateTarget : null;
+    const _isRealTrade = _validateTarget && (() => {
+      const u = (_validateTarget.verdict || '').toUpperCase();
+      return /BUY|SELL|SHORT|LONG/.test(u);
+    })();
+    
+    // Helper functions to check if trade was filled (since entryBounds and rowTs don't exist in dashboard.js yet)
+    const getEntryBounds = (ez) => {
+      const m = String(ez || '').match(/-?\d+(?:\.\d+)?/g);
+      if (!m) return null;
+      const v = m.map(Number).filter(x => !isNaN(x));
+      return v.length ? { lo: Math.min(...v), hi: Math.max(...v) } : null;
+    };
+    const getRowTs = (row) => {
+      if (row.created_at) { const t = Date.parse(row.created_at); if (!isNaN(t)) return t; }
+      const m = String(row.id || '').match(/_(\d{10,})$/);
+      if (m) return parseInt(m[1], 10);
+      if (row.analysis_date) { const t = Date.parse(row.analysis_date); if (!isNaN(t)) return t; }
+      return 0;
+    };
+
+    const _tradeFilled = _isRealTrade && (() => {
+      const eb = getEntryBounds(_validateTarget.entry_zone);
+      if (!eb) return true; // market entry (no zone) -> always filled
+      const scanPx = parseFloat(_validateTarget.price);
+      const atMarket = !isNaN(scanPx) && scanPx >= eb.lo - Math.abs(eb.lo) * 0.0005 && scanPx <= eb.hi + Math.abs(eb.hi) * 0.0005;
+      if (atMarket) return true; // filled at market instantly
+      
+      const entryTs = getRowTs(_validateTarget) / 1000;
+      // Filter candles that occurred at or after the scan time
+      const afterEntry = candles.filter(c => c.time >= entryTs);
+      for (const bar of afterEntry) {
+        if (bar.low <= eb.hi && bar.high >= eb.lo) {
+          return true; // Price traded into the entry zone!
+        }
+      }
+      return false;
+    })();
+
+    let waitConstraint = '';
+    let pmPrompt = '';
+    let pmVerdictJson = 'STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE';
+
+    const _pmTarget = (_validateMode && _validateTarget && _validateTarget.symbol === sym && _isRealTrade) ? _validateTarget : null;
     if (_pmTarget) {
       const origDir   = verdictDir(_pmTarget.verdict);
       const origVerd  = (_pmTarget.verdict || '').replace(/_/g, ' ');
@@ -2698,9 +2757,21 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
       // Progress toward TP/SL
       const prog = validationProgress(_pmTarget, curr);
       const progLine = prog ? `Price is now ${prog.pct}% of the way toward the ${prog.toward}.` : '';
-      positionMgmtBlock = `
-━━━ OPEN POSITION RE-CHECK — YOU ARE MANAGING AN EXISTING ${origDir.toUpperCase()} TRADE ━━━
-This is NOT a new entry decision. A real trade is already open:
+
+      waitConstraint = _tradeFilled
+        ? ' (but in position re-check mode, WAIT is invalid — use HOLD_TRADE, MOVE_TO_BREAKEVEN, or CLOSE_TRADE instead)'
+        : ' (but in pending setup re-check mode, WAIT is invalid — use HOLD_TRADE or CLOSE_TRADE instead)';
+
+      pmPrompt = `\n⚠ RE-CHECK MODE: You are managing an existing ${_tradeFilled ? 'ACTIVE' : 'UNFILLED'} ${verdictDir(_pmTarget.verdict).toUpperCase()} trade.\nThe ONLY valid verdicts here are: ${_tradeFilled ? 'HOLD_TRADE | MOVE_TO_BREAKEVEN | TIGHTEN_STOP | SCALE_OUT | CLOSE_TRADE' : 'HOLD_TRADE | CLOSE_TRADE'}.\nAny other verdict is INVALID for this response.\nThe executive_summary and key_reasons must explain the position management decision.`;
+
+      pmVerdictJson = _tradeFilled
+        ? 'HOLD_TRADE|MOVE_TO_BREAKEVEN|TIGHTEN_STOP|SCALE_OUT|CLOSE_TRADE'
+        : 'HOLD_TRADE|CLOSE_TRADE';
+      
+      if (_tradeFilled) {
+        positionMgmtBlock = `
+━━━ OPEN POSITION RE-CHECK — YOU ARE MANAGING AN ACTIVE ${origDir.toUpperCase()} POSITION ━━━
+This is NOT a new entry decision. The position has already filled and is live:
   Direction : ${origDir.toUpperCase()} (original verdict: ${origVerd})
   Opened    : ${origDate} @ ${priceThen}
   Entry zone: ${entryZone}
@@ -2709,10 +2780,9 @@ This is NOT a new entry decision. A real trade is already open:
   Confidence then: ${origConf}
   Current price  : ${curr.toFixed(dp)} ${progLine}
 
-YOUR SOLE TASK is to assess what the HOLDER of this ${origDir.toUpperCase()} trade should do RIGHT NOW.
-Do NOT pretend this is a fresh analysis. Do NOT issue new-entry verdicts (WAIT/BUY/SHORT).
-The valid verdicts for a position re-check are ONLY:
-  HOLD_TRADE        — thesis intact, nothing to do, stay in
+YOUR SOLE TASK is to assess what the HOLDER of this active position should do RIGHT NOW.
+The valid verdicts for an active position re-check are ONLY:
+  HOLD_TRADE        — thesis intact, stay in position
   MOVE_TO_BREAKEVEN — risk is rising; move stop to entry to protect capital
   TIGHTEN_STOP      — significant profit banked; trail the stop to lock in gains
   SCALE_OUT         — partial take-profit now; let a runner go for the rest
@@ -2721,6 +2791,26 @@ The valid verdicts for a position re-check are ONLY:
 Decide based on: (a) how much the original thesis still holds on fresh evidence,
 (b) how far price is toward TP vs SL, (c) any new signals that change the picture.
 Be direct and specific. The holder needs a clear action, not another WAIT.`;
+      } else {
+        positionMgmtBlock = `
+━━━ PENDING ENTRY RE-CHECK — YOU ARE EVALUATING AN UNFILLED ${origDir.toUpperCase()} SETUP ━━━
+This trade has NOT filled yet. Price is sitting outside the entry zone:
+  Direction : ${origDir.toUpperCase()} (original verdict: ${origVerd})
+  Scanned   : ${origDate} @ ${priceThen}
+  Entry zone: ${entryZone}
+  Take-profit: ${target}
+  Stop-loss  : ${stopLoss}
+  Confidence then: ${origConf}
+  Current price  : ${curr.toFixed(dp)}
+
+YOUR SOLE TASK is to assess whether we should continue waiting for the entry zone to trigger, or cancel the setup.
+The valid verdicts for an unfilled setup re-check are ONLY:
+  HOLD_TRADE  — thesis still valid, continue waiting for the entry zone to trigger
+  CLOSE_TRADE — setup is invalidated or trend has shifted; cancel the watch setup
+
+Do NOT issue fresh entry level changes. Do NOT recommend active management actions (MOVE_TO_BREAKEVEN, TIGHTEN_STOP, SCALE_OUT) because the trade is not yet filled.
+Decide based on whether the original setup pattern still holds, or if the market has broken the thesis before entry.`;
+      }
     }
 
     // News impact block
@@ -3391,7 +3481,7 @@ Your task:
 2. Identify where analysts AGREE (high conviction areas) and where they CONFLICT (uncertainty areas)
 3. The Risk Manager's evidence deserves EQUAL weight to bullish factors — do not dismiss risks
 4. Apply the Confluence Score as a hard calibration constraint on your confidence score
-5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD${_pmTarget ? ' (but in position re-check mode, WAIT is invalid — use HOLD_TRADE, MOVE_TO_BREAKEVEN, or CLOSE_TRADE instead)' : ''}
+5. If bullish and bearish factors are roughly balanced (4:4 or 5:5 or similar), lean toward NO_EDGE or WAIT — not HOLD${waitConstraint}
 6. If quality flags are present (Beneish manipulation risk, weak F-Score), reduce confidence by 10–15 points
 7. Weigh the INDEPENDENT QUANT ENGINE per its directive: a risk-layer NO POSITION or a REJECTED validation must pull confidence down materially and may turn an aggressive BUY/SELL into WAIT/NO_EDGE; agreement modestly supports the call
 8. Honour the TRADE STYLE: entry_zone, stop_loss, target_price, risk_reward and timeframe must all be sized for a ${ts.label} (${ts.primaryTf}) trade, consistent with the verdict — a BUY needs a concrete entry trigger, take-profit and stop for THIS horizon
@@ -3400,16 +3490,12 @@ Your task:
 10. Be brutally honest — no performance, no softening, no default verdicts
 11. PRE-MORTEM (decision-quality discipline): before finalising, assume this trade has ALREADY hit its stop. Identify the single most likely reason it failed and put it in the premortem field — this surfaces the dominant risk and counters confirmation bias.
 12. METHOD HONESTY: do NOT treat named discretionary chart methods (ICT, Smart Money Concepts, order blocks, fair value gaps, liquidity sweeps, Elliott Wave, harmonics, Gann) as established edge — they have no independently verified track record and are largely repackaged support/resistance & supply/demand. You may reference them, but weight price action, volume, regime and confluence ABOVE any named pattern, and never raise confidence on the strength of such a method alone.
-${_pmTarget ? `
-⚠ POSITION RE-CHECK MODE: You are managing an existing ${verdictDir(_pmTarget.verdict).toUpperCase()} trade, not opening a new one.
-The ONLY valid verdicts here are: HOLD_TRADE | MOVE_TO_BREAKEVEN | TIGHTEN_STOP | SCALE_OUT | CLOSE_TRADE.
-Any other verdict (WAIT, BUY, SHORT, NO_EDGE, etc.) is INVALID for this response.
-The executive_summary and key_reasons must explain the position management decision.` : ''}
+${pmPrompt}
 
 Respond ONLY with this exact JSON structure:
 
 {
-  "verdict": "${_pmTarget ? 'HOLD_TRADE|MOVE_TO_BREAKEVEN|TIGHTEN_STOP|SCALE_OUT|CLOSE_TRADE' : 'STRONG_BUY|BUY|SPECULATIVE_BUY|WAIT|HOLD|REDUCE_EXPOSURE|AVOID|SHORT|SPECULATIVE_SHORT|HEDGE|NO_EDGE'}",
+  "verdict": "${pmVerdictJson}",
   "confidence_level": "Low|Moderate|High|Very High",
   "confidence_score": <integer 0-100. High when specialists agree, low when they conflict. Most scores land 45-80. Only 85+ when near-unanimous bullish/bearish signals across all four agents.>,
   "executive_summary": "3-4 sentences synthesising the committee view — what is the overall picture and why",

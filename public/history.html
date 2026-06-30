@@ -47,6 +47,7 @@
         <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span></div>
         <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span></div>
         <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Accuracy</span></div>
+        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Average R:R</span></div>
       </div>
     </div>
 
@@ -61,7 +62,22 @@
 
     <!-- Filters / search -->
     <div class="hist-filters">
-      <input class="hf-search" id="hfSearch" type="text" placeholder="Filter by symbol…" autocomplete="off" spellcheck="false" />
+      <div class="hf-row">
+        <input class="hf-search" id="hfSearch" type="text" placeholder="Filter by symbol…" autocomplete="off" spellcheck="false" />
+        <select class="hf-sort" id="hfSort" title="Sort cards">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="tp_prox">Closest to TP</option>
+          <option value="conf_hi">Highest confidence</option>
+          <option value="conf_lo">Lowest confidence</option>
+        </select>
+      </div>
+      <div class="hf-pills">
+        <button class="hf-pill active" data-timeframe="all">All Time</button>
+        <button class="hf-pill" data-timeframe="week">Past Week</button>
+        <button class="hf-pill" data-timeframe="month">Past Month</button>
+        <button class="hf-pill" data-timeframe="year">Past Year</button>
+      </div>
       <div class="hf-pills">
         <button class="hf-pill active" data-filter="all">All</button>
         <button class="hf-pill" data-filter="pending">Pending</button>
@@ -75,6 +91,13 @@
         <button class="hf-pill" data-type="Crypto">Crypto</button>
         <button class="hf-pill" data-type="Forex">Forex</button>
         <button class="hf-pill" data-type="ETF">ETFs</button>
+      </div>
+      <div class="hf-pills">
+        <button class="hf-pill active" data-dir="all">All Directions</button>
+        <button class="hf-pill" data-dir="long">▲ Long</button>
+        <button class="hf-pill" data-dir="short">▼ Short</button>
+        <button class="hf-pill" data-dir="neutral">⏸ Neutral</button>
+        <button class="hf-pill hf-pill-toggle" id="hfManualOnly" title="Toggle between all scans and only the ones you ran manually">All scans</button>
       </div>
     </div>
 
@@ -125,6 +148,7 @@
     </div>
   </div>
 
+  <script src="./app-mode.js"></script>
   <script src="./history.js"></script>
   <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>

@@ -772,3 +772,291 @@ body {
   color: var(--text3); font-size: 11.5px; line-height: 1.6; text-align: center;
 }
 .app-footer strong { color: var(--text2); }
+
+/* ── Desktop macOS App Layout Style ── */
+@media (min-width: 768px) {
+  html.layout-app, body.layout-app {
+    padding-left: 240px;
+  }
+  body.layout-app .header {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 240px; height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 24px 16px;
+    gap: 12px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    background: rgba(9, 9, 15, 0.75);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+  body.layout-app .header .logo {
+    margin-bottom: 20px;
+    padding-left: 8px;
+    font-size: 20px;
+  }
+  body.layout-app .header .nav {
+    flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+    width: 100%;
+  }
+  body.layout-app .header .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+  body.layout-app .header .nav-link::before {
+    font-size: 14px;
+  }
+  /* Add matching macOS icons to the side nav links */
+  body.layout-app .header .nav-link[href="dashboard.html"]::before { content: '🔬'; }
+  body.layout-app .header .nav-link[href="history.html"]::before { content: '📋'; }
+  body.layout-app .header .nav-link[href="backtest.html"]::before { content: '🧪'; }
+  body.layout-app .header .nav-link[href="track-record.html"]::before { content: '🏆'; }
+
+  body.layout-app .header .live-pill {
+    margin-top: auto;
+    padding: 12px 8px 0;
+    border-top: 1px solid var(--border);
+    width: 100%;
+  }
+  body.layout-app .header .nav-settings-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 8px;
+  }
+  body.layout-app .header .nav-settings-btn::before {
+    content: '⚙️';
+    font-size: 14px;
+  }
+  body.layout-app .header .nav-settings-btn:hover {
+    color: var(--text);
+    background: var(--card2);
+  }
+}
+
+/* In website layout mode, styling for settings button */
+.header .nav-settings-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.header .nav-settings-btn:hover {
+  color: var(--text);
+  background: var(--card2);
+}
+
+/* ── macOS Style Settings Modal ── */
+.apex-modal-bg {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.apex-modal-bg.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.apex-modal {
+  width: 480px;
+  background: #0f1016;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  transform: scale(0.95);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.apex-modal-bg.open .apex-modal {
+  transform: scale(1);
+}
+.apex-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #13151f;
+}
+.apex-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.apex-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  font-size: 18px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.apex-modal-close:hover {
+  color: var(--text);
+}
+.apex-modal-body {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.apex-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.apex-settings-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.apex-settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+.apex-settings-desc {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+.apex-select, .apex-input {
+  background: #161822;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.apex-select:focus, .apex-input:focus {
+  border-color: var(--purple);
+  outline: none;
+}
+.apex-toggle-wrap {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.apex-toggle-input {
+  opacity: 0; width: 0; height: 0;
+}
+.apex-toggle-slider {
+  position: absolute; cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #232736;
+  transition: .25s ease;
+  border-radius: 34px;
+}
+.apex-toggle-slider:before {
+  position: absolute; content: "";
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background-color: #fff;
+  transition: .25s ease;
+  border-radius: 50%;
+}
+.apex-toggle-input:checked + .apex-toggle-slider {
+  background-color: var(--purple);
+}
+.apex-toggle-input:checked + .apex-toggle-slider:before {
+  transform: translateX(20px);
+}
+.apex-btn-secondary {
+  background: #1f2233;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.apex-btn-secondary:hover {
+  background: #272a3f;
+}
+.apex-btn-primary {
+  background: var(--purple);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.apex-btn-primary:hover {
+  background: #6848e0;
+}
+.apex-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #13151f;
+}
+.apex-status-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 6px;
+}
+.apex-status-badge.success {
+  background: rgba(0, 201, 160, 0.15);
+  color: var(--green);
+}
+.apex-status-badge.error {
+  background: rgba(240, 48, 96, 0.15);
+  color: var(--red);
+}
+.apex-status-badge.loading {
+  background: rgba(240, 165, 0, 0.15);
+  color: var(--amber);
+}
+
