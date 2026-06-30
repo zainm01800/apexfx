@@ -946,7 +946,22 @@ function initFilters() {
 // Aggregates realised outcomes across ALL scans into headline accuracy metrics.
 function computeAccuracy(rows) {
   const total    = rows.length;
-  const resolved = rows.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+  let resolved = rows.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+
+  // Sort resolved trades newest first by resolution time (outcome_date) if available, or scan time (rowTs) as fallback
+  resolved.sort((a, b) => {
+    const tA = a.outcome_date ? new Date(a.outcome_date).getTime() : rowTs(a);
+    const tB = b.outcome_date ? new Date(b.outcome_date).getTime() : rowTs(b);
+    return tB - tA;
+  });
+
+  if (_scoreLimit !== 'all') {
+    const limit = parseInt(_scoreLimit, 10);
+    if (isFinite(limit)) {
+      resolved = resolved.slice(0, limit);
+    }
+  }
+
   const wins     = resolved.filter(r => r.outcome === 'tp_hit');
   const losses   = resolved.filter(r => r.outcome === 'sl_hit');
   const winRate  = resolved.length ? Math.round(wins.length / resolved.length * 100) : null;
@@ -1049,7 +1064,9 @@ function accStat(label, value, sub, cls) {
 // Scoreboard scope: 'all' = every scan (the full data the AI calibrates on),
 // 'mine' = only the user's own calls (auto-scan rows excluded).
 let _scoreScope = 'all';
-function setScoreScope(s) { _scoreScope = s; renderScoreboard(); }
+let _scoreLimit = 'all';
+window.setScoreScope = function(s) { _scoreScope = s; renderScoreboard(); };
+window.setScoreLimit = function(l) { _scoreLimit = l; renderScoreboard(); };
 
 function renderScoreboard() {
   const el = document.getElementById('accBoard');
@@ -1058,15 +1075,26 @@ function renderScoreboard() {
   const autoN  = summaryRows.filter(isAuto).length;
   const scoped = _scoreScope === 'mine' ? summaryRows.filter(r => !isAuto(r)) : summaryRows;
   const a = computeAccuracy(scoped);
-  // Only offer the toggle once auto-scans actually exist (otherwise it's noise).
-  const scopeToggle = autoN ? `
-    <div class="acc-scope">
-      <button class="acc-scope-btn ${_scoreScope === 'all' ? 'active' : ''}" onclick="setScoreScope('all')" title="Every scan, including the nightly auto-scans the AI learns from">All${` · ${autoN} auto`}</button>
-      <button class="acc-scope-btn ${_scoreScope === 'mine' ? 'active' : ''}" onclick="setScoreScope('mine')" title="Only the calls you ran yourself">My scans</button>
-    </div>` : '';
-  if (!a.total) {
+
+  const scopeToggle = `
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      ${autoN ? `
+      <div class="acc-scope">
+        <button class="acc-scope-btn ${_scoreScope === 'all' ? 'active' : ''}" onclick="setScoreScope('all')" title="Every scan, including the nightly auto-scans the AI learns from">All${` · ${autoN} auto`}</button>
+        <button class="acc-scope-btn ${_scoreScope === 'mine' ? 'active' : ''}" onclick="setScoreScope('mine')" title="Only the calls you ran yourself">My scans</button>
+      </div>` : ''}
+      <div class="acc-scope">
+        <button class="acc-scope-btn ${_scoreLimit === 'all' ? 'active' : ''}" onclick="setScoreLimit('all')" title="All resolved trades in view">All resolved</button>
+        <button class="acc-scope-btn ${_scoreLimit === '10' ? 'active' : ''}" onclick="setScoreLimit('10')" title="Last 10 resolved trades only">Last 10</button>
+        <button class="acc-scope-btn ${_scoreLimit === '25' ? 'active' : ''}" onclick="setScoreLimit('25')" title="Last 25 resolved trades only">Last 25</button>
+        <button class="acc-scope-btn ${_scoreLimit === '50' ? 'active' : ''}" onclick="setScoreLimit('50')" title="Last 50 resolved trades only">Last 50</button>
+      </div>
+    </div>
+  `;
+
+  if (!a.resolvedN) {
     el.innerHTML = `<div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
-      <div class="acc-empty">No ${_scoreScope === 'mine' ? 'personal' : ''} scans yet in this view.</div>`;
+      <div class="acc-empty">No resolved scans in this filtered selection.</div>`;
     return;
   }
 

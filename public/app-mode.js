@@ -1,6 +1,6 @@
 (function() {
   // Apply saved layout mode immediately to avoid layout shifts (FOUC)
-  const savedLayout = localStorage.getItem('apex_layout') || 'app';
+  const savedLayout = localStorage.getItem('apex_layout') || 'web';
   if (savedLayout === 'app' && window.innerWidth >= 768) {
     document.documentElement.classList.add('layout-app');
   }
@@ -237,7 +237,7 @@ function injectSettingsModal() {
 
 // Dom content load handler
 window.addEventListener('DOMContentLoaded', () => {
-  const savedLayout = localStorage.getItem('apex_layout') || 'app';
+  const savedLayout = localStorage.getItem('apex_layout') || 'web';
   if (savedLayout === 'app' && window.innerWidth >= 768) {
     document.body.classList.add('layout-app');
   }
