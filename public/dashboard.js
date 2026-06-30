@@ -2758,6 +2758,24 @@ Win rate: 5d: ${historicalScan.win5d}% | 20d: ${historicalScan.win20d}% | Best 2
       const prog = validationProgress(_pmTarget, curr);
       const progLine = prog ? `Price is now ${prog.pct}% of the way toward the ${prog.toward}.` : '';
 
+      const ageDays = (Date.now() - getRowTs(_pmTarget)) / 86400000;
+      const elapsedDays = Math.floor(ageDays);
+      let _f = _pmTarget.setup_features;
+      if (typeof _f === 'string') { try { _f = JSON.parse(_f); } catch { _f = null; } }
+      const styleName = (_f && _f.style) ? String(_f.style).toUpperCase() : 'SWING';
+      const expiryThreshold = (_f && _f.expiryDays) ? Number(_f.expiryDays) : 30;
+
+      const durationBlock = `
+━━━ DURATION & STAGNANCIES ANALYSIS ━━━
+This trade setup has been open/pending for ${elapsedDays} days.
+Trade Style: ${styleName} (max expiry is ${expiryThreshold} days).
+Guidelines on stagnant setups:
+- Trend-following momentum setup edges decay significantly over time if the market goes sideways.
+- Stagnant capital represents opportunity cost.
+- If it has been unfilled for more than 5 days (for SCALP/INTRADAY) or 15 days (for SWING/POSITION), strongly consider recommending CLOSE_TRADE to cancel the watch.
+- If it has been filled/active but sideways for too long, strongly consider CLOSE_TRADE or TIGHTEN_STOP.
+Consider if time-decay has invalidated the setup's original edge, and recommend closing early if there is no momentum.`;
+
       waitConstraint = _tradeFilled
         ? ' (but in position re-check mode, WAIT is invalid — use HOLD_TRADE, MOVE_TO_BREAKEVEN, or CLOSE_TRADE instead)'
         : ' (but in pending setup re-check mode, WAIT is invalid — use HOLD_TRADE or CLOSE_TRADE instead)';
@@ -2790,7 +2808,8 @@ The valid verdicts for an active position re-check are ONLY:
 
 Decide based on: (a) how much the original thesis still holds on fresh evidence,
 (b) how far price is toward TP vs SL, (c) any new signals that change the picture.
-Be direct and specific. The holder needs a clear action, not another WAIT.`;
+Be direct and specific. The holder needs a clear action, not another WAIT.
+${durationBlock}`;
       } else {
         positionMgmtBlock = `
 ━━━ PENDING ENTRY RE-CHECK — YOU ARE EVALUATING AN UNFILLED ${origDir.toUpperCase()} SETUP ━━━
@@ -2809,7 +2828,8 @@ The valid verdicts for an unfilled setup re-check are ONLY:
   CLOSE_TRADE — setup is invalidated or trend has shifted; cancel the watch setup
 
 Do NOT issue fresh entry level changes. Do NOT recommend active management actions (MOVE_TO_BREAKEVEN, TIGHTEN_STOP, SCALE_OUT) because the trade is not yet filled.
-Decide based on whether the original setup pattern still holds, or if the market has broken the thesis before entry.`;
+Decide based on whether the original setup pattern still holds, or if the market has broken the thesis before entry.
+${durationBlock}`;
       }
     }
 
@@ -2837,22 +2857,23 @@ Decide based on whether the original setup pattern still holds, or if the market
     let trackRecordBlock = '';
     if (Array.isArray(tickerMemory) && tickerMemory.length) {
       const resolved = tickerMemory.filter(h => h.outcome === 'tp_hit' || h.outcome === 'sl_hit');
-      if (resolved.length) {
+      const expired  = tickerMemory.filter(h => h.outcome === 'expired').length;
+      if (resolved.length || expired > 0) {
         const wins   = resolved.filter(h => h.outcome === 'tp_hit').length;
         const losses = resolved.length - wins;
-        const winRate = Math.round((wins / resolved.length) * 100);
+        const winRate = resolved.length ? Math.round((wins / resolved.length) * 100) : 0;
         const byDir = ['long', 'short'].map(dir => {
           const set = resolved.filter(h => verdictDir(h.verdict) === dir);
           if (!set.length) return null;
           const w = set.filter(h => h.outcome === 'tp_hit').length;
           return `${dir.toUpperCase()} ${w}W/${set.length - w}L`;
         }).filter(Boolean).join(' · ');
-        const last = resolved[0];
+        const last = resolved.length ? resolved[0] : null;
         trackRecordBlock = `\n━━━ REAL TRACK RECORD (${sym}) ━━━\n`
-          + `Resolved prior calls: ${resolved.length} → ${wins} TP-hit / ${losses} SL-hit (${winRate}% win rate).\n`
+          + `Resolved prior calls: ${resolved.length} → ${wins} TP-hit / ${losses} SL-hit (${winRate}% win rate) · ${expired} expired (neither hit within target timeframe).\n`
           + (byDir ? `By direction: ${byDir}.\n` : '')
           + (last ? `Most recent resolved: ${last.analysis_date} ${last.verdict} → ${last.outcome === 'tp_hit' ? '✅ WON' : '❌ LOST'}.\n` : '')
-          + `CALIBRATION: This is your ACTUAL realised hit-rate on ${sym}. If recent same-direction calls LOST, be more skeptical and trim confidence; if they WON, a genuine edge may exist — but avoid overconfidence. Factor this real history into the verdict.`;
+          + `CALIBRATION: This is your ACTUAL realised hit-rate on ${sym}. If recent same-direction calls LOST, be more skeptical and trim confidence; if they WON, a genuine edge may exist. If many calls are EXPIRED, it indicates this asset tends to consolidate sideways for long periods — adjust targets closer or avoid entry.`;
       }
     }
 

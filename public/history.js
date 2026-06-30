@@ -594,6 +594,14 @@ function renderCard(g) {
   const _kind = verdictKind(row.verdict);
   const _level = _kind === 'trade' ? 'entry zone' : 'watch level';
   const _status = _isOpen ? tradeStatus(row, _livePx[row.symbol]) : null;
+  
+  const ageDays = (Date.now() / 1000 - rowTs(row) / 1000) / 86400;
+  const res = resolutionFor(row);
+  const isStagnant = _isOpen && (ageDays > res.expiryDays / 2);
+  const stagnantWarning = isStagnant
+    ? `<span class="sc-status warn" style="margin-left: 4px; background: rgba(255,170,0,0.15); color: var(--orange);" title="This setup has been open for ${Math.floor(ageDays)} days without hitting targets. Run a re-check to see if the AI suggests cancelling/closing it.">⚠️ STAGNANT (${Math.floor(ageDays)}d)</span>`
+    : '';
+
   // When price has reached a WAIT's watch level, the badge IS the re-check action —
   // make it a real clickable link (same as the Update button), not dead text.
   const statusBadge = _status
@@ -633,6 +641,7 @@ function renderCard(g) {
         <span class="sc-verdict ${vc}">${vDisplay}</span>
         <span class="sc-conf">${row.confidence != null ? row.confidence + '%' : '—'} confidence</span>
         ${statusBadge}
+        ${stagnantWarning}
       </div>
 
       ${recordBadge ? `<div class="sc-record-row">${recordBadge}</div>` : ''}
@@ -692,7 +701,8 @@ function applyFilters(groups) {
     if (_filterManual && isAuto(row)) return false;
     
     if (_filterTimeframe !== 'all') {
-      const ts = rowTs(row);
+      if (!row.outcome_date || row.outcome === 'pending') return false;
+      const ts = new Date(row.outcome_date).getTime();
       if (_filterTimeframe === 'week' && ts < now - weekMs) return false;
       if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
       if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
@@ -833,7 +843,8 @@ function getFilteredRowsForSummary() {
     if (_filterManual && isAuto(row)) return false;
     
     if (_filterTimeframe !== 'all') {
-      const ts = rowTs(row);
+      if (!row.outcome_date || row.outcome === 'pending') return false;
+      const ts = new Date(row.outcome_date).getTime();
       if (_filterTimeframe === 'week' && ts < now - weekMs) return false;
       if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
       if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
