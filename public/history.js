@@ -990,24 +990,24 @@ function computeAccuracy(rows) {
   // All completed/finished trades (either hit TP/SL, expired, or closed early)
   const finished = rows.filter(r => r.outcome && r.outcome !== 'pending');
 
+  // Filter only the ones that hit TP or SL (excluding expired/invalidated for win rate/brier score)
+  const allResolved = finished.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+
   // Sort resolved trades newest first by resolution time (outcome_date) if available, or scan time (rowTs) as fallback
-  finished.sort((a, b) => {
+  allResolved.sort((a, b) => {
     const tA = a.outcome_date ? new Date(a.outcome_date).getTime() : rowTs(a);
     const tB = b.outcome_date ? new Date(b.outcome_date).getTime() : rowTs(b);
     return tB - tA;
   });
 
-  // For the sample limit, we slice from the finished trades list
-  let activeSet = finished;
+  // Slice based on the selected sample limit (Last 10, Last 25, Last 50)
+  let resolved = allResolved;
   if (_scoreLimit !== 'all') {
     const limit = parseInt(_scoreLimit, 10);
     if (isFinite(limit)) {
-      activeSet = finished.slice(0, limit);
+      resolved = allResolved.slice(0, limit);
     }
   }
-
-  // Filter only the ones that hit TP or SL (excluding expired/invalidated for win rate/brier score)
-  const resolved = activeSet.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
 
   const wins     = resolved.filter(r => r.outcome === 'tp_hit');
   const losses   = resolved.filter(r => r.outcome === 'sl_hit');
@@ -1029,10 +1029,7 @@ function computeAccuracy(rows) {
   const hiConf = resolved.filter(r => (Number(r.confidence) || 0) >= 80);
 
   // Brier score — mean squared error between the stated probability and the
-  // realised binary outcome (1 = TP hit, 0 = SL hit). Lower is better; 0.25 is the
-  // no-skill baseline (always saying 50%). This is the PROPER way to score
-  // confidence: a win-rate / ranking can look fine while the probabilities
-  // themselves are badly miscalibrated (overconfident).
+  // realised binary outcome (1 = TP hit, 0 = SL hit). Lower is better.
   let brier = null;
   if (resolved.length) {
     const sum = resolved.reduce((s, r) => {
@@ -1043,8 +1040,7 @@ function computeAccuracy(rows) {
     brier = +(sum / resolved.length).toFixed(3);
   }
 
-  // Reliability curve — realised hit-rate per stated-confidence band. A well-
-  // calibrated model sits near the diagonal (80% band actually wins ~80%).
+  // Reliability curve — realised hit-rate per stated-confidence band.
   const _bandMid = { '50–59': 55, '60–69': 65, '70–79': 75, '80–89': 85, '90+': 95 };
   const reliability = [
     { band: '50–59', lo: 0,  hi: 59 }, { band: '60–69', lo: 60, hi: 69 },
@@ -1056,8 +1052,9 @@ function computeAccuracy(rows) {
     return { band: b.band, n: set.length, acc: a, gap: a == null ? null : a - _bandMid[b.band] };
   }).filter(b => b.n > 0);
 
+  // Profitability card calculation based on same resolved set
   let netR = 0;
-  for (const r of activeSet) {
+  for (const r of resolved) {
     if (r.outcome === 'tp_hit') {
       const parsed = parseRewardRisk(r.risk_reward);
       netR += (parsed !== null ? parsed : 2.0); // default to 2.0R reward if unparsed
