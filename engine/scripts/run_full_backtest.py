@@ -171,6 +171,14 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
     warmup = params["warmup"]
     now = datetime.utcnow()
 
+    # Twelve Data free tier doesn't support intraday (15m/1h) for equities.
+    # Skip early — swing/position (1d) still work fine via Yahoo daily data.
+    is_equity = instrument in list(cfg.data.equities)
+    is_intraday_tf = timeframe in ("15m", "1h")
+    if use_twelve and is_equity and is_intraday_tf:
+        print(f"SKIPPED (Twelve Data free tier: no intraday for equities — use swing/position)")
+        return None
+
     # Clamp start for Yahoo
     if not use_twelve:
         max_days = params["max_history_days"]
