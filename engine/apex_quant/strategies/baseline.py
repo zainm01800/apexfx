@@ -110,6 +110,12 @@ class RegimeGatedMomentum(Strategy):
         for i, ts in enumerate(df.index):
             if ts not in train_set:
                 continue
+            
+            # Conditional calibration: align training with strategy's trending-only gating
+            regime = self._regime.classify(pit, ts)
+            if not regime.is_trending:
+                continue
+                
             s, a = score[i], atr[i]
             if not (np.isfinite(s) and np.isfinite(a) and a > 0):
                 continue
