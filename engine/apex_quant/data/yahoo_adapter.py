@@ -40,7 +40,7 @@ _CRYPTO_TICKERS = {
     "LTC/USD": "LTC-USD",
 }
 
-_TF_INTERVAL = {"1d": "1d", "1w": "1wk", "1M": "1mo"}
+_TF_INTERVAL = {"15m": "15m", "1h": "60m", "1d": "1d", "1w": "1wk", "1M": "1mo"}
 
 _HEADERS = {
     "User-Agent": (

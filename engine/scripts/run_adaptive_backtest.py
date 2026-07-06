@@ -162,8 +162,10 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             
             res = backtester.run(pit, strat, inst, start=start_str, end=end_str, warmup=warmup, max_hold=params["holding_horizon"])
             pass1_trades.extend(res.trades)
-        except Exception:
-            pass
+        except Exception as e:
+            import traceback
+            print(f"  [Error Pass 1] {inst}: {type(e).__name__}: {e}")
+            traceback.print_exc()
             
     if not pass1_trades:
         print(f"  No trades executed for style {style.upper()}.")
@@ -259,8 +261,10 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                 wrapper_strat = AdaptiveWrapperStrategy(base_strat, rules, cfg.ai.app_url)
                 res = backtester.run(pit, wrapper_strat, inst, start=start_str, end=end_str, warmup=warmup, max_hold=params["holding_horizon"])
                 pass2_trades.extend(res.trades)
-            except Exception:
-                pass
+            except Exception as e:
+                import traceback
+                print(f"  [Error Pass 2] {inst}: {type(e).__name__}: {e}")
+                traceback.print_exc()
                 
     p2_metrics = calculate_portfolio_metrics(pass2_trades) if pass2_trades else None
     
