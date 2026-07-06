@@ -69,6 +69,12 @@ class TwelveDataAdapter(DataAdapter):
                 "volume": "volume"
             })
 
+            # Handle missing volume column (common for Forex/Crypto in Twelve Data)
+            if "volume" not in df.columns:
+                df["volume"] = 0.0
+            else:
+                df["volume"] = df["volume"].fillna(0.0)
+
             # Convert types to float
             for col in ["open", "high", "low", "close", "volume"]:
                 if col in df.columns:
@@ -81,3 +87,20 @@ class TwelveDataAdapter(DataAdapter):
         except Exception as e:
             print(f"[*] Twelve Data Fetch Error for {instrument}: {type(e).__name__}: {e}")
             return empty_ohlcv()
+
+    def get_latest(self, instrument: str, timeframe: str = "1d") -> Bar | None:
+        from apex_quant.data.schema import Bar
+        end = pd.Timestamp.utcnow()
+        start = end - pd.Timedelta(days=10)
+        df = self.get_history(instrument, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), timeframe)
+        if df.empty:
+            return None
+        row = df.iloc[-1]
+        return Bar(
+            timestamp=df.index[-1],
+            open=float(row["open"]),
+            high=float(row["high"]),
+            low=float(row["low"]),
+            close=float(row["close"]),
+            volume=float(row["volume"]),
+        )

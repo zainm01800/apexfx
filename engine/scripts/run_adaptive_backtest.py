@@ -155,7 +155,8 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                 vol_window=params["vol_window"],
                 holding_horizon=params["holding_horizon"],
                 reward_risk=1.5,
-                regime_method="rule_based"
+                regime_method="rule_based",
+                timeframe=timeframe
             )
             strat.fit(pit, df.index)
             
@@ -250,7 +251,8 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                     vol_window=params["vol_window"],
                     holding_horizon=params["holding_horizon"],
                     reward_risk=1.5,
-                    regime_method="rule_based"
+                    regime_method="rule_based",
+                    timeframe=timeframe
                 )
                 base_strat.fit(pit, pit.as_of(pit.end).index)
                 

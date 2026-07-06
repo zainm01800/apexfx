@@ -22,7 +22,7 @@ from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
-from apex_quant.config import get_config
+from apex_quant.config import get_config, RuleBasedConfig
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.features.momentum import VolScaledMomentum
 from apex_quant.regime.base import RegimeClassifier
@@ -45,6 +45,7 @@ class RegimeGatedMomentum(Strategy):
         reward_risk: float = 1.5,
         regime_method: str = "rule_based",
         alpha: float = 0.1,
+        timeframe: str = "1d",
     ):
         self.momentum_lookback = momentum_lookback
         self.vol_window = vol_window
@@ -52,8 +53,26 @@ class RegimeGatedMomentum(Strategy):
         self.reward_risk = reward_risk
         self.regime_method = regime_method
         self._mom = VolScaledMomentum(momentum_lookback, vol_window)
+        
+        # Scale slope epsilon dynamically based on timeframe
+        base_cfg = get_config().regime.rule_based
+        scale = 1.0
+        if timeframe == "15m":
+            scale = 0.05
+        elif timeframe == "1h":
+            scale = 0.15
+            
+        custom_regime_cfg = RuleBasedConfig(
+            ma_window=base_cfg.ma_window,
+            slope_window=base_cfg.slope_window,
+            vol_percentile_window=base_cfg.vol_percentile_window,
+            vol_high_pct=base_cfg.vol_high_pct,
+            vol_low_pct=base_cfg.vol_low_pct,
+            ranging_slope_eps=base_cfg.ranging_slope_eps * scale
+        )
+        
         self._regime: RegimeClassifier = (
-            HmmRegime() if regime_method == "hmm" else RuleBasedRegime()
+            HmmRegime() if regime_method == "hmm" else RuleBasedRegime(custom_regime_cfg)
         )
         self._cal = ConformalCalibrator(alpha=alpha, seed=get_config().seed)
         rc = get_config().risk
