@@ -175,17 +175,30 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
     # Skip early — swing/position (1d) still work fine via Yahoo daily data.
     is_equity = instrument in list(cfg.data.equities)
     is_intraday_tf = timeframe in ("15m", "1h")
-    if use_twelve and is_equity and is_intraday_tf:
-        print(f"SKIPPED (Twelve Data free tier: no intraday for equities — use swing/position)")
-        return None
 
-    # Clamp start for Yahoo
-    if not use_twelve:
-        max_days = params["max_history_days"]
+    # For equities on intraday timeframes, Twelve Data free tier doesn't work.
+    # Fall back to Yahoo Finance which supports 15m (60 days) and 1h (730 days).
+    YAHOO_INTRADAY_LIMITS = {"15m": 59, "1h": 730}
+    if use_twelve and is_equity and is_intraday_tf:
+        print(f"\n    [fallback] equity intraday → Yahoo Finance", end=" ", flush=True)
+        yahoo_adapter = get_adapter("yahoo")
+        max_days = YAHOO_INTRADAY_LIMITS.get(timeframe, 59)
         earliest = now - timedelta(days=max_days)
         start_dt = datetime.strptime(start_str, "%Y-%m-%d")
         if start_dt < earliest:
             start_str = (earliest + timedelta(days=2)).strftime("%Y-%m-%d")
+        active_adapter = yahoo_adapter
+        need_sleep = False
+    else:
+        active_adapter = adapter
+        # Clamp start for Yahoo (non-Twelve Data) non-equity runs
+        if not use_twelve:
+            max_days = params["max_history_days"]
+            earliest = now - timedelta(days=max_days)
+            start_dt = datetime.strptime(start_str, "%Y-%m-%d")
+            if start_dt < earliest:
+                start_str = (earliest + timedelta(days=2)).strftime("%Y-%m-%d")
+        need_sleep = use_twelve
 
     # Cache-miss check (only sleep for Twelve Data if fetch needed)
     cached = store.load(instrument, timeframe)
@@ -193,15 +206,16 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
     end_ts = pd.Timestamp(end_str, tz="UTC")
     need_fetch = cached.empty or cached.index[0] > start_ts or cached.index[-1] < end_ts
 
-    if need_fetch and use_twelve:
+    if need_fetch and need_sleep:
         print(f"    [rate-limit] sleeping 8s before fetching {instrument} {timeframe}...")
         time.sleep(8.0)
 
     try:
-        df = clean(store.get_or_fetch(instrument, adapter, start_str, end_str, timeframe=timeframe))
+        df = clean(store.get_or_fetch(instrument, active_adapter, start_str, end_str, timeframe=timeframe))
     except Exception as e:
         print(f"    [fetch error] {instrument} {style}: {e}")
         return None
+
 
     min_bars = warmup + params["momentum_lookback"] + 10
     if len(df) < min_bars:
