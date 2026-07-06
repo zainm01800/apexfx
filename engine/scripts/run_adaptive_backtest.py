@@ -224,6 +224,10 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             df_all = pit.as_of(pit.end)
             features_df = compute_feature_frame(df_all, cfg)
             ts = pd.Timestamp(t.entry_time)
+            if features_df.index.tz is not None:
+                ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+            else:
+                ts = ts.tz_localize(None)
             
             if ts in features_df.index:
                 feat_row = features_df.loc[ts].to_dict()
