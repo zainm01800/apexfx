@@ -23,6 +23,25 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Load .env variables manually from engine/.env
+def load_local_env():
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip()
+                    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                        v = v[1:-1]
+                    os.environ[k] = v
+
+load_local_env()
+
 from apex_quant.config import get_config
 from apex_quant.data import PointInTimeAccessor, clean, get_adapter
 from apex_quant.strategies.baseline import RegimeGatedMomentum
