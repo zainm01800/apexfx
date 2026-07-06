@@ -97,7 +97,7 @@ class RegimeConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     target_portfolio_vol: float = 0.10
-    kelly_fraction: float = 0.25
+    kelly_fraction: float = 0.0
     max_risk_per_trade: float = 0.01
     max_total_exposure: float = 3.0
     max_correlated_exposure: float = 1.5
