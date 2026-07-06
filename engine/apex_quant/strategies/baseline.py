@@ -46,7 +46,9 @@ class RegimeGatedMomentum(Strategy):
         regime_method: str = "rule_based",
         alpha: float = 0.1,
         timeframe: str = "1d",
+        bypass_calibration: bool = True,
     ):
+        self.bypass_calibration = bypass_calibration
         self.momentum_lookback = momentum_lookback
         self.vol_window = vol_window
         self.holding_horizon = holding_horizon
@@ -148,9 +150,12 @@ class RegimeGatedMomentum(Strategy):
             out["reason"] = "momentum disagrees with regime trend"
             return out
 
-        cal: CalibratedProb = self._cal.predict(abs(score)) if self._fitted else CalibratedProb(
-            probability=0.5, lower=0.0, upper=1.0
-        )
+        if self.bypass_calibration:
+            cal = CalibratedProb(probability=0.50, lower=0.0, upper=1.0)
+        else:
+            cal = self._cal.predict(abs(score)) if self._fitted else CalibratedProb(
+                probability=0.5, lower=0.0, upper=1.0
+            )
         out["direction"] = mom_dir
         out["prob"] = cal
         return out
