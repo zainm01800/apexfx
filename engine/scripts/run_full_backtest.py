@@ -102,6 +102,13 @@ CSV_COLUMNS = [
     "run_at",
 ]
 
+TRADE_COLUMNS = [
+    "instrument", "style", "timeframe",
+    "direction", "entry_time", "entry_price",
+    "exit_time", "exit_price", "units",
+    "pnl", "return_pct", "exit_reason",
+]
+
 def calc_metrics(trades):
     if not trades:
         return {"n_trades": 0, "win_rate": None, "net_pnl": 0.0, "profit_factor": None}
@@ -121,8 +128,44 @@ def fmt(v, suffix=""):
         return "N/A"
     return f"{v}{suffix}"
 
+
+def save_trades(trades, instrument: str, style: str, timeframe: str, trades_dir: Path):
+    """Append individual trade records to a per-style parquet file."""
+    if not trades:
+        return
+    trades_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for t in trades:
+        rows.append({
+            "instrument": instrument,
+            "style": style,
+            "timeframe": timeframe,
+            "direction": t.direction,
+            "entry_time": str(t.entry_time),
+            "entry_price": t.entry_price,
+            "exit_time": str(t.exit_time),
+            "exit_price": t.exit_price,
+            "units": t.units,
+            "pnl": t.pnl,
+            "return_pct": t.return_pct,
+            "exit_reason": t.exit_reason,
+        })
+    new_df = pd.DataFrame(rows)
+    parquet_path = trades_dir / f"trades_{style}.parquet"
+    if parquet_path.exists():
+        existing = pd.read_parquet(parquet_path)
+        # Remove old rows for this instrument+style combo then append fresh
+        existing = existing[~((existing["instrument"] == instrument) &
+                              (existing["style"] == style))]
+        combined = pd.concat([existing, new_df], ignore_index=True)
+    else:
+        combined = new_df
+    combined.to_parquet(parquet_path, index=False)
+    print(f"      → {len(rows)} trades saved to {parquet_path.name}")
+
 def run_one(instrument: str, style: str, start_str: str, end_str: str,
-            store: ParquetStore, adapter, use_twelve: bool) -> dict | None:
+            store: ParquetStore, adapter, use_twelve: bool,
+            trades_dir: Path | None = None) -> dict | None:
     params = STYLE_PARAMS[style]
     timeframe = params["timeframe"]
     warmup = params["warmup"]
@@ -178,6 +221,8 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
         metrics = calc_metrics(res.trades)
         metrics["start_date"] = start_str
         metrics["end_date"] = end_str
+        if trades_dir and res.trades:
+            save_trades(res.trades, instrument, style, timeframe, trades_dir)
         return metrics
     except Exception as e:
         print(f"    [backtest error] {instrument} {style}: {e}")
@@ -231,6 +276,8 @@ def main():
         output_path = ENGINE_DIR / output_path
     output_path.mkdir(parents=True, exist_ok=True)
     csv_path = output_path / args.output
+    trades_dir = output_path / "trades"  # individual trade records saved here
+    trades_dir.mkdir(parents=True, exist_ok=True)
 
     # Load already-completed rows for resume
     completed = set()
@@ -286,7 +333,8 @@ def main():
             print(f"  [{done}/{total_combos}] {inst} / {style.upper()} ...", end=" ", flush=True)
 
             t0 = time.time()
-            result = run_one(inst, style, default_start, end_str, store, adapter, use_twelve)
+            result = run_one(inst, style, default_start, end_str, store, adapter, use_twelve,
+                             trades_dir=trades_dir)
             elapsed = time.time() - t0
 
             if result is None:
