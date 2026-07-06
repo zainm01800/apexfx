@@ -78,7 +78,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 14,
             "vol_window": 14,
             "holding_horizon": 20,
-            "warmup": 40,
+            "warmup": 220, # Must cover 200 MA window
             "max_history_days": 59
         },
         "intraday": {
@@ -86,7 +86,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 24,
             "vol_window": 24,
             "holding_horizon": 24,
-            "warmup": 60,
+            "warmup": 220, # Must cover 200 MA window
             "max_history_days": 720
         },
         "swing": {
@@ -94,7 +94,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 63,
             "vol_window": 63,
             "holding_horizon": 10,
-            "warmup": 100,
+            "warmup": 220,
             "max_history_days": 10000
         },
         "position": {
@@ -102,11 +102,15 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 126,
             "vol_window": 126,
             "holding_horizon": 40,
-            "warmup": 150,
+            "warmup": 220,
             "max_history_days": 10000
         }
     }
     
+    # Load Twelve Data key
+    twelve_key = os.getenv("APEX_TWELVE_DATA_KEY")
+    use_twelve = bool(twelve_key and twelve_key.strip())
+
     params = style_params[style]
     timeframe = params["timeframe"]
     warmup = warmup_override if warmup_override is not None else params["warmup"]
@@ -115,22 +119,22 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
     
     # Calculate start date
     if start_val is None:
-        if style == "scalp":
-            start_dt = now - timedelta(days=20)
-        elif style == "intraday":
-            start_dt = now - timedelta(days=90)
+        if use_twelve:
+            # Twelve Data has deep history pager - default all to 1 year ago!
+            start_dt = now - timedelta(days=365)
         else:
-            start_dt = datetime(2022, 1, 1)
+            if style == "scalp":
+                start_dt = now - timedelta(days=20)
+            elif style == "intraday":
+                start_dt = now - timedelta(days=90)
+            else:
+                start_dt = datetime(2022, 1, 1)
         start_str = start_dt.strftime("%Y-%m-%d")
     else:
         start_str = start_val
         start_dt = datetime.strptime(start_str, "%Y-%m-%d")
         
     end_str = end_val if end_val is not None else now.strftime("%Y-%m-%d")
-    
-    # Load Twelve Data key
-    twelve_key = os.getenv("APEX_TWELVE_DATA_KEY")
-    use_twelve = bool(twelve_key and twelve_key.strip())
     
     # Clamp start date for Yahoo Finance
     if not use_twelve:
@@ -324,6 +328,11 @@ def main():
     print(f"=== Adaptive Backtester CLI Runner ===")
     print(f"Instruments: {', '.join(instruments)}")
     print(f"Target Styles: {', '.join([s.upper() for s in target_styles])}")
+    twelve_key = os.getenv("APEX_TWELVE_DATA_KEY")
+    if twelve_key and twelve_key.strip():
+        print(f"[*] Grounding data adapter in Twelve Data (Key: {twelve_key[:6]}...)")
+    else:
+        print("[*] Grounding data adapter in Yahoo Finance (No Twelve Data key detected)")
     print(f"API Target: {cfg.ai.app_url} (useLocalLlm: {cfg.ai.use_local_llm}, model: {cfg.ai.local_llm_model})\n")
     
     style_reports = []

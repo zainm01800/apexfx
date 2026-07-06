@@ -27,66 +27,104 @@ class TwelveDataAdapter(DataAdapter):
         # 15m -> 15min, 1h -> 1h, 1d -> 1day
         interval_map = {"15m": "15min", "1h": "1h", "1d": "1day", "1w": "1week"}
         interval = interval_map.get(timeframe, "1day")
-
-        # Map symbols (e.g. BTC/USD -> BTC/USD, EUR/USD -> EUR/USD, AAPL -> AAPL)
         symbol = instrument.upper()
 
-        params = {
-            "symbol": symbol,
-            "interval": interval,
-            "start_date": start,
-            "end_date": end,
-            "apikey": self.api_key,
-            "outputsize": 5000, # Max historical limit per request
-            "timezone": "UTC",
-            "order": "ASC"      # Chronological order
-        }
+        import time
+        current_start = pd.Timestamp(start)
+        target_end = pd.Timestamp(end)
+        
+        all_dfs = []
+        calls_made = 0
 
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                resp = client.get(self.base_url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+        while current_start < target_end:
+            start_str = current_start.strftime("%Y-%m-%d %H:%M:%S")
+            end_str = target_end.strftime("%Y-%m-%d %H:%M:%S")
 
-            if "values" not in data:
-                print(f"[*] Twelve Data API Error: {data.get('status')} - {data.get('message')}")
-                return empty_ohlcv()
+            params = {
+                "symbol": symbol,
+                "interval": interval,
+                "start_date": start_str,
+                "end_date": end_str,
+                "apikey": self.api_key,
+                "outputsize": 5000,
+                "timezone": "UTC",
+                "order": "ASC"
+            }
 
-            values = data["values"]
-            if not values:
-                return empty_ohlcv()
+            try:
+                # Rate limit sleep safety (8 seconds between calls for free key)
+                if calls_made > 0:
+                    time.sleep(8.0)
+                
+                with httpx.Client(timeout=self.timeout) as client:
+                    resp = client.get(self.base_url, params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                
+                calls_made += 1
 
-            df = pd.DataFrame(values)
-            df["datetime"] = pd.to_datetime(df["datetime"])
-            df.set_index("datetime", inplace=True)
-            
-            # Map columns to schema standard (open, high, low, close, volume)
-            df = df.rename(columns={
-                "open": "open",
-                "high": "high",
-                "low": "low",
-                "close": "close",
-                "volume": "volume"
-            })
+                if "values" not in data:
+                    print(f"[*] Twelve Data API Error: {data.get('status')} - {data.get('message')}")
+                    break
 
-            # Handle missing volume column (common for Forex/Crypto in Twelve Data)
-            if "volume" not in df.columns:
-                df["volume"] = 0.0
-            else:
-                df["volume"] = df["volume"].fillna(0.0)
+                values = data["values"]
+                if not values:
+                    break
 
-            # Convert types to float
-            for col in ["open", "high", "low", "close", "volume"]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                df = pd.DataFrame(values)
+                df["datetime"] = pd.to_datetime(df["datetime"])
+                df.set_index("datetime", inplace=True)
+                
+                # Map columns to schema standard (open, high, low, close, volume)
+                df = df.rename(columns={
+                    "open": "open",
+                    "high": "high",
+                    "low": "low",
+                    "close": "close",
+                    "volume": "volume"
+                })
 
-            df.index.name = "timestamp"
-            # Return standard columns
-            return df[["open", "high", "low", "close", "volume"]].dropna()
+                # Handle missing volume column (common for Forex/Crypto in Twelve Data)
+                if "volume" not in df.columns:
+                    df["volume"] = 0.0
+                else:
+                    df["volume"] = df["volume"].fillna(0.0)
 
-        except Exception as e:
-            print(f"[*] Twelve Data Fetch Error for {instrument}: {type(e).__name__}: {e}")
+                # Convert types to float
+                for col in ["open", "high", "low", "close", "volume"]:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                df.index.name = "timestamp"
+                df = df[["open", "high", "low", "close", "volume"]].dropna()
+
+                if df.empty:
+                    break
+
+                all_dfs.append(df)
+
+                # Advance search pointer to prevent infinite loops
+                last_time = df.index[-1]
+                if last_time <= current_start:
+                    current_start += pd.Timedelta(seconds=1)
+                else:
+                    current_start = last_time + pd.Timedelta(seconds=1)
+
+                # If we fetched less than the limit, we hit the end of the history
+                if len(df) < 5000:
+                    break
+
+            except Exception as e:
+                print(f"[*] Twelve Data Pager Error for {instrument}: {type(e).__name__}: {e}")
+                break
+
+        if not all_dfs:
             return empty_ohlcv()
+
+        final_df = pd.concat(all_dfs)
+        # Drop duplicates and sort chronologically
+        final_df = final_df[~final_df.index.duplicated(keep="last")].sort_index()
+        return final_df
 
     def get_latest(self, instrument: str, timeframe: str = "1d") -> Bar | None:
         from apex_quant.data.schema import Bar
