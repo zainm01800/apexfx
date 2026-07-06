@@ -47,6 +47,7 @@ class RegimeGatedMomentum(Strategy):
         alpha: float = 0.1,
         timeframe: str = "1d",
         bypass_calibration: bool = True,
+        instrument: str | None = None,
     ):
         self.bypass_calibration = bypass_calibration
         self.momentum_lookback = momentum_lookback
@@ -56,13 +57,24 @@ class RegimeGatedMomentum(Strategy):
         self.regime_method = regime_method
         self._mom = VolScaledMomentum(momentum_lookback, vol_window)
         
-        # Scale slope epsilon dynamically based on timeframe
+        # Scale slope epsilon dynamically based on timeframe & asset class volatility
         base_cfg = get_config().regime.rule_based
-        scale = 1.0
+        timeframe_scale = 1.0
         if timeframe == "15m":
-            scale = 0.05
+            timeframe_scale = 0.05
         elif timeframe == "1h":
-            scale = 0.15
+            timeframe_scale = 0.15
+            
+        # Asset class multiplier (crypto is ~5x more volatile than forex, equities ~1.5x)
+        ac_multiplier = 1.0
+        if instrument:
+            ac = get_config().asset_class_of(instrument)
+            if ac == "crypto":
+                ac_multiplier = 5.0
+            elif ac == "equity":
+                ac_multiplier = 1.5
+                
+        final_eps = base_cfg.ranging_slope_eps * timeframe_scale * ac_multiplier
             
         custom_regime_cfg = RuleBasedConfig(
             ma_window=base_cfg.ma_window,
@@ -70,7 +82,7 @@ class RegimeGatedMomentum(Strategy):
             vol_percentile_window=base_cfg.vol_percentile_window,
             vol_high_pct=base_cfg.vol_high_pct,
             vol_low_pct=base_cfg.vol_low_pct,
-            ranging_slope_eps=base_cfg.ranging_slope_eps * scale
+            ranging_slope_eps=final_eps
         )
         
         self._regime: RegimeClassifier = (

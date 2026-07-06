@@ -77,17 +77,21 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "timeframe": "15m",
             "momentum_lookback": 14,
             "vol_window": 14,
-            "holding_horizon": 48, # 12 hours — gives winners time to reach 2:1 target
+            "holding_horizon": 36, # shortened from 48 for faster trade exit/capital recycling
             "warmup": 70, # ma_window=50 + momentum_lookback=14 + buffer
-            "max_history_days": 59
+            "max_history_days": 59,
+            "atr_stop_mult": 2.5,  # optimized stop mult for active scalping
+            "reward_risk": 1.5     # optimized R:R target for faster take-profits
         },
         "intraday": {
             "timeframe": "1h",
             "momentum_lookback": 24,
             "vol_window": 24,
-            "holding_horizon": 72, # 3 days — gives intraday trades room to run
+            "holding_horizon": 72, # 3 days max hold
             "warmup": 80, # ma_window=50 + momentum_lookback=24 + buffer
-            "max_history_days": 720
+            "max_history_days": 720,
+            "atr_stop_mult": 2.5,  # optimized stop mult for intraday trading
+            "reward_risk": 2.0     # 2.0 R:R for intraday
         },
         "swing": {
             "timeframe": "1d",
@@ -95,7 +99,9 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "vol_window": 63,
             "holding_horizon": 10,
             "warmup": 120, # ma_window=50 + momentum_lookback=63 + buffer
-            "max_history_days": 10000
+            "max_history_days": 10000,
+            "atr_stop_mult": 3.0,  # wider daily baseline stop
+            "reward_risk": 2.0
         },
         "position": {
             "timeframe": "1d",
@@ -103,7 +109,9 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "vol_window": 126,
             "holding_horizon": 40,
             "warmup": 180, # ma_window=50 + momentum_lookback=126 + buffer
-            "max_history_days": 10000
+            "max_history_days": 10000,
+            "atr_stop_mult": 3.0,  # wider daily baseline stop
+            "reward_risk": 2.0
         }
     }
     
@@ -183,14 +191,18 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             pit = PointInTimeAccessor(df)
             active_pits[inst] = pit
             
+            # Override risk parameters in config dynamically for this style
+            cfg.risk.atr_stop_mult = params.get("atr_stop_mult", 3.0)
+
             strat = RegimeGatedMomentum(
                 momentum_lookback=params["momentum_lookback"],
                 vol_window=params["vol_window"],
                 holding_horizon=params["holding_horizon"],
-                reward_risk=2.0, # Target 2:1 risk-reward to naturally pass Kelly gate
+                reward_risk=params.get("reward_risk", 2.0),
                 regime_method="rule_based",
                 timeframe=timeframe,
-                bypass_calibration=False
+                bypass_calibration=False,
+                instrument=inst
             )
             strat.fit(pit, df.index)
             
@@ -286,14 +298,18 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             if not pit:
                 continue
             try:
+                # Override risk parameters in config dynamically for this style
+                cfg.risk.atr_stop_mult = params.get("atr_stop_mult", 3.0)
+
                 base_strat = RegimeGatedMomentum(
                     momentum_lookback=params["momentum_lookback"],
                     vol_window=params["vol_window"],
                     holding_horizon=params["holding_horizon"],
-                    reward_risk=2.0, # Target 2:1 risk-reward to naturally pass Kelly gate
+                    reward_risk=params.get("reward_risk", 2.0),
                     regime_method="rule_based",
                     timeframe=timeframe,
-                    bypass_calibration=False
+                    bypass_calibration=False,
+                    instrument=inst
                 )
                 base_strat.fit(pit, pit.as_of(pit.end).index)
                 

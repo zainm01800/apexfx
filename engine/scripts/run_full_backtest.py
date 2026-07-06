@@ -66,33 +66,41 @@ STYLE_PARAMS = {
         "timeframe": "15m",
         "momentum_lookback": 14,
         "vol_window": 14,
-        "holding_horizon": 48,
-        "warmup": 70,
+        "holding_horizon": 36, # shortened from 48 for faster trade exit/capital recycling
+        "warmup": 70, # ma_window=50 + momentum_lookback=14 + buffer
         "max_history_days": 59,
+        "atr_stop_mult": 2.5,  # optimized stop mult for active scalping
+        "reward_risk": 1.5     # optimized R:R target for faster take-profits
     },
     "intraday": {
         "timeframe": "1h",
         "momentum_lookback": 24,
         "vol_window": 24,
-        "holding_horizon": 72,
-        "warmup": 80,
+        "holding_horizon": 72, # 3 days max hold
+        "warmup": 80, # ma_window=50 + momentum_lookback=24 + buffer
         "max_history_days": 720,
+        "atr_stop_mult": 2.5,  # optimized stop mult for intraday trading
+        "reward_risk": 2.0     # 2.0 R:R for intraday
     },
     "swing": {
         "timeframe": "1d",
         "momentum_lookback": 63,
         "vol_window": 63,
         "holding_horizon": 10,
-        "warmup": 120,
+        "warmup": 120, # ma_window=50 + momentum_lookback=63 + buffer
         "max_history_days": 10000,
+        "atr_stop_mult": 3.0,  # wider daily baseline stop
+        "reward_risk": 2.0
     },
     "position": {
         "timeframe": "1d",
         "momentum_lookback": 126,
         "vol_window": 126,
         "holding_horizon": 40,
-        "warmup": 180,
+        "warmup": 180, # ma_window=50 + momentum_lookback=126 + buffer
         "max_history_days": 10000,
+        "atr_stop_mult": 3.0,  # wider daily baseline stop
+        "reward_risk": 2.0
     },
 }
 
@@ -231,15 +239,19 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
         print(f"    [skip] {instrument} {style}: only {len(df)} bars (need {min_bars})")
         return None
 
+    # Override risk parameters in config dynamically for this style
+    cfg.risk.atr_stop_mult = params.get("atr_stop_mult", 3.0)
+
     pit = PointInTimeAccessor(df)
     strat = RegimeGatedMomentum(
         momentum_lookback=params["momentum_lookback"],
         vol_window=params["vol_window"],
         holding_horizon=params["holding_horizon"],
-        reward_risk=2.0,
+        reward_risk=params.get("reward_risk", 2.0),
         regime_method="rule_based",
         timeframe=timeframe,
         bypass_calibration=False,
+        instrument=instrument
     )
     strat.fit(pit, df.index)
 

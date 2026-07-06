@@ -115,7 +115,7 @@ regime:
     vol_low_pct: 0.30            # < 30th percentile vol → low-vol regime
     # |normalised per-bar MA slope| below this -> ranging. Chosen from slope
     # distribution shape, NOT from returns — not data-snooping.
-    ranging_slope_eps: 0.0002
+    ranging_slope_eps: 0.0005
 
 # ── Risk management (SUPREME — has veto over every signal) ──────────────────────
 risk:
@@ -126,7 +126,7 @@ risk:
   max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity
   correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
   atr_window: 14
-  atr_stop_mult: 2.0             # stop distance = 2× ATR
+  atr_stop_mult: 3.0             # stop distance = 3× ATR (daily baseline)
   drawdown_breaker: 0.20         # halt NEW positions once drawdown from peak ≥ 20%
   min_position: 0.0              # positions below this round to zero (no trade)
 
