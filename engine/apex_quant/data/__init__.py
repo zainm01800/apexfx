@@ -9,6 +9,7 @@ from apex_quant.data.store import ParquetStore
 
 # Import concrete adapters for their registration side effects.
 from apex_quant.data import yahoo_adapter as _yahoo_adapter  # noqa: E402,F401
+from apex_quant.data import twelve_data_adapter as _twelve_data_adapter  # noqa: E402,F401
 
 __all__ = [
     "Bar",
