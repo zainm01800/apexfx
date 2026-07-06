@@ -30,8 +30,8 @@ class TwelveDataAdapter(DataAdapter):
         symbol = instrument.upper()
 
         import time
-        current_start = pd.Timestamp(start)
-        target_end = pd.Timestamp(end)
+        current_start = pd.Timestamp(start, tz="UTC") if pd.Timestamp(start).tzinfo is None else pd.Timestamp(start).tz_convert("UTC")
+        target_end = pd.Timestamp(end, tz="UTC") if pd.Timestamp(end).tzinfo is None else pd.Timestamp(end).tz_convert("UTC")
         
         all_dfs = []
         calls_made = 0
@@ -72,7 +72,7 @@ class TwelveDataAdapter(DataAdapter):
                     break
 
                 df = pd.DataFrame(values)
-                df["datetime"] = pd.to_datetime(df["datetime"])
+                df["datetime"] = pd.to_datetime(df["datetime"]).dt.tz_localize("UTC", ambiguous="NaT", nonexistent="NaT")
                 df.set_index("datetime", inplace=True)
                 
                 # Map columns to schema standard (open, high, low, close, volume)
