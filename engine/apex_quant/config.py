@@ -194,6 +194,7 @@ class AiConfig(BaseModel):
     use_local_llm: bool = False
     local_llm_url: str = ""
     local_llm_model: str = ""
+    local_llm_key: str = ""
 
 
 class AppConfig(BaseModel):

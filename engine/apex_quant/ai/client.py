@@ -54,6 +54,7 @@ class AppAILLM(LLMClient):
                 "useLocalLlm": getattr(self.cfg, "use_local_llm", False),
                 "localLlmUrl": getattr(self.cfg, "local_llm_url", ""),
                 "localLlmModel": getattr(self.cfg, "local_llm_model", ""),
+                "localLlmKey": getattr(self.cfg, "local_llm_key", ""),
             }
             if system:
                 payload["system"] = system

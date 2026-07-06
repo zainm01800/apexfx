@@ -124,14 +124,15 @@ async function handler(req) {
   }
   messages.push({ role: 'user', content: prompt });
 
-  // ── Local LLM Routing (Ollama / LM Studio) ─────────────────────────────────
+  // ── Local LLM Routing (Ollama / LM Studio / DeepSeek) ─────────────────────
   if (useLocal) {
     const localUrl = body.localLlmUrl || process.env.APEX_LOCAL_LLM_URL || 'http://localhost:11434/v1/chat/completions';
     const localModel = body.localLlmModel || process.env.APEX_LOCAL_LLM_MODEL || 'llama3';
+    const localKey = body.localLlmKey || process.env.APEX_LOCAL_LLM_KEY || 'none';
     try {
       const text = await callProvider({
         apiUrl: localUrl,
-        apiKey: 'none',
+        apiKey: localKey,
         model: localModel,
         messages,
         maxTokens: safeMaxTokens,

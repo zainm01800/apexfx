@@ -202,4 +202,5 @@ ai:
   use_local_llm: false               # route requests through the app to a local model
   local_llm_url: "http://localhost:11434/v1/chat/completions"  # local LLM server URL (e.g. Ollama/LM Studio)
   local_llm_model: "llama3"          # name of the local model to run (e.g. llama3, qwen2.5-coder)
+  local_llm_key: ""                  # optional API key for remote providers (e.g. DeepSeek)
 

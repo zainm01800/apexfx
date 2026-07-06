@@ -2,5 +2,6 @@
 
 from apex_quant.backtest.engine import Backtester
 from apex_quant.backtest.result import BacktestResult, Trade, compute_metrics
+from apex_quant.backtest.adaptive import AdaptiveBacktester, AdaptiveWrapperStrategy
 
-__all__ = ["Backtester", "BacktestResult", "Trade", "compute_metrics"]
+__all__ = ["Backtester", "BacktestResult", "Trade", "compute_metrics", "AdaptiveBacktester", "AdaptiveWrapperStrategy"]
