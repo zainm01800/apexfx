@@ -171,8 +171,8 @@ asset_classes:
   crypto:
     annualization: 365       # crypto trades every calendar day
     cost_model: bps
-    spread_bps: 5.0          # wider effective spread than equities
-    slippage_bps: 2.0
+    spread_bps: 1.5          # ~1.5 bps realistic for BTC on Binance (taker fee ~0.075%)
+    slippage_bps: 0.5        # minimal slippage on a highly liquid pair
     commission_per_trade: 0.0
 
 # -- Sentiment filter (Phase 2) -------------------------------------------------

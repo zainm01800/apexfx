@@ -77,7 +77,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "timeframe": "15m",
             "momentum_lookback": 14,
             "vol_window": 14,
-            "holding_horizon": 20,
+            "holding_horizon": 48, # 12 hours — gives winners time to reach 2:1 target
             "warmup": 70, # ma_window=50 + momentum_lookback=14 + buffer
             "max_history_days": 59
         },
@@ -85,7 +85,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "timeframe": "1h",
             "momentum_lookback": 24,
             "vol_window": 24,
-            "holding_horizon": 24,
+            "holding_horizon": 72, # 3 days — gives intraday trades room to run
             "warmup": 80, # ma_window=50 + momentum_lookback=24 + buffer
             "max_history_days": 720
         },
