@@ -160,13 +160,23 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
     pass1_trades = []
     active_pits = {}
     
+    from apex_quant.data.store import ParquetStore
+    store = ParquetStore()
+    
     for idx_inst, inst in enumerate(instruments):
         try:
-            if use_twelve and idx_inst > 0:
+            # Check cache-miss before sleep
+            cached = store.load(inst, timeframe)
+            start_ts = pd.Timestamp(start_str, tz="UTC") if pd.Timestamp(start_str).tzinfo is None else pd.Timestamp(start_str)
+            end_ts = pd.Timestamp(end_str, tz="UTC") if pd.Timestamp(end_str).tzinfo is None else pd.Timestamp(end_str)
+            need_fetch = cached.empty or cached.index[0] > start_ts or cached.index[-1] < end_ts
+
+            if need_fetch and use_twelve and idx_inst > 0:
                 import time
-                time.sleep(8.0) # Rate limit delay
+                print("  [*] Fetching new history from Twelve Data - waiting 8 seconds to respect rate limits...")
+                time.sleep(8.0)
                 
-            df = clean(adapter.get_history(inst, start_str, end_str, timeframe=timeframe))
+            df = clean(store.get_or_fetch(inst, adapter, start_str, end_str, timeframe=timeframe))
             if len(df) < warmup + params["momentum_lookback"] + 10:
                 continue
                 
