@@ -78,7 +78,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 14,
             "vol_window": 14,
             "holding_horizon": 20,
-            "warmup": 220, # Must cover 200 MA window
+            "warmup": 70, # ma_window=50 + momentum_lookback=14 + buffer
             "max_history_days": 59
         },
         "intraday": {
@@ -86,7 +86,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 24,
             "vol_window": 24,
             "holding_horizon": 24,
-            "warmup": 220, # Must cover 200 MA window
+            "warmup": 80, # ma_window=50 + momentum_lookback=24 + buffer
             "max_history_days": 720
         },
         "swing": {
@@ -94,7 +94,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 63,
             "vol_window": 63,
             "holding_horizon": 10,
-            "warmup": 220,
+            "warmup": 120, # ma_window=50 + momentum_lookback=63 + buffer
             "max_history_days": 10000
         },
         "position": {
@@ -102,7 +102,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             "momentum_lookback": 126,
             "vol_window": 126,
             "holding_horizon": 40,
-            "warmup": 220,
+            "warmup": 180, # ma_window=50 + momentum_lookback=126 + buffer
             "max_history_days": 10000
         }
     }

@@ -108,21 +108,19 @@ regime:
     n_iter: 200
     min_obs: 250
   rule_based:
-    ma_window: 200
-    slope_window: 21
+    ma_window: 50                 # reduced from 200 so intraday 15m bars can compute trend quickly
+    slope_window: 5               # reduced from 21 for faster regime response on 15m/1h bars
     vol_percentile_window: 252
     vol_high_pct: 0.70           # > 70th percentile vol → high-vol regime
     vol_low_pct: 0.30            # < 30th percentile vol → low-vol regime
-    # |normalised per-bar MA slope| below this -> ranging. Calibrated to the FX
-    # daily slope distribution (median ~1.8e-4); 5e-4 was mis-scaled (~1%/21d) and
-    # left the classifier almost always "ranging". Chosen from the slope
-    # distribution shape, NOT from returns, so this is not data-snooping.
+    # |normalised per-bar MA slope| below this -> ranging. Chosen from slope
+    # distribution shape, NOT from returns — not data-snooping.
     ranging_slope_eps: 0.0002
 
 # ── Risk management (SUPREME — has veto over every signal) ──────────────────────
 risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
-  kelly_fraction: 0.25           # fractional Kelly — NEVER full Kelly
+  kelly_fraction: 0.0            # disabled — use fixed-fraction sizing (set > 0 to re-enable Kelly edge gate)
   max_risk_per_trade: 0.01       # 1% of equity at risk per trade (hard cap)
   max_total_exposure: 3.0        # gross notional ≤ 3× equity (hard cap)
   max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity
