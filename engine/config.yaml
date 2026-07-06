@@ -193,14 +193,13 @@ sentiment:
 # Proposes hypotheses to validate. Grounded in the Node app's /api/ai proxy.
 # Set enabled to true and configure your local LLM details if running locally.
 ai:
-  enabled: false
+  enabled: true
   app_url: "http://localhost:3001"   # Node app base URL exposing /api/ai
   n_hypotheses: 4
   max_tokens: 1200
   temperature: 0.5
   use_news: true
-  use_local_llm: false               # route requests through the app to a local model
-  local_llm_url: "http://localhost:11434/v1/chat/completions"  # local LLM server URL (e.g. Ollama/LM Studio)
-  local_llm_model: "llama3"          # name of the local model to run (e.g. llama3, qwen2.5-coder)
-  local_llm_key: ""                  # optional API key for remote providers (e.g. DeepSeek)
-
+  use_local_llm: true               # Set to true to route through DeepSeek
+  local_llm_url: "https://api.deepseek.com/v1/chat/completions"  # DeepSeek completions endpoint
+  local_llm_model: "deepseek-v4-flash"                           # Target DeepSeek model name
+  local_llm_key: ""                 # Can leave empty if key is set in .env

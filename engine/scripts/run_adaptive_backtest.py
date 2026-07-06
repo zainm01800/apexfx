@@ -1,13 +1,13 @@
-"""Run an adaptive self-reflecting backtest across single or multiple instruments.
+"""Run an adaptive self-reflecting backtest across single or multiple instruments and styles.
 
-Pass 1 executes a blind backtest across all targeted instruments. The AI Critic
-analyzes the aggregated losing trades and proposes up to 10 strict trading rules.
-Pass 2 re-runs the backtests by routing candidate entries through these rules.
+Supports different styles (scalp, intraday, swing, position), maps them to their respective
+timeframes (15m, 1h, 1d), adjusts lookbacks to find more opportunities, and clamps dates
+automatically according to Yahoo Finance historical limitations.
 
 Usage:
     cd engine
-    .venv\\Scripts\\python.exe scripts/run_adaptive_backtest.py --instrument all --start 2024-01-01 --end 2024-12-31
-    .venv\\Scripts\\python.exe scripts/run_adaptive_backtest.py --instrument EUR/USD,GBP/USD --start 2024-01-01 --end 2024-12-31
+    .venv\\Scripts\\python.exe scripts/run_adaptive_backtest.py --style scalp --instrument BTC/USD
+    .venv\\Scripts\\python.exe scripts/run_adaptive_backtest.py --style intraday --instrument EUR/USD,GBP/USD
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import json
 import os
 import warnings
 from pathlib import Path
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
@@ -54,16 +55,89 @@ def calculate_portfolio_metrics(trades: list) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Adaptive Self-Reflecting Backtest Runner")
     parser.add_argument("--instrument", type=str, default="all", help="Instrument(s) to test (comma-separated list, or 'all')")
-    parser.add_argument("--start", type=str, default="2024-01-01", help="Start date (YYYY-MM-DD)")
-    parser.add_argument("--end", type=str, default="2024-12-31", help="End date (YYYY-MM-DD)")
+    parser.add_argument("--style", type=str, default="swing", choices=["scalp", "intraday", "swing", "position"], help="Trading style")
+    parser.add_argument("--start", type=str, default=None, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, default=None, help="End date (YYYY-MM-DD)")
     parser.add_argument("--rules", type=str, default="adaptive_rules.json", help="Filename to save generated rules")
-    parser.add_argument("--warmup", type=int, default=100, help="Bar warmup count")
     parser.add_argument("--max-rules", type=int, default=10, help="Max rules to generate")
     
     args = parser.parse_args()
     
     cfg = get_config()
     cfg.ai.enabled = True
+    
+    # 1. Map style to timeframe, holding horizon, and strategy parameters
+    style_params = {
+        "scalp": {
+            "timeframe": "15m",
+            "momentum_lookback": 14,
+            "vol_window": 14,
+            "holding_horizon": 20, # 20 bars of 15m = 5 hours
+            "warmup": 40,
+            "max_history_days": 59 # Yahoo 15m limit is 60 days
+        },
+        "intraday": {
+            "timeframe": "1h",
+            "momentum_lookback": 24,
+            "vol_window": 24,
+            "holding_horizon": 24, # 24 bars of 1h = 24 hours
+            "warmup": 60,
+            "max_history_days": 720 # Yahoo 1h limit is 730 days
+        },
+        "swing": {
+            "timeframe": "1d",
+            "momentum_lookback": 63,
+            "vol_window": 63,
+            "holding_horizon": 10, # 10 days
+            "warmup": 100,
+            "max_history_days": 10000
+        },
+        "position": {
+            "timeframe": "1d",
+            "momentum_lookback": 126,
+            "vol_window": 126,
+            "holding_horizon": 40, # 40 days
+            "warmup": 150,
+            "max_history_days": 10000
+        }
+    }
+    
+    params = style_params[args.style]
+    timeframe = params["timeframe"]
+    warmup = params["warmup"]
+    
+    # 2. Enforce Yahoo Finance API history limits to prevent server crashes
+    now = datetime.utcnow()
+    
+    # Calculate fallback dates if not specified
+    if args.start is None:
+        if args.style == "scalp":
+            start_dt = now - timedelta(days=20) # 20 days ago default for scalp
+        elif args.style == "intraday":
+            start_dt = now - timedelta(days=90) # 90 days ago default for intraday
+        else:
+            start_dt = datetime(2022, 1, 1)    # 3 years default for daily
+        start_str = start_dt.strftime("%Y-%m-%d")
+    else:
+        start_str = args.start
+        start_dt = datetime.strptime(start_str, "%Y-%m-%d")
+        
+    if args.end is None:
+        end_str = now.strftime("%Y-%m-%d")
+    else:
+        end_str = args.end
+        
+    # Clamp start date if it exceeds Yahoo's timeframe limits
+    max_days = params["max_history_days"]
+    earliest_allowed = now - timedelta(days=max_days)
+    if start_dt < earliest_allowed:
+        clamped_str = (earliest_allowed + timedelta(days=2)).strftime("%Y-%m-%d")
+        print(f"[*] Warning: Yahoo Finance limits historical {timeframe} data to the last {max_days} days.")
+        print(f"[*] Clamping start date from {start_str} to {clamped_str} to prevent API errors.\n")
+        start_str = clamped_str
+        
+    # Override configuration timeframe
+    cfg.data.timeframe = timeframe
     
     # Resolve target instruments list
     if args.instrument.lower() == "all":
@@ -77,7 +151,8 @@ def main():
         
     print(f"=== Portfolio Adaptive Backtest Run ===")
     print(f"Instruments ({len(instruments)}): {', '.join(instruments)}")
-    print(f"Period: {args.start} to {args.end}")
+    print(f"Trading Style: {args.style.upper()} (Timeframe: {timeframe}, Holding: {params['holding_horizon']} bars)")
+    print(f"Period: {start_str} to {end_str}")
     print(f"API Target: {cfg.ai.app_url} (useLocalLlm: {cfg.ai.use_local_llm}, model: {cfg.ai.local_llm_model})\n")
     
     adapter = get_adapter(cfg.data.provider)
@@ -93,18 +168,26 @@ def main():
     
     for inst in instruments:
         try:
-            df = clean(adapter.get_history(inst, args.start, args.end))
-            if len(df) < 120:
-                print(f"  [Skip] {inst}: insufficient data ({len(df)} bars)")
+            # Override adapter parameter for Yahoo intraday retrieval
+            df = clean(adapter.get_history(inst, start_str, end_str, timeframe=timeframe))
+            if len(df) < warmup + params["momentum_lookback"] + 10:
+                print(f"  [Skip] {inst}: insufficient data ({len(df)} bars, need at least {warmup + params['momentum_lookback'] + 10})")
                 continue
             
             pit = PointInTimeAccessor(df)
             active_pits[inst] = pit
             
-            strat = RegimeGatedMomentum()
+            # Setup base strategy calibrated for this specific style
+            strat = RegimeGatedMomentum(
+                momentum_lookback=params["momentum_lookback"],
+                vol_window=params["vol_window"],
+                holding_horizon=params["holding_horizon"],
+                reward_risk=1.5,
+                regime_method="rule_based"
+            )
             strat.fit(pit, df.index)
             
-            res = backtester.run(pit, strat, inst, start=args.start, end=args.end, warmup=args.warmup)
+            res = backtester.run(pit, strat, inst, start=start_str, end=end_str, warmup=warmup, max_hold=params["holding_horizon"])
             pass1_trades.extend(res.trades)
             print(f"  [Pass 1] {inst}: {len(res.trades)} trades, Win Rate: {res.metrics.get('win_rate', 0.0)*100:.1f}%")
         except Exception as e:
@@ -152,6 +235,7 @@ def main():
         if reflected_trades:
             print(f"\nSending {len(reflected_trades)} portfolio-wide losing trades to AI Critic for post-mortem...")
             prompt = (
+                f"Trading Style: {args.style.upper()} (Timeframe: {timeframe})\n"
                 f"Aggregated Losing Trades Log:\n{json.dumps(reflected_trades, indent=2)}\n\n"
                 f"Analyze these failures. Identify shared indicator values, volatility, or trend regimes "
                 f"where the momentum model failed. Propose up to {args.max_rules} rules to filter out bad entries.\n"
@@ -197,11 +281,17 @@ def main():
                 continue
             
             try:
-                base_strat = RegimeGatedMomentum()
+                base_strat = RegimeGatedMomentum(
+                    momentum_lookback=params["momentum_lookback"],
+                    vol_window=params["vol_window"],
+                    holding_horizon=params["holding_horizon"],
+                    reward_risk=1.5,
+                    regime_method="rule_based"
+                )
                 base_strat.fit(pit, pit.as_of(pit.end).index)
                 
                 wrapper_strat = AdaptiveWrapperStrategy(base_strat, rules, cfg.ai.app_url)
-                res = backtester.run(pit, wrapper_strat, inst, start=args.start, end=args.end, warmup=args.warmup)
+                res = backtester.run(pit, wrapper_strat, inst, start=start_str, end=end_str, warmup=warmup, max_hold=params["holding_horizon"])
                 pass2_trades.extend(res.trades)
                 print(f"  [Pass 2] {inst}: {len(res.trades)} trades, Win Rate: {res.metrics.get('win_rate', 0.0)*100:.1f}%")
             except Exception as e:
