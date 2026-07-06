@@ -187,9 +187,10 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                 momentum_lookback=params["momentum_lookback"],
                 vol_window=params["vol_window"],
                 holding_horizon=params["holding_horizon"],
-                reward_risk=1.5,
+                reward_risk=2.0, # Target 2:1 risk-reward to naturally pass Kelly gate
                 regime_method="rule_based",
-                timeframe=timeframe
+                timeframe=timeframe,
+                bypass_calibration=False
             )
             strat.fit(pit, df.index)
             
@@ -289,9 +290,10 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                     momentum_lookback=params["momentum_lookback"],
                     vol_window=params["vol_window"],
                     holding_horizon=params["holding_horizon"],
-                    reward_risk=1.5,
+                    reward_risk=2.0, # Target 2:1 risk-reward to naturally pass Kelly gate
                     regime_method="rule_based",
-                    timeframe=timeframe
+                    timeframe=timeframe,
+                    bypass_calibration=False
                 )
                 base_strat.fit(pit, pit.as_of(pit.end).index)
                 

@@ -98,15 +98,19 @@ class RiskManager:
         if stop_distance <= 0:
             return veto("invalid_stop", "Non-positive stop distance; cannot size.")
 
-        # 3. Fractional Kelly edge gate
-        kelly_rf = fractional_kelly(signal.probability, signal.reward_risk, cfg.kelly_fraction)
-        detail["kelly_risk_fraction"] = kelly_rf
-        if kelly_rf <= 0:
-            return veto(
-                "no_edge",
-                f"Fractional Kelly <= 0 (p={signal.probability:.2f}, "
-                f"b={signal.reward_risk:.2f}); no edge to bet.",
-            )
+        # 3. Fractional Kelly edge gate (only if kelly_fraction > 0)
+        if cfg.kelly_fraction > 0:
+            kelly_rf = fractional_kelly(signal.probability, signal.reward_risk, cfg.kelly_fraction)
+            detail["kelly_risk_fraction"] = kelly_rf
+            if kelly_rf <= 0:
+                return veto(
+                    "no_edge",
+                    f"Fractional Kelly <= 0 (p={signal.probability:.2f}, "
+                    f"b={signal.reward_risk:.2f}); no edge to bet.",
+                )
+        else:
+            kelly_rf = cfg.max_risk_per_trade
+            detail["kelly_risk_fraction"] = kelly_rf
 
         # 4. Per-trade risk cap
         risk_fraction = kelly_rf
