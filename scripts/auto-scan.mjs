@@ -54,9 +54,9 @@ const PER_SYMBOL_TIMEOUT_MS = 210000;   // committee can take ~60–90s; allow f
 // because 15-min-delayed data makes its labels least trustworthy; position 40
 // (20%) because 120-day expiries teach the slowest.
 const DEFAULT_MIX = {
-  midday:  { scalp: 10, intraday: 15 },                       // 25 — markets open (was 16)
-  evening: { swing: 15, position: 10 },                       // 25 — daily bars fresh (was 16)
-  offday:  { scalp: 8, intraday: 8, swing: 8, position: 8 },  // 32 — crypto only (was 20)
+  midday:  { scalp: 20, intraday: 30 },                       // 50 — markets open (was 25)
+  evening: { swing: 30, position: 20 },                       // 50 — daily bars fresh (was 25)
+  offday:  { scalp: 16, intraday: 16, swing: 16, position: 16 },  // 64 — crypto only (was 32)
 };
 
 function runMode(d = new Date()) {
