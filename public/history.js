@@ -1084,14 +1084,21 @@ function computeAccuracy(rows) {
 
   // Profitability card calculation based on same resolved set
   let netR = 0;
+  let rrSum = 0;
+  let rrCount = 0;
   for (const r of resolved) {
+    const parsed = parseRewardRisk(r.risk_reward);
+    if (parsed !== null) {
+      rrSum += parsed;
+      rrCount++;
+    }
     if (r.outcome === 'tp_hit') {
-      const parsed = parseRewardRisk(r.risk_reward);
       netR += (parsed !== null ? parsed : 2.0); // default to 2.0R reward if unparsed
     } else if (r.outcome === 'sl_hit') {
       netR -= 1.0; // standard 1R risk loss
     }
   }
+  const avgRR = rrCount > 0 ? +(rrSum / rrCount).toFixed(2) : null;
 
   return {
     total, finishedN: finished.length, resolvedN: resolved.length, pctResolved, winRate,
@@ -1100,7 +1107,7 @@ function computeAccuracy(rows) {
     buyAcc: acc(buyRes),   buyN: buyRes.length,
     sellAcc: acc(sellRes), sellN: sellRes.length,
     hiConfAcc: acc(hiConf), hiConfN: hiConf.length,
-    brier, reliability, netR,
+    brier, reliability, netR, avgRR,
   };
 }
 
@@ -1262,12 +1269,15 @@ function renderScoreboard() {
     profSub = 'no completed calls';
   }
 
+  const rrCls = a.avgRR == null ? '' : a.avgRR >= 2.0 ? 'pos' : a.avgRR >= 1.5 ? 'accent' : 'neg';
+
   el.innerHTML = `
     <div class="acc-header"><div class="acc-title">🎯 Accuracy Scoreboard</div>${scopeToggle}</div>
     <div class="acc-grid">
       ${accStat('Total Scans', a.total, `${a.finishedN} completed`, '')}
       ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.finishedN} still open`, '')}
       ${accStat('Win Rate', a.winRate != null ? a.winRate + '%' : '—', a.resolvedN ? `${a.wins}W / ${a.losses}L` : 'no resolved calls', wrCls)}
+      ${accStat('Average R:R', a.avgRR != null ? a.avgRR + ':1' : '—', a.resolvedN ? `based on ${a.resolvedN} resolved` : 'no resolved calls', rrCls)}
       ${accStat('Profitability', profVal, profSub, profCls)}
       ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
       ${accStat('BUY Accuracy', a.buyAcc != null ? a.buyAcc + '%' : '—', a.buyN ? `${a.buyN} resolved BUYs` : 'none resolved', a.buyAcc == null ? '' : a.buyAcc >= 50 ? 'pos' : 'neg')}
