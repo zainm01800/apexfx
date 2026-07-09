@@ -1316,3 +1316,9 @@ select option {
 .pos { color: var(--green) !important; }
 .neg { color: var(--red) !important; }
 
+
+
+/* Pause pulse-track marquee animation on hover */
+.pulse-bar:hover .pulse-track {
+  animation-play-state: paused;
+}

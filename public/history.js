@@ -1809,6 +1809,24 @@ document.addEventListener('DOMContentLoaded', init);
 
 // ── Market pulse ──────────────────────────────────────────────────────────────
 async function loadPulse(sym, type, elId) {
+  const elements = document.getElementsByClassName(elId);
+  if (!elements.length) return;
+
+  // Render from cache instantly if available (eliminates '-' blink on tab change)
+  const cached = localStorage.getItem('pulse_cache_' + sym);
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      for (let el of elements) {
+        el.classList.remove('loading');
+        el.querySelector('.pulse-price').textContent = data.price;
+        const ce = el.querySelector('.pulse-change');
+        ce.textContent = data.change;
+        ce.className = `pulse-change ${data.isUp ? 'up' : 'down'}`;
+      }
+    } catch {}
+  }
+
   try {
     const dNow = new Date();
     const dFrom = new Date(dNow.getTime() - 5 * 86400000);
@@ -1818,16 +1836,30 @@ async function loadPulse(sym, type, elId) {
     if (!r.ok) return;
     const bars = await r.json();
     if (!Array.isArray(bars) || bars.length < 2) return;
-    const elements = document.getElementsByClassName(elId);
-    if (!elements.length) return;
+
     const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
     const pct = (curr - prev) / prev * 100;
+    
+    const formattedPrice = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+    const formattedChange = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    const isUp = pct >= 0;
+
+    // Save to cache
+    localStorage.setItem('pulse_cache_' + sym, JSON.stringify({
+      price: formattedPrice,
+      change: formattedChange,
+      isUp: isUp
+    }));
+
     for (let el of elements) {
       el.classList.remove('loading');
-      el.querySelector('.pulse-price').textContent = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+      el.querySelector('.pulse-price').textContent = formattedPrice;
       const ce = el.querySelector('.pulse-change');
-      ce.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-      ce.className = `pulse-change ${pct >= 0 ? 'up' : 'down'}`;
+      ce.textContent = formattedChange;
+      ce.className = `pulse-change ${isUp ? 'up' : 'down'}`;
+      if (typeof quickPick === 'function') {
+        el.onclick = () => quickPick(sym);
+      }
     }
   } catch {}
 }
