@@ -155,14 +155,14 @@ def fast_backtest(df: pd.DataFrame, mom_lb: int, hold_h: int, rr: float,
 # ── Parameter grid ──────────────────────────────────────────────────────────
 GRID = [
     (mom, hh, rr)
-    for mom in [14, 28]
-    for hh  in [24, 48]
-    for rr   in [1.5, 2.0]
+    for mom in [5, 10, 14, 28]
+    for hh  in [4, 8, 24, 48]
+    for rr  in [1.5, 2.0, 2.5]
 ]
 
-# Timeframe-specific thresholds
-MIN_TRADES = {"15m": 20, "1h": 10, "1d": 5}
-MIN_PF     = {"15m": 1.05, "1h": 1.05, "1d": 1.08}
+# Timeframe-specific thresholds (training split is 75% of total)
+MIN_TRADES = {"15m": 20, "1h": 100, "1d": 30}
+MIN_PF     = {"15m": 1.25, "1h": 1.30, "1d": 1.35}
 
 def main():
     assets = build_asset_list()
