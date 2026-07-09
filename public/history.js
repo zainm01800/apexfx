@@ -149,8 +149,7 @@ async function resolveIfPending(rows) {
   // "phantom" whose entry never filled / that no longer holds under the current rules
   // (a stale resolution the grader can't otherwise reach). Only reverts resolved →
   // pending/expired; NEVER flips tp↔sl (intrabar ambiguity), so it can't flip-flop.
-  const relevant = rows.filter(r => r.target_price && r.stop_loss && r.price &&
-    (r.outcome === 'pending' || r.outcome === 'tp_hit' || r.outcome === 'sl_hit'));
+  const relevant = rows.filter(r => r.target_price && r.stop_loss && r.price && r.outcome === 'pending');
   if (!relevant.length) return;
 
   // Group by symbol + resolution timeframe, fetching the right-granularity candles once.
@@ -1770,6 +1769,7 @@ async function loadOpenTradePrices() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  initPulse();
   const loadingEl = document.getElementById('histLoading');
 
   try {
@@ -1805,3 +1805,36 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+
+// ── Market pulse ──────────────────────────────────────────────────────────────
+async function loadPulse(sym, type, elId) {
+  try {
+    const dNow = new Date();
+    const dFrom = new Date(dNow.getTime() - 5 * 86400000);
+    const fromStr = dFrom.toISOString().split('T')[0];
+    const toStr = dNow.toISOString().split('T')[0];
+    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${fromStr}&to=${toStr}`);
+    if (!r.ok) return;
+    const bars = await r.json();
+    if (!Array.isArray(bars) || bars.length < 2) return;
+    const elements = document.getElementsByClassName(elId);
+    if (!elements.length) return;
+    const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
+    const pct = (curr - prev) / prev * 100;
+    for (let el of elements) {
+      el.classList.remove('loading');
+      el.querySelector('.pulse-price').textContent = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+      const ce = el.querySelector('.pulse-change');
+      ce.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      ce.className = `pulse-change ${pct >= 0 ? 'up' : 'down'}`;
+    }
+  } catch {}
+}
+function initPulse() {
+  loadPulse('SPY',     'ETF',     'pulse-SPY');
+  loadPulse('QQQ',     'ETF',     'pulse-QQQ');
+  loadPulse('BTC/USD', 'Crypto',  'pulse-BTC');
+  loadPulse('EUR/USD', 'Forex',   'pulse-EUR');
+  loadPulse('GC1!',    'Futures', 'pulse-GOLD');
+}

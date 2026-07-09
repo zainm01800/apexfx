@@ -4,6 +4,7 @@
 // curve (does stated confidence hold up?), and a recent wins-AND-losses log. This is
 // APEX's moat made verifiable — nothing here is cherry-picked.
 (function () {
+  initPulse();
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const dirOf = (r) => { const u = (r.verdict || '').toUpperCase(); if (/BUY|LONG/.test(u)) return 'buy'; if (/SELL|SHORT/.test(u)) return 'sell'; return 'other'; };
@@ -164,3 +165,36 @@
     })
     .catch(() => { $('trBody').innerHTML = '<div class="tr-empty">Could not load the track record right now. Please refresh in a moment.</div>'; });
 })();
+
+
+// ── Market pulse ──────────────────────────────────────────────────────────────
+async function loadPulse(sym, type, elId) {
+  try {
+    const dNow = new Date();
+    const dFrom = new Date(dNow.getTime() - 5 * 86400000);
+    const fromStr = dFrom.toISOString().split('T')[0];
+    const toStr = dNow.toISOString().split('T')[0];
+    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${fromStr}&to=${toStr}`);
+    if (!r.ok) return;
+    const bars = await r.json();
+    if (!Array.isArray(bars) || bars.length < 2) return;
+    const elements = document.getElementsByClassName(elId);
+    if (!elements.length) return;
+    const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
+    const pct = (curr - prev) / prev * 100;
+    for (let el of elements) {
+      el.classList.remove('loading');
+      el.querySelector('.pulse-price').textContent = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+      const ce = el.querySelector('.pulse-change');
+      ce.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      ce.className = `pulse-change ${pct >= 0 ? 'up' : 'down'}`;
+    }
+  } catch {}
+}
+function initPulse() {
+  loadPulse('SPY',     'ETF',     'pulse-SPY');
+  loadPulse('QQQ',     'ETF',     'pulse-QQQ');
+  loadPulse('BTC/USD', 'Crypto',  'pulse-BTC');
+  loadPulse('EUR/USD', 'Forex',   'pulse-EUR');
+  loadPulse('GC1!',    'Futures', 'pulse-GOLD');
+}
