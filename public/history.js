@@ -1121,6 +1121,15 @@ let _scoreScope = 'all';
 let _scoreLimit = 'all';
 window.setScoreScope = function(s) { _scoreScope = s; renderScoreboard(); };
 window.setScoreLimit = function(l) { _scoreLimit = l; renderScoreboard(); };
+window.setCustomScoreLimit = function(val) {
+  const limit = parseInt(val, 10);
+  if (limit > 0) {
+    _scoreLimit = String(limit);
+  } else {
+    _scoreLimit = 'all';
+  }
+  renderScoreboard();
+};
 
 function renderScoreboard() {
   const el = document.getElementById('accBoard');
@@ -1130,18 +1139,30 @@ function renderScoreboard() {
   const scoped = _scoreScope === 'mine' ? summaryRows.filter(r => !isAuto(r)) : summaryRows;
   const a = computeAccuracy(scoped);
 
+  const isCustomActive = !['all','10','25','50','100','250'].includes(_scoreLimit);
+
   const scopeToggle = `
-    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
       ${autoN ? `
       <div class="acc-scope">
         <button class="acc-scope-btn ${_scoreScope === 'all' ? 'active' : ''}" onclick="setScoreScope('all')" title="Every scan, including the nightly auto-scans the AI learns from">All${` · ${autoN} auto`}</button>
         <button class="acc-scope-btn ${_scoreScope === 'mine' ? 'active' : ''}" onclick="setScoreScope('mine')" title="Only the calls you ran yourself">My scans</button>
       </div>` : ''}
-      <div class="acc-scope">
+      <div class="acc-scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
         <button class="acc-scope-btn ${_scoreLimit === 'all' ? 'active' : ''}" onclick="setScoreLimit('all')" title="All resolved trades in view">All resolved</button>
         <button class="acc-scope-btn ${_scoreLimit === '10' ? 'active' : ''}" onclick="setScoreLimit('10')" title="Last 10 resolved trades only">Last 10</button>
         <button class="acc-scope-btn ${_scoreLimit === '25' ? 'active' : ''}" onclick="setScoreLimit('25')" title="Last 25 resolved trades only">Last 25</button>
         <button class="acc-scope-btn ${_scoreLimit === '50' ? 'active' : ''}" onclick="setScoreLimit('50')" title="Last 50 resolved trades only">Last 50</button>
+        <button class="acc-scope-btn ${_scoreLimit === '100' ? 'active' : ''}" onclick="setScoreLimit('100')" title="Last 100 resolved trades only">Last 100</button>
+        <button class="acc-scope-btn ${_scoreLimit === '250' ? 'active' : ''}" onclick="setScoreLimit('250')" title="Last 250 resolved trades only">Last 250</button>
+        
+        <div style="display: flex; align-items: center; margin-left: 4px; border: 1px solid ${isCustomActive ? 'var(--blue)' : 'var(--border)'}; border-radius: 4px; padding: 2px 6px; background: var(--bg2); height: 26px; box-sizing: border-box; ${isCustomActive ? 'box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);' : ''}">
+          <span style="font-size: 11px; color: var(--text3); margin-right: 4px;">Custom:</span>
+          <input type="number" id="scoreCustomInput" placeholder="X" min="1" max="1000" 
+                 value="${isCustomActive ? _scoreLimit : ''}" 
+                 onchange="setCustomScoreLimit(this.value)" 
+                 style="width: 48px; background: transparent; border: none; color: var(--text); font-size: 11px; outline: none; font-weight: 600; text-align: center;" />
+        </div>
       </div>
     </div>
   `;
