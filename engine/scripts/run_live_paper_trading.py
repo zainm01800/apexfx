@@ -33,6 +33,7 @@ import pandas as pd
 ENGINE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ENGINE_DIR))
 
+from apex_quant.ai.sentiment_filter import apply_deepseek_sentiment
 from apex_quant.config import get_config
 from apex_quant.data import clean, get_adapter
 from apex_quant.data.point_in_time import PointInTimeAccessor
@@ -42,6 +43,25 @@ from apex_quant.strategies.baseline import RegimeGatedMomentum
 SUPABASE_URL = "https://dtiuwllodzqpbwohzrgj.supabase.co"
 SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k"
 MEMORY_ENDPOINT = f"{SUPABASE_URL}/rest/v1/apex_research_memory"
+
+# ── News headline fetcher (for DeepSeek sentiment filter) ─────────────────────
+def fetch_headlines(instrument: str) -> list[str]:
+    """Fetch recent news headlines for *instrument* from the APEX app's /api/news
+    endpoint.  Returns an empty list on any failure (fail-ALLOW)."""
+    app_url = cfg.sentiment.app_url if hasattr(cfg, 'sentiment') else cfg.ai.app_url
+    if not app_url or not app_url.startswith("http"):
+        return []
+    try:
+        base = app_url.rstrip("/")
+        with httpx.Client(timeout=8.0) as client:
+            res = client.get(f"{base}/api/news", params={"sym": instrument, "type": "Forex"})
+            if res.status_code != 200:
+                return []
+            items = res.json()
+            return [i.get("title", "") for i in (items if isinstance(items, list) else []) if i.get("title")]
+    except Exception:
+        return []
+
 
 # ── Dual-Logging & Notification Overrides ────────────────────────────────────
 LOG_FILE = ENGINE_DIR / "data_store" / "live_engine.log"
@@ -448,6 +468,10 @@ def scan_single_asset(item, active_symbols):
         # Evaluate latest signal
         latest_time = df.index[-1]
         sig = strat.generate(pit, latest_time, instrument=sym)
+        
+        # ── Apply DeepSeek sentiment veto filter ──────────────────────
+        sig = apply_deepseek_sentiment(sig, sym, fetch_headlines, cfg=cfg)
+        # ───────────────────────────────────────────────────────────────
         
         if sig.direction != "FLAT":
             close_p = float(df["close"].iloc[-1])

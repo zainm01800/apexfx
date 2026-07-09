@@ -120,13 +120,13 @@ regime:
 # ── Risk management (SUPREME — has veto over every signal) ──────────────────────
 risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
-  kelly_fraction: 0.0            # disabled — use fixed-fraction sizing (set > 0 to re-enable Kelly edge gate)
-  max_risk_per_trade: 0.01       # 1% of equity at risk per trade (hard cap)
+  kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
+  max_risk_per_trade: 0.02       # 2% of equity at risk per trade (optimized cap)
   max_total_exposure: 3.0        # gross notional ≤ 3× equity (hard cap)
   max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity
   correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
   atr_window: 14
-  atr_stop_mult: 3.0             # stop distance = 3× ATR (daily baseline)
+  atr_stop_mult: 2.5             # stop distance = 2.5× ATR (optimized baseline)
   drawdown_breaker: 0.20         # halt NEW positions once drawdown from peak ≥ 20%
   min_position: 0.0              # positions below this round to zero (no trade)
 

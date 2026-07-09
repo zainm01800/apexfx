@@ -6,40 +6,40 @@
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": -0.004762933031319587,
-    "oos_sharpe_std": 0.03417168645452802,
-    "oos_sharpe_median": 0.016266660886730167,
-    "frac_positive": 0.6,
+    "oos_sharpe_mean": -0.01076428836498072,
+    "oos_sharpe_std": 0.018470538323376095,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.0,
     "oos_sharpe_paths": [
-      0.0166,
-      0.0132,
-      0.0353,
-      0.0163,
-      0.0236,
-      -0.0564,
-      0.0237,
-      -0.0412,
-      -0.0361,
-      0.0177,
-      -0.0541,
-      -0.0464,
-      0.0203,
-      0.0264,
-      -0.0304
+      0.0,
+      0.0,
+      0.0,
+      -0.0344,
+      -0.0393,
+      0.0,
+      0.0,
+      -0.0337,
+      0.0,
+      0.0,
+      -0.0514,
+      0.0,
+      0.0,
+      0.0,
+      -0.0026
     ]
   },
   "dsr": {
-    "dsr": 0.7369091146044326,
-    "observed_sharpe": 0.01138266273447728,
-    "observed_sharpe_ann": 0.18069416911889594,
-    "sr0": 0.00020857850026988645,
+    "dsr": 0.5688307322249089,
+    "observed_sharpe": 0.014909721891620955,
+    "observed_sharpe_ann": 0.23668449745418743,
+    "sr0": 0.012097090627200865,
     "n_trials": 3,
     "n_obs": 2866,
-    "skew": 10.679358807859476,
-    "kurtosis": 370.01715533230845
+    "skew": 19.52469504441682,
+    "kurtosis": 809.2306081210141
   },
   "pbo": {
-    "pbo": 0.91125,
+    "pbo": 1.0,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -48,11 +48,11 @@
     "passed": false,
     "dsr_pass": false,
     "pbo_pass": false,
-    "cpcv_pass": true,
+    "cpcv_pass": false,
     "reasons": [
-      "DSR 0.737 <= 0.95 (multiple-testing deflation)",
-      "PBO 0.91125 >= 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe 0.016, 60% of 15 paths positive",
+      "DSR 0.569 <= 0.95 (multiple-testing deflation)",
+      "PBO 1.0 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 0% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }

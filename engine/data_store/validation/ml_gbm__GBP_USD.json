@@ -6,40 +6,40 @@
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": -0.024154382593661088,
-    "oos_sharpe_std": 0.01542188194421394,
-    "oos_sharpe_median": -0.022268974743000755,
-    "frac_positive": 0.0,
+    "oos_sharpe_mean": -0.002114865951107744,
+    "oos_sharpe_std": 0.017730929586461767,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.2,
     "oos_sharpe_paths": [
-      -0.0112,
-      -0.0314,
-      -0.0517,
-      -0.0201,
-      -0.0368,
-      -0.0058,
-      -0.0223,
-      -0.0022,
-      -0.0067,
-      -0.0419,
-      -0.014,
-      -0.0255,
-      -0.0307,
-      -0.0466,
-      -0.0155
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -0.0631,
+      0.0,
+      0.0,
+      0.0,
+      0.0027,
+      0.0,
+      0.0,
+      0.02,
+      0.0,
+      0.0,
+      0.0087
     ]
   },
   "dsr": {
-    "dsr": 0.09185772739361137,
-    "observed_sharpe": -0.02200803909853748,
-    "observed_sharpe_ann": -0.3493667897934979,
-    "sr0": 0.002851799483604656,
+    "dsr": 0.5830608040199072,
+    "observed_sharpe": 0.013782722029200918,
+    "observed_sharpe_ann": 0.21879392927278288,
+    "sr0": 0.009876577992513834,
     "n_trials": 3,
     "n_obs": 2866,
-    "skew": -0.17640223575393535,
-    "kurtosis": 48.4543535736336
+    "skew": 0.5028355439632329,
+    "kurtosis": 16.42568650601715
   },
   "pbo": {
-    "pbo": 0.5575,
+    "pbo": 0.4595,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -47,12 +47,12 @@
   "verdict": {
     "passed": false,
     "dsr_pass": false,
-    "pbo_pass": false,
+    "pbo_pass": true,
     "cpcv_pass": false,
     "reasons": [
-      "DSR 0.092 <= 0.95 (multiple-testing deflation)",
-      "PBO 0.5575 >= 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe -0.022, 0% of 15 paths positive",
+      "DSR 0.583 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.4595 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 20% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }

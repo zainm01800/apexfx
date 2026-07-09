@@ -6,40 +6,39 @@
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": 0.012532758141014408,
-    "oos_sharpe_std": 0.013768243638247283,
-    "oos_sharpe_median": 0.006669360543252224,
-    "frac_positive": 0.8666666666666667,
+    "oos_sharpe_mean": 0.0009541838481381017,
+    "oos_sharpe_std": 0.016396289234986088,
+    "oos_sharpe_median": 0.0,
+    "frac_positive": 0.3333333333333333,
     "oos_sharpe_paths": [
-      0.0382,
-      0.0191,
-      0.038,
-      0.0234,
-      0.0244,
-      0.002,
-      0.0145,
-      0.0062,
-      0.013,
-      0.0018,
-      -0.006,
-      0.0056,
-      -0.0051,
-      0.0067,
-      0.0063
+      0.0363,
+      0.0259,
+      0.011,
+      0.0,
+      -0.017,
+      -0.0309,
+      -0.0189,
+      0.0,
+      0.0,
+      -0.0026,
+      0.0,
+      0.0,
+      0.0075,
+      0.0,
+      0.003
     ]
   },
   "dsr": {
-    "dsr": 0.4890836118462557,
-    "observed_sharpe": 0.004814837530778526,
-    "observed_sharpe_ann": 0.0764331762577217,
-    "sr0": 0.005326288092673516,
+    "dsr": 0.0,
+    "observed_sharpe": 0.0,
+    "observed_sharpe_ann": 0.0,
+    "sr0": 0.0,
     "n_trials": 3,
     "n_obs": 2866,
-    "skew": -0.09424946379043762,
-    "kurtosis": 36.2549367995218
+    "note": "insufficient data / zero variance"
   },
   "pbo": {
-    "pbo": 0.1365,
+    "pbo": 0.92775,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -47,12 +46,12 @@
   "verdict": {
     "passed": false,
     "dsr_pass": false,
-    "pbo_pass": true,
-    "cpcv_pass": true,
+    "pbo_pass": false,
+    "cpcv_pass": false,
     "reasons": [
-      "DSR 0.489 <= 0.95 (multiple-testing deflation)",
-      "PBO 0.1365 < 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe 0.007, 87% of 15 paths positive",
+      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.92775 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.000, 33% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }
