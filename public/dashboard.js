@@ -1271,7 +1271,7 @@ async function loadNavWinRate() {
   const el = document.getElementById('navWinRate');
   if (!el) return;
   try {
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
     if (!r.ok) return;
     const rows = await r.json();
     if (!Array.isArray(rows)) return;
@@ -1372,7 +1372,7 @@ async function fetchCalibration(currentType) {
   try {
     // resolved=true → the FULL graded history (old resolved swing/position rows
     // must never fall off a recent-rows window as scan volume grows).
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1488,7 +1488,7 @@ function setupDistance(a, b) {
 async function fetchMetaLabel(features) {
   try {
     if (!features) return null;
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1534,7 +1534,7 @@ async function fetchMetaLabel(features) {
 async function fetchLessons(features) {
   try {
     if (!features) return [];
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
     if (!r.ok) return [];
     const rows = await r.json();
     if (!Array.isArray(rows)) return [];
@@ -1783,11 +1783,9 @@ async function loadPulse(sym, type, elId) {
   }
 
   try {
-    const dNow = new Date();
-    const dFrom = new Date(dNow.getTime() - 5 * 86400000);
-    const fromStr = dFrom.toISOString().split('T')[0];
-    const toStr = dNow.toISOString().split('T')[0];
-    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${fromStr}&to=${toStr}`);
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - 7 * 86400; // 7 days in seconds to ensure we get at least 2 trading bars
+    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
     if (!r.ok) return;
     const bars = await r.json();
     if (!Array.isArray(bars) || bars.length < 2) return;
@@ -4007,7 +4005,7 @@ async function showValidationBanner(target, fresh) {
   // Learned track record for this kind of re-check (dormant until enough resolved).
   let trackNote = '';
   try {
-    const rows = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000').then(r => r.json());
+    const rows = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200').then(r => r.json());
     const vr = computeValidationReliability(rows);
     const s = vr[rec.assessment];
     if (s && s.n >= 4) {

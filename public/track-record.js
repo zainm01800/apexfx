@@ -188,11 +188,9 @@ async function loadPulse(sym, type, elId) {
   }
 
   try {
-    const dNow = new Date();
-    const dFrom = new Date(dNow.getTime() - 5 * 86400000);
-    const fromStr = dFrom.toISOString().split('T')[0];
-    const toStr = dNow.toISOString().split('T')[0];
-    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${fromStr}&to=${toStr}`);
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - 7 * 86400; // 7 days in seconds to ensure we get at least 2 trading bars
+    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
     if (!r.ok) return;
     const bars = await r.json();
     if (!Array.isArray(bars) || bars.length < 2) return;
