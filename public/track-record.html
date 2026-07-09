@@ -37,23 +37,23 @@
     .tr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .tr-table th {
       text-align: left; color: var(--text3); font-weight: 700; font-size: 10px; text-transform: uppercase;
-      letter-spacing: .1em; padding: 10px 12px; border-bottom: 1px solid rgba(0,240,255,0.08); white-space: nowrap;
+      letter-spacing: .1em; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
     }
     .tr-table td {
       padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.03);
       font-family: var(--mono); white-space: nowrap;
     }
-    .tr-win { color: var(--green); text-shadow: 0 0 8px rgba(13,252,159,0.3); }
+    .tr-win { color: var(--green);  }
     .tr-loss { color: var(--red); }
     .tr-empty {
       color: var(--text2); padding: 40px; text-align: center; line-height: 1.7;
-      background: rgba(4,8,16,0.5); border: 1px solid rgba(0,240,255,0.08);
+      background: var(--card); border: 1px solid var(--border);
       border-radius: 16px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     }
     .tr-note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
     .tr-honesty {
       margin-top: 30px; padding: 18px 20px; border-radius: 16px;
-      background: rgba(0,240,255,0.03); border: 1px solid rgba(0,240,255,0.1);
+      background: rgba(56, 189, 248, 0.04); border: 1px solid var(--border);
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     }
     .tr-honesty ul { margin: 8px 0 0; padding-left: 18px; }
@@ -62,7 +62,7 @@
 
     /* Profitability card */
     .tr-profit-card {
-      background: rgba(4,8,16,0.55); border: 1px solid rgba(0,240,255,0.1); border-radius: 16px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
       padding: 20px 20px 22px; margin-top: 24px;
       backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       box-shadow: 0 10px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -70,12 +70,12 @@
     .tr-profit-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
     .tr-tabs { display: flex; gap: 6px; }
     .tr-tab {
-      background: rgba(4,8,16,0.5); border: 1px solid rgba(0,240,255,0.08); color: var(--text3);
+      background: var(--card); border: 1px solid var(--border); color: var(--text3);
       border-radius: 20px; padding: 6px 15px; font-size: 12px; cursor: pointer;
       font-family: var(--sans); transition: all .2s;
     }
-    .tr-tab:hover { border-color: rgba(0,240,255,0.3); color: var(--text); }
-    .tr-tab.active { background: rgba(0,240,255,0.08); border-color: rgba(0,240,255,0.3); color: var(--purple); }
+    .tr-tab:hover { border-color: rgba(56, 189, 248, 0.3); color: var(--text); }
+    .tr-tab.active { background: var(--border); border-color: rgba(56, 189, 248, 0.3); color: var(--purple); }
     .tr-profit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; padding: 14px 16px; border-radius: 12px; }
     .tr-profit-banner.pos { background: rgba(13,252,159,.06); border: 1px solid rgba(13,252,159,.2); }
     .tr-profit-banner.neg { background: rgba(255,42,133,.06); border: 1px solid rgba(255,42,133,.2); }
