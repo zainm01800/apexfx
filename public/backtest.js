@@ -150,6 +150,7 @@
   function setRunState(s) {
     $('runState').textContent = s.toUpperCase();
     $('runDot').className = 'bt-dot ' + s;
+    if ($('runPill')) $('runPill').className = 'bt-status-pill ' + s;
     $('runBtn').disabled = running;
     $('pauseBtn').disabled = !running;
     $('cancelBtn').disabled = !running;
@@ -181,43 +182,7 @@
   // median (typical) result, and walk-forward survival. Verdict = % profitable.
   function renderSummary(rows) {
     const el = $('btSummary');
-    const withRet = rows.filter(r => r.total_return != null && !isNaN(r.total_return));
-    if (withRet.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
-    const rets = withRet.map(r => +r.total_return).sort((a, b) => a - b);
-    const n = rets.length;
-    const profitable = rets.filter(x => x > 0).length;
-    const pctProf = Math.round(profitable / n * 100);
-    const med = (a) => a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null;
-    const median = med(rets);
-    const robust = withRet.filter(r => r.n_trades >= 100).map(r => +r.total_return);
-    const robustProf = robust.length ? Math.round(robust.filter(x => x > 0).length / robust.length * 100) : null;
-    // Walk-forward survival: of strategies with a usable out-of-sample sample, how many
-    // kept a positive edge out-of-sample? This is the honest headline.
-    const oosElig = withRet.filter(r => r.oos_n_trades != null && r.oos_n_trades >= 10);
-    const oosHeldPct = oosElig.length ? Math.round(oosElig.filter(r => r.oos_holds === true).length / oosElig.length * 100) : null;
-    const oosMedian = oosElig.length ? med(oosElig.map(r => +r.oos_return).sort((a, b) => a - b)) : null;
-
-    // Verdict from % profitable (in-sample, so ~50% is the coin-flip line).
-    let verdict, vcls;
-    if (pctProf >= 55)      { verdict = 'NET PROFITABLE'; vcls = 'pos'; }
-    else if (pctProf >= 45) { verdict = 'MIXED / COIN-FLIP'; vcls = 'mid'; }
-    else                    { verdict = 'NET UNPROFITABLE'; vcls = 'neg'; }
-
-    const stat = (v, l, cls) => `<div class="bt-sum-stat"><span class="bt-sum-v ${cls || ''}">${v}</span><span class="bt-sum-l">${l}</span></div>`;
-    el.style.display = '';
-    el.innerHTML = `
-      <div class="bt-sum-head">
-        <span class="bt-sum-title">🧮 Backtest summary — ${n} result${n === 1 ? '' : 's'}</span>
-        <span class="bt-sum-verdict ${vcls}">${verdict}</span>
-      </div>
-      <div class="bt-sum-grid">
-        ${stat(pctProf + '%', `profitable (${profitable}/${n})`, pctProf >= 50 ? 'pos' : 'neg')}
-        ${stat(pct(median), 'median (typical) return', median > 0 ? 'pos' : 'neg')}
-        ${oosHeldPct != null ? stat(oosHeldPct + '%', `held up out-of-sample (${oosElig.length})`, oosHeldPct >= 50 ? 'pos' : 'neg') : stat('—', 'out-of-sample', '')}
-        ${oosMedian != null ? stat(pct(oosMedian), 'median OOS return', oosMedian > 0 ? 'pos' : 'neg') : ''}
-        ${robustProf != null ? stat(robustProf + '%', `profitable @ ≥100 trades (${robust.length})`, robustProf >= 50 ? 'pos' : 'neg') : ''}
-      </div>
-      <div class="bt-sum-note">Across every strategy × pair × timeframe in view (includes deliberately-weak ones). Returns are too fat-tailed to sum into a meaningful "total" (one lucky multi-year run dwarfs the rest), so the honest reads are the <strong>median</strong> (a typical result) and <strong>"held up out-of-sample"</strong> — how many kept a positive edge on held-out recent data.${oosHeldPct == null ? ' (Out-of-sample fills in after the next weekly backtest run.)' : ''}</div>`;
+    if (el) el.style.display = 'none';
   }
 
   function renderResults() {
@@ -301,15 +266,8 @@
 
   // ── Improvement hypotheses (Layer 5) ────────────────────────────────────────
   function renderInsights() {
-    const mt = multipleTestingPanel(currentRows);
-    let framing = '', html = '';
-    if (A.hypotheses) {
-      const { meta, cards } = A.hypotheses.buildHypotheses(currentRows);
-      if (cards.length) { renderHypothesisCards(meta, cards); framing = _bt_framing; html = _bt_html; }
-    }
-    if (!mt && !html) { $('insightsCard').style.display = 'none'; return; }
-    $('insightsCard').style.display = '';
-    $('insightsBody').innerHTML = (mt || '') + framing + html;
+    const el = $('insightsCard');
+    if (el) el.style.display = 'none';
   }
   let _bt_framing = '', _bt_html = '';
   function renderHypothesisCards(meta, cards) {
@@ -453,19 +411,7 @@
         const short = String(x.run_id).slice(-6);
         return `<option value="${x.run_id}">${when} · run …${short}</option>`;
       }).join('');
-      $('delRunBtn').disabled = !sel.value;
     } catch {}
-  }
-  async function deleteSelectedRun() {
-    const runId = $('fRun').value;
-    if (!runId) { flashMeta('Pick a specific run to delete (not "Latest").'); return; }
-    if (!confirm(`Delete this run and ALL its stored results?\n\n${runId}\n\nThis can't be undone.`)) return;
-    $('delRunBtn').disabled = true;
-    try {
-      const r = await fetch('/api/backtest-runs?run_id=' + encodeURIComponent(runId), { method: 'DELETE' });
-      if (r.ok) { flashMeta('✓ Run deleted.'); await refreshRunFilter(); $('fRun').value = ''; loadStored(''); }
-      else { const e = await r.json().catch(() => ({})); flashMeta(`⚠ Delete failed (${e.error || r.status}) — the table may not allow deletes yet.`); $('delRunBtn').disabled = false; }
-    } catch (e) { flashMeta('⚠ Delete failed: ' + e.message); $('delRunBtn').disabled = false; }
   }
   async function loadStored(runId) {
     $('resultMeta').textContent = 'Loading…';
@@ -481,20 +427,24 @@
 
   // ── Wire up ─────────────────────────────────────────────────────────────────
   function init() {
-    renderCatChips(); renderSymGrid(); renderTfChips(); updateJobCount();
-    $('runBtn').onclick = startRun;
-    $('pauseBtn').onclick = () => { if (!running) return; paused = !paused; setRunState('running'); };
-    $('cancelBtn').onclick = () => { cancelled = true; paused = false; };
-    ['fRun','fPair','fTf','fFamily','fSort'].forEach(id => $(id).onchange = () => { if (id === 'fRun') { $('delRunBtn').disabled = !$('fRun').value; loadStored($('fRun').value); } else renderResults(); });
-    $('fMinSample').onchange = renderResults;
-    $('delRunBtn').onclick = deleteSelectedRun;
-    $('resetFiltersBtn').onclick = () => { $('fPair').value = ''; $('fTf').value = ''; $('fFamily').value = ''; $('fMinSample').checked = true; renderResults(); flashMeta('Filters reset.'); };
-    $('refreshBtn').onclick = () => loadStored($('fRun').value);
-    $('mPair').onchange = renderMatrix; $('mTf').onchange = renderMatrix;
+    ['fRun','fPair','fTf','fFamily','fSort'].forEach(id => {
+      const el = $(id);
+      if (el) el.onchange = () => { if (id === 'fRun') { loadStored($('fRun').value); } else renderResults(); };
+    });
+    const minSample = $('fMinSample');
+    if (minSample) minSample.onchange = renderResults;
+    const resetBtn = $('resetFiltersBtn');
+    if (resetBtn) resetBtn.onclick = () => { $('fPair').value = ''; $('fTf').value = ''; $('fFamily').value = ''; $('fMinSample').checked = true; renderResults(); flashMeta('Filters reset.'); };
+    const refreshBtn = $('refreshBtn');
+    if (refreshBtn) refreshBtn.onclick = () => loadStored($('fRun').value);
+    const mPair = $('mPair');
+    const mTf = $('mTf');
+    if (mPair) mPair.onchange = renderMatrix;
+    if (mTf) mTf.onchange = renderMatrix;
     $('tradesClose').onclick = () => { $('tradesModal').style.display = 'none'; };
     $('tradesModal').onclick = (e) => { if (e.target === $('tradesModal')) $('tradesModal').style.display = 'none'; };
     refreshRunFilter();
-    loadStored('');   // show any previously stored results
+    loadStored('');   // show pre-seeded robustness sweeps from Supabase
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>APEX — Scan History</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#09090f" />
@@ -12,23 +19,25 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="APEX FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
 </head>
 <body>
 
   <header class="header">
-    <div class="logo">APEX<span>FX</span></div>
+    <a href="index.html" class="logo" style="text-decoration: none;">APEX<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link" href="dashboard.html">Research</a>
-      <a class="nav-link active" href="history.html">History</a>
-      <a class="nav-link" href="backtest.html">Backtest</a>
-      <a class="nav-link" href="track-record.html">Track Record</a>
+      <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link active" id="nav-history" href="history.html">History</a>
+      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
-    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
   </header>
 
   <main class="history-main">

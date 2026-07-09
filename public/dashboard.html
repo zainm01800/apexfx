@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>APEX — AI Research</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#09090f" />
@@ -12,9 +19,9 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="APEX FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <!-- Lightweight client-error capture. Surfaces uncaught errors in the console with
        an [APEX-ERR] tag so failures are visible during use/testing — zero dependency.
@@ -31,15 +38,17 @@
 <body>
 
   <header class="header">
-    <div class="logo">APEX<span>FX</span></div>
+    <a href="index.html" class="logo" style="text-decoration: none;">APEX<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link active" href="dashboard.html">Research</a>
-      <a class="nav-link" href="history.html">History</a>
-      <a class="nav-link" href="backtest.html">Backtest</a>
-      <a class="nav-link" href="track-record.html">Track Record</a>
+      <a class="nav-link active" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
-    <a class="nav-winrate" id="navWinRate" href="history.html" title="Overall realised win rate across all resolved calls" style="display:none"></a>
-    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    <div class="header-right" id="headerRight">
+      <a class="nav-winrate" id="navWinRate" href="history.html" title="Overall realised win rate across all resolved calls" style="display:none"></a>
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
   </header>
 
   <div class="pulse-bar">
@@ -72,27 +81,84 @@
 
   <main>
 
-    <!-- Hero -->
+    <!-- Premium Dashboard Hero & Stats -->
     <section class="hero" id="heroSection">
-      <div class="hero-inner">
+      <div class="hero-inner" style="gap: 24px;">
         <div class="hero-text">
-          <h1>An honest second opinion on any trade</h1>
-          <p>For funded-challenge and serious swing traders: a calibrated BUY / SELL / <strong>WAIT</strong> verdict with entry, stop and targets — across stocks, forex and crypto. No signals, no hype. <strong>Every call is published, wins and losses.</strong></p>
-          <p class="hero-notfor">Built for process and discipline, not fast signals — not for scalpers needing real-time data or anyone wanting guaranteed wins.</p>
+          <h1>APEX Quant Portal</h1>
+          <p>Real-time system metrics, active trades, and regime-filtered intelligence sweeps.</p>
         </div>
-        <div class="search-wrap">
-          <div class="search-box">
-            <div class="search-field" id="searchField">
-              <input type="text" id="symInput" placeholder="Search any stock, crypto or forex..." autocomplete="off" spellcheck="false" />
-              <span class="type-pill" id="typePill"></span>
-              <!-- Autocomplete dropdown -->
-              <div class="sym-dropdown" id="symDropdown"></div>
-            </div>
-            <button class="analyse-btn" id="analyseBtn">
-              Deep Analyse
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-            </button>
+
+        <!-- System Stats Widgets -->
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 10px;">
+          <div class="stat-item" style="padding: 18px;">
+            <span class="stat-label" style="color: var(--text3)">Active Portfolios</span>
+            <span class="stat-value" style="font-size: 20px; color: var(--purple)">21 Robust Core Setups</span>
           </div>
+          <div class="stat-item" style="padding: 18px;">
+            <span class="stat-label" style="color: var(--text3)">Realised Win Rate</span>
+            <span class="stat-value" id="dashWinRate" style="font-size: 20px; color: var(--green)">—</span>
+          </div>
+          <div class="stat-item" style="padding: 18px;">
+            <span class="stat-label" style="color: var(--text3)">Expectancy</span>
+            <span class="stat-value" id="dashExpectancy" style="font-size: 20px; color: var(--blue)">—</span>
+          </div>
+          <div class="stat-item" style="padding: 18px;">
+            <span class="stat-label" style="color: var(--text3)">Total Resolved Trades</span>
+            <span class="stat-value" id="dashTradeCount" style="font-size: 20px;">—</span>
+          </div>
+        </div>
+
+        <!-- Live Active Trades Monitor -->
+        <div class="a-card" style="padding: 24px; border-left: 3px solid var(--purple)">
+          <div class="a-card-header" style="border-bottom: 1px solid var(--border)">
+            <span class="a-icon">📡</span>
+            <h2>Live Active Positions</h2>
+            <span class="regime-badge" style="background: rgba(0, 212, 160, 0.1); color: var(--green)">Live Scanner Active</span>
+          </div>
+          <div id="liveTradesContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 14px;">
+            <div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 13px;">
+              Loading active positions from Supabase...
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Trading Engine Console -->
+        <div class="a-card" style="padding: 24px; border-left: 3px solid var(--green)">
+          <div class="a-card-header" style="border-bottom: 1px solid var(--border)">
+            <span class="a-icon">🖥️</span>
+            <h2>Live Trading Engine Console</h2>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span id="logStatusPill" class="regime-badge" style="background: rgba(0, 212, 160, 0.1); color: var(--green)">Live Stream</span>
+              <button id="clearLogsBtn" style="background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--text3); padding: 2px 8px; font-size: 11px; cursor: pointer; transition: 0.2s; font-family: inherit;">Clear Console</button>
+            </div>
+          </div>
+          <div id="terminalContainer" style="background: #06060b; border: 1px solid var(--border); border-radius: 6px; padding: 18px; margin-top: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.7; height: 280px; overflow-y: auto; color: #b4bece; text-align: left; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);">
+            <div style="color: var(--text3); font-style: italic;">Connecting to live engine stream...</div>
+          </div>
+        </div>
+
+        <!-- Deep Search Analyser Card -->
+        <div class="a-card" style="padding: 24px;">
+          <div class="a-card-header" style="border-bottom: 1px solid var(--border); margin-bottom: 18px;">
+            <span class="a-icon">🔍</span>
+            <h2>Deep Analyse Any Asset</h2>
+          </div>
+
+          <div class="search-wrap">
+            <div class="search-box">
+              <div class="search-field" id="searchField" style="background: var(--bg2); border-color: var(--border);">
+                <input type="text" id="symInput" placeholder="Search NVDA, BTC/USD, EUR/USD..." autocomplete="off" spellcheck="false" />
+                <span class="type-pill" id="typePill"></span>
+                <div class="sym-dropdown" id="symDropdown"></div>
+              </div>
+              <button class="analyse-btn" id="analyseBtn">
+                Deep Analyse
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
 
           <!-- Pre-analysis flags: TradingView link, sector RS pill, earnings/macro warnings -->
           <div class="pre-analysis" id="preAnalysis" style="display:none"></div>

@@ -242,18 +242,27 @@ window.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('layout-app');
   }
   
-  // Inject Settings button into header nav
+  // Inject Settings button into header
   const header = document.querySelector('.header');
   if (header) {
-    const nav = header.querySelector('.nav');
-    if (nav) {
+    const right = header.querySelector('.header-right');
+    if (right) {
       const btn = document.createElement('button');
       btn.className = 'nav-settings-btn';
       btn.id = 'navSettingsBtn';
       btn.textContent = 'Settings';
       btn.onclick = openApexSettings;
-      // Insert after the last nav link
-      nav.parentNode.insertBefore(btn, nav.nextSibling);
+      right.insertBefore(btn, right.firstChild);
+    } else {
+      const nav = header.querySelector('.nav');
+      if (nav) {
+        const btn = document.createElement('button');
+        btn.className = 'nav-settings-btn';
+        btn.id = 'navSettingsBtn';
+        btn.textContent = 'Settings';
+        btn.onclick = openApexSettings;
+        nav.parentNode.insertBefore(btn, nav.nextSibling);
+      }
     }
   }
 });

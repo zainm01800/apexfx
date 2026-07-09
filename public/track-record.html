@@ -3,62 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>APEX — Public Track Record</title>
+  <title>APEX — Track Record</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#09090f" />
   <link rel="apple-touch-icon" href="/icon.svg" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
   <style>
-    .tr-main { max-width: 1000px; margin: 0 auto; padding: 30px 20px 70px; }
-    .tr-hero h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em;
-      background: linear-gradient(135deg, var(--text), #a090ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .tr-hero p { color: var(--text2); margin-top: 10px; max-width: 660px; line-height: 1.65; font-size: 14px; }
-    .tr-asof { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 10px; }
-    .tr-section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); font-weight: 600; margin: 28px 0 12px; }
+    .tr-main { max-width: 1000px; margin: 0 auto; padding: 36px 24px 80px; }
+    .tr-hero { margin-bottom: 6px; }
+    .tr-hero h1 {
+      font-size: 32px; font-weight: 700; letter-spacing: -.025em;
+      font-family: var(--sans);
+      background: linear-gradient(125deg, var(--text) 0%, var(--purple) 55%, var(--green) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .tr-hero p { color: var(--text2); margin-top: 10px; max-width: 680px; line-height: 1.7; font-size: 14px; }
+    .tr-asof { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 10px; letter-spacing: .06em; }
+    .tr-section-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text3); font-weight: 700; margin: 28px 0 12px;
+    }
     .tr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .tr-table th { text-align: left; color: var(--text3); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    .tr-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.04); font-family: var(--mono); white-space: nowrap; }
-    .tr-win { color: var(--green); } .tr-loss { color: var(--red); }
-    .tr-empty { color: var(--text2); padding: 32px; text-align: center; line-height: 1.7; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+    .tr-table th {
+      text-align: left; color: var(--text3); font-weight: 700; font-size: 10px; text-transform: uppercase;
+      letter-spacing: .1em; padding: 10px 12px; border-bottom: 1px solid rgba(0,240,255,0.08); white-space: nowrap;
+    }
+    .tr-table td {
+      padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.03);
+      font-family: var(--mono); white-space: nowrap;
+    }
+    .tr-win { color: var(--green); text-shadow: 0 0 8px rgba(13,252,159,0.3); }
+    .tr-loss { color: var(--red); }
+    .tr-empty {
+      color: var(--text2); padding: 40px; text-align: center; line-height: 1.7;
+      background: rgba(4,8,16,0.5); border: 1px solid rgba(0,240,255,0.08);
+      border-radius: 16px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    }
     .tr-note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
-    .tr-honesty { margin-top: 30px; padding: 16px 18px; border-radius: 12px; background: rgba(124,92,252,.06); border: 1px solid rgba(124,92,252,.22); }
+    .tr-honesty {
+      margin-top: 30px; padding: 18px 20px; border-radius: 16px;
+      background: rgba(0,240,255,0.03); border: 1px solid rgba(0,240,255,0.1);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
     .tr-honesty ul { margin: 8px 0 0; padding-left: 18px; }
-    .tr-honesty li { color: var(--text2); font-size: 13px; line-height: 1.7; margin: 5px 0; }
+    .tr-honesty li { color: var(--text2); font-size: 13px; line-height: 1.7; margin: 6px 0; }
     .tr-honesty strong { color: var(--text); }
 
     /* Profitability card */
-    .tr-profit-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 20px; margin-top: 22px; }
+    .tr-profit-card {
+      background: rgba(4,8,16,0.55); border: 1px solid rgba(0,240,255,0.1); border-radius: 16px;
+      padding: 20px 20px 22px; margin-top: 24px;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
     .tr-profit-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
     .tr-tabs { display: flex; gap: 6px; }
-    .tr-tab { background: var(--bg2, #0c0c16); border: 1px solid var(--border); color: var(--text2); border-radius: 7px;
-      padding: 6px 13px; font-size: 12.5px; cursor: pointer; font-family: var(--mono); transition: all .15s; }
-    .tr-tab:hover { border-color: var(--purple); color: var(--text); }
-    .tr-tab.active { background: rgba(124,92,252,.16); border-color: var(--purple); color: #c8b8ff; }
-    .tr-profit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; padding: 12px 14px; border-radius: 10px; }
-    .tr-profit-banner.pos { background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.3); }
-    .tr-profit-banner.neg { background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.3); }
-    .tr-profit-badge { font-weight: 700; font-size: 13px; padding: 4px 11px; border-radius: 20px; white-space: nowrap; }
-    .tr-profit-badge.pos { background: rgba(74,222,128,.18); color: #4ade80; }
-    .tr-profit-badge.neg { background: rgba(248,113,113,.18); color: #f87171; }
+    .tr-tab {
+      background: rgba(4,8,16,0.5); border: 1px solid rgba(0,240,255,0.08); color: var(--text3);
+      border-radius: 20px; padding: 6px 15px; font-size: 12px; cursor: pointer;
+      font-family: var(--sans); transition: all .2s;
+    }
+    .tr-tab:hover { border-color: rgba(0,240,255,0.3); color: var(--text); }
+    .tr-tab.active { background: rgba(0,240,255,0.08); border-color: rgba(0,240,255,0.3); color: var(--purple); }
+    .tr-profit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; padding: 14px 16px; border-radius: 12px; }
+    .tr-profit-banner.pos { background: rgba(13,252,159,.06); border: 1px solid rgba(13,252,159,.2); }
+    .tr-profit-banner.neg { background: rgba(255,42,133,.06); border: 1px solid rgba(255,42,133,.2); }
+    .tr-profit-badge { font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
+    .tr-profit-badge.pos { background: rgba(13,252,159,.12); color: var(--green); border: 1px solid rgba(13,252,159,.25); }
+    .tr-profit-badge.neg { background: rgba(255,42,133,.12); color: var(--red); border: 1px solid rgba(255,42,133,.25); }
     .tr-profit-sub { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
   </style>
 </head>
 <body>
 
   <header class="header">
-    <div class="logo">APEX<span>FX</span></div>
+    <a href="index.html" class="logo" style="text-decoration: none;">APEX<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link" href="dashboard.html">Research</a>
-      <a class="nav-link" href="history.html">History</a>
-      <a class="nav-link" href="backtest.html">Backtest</a>
-      <a class="nav-link active" href="track-record.html">Track Record</a>
+      <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link active" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
-    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
   </header>
 
   <main class="tr-main">

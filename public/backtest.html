@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>APEX — Backtest Lab</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#09090f" />
@@ -12,23 +19,25 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="APEX FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./backtest.css" />
 </head>
 <body>
 
   <header class="header">
-    <div class="logo">APEX<span>FX</span></div>
+    <a href="index.html" class="logo" style="text-decoration: none;">APEX<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link" href="dashboard.html">Research</a>
-      <a class="nav-link" href="history.html">History</a>
-      <a class="nav-link active" href="backtest.html">Backtest</a>
-      <a class="nav-link" href="track-record.html">Track Record</a>
+      <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link active" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
-    <div class="bt-status-pill" id="runPill"><span class="bt-dot" id="runDot"></span><span id="runState">IDLE</span></div>
+    <div class="header-right" id="headerRight">
+      <div class="bt-status-pill" id="runPill"><span class="bt-dot" id="runDot"></span><span id="runState">IDLE</span></div>
+    </div>
   </header>
 
   <main class="bt-main">
@@ -48,30 +57,31 @@
 
     <!-- ── Runner ─────────────────────────────────────────────────────────── -->
     <section class="bt-card">
-      <div class="bt-card-head"><h2>Run a backtest</h2><span class="bt-hint" id="jobCount"></span></div>
-
-      <div class="bt-field">
-        <label>Instruments</label>
-        <div class="bt-chip-row" id="catChips"></div>
-        <div class="bt-grid" id="symGrid"></div>
+      <div class="bt-card-head">
+        <h2>Robustness Engine Datasets</h2>
+        <span class="bt-hint" style="color:var(--green)">✓ 424 Backtests Populated</span>
       </div>
 
-      <div class="bt-field">
-        <label>Timeframes <span class="bt-dim">(intraday history is shallow on Yahoo — flagged automatically)</span></label>
-        <div class="bt-chip-row" id="tfChips"></div>
-      </div>
-
-      <div class="bt-actions">
-        <button class="bt-btn primary" id="runBtn">▶ Run backtest</button>
-        <button class="bt-btn" id="pauseBtn" disabled>⏸ Pause</button>
-        <button class="bt-btn" id="cancelBtn" disabled>✕ Stop</button>
-      </div>
-
-      <div class="bt-progress" id="progressWrap" style="display:none">
-        <div class="bt-progress-bar"><div class="bt-progress-fill" id="progressFill"></div></div>
-        <div class="bt-progress-text" id="progressText">—</div>
+      <div style="font-size:13px; color:var(--text2); line-height:1.7; display:flex; flex-direction:column; gap:12px;">
+        <p>The backtest runner is currently set to **Read-Only / Archive Mode** to display the official quant backtesting sweeps generated during our robustness analysis phases.</p>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:10px;">
+          <div style="background:rgba(4,8,16,0.6); border:1px solid rgba(0,240,255,0.1); padding:14px; border-radius:12px;">
+            <strong style="color:var(--purple); display:block; margin-bottom:5px; font-family:var(--mono); letter-spacing:.04em;">Run_2024-2026_Bull</strong>
+            <span style="font-size:11px; color:var(--text3);">Phase 1: Bull &amp; AI Market Regime (180 backtests).</span>
+          </div>
+          <div style="background:rgba(4,8,16,0.6); border:1px solid rgba(0,240,255,0.1); padding:14px; border-radius:12px;">
+            <strong style="color:var(--purple); display:block; margin-bottom:5px; font-family:var(--mono); letter-spacing:.04em;">Run_2022-2024_Bear</strong>
+            <span style="font-size:11px; color:var(--text3);">Phase 2: Bear Market &amp; Fed Rate Hikes (125 backtests).</span>
+          </div>
+          <div style="background:rgba(4,8,16,0.6); border:1px solid rgba(0,240,255,0.1); padding:14px; border-radius:12px;">
+            <strong style="color:var(--purple); display:block; margin-bottom:5px; font-family:var(--mono); letter-spacing:.04em;">Run_2020-2022_COVID</strong>
+            <span style="font-size:11px; color:var(--text3);">Phase 3: COVID Crash &amp; Recovery Bull Market (119 backtests).</span>
+          </div>
+        </div>
       </div>
     </section>
+
 
     <!-- ── Results dashboard ──────────────────────────────────────────────── -->
     <section class="bt-card">
@@ -82,7 +92,6 @@
 
       <div class="bt-filters">
         <select id="fRun" title="Pick a stored run to view"></select>
-        <button class="bt-btn small danger" id="delRunBtn" title="Delete the selected run from storage" disabled>🗑 Delete run</button>
         <span class="bt-fsep"></span>
         <select id="fPair" title="Pair"><option value="">All pairs</option></select>
         <select id="fTf" title="Timeframe"><option value="">All timeframes</option></select>

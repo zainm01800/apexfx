@@ -4007,12 +4007,165 @@ async function showValidationBanner(target, fresh) {
 }
 function escapeAttr(s) { return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
 
+// ── Dashboard Metrics Loader ──
+async function loadDashboardMetrics() {
+  try {
+    const res = await fetch('/api/memory?all=true&lean=true&limit=1000');
+    const rows = res.ok ? await res.json() : [];
+    if (!Array.isArray(rows)) return;
+
+    // 1. Calculate Aggregate Stats
+    const resolved = rows.filter(r => r.outcome === 'tp_hit' || r.outcome === 'sl_hit');
+    const wins = resolved.filter(r => r.outcome === 'tp_hit');
+    const winRate = resolved.length ? Math.round((wins.length / resolved.length) * 100) : 0;
+    
+    // Expectancy calculation (R-multiples)
+    let totalR = 0;
+    for (const r of resolved) {
+      if (r.outcome === 'tp_hit') {
+        totalR += 1.5; // average 1.5R target
+      } else {
+        totalR -= 1.0; // 1R loss
+      }
+    }
+    const expectancy = resolved.length ? (totalR / resolved.length).toFixed(2) : '0.00';
+
+    const wrEl = document.getElementById('dashWinRate');
+    const expEl = document.getElementById('dashExpectancy');
+    const cntEl = document.getElementById('dashTradeCount');
+    
+    if (wrEl) wrEl.textContent = `${winRate}%`;
+    if (expEl) expEl.textContent = `${expectancy}R`;
+    if (cntEl) cntEl.textContent = resolved.length;
+
+    // 2. Render Active Positions
+    const active = rows.filter(r => r.outcome === 'pending' || r.outcome === null).slice(0, 6);
+    const container = document.getElementById('liveTradesContainer');
+    if (!container) return;
+
+    if (!active.length) {
+      container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 13px;">No active positions currently open. Ready for new triggers.</div>`;
+      return;
+    }
+
+    container.innerHTML = active.map(t => {
+      const isLong = (t.verdict || '').toUpperCase().includes('BUY') || (t.verdict || '').toUpperCase().includes('LONG');
+      const sideLabel = isLong ? 'LONG' : 'SHORT';
+      const sideClass = isLong ? 'pos' : 'neg';
+      const styleClass = `badge-style style-${t.timeframe === '15m' ? 'scalp' : (t.timeframe === '1h' ? 'intraday' : 'swing')}`;
+      
+      return `
+        <div class="stat-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-family: var(--mono); font-size: 15px; color: var(--text);">${t.symbol}</strong>
+            <span class="${styleClass}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">${(t.timeframe || '1d').toUpperCase()}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 4px;">
+            <span style="color: var(--text3)">Direction</span>
+            <span class="${sideClass}" style="font-weight: 700; font-family: var(--mono);">${sideLabel}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+            <span style="color: var(--text3)">Entry Price</span>
+            <span style="font-family: var(--mono); color: var(--text2);">${t.price || '—'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+            <span style="color: var(--text3)">Stop Loss</span>
+            <span class="text-red" style="font-family: var(--mono);">${t.stop_loss || '—'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <span style="color: var(--text3)">Take Profit</span>
+            <span class="text-green" style="font-family: var(--mono);">${t.target_price || '—'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; color: var(--text3);">
+            <span>Date: ${t.analysis_date || '—'}</span>
+            <span>Conf: ${t.confidence || 0}%</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (e) {
+    console.error("Dashboard metrics load error", e);
+  }
+}
+
+// ── Live Console Log Poller ──
+let logPollingInterval = null;
+
+async function pollEngineLogs() {
+  const container = document.getElementById('terminalContainer');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/engine-logs');
+    if (!res.ok) throw new Error('logs API unavailable');
+    const data = await res.json();
+    const logs = data.logs || [];
+
+    if (!logs.length) {
+      container.innerHTML = `<div style="color: var(--text3); font-style: italic;">No logs recorded yet. Running the engine loop will append logs here.</div>`;
+      return;
+    }
+
+    // Format logs beautifully with terminal colors
+    const formatted = logs.map(line => {
+      let colorClass = '';
+      let text = line;
+      
+      const match = line.match(/^\[(.*?)\] (.*)/);
+      let timePart = '';
+      if (match) {
+        timePart = `<span style="color: #6272a4; font-size: 10px; margin-right: 8px;">[${match[1]}]</span>`;
+        text = match[2];
+      }
+
+      if (text.includes('[triggered]') || text.includes('Success!') || text.includes('success')) {
+        colorClass = 'color: #50fa7b; font-weight: bold;'; // green
+      } else if (text.includes('[MT4') || text.includes('order') || text.includes('Order')) {
+        colorClass = 'color: #8be9fd;'; // cyan/blue
+      } else if (text.includes('Skip') || text.includes('inside') || text.includes('regime')) {
+        colorClass = 'color: #ffb86c; opacity: 0.85;'; // orange
+      } else if (text.includes('Error') || text.includes('failed') || text.includes('Failed')) {
+        colorClass = 'color: #ff5555; font-weight: bold;'; // red
+      } else if (text.includes('Checking') || text.includes('Scanning') || text.includes('started')) {
+        colorClass = 'color: #bd93f9;'; // purple
+      }
+
+      return `<div style="margin-bottom: 4px; font-family: monospace; white-space: pre-wrap; ${colorClass}">${timePart}${text}</div>`;
+    }).join('');
+
+    const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 40;
+    container.innerHTML = formatted;
+
+    if (isAtBottom || container.scrollTop === 0) {
+      container.scrollTop = container.scrollHeight;
+    }
+  } catch (err) {
+    container.innerHTML = `<div style="color: #ff5555;">Error streaming logs: ${err.message}</div>`;
+  }
+}
+
+function initEngineLogs() {
+  pollEngineLogs();
+  logPollingInterval = setInterval(pollEngineLogs, 3000);
+
+  const clearBtn = document.getElementById('clearLogsBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      const container = document.getElementById('terminalContainer');
+      if (container) container.innerHTML = `<div style="color: var(--text3); font-style: italic;">Console cleared locally. Waiting for next stream update...</div>`;
+    });
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initPulse();
   initQuickPicks();
   initAutocomplete();
   loadNavWinRate();   // overall realised win-rate badge in the nav
+  loadDashboardMetrics(); // Load unified metrics + active positions list
+  initEngineLogs(); // Load live terminal log viewer
   document.getElementById('analyseBtn').addEventListener('click', () => {
     closeDropdown();
     startResearch();

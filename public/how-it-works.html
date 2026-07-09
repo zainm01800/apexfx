@@ -4,43 +4,64 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>APEX — How It Works</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
   <meta name="description" content="How APEX FX analyses markets: a multi-agent AI committee, an independent quant engine, statistical overfitting validation, and confidence calibrated against its own public track record. And — honestly — what it does NOT do." />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#09090f" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%237c5cfc'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <style>
-    .hiw-main { max-width: 760px; margin: 0 auto; padding: 32px 22px 80px; }
-    .hiw-main h1 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 8px;
-      background: linear-gradient(135deg, var(--text), #a090ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .hiw-lede { color: var(--text2); font-size: 15px; line-height: 1.7; margin-bottom: 8px; }
-    .hiw-main h2 { font-size: 18px; font-weight: 600; margin: 34px 0 10px; color: var(--text); }
+    .hiw-main { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+    .hiw-main h1 {
+      font-size: 32px; font-weight: 700; letter-spacing: -.025em; margin-bottom: 12px;
+      font-family: var(--sans);
+      background: linear-gradient(125deg, var(--text) 0%, var(--purple) 55%, var(--green) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hiw-lede { color: var(--text2); font-size: 15px; line-height: 1.75; margin-bottom: 8px; }
+    .hiw-main h2 { font-size: 18px; font-weight: 600; margin: 36px 0 12px; color: var(--text); }
     .hiw-main p { color: var(--text2); line-height: 1.7; margin-bottom: 12px; font-size: 14px; }
     .hiw-main li { color: var(--text2); line-height: 1.65; margin: 6px 0 6px 18px; font-size: 14px; }
     .hiw-main strong { color: var(--text); }
-    .hiw-step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
-    .hiw-num { font-family: var(--mono); font-weight: 600; color: var(--purple); flex-shrink: 0; width: 26px; }
-    .hiw-step h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
-    .hiw-step p { font-size: 13px; margin: 0; }
-    .hiw-callout { background: rgba(124,92,252,.08); border: 1px solid rgba(124,92,252,.28); border-radius: 12px; padding: 16px 18px; margin: 24px 0; }
-    .hiw-callout.warn { background: rgba(255,170,0,.07); border-color: rgba(255,170,0,.28); }
+    .hiw-step { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid rgba(0,240,255,0.06); }
+    .hiw-num { font-family: var(--mono); font-weight: 700; color: var(--purple); flex-shrink: 0; width: 26px; text-shadow: 0 0 10px rgba(0,240,255,0.3); }
+    .hiw-step h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .hiw-step p { font-size: 13px; margin: 0; line-height: 1.6; }
+    .hiw-callout {
+      background: rgba(0,240,255,0.03);
+      border: 1px solid rgba(0,240,255,0.1);
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin: 24px 0;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    .hiw-callout.warn { background: rgba(255,170,0,.06); border-color: rgba(255,170,0,.2); }
     .hiw-callout h2 { margin-top: 0; }
-    .hiw-cta { display: inline-block; margin-top: 10px; color: var(--purple); text-decoration: none; font-weight: 600; font-size: 14px; }
+    .hiw-cta { display: inline-block; margin-top: 12px; color: var(--purple); text-decoration: none; font-weight: 600; font-size: 14px; transition: color 0.15s; }
+    .hiw-cta:hover { color: var(--purple-hover); }
   </style>
 </head>
 <body>
 
   <header class="header">
-    <div class="logo">APEX<span>FX</span></div>
+    <a href="index.html" class="logo" style="text-decoration: none;">APEX<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link" href="dashboard.html">Research</a>
-      <a class="nav-link" href="history.html">History</a>
-      <a class="nav-link" href="backtest.html">Backtest</a>
-      <a class="nav-link" href="track-record.html">Track Record</a>
+      <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
-    <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
   </header>
 
   <main class="hiw-main">
@@ -77,5 +98,7 @@
     <footer class="app-footer" style="margin-top:36px">APEX FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research.</footer>
   </main>
 
+  <script src="./app-mode.js"></script>
+  <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>
 </html>

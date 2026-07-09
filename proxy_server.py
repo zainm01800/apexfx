@@ -97,9 +97,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
         )
 
         try:
+            print(f"[proxy] Sending request to {api_url} with model {model}...")
+            print(f"[proxy] Request payload: {payload.decode('utf-8')[:300]}...")
             with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.loads(resp.read())
+                raw_resp = resp.read()
+                data = json.loads(raw_resp)
+            print(f"[proxy] Raw response from DeepSeek: {json.dumps(data)[:300]}...")
             text = data["choices"][0]["message"]["content"]
+            print(f"[proxy] Extracted content: {repr(text)}")
             out = json.dumps({"text": text, "provider": "deepseek", "model": model}).encode("utf-8")
             self.send_response(200)
             self._set_cors()
@@ -132,7 +137,7 @@ if __name__ == "__main__":
     else:
         print(f"[proxy] DeepSeek key loaded: {DEEPSEEK_KEY[:6]}...")
     print(f"[proxy] Starting proxy server on http://localhost:{PORT}")
-    print(f"[proxy] Forwarding POST /api/ai → {DEEPSEEK_URL}")
+    print(f"[proxy] Forwarding POST /api/ai -> {DEEPSEEK_URL}")
     print(f"[proxy] Model: {DEEPSEEK_MODEL}")
     print("[proxy] Press Ctrl+C to stop\n")
     server = HTTPServer(("localhost", PORT), ProxyHandler)
