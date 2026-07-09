@@ -361,13 +361,18 @@ def main():
         csv_file.flush()
 
     # Setup adapter
-    if use_twelve:
+    provider_name = cfg.data.provider.lower()
+    if provider_name == "oanda":
+        adapter = get_adapter("oanda")
+        print(f"[*] Data adapter: OANDA REST API (dual-endpoint)")
+        use_twelve = False  # Disable Twelve Data overrides for OANDA
+    elif use_twelve:
         from apex_quant.data.twelve_data_adapter import TwelveDataAdapter
         adapter = TwelveDataAdapter(api_key=twelve_key.strip())
         print(f"[*] Data adapter: Twelve Data (Key: {twelve_key[:6]}...)")
     else:
         adapter = get_adapter(cfg.data.provider)
-        print(f"[*] Data adapter: Yahoo Finance")
+        print(f"[*] Data adapter: {adapter.__class__.__name__}")
 
     store = ParquetStore()
     total_combos = len(instruments) * len(styles)
