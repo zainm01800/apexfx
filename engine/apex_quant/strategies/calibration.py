@@ -46,6 +46,12 @@ class ConformalCalibrator:
     def fit(self, scores: np.ndarray, outcomes: np.ndarray) -> "ConformalCalibrator":
         scores = np.asarray(scores, dtype="float64").reshape(-1, 1)
         outcomes = np.asarray(outcomes, dtype="int")
+
+        # Filter out NaN/Inf rows to prevent sklearn solver overflows
+        valid = np.isfinite(scores).all(axis=1)
+        scores = scores[valid]
+        outcomes = outcomes[valid]
+
         n = len(scores)
         self._base_rate = float(np.mean(outcomes)) if n else 0.5
 
