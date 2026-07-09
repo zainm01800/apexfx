@@ -20,8 +20,8 @@
 }
 .bt-status-pill.running {
   color: var(--orange);
-  background: rgba(255, 170, 0, 0.05);
-  border-color: rgba(255, 170, 0, 0.16);
+  background: rgba(148, 163, 184, 0.05);
+  border-color: rgba(148, 163, 184, 0.16);
 }
 .bt-status-pill.done {
   color: var(--green);
@@ -36,7 +36,7 @@
   background: var(--text3);
   transition: all 0.3s ease;
 }
-.bt-dot.running { background: var(--orange); box-shadow: 0 0 10px var(--orange), 0 0 20px rgba(255,170,0,0.3); animation: btpulse 1.2s infinite; }
+.bt-dot.running { background: var(--orange); box-shadow: 0 0 10px var(--orange), 0 0 20px rgba(148, 163, 184, 0.3); animation: btpulse 1.2s infinite; }
 .bt-dot.done { background: var(--green); box-shadow: 0 0 8px rgba(13,252,159,0.5); }
 .bt-dot.idle { background: var(--text3); }
 @keyframes btpulse { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
@@ -50,7 +50,7 @@
 }
 .bt-sub { color: var(--text2); font-size: 14px; margin-top: 6px; line-height: 1.65; max-width: 720px; }
 
-.bt-disclaimer { background: rgba(255,170,0,.07); border: 1px solid rgba(255,170,0,.25); color: var(--text2);
+.bt-disclaimer { background: rgba(148, 163, 184, .07); border: 1px solid rgba(148, 163, 184, .25); color: var(--text2);
   border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6; margin-bottom: 20px; }
 .bt-disclaimer strong { color: var(--orange); }
 
@@ -134,7 +134,7 @@
 .bt-empty { color: var(--text3); text-align: center; padding: 22px; font-family: var(--sans, inherit); }
 
 .bt-flag { display: inline-block; margin-left: 5px; font-size: 9px; padding: 1px 5px; border-radius: 4px; vertical-align: middle; font-family: var(--mono); }
-.bt-flag.warn { background: rgba(255,170,0,.14); color: var(--orange); }
+.bt-flag.warn { background: rgba(148, 163, 184, .14); color: var(--orange); }
 .bt-flag.rf { background: rgba(59,158,255,.14); color: var(--blue); }
 .bt-flag.oos-ok { background: rgba(74,222,128,.16); color: #4ade80; }
 
@@ -142,7 +142,7 @@
 .bt-matrix .mc small { display: block; font-size: 9px; color: var(--text3); }
 .bt-matrix .mc.good { background: rgba(0,217,126,.13); color: var(--green); }
 .bt-matrix .mc.bad { background: rgba(255,66,85,.12); color: var(--red); }
-.bt-matrix .mc.mid { background: rgba(255,170,0,.08); color: var(--orange); }
+.bt-matrix .mc.mid { background: rgba(148, 163, 184, .08); color: var(--orange); }
 .bt-matrix .mc.empty { color: var(--text3); }
 .bt-matrix .ms { font-weight: 600; }
 
@@ -202,7 +202,7 @@
 .bt-sum-title { font-size: 13px; font-weight: 700; color: var(--text); }
 .bt-sum-verdict { font-size: 12px; font-weight: 800; letter-spacing: .04em; padding: 4px 11px; border-radius: 7px; white-space: nowrap; }
 .bt-sum-verdict.pos { color: #4ade80; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); }
-.bt-sum-verdict.mid { color: var(--orange); background: rgba(255,170,0,.12); border: 1px solid rgba(255,170,0,.35); }
+.bt-sum-verdict.mid { color: var(--orange); background: rgba(148, 163, 184, .12); border: 1px solid rgba(148, 163, 184, .35); }
 .bt-sum-verdict.neg { color: #f87171; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.35); }
 .bt-sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
 .bt-sum-stat { display: flex; flex-direction: column; gap: 3px; }
@@ -215,7 +215,7 @@
 /* Robustness panels (Monte Carlo drawdown + random-entry control) */
 .bt-rb { margin: 0 0 14px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(124,92,252,.04); }
 .bt-rb.pos { background: rgba(74,222,128,.06); border-color: rgba(74,222,128,.28); }
-.bt-rb.mid { background: rgba(255,170,0,.06); border-color: rgba(255,170,0,.28); }
+.bt-rb.mid { background: rgba(148, 163, 184, .06); border-color: rgba(148, 163, 184, .28); }
 .bt-rb.neg { background: rgba(248,113,113,.07); border-color: rgba(248,113,113,.3); }
 .bt-rb-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
 .bt-rb-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }

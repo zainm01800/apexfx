@@ -265,4 +265,20 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
   }
+
+  // Preload sub-pages and assets to make tab switching instantaneous (0ms network lag)
+  const resources = [
+    'index.html', 'dashboard.html', 'history.html', 'backtest.html', 'track-record.html', 'how-it-works.html',
+    'dashboard.css', 'history.css', 'backtest.css',
+    'dashboard.js', 'history.js', 'backtest.js', 'track-record.js'
+  ];
+  const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+  resources.forEach(res => {
+    if (res !== currentPage) {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = './' + res;
+      document.head.appendChild(link);
+    }
+  });
 });

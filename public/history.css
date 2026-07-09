@@ -245,7 +245,7 @@
 }
 .sc-status.live        { color: #4ade80; background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.35); }
 .sc-status.approaching { color: var(--blue); background: rgba(59,158,255,.12); border-color: rgba(59,158,255,.32); }
-.sc-status.drifting    { color: var(--orange); background: rgba(255,170,0,.12); border-color: rgba(255,170,0,.32); }
+.sc-status.drifting    { color: var(--orange); background: rgba(148, 163, 184, .12); border-color: rgba(148, 163, 184, .32); }
 .sc-status.waiting     { color: var(--text2); background: var(--bg2); }
 .sc-status.watch       { color: var(--text2); background: var(--bg2); }
 .sc-status.watch-hit   { color: var(--yellow); background: rgba(245,208,32,.12); border-color: rgba(245,208,32,.35); }
@@ -271,7 +271,7 @@
   border-radius: 6px;
 }
 .sc-verdict.buy, .sc-verdict.strong-buy { background: rgba(74,222,128,.12); color: #4ade80; }
-.sc-verdict.hold { background: rgba(255,170,0,.12); color: var(--orange); }
+.sc-verdict.hold { background: rgba(148, 163, 184, .12); color: var(--orange); }
 .sc-verdict.sell, .sc-verdict.strong-sell { background: rgba(248,113,113,.12); color: #f87171; }
 .sc-conf {
   font-size: 12.5px;
@@ -301,7 +301,7 @@
 .sc-outcome.pending  { background: rgba(128,128,168,.1); color: var(--text2); }
 .sc-outcome.tp_hit   { background: rgba(74,222,128,.12); color: #4ade80; }
 .sc-outcome.sl_hit   { background: rgba(248,113,113,.12); color: #f87171; }
-.sc-outcome.expired  { background: rgba(255,170,0,.1);   color: var(--orange); }
+.sc-outcome.expired  { background: rgba(148, 163, 184, .1);   color: var(--orange); }
 .sc-outcome.invalidated  { background: rgba(248,113,113,.08); color: #f87171; border: 1px dotted rgba(248,113,113,.35); }
 .sc-outcome-time {
   display: inline-block;
@@ -485,16 +485,16 @@ button.sc-btn { appearance: none; outline: none; }
 .ll-step.ll-enter .ll-icon  { background: rgba(0,240,255,.08); border-color: var(--purple); }
 .ll-step.ll-wait .ll-icon   { background: var(--card); border-color: var(--text3); opacity: .7; }
 .ll-step.ll-wait .ll-label  { color: var(--text3); font-weight: 500; font-style: italic; }
-.ll-step.ll-recheck .ll-icon { background: rgba(255,170,0,.06); border-color: var(--orange); }
+.ll-step.ll-recheck .ll-icon { background: rgba(148, 163, 184, .06); border-color: var(--orange); }
 .ll-step.ll-recheck.confirmed .ll-icon     { background: rgba(13,252,159,.08); border-color: var(--green); }
 .ll-step.ll-recheck.activated .ll-icon     { background: rgba(13,252,159,.08); border-color: var(--green); }
-.ll-step.ll-recheck.weakening .ll-icon     { background: rgba(255,170,0,.08); border-color: var(--orange); }
+.ll-step.ll-recheck.weakening .ll-icon     { background: rgba(148, 163, 184, .08); border-color: var(--orange); }
 .ll-step.ll-recheck.invalidated .ll-icon   { background: rgba(255,42,133,.08); border-color: var(--red); }
 .ll-step.ll-win .ll-icon  { background: rgba(13,252,159,.1); border-color: var(--green); }
 .ll-step.ll-win .ll-label { color: var(--green); }
 .ll-step.ll-loss .ll-icon  { background: rgba(255,42,133,.1); border-color: var(--red); }
 .ll-step.ll-loss .ll-label { color: var(--red); }
-.ll-step.ll-neutral .ll-icon { background: rgba(255,170,0,.08); border-color: var(--orange); }
+.ll-step.ll-neutral .ll-icon { background: rgba(148, 163, 184, .08); border-color: var(--orange); }
 
 /* ── Realised-record badge (per symbol) ── */
 .sc-record-row { display: flex; }
@@ -514,8 +514,8 @@ button.sc-btn { appearance: none; outline: none; }
   font-size: 11.5px;
   font-weight: 600;
   color: var(--orange);
-  background: rgba(255,170,0,.08);
-  border: 1px solid rgba(255,170,0,.25);
+  background: rgba(148, 163, 184, .08);
+  border: 1px solid rgba(148, 163, 184, .25);
   border-radius: 8px;
   padding: 6px 10px;
   line-height: 1.4;
@@ -651,8 +651,8 @@ button.sc-btn { appearance: none; outline: none; }
 .alert-banner-wrap:empty { display: none; }
 .alert-banner {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  background: rgba(255,170,0,.1);
-  border: 1px solid rgba(255,170,0,.35);
+  background: rgba(148, 163, 184, .1);
+  border: 1px solid rgba(148, 163, 184, .35);
   border-radius: 10px;
   padding: 12px 16px;
   margin-bottom: 16px;
@@ -663,10 +663,10 @@ button.sc-btn { appearance: none; outline: none; }
 .alert-banner strong { color: var(--yellow); }
 .alert-dismiss {
   margin-left: auto;
-  background: none; border: 1px solid rgba(255,170,0,.4); color: var(--orange);
+  background: none; border: 1px solid rgba(148, 163, 184, .4); color: var(--orange);
   border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; transition: all .15s;
 }
-.alert-dismiss:hover { background: rgba(255,170,0,.15); }
+.alert-dismiss:hover { background: rgba(148, 163, 184, .15); }
 
 /* ── Portfolio heat / correlation ── */
 .wl-heat:empty { display: none; }
@@ -684,7 +684,7 @@ button.sc-btn { appearance: none; outline: none; }
 }
 .wl-heat-warn {
   font-size: 12.5px; line-height: 1.55; color: var(--orange);
-  background: rgba(255,170,0,.06); border: 1px solid rgba(255,170,0,.2);
+  background: rgba(148, 163, 184, .06); border: 1px solid rgba(148, 163, 184, .2);
   border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;
 }
 .wl-heat-pairs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -695,7 +695,7 @@ button.sc-btn { appearance: none; outline: none; }
 }
 .wl-corr strong { font-weight: 700; }
 .wl-corr.hot  { border-color: rgba(255,42,133,0.3); color: var(--red); background: rgba(255,42,133,0.06); }
-.wl-corr.warm { border-color: rgba(255,170,0,.25);  color: var(--orange); background: rgba(255,170,0,.05); }
+.wl-corr.warm { border-color: rgba(148, 163, 184, .25);  color: var(--orange); background: rgba(148, 163, 184, .05); }
 .wl-corr.cool { border-color: rgba(13,252,159,0.25);  color: var(--green); background: rgba(13,252,159,0.05); }
 
 /* ── Watchlist table ── */
@@ -745,7 +745,7 @@ button.sc-btn { appearance: none; outline: none; }
   padding: 3px 8px; border-radius: 5px; white-space: nowrap;
 }
 .wl-verdict.buy, .wl-verdict.strong-buy { background: rgba(13,252,159,.1); color: var(--green); }
-.wl-verdict.hold { background: rgba(255,170,0,.1); color: var(--orange); }
+.wl-verdict.hold { background: rgba(148, 163, 184, .1); color: var(--orange); }
 .wl-verdict.sell, .wl-verdict.strong-sell { background: rgba(255,42,133,.1); color: var(--red); }
 .wl-status { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .wl-status.inzone  { color: var(--green); }
@@ -758,7 +758,7 @@ button.sc-btn { appearance: none; outline: none; }
   border-radius: 18px; padding: 6px 12px; font-size: 12px; cursor: pointer; transition: all .2s;
 }
 .wl-btn:hover { border-color: rgba(56, 189, 248, 0.3); color: var(--purple); background: rgba(56, 189, 248, 0.04); }
-.wl-btn.on { border-color: var(--orange); color: var(--orange); background: rgba(255,170,0,.06); }
+.wl-btn.on { border-color: var(--orange); color: var(--orange); background: rgba(148, 163, 184, .06); }
 .wl-btn.del:hover { border-color: var(--red); color: var(--red); }
 
 /* ── Responsive ── */
@@ -851,7 +851,7 @@ button.sc-btn { appearance: none; outline: none; }
   padding: 5px 12px; border-radius: 20px; text-transform: uppercase;
 }
 .pv-verdict.buy, .pv-verdict.strong-buy { background: rgba(13,252,159,.1); color: var(--green); border: 1px solid rgba(13,252,159,.25); }
-.pv-verdict.hold { background: rgba(255,170,0,.1); color: var(--orange); border: 1px solid rgba(255,170,0,.25); }
+.pv-verdict.hold { background: rgba(148, 163, 184, .1); color: var(--orange); border: 1px solid rgba(148, 163, 184, .25); }
 .pv-verdict.sell, .pv-verdict.strong-sell { background: rgba(255,42,133,.12); color: var(--red); border: 1px solid rgba(255,42,133,.25); }
 .pv-conf { font-size: 12.5px; color: var(--text2); font-weight: 600; font-family: var(--mono); }
 .pv-outcome { font-size: 12px; font-weight: 600; margin-left: auto; color: var(--text2); }
