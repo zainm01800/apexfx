@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "ADA/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.024368775917641305,
+    "oos_sharpe_std": 0.03318204509576659,
+    "oos_sharpe_median": 0.02547606350581254,
+    "frac_positive": 0.6666666666666666,
+    "oos_sharpe_paths": [
+      -0.0103,
+      0.083,
+      0.0346,
+      0.0545,
+      0.045,
+      0.0255,
+      -0.0226,
+      -0.0058,
+      -0.0247,
+      0.0451,
+      0.0626,
+      0.0544,
+      0.0194,
+      0.0068,
+      -0.0018
+    ]
+  },
+  "dsr": {
+    "dsr": 0.8403005814496813,
+    "observed_sharpe": 0.020032513245342304,
+    "observed_sharpe_ann": 0.38272062817093805,
+    "sr0": 0.0005318272960059222,
+    "n_trials": 3,
+    "n_obs": 2609,
+    "skew": 0.03966698701538414,
+    "kurtosis": 12.49160213264504
+  },
+  "pbo": {
+    "pbo": 0.90625,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.840 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.90625 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.025, 67% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

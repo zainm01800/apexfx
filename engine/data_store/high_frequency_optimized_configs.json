@@ -1,0 +1,1322 @@
+[
+  {
+    "symbol": "AAPL",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 45,
+      "net_pnl": 11714.28976024945,
+      "win_rate": 0.4666666666666667,
+      "profit_factor": 1.5558916687559332
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 3233.7448336579855,
+      "win_rate": 0.5,
+      "profit_factor": 1.5289964451737308
+    }
+  },
+  {
+    "symbol": "ADA/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 66,
+      "net_pnl": 20363.486607829294,
+      "win_rate": 0.5303030303030303,
+      "profit_factor": 1.6802528303054993
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": 1837.2768502886765,
+      "win_rate": 0.45,
+      "profit_factor": 1.2458100107005041
+    }
+  },
+  {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 144,
+      "net_pnl": 17387.69172042052,
+      "win_rate": 0.4444444444444444,
+      "profit_factor": 1.2283697508457998
+    },
+    "oos": {
+      "n_trades": 46,
+      "net_pnl": 6143.161030502211,
+      "win_rate": 0.41304347826086957,
+      "profit_factor": 1.2373633681615301
+    }
+  },
+  {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 2915.6241405974215,
+      "win_rate": 0.45652173913043476,
+      "profit_factor": 1.1402620778546806
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 437.5953981543091,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.0541936681391644
+    }
+  },
+  {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 97,
+      "net_pnl": 11219.37706507245,
+      "win_rate": 0.4536082474226804,
+      "profit_factor": 1.2002897254593226
+    },
+    "oos": {
+      "n_trades": 29,
+      "net_pnl": 19547.48341442685,
+      "win_rate": 0.6206896551724138,
+      "profit_factor": 2.663663709241727
+    }
+  },
+  {
+    "symbol": "ARB/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 33,
+      "net_pnl": 5080.153706748652,
+      "win_rate": 0.48484848484848486,
+      "profit_factor": 1.3293371360743549
+    },
+    "oos": {
+      "n_trades": 9,
+      "net_pnl": 2188.3721246759364,
+      "win_rate": 0.5555555555555556,
+      "profit_factor": 1.773684367790391
+    }
+  },
+  {
+    "symbol": "ARKK",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 25,
+      "net_pnl": 3944.888782428035,
+      "win_rate": 0.56,
+      "profit_factor": 1.3568435411465334
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 778.3223796693042,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.2509298357109773
+    }
+  },
+  {
+    "symbol": "ARKK",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 44,
+      "net_pnl": 18847.113958380887,
+      "win_rate": 0.5,
+      "profit_factor": 1.9691558670073588
+    },
+    "oos": {
+      "n_trades": 13,
+      "net_pnl": 1061.6462024713578,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.1745061862069353
+    }
+  },
+  {
+    "symbol": "AVAX/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 226,
+      "net_pnl": 18427.623648811386,
+      "win_rate": 0.4424778761061947,
+      "profit_factor": 1.143525382388199
+    },
+    "oos": {
+      "n_trades": 74,
+      "net_pnl": 1118.204590072416,
+      "win_rate": 0.40540540540540543,
+      "profit_factor": 1.0278881909591793
+    }
+  },
+  {
+    "symbol": "BNB/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 65,
+      "net_pnl": 31417.648842797975,
+      "win_rate": 0.6,
+      "profit_factor": 2.2450183710733755
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": 7796.571836482812,
+      "win_rate": 0.55,
+      "profit_factor": 2.0019177686449265
+    }
+  },
+  {
+    "symbol": "DOGE/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 52,
+      "net_pnl": 9201.915740123848,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.4602604606176972
+    },
+    "oos": {
+      "n_trades": 16,
+      "net_pnl": 396.59562777557994,
+      "win_rate": 0.5625,
+      "profit_factor": 1.0581512971487956
+    }
+  },
+  {
+    "symbol": "ETH/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 49,
+      "net_pnl": 5762.468698176985,
+      "win_rate": 0.5102040816326531,
+      "profit_factor": 1.2783765169957544
+    },
+    "oos": {
+      "n_trades": 15,
+      "net_pnl": 2318.102355753651,
+      "win_rate": 0.5333333333333333,
+      "profit_factor": 1.4230403336906057
+    }
+  },
+  {
+    "symbol": "EUR/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 4281.307508662735,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.3395547776748302
+    },
+    "oos": {
+      "n_trades": 8,
+      "net_pnl": 7863.225559998192,
+      "win_rate": 0.875,
+      "profit_factor": 49.80724945747455
+    }
+  },
+  {
+    "symbol": "EUR/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 48,
+      "net_pnl": 7467.8227003551865,
+      "win_rate": 0.5208333333333334,
+      "profit_factor": 1.3790256278773911
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 434.25218448494843,
+      "win_rate": 0.5,
+      "profit_factor": 1.0637034785736987
+    }
+  },
+  {
+    "symbol": "GBP/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 25,
+      "net_pnl": 10044.990965321373,
+      "win_rate": 0.6,
+      "profit_factor": 2.0100307132234154
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 2724.735729974254,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 2.2528907935412907
+    }
+  },
+  {
+    "symbol": "GLD",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 5723.6125034575425,
+      "win_rate": 0.43478260869565216,
+      "profit_factor": 1.2512182663217224
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 13992.213634122005,
+      "win_rate": 0.7142857142857143,
+      "profit_factor": 5.156891036457209
+    }
+  },
+  {
+    "symbol": "GLD",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 97,
+      "net_pnl": 24149.93443061996,
+      "win_rate": 0.4845360824742268,
+      "profit_factor": 1.479373125144754
+    },
+    "oos": {
+      "n_trades": 31,
+      "net_pnl": 11538.140078782526,
+      "win_rate": 0.5161290322580645,
+      "profit_factor": 1.73275626457853
+    }
+  },
+  {
+    "symbol": "GOOGL",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 23,
+      "net_pnl": 11581.611283474762,
+      "win_rate": 0.5652173913043478,
+      "profit_factor": 2.136819307244666
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 1903.5313087981508,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.4666717764023294
+    }
+  },
+  {
+    "symbol": "GOOGL",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 100,
+      "net_pnl": 2749.335186996344,
+      "win_rate": 0.43,
+      "profit_factor": 1.0549314730074595
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 754.0675032358429,
+      "win_rate": 0.40625,
+      "profit_factor": 1.044455943662381
+    }
+  },
+  {
+    "symbol": "IWM",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 23,
+      "net_pnl": 1644.32517103904,
+      "win_rate": 0.43478260869565216,
+      "profit_factor": 1.1434454069302482
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 3503.183121631474,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 2.129173155171794
+    }
+  },
+  {
+    "symbol": "LINK/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 68,
+      "net_pnl": 11359.406068154705,
+      "win_rate": 0.4852941176470588,
+      "profit_factor": 1.3957402572034656
+    },
+    "oos": {
+      "n_trades": 21,
+      "net_pnl": 5426.981074568464,
+      "win_rate": 0.5238095238095238,
+      "profit_factor": 1.701651065421134
+    }
+  },
+  {
+    "symbol": "META",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 74,
+      "net_pnl": 8626.520687236445,
+      "win_rate": 0.47297297297297297,
+      "profit_factor": 1.2077518540865835
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 1357.941425702651,
+      "win_rate": 0.4583333333333333,
+      "profit_factor": 1.1010566125833707
+    }
+  },
+  {
+    "symbol": "META",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 96,
+      "net_pnl": 26114.58242853363,
+      "win_rate": 0.53125,
+      "profit_factor": 1.584793689756784
+    },
+    "oos": {
+      "n_trades": 31,
+      "net_pnl": 1994.3534258234115,
+      "win_rate": 0.3548387096774194,
+      "profit_factor": 1.1103852099637652
+    }
+  },
+  {
+    "symbol": "MSFT",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 5271.439493819771,
+      "win_rate": 0.5,
+      "profit_factor": 1.2410940577337988
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 10433.185712591776,
+      "win_rate": 0.7857142857142857,
+      "profit_factor": 4.352061619444821
+    }
+  },
+  {
+    "symbol": "MSFT",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 98,
+      "net_pnl": 2583.668330366644,
+      "win_rate": 0.45918367346938777,
+      "profit_factor": 1.0518049464882804
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 14004.68695404506,
+      "win_rate": 0.5625,
+      "profit_factor": 1.9432443183529016
+    }
+  },
+  {
+    "symbol": "NFLX",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 100,
+      "net_pnl": 4738.039743453552,
+      "win_rate": 0.45,
+      "profit_factor": 1.0853388224333036
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 5355.457955062232,
+      "win_rate": 0.5,
+      "profit_factor": 1.406956905110907
+    }
+  },
+  {
+    "symbol": "NVDA",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 144,
+      "net_pnl": 8226.747448345872,
+      "win_rate": 0.4583333333333333,
+      "profit_factor": 1.1045090350509321
+    },
+    "oos": {
+      "n_trades": 47,
+      "net_pnl": 10770.760898676492,
+      "win_rate": 0.5531914893617021,
+      "profit_factor": 1.4940077032805306
+    }
+  },
+  {
+    "symbol": "NZD/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 1812.313550528805,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.1309104092802693
+    },
+    "oos": {
+      "n_trades": 8,
+      "net_pnl": 1565.6148515939585,
+      "win_rate": 0.5,
+      "profit_factor": 1.4840353720444315
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 145,
+      "net_pnl": 6294.09342590543,
+      "win_rate": 0.46206896551724136,
+      "profit_factor": 1.082119691596491
+    },
+    "oos": {
+      "n_trades": 46,
+      "net_pnl": 15221.824048249857,
+      "win_rate": 0.5434782608695652,
+      "profit_factor": 1.685395030627375
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 21,
+      "net_pnl": 1541.1474342005006,
+      "win_rate": 0.47619047619047616,
+      "profit_factor": 1.1385499485808586
+    },
+    "oos": {
+      "n_trades": 6,
+      "net_pnl": 1445.4549528072514,
+      "win_rate": 0.5,
+      "profit_factor": 1.473540991867456
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 98,
+      "net_pnl": 15852.587225348343,
+      "win_rate": 0.46938775510204084,
+      "profit_factor": 1.3083839773051038
+    },
+    "oos": {
+      "n_trades": 30,
+      "net_pnl": 2670.9286248650665,
+      "win_rate": 0.43333333333333335,
+      "profit_factor": 1.2204222258496362
+    }
+  },
+  {
+    "symbol": "QQQ",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 8877.277060867378,
+      "win_rate": 0.5769230769230769,
+      "profit_factor": 1.7230040675846439
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 166.42132675032803,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.0399172574690436
+    }
+  },
+  {
+    "symbol": "QQQ",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 45,
+      "net_pnl": 16667.590333894062,
+      "win_rate": 0.5555555555555556,
+      "profit_factor": 1.8085270545001468
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 424.6536369387121,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.0570958019755443
+    }
+  },
+  {
+    "symbol": "QQQ",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 99,
+      "net_pnl": 6340.246205091959,
+      "win_rate": 0.494949494949495,
+      "profit_factor": 1.127727690963492
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 3849.725961681782,
+      "win_rate": 0.5,
+      "profit_factor": 1.2359284840571931
+    }
+  },
+  {
+    "symbol": "SMH",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 1691.3839847541728,
+      "win_rate": 0.34615384615384615,
+      "profit_factor": 1.114374489802019
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 3525.575552295915,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 2.1348541576054902
+    }
+  },
+  {
+    "symbol": "SMH",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 11921.423693219072,
+      "win_rate": 0.5434782608695652,
+      "profit_factor": 1.6050727919011798
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 2884.9108991172825,
+      "win_rate": 0.5,
+      "profit_factor": 1.4046905015666145
+    }
+  },
+  {
+    "symbol": "SMH",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 98,
+      "net_pnl": 13666.353826104063,
+      "win_rate": 0.4897959183673469,
+      "profit_factor": 1.249674116719485
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 6525.357366166757,
+      "win_rate": 0.4375,
+      "profit_factor": 1.3690766741621665
+    }
+  },
+  {
+    "symbol": "SOL/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 48,
+      "net_pnl": 18501.480465768338,
+      "win_rate": 0.6041666666666666,
+      "profit_factor": 1.9946480194450444
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 2732.101197071441,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.6244622447879562
+    }
+  },
+  {
+    "symbol": "SOL/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 362,
+      "net_pnl": 12915.708619699943,
+      "win_rate": 0.45027624309392267,
+      "profit_factor": 1.071963548628444
+    },
+    "oos": {
+      "n_trades": 117,
+      "net_pnl": 5413.725169613446,
+      "win_rate": 0.47863247863247865,
+      "profit_factor": 1.107120724180152
+    }
+  },
+  {
+    "symbol": "SOXX",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 8647.365089954965,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.7916987437878789
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 2470.507909435926,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.7983943428981444
+    }
+  },
+  {
+    "symbol": "SOXX",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 6922.339145728173,
+      "win_rate": 0.45652173913043476,
+      "profit_factor": 1.35029416149547
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 5885.233609813016,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.9569478677117953
+    }
+  },
+  {
+    "symbol": "SPY",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 45,
+      "net_pnl": 9857.106369532727,
+      "win_rate": 0.5111111111111111,
+      "profit_factor": 1.4580179802403592
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 681.873967859033,
+      "win_rate": 0.5,
+      "profit_factor": 1.1059955269211323
+    }
+  },
+  {
+    "symbol": "SUI/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 32,
+      "net_pnl": 9321.049143433695,
+      "win_rate": 0.625,
+      "profit_factor": 1.793323912267911
+    },
+    "oos": {
+      "n_trades": 9,
+      "net_pnl": 973.8561493138761,
+      "win_rate": 0.5555555555555556,
+      "profit_factor": 1.2843502667157747
+    }
+  },
+  {
+    "symbol": "TSLA",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 146,
+      "net_pnl": 11462.05847854825,
+      "win_rate": 0.4657534246575342,
+      "profit_factor": 1.1591951673132719
+    },
+    "oos": {
+      "n_trades": 47,
+      "net_pnl": 8595.326372144516,
+      "win_rate": 0.44680851063829785,
+      "profit_factor": 1.3631789256782054
+    }
+  },
+  {
+    "symbol": "TSLA",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 23,
+      "net_pnl": 5804.917684566055,
+      "win_rate": 0.43478260869565216,
+      "profit_factor": 1.4191365738292057
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 3455.488695490504,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 2.1120774396540596
+    }
+  },
+  {
+    "symbol": "TSM",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 143,
+      "net_pnl": 23423.191789288496,
+      "win_rate": 0.4755244755244755,
+      "profit_factor": 1.2848616974795941
+    },
+    "oos": {
+      "n_trades": 46,
+      "net_pnl": 3778.8438005720054,
+      "win_rate": 0.45652173913043476,
+      "profit_factor": 1.1721517060928346
+    }
+  },
+  {
+    "symbol": "TSM",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 45,
+      "net_pnl": 17869.153248622864,
+      "win_rate": 0.4888888888888889,
+      "profit_factor": 1.998391070491512
+    },
+    "oos": {
+      "n_trades": 13,
+      "net_pnl": 10012.140766266573,
+      "win_rate": 0.6923076923076923,
+      "profit_factor": 3.762090013513212
+    }
+  },
+  {
+    "symbol": "UBER",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 25,
+      "net_pnl": 1621.4610862917566,
+      "win_rate": 0.44,
+      "profit_factor": 1.128444242997448
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 300.66855598978987,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.084401891353245
+    }
+  },
+  {
+    "symbol": "UBER",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 23,
+      "net_pnl": 2711.50940087845,
+      "win_rate": 0.4782608695652174,
+      "profit_factor": 1.2261193865659459
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 5924.94317221757,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 3.6565985410500987
+    }
+  },
+  {
+    "symbol": "UBER",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 50,
+      "net_pnl": 10651.447541059546,
+      "win_rate": 0.5,
+      "profit_factor": 1.4081195326923361
+    },
+    "oos": {
+      "n_trades": 16,
+      "net_pnl": 1168.6309250354027,
+      "win_rate": 0.4375,
+      "profit_factor": 1.1233748779407093
+    }
+  },
+  {
+    "symbol": "USD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 51,
+      "net_pnl": 8508.488876206584,
+      "win_rate": 0.5098039215686274,
+      "profit_factor": 1.4171628042869662
+    },
+    "oos": {
+      "n_trades": 15,
+      "net_pnl": 2389.8703330053677,
+      "win_rate": 0.6,
+      "profit_factor": 1.4429411078425922
+    }
+  },
+  {
+    "symbol": "XBI",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 4413.177997840476,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.3180056006975265
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 7091.291155978135,
+      "win_rate": 0.7142857142857143,
+      "profit_factor": 4.155199758045743
+    }
+  },
+  {
+    "symbol": "XBI",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 46,
+      "net_pnl": 3913.0064601472864,
+      "win_rate": 0.45652173913043476,
+      "profit_factor": 1.1810380172395811
+    },
+    "oos": {
+      "n_trades": 14,
+      "net_pnl": 9268.466701233245,
+      "win_rate": 0.6428571428571429,
+      "profit_factor": 3.0846536205384214
+    }
+  },
+  {
+    "symbol": "XLE",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 51,
+      "net_pnl": 14318.404008688934,
+      "win_rate": 0.47058823529411764,
+      "profit_factor": 1.4897616616468847
+    },
+    "oos": {
+      "n_trades": 16,
+      "net_pnl": 4598.332484549165,
+      "win_rate": 0.4375,
+      "profit_factor": 1.4812872023943389
+    }
+  },
+  {
+    "symbol": "XLF",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 23,
+      "net_pnl": 3123.7494514460177,
+      "win_rate": 0.4782608695652174,
+      "profit_factor": 1.2897319764083348
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 305.2480561074685,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.076120264059281
+    }
+  },
+  {
+    "symbol": "XLK",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 12758.638404116708,
+      "win_rate": 0.5769230769230769,
+      "profit_factor": 2.096791582905766
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 1285.2434753562416,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.336825031241707
+    }
+  },
+  {
+    "symbol": "XLK",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 45,
+      "net_pnl": 22839.218521271676,
+      "win_rate": 0.5777777777777777,
+      "profit_factor": 2.3516627134459935
+    },
+    "oos": {
+      "n_trades": 13,
+      "net_pnl": 7017.855107910458,
+      "win_rate": 0.6153846153846154,
+      "profit_factor": 2.319633992583221
+    }
+  },
+  {
+    "symbol": "XLK",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 99,
+      "net_pnl": 6060.132042737056,
+      "win_rate": 0.41414141414141414,
+      "profit_factor": 1.1105285442483086
+    },
+    "oos": {
+      "n_trades": 32,
+      "net_pnl": 1241.2572731230225,
+      "win_rate": 0.40625,
+      "profit_factor": 1.0664312690477766
+    }
+  },
+  {
+    "symbol": "XRP/USD",
+    "asset_class": "Crypto",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 426,
+      "net_pnl": 43743.7390799657,
+      "win_rate": 0.4507042253521127,
+      "profit_factor": 1.170618007496501
+    },
+    "oos": {
+      "n_trades": 142,
+      "net_pnl": 4247.671858532214,
+      "win_rate": 0.4154929577464789,
+      "profit_factor": 1.0535205981593951
+    }
+  },
+  {
+    "symbol": "XRP/USD",
+    "asset_class": "Crypto",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 430,
+      "net_pnl": 54201.84376237678,
+      "win_rate": 0.4604651162790698,
+      "profit_factor": 1.221761782486247
+    },
+    "oos": {
+      "n_trades": 141,
+      "net_pnl": 10257.198498189418,
+      "win_rate": 0.41843971631205673,
+      "profit_factor": 1.1480063968361909
+    }
+  }
+]

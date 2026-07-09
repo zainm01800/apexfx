@@ -25,7 +25,7 @@ from apex_quant.ai.hypothesis import (
 from apex_quant.ai.retrieval import EvidencePack, PriorResult, gather_evidence
 from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
-from apex_quant.validation.report import run_validation
+# run_validation imported locally inside run_research to prevent circular imports
 
 DISCLAIMER = (
     "These are hypotheses PROPOSED by an AI layer and JUDGED independently by the "
@@ -126,6 +126,7 @@ def run_research(
         if validate and deb.verdict in ("test", "refine"):
             factory, grid = map_to_strategy(h)
             try:
+                from apex_quant.validation.report import run_validation
                 rep = run_validation(pit, instrument, strategy_factory=factory, param_grid=grid, cfg=cfg)
                 val = _validation_summary(rep)
             except Exception as e:  # noqa: BLE001 - a bad config must not crash the report

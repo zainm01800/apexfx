@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "SOL/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.07072958206343143,
+    "oos_sharpe_std": 0.06838214679023596,
+    "oos_sharpe_median": 0.07304503371941361,
+    "frac_positive": 0.8,
+    "oos_sharpe_paths": [
+      0.1887,
+      -0.0001,
+      0.028,
+      0.0977,
+      -0.0247,
+      0.1168,
+      0.1336,
+      0.1816,
+      0.1077,
+      0.0428,
+      0.0963,
+      0.0049,
+      0.073,
+      -0.0185,
+      0.0332
+    ]
+  },
+  "dsr": {
+    "dsr": 0.9997335643217584,
+    "observed_sharpe": 0.08794658826078976,
+    "observed_sharpe_ann": 1.680217209514949,
+    "sr0": 0.0072940241390731285,
+    "n_trials": 3,
+    "n_obs": 1726,
+    "skew": 0.9413766998730295,
+    "kurtosis": 10.359122607838783
+  },
+  "pbo": {
+    "pbo": 0.202,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": true,
+    "dsr_pass": true,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 1.000 > 0.95 (multiple-testing deflation)",
+      "PBO 0.202 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.073, 80% of 15 paths positive",
+      "VERDICT: passed all three gates"
+    ]
+  }
+}

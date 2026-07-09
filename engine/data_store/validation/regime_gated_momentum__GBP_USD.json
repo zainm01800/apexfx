@@ -6,39 +6,40 @@
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": -0.00031543168272016493,
-    "oos_sharpe_std": 0.025367987967713505,
-    "oos_sharpe_median": 0.0,
-    "frac_positive": 0.3333333333333333,
+    "oos_sharpe_mean": 0.0021643511192326577,
+    "oos_sharpe_std": 0.027607712200633617,
+    "oos_sharpe_median": 0.009662552709389781,
+    "frac_positive": 0.6,
     "oos_sharpe_paths": [
-      -0.0027,
-      -0.046,
-      0.0218,
-      0.0,
-      0.0,
-      -0.0452,
+      0.0183,
+      0.0164,
+      -0.0218,
+      0.0363,
+      0.0436,
+      -0.0087,
+      -0.0445,
+      0.0077,
+      0.014,
+      -0.0376,
       0.0097,
-      0.0,
-      0.0,
-      0.0193,
-      0.0,
-      -0.015,
-      -0.0249,
-      0.0397,
-      0.0386
+      0.0152,
+      -0.0274,
+      -0.0225,
+      0.0339
     ]
   },
   "dsr": {
-    "dsr": 0.0,
-    "observed_sharpe": 0.0,
-    "observed_sharpe_ann": 0.0,
-    "sr0": 0.0,
+    "dsr": 0.38152051240582,
+    "observed_sharpe": -0.002891613076738968,
+    "observed_sharpe_ann": -0.04590293453324184,
+    "sr0": 0.0027335840859855176,
     "n_trials": 3,
     "n_obs": 2866,
-    "note": "insufficient data / zero variance"
+    "skew": -0.9244797263037262,
+    "kurtosis": 20.111726018023234
   },
   "pbo": {
-    "pbo": 1.0,
+    "pbo": 0.1295,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -46,12 +47,12 @@
   "verdict": {
     "passed": false,
     "dsr_pass": false,
-    "pbo_pass": false,
-    "cpcv_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": true,
     "reasons": [
-      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
-      "PBO 1.0 >= 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe 0.000, 33% of 15 paths positive",
+      "DSR 0.382 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.1295 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.010, 60% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }

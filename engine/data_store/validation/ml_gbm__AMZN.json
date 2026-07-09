@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "AMZN",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.04431688274385223,
+    "oos_sharpe_std": 0.015734166015477558,
+    "oos_sharpe_median": 0.04411003568981237,
+    "frac_positive": 1.0,
+    "oos_sharpe_paths": [
+      0.0595,
+      0.0684,
+      0.0495,
+      0.0356,
+      0.0504,
+      0.0687,
+      0.052,
+      0.0414,
+      0.0544,
+      0.0406,
+      0.0275,
+      0.0441,
+      0.0123,
+      0.0341,
+      0.0262
+    ]
+  },
+  "dsr": {
+    "dsr": 0.9669940335876196,
+    "observed_sharpe": 0.040736172522347784,
+    "observed_sharpe_ann": 0.6466666911525301,
+    "sr0": 0.005963993360907984,
+    "n_trials": 3,
+    "n_obs": 2766,
+    "skew": 0.42976358108936674,
+    "kurtosis": 17.287149883788764
+  },
+  "pbo": {
+    "pbo": 0.2,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": true,
+    "dsr_pass": true,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.967 > 0.95 (multiple-testing deflation)",
+      "PBO 0.2 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.044, 100% of 15 paths positive",
+      "VERDICT: passed all three gates"
+    ]
+  }
+}

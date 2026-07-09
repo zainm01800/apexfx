@@ -1,0 +1,59 @@
+{
+  "strategy": "regime_gated_momentum",
+  "instrument": "DOGE/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.010905498240610776,
+    "oos_sharpe_std": 0.03869675356634687,
+    "oos_sharpe_median": -0.01444910075871723,
+    "frac_positive": 0.3333333333333333,
+    "oos_sharpe_paths": [
+      0.0073,
+      -0.0157,
+      -0.0657,
+      -0.0521,
+      0.0133,
+      0.0254,
+      -0.0245,
+      -0.0144,
+      0.0683,
+      -0.0358,
+      -0.0259,
+      0.0433,
+      -0.0718,
+      -0.0043,
+      -0.0108
+    ]
+  },
+  "dsr": {
+    "dsr": 0.19662374199620436,
+    "observed_sharpe": -0.012532528566856355,
+    "observed_sharpe_ann": -0.23943362207898197,
+    "sr0": 0.004292716501557557,
+    "n_trials": 3,
+    "n_obs": 2609,
+    "skew": 0.9342995488582931,
+    "kurtosis": 31.901263887069778
+  },
+  "pbo": {
+    "pbo": 0.769,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.197 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.769 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.014, 33% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

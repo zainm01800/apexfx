@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "NVDA",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.06964832336973358,
+    "oos_sharpe_std": 0.035075865626785566,
+    "oos_sharpe_median": 0.07826363329288574,
+    "frac_positive": 1.0,
+    "oos_sharpe_paths": [
+      0.0817,
+      0.0212,
+      0.0493,
+      0.0238,
+      0.1002,
+      0.0747,
+      0.0943,
+      0.0783,
+      0.1354,
+      0.0385,
+      0.0154,
+      0.0812,
+      0.0557,
+      0.1125,
+      0.0826
+    ]
+  },
+  "dsr": {
+    "dsr": 0.9998503416062832,
+    "observed_sharpe": 0.07267479284806856,
+    "observed_sharpe_ann": 1.1536765707547496,
+    "sr0": 0.005155807111150022,
+    "n_trials": 3,
+    "n_obs": 2766,
+    "skew": 0.7507233374402774,
+    "kurtosis": 15.121435245603852
+  },
+  "pbo": {
+    "pbo": 0.0375,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": true,
+    "dsr_pass": true,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 1.000 > 0.95 (multiple-testing deflation)",
+      "PBO 0.0375 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.078, 100% of 15 paths positive",
+      "VERDICT: passed all three gates"
+    ]
+  }
+}

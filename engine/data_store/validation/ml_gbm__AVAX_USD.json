@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "AVAX/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.02227774621464578,
+    "oos_sharpe_std": 0.034514334031008106,
+    "oos_sharpe_median": 0.031024376710286187,
+    "frac_positive": 0.7333333333333333,
+    "oos_sharpe_paths": [
+      0.0569,
+      0.031,
+      0.008,
+      0.0331,
+      -0.0439,
+      0.062,
+      0.0462,
+      0.0634,
+      0.0123,
+      0.0285,
+      0.0458,
+      -0.0045,
+      0.0464,
+      -0.013,
+      -0.0379
+    ]
+  },
+  "dsr": {
+    "dsr": 0.7757676934696408,
+    "observed_sharpe": 0.024174771220872623,
+    "observed_sharpe_ann": 0.4618583556754807,
+    "sr0": 0.005075821115891306,
+    "n_trials": 3,
+    "n_obs": 1563,
+    "skew": 0.40814037228093797,
+    "kurtosis": 11.838518984825614
+  },
+  "pbo": {
+    "pbo": 0.17425,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.776 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.17425 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.031, 73% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

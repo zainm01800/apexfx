@@ -1,0 +1,59 @@
+{
+  "strategy": "regime_gated_momentum",
+  "instrument": "EUR/GBP",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.01245701335847139,
+    "oos_sharpe_std": 0.01833064110842507,
+    "oos_sharpe_median": 0.016007577831738826,
+    "frac_positive": 0.7333333333333333,
+    "oos_sharpe_paths": [
+      -0.0244,
+      -0.0092,
+      -0.0048,
+      -0.0015,
+      0.0168,
+      0.0019,
+      0.0048,
+      0.0103,
+      0.0238,
+      0.016,
+      0.0276,
+      0.046,
+      0.0193,
+      0.033,
+      0.0274
+    ]
+  },
+  "dsr": {
+    "dsr": 0.3142351670199819,
+    "observed_sharpe": -0.002418914051001894,
+    "observed_sharpe_ann": -0.03839907013074493,
+    "sr0": 0.006608516987071591,
+    "n_trials": 3,
+    "n_obs": 2867,
+    "skew": -1.0390820993562806,
+    "kurtosis": 33.000121261193634
+  },
+  "pbo": {
+    "pbo": 0.41475,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.314 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.41475 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.016, 73% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

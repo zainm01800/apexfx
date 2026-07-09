@@ -1,0 +1,59 @@
+{
+  "strategy": "regime_gated_momentum",
+  "instrument": "TSLA",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.030699439325944388,
+    "oos_sharpe_std": 0.027507365640387714,
+    "oos_sharpe_median": 0.03518232759980323,
+    "frac_positive": 0.9333333333333333,
+    "oos_sharpe_paths": [
+      0.0002,
+      -0.016,
+      0.0378,
+      0.0116,
+      0.0169,
+      0.0044,
+      0.0629,
+      0.0352,
+      0.04,
+      0.0402,
+      0.0122,
+      0.0177,
+      0.0753,
+      0.0785,
+      0.0437
+    ]
+  },
+  "dsr": {
+    "dsr": 0.9289013614082172,
+    "observed_sharpe": 0.031238953609517662,
+    "observed_sharpe_ann": 0.4959030148120037,
+    "sr0": 0.0035284977319864834,
+    "n_trials": 3,
+    "n_obs": 2766,
+    "skew": 0.5253581521880348,
+    "kurtosis": 9.546326829136417
+  },
+  "pbo": {
+    "pbo": 0.7675,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.929 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.7675 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.035, 93% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

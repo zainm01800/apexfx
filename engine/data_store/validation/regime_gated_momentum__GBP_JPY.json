@@ -1,0 +1,59 @@
+{
+  "strategy": "regime_gated_momentum",
+  "instrument": "GBP/JPY",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.004731978956134961,
+    "oos_sharpe_std": 0.032730411225579036,
+    "oos_sharpe_median": -0.00019105157079980252,
+    "frac_positive": 0.4666666666666667,
+    "oos_sharpe_paths": [
+      -0.0109,
+      -0.0002,
+      0.0583,
+      -0.0257,
+      0.0022,
+      -0.0285,
+      0.0247,
+      -0.05,
+      -0.0203,
+      0.061,
+      -0.0115,
+      0.0089,
+      0.034,
+      0.0403,
+      -0.0112
+    ]
+  },
+  "dsr": {
+    "dsr": 0.6774280843725868,
+    "observed_sharpe": 0.008684913482125262,
+    "observed_sharpe_ann": 0.1378687273908927,
+    "sr0": 8.388340293624106e-05,
+    "n_trials": 3,
+    "n_obs": 2867,
+    "skew": 0.09898988156663355,
+    "kurtosis": 32.21673178215625
+  },
+  "pbo": {
+    "pbo": 0.99875,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.677 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.99875 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.000, 47% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

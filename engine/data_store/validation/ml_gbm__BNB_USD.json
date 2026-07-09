@@ -1,0 +1,59 @@
+{
+  "strategy": "ml_gbm",
+  "instrument": "BNB/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.03289883690041439,
+    "oos_sharpe_std": 0.027568781966446753,
+    "oos_sharpe_median": 0.04539075505310627,
+    "frac_positive": 0.8,
+    "oos_sharpe_paths": [
+      0.0188,
+      0.0834,
+      0.0479,
+      0.0454,
+      0.0471,
+      0.0454,
+      0.0137,
+      0.0094,
+      0.0108,
+      0.0597,
+      0.0581,
+      0.0598,
+      -0.0022,
+      -0.0006,
+      -0.0032
+    ]
+  },
+  "dsr": {
+    "dsr": 0.8752588393116996,
+    "observed_sharpe": 0.027163229872303983,
+    "observed_sharpe_ann": 0.5189527780443072,
+    "sr0": 0.004893319209402214,
+    "n_trials": 3,
+    "n_obs": 2609,
+    "skew": 1.0134243711698088,
+    "kurtosis": 16.296503389038055
+  },
+  "pbo": {
+    "pbo": 0.4035,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.875 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.4035 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.045, 80% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

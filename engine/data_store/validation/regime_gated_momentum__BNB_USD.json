@@ -1,0 +1,59 @@
+{
+  "strategy": "regime_gated_momentum",
+  "instrument": "BNB/USD",
+  "config_version": 1,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.027738275578911818,
+    "oos_sharpe_std": 0.03213826771106802,
+    "oos_sharpe_median": 0.03558324558265572,
+    "frac_positive": 0.7333333333333333,
+    "oos_sharpe_paths": [
+      0.0835,
+      0.039,
+      0.0234,
+      -0.0122,
+      0.051,
+      0.0531,
+      0.0356,
+      -0.0023,
+      0.0647,
+      0.0215,
+      -0.0181,
+      0.0522,
+      -0.0269,
+      0.0393,
+      0.0123
+    ]
+  },
+  "dsr": {
+    "dsr": 0.9557125784227846,
+    "observed_sharpe": 0.039619993451411706,
+    "observed_sharpe_ann": 0.756938912064782,
+    "sr0": 0.006865551969831395,
+    "n_trials": 3,
+    "n_obs": 2609,
+    "skew": 0.9974655017400694,
+    "kurtosis": 12.006275242791823
+  },
+  "pbo": {
+    "pbo": 0.35725,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": true,
+    "dsr_pass": true,
+    "pbo_pass": true,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.956 > 0.95 (multiple-testing deflation)",
+      "PBO 0.35725 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.036, 73% of 15 paths positive",
+      "VERDICT: passed all three gates"
+    ]
+  }
+}
