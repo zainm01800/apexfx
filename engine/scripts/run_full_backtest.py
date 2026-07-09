@@ -62,13 +62,23 @@ cfg = get_config()
 
 # ── Style parameters ─────────────────────────────────────────────────────────
 STYLE_PARAMS = {
+    "ultra_scalp": {
+        "timeframe": "1m",
+        "momentum_lookback": 8,
+        "vol_window": 8,
+        "holding_horizon": 15,   # max 15 minutes hold (15 x 1m bars)
+        "warmup": 40,
+        "max_history_days": 14,  # OANDA demo/live key 1m history limit
+        "atr_stop_mult": 1.5,
+        "reward_risk": 1.2
+    },
     "micro_scalp": {
         "timeframe": "5m",
         "momentum_lookback": 8,
         "vol_window": 8,
         "holding_horizon": 12,   # max 1 hour hold (12 x 5m bars)
         "warmup": 60,
-        "max_history_days": 57,  # Yahoo Finance caps 5m history at ~60 days
+        "max_history_days": 180, # Extended from 57 for OandaAdapter (6 months)
         "atr_stop_mult": 2.0,
         "reward_risk": 1.3
     },
@@ -78,7 +88,7 @@ STYLE_PARAMS = {
         "vol_window": 14,
         "holding_horizon": 36, # shortened from 48 for faster trade exit/capital recycling
         "warmup": 70, # ma_window=50 + momentum_lookback=14 + buffer
-        "max_history_days": 59,
+        "max_history_days": 730, # Extended from 59 for OandaAdapter (2 years)
         "atr_stop_mult": 2.5,  # optimized stop mult for active scalping
         "reward_risk": 1.5     # optimized R:R target for faster take-profits
     },
@@ -88,7 +98,7 @@ STYLE_PARAMS = {
         "vol_window": 24,
         "holding_horizon": 72, # 3 days max hold
         "warmup": 80, # ma_window=50 + momentum_lookback=24 + buffer
-        "max_history_days": 720,
+        "max_history_days": 1460, # Extended from 720 for OandaAdapter (4 years)
         "atr_stop_mult": 2.5,  # optimized stop mult for intraday trading
         "reward_risk": 2.0     # 2.0 R:R for intraday
     },
