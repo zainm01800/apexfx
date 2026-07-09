@@ -1288,7 +1288,7 @@ async function loadNavWinRate() {
   const el = document.getElementById('navWinRate');
   if (!el) return;
   try {
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return;
     const rows = await r.json();
     if (!Array.isArray(rows)) return;
@@ -1389,7 +1389,7 @@ async function fetchCalibration(currentType) {
   try {
     // resolved=true → the FULL graded history (old resolved swing/position rows
     // must never fall off a recent-rows window as scan volume grows).
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1505,7 +1505,7 @@ function setupDistance(a, b) {
 async function fetchMetaLabel(features) {
   try {
     if (!features) return null;
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return null;
     const rows = await r.json();
     if (!Array.isArray(rows)) return null;
@@ -1551,7 +1551,7 @@ async function fetchMetaLabel(features) {
 async function fetchLessons(features) {
   try {
     if (!features) return [];
-    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200');
+    const r = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000');
     if (!r.ok) return [];
     const rows = await r.json();
     if (!Array.isArray(rows)) return [];
@@ -4030,7 +4030,7 @@ async function showValidationBanner(target, fresh) {
   // Learned track record for this kind of re-check (dormant until enough resolved).
   let trackNote = '';
   try {
-    const rows = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=200').then(r => r.json());
+    const rows = await fetch('/api/memory?all=true&resolved=true&lean=true&limit=1000').then(r => r.json());
     const vr = computeValidationReliability(rows);
     const s = vr[rec.assessment];
     if (s && s.n >= 4) {
@@ -4071,7 +4071,7 @@ function escapeAttr(s) { return String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;'
 // ── Dashboard Metrics Loader ──
 async function loadDashboardMetrics() {
   try {
-    const res = await fetch('/api/memory?all=true&lean=true&limit=200');
+    const res = await fetch('/api/memory?all=true&lean=true&limit=1000');
     const rows = res.ok ? await res.json() : [];
     if (!Array.isArray(rows)) return;
 
