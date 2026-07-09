@@ -735,22 +735,52 @@ function applyFilters(groups) {
   });
 }
 
-function renderGrid() {
+let _visibleCardCount = 40;
+
+function renderGrid(resetCount = true) {
   const grid = document.getElementById('scanGrid');
   const empty = document.getElementById('histEmpty');
   _valReliability = computeValidationReliability(_allRows);   // refresh learned re-check stats
   updateSummary(); // keep stats reactive
   renderScoreboard(); // keep scoreboard reactive
+  
+  if (resetCount) {
+    _visibleCardCount = 40;
+  }
+  
   const groups = applyFilters(buildGroups(_allRows));
 
   if (!groups.length) {
     grid.innerHTML = '';
     empty.style.display = 'block';
+    const lm = document.getElementById('loadMoreContainer');
+    if (lm) lm.remove();
     return;
   }
   empty.style.display = 'none';
-  grid.innerHTML = groups.map(renderCard).join('');
+  
+  const visibleGroups = groups.slice(0, _visibleCardCount);
+  grid.innerHTML = visibleGroups.map(renderCard).join('');
+  
+  const hasMore = groups.length > _visibleCardCount;
+  let lm = document.getElementById('loadMoreContainer');
+  if (hasMore) {
+    if (!lm) {
+      lm = document.createElement('div');
+      lm.id = 'loadMoreContainer';
+      lm.style.cssText = 'display: flex; justify-content: center; margin: 30px 0; width: 100%;';
+      grid.parentNode.insertBefore(lm, grid.nextSibling);
+    }
+    lm.innerHTML = `<button class="acc-scope-btn" onclick="loadMoreCards()" style="padding: 10px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s;">Load More (${groups.length - _visibleCardCount} remaining)</button>`;
+  } else {
+    if (lm) lm.remove();
+  }
 }
+
+window.loadMoreCards = function() {
+  _visibleCardCount += 40;
+  renderGrid(false);
+};
 
 // ── Preview modal ───────────────────────────────────────────────────────────
 // Renders the FULL saved analysis (the same write-up the Research tab produced)
