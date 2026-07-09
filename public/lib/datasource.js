@@ -9,7 +9,7 @@ const MAX_DAYS_YAHOO = { '1m': 7, '5m': 60, '15m': 60, '30m': 60, '1h': 729, '4h
 
 // OANDA permits much deeper historical data for forex (up to 5,000 bars per call).
 // We set 15m to 2 years (730 days) and 1h to 4 years (1460 days) to allow deep testing.
-const MAX_DAYS_OANDA = { '1m': 30, '5m': 365, '15m': 730, '30m': 730, '1h': 1460, '4h': 1460, '1d': 3649, '1w': 3649 };
+const MAX_DAYS_OANDA = { '1m': 14, '5m': 180, '15m': 730, '30m': 730, '1h': 1460, '4h': 1460, '1d': 3649, '1w': 3649 };
 
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 
