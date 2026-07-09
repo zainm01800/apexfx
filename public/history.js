@@ -698,7 +698,7 @@ function renderCard(g) {
       <div class="sc-actions">
         ${_isOpen
           ? `<a class="sc-btn sc-btn-update" href="${updateUrl(row)}" title="Re-check this OPEN trade's validity — re-runs the analysis and refreshes this trade without creating a new one">🔄 Update</a>`
-          : `<a class="sc-btn sc-btn-update" href="dashboard.html?sym=${encodeURIComponent(row.symbol)}" title="This trade is finished (${outcomeLabel(row.outcome)}) and frozen. Run a fresh scan to open a NEW, separate trade for ${escHtml(row.symbol)}">🔁 Scan again</a>`}
+          : ''}
         <button class="sc-btn sc-btn-preview" data-action="preview" data-id="${escHtml(row.id)}" title="See the full analysis behind this call">
           👁 Preview
         </button>
@@ -774,6 +774,7 @@ function openPreview(id) {
   const vDisplay = (row.verdict || '—').replace(/_/g, ' ').toUpperCase();
   const reasons = parseReasons(row.key_reasons);
   const outcomeCls = row.outcome || 'pending';
+  const isOpen = (row.outcome == null || row.outcome === 'pending');
 
   const targets = [
     row.entry_zone   ? ['Entry',  escHtml(String(row.entry_zone)), 'entry']  : null,
@@ -800,8 +801,6 @@ function openPreview(id) {
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
-    <div class="pv-section"><h4>Timeline</h4>${buildLifeline(row)}</div>
-
     ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
 
     ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
@@ -814,9 +813,12 @@ function openPreview(id) {
     ${_section('Risk analysis',        row.risk_analysis)}
     ${_section('Short-term outlook',   row.short_term_outlook)}
 
+    <div class="pv-section"><h4>Timeline</h4>${buildLifeline(row)}</div>
+
+    ${isOpen ? `
     <div class="pv-foot">
       <a class="pv-btn" href="${updateUrl(row)}">🔄 Run an update on ${escHtml(row.symbol)}</a>
-    </div>`;
+    </div>` : ''}`;
 
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
