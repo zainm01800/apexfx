@@ -70,8 +70,8 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   position: sticky; top: 0; z-index: 200;
   height: 60px;
   background: rgba(30, 41, 59, 0.85); /* Matches --card */
-  backdrop-filter: blur(32px) saturate(1.2);
-  -webkit-backdrop-filter: blur(32px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border-bottom: 1px solid var(--border);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -243,7 +243,7 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 30px rgba(0,240,255,0.05);
-  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .sym-dropdown.open { display: block; }
 .dd-item {
@@ -291,7 +291,6 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
 .loader-card {
   background: var(--card); border: 1px solid rgba(0,240,255,0.1); border-radius: 20px;
   padding: 44px 36px; display: flex; flex-direction: column; align-items: center; gap: 24px;
-  backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
   box-shadow: 0 16px 60px rgba(0,0,0,0.5), 0 0 40px rgba(0,240,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .loader-sym { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--purple); letter-spacing: .08em; text-shadow: 0 0 20px rgba(0,240,255,0.4); }
@@ -326,8 +325,6 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -390,8 +387,6 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   display: flex; 
   flex-direction: column; 
   gap: 5px;
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -415,8 +410,6 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   display: flex; 
   flex-direction: column; 
   gap: 14px;
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1013,8 +1006,8 @@ select option {
     border-bottom: none;
     border-right: 1px solid var(--border);
     background: rgba(9, 9, 15, 0.75);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
   }
   body.layout-app .header .logo {
     margin-bottom: 20px;
@@ -1133,8 +1126,10 @@ select option {
   transform: scale(0.95);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 .apex-modal-bg.open .apex-modal {
   transform: scale(1);
