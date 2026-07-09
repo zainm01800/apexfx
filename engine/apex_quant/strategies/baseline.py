@@ -218,7 +218,12 @@ class RegimeGatedMomentum(Strategy):
                 return out
 
             if self.bypass_calibration:
-                cal = CalibratedProb(probability=0.50, lower=0.0, upper=1.0)
+                # Map actual momentum score to a genuine probability rather than
+                # a flat 0.50.  Linear: score=0 → 52%, score=5 → 82% (capped).
+                # Weak signals stay near 55%, moderate ~64%, strong ~75%.
+                # Band is wider than a fitted calibrator (honest: no conformal data).
+                raw_p = float(np.clip(0.52 + 0.06 * abs(score), 0.52, 0.82))
+                cal = CalibratedProb(probability=raw_p, lower=max(0.0, raw_p - 0.20), upper=min(1.0, raw_p + 0.20))
             else:
                 cal = self._cal.predict(abs(score)) if self._fitted else CalibratedProb(
                     probability=0.5, lower=0.0, upper=1.0

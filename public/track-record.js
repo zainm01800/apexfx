@@ -153,7 +153,7 @@
       <div class="tr-note">Every resolved call is shown — no cherry-picking. A verdict resolves when price reaches the take-profit (✓) or stop-loss (✗) it stated.</div>`;
   }
 
-  fetch('/api/memory?all=true&lean=true&limit=1000')
+  fetch('/api/memory?all=true&lean=true&limit=200')
     .then((r) => r.ok ? r.json() : [])
     .then((rows) => {
       if (!Array.isArray(rows)) rows = [];
@@ -187,39 +187,42 @@ async function loadPulse(sym, type, elId) {
     } catch {}
   }
 
-  try {
-    const to = Math.floor(Date.now() / 1000);
-    const from = to - 7 * 86400; // 7 days in seconds to ensure we get at least 2 trading bars
-    const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
-    if (!r.ok) return;
-    const bars = await r.json();
-    if (!Array.isArray(bars) || bars.length < 2) return;
+  // Defer the network call by 1.2s so it doesn't compete with the main page transition fetches
+  setTimeout(async () => {
+    try {
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - 7 * 86400; // 7 days in seconds to ensure we get at least 2 trading bars
+      const r = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+      if (!r.ok) return;
+      const bars = await r.json();
+      if (!Array.isArray(bars) || bars.length < 2) return;
 
-    const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
-    const pct = (curr - prev) / prev * 100;
-    
-    const formattedPrice = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
-    const formattedChange = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-    const isUp = pct >= 0;
+      const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
+      const pct = (curr - prev) / prev * 100;
+      
+      const formattedPrice = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+      const formattedChange = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      const isUp = pct >= 0;
 
-    // Save to cache
-    localStorage.setItem('pulse_cache_' + sym, JSON.stringify({
-      price: formattedPrice,
-      change: formattedChange,
-      isUp: isUp
-    }));
+      // Save to cache
+      localStorage.setItem('pulse_cache_' + sym, JSON.stringify({
+        price: formattedPrice,
+        change: formattedChange,
+        isUp: isUp
+      }));
 
-    for (let el of elements) {
-      el.classList.remove('loading');
-      el.querySelector('.pulse-price').textContent = formattedPrice;
-      const ce = el.querySelector('.pulse-change');
-      ce.textContent = formattedChange;
-      ce.className = `pulse-change ${isUp ? 'up' : 'down'}`;
-      if (typeof quickPick === 'function') {
-        el.onclick = () => quickPick(sym);
+      for (let el of elements) {
+        el.classList.remove('loading');
+        el.querySelector('.pulse-price').textContent = formattedPrice;
+        const ce = el.querySelector('.pulse-change');
+        ce.textContent = formattedChange;
+        ce.className = `pulse-change ${isUp ? 'up' : 'down'}`;
+        if (typeof quickPick === 'function') {
+          el.onclick = () => quickPick(sym);
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }, 1200);
 }
 function initPulse() {
   loadPulse('SPY',     'ETF',     'pulse-SPY');

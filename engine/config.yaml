@@ -206,7 +206,7 @@ ai:
 # When enabled, the executor writes order signals to the MT4 bridge file.
 # Set enabled: true only when the MT4 terminal is running the apex_mt4_bridge.mq4 EA.
 execution:
-  enabled: false
+  enabled: true
   provider: "mt4"                               # mt4 | mock
   mt4:
     common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/Program Files/MetaTrader 4/MQL4/Files"  # macOS Wine path
