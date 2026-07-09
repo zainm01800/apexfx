@@ -53,9 +53,8 @@ function parseReasons(v) {
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchAllScans() {
-  // 500 recent rows ≈ 2-3 weeks of history at ~200 scans/week — enough that open
-  // swing trades stay visible (and resolvable) instead of falling off the window.
-  const res = await fetch(`${API_MEMORY}?all=true&limit=200`);
+  // 1000 recent rows to make sure full history of resolved trades is visible.
+  const res = await fetch(`${API_MEMORY}?all=true&limit=1000`);
   if (!res.ok) throw new Error('Failed to load scan history');
   return res.json();
 }
