@@ -129,8 +129,12 @@ class OandaAdapter(DataAdapter):
 
         # Loop to handle pagination (OANDA limit is 5000 candles per call)
         while current_start < ts_end:
+            # Clamp the chunk's end to avoid exceeding OANDA's 5,000 candles limit per call
+            chunk_end = current_start + pd.Timedelta(seconds=step_seconds * 4800)
+            effective_end = min(ts_end, chunk_end)
+            
             start_iso = current_start.isoformat().replace("+00:00", "Z")
-            end_iso = ts_end.isoformat().replace("+00:00", "Z")
+            end_iso = effective_end.isoformat().replace("+00:00", "Z")
 
             logger.info("OANDA Fetching %s (%s) from %s to %s", instrument, timeframe, start_iso, end_iso)
             try:
