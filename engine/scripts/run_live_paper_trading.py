@@ -37,6 +37,8 @@ from apex_quant.ai.sentiment_filter import apply_deepseek_sentiment
 from apex_quant.config import get_config
 from apex_quant.data import clean, get_adapter
 from apex_quant.data.point_in_time import PointInTimeAccessor
+from apex_quant.execution.mt4_executor import MT4Executor
+from apex_quant.execution.mock_executor import MockExecutor
 from apex_quant.strategies.baseline import RegimeGatedMomentum
 
 # API settings
@@ -215,6 +217,32 @@ def get_params_for_trade(style, timeframe, instrument=""):
 cfg = get_config()
 yahoo_adapter = get_adapter("yahoo")
 
+# ── Executor dispatch ─────────────────────────────────────────────────────────
+def _create_executor():
+    """Create the configured executor based on ``config.execution``.
+
+    Returns
+    -------
+    MT4Executor | MockExecutor | None
+        ``None`` when execution is disabled.
+    """
+    if not cfg.execution.enabled:
+        print("[EXECUTOR] Execution is DISABLED in config — no orders will be sent.")
+        return None
+
+    provider = cfg.execution.provider
+    if provider == "mt4":
+        print(f"[EXECUTOR] Using MT4Executor (common_dir from config/env)")
+        return MT4Executor()
+    elif provider == "mock":
+        print(f"[EXECUTOR] Using MockExecutor — orders will be logged, not sent to MT4")
+        return MockExecutor(default_volume=cfg.execution.mt4.default_volume)
+    else:
+        print(f"[EXECUTOR] Unknown provider {provider!r} — no orders will be sent.")
+        return None
+
+_EXECUTOR = _create_executor()
+
 def fetch_open_trades():
     """Fetch unresolved setups from Supabase."""
     url = f"{MEMORY_ENDPOINT}?outcome=eq.pending"
@@ -245,57 +273,14 @@ def resolve_trade(trade_id, outcome, exit_price, exit_date):
         print(f"Connection error to Supabase updating trade: {e}")
     return False
 
-def write_mt4_signal(symbol, direction, entry_price, stop_loss, target_price):
-    """Write signal details to MT4 shared Files folder for auto-execution."""
-    try:
-        appdata = os.environ.get("APPDATA")
-        if not appdata:
-            return
-            
-        common_dir = Path(appdata) / "MetaQuotes" / "Terminal" / "Common" / "Files"
-        common_dir.mkdir(parents=True, exist_ok=True)
-        
-        file_path = common_dir / "mt4_signals.json"
-        
-        # Calculate stop loss distance for volume calculation
-        stop_dist = abs(entry_price - stop_loss)
-        
-        # Assume Pepperstone £10,000 balance with 1% risk per trade
-        balance = 10000.0
-        risk_fraction = 0.01
-        
-        # MT4 lot sizing logic
-        contract_size = 100000
-        sym_upper = symbol.upper().replace("/", "") # MT4 symbols do not have slash e.g. EURUSD
-        
-        if "BTC" in sym_upper or "ETH" in sym_upper or "SOL" in sym_upper:
-            contract_size = 1
-            
-        if stop_dist > 0:
-            lots = (balance * risk_fraction) / (stop_dist * contract_size)
-            lots = round(lots, 2)
-            lots = max(0.01, min(lots, 5.0))
-        else:
-            lots = 0.01
-            
-        signal = {
-            "symbol": sym_upper,
-            "cmd": "buy" if direction == "LONG" else "sell",
-            "volume": lots,
-            "sl": float(stop_loss),
-            "tp": float(target_price),
-            "time": int(time.time())
-        }
-        
-        # Write to JSON file
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump([signal], f, indent=2)
-        print(f"  [MT4 Signal] Saved execution signal for {sym_upper} ({lots} lots) to {file_path}")
-    except Exception as e:
-        print(f"  [MT4 Error] Failed to write signal file: {e}")
+
+def _normalise_symbol(symbol: str) -> str:
+    """Convert internal symbol format to MT4-compatible ticker."""
+    return symbol.upper().replace("/", "")
+
 
 def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr):
-    """POST new trade entry to Supabase."""
+    """POST new trade entry to Supabase and dispatch to live executor."""
     trade_id = f"{symbol.upper()}_{int(time.time())}"
     
     payload = {
@@ -320,8 +305,21 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
         r = httpx.post(MEMORY_ENDPOINT, headers=headers, json=payload)
         if r.status_code in (200, 201, 204):
             print(f"  [triggered] Logged new {direction} trade on {symbol} at entry {entry_price}")
-            # Trigger live MT4 order execution
-            write_mt4_signal(symbol, direction, entry_price, stop_loss, target_price)
+            # Dispatch to live executor (MT4 or mock) when enabled.
+            if _EXECUTOR is not None:
+                mt4_symbol = _normalise_symbol(symbol)
+                mt4_cmd = "buy" if direction == "LONG" else "sell"
+                try:
+                    result = _EXECUTOR.submit_order(
+                        symbol=mt4_symbol,
+                        cmd=mt4_cmd,
+                        volume=None,         # executor uses default_volume from config
+                        sl=float(stop_loss),
+                        tp=float(target_price),
+                    )
+                    print(f"  [EXECUTOR] Order dispatched — {mt4_cmd.upper()} {mt4_symbol} → {result}")
+                except Exception as e:
+                    print(f"  [EXECUTOR ERROR] Failed to dispatch order: {e}")
             # Show Native Windows Notification
             show_windows_notification(
                 "APEX Quant: Trade Executed",

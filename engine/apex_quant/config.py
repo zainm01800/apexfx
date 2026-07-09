@@ -197,6 +197,19 @@ class AiConfig(BaseModel):
     local_llm_key: str = ""
 
 
+class Mt4Config(BaseModel):
+    """MT4 bridge connection settings."""
+    common_dir: str = ""
+    default_volume: float = 0.10
+
+
+class ExecutionConfig(BaseModel):
+    """Live execution settings. Off by default — paper/live only when enabled."""
+    enabled: bool = False
+    provider: Literal["mt4", "mock"] = "mt4"
+    mt4: Mt4Config = Field(default_factory=Mt4Config)
+
+
 class AppConfig(BaseModel):
     version: int = 1
     seed: int = 42
@@ -210,6 +223,7 @@ class AppConfig(BaseModel):
     sentiment: SentimentConfig = Field(default_factory=SentimentConfig)
     ai: AiConfig = Field(default_factory=AiConfig)
     asset_classes: AssetClassesConfig = Field(default_factory=AssetClassesConfig)
+    execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
 
     @property
     def store_path(self) -> Path:
