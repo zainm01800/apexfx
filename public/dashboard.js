@@ -658,10 +658,27 @@ const TRADE_STYLES = {
 };
 let _tradeStyle = 'swing';
 function tradeStyle() { return TRADE_STYLES[_tradeStyle] || TRADE_STYLES.swing; }
-// Honest disclosure: the free price feed lags intraday, so flag scalp/intraday styles.
+// Honest disclosure: the free price feed lags intraday (Yahoo), but Forex uses OANDA real-time broker pricing.
 function updateStyleLagNotice() {
   const el = document.getElementById('styleLagNotice');
-  if (el) el.style.display = (_tradeStyle === 'scalp' || _tradeStyle === 'intraday') ? '' : 'none';
+  if (!el) return;
+  
+  const sym = (document.getElementById('symInput') ? document.getElementById('symInput').value : '') || '';
+  const type = detectType(sym);
+  
+  if (_tradeStyle === 'scalp' || _tradeStyle === 'intraday') {
+    if (type === 'Forex') {
+      el.innerHTML = `🟢 <strong>Live broker feed active</strong> (OANDA real-time spreads & pricing).`;
+      el.className = 'style-lag-notice live-feed';
+      el.style.display = '';
+    } else {
+      el.innerHTML = `⚠ Prices use a free feed that can lag ~15&nbsp;min — best suited to swing/position trades; treat scalp/intraday entries as <strong>approximate</strong>.`;
+      el.className = 'style-lag-notice';
+      el.style.display = '';
+    }
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 // ── Re-scan cooldown (paced by trade style) ───────────────────────────────────
@@ -1866,6 +1883,7 @@ function updateTypePill(sym) {
   if (!sym.trim()) { pill.className = 'type-pill'; pill.textContent = ''; return; }
   const t = detectType(sym);
   pill.className = `type-pill ${t.toLowerCase()}`; pill.textContent = t;
+  updateStyleLagNotice();
 }
 function quickPick(sym) {
   document.getElementById('symInput').value = sym;
@@ -2304,8 +2322,12 @@ function renderResults({ sym, type, candles, weeklyCandles, quote, news, analysi
     Array.isArray(a.key_reasons) ? a.key_reasons.join(' ') : a.key_reasons);
   const _methodFlag = _methods.length
     ? `<div class="tpg-method">⚠ References <strong>${_methods.map(escHtmlSafe).join(', ')}</strong> — popular but no independently verified edge (largely repackaged support/resistance & supply/demand). Treated as soft context only, not the basis for the verdict.</div>` : '';
+  const _isForex = a.type === 'Forex' || detectType(sym) === 'Forex';
   const _lagNote = (_tradeStyle === 'scalp' || _tradeStyle === 'intraday')
-    ? `<div class="tpg-lag">⚠ Free price feed can lag ~15&nbsp;min — treat these ${tradeStyle().label.toLowerCase()} entry/stop levels as <strong>approximate</strong>, not exact live fills. Swing/position styles are less affected.</div>` : '';
+    ? (_isForex
+      ? `<div class="tpg-lag live-feed">🟢 <strong>Live broker feed active</strong> (OANDA real-time spreads & pricing).</div>`
+      : `<div class="tpg-lag">⚠ Free price feed can lag ~15&nbsp;min — treat these ${tradeStyle().label.toLowerCase()} entry/stop levels as <strong>approximate</strong>, not exact live fills. Swing/position styles are less affected.</div>`
+    ) : '';
   const _guide = document.getElementById('tradePlanGuide');
   if (_guide) _guide.innerHTML = `
     <div class="tpg-head"><span class="tpg-dir ${_dirCls}">${_dirLabel}</span><span class="tpg-style">${tradeStyle().label}${a.timeframe ? ` · ${escHtmlSafe(a.timeframe)}` : ''}</span></div>

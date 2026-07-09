@@ -1322,3 +1322,13 @@ select option {
 .pulse-bar:hover .pulse-track {
   animation-play-state: paused;
 }
+
+/* Dynamic Live broker feed styling */
+.style-lag-notice.live-feed, .tpg-lag.live-feed {
+  color: var(--green) !important;
+  border-color: rgba(52, 211, 153, 0.25) !important;
+  background: rgba(52, 211, 153, 0.08) !important;
+}
+.style-lag-notice.live-feed strong, .tpg-lag.live-feed strong {
+  color: var(--green) !important;
+}
