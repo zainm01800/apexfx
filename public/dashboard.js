@@ -1165,7 +1165,7 @@ function buildShareText(r) {
   if (a.risk_reward)  levels.push(`R:R ${a.risk_reward}`);
   if (levels.length) lines.push(levels.join('  ·  '));
   if (a.executive_summary) lines.push(a.executive_summary.trim().slice(0, 200));
-  lines.push('via APEX AI Research · apexfx.vercel.app');
+  lines.push('via Z.FX AI Research · apexfx.vercel.app');
   return lines.join('\n');
 }
 function twitterIntent(r) {

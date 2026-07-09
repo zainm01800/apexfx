@@ -1,7 +1,7 @@
 {
   "name": "apexfx",
   "version": "1.0.0",
-  "description": "APEX FX Trading Platform",
+  "description": "Z.FX Trading Platform",
   "private": true,
   "type": "module",
   "scripts": {

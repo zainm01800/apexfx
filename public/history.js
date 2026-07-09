@@ -1234,7 +1234,7 @@ function renderScoreboard() {
     </div>` : ''}
     ${valPanel}
     <div class="acc-calib ${a.hiConfAcc == null ? '' : a.hiConfAcc >= 50 ? 'pos' : 'neg'}">
-      When APEX says <strong>80%+ confidence</strong> →
+      When Z.FX says <strong>80%+ confidence</strong> →
       ${a.hiConfN ? `<strong>${a.hiConfAcc}% accuracy</strong> across ${a.hiConfN} resolved high-conviction call${a.hiConfN === 1 ? '' : 's'}` : 'no resolved 80%+ calls yet'}
     </div>`;
 }

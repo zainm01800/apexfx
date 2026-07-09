@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# APEX Quant Engine — versioned configuration
+# ZQuant Engine — versioned configuration
 # Every tunable parameter lives here. NO magic numbers in code.
 # Bump `version` whenever any value changes — backtests record the version used.
 # ══════════════════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-# APEX Quant — Parameter Optimization Results
+# ZQuant — Parameter Optimization Results
 
 *Generated: 2026-07-09 20:14:54 UTC*
 

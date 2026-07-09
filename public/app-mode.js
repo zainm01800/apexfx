@@ -234,7 +234,7 @@ function injectSettingsModal() {
     <div class="apex-modal-bg" id="apexSettingsModalBg" onclick="closeApexSettings(event)">
       <div class="apex-modal" onclick="event.stopPropagation()">
         <div class="apex-modal-header">
-          <div class="apex-modal-title">APEX Settings</div>
+          <div class="apex-modal-title">Z.FX Settings</div>
           <button class="apex-modal-close" onclick="closeApexSettings()">&times;</button>
         </div>
         <div class="apex-modal-body">
