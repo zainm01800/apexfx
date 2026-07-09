@@ -61,9 +61,13 @@ class AppAILLM(LLMClient):
             with httpx.Client(timeout=self.timeout) as client:
                 res = client.post(f"{self.cfg.app_url.rstrip('/')}/api/ai", json=payload)
                 if res.status_code != 200:
+                    print(f"  [LLM Error] API status {res.status_code}: {res.text}")
                     return None
                 return res.json().get("text")
-        except Exception:
+        except Exception as e:
+            print(f"  [LLM Exception] {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 

@@ -40,7 +40,7 @@ _CRYPTO_TICKERS = {
     "LTC/USD": "LTC-USD",
 }
 
-_TF_INTERVAL = {"15m": "15m", "1h": "60m", "1d": "1d", "1w": "1wk", "1M": "1mo"}
+_TF_INTERVAL = {"5m": "5m", "15m": "15m", "1h": "60m", "1d": "1d", "1w": "1wk", "1M": "1mo"}
 
 _HEADERS = {
     "User-Agent": (
@@ -124,14 +124,23 @@ class YahooAdapter(DataAdapter):
     ) -> pd.DataFrame:
         interval = _TF_INTERVAL.get(timeframe, "1d")
         ticker = to_yahoo_ticker(instrument)
-        p1 = int(pd.Timestamp(start, tz="UTC").timestamp()) if pd.Timestamp(start).tzinfo is None \
-            else int(pd.Timestamp(start).timestamp())
-        p2 = int(pd.Timestamp(end, tz="UTC").timestamp()) if pd.Timestamp(end).tzinfo is None \
-            else int(pd.Timestamp(end).timestamp())
+        ts_start = pd.Timestamp(start)
+        if ts_start.tzinfo is None:
+            ts_start = ts_start.tz_localize("UTC")
+        else:
+            ts_start = ts_start.tz_convert("UTC")
+        p1 = int(ts_start.timestamp())
+
+        ts_end = pd.Timestamp(end)
+        if ts_end.tzinfo is None:
+            ts_end = ts_end.tz_localize("UTC")
+        else:
+            ts_end = ts_end.tz_convert("UTC")
+        p2 = int(ts_end.timestamp())
+
         data = self._fetch_json(ticker, p1, p2, interval)
         df = self._parse(data)
-        return df.loc[(df.index >= pd.Timestamp(start, tz="UTC")) & (df.index <= pd.Timestamp(end, tz="UTC"))] \
-            if len(df) else df
+        return df.loc[(df.index >= ts_start) & (df.index <= ts_end)] if len(df) else df
 
     def get_latest(self, instrument: str, timeframe: str = "1d") -> Bar | None:
         end = pd.Timestamp.utcnow()

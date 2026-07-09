@@ -53,5 +53,5 @@ def main(instruments: list[str], strategies: list[str]) -> None:
 if __name__ == "__main__":
     args = sys.argv[1:]
     strategies = [a for a in args if a in STRATEGY_SPECS] or list(STRATEGY_SPECS)
-    instruments = [a for a in args if "/" in a] or ["EUR/USD", "GBP/USD"]
+    instruments = [a for a in args if a not in STRATEGY_SPECS] or ["EUR/USD", "GBP/USD"]
     main(instruments, strategies)

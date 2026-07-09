@@ -25,7 +25,7 @@ class TwelveDataAdapter(DataAdapter):
 
         # Map timeframe to Twelve Data interval formats
         # 15m -> 15min, 1h -> 1h, 1d -> 1day
-        interval_map = {"15m": "15min", "1h": "1h", "1d": "1day", "1w": "1week"}
+        interval_map = {"5m": "5min", "15m": "15min", "1h": "1h", "1d": "1day", "1w": "1week"}
         interval = interval_map.get(timeframe, "1day")
         symbol = instrument.upper()
 

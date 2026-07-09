@@ -3,28 +3,28 @@
 
 /* ── Design tokens ── */
 :root {
-  --bg:          #020408;
-  --bg-gradient: radial-gradient(circle at 50% 50%, #080d1a 0%, #020408 100%);
-  --bg2:         #050810;
-  --card:        rgba(10, 15, 30, 0.45);
-  --card-solid:  #080c18;
-  --card2:       rgba(15, 23, 42, 0.65);
-  --border:      rgba(13, 252, 159, 0.06); /* Neon Jade border tint */
-  --border2:     rgba(255, 42, 133, 0.08); /* Neon Pink border tint */
-  --text:        #f8fafc;
-  --text2:       #94a3b8;
-  --text3:       #64748b;
-  --green:       #0dfc9f; /* Neon Mint Jade */
-  --red:         #ff2a85; /* Hot Orchid Pink */
+  --bg:          #0B0F19; /* Deep Obsidian Slate */
+  --bg-gradient: none; /* Flat minimalist background */
+  --bg2:         #162032; /* Secondary slate background */
+  --card:        #1E293B; /* Flat slate card */
+  --card-solid:  #1E293B;
+  --card2:       rgba(30, 41, 59, 0.8);
+  --border:      #334155; /* Muted structured border */
+  --border2:     #334155;
+  --text:        #F1F5F9; /* High-contrast white */
+  --text2:       #CBD5E1; /* Secondary text slate */
+  --text3:       #64748B; /* Muted text gray */
+  --green:       #34D399; /* Soft Mint Green */
+  --red:         #F87171; /* Coral Red */
   --orange:      #ffa000;
   --yellow:      #ffdf00;
-  --purple:      #00f0ff; /* Electric Cyber-Blue */
-  --purple-hover:#55f5ff;
-  --purple-glow: rgba(0, 240, 255, 0.15);
-  --blue:        #2fa0ff;
+  --purple:      #38BDF8; /* Ice Blue accent */
+  --purple-hover:#7dd3fc;
+  --purple-glow: rgba(56, 189, 248, 0.06);
+  --blue:        #38BDF8;
   --mono:        'Space Mono', monospace;
   --sans:        'Outfit', system-ui, sans-serif;
-  --r:           12px;
+  --r:           8px; /* Clean minimalist radius */
 }
 
 html { font-size: 16px; scroll-behavior: smooth; }
@@ -69,21 +69,21 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
 .header {
   position: sticky; top: 0; z-index: 200;
   height: 60px;
-  background: rgba(2, 4, 8, 0.82);
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
-  border-bottom: 1px solid rgba(0, 240, 255, 0.08);
+  background: rgba(30, 41, 59, 0.85); /* Matches --card */
+  backdrop-filter: blur(32px) saturate(1.2);
+  -webkit-backdrop-filter: blur(32px) saturate(1.2);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
-  box-shadow: 0 1px 0 rgba(0, 240, 255, 0.04), 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .logo {
   font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: .12em; flex-shrink: 0;
   color: var(--text); text-transform: uppercase; transition: all 0.3s ease;
 }
-.logo span { color: var(--purple); text-shadow: 0 0 14px rgba(0, 240, 255, 0.6); }
+.logo span { color: var(--purple); } /* Removed text-shadow glow */
 .logo:hover { letter-spacing: .14em; }
 
 .nav { display: flex; gap: 2px; }
@@ -95,10 +95,9 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
 }
 .nav-link:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); border-color: rgba(255,255,255,0.06); }
 .nav-link.active {
-  background: rgba(0, 240, 255, 0.07);
-  border: 1px solid rgba(0, 240, 255, 0.18);
+  background: rgba(56, 189, 248, 0.08); /* Mapped to Ice Blue */
+  border: 1px solid rgba(56, 189, 248, 0.25);
   color: var(--purple);
-  text-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
 }
 
 /* Right side of header — live pill, win-rate badge, status pills */
@@ -117,11 +116,10 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   color: var(--green);
   letter-spacing: .12em;
   flex-shrink: 0;
-  background: rgba(13, 252, 159, 0.05);
-  border: 1px solid rgba(13, 252, 159, 0.16);
+  background: rgba(52, 211, 153, 0.05); /* Mapped to Soft Mint Green */
+  border: 1px solid rgba(52, 211, 153, 0.15);
   padding: 5px 12px;
   border-radius: 20px;
-  box-shadow: 0 0 12px rgba(13, 252, 159, 0.05);
   transition: all 0.3s ease;
   line-height: 1;
 }
@@ -131,7 +129,7 @@ main, .history-main, .bt-main, .tr-main, .hiw-main {
   height: 6px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 10px var(--green), 0 0 20px rgba(13,252,159,0.3);
+  margin-right: 2px;
   animation: blink 2.2s ease-in-out infinite;
 }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }

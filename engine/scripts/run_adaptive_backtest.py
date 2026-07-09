@@ -271,6 +271,7 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
             )
             
             res_text = llm.complete(prompt, system_prompt, max_tokens=1000, temperature=0.2)
+            print(f"  AI raw response: {res_text}")
             extracted = extract_json(res_text)
             if isinstance(extracted, list):
                 rules = [str(r) for r in extracted]

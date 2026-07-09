@@ -62,6 +62,16 @@ cfg = get_config()
 
 # ── Style parameters ─────────────────────────────────────────────────────────
 STYLE_PARAMS = {
+    "micro_scalp": {
+        "timeframe": "5m",
+        "momentum_lookback": 8,
+        "vol_window": 8,
+        "holding_horizon": 12,   # max 1 hour hold (12 x 5m bars)
+        "warmup": 60,
+        "max_history_days": 57,  # Yahoo Finance caps 5m history at ~60 days
+        "atr_stop_mult": 2.0,
+        "reward_risk": 1.3
+    },
     "scalp": {
         "timeframe": "15m",
         "momentum_lookback": 14,
@@ -169,7 +179,7 @@ def save_trades(trades, instrument: str, style: str, timeframe: str, trades_dir:
     else:
         combined = new_df
     combined.to_parquet(parquet_path, index=False)
-    print(f"      → {len(rows)} trades saved to {parquet_path.name}")
+    print(f"      -> {len(rows)} trades saved to {parquet_path.name}")
 
 def run_one(instrument: str, style: str, start_str: str, end_str: str,
             store: ParquetStore, adapter, use_twelve: bool,
@@ -182,15 +192,15 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
     # Twelve Data free tier doesn't support intraday (15m/1h) for equities.
     # Skip early — swing/position (1d) still work fine via Yahoo daily data.
     is_equity = instrument in list(cfg.data.equities)
-    is_intraday_tf = timeframe in ("15m", "1h")
+    is_intraday_tf = timeframe in ("5m", "15m", "1h")
 
     # For equities on intraday timeframes, Twelve Data free tier doesn't work.
     # Fall back to Yahoo Finance which supports 15m (60 days) and 1h (730 days).
-    YAHOO_INTRADAY_LIMITS = {"15m": 59, "1h": 730}
+    YAHOO_INTRADAY_LIMITS = {"5m": 57, "15m": 59, "1h": 730}
     
     style_start_str = start_str
     if use_twelve and is_equity and is_intraday_tf:
-        print(f"\n    [fallback] equity intraday → Yahoo Finance", end=" ", flush=True)
+        print(f"\n    [fallback] equity intraday -> Yahoo Finance", end=" ", flush=True)
         yahoo_adapter = get_adapter("yahoo")
         max_days = YAHOO_INTRADAY_LIMITS.get(timeframe, 59)
         earliest = now - timedelta(days=max_days)
@@ -251,7 +261,8 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
         regime_method="rule_based",
         timeframe=timeframe,
         bypass_calibration=False,
-        instrument=instrument
+        instrument=instrument,
+        enable_mean_reversion=True,
     )
     strat.fit(pit, df.index)
 
@@ -278,7 +289,7 @@ def main():
     parser.add_argument("--instruments", nargs="*", default=None,
                         help="Override instrument list (space-separated)")
     parser.add_argument("--styles", nargs="*",
-                        default=["scalp", "intraday", "swing", "position"],
+                        default=["micro_scalp", "scalp", "intraday", "swing", "position"],
                         choices=list(STYLE_PARAMS.keys()),
                         help="Styles to run")
     parser.add_argument("--start", type=str, default=None,
@@ -355,7 +366,7 @@ def main():
     print(f"\n{'='*80}")
     print(f"  FULL UNIVERSE BACKTEST")
     print(f"  {len(instruments)} instruments × {len(styles)} styles = {total_combos} backtests")
-    print(f"  Period: {default_start} → {end_str}")
+    print(f"  Period: {default_start} -> {end_str}")
     print(f"  Output: {csv_path}")
     print(f"{'='*80}\n")
 
@@ -363,14 +374,14 @@ def main():
     all_results = []
 
     for inst in instruments:
-        print(f"\n{'─'*60}")
+        print(f"\n{'-'*60}")
         print(f"  Instrument: {inst}")
-        print(f"{'─'*60}")
+        print(f"{'-'*60}")
 
         for style in styles:
             done += 1
             if (inst, style) in completed:
-                print(f"  [{done}/{total_combos}] {inst} / {style.upper()} → SKIPPED (already done)")
+                print(f"  [{done}/{total_combos}] {inst} / {style.upper()} -> SKIPPED (already done)")
                 continue
 
             print(f"  [{done}/{total_combos}] {inst} / {style.upper()} ...", end=" ", flush=True)
@@ -416,7 +427,7 @@ def main():
     print(f"{'='*100}")
     hdr = f"{'Instrument':<14} {'Style':<10} {'TF':<5} {'Trades':>7} {'WinRate':>8} {'Net PnL':>12} {'PF':>6}"
     print(hdr)
-    print("─" * 100)
+    print("-" * 100)
 
     # Sort by net PnL descending
     all_results.sort(key=lambda x: float(x["net_pnl"] or 0), reverse=True)

@@ -27,9 +27,20 @@ class Trade(BaseModel):
     exit_reason: str
 
 
-def compute_metrics(equity: pd.Series, trades: list[Trade], periods_per_year: int = 252) -> dict:
+def compute_metrics(equity, trades: list["Trade"], periods_per_year: int = 252) -> dict:
+    """Compute performance metrics from an equity curve and trade list.
+
+    Args:
+        equity: pd.Series or list of equity values (one per bar).
+        trades: list of Trade objects.
+        periods_per_year: annualisation factor (252 for daily/intraday equities).
+    """
+    # Accept either a plain list (from the backtest engine) or a pd.Series
+    if not isinstance(equity, pd.Series):
+        equity = pd.Series(equity, dtype=float)
+
     if len(equity) < 2:
-        return {"n_trades": len(trades), "insufficient_data": True}
+        return {"n_trades": len(trades), "net_pnl": 0.0, "insufficient_data": True}
 
     rets = equity.pct_change().dropna()
     e0, e1 = float(equity.iloc[0]), float(equity.iloc[-1])
@@ -49,6 +60,7 @@ def compute_metrics(equity: pd.Series, trades: list[Trade], periods_per_year: in
     profit_factor = (sum(wins) / abs(sum(losses))) if losses else (float("inf") if wins else 0.0)
     avg_trade = float(np.mean([t.return_pct for t in trades])) if trades else 0.0
 
+    net_pnl = sum(pnls)
     return {
         "total_return": e1 / e0 - 1,
         "ann_return": ann_return,
@@ -61,6 +73,7 @@ def compute_metrics(equity: pd.Series, trades: list[Trade], periods_per_year: in
         "profit_factor": profit_factor if np.isfinite(profit_factor) else None,
         "avg_trade_return": avg_trade,
         "final_equity": e1,
+        "net_pnl": net_pnl,
     }
 
 
