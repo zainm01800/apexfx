@@ -44,6 +44,28 @@
     }
   },
   {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 5,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 140,
+      "net_pnl": 23256.77558449707,
+      "win_rate": 0.4642857142857143,
+      "profit_factor": 1.3323836790024706
+    },
+    "oos": {
+      "n_trades": 45,
+      "net_pnl": 3517.5007140856806,
+      "win_rate": 0.37777777777777777,
+      "profit_factor": 1.1388848238248201
+    }
+  },
+  {
     "symbol": "ARB/USD",
     "asset_class": "Crypto",
     "timeframe": "1d",
@@ -63,6 +85,28 @@
       "net_pnl": 2762.560043393361,
       "win_rate": 0.5227272727272727,
       "profit_factor": 1.4100091898237905
+    }
+  },
+  {
+    "symbol": "ARKK",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 25,
+      "net_pnl": 3944.888782428035,
+      "win_rate": 0.56,
+      "profit_factor": 1.3568435411465334
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 778.3223796693042,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.2509298357109773
     }
   },
   {
@@ -195,6 +239,28 @@
       "net_pnl": 434.25218448494843,
       "win_rate": 0.5,
       "profit_factor": 1.0637034785736987
+    }
+  },
+  {
+    "symbol": "GLD",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 24,
+      "net_pnl": 3865.623810875814,
+      "win_rate": 0.375,
+      "profit_factor": 1.2615979993870767
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 662.0581841105723,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.147981508415541
     }
   },
   {
@@ -352,6 +418,50 @@
     }
   },
   {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 48,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 73,
+      "net_pnl": 20917.822646995122,
+      "win_rate": 0.4246575342465753,
+      "profit_factor": 1.4285782613010636
+    },
+    "oos": {
+      "n_trades": 23,
+      "net_pnl": 6200.576031148567,
+      "win_rate": 0.43478260869565216,
+      "profit_factor": 1.4573435661040808
+    }
+  },
+  {
+    "symbol": "QQQ",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 5,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 24,
+      "net_pnl": 10381.88873262727,
+      "win_rate": 0.7083333333333334,
+      "profit_factor": 2.4881303883795103
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 135.2339211525607,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.0323448758162004
+    }
+  },
+  {
     "symbol": "QQQ",
     "asset_class": "Equity",
     "timeframe": "1d",
@@ -415,6 +525,28 @@
       "net_pnl": 1206.4154202046348,
       "win_rate": 0.5,
       "profit_factor": 1.0836882767072178
+    }
+  },
+  {
+    "symbol": "SOXX",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 8647.365089954965,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.7916987437878789
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 2470.507909435926,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 1.7983943428981444
     }
   },
   {
@@ -486,6 +618,28 @@
   {
     "symbol": "TSLA",
     "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 73,
+      "net_pnl": 14533.853461927441,
+      "win_rate": 0.4520547945205479,
+      "profit_factor": 1.3381680649531076
+    },
+    "oos": {
+      "n_trades": 23,
+      "net_pnl": 8743.1829869049,
+      "win_rate": 0.5217391304347826,
+      "profit_factor": 1.7521887910741825
+    }
+  },
+  {
+    "symbol": "TSLA",
+    "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
       "momentum_lookback": 10,
@@ -503,6 +657,28 @@
       "net_pnl": 1144.9000804940786,
       "win_rate": 0.5161290322580645,
       "profit_factor": 1.0767054981720496
+    }
+  },
+  {
+    "symbol": "TSM",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 143,
+      "net_pnl": 33348.48747058355,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.384688625748532
+    },
+    "oos": {
+      "n_trades": 46,
+      "net_pnl": 4460.210272486852,
+      "win_rate": 0.45652173913043476,
+      "profit_factor": 1.202443835002137
     }
   },
   {
@@ -547,6 +723,50 @@
       "net_pnl": 2389.8703330053677,
       "win_rate": 0.6,
       "profit_factor": 1.4429411078425922
+    }
+  },
+  {
+    "symbol": "XBI",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 6042.140772489303,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.4295607052637966
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 7103.949287194571,
+      "win_rate": 0.7142857142857143,
+      "profit_factor": 4.16045830372857
+    }
+  },
+  {
+    "symbol": "XLK",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 26,
+      "net_pnl": 16505.916362349144,
+      "win_rate": 0.5769230769230769,
+      "profit_factor": 2.3966877061765914
+    },
+    "oos": {
+      "n_trades": 7,
+      "net_pnl": 1316.7042623844281,
+      "win_rate": 0.42857142857142855,
+      "profit_factor": 1.345069990875305
     }
   },
   {
