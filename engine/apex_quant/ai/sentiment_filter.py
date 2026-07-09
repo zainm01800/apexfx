@@ -86,7 +86,21 @@ def get_news_sentiment_score(
     cfg = cfg or get_config()
 
     # Resolve credentials ---------------------------------------------------
-    key = api_key or cfg.ai.local_llm_key or os.environ.get("DEEPSEEK_API_KEY", "")
+    env_key = ""
+    try:
+        from pathlib import Path
+        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    if k.strip() == "APEX_LOCAL_LLM_KEY":
+                        env_key = v.strip()
+                        break
+    except Exception:
+        pass
+
+    key = api_key or env_key or cfg.ai.local_llm_key or os.environ.get("DEEPSEEK_API_KEY", "")
     url = api_url or cfg.ai.local_llm_url or "https://api.deepseek.com/v1/chat/completions"
     model_name = model or cfg.ai.local_llm_model or "deepseek-chat"
 
