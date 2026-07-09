@@ -1,5 +1,6 @@
 // /api/candles — Vercel serverless function
-// Proxies Yahoo Finance chart API and returns clean OHLCV bars as JSON.
+// Proxies Yahoo Finance chart API (and falls back to OANDA real-time feed for Forex if API key is configured).
+// Returns clean OHLCV bars as JSON.
 // Called by the frontend as: GET /api/candles?sym=AAPL&type=Stock&tf=1d&from=...&to=...
 
 export const config = { runtime: 'edge' };
@@ -15,6 +16,17 @@ const YF_LIMITS = {
   '1d':  { interval: '1d',  max_days: 3649, max_range_days: 3649},
   '1w':  { interval: '1wk', max_days: 3649, max_range_days: 3649},
   '1M':  { interval: '1mo', max_days: 3649, max_range_days: 3649},
+};
+
+const OANDA_TF_MAP = {
+  '1m':  'M1',
+  '5m':  'M5',
+  '15m': 'M15',
+  '30m': 'M30',
+  '1h':  'H1',
+  '4h':  'H4',
+  '1d':  'D',
+  '1w':  'W'
 };
 
 function toYahooTicker(sym, type) {
@@ -90,6 +102,20 @@ async function fetchYahooChunk(ticker, interval, from, to, dp) {
   })).filter(b => b.open && b.high && b.low && b.close);
 }
 
+async function fetchOanda(baseUrl, oandaSymbol, granularity, fromISO, toISO, apiKey) {
+  let oandaUrl = `${baseUrl}/v3/instruments/${oandaSymbol}/candles?granularity=${granularity}&price=M`;
+  if (fromISO) oandaUrl += `&from=${encodeURIComponent(fromISO)}`;
+  if (toISO) oandaUrl += `&to=${encodeURIComponent(toISO)}`;
+
+  return fetch(oandaUrl, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+}
+
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const url = new URL(req.url);
@@ -103,9 +129,9 @@ export default async function handler(req) {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Content-Type': 'application/json',
     // Short-TF data is fresher — cache aggressively for daily+, briefly for intraday
-    'Cache-Control': tf === '1m' ? 's-maxage=30, stale-while-revalidate=60'
-                   : tf === '5m' ? 's-maxage=60, stale-while-revalidate=120'
-                   : ['15m','30m','1h'].includes(tf) ? 's-maxage=120, stale-while-revalidate=300'
+    'Cache-Control': tf === '1m' ? 's-maxage=15, stale-while-revalidate=30'
+                   : tf === '5m' ? 's-maxage=30, stale-while-revalidate=60'
+                   : ['15m','30m','1h'].includes(tf) ? 's-maxage=60, stale-while-revalidate=120'
                    : 's-maxage=300, stale-while-revalidate=600',
   };
 
@@ -120,7 +146,6 @@ export default async function handler(req) {
   const limits   = YF_LIMITS[tf] || YF_LIMITS['1d'];
   const interval = limits.interval;
   const dp       = type === 'Forex' ? 5 : 4;
-  const ticker   = toYahooTicker(sym, type);
 
   const now      = Math.floor(Date.now() / 1000);
   const earliest = now - limits.max_days * 86400;
@@ -130,6 +155,47 @@ export default async function handler(req) {
   reqFrom = Math.max(reqFrom, earliest);
   reqTo   = Math.min(reqTo,   now);
 
+  // ── OANDA REAL-TIME OPTIMIZATION FOR FOREX ──
+  const oandaKey = process.env.APEX_OANDA_API_KEY || '';
+  if (type === 'Forex' && oandaKey) {
+    const oandaSymbol = sym.replace('/', '_').toUpperCase();
+    const granularity = OANDA_TF_MAP[tf] || 'D';
+    const fromISO = new Date(reqFrom * 1000).toISOString();
+    const toISO = new Date(reqTo * 1000).toISOString();
+
+    try {
+      // Try Live first
+      let res = await fetchOanda('https://api-fxtrade.oanda.com', oandaSymbol, granularity, fromISO, toISO, oandaKey);
+      
+      // Fallback to Practice/Demo
+      if (!res.ok && (res.status === 401 || res.status === 403)) {
+        res = await fetchOanda('https://api-fxpractice.oanda.com', oandaSymbol, granularity, fromISO, toISO, oandaKey);
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        const candles = data?.candles || [];
+        
+        let mappedBars = candles.map(c => ({
+          time: Math.floor(new Date(c.time).getTime() / 1000),
+          open: +parseFloat(c.mid.o).toFixed(5),
+          high: +parseFloat(c.mid.h).toFixed(5),
+          low: +parseFloat(c.mid.l).toFixed(5),
+          close: +parseFloat(c.mid.c).toFixed(5),
+          volume: parseInt(c.volume, 10) || 0
+        })).filter(b => b.open && b.high && b.low && b.close);
+
+        if (tf === '4h') mappedBars = aggregateTo4h(mappedBars);
+
+        return new Response(JSON.stringify(mappedBars), { status: 200, headers: corsHeaders });
+      }
+    } catch (err) {
+      // Silent catch: Fall back to Yahoo Finance if OANDA fails
+    }
+  }
+
+  // ── YAHOO FINANCE FALLBACK ──
+  const ticker = toYahooTicker(sym, type);
   const maxChunk = limits.max_range_days * 86400;
 
   try {
@@ -138,7 +204,6 @@ export default async function handler(req) {
     if (reqTo - reqFrom <= maxChunk) {
       allBars = await fetchYahooChunk(ticker, interval, reqFrom, reqTo, dp);
     } else {
-      // Break into chunks — no cap on count, fetch all available history
       const chunks = [];
       let chunkTo = reqTo;
       while (chunkTo > reqFrom) {
@@ -146,7 +211,6 @@ export default async function handler(req) {
         chunks.push({ from: chunkFrom, to: chunkTo });
         chunkTo = chunkFrom - 1;
       }
-      // Fetch in parallel batches of 5 to avoid overwhelming Yahoo
       const results = [];
       for (let i = 0; i < chunks.length; i += 5) {
         const batch = chunks.slice(i, i + 5);
@@ -162,7 +226,6 @@ export default async function handler(req) {
       return new Response(JSON.stringify([]), { status: 200, headers: corsHeaders });
     }
 
-    // Deduplicate and sort
     const seen = new Map();
     allBars.forEach(b => seen.set(b.time, b));
     allBars = [...seen.values()].sort((a, b) => a.time - b.time);
