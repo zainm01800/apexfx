@@ -83,77 +83,148 @@ window.testLocalLlmConnection = async function() {
   statusDiv.className = 'apex-status-badge loading';
   statusDiv.textContent = 'Testing connection...';
   
-  const baseUrl = document.getElementById('apexLocalBaseUrl').value.trim() || 'http://localhost:11434/v1';
+  const rawUrl = document.getElementById('apexLocalBaseUrl').value.trim() || 'http://localhost:11434/v1';
   const model = document.getElementById('apexLocalModel').value.trim() || 'llama3';
   const apiKey = document.getElementById('apexLocalApiKey').value.trim();
   
+  // Clean up URL
+  let baseUrl = rawUrl;
+  if (baseUrl.endsWith('/chat/completions')) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 17);
+  }
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+  }
+  
+  const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+  
   try {
+    let reply = '';
+    
+    if (isLocalhost) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+      
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: 'Connection check. Answer only with OK.' },
+            { role: 'user', content: 'hello' }
+          ],
+          max_tokens: 5,
+          temperature: 0.1
+        })
+      });
+      
+      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+      const data = await res.json();
+      reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content 
+        ? data.choices[0].message.content.trim() 
+        : 'No response text';
+    } else {
+      // Route through Vercel backend proxy to bypass browser CORS constraints
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          useLocalLlm: true,
+          localLlmUrl: `${baseUrl}/chat/completions`,
+          localLlmModel: model,
+          localLlmKey: apiKey,
+          system: 'Connection check. Answer only with OK.',
+          prompt: 'hello',
+          max_tokens: 5,
+          temperature: 0.1
+        })
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP Error ${res.status}`);
+      }
+      
+      const data = await res.json();
+      reply = data.text ? data.text.trim() : 'No response text';
+    }
+      
+    statusDiv.className = 'apex-status-badge success';
+    statusDiv.textContent = `Connected successfully! (Model: ${model}, Reply: "${reply}")`;
+  } catch (err) {
+    statusDiv.className = 'apex-status-badge error';
+    statusDiv.textContent = `Connection failed: ${err.message}. Make sure the URL is correct, the service is online, and API key is valid.`;
+  }
+};
+
+window.callLocalLLM = async function(system, prompt, maxTokens) {
+  const rawUrl = localStorage.getItem('apex_local_llm_base_url') || 'http://localhost:11434/v1';
+  const model = localStorage.getItem('apex_local_llm_model') || 'llama3';
+  const apiKey = localStorage.getItem('apex_local_llm_api_key') || '';
+  
+  let baseUrl = rawUrl;
+  if (baseUrl.endsWith('/chat/completions')) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 17);
+  }
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+  }
+  
+  const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+  
+  if (isLocalhost) {
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
     
-    // Quick test endpoint using chat completions
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: 'system', content: 'Connection check. Answer only with OK.' },
-          { role: 'user', content: 'hello' }
+          { role: 'system', content: system },
+          { role: 'user', content: prompt }
         ],
-        max_tokens: 5,
-        temperature: 0.1
+        temperature: 0.3,
+        max_tokens: maxTokens
       })
     });
     
     if (!res.ok) {
-      throw new Error(`HTTP Error ${res.status}`);
+      throw new Error(`Local LLM API error: HTTP ${res.status}`);
     }
     
     const data = await res.json();
-    const reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content 
-      ? data.choices[0].message.content.trim() 
-      : 'No response text';
-      
-    statusDiv.className = 'apex-status-badge success';
-    statusDiv.textContent = `Connected successfully! (Model: ${model}, Reply: "${reply}")`;
-  } catch (err) {
-    statusDiv.className = 'apex-status-badge error';
-    statusDiv.textContent = `Connection failed: ${err.message}. Make sure Ollama/LM Studio is running and CORS is enabled.`;
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid response format from Local LLM API');
+    }
+    return data.choices[0].message.content || '';
+  } else {
+    // Route cloud external URLs through our backend proxy to bypass browser CORS block
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        useLocalLlm: true,
+        localLlmUrl: `${baseUrl}/chat/completions`,
+        localLlmModel: model,
+        localLlmKey: apiKey,
+        system: system,
+        prompt: prompt,
+        max_tokens: maxTokens,
+        temperature: 0.3
+      })
+    });
+    
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Proxy AI error: HTTP ${res.status}`);
+    }
+    
+    const data = await res.json();
+    return data.text || '';
   }
-};
-
-window.callLocalLLM = async function(system, prompt, maxTokens) {
-  const baseUrl = localStorage.getItem('apex_local_llm_base_url') || 'http://localhost:11434/v1';
-  const model = localStorage.getItem('apex_local_llm_model') || 'llama3';
-  const apiKey = localStorage.getItem('apex_local_llm_api_key') || '';
-  
-  const headers = { 'Content-Type': 'application/json' };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-  
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.3,
-      max_tokens: maxTokens
-    })
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Local LLM API error: HTTP ${res.status}`);
-  }
-  
-  const data = await res.json();
-  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    throw new Error('Invalid response format from Local LLM API');
-  }
-  return data.choices[0].message.content || '';
 };
 
 function injectSettingsModal() {
