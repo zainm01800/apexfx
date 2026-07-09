@@ -1771,14 +1771,17 @@ async function loadPulse(sym, type, elId) {
     if (!r.ok) return;
     const bars = await r.json();
     if (!Array.isArray(bars) || bars.length < 2) return;
-    const el = document.getElementById(elId); if (!el) return;
+    const elements = document.getElementsByClassName(elId);
+    if (!elements.length) return;
     const curr = bars[bars.length - 1].close, prev = bars[bars.length - 2].close;
     const pct = (curr - prev) / prev * 100;
-    el.classList.remove('loading');
-    el.querySelector('.pulse-price').textContent = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
-    const ce = el.querySelector('.pulse-change');
-    ce.textContent = fmtPct(pct); ce.className = `pulse-change ${pct >= 0 ? 'up' : 'down'}`;
-    el.onclick = () => quickPick(sym);
+    for (let el of elements) {
+      el.classList.remove('loading');
+      el.querySelector('.pulse-price').textContent = type === 'Forex' ? curr.toFixed(5) : curr >= 100 ? curr.toFixed(2) : curr.toFixed(4);
+      const ce = el.querySelector('.pulse-change');
+      ce.textContent = fmtPct(pct); ce.className = `pulse-change ${pct >= 0 ? 'up' : 'down'}`;
+      el.onclick = () => quickPick(sym);
+    }
   } catch {}
 }
 function initPulse() {
