@@ -134,6 +134,8 @@ class OandaAdapter(DataAdapter):
 
             logger.info("OANDA Fetching %s (%s) from %s to %s", instrument, timeframe, start_iso, end_iso)
             try:
+                import time
+                time.sleep(0.40)  # Throttling delay to prevent rate-limit blocks
                 data = self._fetch_chunk(ticker, start_iso, end_iso, granularity)
             except Exception as e:
                 logger.error("OANDA fetch chunk failed: %s", e)
