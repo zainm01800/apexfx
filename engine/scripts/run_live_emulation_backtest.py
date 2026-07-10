@@ -213,8 +213,16 @@ def main():
                         ts = ts.tz_localize(None)
                         
                     row_features = {}
-                    if ts in features_df.index:
-                        row_features = features_df.loc[ts].to_dict()
+                    if not features_df.empty:
+                        # Normalize timezones
+                        if features_df.index.tz is not None and ts.tzinfo is None:
+                            ts = ts.tz_localize("UTC")
+                        elif features_df.index.tz is None and ts.tzinfo is not None:
+                            ts = ts.tz_localize(None)
+                        
+                        idx_pos = features_df.index.get_indexer([ts], method="pad")[0]
+                        if idx_pos != -1:
+                            row_features = features_df.iloc[idx_pos].to_dict()
                         
                     # Get similar lessons
                     similar_lessons = get_similar_lessons(inst, t.direction, lessons_pool, limit=3)
