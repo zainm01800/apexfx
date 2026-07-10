@@ -35,6 +35,25 @@ headers = {
     "Content-Type": "application/json"
 }
 
+def calculate_portfolio_metrics(trades: list) -> dict:
+    if not trades:
+        return {"n_trades": 0, "win_rate": 0.0, "net_pnl": 0.0, "profit_factor": 0.0}
+    
+    pnls = [t.pnl for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p < 0]
+    
+    win_rate = len(wins) / len(trades)
+    net_pnl = sum(pnls)
+    profit_factor = (sum(wins) / abs(sum(losses))) if losses else (float("inf") if wins else 0.0)
+    
+    return {
+        "n_trades": len(trades),
+        "win_rate": win_rate,
+        "net_pnl": net_pnl,
+        "profit_factor": profit_factor if np.isfinite(profit_factor) else None,
+    }
+
 def fetch_lessons_pool():
     print("Loading AI lessons pool from Supabase...")
     try:
