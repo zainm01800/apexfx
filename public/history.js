@@ -36,9 +36,21 @@ const _STYLE_TF = { scalp: '15m chart', intraday: '1h chart', swing: 'daily char
 function tradeStyleOf(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
-  if (!f || !f.style) return null;
-  const s = String(f.style);
-  return { label: s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(), tf: _STYLE_TF[s.toLowerCase()] || '' };
+  let styleName = null;
+  if (f && f.style) {
+    styleName = String(f.style).toLowerCase();
+  } else if (row && row.timeframe) {
+    const tf = String(row.timeframe).toLowerCase();
+    if (tf === '15m' || tf === '5m') styleName = 'scalp';
+    else if (tf === '1h' || tf === '4h') styleName = 'intraday';
+    else if (tf === '1d') styleName = 'swing';
+    else if (tf === '1w') styleName = 'position';
+  }
+  if (!styleName) return null;
+  return { 
+    label: styleName.charAt(0).toUpperCase() + styleName.slice(1), 
+    tf: _STYLE_TF[styleName] || '' 
+  };
 }
 
 // key_reasons is persisted as a JSON string; tolerate array / string / null.
@@ -233,12 +245,12 @@ function verdictDir(v) {
   return 'neutral';
 }
 
-function outcomeLabel(o) {
+function outcomeLabel(o, row) {
   switch (o) {
     case 'tp_hit':  return '✅ TP Hit';
     case 'sl_hit':  return '❌ SL Hit';
     case 'expired': return '⏱ Expired';
-    case 'invalidated': return '❌ Closed Early';
+    case 'invalidated': return (row && row.filled_at) ? '❌ Closed Early' : '❌ Cancelled Setup';
     default:        return '⏳ Pending';
   }
 }
@@ -523,7 +535,7 @@ function buildLifeline(row) {
     const endCls = row.outcome === 'tp_hit' ? 'win' : row.outcome === 'sl_hit' ? 'loss' : 'neutral';
     steps.push({
       icon: row.outcome === 'tp_hit' ? '🎯' : row.outcome === 'sl_hit' ? '🛑' : '⏱',
-      label: outcomeLabel(row.outcome).replace(/^\S+\s/, ''),   // drop the emoji baked into outcomeLabel
+      label: outcomeLabel(row.outcome, row).replace(/^\S+\s/, ''),   // drop the emoji baked into outcomeLabel
       time: row.outcome_date ? fmtOutcomeDateTime(row.outcome_date) : '',
       cls: endCls,
     });
@@ -581,7 +593,7 @@ function renderTrailRow(scan, prevOlder) {
       <span class="tr-conf">${scan.confidence != null ? scan.confidence + '%' : '—'}${delta}</span>
       <span class="tr-px">@ ${fmtPrice(scan.price)}</span>
       <span class="tr-tgt">T ${scan.target_price ? fmtPrice(scan.target_price) : '—'} / S ${scan.stop_loss ? fmtPrice(scan.stop_loss) : '—'}</span>
-      <span class="tr-outcome ${scan.outcome || 'pending'}">${outcomeLabel(scan.outcome)}</span>
+      <span class="tr-outcome ${scan.outcome || 'pending'}">${outcomeLabel(scan.outcome, scan)}</span>
     </div>`;
 }
 
@@ -673,7 +685,7 @@ function renderCard(g) {
 
       <div class="sc-price-row">
         <span class="sc-price">@ $${fmtPrice(row.price)}</span>
-        <span class="sc-outcome ${row.outcome || 'pending'}" title="${row.outcome_date ? 'Resolved: ' + fmtOutcomeDateTime(row.outcome_date) : ''}">${outcomeLabel(row.outcome)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
+        <span class="sc-outcome ${row.outcome || 'pending'}" title="${row.outcome_date ? 'Resolved: ' + fmtOutcomeDateTime(row.outcome_date) : ''}">${outcomeLabel(row.outcome, row)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
       </div>
 
       ${lifeline}
@@ -824,7 +836,7 @@ function openPreview(id) {
     <div class="pv-verdict-row">
       <span class="pv-verdict ${vc}">${vDisplay}</span>
       <span class="pv-conf">${row.confidence != null ? row.confidence + '%' : '—'} confidence</span>
-      <span class="pv-outcome ${outcomeCls}">${outcomeLabel(row.outcome)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
+      <span class="pv-outcome ${outcomeCls}">${outcomeLabel(row.outcome, row)}${(row.outcome && row.outcome !== 'pending' && row.outcome_date) ? `<span class="sc-outcome-time">${escHtml(fmtOutcomeDateTime(row.outcome_date))}</span>` : ''}</span>
     </div>
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
