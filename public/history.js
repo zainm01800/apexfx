@@ -28,7 +28,9 @@ function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] =
 function isAuto(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
-  return !!(f && f.auto);
+  if (f && f.auto) return true;
+  if (row && row.summary && row.summary.includes('Automated')) return true;
+  return false;
 }
 
 // Trade style the scan was run for (Scalp/Intraday/Swing/Position), from setup_features.
