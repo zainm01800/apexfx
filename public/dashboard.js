@@ -686,10 +686,10 @@ function updateStyleLagNotice() {
 // calls for no new information). A DIFFERENT symbol can always be run right away.
 // Windows roughly match how long each style's setup takes to actually play out.
 const COOLDOWN_MS = {
-  scalp:    10 * 1000,           // 10 seconds (down from 5 min)
-  intraday: 30 * 1000,           // 30 seconds (down from 30 min)
-  swing:    60 * 1000,           // 1 minute (down from 4 hours)
-  position: 60 * 1000,           // 1 minute (down from 24 hours)
+  scalp:    5  * 60 * 1000,
+  intraday: 30 * 60 * 1000,
+  swing:    4  * 60 * 60 * 1000,
+  position: 24 * 60 * 60 * 1000,
 };
 const _cdKey = (sym) => `apex_lastscan_${String(sym).toUpperCase()}`;
 function cooldownRemainingMs(sym) {
