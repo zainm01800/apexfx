@@ -43,10 +43,15 @@ function tradeStyleOf(row) {
     styleName = String(f.style).toLowerCase();
   } else if (row && row.timeframe) {
     const tf = String(row.timeframe).toLowerCase();
-    if (tf === '15m' || tf === '5m') styleName = 'scalp';
-    else if (tf === '1h' || tf === '4h') styleName = 'intraday';
-    else if (tf === '1d') styleName = 'swing';
-    else if (tf === '1w') styleName = 'position';
+    if (tf.includes('15m') || tf.includes('5m') || tf.includes('min') || tf.includes('scalp')) {
+      styleName = 'scalp';
+    } else if (tf.includes('1h') || tf.includes('4h') || tf.includes('hour') || tf.includes('intraday') || tf.includes('hour')) {
+      styleName = 'intraday';
+    } else if (tf.includes('1d') || tf.includes('day') || tf.includes('swing')) {
+      styleName = 'swing';
+    } else if (tf.includes('1w') || tf.includes('week') || tf.includes('position')) {
+      styleName = 'position';
+    }
   }
   if (!styleName) return null;
   return { 
@@ -714,6 +719,9 @@ function renderCard(g) {
         <button class="sc-btn sc-btn-preview" data-action="preview" data-id="${escHtml(row.id)}" title="See the full analysis behind this call">
           👁 Preview
         </button>
+        <a class="sc-btn" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(row.symbol.replace('/', ''))}" target="_blank" rel="noopener noreferrer" style="border-color: rgba(255,255,255,0.15); color: var(--gray-400);" title="Open this symbol's live chart in TradingView">
+          📈 TradingView
+        </a>
       </div>
     </div>
   `;
