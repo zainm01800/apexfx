@@ -237,6 +237,43 @@ def main():
                 print(f"  MATH-ONLY (No AI): {blind_metrics['n_trades']} trades | WR: {blind_metrics['win_rate']:.1%} | Net PnL: ${blind_metrics['net_pnl']:.2f} | PF: {blind_metrics['profit_factor'] or 'N/A'}")
                 print(f"  AI-EMULATED      : {ai_metrics['n_trades']} trades | WR: {ai_metrics['win_rate']:.1%} | Net PnL: ${ai_metrics['net_pnl']:.2f} | PF: {ai_metrics['profit_factor'] or 'N/A'} (Vetoed: {vetoed_count} setups)")
                 
+                # Save to CSV
+                csv_dir = ENGINE_DIR / "data_store"
+                csv_dir.mkdir(parents=True, exist_ok=True)
+                csv_file_path = csv_dir / "adaptive_emulation_results.csv"
+                
+                import csv
+                csv_exists = csv_file_path.exists()
+                with open(csv_file_path, "a", newline="", encoding="utf-8") as f:
+                    fieldnames = [
+                        "instrument", "style", "timeframe", "start_date",
+                        "blind_trades", "blind_win_rate", "blind_pnl", "blind_pf",
+                        "ai_trades", "ai_win_rate", "ai_pnl", "ai_pf",
+                        "vetoed_setups", "pnl_improvement", "run_at"
+                    ]
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    if not csv_exists:
+                        writer.writeheader()
+                        
+                    writer.writerow({
+                        "instrument": inst,
+                        "style": style,
+                        "timeframe": tf,
+                        "start_date": args.start,
+                        "blind_trades": blind_metrics["n_trades"],
+                        "blind_win_rate": f"{blind_metrics['win_rate']:.1%}",
+                        "blind_pnl": f"{blind_metrics['net_pnl']:.2f}",
+                        "blind_pf": f"{blind_metrics['profit_factor'] or 'N/A'}",
+                        "ai_trades": ai_metrics["n_trades"],
+                        "ai_win_rate": f"{ai_metrics['win_rate']:.1%}",
+                        "ai_pnl": f"{ai_metrics['net_pnl']:.2f}",
+                        "ai_pf": f"{ai_metrics['profit_factor'] or 'N/A'}",
+                        "vetoed_setups": vetoed_count,
+                        "pnl_improvement": f"{(ai_metrics['net_pnl'] - blind_metrics['net_pnl']):.2f}",
+                        "run_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                print(f"  ✓ Saved results to {csv_file_path.relative_to(ENGINE_DIR)}")
+                
             except Exception as e:
                 print(f"Error backtesting {inst} / {style}: {e}")
 
