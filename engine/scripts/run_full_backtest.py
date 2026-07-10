@@ -209,7 +209,18 @@ def run_one(instrument: str, style: str, start_str: str, end_str: str,
     YAHOO_INTRADAY_LIMITS = {"5m": 57, "15m": 59, "1h": 730}
     
     style_start_str = start_str
-    if use_twelve and is_equity and is_intraday_tf:
+    if is_equity:
+        print(f"\n    [fallback] equity -> Yahoo Finance", end=" ", flush=True)
+        yahoo_adapter = get_adapter("yahoo")
+        if is_intraday_tf:
+            max_days = YAHOO_INTRADAY_LIMITS.get(timeframe, 59)
+            earliest = now - timedelta(days=max_days)
+            start_dt = datetime.strptime(style_start_str, "%Y-%m-%d")
+            if start_dt < earliest:
+                style_start_str = (earliest + timedelta(days=2)).strftime("%Y-%m-%d")
+        active_adapter = yahoo_adapter
+        need_sleep = False
+    elif use_twelve and is_intraday_tf:
         print(f"\n    [fallback] equity intraday -> Yahoo Finance", end=" ", flush=True)
         yahoo_adapter = get_adapter("yahoo")
         max_days = YAHOO_INTRADAY_LIMITS.get(timeframe, 59)
