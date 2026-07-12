@@ -27,17 +27,18 @@ function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] =
 // setup_features.auto). Used to keep the user's personal track record separate from
 // the bot's data-accumulation scans.
 function isWithinTradingHours(row) {
-  const dateStr = row.scanned_at || row.created_at;
-  if (!dateStr) return true;
-  const date = new Date(dateStr);
+  const t = rowTs(row);
+  if (!t) return true;
+  const date = new Date(t);
   const day = date.getUTCDay();
   const isWeekend = (day === 0 || day === 6);
-  const assetClass = (row.asset_class || '').toLowerCase();
+  const assetType = (row.asset_type || '').toLowerCase();
   
-  if (assetClass === 'crypto') return true;
+  if (assetType === 'crypto') return true;
   if (isWeekend) return false;
-  if (assetClass === 'forex') return true;
+  if (assetType === 'forex') return true;
   
+  // Standard market hours (13:30 - 20:00 UTC) for Stocks, ETFs, Futures, etc.
   const hour = date.getUTCHours();
   const min = date.getUTCMinutes();
   const timeInMin = hour * 60 + min;
@@ -48,9 +49,9 @@ function isWithinTradingHours(row) {
 }
 
 function isWithinLondonNY(row) {
-  const dateStr = row.scanned_at || row.created_at;
-  if (!dateStr) return true;
-  const date = new Date(dateStr);
+  const t = rowTs(row);
+  if (!t) return true;
+  const date = new Date(t);
   const day = date.getUTCDay();
   if (day === 0 || day === 6) return false;
   
