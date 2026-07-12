@@ -786,8 +786,6 @@ function applyFilters(groups) {
       if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
       if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
     }
-    if (_filterHours === 'market' && !isWithinTradingHours(row)) return false;
-    if (_filterHours === 'session' && !isWithinLondonNY(row)) return false;
     return true;
   });
 }
@@ -808,12 +806,6 @@ function renderGrid(resetCount = true) {
   const groups = applyFilters(buildGroups(_allRows));
 
   let displayGroups = groups;
-  if (_scoreLimit !== 'all') {
-    const limit = parseInt(_scoreLimit, 10);
-    if (isFinite(limit) && limit > 0) {
-      displayGroups = groups.slice(0, limit);
-    }
-  }
 
   if (!displayGroups.length) {
     grid.innerHTML = '';
