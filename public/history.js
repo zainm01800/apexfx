@@ -963,6 +963,8 @@ function getFilteredRowsForSummary() {
       if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
       if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
     }
+    if (_filterHours === 'market' && !isWithinTradingHours(row)) return false;
+    if (_filterHours === 'session' && !isWithinLondonNY(row)) return false;
     return true;
   });
 }
