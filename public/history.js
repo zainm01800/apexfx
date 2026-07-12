@@ -19,12 +19,46 @@ let _filterSym     = '';
 let _filterDir     = 'all';
 let _filterManual  = false;
 let _filterTimeframe = 'all';
+let _filterHours     = 'all';
+let _filterLimit     = 'all';
 
 function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] = r; }
 
 // A row is "auto" when the nightly auto-scan workflow generated it (tagged in
 // setup_features.auto). Used to keep the user's personal track record separate from
 // the bot's data-accumulation scans.
+function isWithinTradingHours(row) {
+  const dateStr = row.scanned_at || row.created_at;
+  if (!dateStr) return true;
+  const date = new Date(dateStr);
+  const day = date.getUTCDay();
+  const isWeekend = (day === 0 || day === 6);
+  const assetClass = (row.asset_class || '').toLowerCase();
+  
+  if (assetClass === 'crypto') return true;
+  if (isWeekend) return false;
+  if (assetClass === 'forex') return true;
+  
+  const hour = date.getUTCHours();
+  const min = date.getUTCMinutes();
+  const timeInMin = hour * 60 + min;
+  const openTime = 13 * 60 + 30; // 13:30 UTC
+  const closeTime = 20 * 60;     // 20:00 UTC
+  
+  return (timeInMin >= openTime && timeInMin <= closeTime);
+}
+
+function isWithinLondonNY(row) {
+  const dateStr = row.scanned_at || row.created_at;
+  if (!dateStr) return true;
+  const date = new Date(dateStr);
+  const day = date.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  
+  const hour = date.getUTCHours();
+  return (hour >= 8 && hour < 21);
+}
+
 function isAuto(row) {
   let f = row && row.setup_features;
   if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
@@ -753,6 +787,8 @@ function applyFilters(groups) {
       if (_filterTimeframe === 'month' && ts < now - monthMs) return false;
       if (_filterTimeframe === 'year' && ts < now - yearMs) return false;
     }
+    if (_filterHours === 'market' && !isWithinTradingHours(row)) return false;
+    if (_filterHours === 'session' && !isWithinLondonNY(row)) return false;
     return true;
   });
 }
@@ -772,7 +808,15 @@ function renderGrid(resetCount = true) {
   
   const groups = applyFilters(buildGroups(_allRows));
 
-  if (!groups.length) {
+  let displayGroups = groups;
+  if (_filterLimit !== 'all') {
+    const limit = parseInt(_filterLimit, 10);
+    if (isFinite(limit) && limit > 0) {
+      displayGroups = groups.slice(0, limit);
+    }
+  }
+
+  if (!displayGroups.length) {
     grid.innerHTML = '';
     empty.style.display = 'block';
     const lm = document.getElementById('loadMoreContainer');
@@ -781,10 +825,10 @@ function renderGrid(resetCount = true) {
   }
   empty.style.display = 'none';
   
-  const visibleGroups = groups.slice(0, _visibleCardCount);
+  const visibleGroups = displayGroups.slice(0, _visibleCardCount);
   grid.innerHTML = visibleGroups.map(renderCard).join('');
   
-  const hasMore = groups.length > _visibleCardCount;
+  const hasMore = displayGroups.length > _visibleCardCount;
   let lm = document.getElementById('loadMoreContainer');
   if (hasMore) {
     if (!lm) {
@@ -793,7 +837,7 @@ function renderGrid(resetCount = true) {
       lm.style.cssText = 'display: flex; justify-content: center; margin: 30px 0; width: 100%;';
       grid.parentNode.insertBefore(lm, grid.nextSibling);
     }
-    lm.innerHTML = `<button class="acc-scope-btn" onclick="loadMoreCards()" style="padding: 10px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s;">Load More (${groups.length - _visibleCardCount} remaining)</button>`;
+    lm.innerHTML = `<button class="acc-scope-btn" onclick="loadMoreCards()" style="padding: 10px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s;">Load More (${displayGroups.length - _visibleCardCount} remaining)</button>`;
   } else {
     if (lm) lm.remove();
   }
@@ -1021,6 +1065,52 @@ function initFilters() {
       } else {
         manualBtn.classList.remove('active');
         manualBtn.textContent = 'All scans';
+      }
+      renderGrid();
+    });
+  }
+
+  document.querySelectorAll('[data-hours]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-hours]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _filterHours = btn.dataset.hours;
+      renderGrid();
+    });
+  });
+
+  const customLimitInput = document.getElementById('gridCustomInput');
+
+  document.querySelectorAll('[data-limit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-limit]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _filterLimit = btn.dataset.limit;
+      if (customLimitInput) {
+        customLimitInput.value = '';
+        customLimitInput.parentNode.style.borderColor = 'var(--border)';
+        customLimitInput.parentNode.style.boxShadow = 'none';
+      }
+      renderGrid();
+    });
+  });
+
+  if (customLimitInput) {
+    customLimitInput.addEventListener('input', () => {
+      const val = parseInt(customLimitInput.value, 10);
+      if (isFinite(val) && val > 0) {
+        _filterLimit = String(val);
+        document.querySelectorAll('[data-limit]').forEach(b => b.classList.remove('active'));
+        customLimitInput.parentNode.style.borderColor = 'var(--blue)';
+        customLimitInput.parentNode.style.boxShadow = '0 0 6px rgba(59, 130, 246, 0.3)';
+      } else {
+        _filterLimit = 'all';
+        document.querySelectorAll('[data-limit]').forEach(b => {
+          if (b.dataset.limit === 'all') b.classList.add('active');
+          else b.classList.remove('active');
+        });
+        customLimitInput.parentNode.style.borderColor = 'var(--border)';
+        customLimitInput.parentNode.style.boxShadow = 'none';
       }
       renderGrid();
     });
