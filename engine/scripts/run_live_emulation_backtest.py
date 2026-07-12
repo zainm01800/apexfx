@@ -93,7 +93,7 @@ def get_similar_lessons(symbol, verdict, pool, limit=3):
 
 def ask_ai_to_veto(inst, verdict, row_features, lessons, llm):
     # Format features
-    feat_str = ", ".join([f"{k}: {v:.2f}" for k, v in row_features.items() if np.isfinite(v)])
+    feat_str = ", ".join([f"{k}: {v:.5f}" for k, v in row_features.items() if np.isfinite(v)])
     
     # Format lessons
     lessons_str = ""
@@ -106,12 +106,20 @@ We are considering executing a new {verdict} trade on {inst}.
 Current Market Indicators:
 {feat_str}
 
+Indicator Glossary & Context:
+- mom_X: Price return over the last X periods. A negative value represents a recent pullback/dip, which is common and expected for pullback entry strategies.
+- mom_vs_X: Normalized momentum relative to volatility.
+- rvol_X / pvol_X: Realised/Parkinson historical volatility.
+- trend_slope_X: Slope of the major trend. Positive values indicate an overall upward structural trend bias (bullish structure).
+- dist_ma_X: Distance from the major moving average. A negative value indicates price is trading below its MA (confirming a pullback/discount entry).
+
 Here are relevant lessons from past resolved trades:
 {lessons_str}
 
-DIRECTIVE: Act as a cynical hedge fund risk manager. Review the current market indicators against the lessons from similar past trades. 
-Determine if this setup is a high-risk trap (e.g. buying a falling knife in strong distribution, entering a low-momentum flat market, or ignoring overhead resistance).
-If it is high risk, reply with VETO. Otherwise, reply with ALLOW.
+DIRECTIVE: Act as a hedge fund risk manager. Evaluate whether this setup is a high-risk trap or a valid entry.
+Since this is Forex/Crypto, the market is naturally mean-reverting and range-bound. Do NOT veto simply because trend slope is near zero or short-term momentum is slightly negative—these are normal attributes of range-bound markets and pullback setups.
+VETO only if there is a severe risk (e.g. trading directly into major opposing support/resistance, extremely high volatility expansion against the trade, or extreme parabolic momentum being faded without breakdown).
+Otherwise, ALLOW the trade. We want to reject only the worst 15-20% of high-risk traps, not filter out standard valid entries.
 
 Return ONLY a strict JSON object:
 {{
@@ -119,7 +127,7 @@ Return ONLY a strict JSON object:
   "reason": "1-sentence explanation of your assessment"
 }}
 """
-    system = "You are a cynical risk manager. Reply only with valid JSON containing 'verdict' and 'reason'."
+    system = "You are a pragmatic risk manager. Reply only with valid JSON containing 'verdict' and 'reason'."
     
     try:
         resp = llm.complete(prompt, system=system, temperature=0.1, max_tokens=300)
