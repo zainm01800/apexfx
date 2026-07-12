@@ -20,7 +20,6 @@ let _filterDir     = 'all';
 let _filterManual  = false;
 let _filterTimeframe = 'all';
 let _filterHours     = 'all';
-let _filterLimit     = 'all';
 
 function indexRows() { _rowById = {}; for (const r of _allRows) _rowById[r.id] = r; }
 
@@ -809,8 +808,8 @@ function renderGrid(resetCount = true) {
   const groups = applyFilters(buildGroups(_allRows));
 
   let displayGroups = groups;
-  if (_filterLimit !== 'all') {
-    const limit = parseInt(_filterLimit, 10);
+  if (_scoreLimit !== 'all') {
+    const limit = parseInt(_scoreLimit, 10);
     if (isFinite(limit) && limit > 0) {
       displayGroups = groups.slice(0, limit);
     }
@@ -1070,51 +1069,7 @@ function initFilters() {
     });
   }
 
-  document.querySelectorAll('[data-hours]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-hours]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      _filterHours = btn.dataset.hours;
-      renderGrid();
-    });
-  });
 
-  const customLimitInput = document.getElementById('gridCustomInput');
-
-  document.querySelectorAll('[data-limit]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-limit]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      _filterLimit = btn.dataset.limit;
-      if (customLimitInput) {
-        customLimitInput.value = '';
-        customLimitInput.parentNode.style.borderColor = 'var(--border)';
-        customLimitInput.parentNode.style.boxShadow = 'none';
-      }
-      renderGrid();
-    });
-  });
-
-  if (customLimitInput) {
-    customLimitInput.addEventListener('input', () => {
-      const val = parseInt(customLimitInput.value, 10);
-      if (isFinite(val) && val > 0) {
-        _filterLimit = String(val);
-        document.querySelectorAll('[data-limit]').forEach(b => b.classList.remove('active'));
-        customLimitInput.parentNode.style.borderColor = 'var(--blue)';
-        customLimitInput.parentNode.style.boxShadow = '0 0 6px rgba(59, 130, 246, 0.3)';
-      } else {
-        _filterLimit = 'all';
-        document.querySelectorAll('[data-limit]').forEach(b => {
-          if (b.dataset.limit === 'all') b.classList.add('active');
-          else b.classList.remove('active');
-        });
-        customLimitInput.parentNode.style.borderColor = 'var(--border)';
-        customLimitInput.parentNode.style.boxShadow = 'none';
-      }
-      renderGrid();
-    });
-  }
 
   const searchEl = document.getElementById('hfSearch');
   if (searchEl) {
@@ -1268,8 +1223,9 @@ function accStat(label, value, sub, cls) {
 // 'mine' = only the user's own calls (auto-scan rows excluded).
 let _scoreScope = 'all';
 let _scoreLimit = 'all';
-window.setScoreScope = function(s) { _scoreScope = s; renderScoreboard(); };
-window.setScoreLimit = function(l) { _scoreLimit = l; renderScoreboard(); };
+window.setScoreScope = function(s) { _scoreScope = s; renderGrid(false); };
+window.setScoreLimit = function(l) { _scoreLimit = l; renderGrid(false); };
+window.setScoreHours = function(h) { _filterHours = h; renderGrid(false); };
 window.setCustomScoreLimit = function(val) {
   const limit = parseInt(val, 10);
   if (limit > 0) {
@@ -1277,12 +1233,18 @@ window.setCustomScoreLimit = function(val) {
   } else {
     _scoreLimit = 'all';
   }
-  renderScoreboard();
+  renderGrid(false);
 };
 
 function renderScoreboard() {
   const el = document.getElementById('accBoard');
   if (!el) return;
+
+  // Track active element and cursor position/selections to prevent losing input focus
+  const activeId = document.activeElement ? document.activeElement.id : null;
+  const selStart = document.activeElement ? document.activeElement.selectionStart : null;
+  const selEnd = document.activeElement ? document.activeElement.selectionEnd : null;
+
   const summaryRows = getFilteredRowsForSummary();
   const autoN  = summaryRows.filter(isAuto).length;
   const scoped = _scoreScope === 'mine' ? summaryRows.filter(r => !isAuto(r)) : summaryRows;
@@ -1308,10 +1270,15 @@ function renderScoreboard() {
         <div style="display: flex; align-items: center; margin-left: 4px; border: 1px solid ${isCustomActive ? 'var(--blue)' : 'var(--border)'}; border-radius: 4px; padding: 2px 6px; background: var(--bg2); height: 26px; box-sizing: border-box; ${isCustomActive ? 'box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);' : ''}">
           <span style="font-size: 11px; color: var(--text3); margin-right: 4px;">Custom:</span>
           <input type="number" id="scoreCustomInput" placeholder="X" min="1" max="1000" 
-                 value="${isCustomActive ? _scoreLimit : ''}" 
-                 onchange="setCustomScoreLimit(this.value)" 
+                 value="${_scoreLimit !== 'all' ? _scoreLimit : ''}" 
+                 oninput="setCustomScoreLimit(this.value)" 
                  style="width: 48px; background: transparent; border: none; color: var(--text); font-size: 11px; outline: none; font-weight: 600; text-align: center;" />
         </div>
+      </div>
+      <div class="acc-scope">
+        <button class="acc-scope-btn ${_filterHours === 'all' ? 'active' : ''}" onclick="setScoreHours('all')" title="All hours">All Hours ⏰</button>
+        <button class="acc-scope-btn ${_filterHours === 'market' ? 'active' : ''}" onclick="setScoreHours('market')" title="Market Hours (Monday-Friday standard stock and Forex sessions)">Market Hours 🟢</button>
+        <button class="acc-scope-btn ${_filterHours === 'session' ? 'active' : ''}" onclick="setScoreHours('session')" title="London & NY Session Volatility Window (08:00 - 21:00 UTC)">London/NY ⚡</button>
       </div>
     </div>
   `;
@@ -1408,6 +1375,17 @@ function renderScoreboard() {
       When Z.FX says <strong>80%+ confidence</strong> →
       ${a.hiConfN ? `<strong>${a.hiConfAcc}% accuracy</strong> across ${a.hiConfN} resolved high-conviction call${a.hiConfN === 1 ? '' : 's'}` : 'no resolved 80%+ calls yet'}
     </div>`;
+
+  // Restore focus if it was active to prevent losing cursor position in custom input field
+  if (activeId) {
+    const activeEl = document.getElementById(activeId);
+    if (activeEl) {
+      activeEl.focus();
+      if (selStart !== null && selEnd !== null && typeof activeEl.setSelectionRange === 'function') {
+        try { activeEl.setSelectionRange(selStart, selEnd); } catch (e) {}
+      }
+    }
+  }
 }
 
 // ── View toggle (Scans ⟷ Watchlist) ─────────────────────────────────────────
