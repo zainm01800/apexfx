@@ -95,6 +95,25 @@ def ask_ai_to_veto(inst, verdict, row_features, lessons, llm):
     # Format features
     feat_str = ", ".join([f"{k}: {v:.5f}" for k, v in row_features.items() if np.isfinite(v)])
     
+    # Calculate risk flags dynamically based on the style features
+    mom = next((v for k, v in row_features.items() if k.startswith("mom_") and not k.startswith("mom_vs_")), 0.0)
+    rvol = next((v for k, v in row_features.items() if k.startswith("rvol_")), 0.05)
+    trend_slope = next((v for k, v in row_features.items() if k.startswith("trend_slope_")), 0.0)
+    dist_ma = next((v for k, v in row_features.items() if k.startswith("dist_ma_")), 0.0)
+    
+    is_counter_trend = (verdict == "BUY" and trend_slope < -0.00001) or (verdict == "SELL" and trend_slope > 0.00001)
+    is_dead_range_chop = abs(trend_slope) < 0.00002 and rvol < 0.02
+    is_volatility_spike = rvol > 0.25
+    is_overextended_dump = (verdict == "BUY" and dist_ma < -2.0 and mom < -0.015) or (verdict == "SELL" and dist_ma > 2.0 and mom > 0.015)
+    
+    flags = {
+        "is_counter_trend": is_counter_trend,
+        "is_dead_range_chop": is_dead_range_chop,
+        "is_volatility_spike": is_volatility_spike,
+        "is_overextended_dump": is_overextended_dump
+    }
+    flags_str = "\n".join([f"- {k}: {v}" for k, v in flags.items()])
+    
     # Format lessons
     lessons_str = ""
     for idx, l in enumerate(lessons):
@@ -106,6 +125,9 @@ We are considering executing a new {verdict} trade on {inst}.
 Current Market Indicators:
 {feat_str}
 
+Pre-Calculated Risk Flags:
+{flags_str}
+
 Indicator Glossary & Context:
 - mom_X: Price return over the last X periods. A negative value represents a recent pullback/dip, which is common and expected for pullback entry strategies.
 - mom_vs_X: Normalized momentum relative to volatility.
@@ -116,15 +138,18 @@ Indicator Glossary & Context:
 Here are relevant lessons from past resolved trades:
 {lessons_str}
 
-DIRECTIVE: Act as a hedge fund risk manager. Evaluate whether this setup is a high-risk trap or a valid entry.
-Since this is Forex/Crypto, the market is naturally mean-reverting and range-bound. Do NOT veto simply because trend slope is near zero or short-term momentum is slightly negative—these are normal attributes of range-bound markets and pullback setups.
-VETO only if there is a severe risk (e.g. trading directly into major opposing support/resistance, extremely high volatility expansion against the trade, or extreme parabolic momentum being faded without breakdown).
-Otherwise, ALLOW the trade. We want to reject only the worst 15-20% of high-risk traps, not filter out standard valid entries.
+DIRECTIVE: Act as a hedge fund risk manager. You must VETO this trade if any of the Pre-Calculated Risk Flags are True:
+- is_counter_trend: True (the trade goes against the major trend direction)
+- is_dead_range_chop: True (the market is flat and illiquid, meaning signals are random noise)
+- is_volatility_spike: True (volatility is too high, indicating extreme risk)
+- is_overextended_dump: True (the price is falling too fast like a falling knife, showing structural weakness)
+
+Otherwise, ALLOW the trade. Do not veto healthy setups where all risk flags are False.
 
 Return ONLY a strict JSON object:
 {{
   "verdict": "VETO" or "ALLOW",
-  "reason": "1-sentence explanation of your assessment"
+  "reason": "1-sentence explanation of your assessment referring to the specific risk flag"
 }}
 """
     system = "You are a pragmatic risk manager. Reply only with valid JSON containing 'verdict' and 'reason'."
