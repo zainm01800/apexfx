@@ -977,13 +977,16 @@ def scan_single_asset(item, active_trades_map):
         latest_time_utc = latest_time.tz_convert("UTC") if latest_time.tzinfo else latest_time.tz_localize("UTC")
         age_seconds = (now_utc - latest_time_utc.replace(tzinfo=None)).total_seconds()
         
-        # Max allowed age based on timeframe (with generous buffer for broker chart lag)
+        # Max allowed age based on timeframe.
+        # Forex cross-pairs (GBP/JPY, CHF/JPY, etc.) can have data delays on Yahoo Finance
+        # so we use wider windows for intraday forex to avoid false [SKIPPED] during live hours.
+        is_fx_instrument = "/" in sym
         max_age = {
-            "5m": 1200,      # 20 mins
-            "15m": 2700,     # 45 mins
-            "1h": 10800,     # 3 hours
-            "1d": 129600,    # 36 hours (handles weekend close / daily data lag)
-            "1w": 691200     # 8 days
+            "5m":  1200  if not is_fx_instrument else  7200,   # 20min / 2hrs
+            "15m": 2700  if not is_fx_instrument else 14400,   # 45min / 4hrs
+            "1h":  10800 if not is_fx_instrument else 21600,   # 3hrs  / 6hrs
+            "1d":  129600,   # 36 hours (handles weekend close / daily data lag)
+            "1w":  691200    # 8 days
         }.get(tf, 86400)
         
         if age_seconds > max_age:
