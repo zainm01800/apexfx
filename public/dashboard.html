@@ -41,6 +41,7 @@
     <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
     <nav class="nav">
       <a class="nav-link active" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-mt4" href="mt4-trades.html">MT4 Terminal</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
       <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
       <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
@@ -188,25 +189,6 @@
         </div>
       
 
-        <!-- Live MT4 Execution Monitor -->
-        <div class="a-card" style="padding: 24px; border-left: 3px solid var(--blue); margin-bottom: 20px;">
-          <div class="a-card-header" style="border-bottom: 1px solid var(--border)">
-            <span class="a-icon">⚡</span>
-            <h2>Live MT4 Execution Terminal</h2>
-            <span class="regime-badge" style="background: rgba(0, 160, 212, 0.1); color: var(--blue)">MT4 Bridge Syncing</span>
-          </div>
-          
-          <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 12px;">
-            <button id="btnMt4Open" class="qp-tab active" style="padding: 4px 12px; font-size: 12px; border-radius: 4px; background: var(--bg3); color: var(--text); border: 1px solid var(--border); cursor: pointer;">📂 Open Positions</button>
-            <button id="btnMt4Closed" class="qp-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 4px; background: transparent; color: var(--text3); border: 1px solid transparent; cursor: pointer;">📜 Closed History</button>
-          </div>
-          
-          <div id="mt4TradesContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 14px;">
-            <div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 13px;">
-              Loading live MT4 trades...
-            </div>
-          </div>
-        </div>
 
         <!-- Live Active Trades Monitor -->
         <div class="a-card" style="padding: 24px; border-left: 3px solid var(--purple)">

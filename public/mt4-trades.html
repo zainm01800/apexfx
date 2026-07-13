@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Z.FX — MT4 Terminal</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#09090f" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Z.FX" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <nav class="nav">
+      <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link active" id="nav-mt4" href="mt4-trades.html">MT4 Terminal</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
+      <a class="nav-link" id="nav-track" href="track-record.html">Track Record</a>
+    </nav>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <div class="pulse-bar">
+    <div class="pulse-track">
+      <!-- Set 1 -->
+      <div class="pulse-item pulse-SPY">
+        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-QQQ">
+        <span class="pulse-label">NASDAQ 100</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-BTC">
+        <span class="pulse-label">Bitcoin</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-EUR">
+        <span class="pulse-label">EUR/USD</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-GOLD">
+        <span class="pulse-label">Gold</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <!-- Set 2 -->
+      <div class="pulse-item pulse-SPY">
+        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-QQQ">
+        <span class="pulse-label">NASDAQ 100</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-BTC">
+        <span class="pulse-label">Bitcoin</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-EUR">
+        <span class="pulse-label">EUR/USD</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-GOLD">
+        <span class="pulse-label">Gold</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="history-main">
+
+    <div class="hist-header">
+      <div>
+        <h1 class="hist-title">MT4 Live Execution</h1>
+        <p class="hist-subtitle">Real-time trade synchronisation directly from your MetaTrader 4 terminal.</p>
+      </div>
+      
+      <!-- Live MT4 Summary Statistics -->
+      <div class="hist-summary" id="mt4Summary">
+        <div class="hs-stat"><span class="hs-val" id="statActiveCount">—</span><span class="hs-label">Active Orders</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statClosedCount">—</span><span class="hs-label">Closed Orders</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statTotalProfit">—</span><span class="hs-label">Total P&L</span></div>
+        <div class="hs-stat"><span class="hs-val accent" id="statWinRate">—%</span><span class="hs-label">MT4 Win Rate</span></div>
+      </div>
+    </div>
+
+    <!-- Toggle View: Open Positions vs Closed History -->
+    <div class="view-toggle" style="margin-bottom: 24px;">
+      <button id="btnOpen" class="vt-btn active" data-view="open">📂 Open Positions</button>
+      <button id="btnClosed" class="vt-btn" data-view="closed">📜 Closed History</button>
+    </div>
+
+    <!-- Grid Container for MT4 Trades -->
+    <div id="mt4TradesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; margin-top: 14px;">
+      <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
+        Connecting to MT4 Bridge data...
+      </div>
+    </div>
+
+  </main>
+
+  <script src="./mt4-trades.js"></script>
+</body>
+</html>
