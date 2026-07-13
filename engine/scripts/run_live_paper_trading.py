@@ -1191,7 +1191,7 @@ def scan_robust_core(open_trades):
         for _ in as_completed(futures):
             pass
 
-def sync_mt4_trades():
+def sync_mt4_trades(silent=False):
     """Sync live open positions and closed history from MT4 shared files to Supabase."""
     common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
     if not common_dir:
@@ -1254,7 +1254,7 @@ def sync_mt4_trades():
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
                 if r.status_code not in (200, 201, 204):
                     print(f"  [WARN] Failed to sync open positions to Supabase: {r.text}")
-                else:
+                elif not silent:
                     print(f"  [INFO] Synced {len(positions)} open positions from MT4 to Supabase.")
         except Exception as e:
             print(f"  [WARN] Error syncing open positions: {e}")
@@ -1275,7 +1275,7 @@ def sync_mt4_trades():
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
                 if r.status_code not in (200, 201, 204):
                     print(f"  [WARN] Failed to sync closed history to Supabase: {r.text}")
-                else:
+                elif not silent:
                     print(f"  [INFO] Synced {len(closed_trades)} closed history trades from MT4 to Supabase.")
         except Exception as e:
             print(f"  [WARN] Error syncing closed history: {e}")
@@ -1290,7 +1290,7 @@ def sync_mt4_trades():
             r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
             if r.status_code not in (200, 201, 204):
                 print(f"  [WARN] Failed to sync account info to Supabase: {r.text}")
-            else:
+            elif not silent:
                 print(f"  [INFO] Synced live MT4 account stats to Supabase.")
         except Exception as e:
             print(f"  [WARN] Error syncing account info: {e}")
@@ -1326,7 +1326,7 @@ def start_mt4_sync_daemon():
         print("[INFO] Background MT4 Sync Daemon started.")
         while True:
             try:
-                sync_mt4_trades()
+                sync_mt4_trades(silent=True)
             except Exception:
                 pass
             time.sleep(5)
