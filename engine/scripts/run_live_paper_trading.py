@@ -59,6 +59,26 @@ from apex_quant.features.microstructure import YangZhangVol
 cfg = get_config()
 EQUITIES_SET = set(cfg.data.equities) if hasattr(cfg.data, "equities") and cfg.data.equities else set()
 
+def _safe_float(val):
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+    try:
+        return float(val_str)
+    except ValueError:
+        import re
+        m = re.findall(r"[-+]?\d*\.\d+|\d+", val_str)
+        if m:
+            try:
+                return float(m[0])
+            except ValueError:
+                pass
+        return None
+
 def is_us_market_open() -> bool:
     """Check if the US stock market is open (NYSE 9:30 AM to 4:00 PM EST/EDT, Monday to Friday)."""
     try:
@@ -619,8 +639,8 @@ def check_single_trade(t):
     sym = t["symbol"]
     trade_id = t["id"]
     direction = t["verdict"]
-    sl = float(t["stop_loss"])
-    tp = float(t["target_price"])
+    sl = _safe_float(t.get("stop_loss")) or 0.0
+    tp = _safe_float(t.get("target_price")) or 0.0
     tf = map_timeframe(t.get("timeframe", "1d"))
     
     try:
@@ -757,8 +777,8 @@ def check_open_trades(open_trades):
         sym = t["symbol"]
         trade_id = t["id"]
         direction = t["verdict"]
-        sl = float(t["stop_loss"])
-        tp = float(t["target_price"])
+        sl = _safe_float(t.get("stop_loss")) or 0.0
+        tp = _safe_float(t.get("target_price")) or 0.0
         tf = map_timeframe(t.get("timeframe", "1d"))
         key = (sym, tf)
         
@@ -1096,8 +1116,8 @@ def scan_single_asset(item, active_trades_map):
 
                 for ot in open_trades_list:
                     sym_ot = ot["symbol"]
-                    price_ot = float(ot["price"])
-                    sl_ot = float(ot["stop_loss"]) if ot.get("stop_loss") else None
+                    price_ot = _safe_float(ot.get("price")) or 0.0
+                    sl_ot = _safe_float(ot.get("stop_loss"))
                     asset_class_ot = cfg.asset_class_of(sym_ot)
                     
                     trade_notional = 1000.0
