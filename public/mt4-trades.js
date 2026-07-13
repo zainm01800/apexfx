@@ -248,6 +248,11 @@ function renderMt4Trades() {
     const formattedOpenTime = new Date(t.open_time * 1000).toLocaleString();
     const formattedCloseTime = t.close_time ? new Date(t.close_time * 1000).toLocaleString() : '';
 
+    const risk = Math.abs(t.open_price - t.sl);
+    const reward = Math.abs(t.tp - t.open_price);
+    const rrRatio = (risk > 0 && reward > 0 && t.sl > 0 && t.tp > 0) ? (reward / risk).toFixed(2) : null;
+    const rrText = rrRatio ? `1:${rrRatio}` : 'None';
+
     return `
       <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -276,6 +281,11 @@ function renderMt4Trades() {
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Take Profit</span>
           <span style="font-family: var(--mono); color: var(--green);">${t.tp > 0 ? t.tp.toFixed(5) : 'None'}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Target R:R</span>
+          <span style="font-family: var(--mono); color: ${rrRatio ? 'var(--accent)' : 'var(--text3)'}; font-weight: ${rrRatio ? '700' : 'normal'};">${rrText}</span>
         </div>
 
         ${_mt4TradesFilter === 'open' ? `
