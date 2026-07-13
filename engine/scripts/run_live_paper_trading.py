@@ -1241,44 +1241,70 @@ def sync_mt4_trades(silent=False):
         return sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
         
     # Fetch recent analyses to match style (scalp, intraday, swing) once every 15 minutes
-    style_map = {}
+    scans_list = []
     now_ts = time.time()
     if not _style_map_cache or (now_ts - _style_map_last_fetched > 900):
         try:
-            r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features&order=analysis_date.desc&limit=100", headers=headers, timeout=10.0)
+            r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features,stop_loss,target_price&order=analysis_date.desc&limit=150", headers=headers, timeout=10.0)
             if r.status_code == 200:
-                for row in r.json():
-                    sym = row.get("symbol", "").upper()
-                    tf = row.get("timeframe", "1d")
-                    
-                    sf = row.get("setup_features")
-                    style = ""
-                    if isinstance(sf, str):
-                        try:
-                            sf_data = json.loads(sf)
-                            style = sf_data.get("style", "").lower()
-                        except Exception:
-                            pass
-                    elif isinstance(sf, dict):
-                        style = sf.get("style", "").lower()
-                        
-                    if not style:
-                        if tf == "1d": style = "swing"
-                        elif tf == "1h": style = "intraday"
-                        elif tf == "15m": style = "scalp"
-                        else: style = "swing"
-                        
-                    style_map[get_clean_symbol(sym)] = style
-                _style_map_cache = style_map
+                scans_list = r.json()
+                _style_map_cache = scans_list
                 _style_map_last_fetched = now_ts
             else:
-                style_map = _style_map_cache
+                scans_list = _style_map_cache
         except Exception as e:
-            style_map = _style_map_cache
+            scans_list = _style_map_cache
             if not silent:
                 print(f"  [WARN] Failed to fetch recent analyses for style matching: {e}")
     else:
-        style_map = _style_map_cache
+        scans_list = _style_map_cache
+
+    def get_style_for_trade(p_sym, p_sl, p_tp):
+        p_clean = get_clean_symbol(p_sym)
+        best_scan = None
+        best_score = float('inf')
+        
+        import re
+        def parse_fl(val):
+            if val is None: return 0.0
+            if isinstance(val, (int, float)): return float(val)
+            val_str = str(val).strip()
+            if not val_str: return 0.0
+            try: return float(val_str)
+            except ValueError:
+                m = re.findall(r'[-+]?\d*\.\d+|\d+', val_str)
+                return float(m[0]) if m else 0.0
+
+        for scan in scans_list:
+            s_clean = get_clean_symbol(scan.get("symbol", ""))
+            if s_clean != p_clean:
+                continue
+            s_sl = parse_fl(scan.get("stop_loss"))
+            s_tp = parse_fl(scan.get("target_price"))
+            
+            # Match score by relative difference in SL and TP
+            rel_diff_sl = abs(s_sl - p_sl) / (s_sl if s_sl > 0 else 1.0)
+            rel_diff_tp = abs(s_tp - p_tp) / (s_tp if s_tp > 0 else 1.0)
+            score = rel_diff_sl + rel_diff_tp
+            if score < best_score:
+                best_score = score
+                best_scan = scan
+                
+        if best_scan and best_score < 0.01:
+            sf = best_scan.get("setup_features") or {}
+            if isinstance(sf, str):
+                try: sf = json.loads(sf)
+                except: sf = {}
+            style = sf.get("style", "")
+            if not style:
+                tf = best_scan.get("timeframe", "1d")
+                if tf == "1d": style = "swing"
+                elif tf == "1h": style = "intraday"
+                elif tf == "15m": style = "scalp"
+                else: style = "swing"
+            return style.lower()
+            
+        return "swing"
         
     # 1. Sync Open Positions
     if os.path.exists(positions_file):
@@ -1291,7 +1317,7 @@ def sync_mt4_trades(silent=False):
                 if magic != 88888:
                     p["style"] = "manual"
                 else:
-                    p["style"] = style_map.get(get_clean_symbol(p.get("symbol", "")), "swing")
+                    p["style"] = get_style_for_trade(p.get("symbol", ""), float(p.get("sl", 0.0)), float(p.get("tp", 0.0)))
             if positions:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
                 if r.status_code not in (200, 201, 204):
@@ -1312,7 +1338,7 @@ def sync_mt4_trades(silent=False):
                 if magic != 88888:
                     c["style"] = "manual"
                 else:
-                    c["style"] = style_map.get(get_clean_symbol(c.get("symbol", "")), "swing")
+                    c["style"] = get_style_for_trade(c.get("symbol", ""), float(c.get("sl", 0.0)), float(c.get("tp", 0.0)))
             if closed_trades:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
                 if r.status_code not in (200, 201, 204):
