@@ -18,6 +18,7 @@ fails CPCV/DSR/PBO validation.
 from __future__ import annotations
 
 import json
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
@@ -248,10 +249,95 @@ def extract_json(text: str | None):
     return None
 
 
+class GroqLLM(LLMClient):
+    """Groq API client using the OpenAI-compatible endpoint."""
+
+    def __init__(self, cfg: AiConfig | None = None, timeout: float = 60.0) -> None:
+        self.cfg = cfg or get_config().ai
+        self.timeout = timeout
+
+    @property
+    def available(self) -> bool:
+        return bool(os.environ.get("GROQ_API_KEY", ""))
+
+    def complete(self, prompt: str, system: str = "", max_tokens: int = 1200,
+                  temperature: float = 0.5) -> str | None:
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        if not api_key:
+            return None
+        try:
+            import httpx
+
+            messages = []
+            if system:
+                messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": prompt})
+
+            # Default to qwen/qwen3.6-27b (very fast, excellent logic)
+            model = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
+
+            payload = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            url = "https://api.groq.com/openai/v1/chat/completions"
+
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.post(url, json=payload, headers=headers)
+                if res.status_code != 200:
+                    print(f"  [Groq Error] HTTP {res.status_code}: {res.text[:300]}")
+                    return None
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                if content and "<think>" in content:
+                    if "</think>" in content:
+                        import re
+                        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                    else:
+                        content = content.split("<think>")[0].strip()
+                return content
+
+        except Exception as exc:
+            print(f"  [Groq Exception] {type(exc).__name__}: {exc}")
+            return None
+
+
+class FallbackLLM(LLMClient):
+    """Tries a primary client, and falls back to a secondary client if primary fails."""
+
+    def __init__(self, primary: LLMClient, fallback: LLMClient) -> None:
+        self.primary = primary
+        self.fallback = fallback
+
+    @property
+    def available(self) -> bool:
+        return self.primary.available or self.fallback.available
+
+    def complete(self, prompt: str, system: str = "", max_tokens: int = 1200,
+                  temperature: float = 0.5) -> str | None:
+        if self.primary.available:
+            res = self.primary.complete(prompt, system, max_tokens, temperature)
+            if res is not None:
+                return res
+            print("  [WARN] Primary LLM (Gemini) failed. Trying fallback LLM (Groq)...")
+
+        if self.fallback.available:
+            return self.fallback.complete(prompt, system, max_tokens, temperature)
+
+        return None
+
+
 def build_llm(cfg: AiConfig | None = None) -> LLMClient | None:
     """Factory: returns the best available LLM client for the given config.
 
-    Priority: DeepSeek (direct) > Gemini (direct) > AppProxy > None.
+    Priority: DeepSeek (direct) > Gemini-with-Groq-Fallback > AppProxy > None.
     Returns None when no API key or URL is configured.
     """
     cfg = cfg or get_config().ai
@@ -259,10 +345,17 @@ def build_llm(cfg: AiConfig | None = None) -> LLMClient | None:
         client = DeepSeekLLM(cfg)
         if client.available:
             return client
-    # Try Gemini direct
+
     client_gem = GeminiLLM(cfg)
-    if client_gem.available:
+    client_groq = GroqLLM(cfg)
+
+    if client_gem.available and client_groq.available:
+        return FallbackLLM(client_gem, client_groq)
+    elif client_gem.available:
         return client_gem
+    elif client_groq.available:
+        return client_groq
+
     if cfg.app_url:
         client = AppAILLM(cfg)
         if client.available:
