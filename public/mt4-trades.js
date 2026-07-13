@@ -38,19 +38,20 @@ function initMt4Tabs() {
     let rotation = 0;
     btnRefresh.addEventListener('click', async () => {
       const icon = document.getElementById('refreshIcon');
+      const text = document.getElementById('refreshText');
       rotation += 360;
       if (icon) icon.style.transform = `rotate(${rotation}deg)`;
+      if (text) text.textContent = 'Syncing...';
       
       btnRefresh.disabled = true;
       btnRefresh.style.opacity = '0.7';
-      btnRefresh.innerHTML = `<span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease; transform: rotate(${rotation}deg);">🔄</span> Syncing...`;
       
       await loadMt4Trades();
       
       setTimeout(() => {
         btnRefresh.disabled = false;
         btnRefresh.style.opacity = '1';
-        btnRefresh.innerHTML = `<span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease; transform: rotate(${rotation}deg);">🔄</span> Refresh Terminal`;
+        if (text) text.textContent = 'Refresh Terminal';
       }, 600);
     });
   }
@@ -129,7 +130,11 @@ function updateScoreboard() {
     const sign = totalRealised >= 0 ? '+' : '';
     const colorClass = totalRealised > 0 ? 'green' : (totalRealised < 0 ? 'red' : '');
     totalProfitEl.className = `hs-val ${colorClass}`;
-    totalProfitEl.innerHTML = `${sign}${curSymbol}${totalRealised.toFixed(2)} <span style="font-size: 11px; font-weight: normal; color: var(--text3); display: block; margin-top: 2px;">Float: ${totalFloating >= 0 ? '+' : ''}${curSymbol}${totalFloating.toFixed(2)}</span>`;
+    
+    // Bold, larger, color-coded floating P&L text
+    const floatColor = totalFloating > 0 ? 'var(--green)' : (totalFloating < 0 ? 'var(--red)' : 'var(--text3)');
+    const floatSign = totalFloating >= 0 ? '+' : '';
+    totalProfitEl.innerHTML = `${sign}${curSymbol}${totalRealised.toFixed(2)} <span style="font-size: 13px; font-weight: 700; color: ${floatColor}; display: block; margin-top: 4px; font-family: var(--mono);">Float: ${floatSign}${curSymbol}${totalFloating.toFixed(2)}</span>`;
   }
 
   // 4. Average Reward:Risk (R:R)
