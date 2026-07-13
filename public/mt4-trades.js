@@ -241,12 +241,17 @@ function renderMt4Trades() {
           <span style="font-family: var(--mono); color: var(--red);">${t.sl > 0 ? t.sl.toFixed(5) : 'None'}</span>
         </div>
         
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Take Profit</span>
           <span style="font-family: var(--mono); color: var(--green);">${t.tp > 0 ? t.tp.toFixed(5) : 'None'}</span>
         </div>
 
-        ${_mt4TradesFilter === 'closed' ? `
+        ${_mt4TradesFilter === 'open' ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <span style="color: var(--text3)">Current Price</span>
+          <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${t.close_price ? t.close_price.toFixed(5) : '—'}</span>
+        </div>
+        ` : `
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Close Price</span>
           <span style="font-family: var(--mono); color: var(--text2);">${t.close_price ? t.close_price.toFixed(5) : '—'}</span>
@@ -255,7 +260,7 @@ function renderMt4Trades() {
           <span style="color: var(--text3)">Duration</span>
           <span style="font-family: var(--mono); color: var(--text2);">${formatDuration(t.close_time - t.open_time)}</span>
         </div>
-        ` : ''}
+        `}
         
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
           <span style="color: var(--text)">Profit / Loss</span>
