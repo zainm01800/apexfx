@@ -521,7 +521,7 @@ def _normalise_symbol(symbol: str) -> str:
     return f"{sym}{suffix}"
 
 
-def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr, volume=None):
+def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr, volume=None, style=None):
     """POST new trade entry to Supabase and dispatch to live executor."""
     trade_id = f"{symbol.upper()}_{int(time.time())}"
     
@@ -529,9 +529,9 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
         "id": trade_id,
         "symbol": symbol.upper(),
         "asset_type": (
-            "equity" if symbol.upper() in EQUITIES_SET else
-            ("crypto" if "/" in symbol and any(c in symbol.upper() for c in ("BTC", "ETH", "AVAX", "SOL", "ADA", "DOGE", "XRP", "BNB")) else
-             "forex" if "/" in symbol else "equity")
+            "Equity" if symbol.upper() in EQUITIES_SET else
+            ("Crypto" if "/" in symbol and any(c in symbol.upper() for c in ("BTC", "ETH", "AVAX", "SOL", "ADA", "DOGE", "XRP", "BNB")) else
+             "Forex" if "/" in symbol else "Equity")
         ),
         "analysis_date": datetime.utcnow().strftime("%Y-%m-%d"),
         "price": float(entry_price),
@@ -544,7 +544,7 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
         "timeframe": timeframe,
         "summary": f"Automated entry trigger via APEX Quant Robust Core on {timeframe} timeframe.",
         "technical_analysis": f"Regime detection classifies market structure. Momentum/Mean-Reversion signals aligned.",
-        "setup_features": {"auto": True},
+        "setup_features": {"auto": True, "style": style or "swing"},
         "outcome": "pending"
     }
     
@@ -1175,7 +1175,8 @@ def scan_single_asset(item, active_trades_map):
                 timeframe=tf,
                 confidence=int(sig.probability * 100),
                 rr=sig.reward_risk,
-                volume=sized_volume
+                volume=sized_volume,
+                style=style,
             )
 
     except Exception as e:

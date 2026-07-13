@@ -307,6 +307,7 @@ void WriteLiveTrades()
                     ",\"open_price\":" + DoubleToString(OrderOpenPrice(), 5) +
                     ",\"sl\":" + DoubleToString(OrderStopLoss(), 5) +
                     ",\"tp\":" + DoubleToString(OrderTakeProfit(), 5) +
+                    ",\"close_price\":" + DoubleToString(MarketInfo(OrderSymbol(), MODE_BID), 5) +
                     ",\"profit\":" + DoubleToString(OrderProfit() + OrderSwap() + OrderCommission(), 2) +
                     ",\"magic\":" + IntegerToString(OrderMagicNumber()) +
                     ",\"open_time\":" + IntegerToString(OrderOpenTime()) + "}";

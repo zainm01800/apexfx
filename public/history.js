@@ -775,7 +775,7 @@ function applyFilters(groups) {
   return groups.filter(g => {
     const row = g.current;
     if (_filterSym && !g.symbol.toUpperCase().includes(_filterSym.toUpperCase())) return false;
-    if (_filterType !== 'all' && row.asset_type !== _filterType) return false;
+    if (_filterType !== 'all' && (row.asset_type || '').toLowerCase() !== _filterType.toLowerCase()) return false;
     if (_filterOutcome !== 'all' && !g.scans.some(s => (s.outcome || 'pending') === _filterOutcome)) return false;
     if (_filterDir !== 'all' && verdictDir(row.verdict) !== _filterDir) return false;
     if (_filterManual && isAuto(row)) return false;
@@ -952,7 +952,7 @@ function getFilteredRowsForSummary() {
 
   return _allRows.filter(row => {
     if (_filterSym && !row.symbol.toUpperCase().includes(_filterSym.toUpperCase())) return false;
-    if (_filterType !== 'all' && row.asset_type !== _filterType) return false;
+    if (_filterType !== 'all' && (row.asset_type || '').toLowerCase() !== _filterType.toLowerCase()) return false;
     if (_filterDir !== 'all' && verdictDir(row.verdict) !== _filterDir) return false;
     if (_filterManual && isAuto(row)) return false;
     
