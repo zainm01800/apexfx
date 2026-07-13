@@ -625,6 +625,20 @@ def parse_trade_entry_ts(row: dict) -> float:
             pass
     return datetime.utcnow().timestamp()
 
+def safe_load_json(file_path: str, retries: int = 3, delay: float = 0.1):
+    """Load JSON from a file with retries to avoid race conditions with MT4 writing."""
+    for i in range(retries):
+        try:
+            with open(file_path, "r") as f:
+                content = f.read().strip()
+                if content:
+                    return json.loads(content)
+        except Exception:
+            pass
+        time.sleep(delay)
+    with open(file_path, "r") as f:
+        return json.load(f)
+
 def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, float]:
     """Retrieve actual live account equity, balance, and peak balance/equity from Supabase or local MT4 file."""
     common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
@@ -632,8 +646,7 @@ def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, flo
         account_file = os.path.join(common_dir, "mt4_account.json")
         if os.path.exists(account_file):
             try:
-                with open(account_file, "r") as f:
-                    account_data = json.load(f)
+                account_data = safe_load_json(account_file)
                 eq = float(account_data.get("equity", default_equity))
                 bal = float(account_data.get("balance", default_equity))
                 start_bal = float(account_data.get("start_balance", default_equity))
@@ -1448,8 +1461,7 @@ def sync_mt4_trades(silent=False):
     # 1. Sync Open Positions
     if os.path.exists(positions_file):
         try:
-            with open(positions_file, "r") as f:
-                positions = json.load(f)
+            positions = safe_load_json(positions_file)
             for p in positions:
                 p["status"] = "open"
                 magic = p.get("magic", 0)
@@ -1469,8 +1481,7 @@ def sync_mt4_trades(silent=False):
     # 2. Sync Closed History
     if os.path.exists(history_file):
         try:
-            with open(history_file, "r") as f:
-                closed_trades = json.load(f)
+            closed_trades = safe_load_json(history_file)
             for c in closed_trades:
                 c["status"] = "closed"
                 magic = c.get("magic", 0)
@@ -1491,8 +1502,7 @@ def sync_mt4_trades(silent=False):
     account_file = os.path.join(common_dir, "mt4_account.json")
     if os.path.exists(account_file):
         try:
-            with open(account_file, "r") as f:
-                account_data = json.load(f)
+            account_data = safe_load_json(account_file)
             account_data["id"] = 1
             account_data["updated_at"] = datetime.utcnow().isoformat()
             r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
