@@ -1191,11 +1191,63 @@ def scan_robust_core(open_trades):
         for _ in as_completed(futures):
             pass
 
+def sync_mt4_trades():
+    """Sync live open positions and closed history from MT4 shared files to Supabase."""
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if not common_dir:
+        return
+        
+    positions_file = os.path.join(common_dir, "mt4_positions.json")
+    history_file = os.path.join(common_dir, "mt4_history.json")
+    
+    headers_upsert = {
+        **headers,
+        "Prefer": "resolution=merge-duplicates"
+    }
+    
+    # 1. Sync Open Positions
+    if os.path.exists(positions_file):
+        try:
+            with open(positions_file, "r") as f:
+                positions = json.load(f)
+            for p in positions:
+                p["status"] = "open"
+            if positions:
+                r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
+                if r.status_code not in (200, 201, 204):
+                    print(f"  [WARN] Failed to sync open positions to Supabase: {r.text}")
+                else:
+                    print(f"  [INFO] Synced {len(positions)} open positions from MT4 to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing open positions: {e}")
+            
+    # 2. Sync Closed History
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, "r") as f:
+                closed_trades = json.load(f)
+            for c in closed_trades:
+                c["status"] = "closed"
+            if closed_trades:
+                r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
+                if r.status_code not in (200, 201, 204):
+                    print(f"  [WARN] Failed to sync closed history to Supabase: {r.text}")
+                else:
+                    print(f"  [INFO] Synced {len(closed_trades)} closed history trades from MT4 to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing closed history: {e}")
+
 def run_once():
     print("\n" + "="*80)
     print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.utcnow().isoformat()} UTC")
     print("="*80)
     
+    # ── Sync MT4 execution stats to Supabase ──
+    try:
+        sync_mt4_trades()
+    except Exception as e:
+        print(f"[WARN] Failed to sync MT4 execution stats: {e}")
+        
     # ── Bayesian Sizer Setup ──
     try:
         initialize_bayesian_sizer_from_supabase()

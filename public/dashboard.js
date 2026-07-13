@@ -4219,11 +4219,141 @@ function initEngineLogs() {
   }
 }
 
+let _mt4TradesFilter = 'open'; // 'open' or 'closed'
+let _mt4TradesCache = [];
+
+function initMt4TradesMonitor() {
+  const btnOpen = document.getElementById('btnMt4Open');
+  const btnClosed = document.getElementById('btnMt4Closed');
+  if (!btnOpen || !btnClosed) return;
+
+  btnOpen.addEventListener('click', () => {
+    btnOpen.classList.add('active');
+    btnOpen.style.background = 'var(--bg3)';
+    btnOpen.style.color = 'var(--text)';
+    btnOpen.style.borderColor = 'var(--border)';
+
+    btnClosed.classList.remove('active');
+    btnClosed.style.background = 'transparent';
+    btnClosed.style.color = 'var(--text3)';
+    btnClosed.style.borderColor = 'transparent';
+
+    _mt4TradesFilter = 'open';
+    renderMt4Trades();
+  });
+
+  btnClosed.addEventListener('click', () => {
+    btnClosed.classList.add('active');
+    btnClosed.style.background = 'var(--bg3)';
+    btnClosed.style.color = 'var(--text)';
+    btnClosed.style.borderColor = 'var(--border)';
+
+    btnOpen.classList.remove('active');
+    btnOpen.style.background = 'transparent';
+    btnOpen.style.color = 'var(--text3)';
+    btnOpen.style.borderColor = 'transparent';
+
+    _mt4TradesFilter = 'closed';
+    renderMt4Trades();
+  });
+
+  // Start polling
+  loadMt4Trades();
+  setInterval(loadMt4Trades, 5000); // refresh every 5 seconds
+}
+
+async function loadMt4Trades() {
+  try {
+    const res = await fetch('/api/mt4-trades');
+    if (!res.ok) throw new Error('Failed to load MT4 trades');
+    _mt4TradesCache = await res.json();
+    renderMt4Trades();
+  } catch (e) {
+    console.error('Error fetching MT4 trades:', e);
+    const container = document.getElementById('mt4TradesContainer');
+    if (container) {
+      container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--red); font-size: 13px;">Error fetching MT4 execution stats: ${e.message}</div>`;
+    }
+  }
+}
+
+function renderMt4Trades() {
+  const container = document.getElementById('mt4TradesContainer');
+  if (!container) return;
+
+  const filtered = _mt4TradesCache.filter(t => t.status === _mt4TradesFilter);
+
+  if (!filtered.length) {
+    container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text3); font-size: 13px;">No ${_mt4TradesFilter} positions on your MT4 terminal.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const isBuy = t.cmd === 0;
+    const sideLabel = isBuy ? 'BUY' : 'SELL';
+    const sideClass = isBuy ? 'pos' : 'neg';
+    
+    // profit P&L styling
+    const pnl = parseFloat(t.profit) || 0;
+    const pnlClass = pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : '');
+    const pnlPrefix = pnl > 0 ? '+' : '';
+    
+    const formattedOpenTime = new Date(t.open_time * 1000).toLocaleString();
+    const formattedCloseTime = t.close_time ? new Date(t.close_time * 1000).toLocaleString() : '';
+
+    return `
+      <div class="stat-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-family: var(--mono); font-size: 15px; color: var(--text);">${t.symbol}</strong>
+          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${t.ticket}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 4px;">
+          <span style="color: var(--text3)">Type</span>
+          <span class="${sideClass}" style="font-weight: 700; font-family: var(--mono);">${sideLabel} (${t.volume} Lots)</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+          <span style="color: var(--text3)">Entry Price</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${t.open_price.toFixed(5)}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+          <span style="color: var(--text3)">Stop Loss</span>
+          <span style="font-family: var(--mono); color: var(--red);">${t.sl > 0 ? t.sl.toFixed(5) : 'None'}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <span style="color: var(--text3)">Take Profit</span>
+          <span style="font-family: var(--mono); color: var(--green);">${t.tp > 0 ? t.tp.toFixed(5) : 'None'}</span>
+        </div>
+
+        ${_mt4TradesFilter === 'closed' ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+          <span style="color: var(--text3)">Close Price</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${t.close_price ? t.close_price.toFixed(5) : '—'}</span>
+        </div>
+        ` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; padding-top: 4px;">
+          <span style="color: var(--text)">Profit / Loss</span>
+          <span class="${pnlClass}" style="font-family: var(--mono);">${pnlPrefix}£${pnl.toFixed(2)}</span>
+        </div>
+
+        <div style="font-size: 10px; color: var(--text3); margin-top: 4px; text-align: right; font-style: italic;">
+          ${_mt4TradesFilter === 'closed' ? `Closed: ${formattedCloseTime}` : `Opened: ${formattedOpenTime}`}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initPulse();
   initQuickPicks();
   initAutocomplete();
+  initMt4TradesMonitor();
   
   // Defer non-critical metrics & logs load to let tab switch render instantly
   setTimeout(loadNavWinRate, 100);
