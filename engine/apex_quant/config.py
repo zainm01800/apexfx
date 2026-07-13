@@ -195,6 +195,12 @@ class AiConfig(BaseModel):
     local_llm_url: str = ""
     local_llm_model: str = ""
     local_llm_key: str = ""
+    # DeepSeek direct API (preferred over app proxy when key is set)
+    deepseek_api_key: str = ""     # set via APEX_AI__DEEPSEEK_API_KEY env var or config.yaml
+    deepseek_model: str = "deepseek-chat"   # or deepseek-reasoner for R1
+    deepseek_base_url: str = "https://api.deepseek.com"
+    # Gemini direct API
+    gemini_api_key: str = ""       # set via APEX_AI__GEMINI_API_KEY env var or config.yaml
 
 
 class Mt4Config(BaseModel):
@@ -203,11 +209,21 @@ class Mt4Config(BaseModel):
     default_volume: float = 0.10
 
 
+class ZmqConfig(BaseModel):
+    """ZeroMQ TCP push-pull bridge settings."""
+    enabled: bool = False          # when True, ZMQBridge is used instead of file polling
+    host: str = "127.0.0.1"
+    port: int = 9091
+    linger_ms: int = 0             # socket linger on close (0 = drop unsent messages)
+    send_timeout_ms: int = 1000    # max ms to block on send before giving up
+
+
 class ExecutionConfig(BaseModel):
     """Live execution settings. Off by default — paper/live only when enabled."""
     enabled: bool = False
-    provider: Literal["mt4", "mock"] = "mt4"
+    provider: Literal["mt4", "mock", "zmq"] = "mt4"
     mt4: Mt4Config = Field(default_factory=Mt4Config)
+    zmq: ZmqConfig = Field(default_factory=ZmqConfig)
 
 
 class AppConfig(BaseModel):
