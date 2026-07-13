@@ -636,7 +636,7 @@ def check_single_trade(t):
             lookback_days = max(30, int(age_seconds / 86400) + 1)
             
         start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-        end_date = datetime.utcnow().strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         
         df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
         if df.empty:
@@ -736,7 +736,7 @@ def check_open_trades(open_trades):
             lookback_days = max(30, int(age_seconds / 86400) + 1)
             
         start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-        end_date = datetime.utcnow().strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         
         try:
             df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
@@ -950,7 +950,7 @@ def scan_single_asset(item, active_trades_map):
         # Look back enough days for warmup
         lookback_days = 20 if tf in ("5m", "15m") else (60 if tf == "1h" else 300)
         start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-        end_date = datetime.utcnow().strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         
         df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
         if len(df) < params["warmup"] + 15:
