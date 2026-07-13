@@ -338,8 +338,8 @@ class SmartDataProvider:
     def get_history(self, instrument: str, start, end, timeframe):
         asset_class = cfg.asset_class_of(instrument)
         sym_clean = instrument.replace("_", "/")
-        # Try OANDA first for forex, fall back to Yahoo if OANDA returns no/stale data
-        if asset_class == "forex" and self.default_name == "oanda" and self.oanda is not None:
+        # Try OANDA first for forex and crypto, fall back to Yahoo if OANDA returns no/stale data
+        if asset_class in ("forex", "crypto") and self.default_name == "oanda" and self.oanda is not None:
             try:
                 df = self.oanda.get_history(sym_clean, start, end, timeframe)
                 if df is not None and len(df) >= 10:
