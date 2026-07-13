@@ -10,7 +10,7 @@ seed: 42
 
 # ── Data layer ────────────────────────────────────────────────────────────────
 data:
-  provider: yahoo            # adapter id (see data/adapter.py registry)
+  provider: oanda            # adapter id (see data/adapter.py registry)
   timeframe: "1d"            # base bar size for Phase 1
   store_dir: "data_store"    # local parquet cache (relative to engine/)
   # Forex universe — mirrors the dashboard quick-picks (public/dashboard.js).
@@ -25,6 +25,18 @@ data:
     - "GBP/JPY"
     - "EUR/GBP"
     - "EUR/JPY"
+    - "GBP/NZD"
+    - "AUD/NZD"
+    - "EUR/AUD"
+    - "EUR/CAD"
+    - "CHF/JPY"
+    - "GBP/CAD"
+    - "GBP/CHF"
+    - "GBP/AUD"
+    - "EUR/CHF"
+    - "EUR/NZD"
+    - "NZD/JPY"
+    - "CAD/JPY"
   # Equity / ETF universe — Yahoo native tickers, daily bars. Mirrors the
   # dashboard "trending" + "etfs" quick-picks.
   equities:
@@ -122,8 +134,8 @@ risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
   kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
   max_risk_per_trade: 0.02       # 2% of equity at risk per trade (optimized cap)
-  max_total_exposure: 3.0        # gross notional ≤ 3× equity (hard cap)
-  max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity
+  max_total_exposure: 100.0      # gross notional ≤ 100× equity (unrestricted paper testing)
+  max_correlated_exposure: 50.0   # combined notional of correlated cluster ≤ 50× equity (unrestricted paper testing)
   correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
   atr_window: 14
   atr_stop_mult: 2.5             # stop distance = 2.5× ATR (optimized baseline)
@@ -207,7 +219,15 @@ ai:
 # Set enabled: true only when the MT4 terminal is running the apex_mt4_bridge.mq4 EA.
 execution:
   enabled: true
-  provider: "mt4"                               # mt4 | mock
+  provider: "mt4"                               # mt4 | zmq | mock
   mt4:
-    common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/Program Files/MetaTrader 4/MQL4/Files"  # macOS Wine path
+    common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/users/crossover/AppData/Roaming/MetaQuotes/Terminal/Common/Files"  # macOS Wine shared path
     default_volume: 0.10
+    suffix: "-g"
+  zmq:
+    enabled: true                              # flip to true when EA is running in MT4
+    host: "127.0.0.1"
+    port: 9091
+    linger_ms: 0
+    send_timeout_ms: 1000
+
