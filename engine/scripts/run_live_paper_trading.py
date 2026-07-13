@@ -152,10 +152,12 @@ LOG_FILE = ENGINE_DIR / "data_store" / "live_engine.log"
 
 import subprocess
 
+from zoneinfo import ZoneInfo
+
 def log_message(*args, **kwargs):
     """Log message to both console and data_store/live_engine.log."""
     msg = " ".join(str(a) for a in args)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(ZoneInfo("Europe/London")).strftime("%Y-%m-%d %H:%M:%S %Z")
     line = f"[{timestamp}] {msg}"
     # Call original built-in print
     import builtins
@@ -1515,7 +1517,7 @@ def sync_mt4_trades(silent=False):
 
 def run_once():
     print("\n" + "="*80)
-    print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.utcnow().isoformat()} UTC")
+    print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.now(ZoneInfo('Europe/London')).strftime('%Y-%m-%d %H:%M:%S %Z')}")
     print("="*80)
     
     # ── Sync MT4 execution stats to Supabase ──
