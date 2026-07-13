@@ -33,6 +33,7 @@ from typing import Any
 
 from apex_quant.config import AppConfig, get_config
 from apex_quant.risk.types import Direction, Signal
+from apex_quant.ai.client import build_llm
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -85,29 +86,6 @@ def get_news_sentiment_score(
     """
     cfg = cfg or get_config()
 
-    # Resolve credentials ---------------------------------------------------
-    env_key = ""
-    try:
-        from pathlib import Path
-        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-        if env_path.exists():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    if k.strip() == "APEX_LOCAL_LLM_KEY":
-                        env_key = v.strip()
-                        break
-    except Exception:
-        pass
-
-    key = api_key or env_key or cfg.ai.local_llm_key or os.environ.get("DEEPSEEK_API_KEY", "")
-    url = api_url or cfg.ai.local_llm_url or "https://api.deepseek.com/v1/chat/completions"
-    model_name = model or cfg.ai.local_llm_model or "deepseek-chat"
-
-    if not key:
-        print("  [DeepSeekSentiment] No API key configured — skipping.")
-        return None
-
     # Build prompt -----------------------------------------------------------
     headlines_text = "\n".join(f"- {h}" for h in headlines_list[:25])
     user_prompt = (
@@ -116,35 +94,18 @@ def get_news_sentiment_score(
         "What is your risk assessment?"
     )
 
-    # Call DeepSeek ----------------------------------------------------------
     try:
-        import httpx
-
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": _CYNICAL_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.3,          # low temp → consistent, decisive
-            "max_tokens": 300,
-        }
-
-        with httpx.Client(timeout=timeout) as client:
-            res = client.post(url, json=payload, headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            })
-
-        if res.status_code != 200:
-            print(f"  [DeepSeekSentiment] API status {res.status_code}: {res.text[:200]}")
+        # Use our standard build_llm factory to support DeepSeek/Gemini/Proxy transparently!
+        llm = build_llm(cfg.ai)
+        if not llm:
+            print("  [DeepSeekSentiment] No LLM client available — skipping.")
             return None
 
-        body = res.json()
-        content = (
-            body.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
+        content = llm.complete(
+            user_prompt,
+            system=_CYNICAL_SYSTEM_PROMPT,
+            temperature=0.3,
+            max_tokens=300
         )
         if not content:
             return None
