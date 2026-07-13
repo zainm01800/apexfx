@@ -207,6 +207,7 @@ class Mt4Config(BaseModel):
     """MT4 bridge connection settings."""
     common_dir: str = ""
     default_volume: float = 0.10
+    suffix: str = ""                # Ticker suffix (e.g. "-g" or "-o") required by broker
 
 
 class ZmqConfig(BaseModel):

@@ -516,7 +516,9 @@ def add_validation_to_trade(trade, verdict, confidence, assessment="confirmed"):
 
 def _normalise_symbol(symbol: str) -> str:
     """Convert internal symbol format to MT4-compatible ticker."""
-    return symbol.upper().replace("/", "")
+    sym = symbol.upper().replace("/", "")
+    suffix = cfg.execution.mt4.suffix if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "suffix") else ""
+    return f"{sym}{suffix}"
 
 
 def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr, volume=None):
