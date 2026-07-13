@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initMt4Tabs() {
   const btnOpen = document.getElementById('btnOpen');
   const btnClosed = document.getElementById('btnClosed');
+  const btnRefresh = document.getElementById('btnRefresh');
   if (!btnOpen || !btnClosed) return;
 
   btnOpen.addEventListener('click', () => {
@@ -30,6 +31,27 @@ function initMt4Tabs() {
     _mt4TradesFilter = 'closed';
     renderMt4Trades();
   });
+
+  if (btnRefresh) {
+    let rotation = 0;
+    btnRefresh.addEventListener('click', async () => {
+      const icon = document.getElementById('refreshIcon');
+      rotation += 360;
+      if (icon) icon.style.transform = `rotate(${rotation}deg)`;
+      
+      btnRefresh.disabled = true;
+      btnRefresh.style.opacity = '0.7';
+      btnRefresh.innerHTML = `<span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease; transform: rotate(${rotation}deg);">🔄</span> Syncing...`;
+      
+      await loadMt4Trades();
+      
+      setTimeout(() => {
+        btnRefresh.disabled = false;
+        btnRefresh.style.opacity = '1';
+        btnRefresh.innerHTML = `<span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease; transform: rotate(${rotation}deg);">🔄</span> Refresh Terminal`;
+      }, 600);
+    });
+  }
 }
 
 async function loadMt4Trades() {

@@ -114,10 +114,15 @@
       </div>
     </div>
 
-    <!-- Toggle View: Open Positions vs Closed History -->
-    <div class="view-toggle" style="margin-bottom: 24px;">
-      <button id="btnOpen" class="vt-btn active" data-view="open">📂 Open Positions</button>
-      <button id="btnClosed" class="vt-btn" data-view="closed">📜 Closed History</button>
+    <!-- Toggle View & Refresh Button -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button id="btnOpen" class="vt-btn active" data-view="open">📂 Open Positions</button>
+        <button id="btnClosed" class="vt-btn" data-view="closed">📜 Closed History</button>
+      </div>
+      <button id="btnRefresh" class="vt-btn" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); color: var(--accent); padding: 8px 16px; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;">
+        <span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease;">🔄</span> Refresh Terminal
+      </button>
     </div>
 
     <!-- Grid Container for MT4 Trades -->

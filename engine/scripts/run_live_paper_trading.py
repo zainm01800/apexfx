@@ -1262,11 +1262,28 @@ def run_once():
     print("\nScan completed successfully.")
 
 
+def start_mt4_sync_daemon():
+    """Start a background daemon thread to sync MT4 trades every 5 seconds."""
+    def sync_loop():
+        print("[INFO] Background MT4 Sync Daemon started.")
+        while True:
+            try:
+                sync_mt4_trades()
+            except Exception:
+                pass
+            time.sleep(5)
+
+    t = threading.Thread(target=sync_loop, daemon=True)
+    t.start()
+
 def main():
     parser = argparse.ArgumentParser(description="Live Paper Trading Engine")
     parser.add_argument("--loop", action="store_true", help="Run the engine continuously in a loop")
     parser.add_argument("--interval", type=int, default=14400, help="Loop interval in seconds (default: 4 hours)")
     args = parser.parse_args()
+
+    # Start real-time MT4 background synchronisation
+    start_mt4_sync_daemon()
 
     if args.loop:
         print(f"Running in loop mode. Scanning every {args.interval} seconds...")
