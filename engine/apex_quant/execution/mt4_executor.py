@@ -116,7 +116,7 @@ class MT4Executor:
     def submit_order(
         self,
         symbol: str,
-        cmd: Literal["buy", "sell"],
+        cmd: Literal["buy", "sell", "close"],
         volume: float | None = None,
         sl: float = 0.0,
         tp: float = 0.0,
@@ -189,6 +189,10 @@ class MT4Executor:
             self._signal_path,
         )
         return self._signal_path
+
+    def close_position(self, symbol: str) -> Path:
+        """Write a close signal to the MT4 bridge file."""
+        return self.submit_order(symbol=symbol, cmd="close", volume=0.1)
 
     # -- convenience / introspection ----------------------------------------
 

@@ -146,6 +146,26 @@ void ExecuteOrder(string sym, string cmd, double vol, double sl, double tp)
    double price = 0.0;
    color arrowColor = clrNONE;
 
+   if(cmd == "close")
+   {
+      RefreshRates();
+      for(int i = OrdersTotal() - 1; i >= 0; i--)
+      {
+         if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         {
+            if(OrderSymbol() == sym && OrderMagicNumber() == MagicNumber)
+            {
+               int oType = OrderType();
+               double closePrice = (oType == OP_BUY) ? SymbolInfoDouble(sym, SYMBOL_BID) : SymbolInfoDouble(sym, SYMBOL_ASK);
+               bool res = OrderClose(OrderTicket(), OrderLots(), closePrice, SlippagePips, clrOrange);
+               if(res) Print("[APEX Bridge] Closed order #", OrderTicket());
+               else Print("[APEX Bridge] Close failed for #", OrderTicket(), ". Error: ", GetLastError());
+            }
+         }
+      }
+      return;
+   }
+
    if(cmd == "buy")
    {
       type = OP_BUY;
