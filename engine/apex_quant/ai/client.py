@@ -127,7 +127,7 @@ class GeminiLLM(LLMClient):
             messages.append({"role": "user", "content": prompt})
 
             payload = {
-                "model": "gemini-2.5-flash",
+                "model": "gemini-flash-latest",
                 "messages": messages,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
