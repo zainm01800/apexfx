@@ -1036,44 +1036,66 @@ def scan_single_asset(item, active_trades_map):
         active_trade = active_trades_map.get((sym.upper(), tf.lower()))
         
         if active_trade:
+            # Determine if this trade was opened by the engine (auto) or by the EA/manually
+            setup_features = active_trade.get("setup_features") or {}
+            if isinstance(setup_features, str):
+                try:
+                    import json as _json
+                    setup_features = _json.loads(setup_features)
+                except Exception:
+                    setup_features = {}
+            engine_owned = bool(setup_features.get("auto", False))
+
             # Recheck logic for existing open trade
             trade_verdict = active_trade["verdict"].upper()
             sig_dir = sig.direction.value.upper()
             
             # Map signal to actions
             if sig_dir == "FLAT":
-                print(f"  [VALIDATION] {sym} ({tf}) -> Signal is FLAT. Suggesting early close.")
-                add_validation_to_trade(active_trade, "CLOSE_TRADE", 100, assessment="invalidated")
-                
-                # Execute MT4 exit
-                if _EXECUTOR is not None:
-                    mt4_symbol = _normalise_symbol(sym)
-                    try:
-                        _EXECUTOR.close_position(symbol=mt4_symbol)
-                        print(f"  [EXECUTOR] Position closed for {mt4_symbol}")
-                    except Exception as ex:
-                        print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
-                        
-                resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
-                return
+                if engine_owned:
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Signal is FLAT. Engine-owned trade: suggesting early close.")
+                    add_validation_to_trade(active_trade, "CLOSE_TRADE", 100, assessment="invalidated")
+                    
+                    # Execute MT4 exit only for engine-owned positions
+                    if _EXECUTOR is not None:
+                        mt4_symbol = _normalise_symbol(sym)
+                        try:
+                            _EXECUTOR.close_position(symbol=mt4_symbol)
+                            print(f"  [EXECUTOR] Position closed for {mt4_symbol}")
+                        except Exception as ex:
+                            print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
+                            
+                    resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
+                    return
+                else:
+                    # EA/manual trade — signal went flat but we leave it alone to hit SL/TP naturally
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Signal is FLAT. EA-managed trade, leaving to run to SL/TP.")
+                    add_validation_to_trade(active_trade, "HOLD_TRADE", 50, assessment="ea_managed")
+                    return
                 
             elif (trade_verdict in ("BUY", "LONG") and sig_dir == "SHORT") or \
                  (trade_verdict in ("SELL", "SHORT") and sig_dir == "LONG"):
-                # Reversal signal! Close active and trigger opposite.
-                print(f"  [VALIDATION] {sym} ({tf}) -> Reversal signal detected ({sig_dir}). Closing active trade.")
-                add_validation_to_trade(active_trade, "CLOSE_TRADE", int(sig.probability * 100), assessment="invalidated")
-                
-                # Execute MT4 exit
-                if _EXECUTOR is not None:
-                    mt4_symbol = _normalise_symbol(sym)
-                    try:
-                        _EXECUTOR.close_position(symbol=mt4_symbol)
-                    except Exception as ex:
-                        print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
-                        
-                resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
-                # Fall through to trigger the new trade in the opposite direction!
-                pass
+                if engine_owned:
+                    # Reversal signal on engine-owned trade — close and flip.
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Reversal signal ({sig_dir}). Engine-owned trade: closing and flipping.")
+                    add_validation_to_trade(active_trade, "CLOSE_TRADE", int(sig.probability * 100), assessment="invalidated")
+                    
+                    # Execute MT4 exit only for engine-owned positions
+                    if _EXECUTOR is not None:
+                        mt4_symbol = _normalise_symbol(sym)
+                        try:
+                            _EXECUTOR.close_position(symbol=mt4_symbol)
+                        except Exception as ex:
+                            print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
+                            
+                    resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
+                    # Fall through to trigger the new trade in the opposite direction!
+                    pass
+                else:
+                    # EA/manual trade going against current signal — note it but don't interfere
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Reversal signal ({sig_dir}) vs EA-managed {trade_verdict}. Leaving EA trade to run.")
+                    add_validation_to_trade(active_trade, "HOLD_TRADE", int(sig.probability * 100), assessment="ea_managed_reversal")
+                    return
                 
             else:
                 # Same direction, keep holding
