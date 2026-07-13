@@ -13,15 +13,18 @@ numpy>=1.26
 pandas>=2.1
 scipy>=1.11
 pyarrow>=14          # parquet historical store
-httpx>=0.26          # async OHLCV fetching
+httpx>=0.26          # async OHLCV fetching + DeepSeek API calls
 pyyaml>=6            # versioned config
 
 # ── Models ───────────────────────────────────────────────────────────────────
 scikit-learn>=1.3
 statsmodels>=0.14
-arch>=6.2            # GARCH-family volatility
+arch>=6.2            # GARCH-family volatility (used by GARCHForecast feature)
 hmmlearn>=0.3.0      # HMM regime detection
 lightgbm>=4.1        # gradient-boosting ensemble (Phase 2 signal expansion)
+
+# ── Execution ─────────────────────────────────────────────────────────────────
+pyzmq>=25            # ZeroMQ TCP push-pull bridge (optional; falls back to file bridge)
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 pytest>=8.0

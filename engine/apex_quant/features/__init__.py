@@ -3,6 +3,7 @@
 from apex_quant.features.base import Feature
 from apex_quant.features.carry import Carry
 from apex_quant.features.cot import CotPositioning
+from apex_quant.features.microstructure import GARCHForecast, NormalizedOFI, YangZhangVol
 from apex_quant.features.momentum import Momentum, VolScaledMomentum
 from apex_quant.features.registry import (
     compute_feature_matrix,
@@ -18,6 +19,9 @@ __all__ = [
     "VolScaledMomentum",
     "RealizedVol",
     "ParkinsonVol",
+    "NormalizedOFI",
+    "YangZhangVol",
+    "GARCHForecast",
     "TrendSlope",
     "DistanceFromMA",
     "Carry",

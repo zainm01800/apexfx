@@ -1,5 +1,6 @@
 """Risk management - the supreme layer with veto authority over every signal."""
 
+from apex_quant.risk.bayesian_sizer import BayesianRiskSizer, BetaBinomialWinRate
 from apex_quant.risk.circuit_breaker import breaker_tripped, drawdown
 from apex_quant.risk.limits import correlation_cap, gross_exposure_cap
 from apex_quant.risk.manager import RiskManager
@@ -21,6 +22,8 @@ from apex_quant.risk.types import (
 
 __all__ = [
     "RiskManager",
+    "BayesianRiskSizer",
+    "BetaBinomialWinRate",
     "Signal",
     "Position",
     "Direction",

@@ -1358,29 +1358,45 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
         print(f"  Error scanning {sym}: {e}")
 
 def is_asset_in_active_session(symbol: str) -> bool:
-    """Determine if a given symbol is currently within its primary liquid trading hours (London time)."""
+    """Determine if a given symbol is currently within its primary liquid trading hours (London time).
+    
+    Session Rules (London Time / Europe/London):
+    1. Cryptos (BTC, ETH, etc.): Active 24/7.
+    2. JPY/AUD/NZD Crosses: Active 24/5, except the 9:00 PM to 10:00 PM rollover dead zone.
+    3. US Equities/ETFs/Gold (AAPL, SPY, GLD, etc.): Active 2:30 PM to 9:30 PM.
+    4. Western Forex (EUR/USD, GBP/USD, etc.): Active 8:00 AM to 10:00 PM, except the 9:00 PM to 10:00 PM rollover dead zone.
+    """
     now_london = datetime.now(ZoneInfo("Europe/London"))
     h = now_london.hour
+    m = now_london.minute
     sym_upper = symbol.upper()
     
-    # 1. Cryptos and Asia-Pacific/JPY currency pairs are active 24/7 or active during Tokyo session
-    has_asia_pac = any(ccy in sym_upper for ccy in ["JPY", "AUD", "NZD"])
-    
-    # Check if crypto
+    # 1. Category A: Cryptos (Active 24/7)
     cryptos = ["BTC", "ETH", "SOL", "SUI", "ADA", "AVAX", "LINK", "XRP", "ARB", "MATIC", "DOGE", "BNB"]
     is_crypto = any(crypto in sym_upper for crypto in cryptos)
-    
-    if is_crypto or has_asia_pac:
-        return True # 24-hour scan allowed
+    if is_crypto:
+        return True
         
-    # 2. US Equities, Gold, and Index ETFs
-    is_equity_etf = any(eq in sym_upper for eq in ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "SPY", "QQQ", "SMH", "SOXX", "GLD", "XBI", "XLK", "XLE", "XLF"])
+    # Check if we are in the daily rollover dead zone (9:00 PM to 10:00 PM UK Time / 21:00 to 21:59)
+    # We avoid opening new trades during this hour due to massive spread widening.
+    if h == 21:
+        return False
+        
+    # 2. Category C: JPY & Asia-Pacific Forex Pairs (JPY, AUD, NZD)
+    # Active 24 hours a day (except rollover hour which is handled above)
+    has_asia_pac = any(ccy in sym_upper for ccy in ["JPY", "AUD", "NZD"])
+    if has_asia_pac:
+        return True
+        
+    # 3. Category B: US Equities, Commodities, and Index ETFs
+    # Active US Hours: 2:30 PM (14:30) to 9:30 PM (21:30) London Time.
+    equities_etfs = ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "SPY", "QQQ", "SMH", "SOXX", "GLD", "XBI", "XLK", "XLE", "XLF"]
+    is_equity_etf = any(eq in sym_upper for eq in equities_etfs)
     if is_equity_etf:
-        # US Session is 9:30 AM to 4:00 PM EST. In UK time (London), this is 2:30 PM (14:30) to 9:00 PM (21:00).
-        return 14 <= h < 21 or (h == 21 and now_london.minute <= 30)
+        return 14 <= h < 21 or (h == 14 and m >= 30)
         
-    # 3. Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
-    # London/NY sessions: 8:00 AM to 10:00 PM London time
+    # 4. Category D: Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
+    # Active London + NY hours: 8:00 AM (08:00) to 10:00 PM (22:00) London Time.
     return 8 <= h < 22
 
 def scan_robust_core(open_trades):

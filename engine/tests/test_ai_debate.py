@@ -26,12 +26,15 @@ def _ev():
 
 def _router(verdict="test"):
     def respond(prompt, system):
-        if "[ROLE: BULL]" in prompt:
+        if "BULLISH CATALYST" in prompt:
             return "Momentum is positive and the trend is intact; the edge is plausible."
-        if "[ROLE: BEAR]" in prompt:
+        if "BEARISH ARBITRAGEUR" in prompt:
             return "The sample is short and the edge likely vanishes out-of-sample."
-        if "[ROLE: RISK SUPERVISOR]" in prompt:
-            return f'{{"verdict": "{verdict}", "reason": "borderline; {verdict} it"}}'
+        if "QUANTITATIVE RISK SUPERVISOR" in prompt:
+            return (
+                f'{{"verdict": "{verdict}", "cpcv_min_sharpe": 0.5, '
+                f'"pbo_max": 0.55, "reason": "borderline; {verdict} it"}}'
+            )
         return "?"
     return respond
 
@@ -42,6 +45,9 @@ def test_debate_with_llm_parses_verdict():
     assert res.verdict == "test"
     assert res.llm_used and res.bull and res.bear
     assert "edge" in res.bull.lower()
+    # New structured fields from upgraded supervisor
+    assert res.cpcv_min_sharpe == 0.5
+    assert res.pbo_max == 0.55
 
 
 def test_debate_discard_verdict():
@@ -52,7 +58,7 @@ def test_debate_discard_verdict():
 
 def test_debate_garbage_supervisor_defaults_to_test():
     def respond(prompt, system):
-        if "RISK SUPERVISOR" in prompt:
+        if "QUANTITATIVE RISK SUPERVISOR" in prompt:
             return "I think maybe?"          # no JSON
         return "text"
     res = run_debate(FakeLLM(respond), _ev(), Hypothesis.create("x", {}))
