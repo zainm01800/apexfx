@@ -317,14 +317,18 @@ class SmartDataProvider:
 
     def get_history(self, instrument: str, start, end, timeframe):
         asset_class = cfg.asset_class_of(instrument)
-        # Route Forex to OANDA if configured and available
+        sym_clean = instrument.replace("_", "/")
+        # Try OANDA first for forex, fall back to Yahoo if OANDA returns no/stale data
         if asset_class == "forex" and self.default_name == "oanda" and self.oanda is not None:
-            sym_clean = instrument.replace("_", "/")
-            return self.oanda.get_history(sym_clean, start, end, timeframe)
-        else:
-            # Route equities, ETFs, and crypto fallback to Yahoo
-            sym_clean = instrument.replace("_", "/")
-            return self.yahoo.get_history(sym_clean, start, end, timeframe)
+            try:
+                df = self.oanda.get_history(sym_clean, start, end, timeframe)
+                if df is not None and len(df) >= 10:
+                    return df
+                print(f"  [DATA] OANDA returned insufficient data for {instrument} ({timeframe}), falling back to Yahoo...")
+            except Exception as e:
+                print(f"  [DATA] OANDA failed for {instrument} ({timeframe}): {e} — falling back to Yahoo...")
+        # Fallback: Yahoo Finance (also primary for equities/ETFs/crypto)
+        return self.yahoo.get_history(sym_clean, start, end, timeframe)
 
 data_provider = SmartDataProvider()
 print(f"[DATA] Smart Data Provider active (Routing Forex -> OANDA, Equities/ETFs -> Yahoo)")
