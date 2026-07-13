@@ -16,6 +16,9 @@ Usage:
   python scripts/run_live_paper_trading.py --loop --interval 14400 # loops every 4 hours
 """
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import sys
 import os
 import json
