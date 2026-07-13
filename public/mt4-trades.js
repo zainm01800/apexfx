@@ -126,13 +126,42 @@ function updateScoreboard() {
     equityEl.textContent = curSymbol + equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // 2. Win Rate (Closed Trades only)
+  // 2. Win Rate (Closed Trades only) and Projected Win Rate (blended with current open trades)
+  let realisedWins = 0;
+  let realisedWR = 0;
   if (closedTrades.length > 0) {
-    const wins = closedTrades.filter(t => (t.profit || 0) > 0).length;
-    const wr = (wins / closedTrades.length) * 100;
-    document.getElementById('statWinRate').textContent = wr.toFixed(1) + '%';
+    realisedWins = closedTrades.filter(t => (t.profit || 0) > 0).length;
+    realisedWR = (realisedWins / closedTrades.length) * 100;
+    document.getElementById('statWinRate').textContent = realisedWR.toFixed(1) + '%';
   } else {
     document.getElementById('statWinRate').textContent = '0.0%';
+  }
+
+  const openWins = activeTrades.filter(t => (t.profit || 0) > 0).length;
+  const totalWins = realisedWins + openWins;
+  const totalTrades = closedTrades.length + activeTrades.length;
+  const projEl = document.getElementById('statProjectedWinRate');
+  if (projEl) {
+    if (totalTrades > 0) {
+      const projWR = (totalWins / totalTrades) * 100;
+      projEl.textContent = `Proj: ${projWR.toFixed(1)}%`;
+      if (activeTrades.length > 0) {
+        if (projWR > realisedWR) {
+          projEl.style.color = 'var(--green)';
+        } else if (projWR < realisedWR) {
+          projEl.style.color = 'var(--red)';
+        } else {
+          projEl.style.color = 'var(--text3)';
+        }
+        projEl.title = `Includes ${activeTrades.length} open positions (${openWins} floating in profit).`;
+      } else {
+        projEl.style.color = 'var(--text3)';
+        projEl.title = 'No active open positions to project.';
+      }
+    } else {
+      projEl.textContent = 'Proj: 0.0%';
+      projEl.style.color = 'var(--text3)';
+    }
   }
   
   // 3. Profit / Loss
