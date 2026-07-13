@@ -1191,8 +1191,12 @@ def scan_robust_core(open_trades):
         for _ in as_completed(futures):
             pass
 
+_style_map_cache = {}
+_style_map_last_fetched = 0.0
+
 def sync_mt4_trades(silent=False):
     """Sync live open positions and closed history from MT4 shared files to Supabase."""
+    global _style_map_cache, _style_map_last_fetched
     common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
     if not common_dir:
         return
@@ -1208,35 +1212,45 @@ def sync_mt4_trades(silent=False):
     def get_clean_symbol(sym):
         return sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
         
-    # Fetch recent analyses to match style (scalp, intraday, swing)
+    # Fetch recent analyses to match style (scalp, intraday, swing) once every 15 minutes
     style_map = {}
-    try:
-        r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features&order=analysis_date.desc&limit=100", headers=headers)
-        if r.status_code == 200:
-            for row in r.json():
-                sym = row.get("symbol", "").upper()
-                tf = row.get("timeframe", "1d")
-                
-                sf = row.get("setup_features")
-                style = ""
-                if isinstance(sf, str):
-                    try:
-                        sf_data = json.loads(sf)
-                        style = sf_data.get("style", "").lower()
-                    except Exception:
-                        pass
-                elif isinstance(sf, dict):
-                    style = sf.get("style", "").lower()
+    now_ts = time.time()
+    if not _style_map_cache or (now_ts - _style_map_last_fetched > 900):
+        try:
+            r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features&order=analysis_date.desc&limit=100", headers=headers, timeout=10.0)
+            if r.status_code == 200:
+                for row in r.json():
+                    sym = row.get("symbol", "").upper()
+                    tf = row.get("timeframe", "1d")
                     
-                if not style:
-                    if tf == "1d": style = "swing"
-                    elif tf == "1h": style = "intraday"
-                    elif tf == "15m": style = "scalp"
-                    else: style = "swing"
-                    
-                style_map[get_clean_symbol(sym)] = style
-    except Exception as e:
-        print(f"  [WARN] Failed to fetch recent analyses for style matching: {e}")
+                    sf = row.get("setup_features")
+                    style = ""
+                    if isinstance(sf, str):
+                        try:
+                            sf_data = json.loads(sf)
+                            style = sf_data.get("style", "").lower()
+                        except Exception:
+                            pass
+                    elif isinstance(sf, dict):
+                        style = sf.get("style", "").lower()
+                        
+                    if not style:
+                        if tf == "1d": style = "swing"
+                        elif tf == "1h": style = "intraday"
+                        elif tf == "15m": style = "scalp"
+                        else: style = "swing"
+                        
+                    style_map[get_clean_symbol(sym)] = style
+                _style_map_cache = style_map
+                _style_map_last_fetched = now_ts
+            else:
+                style_map = _style_map_cache
+        except Exception as e:
+            style_map = _style_map_cache
+            if not silent:
+                print(f"  [WARN] Failed to fetch recent analyses for style matching: {e}")
+    else:
+        style_map = _style_map_cache
         
     # 1. Sync Open Positions
     if os.path.exists(positions_file):
