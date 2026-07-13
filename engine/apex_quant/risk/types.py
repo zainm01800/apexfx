@@ -56,6 +56,7 @@ class MarketState(BaseModel):
     price: float = Field(gt=0.0)
     ann_vol: float = Field(gt=0.0, description="annualised forward vol (from volatility model)")
     atr: float = Field(gt=0.0, description="ATR in price terms, for stop distance")
+    quote_to_account_rate: float = Field(default=1.0, description="Exchange rate to convert quote currency to account currency (GBP)")
     # |correlation| of this instrument to each currently-open instrument
     correlations: dict[str, float] = {}
 

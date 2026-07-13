@@ -40,12 +40,19 @@ from apex_quant.risk.types import (
 if TYPE_CHECKING:
     from apex_quant.regime.base import RegimeLabel
 
+from apex_quant.risk.bayesian_sizer import BayesianRiskSizer  # noqa: E402
+
 logger = logging.getLogger("apex_quant.risk")
 
 
 class RiskManager:
-    def __init__(self, cfg: RiskConfig | None = None):
+    def __init__(
+        self,
+        cfg: RiskConfig | None = None,
+        bayesian_sizer: BayesianRiskSizer | None = None,
+    ) -> None:
         self.cfg = cfg or get_config().risk
+        self.bayesian_sizer = bayesian_sizer
 
     def permit(
         self,
@@ -98,8 +105,19 @@ class RiskManager:
         if stop_distance <= 0:
             return veto("invalid_stop", "Non-positive stop distance; cannot size.")
 
-        # 3. Fractional Kelly edge gate (only if kelly_fraction > 0)
-        if cfg.kelly_fraction > 0:
+        # 3. Fractional Kelly edge gate — or Bayesian sizer if configured
+        if self.bayesian_sizer is not None:
+            bayes_rf = self.bayesian_sizer.risk_fraction(signal, account)
+            if bayes_rf is None:
+                return veto(
+                    "bayesian_drawdown_breaker",
+                    f"Bayesian drawdown breaker: drawdown {account.drawdown:.1%} "
+                    f">= {self.bayesian_sizer.max_drawdown:.0%}; new positions halted.",
+                )
+            kelly_rf = bayes_rf
+            detail["bayesian_risk_fraction"] = kelly_rf
+            detail["bayesian_detail"] = self.bayesian_sizer.describe(signal.instrument)
+        elif cfg.kelly_fraction > 0:
             kelly_rf = fractional_kelly(signal.probability, signal.reward_risk, cfg.kelly_fraction)
             detail["kelly_risk_fraction"] = kelly_rf
             if kelly_rf <= 0:
@@ -129,8 +147,12 @@ class RiskManager:
                 return veto("regime_zero", f"Regime {detail['regime']} scaled size to zero.")
 
         # 6. Risk-based vs vol-target notional -> take the more conservative
-        units_risk = units_from_risk(account.equity, risk_fraction, stop_distance)
-        notional_risk = units_risk * market.price
+        rate = getattr(market, "quote_to_account_rate", 1.0)
+        stop_distance_account = stop_distance * rate
+        price_account = market.price * rate
+
+        units_risk = units_from_risk(account.equity, risk_fraction, stop_distance_account)
+        notional_risk = units_risk * price_account
         notional_voltarget = vol_target_notional(
             account.equity, cfg.target_portfolio_vol, market.ann_vol
         )
@@ -158,8 +180,8 @@ class RiskManager:
             return veto("below_min_position", "Permitted size rounds to zero.")
 
         # Finalise
-        units = notional / market.price
-        final_risk_fraction = units * stop_distance / account.equity
+        units = notional / price_account
+        final_risk_fraction = units * stop_distance_account / account.equity
         target_distance = signal.reward_risk * stop_distance
         target_price = (
             market.price + target_distance

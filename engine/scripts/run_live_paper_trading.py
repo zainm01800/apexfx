@@ -625,6 +625,69 @@ def parse_trade_entry_ts(row: dict) -> float:
             pass
     return datetime.utcnow().timestamp()
 
+def get_quote_to_account_rate(quote: str, account_currency: str = "GBP") -> float:
+    """Retrieve the exchange rate converting 1 unit of quote currency to account currency."""
+    if not quote or quote.upper() == account_currency.upper():
+        return 1.0
+    pair = f"{account_currency.upper()}/{quote.upper()}"
+    try:
+        start_dt = (datetime.utcnow() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+        df = clean(data_provider.get_history(pair, start=start_dt, timeframe="1d"))
+        if not df.empty:
+            rate_gbp_quote = float(df["close"].iloc[-1])
+            if rate_gbp_quote > 0:
+                return 1.0 / rate_gbp_quote
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch live rate for {pair}: {e}")
+    # Static fallback values if database or provider fails
+    fallbacks = {
+        ("USD", "GBP"): 1.0 / 1.30,
+        ("CHF", "GBP"): 1.0 / 1.14,
+        ("CAD", "GBP"): 1.0 / 1.77,
+        ("NZD", "GBP"): 1.0 / 2.10,
+        ("JPY", "GBP"): 1.0 / 206.0,
+        ("EUR", "GBP"): 1.0 / 0.84
+    }
+    return fallbacks.get((quote.upper(), account_currency.upper()), 1.0)
+
+_correlation_matrix_cache = {}
+_correlation_matrix_last_fetched = 0.0
+
+def get_portfolio_correlation_matrix(lookback_days=30):
+    """Compute rolling correlation matrix between core portfolio symbols using last lookback_days daily closes."""
+    global _correlation_matrix_cache, _correlation_matrix_last_fetched
+    now = time.time()
+    if now - _correlation_matrix_last_fetched < 3600 and _correlation_matrix_cache:
+        return _correlation_matrix_cache
+        
+    print("  [INFO] Computing live portfolio correlation matrix...")
+    start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    
+    unique_symbols = list(set([item["instrument"] for item in ROBUST_CORE_PORTFOLIO]))
+    price_series = {}
+    for sym in unique_symbols:
+        try:
+            df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe="1d"))
+            if not df.empty:
+                price_series[sym] = df["close"]
+        except Exception as e:
+            print(f"  [WARN] Failed to fetch correlation history for {sym}: {e}")
+            
+    if not price_series:
+        return {}
+        
+    try:
+        combined_df = pd.DataFrame(price_series).ffill().bfill()
+        corr_matrix = combined_df.corr().to_dict()
+        _correlation_matrix_cache = corr_matrix
+        _correlation_matrix_last_fetched = now
+        print(f"  [INFO] Portfolio correlation matrix computed successfully. Cache updated.")
+        return corr_matrix
+    except Exception as e:
+        print(f"  [WARN] Error computing correlation matrix: {e}")
+        return {}
+
 def map_timeframe(tf_str: str) -> str:
     """Map database timeframe to Yahoo Finance interval."""
     tf = str(tf_str).lower()
@@ -948,7 +1011,7 @@ Return ONLY a strict JSON object:
     except Exception as e:
         return True, f"Error running structural veto check: {e}"
 
-def scan_single_asset(item, active_trades_map):
+def scan_single_asset(item, active_trades_map, corr_matrix=None):
     """Worker to scan a single portfolio asset for signals."""
     sym = item["instrument"]
     style = item["style"]
@@ -1143,20 +1206,24 @@ def scan_single_asset(item, active_trades_map):
                     asset_class_ot = cfg.asset_class_of(sym_ot)
                     
                     trade_notional = 1000.0
+                    quote_ot = sym_ot.split("/")[-1] if "/" in sym_ot else "GBP"
+                    rate_ot = get_quote_to_account_rate(quote_ot, "GBP")
+                    
                     if sl_ot and abs(price_ot - sl_ot) > 1e-6:
-                        stop_dist_ot = abs(price_ot - sl_ot)
+                        stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
                         risk_cap = 0.01 * virtual_equity
-                        units = risk_cap / stop_dist_ot
+                        units = risk_cap / stop_dist_ot_gbp if stop_dist_ot_gbp > 0 else 1000.0
                         if asset_class_ot == "forex":
                             units = min(units, 500000.0)
                         else:
                             units = min(units, 1000.0)
-                        trade_notional = units * price_ot
+                        trade_notional = units * (price_ot * rate_ot)
                     else:
+                        price_ot_gbp = price_ot * rate_ot
                         if asset_class_ot == "forex":
-                            trade_notional = price_ot * 10000.0
+                            trade_notional = price_ot_gbp * 10000.0
                         else:
-                            trade_notional = price_ot * 1.0
+                            trade_notional = price_ot_gbp * 1.0
                             
                     open_positions.append(OpenPosition(
                         instrument=sym_ot,
@@ -1176,12 +1243,16 @@ def scan_single_asset(item, active_trades_map):
                 if not np.isfinite(ann_vol) or ann_vol <= 0:
                     ann_vol = 0.20 # 20% default
                 
+                quote_cand = sym.split("/")[-1] if "/" in sym else "GBP"
+                rate_cand = get_quote_to_account_rate(quote_cand, "GBP")
+                
                 market_state = MarketState(
                     instrument=sym,
                     price=close_p,
                     ann_vol=ann_vol,
                     atr=atr,
-                    correlations={}
+                    quote_to_account_rate=rate_cand,
+                    correlations=(corr_matrix or {}).get(sym, {})
                 )
                 
                 # 3. Create signal
@@ -1236,8 +1307,14 @@ def scan_robust_core(open_trades):
     print("\nScanning Robust Core Portfolio for new setups in parallel...")
     active_trades_map = {(t["symbol"].upper(), str(t.get("timeframe", "1d")).lower()): t for t in open_trades}
     
+    try:
+        corr_matrix = get_portfolio_correlation_matrix()
+    except Exception as e:
+        print(f"  [WARN] Failed to compute portfolio correlation matrix: {e}")
+        corr_matrix = {}
+        
     with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(scan_single_asset, item, active_trades_map) for item in ROBUST_CORE_PORTFOLIO]
+        futures = [executor.submit(scan_single_asset, item, active_trades_map, corr_matrix) for item in ROBUST_CORE_PORTFOLIO]
         for _ in as_completed(futures):
             pass
 
