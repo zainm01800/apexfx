@@ -1357,9 +1357,41 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
     except Exception as e:
         print(f"  Error scanning {sym}: {e}")
 
+def is_asset_in_active_session(symbol: str) -> bool:
+    """Determine if a given symbol is currently within its primary liquid trading hours (London time)."""
+    now_london = datetime.now(ZoneInfo("Europe/London"))
+    h = now_london.hour
+    sym_upper = symbol.upper()
+    
+    # 1. Cryptos and Asia-Pacific/JPY currency pairs are active 24/7 or active during Tokyo session
+    has_asia_pac = any(ccy in sym_upper for ccy in ["JPY", "AUD", "NZD"])
+    
+    # Check if crypto
+    cryptos = ["BTC", "ETH", "SOL", "SUI", "ADA", "AVAX", "LINK", "XRP", "ARB", "MATIC", "DOGE", "BNB"]
+    is_crypto = any(crypto in sym_upper for crypto in cryptos)
+    
+    if is_crypto or has_asia_pac:
+        return True # 24-hour scan allowed
+        
+    # 2. US Equities, Gold, and Index ETFs
+    is_equity_etf = any(eq in sym_upper for eq in ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "SPY", "QQQ", "SMH", "SOXX", "GLD", "XBI", "XLK", "XLE", "XLF"])
+    if is_equity_etf:
+        # US Session is 9:30 AM to 4:00 PM EST. In UK time (London), this is 2:30 PM (14:30) to 9:00 PM (21:00).
+        return 14 <= h < 21 or (h == 21 and now_london.minute <= 30)
+        
+    # 3. Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
+    # London/NY sessions: 8:00 AM to 10:00 PM London time
+    return 8 <= h < 22
+
 def scan_robust_core(open_trades):
     """Scan all systems for new entry signals concurrently."""
-    print("\nScanning Robust Core Portfolio for new setups in parallel...")
+    active_items = [item for item in ROBUST_CORE_PORTFOLIO if is_asset_in_active_session(item["instrument"])]
+    skipped_items = [item for item in ROBUST_CORE_PORTFOLIO if not is_asset_in_active_session(item["instrument"])]
+    
+    if skipped_items:
+        print(f"\n  [INFO] Gating: Skipping new trade scans for {len(skipped_items)} systems currently outside session hours (Western Forex/US Equities).")
+        
+    print(f"\nScanning {len(active_items)} Robust Core systems in parallel...")
     active_trades_map = {(t["symbol"].upper(), str(t.get("timeframe", "1d")).lower()): t for t in open_trades}
     
     try:
@@ -1369,7 +1401,7 @@ def scan_robust_core(open_trades):
         corr_matrix = {}
         
     with ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(scan_single_asset, item, active_trades_map, corr_matrix) for item in ROBUST_CORE_PORTFOLIO]
+        futures = [executor.submit(scan_single_asset, item, active_trades_map, corr_matrix) for item in active_items]
         for _ in as_completed(futures):
             pass
 
@@ -1536,8 +1568,6 @@ def run_once():
     open_trades = fetch_open_trades()
     check_open_trades(open_trades)
     scan_robust_core(open_trades)
-    
-    print("\nScan completed successfully.")
 
 
 def start_mt4_sync_daemon():
