@@ -625,6 +625,41 @@ def parse_trade_entry_ts(row: dict) -> float:
             pass
     return datetime.utcnow().timestamp()
 
+def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, float]:
+    """Retrieve actual live account equity, balance, and peak balance/equity from Supabase or local MT4 file."""
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if common_dir:
+        account_file = os.path.join(common_dir, "mt4_account.json")
+        if os.path.exists(account_file):
+            try:
+                with open(account_file, "r") as f:
+                    account_data = json.load(f)
+                eq = float(account_data.get("equity", default_equity))
+                bal = float(account_data.get("balance", default_equity))
+                start_bal = float(account_data.get("start_balance", default_equity))
+                peak_eq = max(start_bal, bal, eq)
+                if eq > 0 and bal > 0:
+                    return eq, bal, peak_eq
+            except Exception:
+                pass
+                
+    # Fallback to Supabase
+    url = f"{SUPABASE_URL}/rest/v1/apex_mt4_account?id=eq.1&select=*"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code == 200 and r.json():
+            data = r.json()[0]
+            eq = float(data.get("equity", default_equity))
+            bal = float(data.get("balance", default_equity))
+            start_bal = float(data.get("start_balance", default_equity))
+            peak_eq = max(start_bal, bal, eq)
+            if eq > 0 and bal > 0:
+                return eq, bal, peak_eq
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch live account stats from database: {e}")
+        
+    return default_equity, default_equity, default_equity
+
 def get_quote_to_account_rate(quote: str, account_currency: str = "GBP") -> float:
     """Retrieve the exchange rate converting 1 unit of quote currency to account currency."""
     if not quote or quote.upper() == account_currency.upper():
@@ -632,7 +667,8 @@ def get_quote_to_account_rate(quote: str, account_currency: str = "GBP") -> floa
     pair = f"{account_currency.upper()}/{quote.upper()}"
     try:
         start_dt = (datetime.utcnow() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
-        df = clean(data_provider.get_history(pair, start=start_dt, timeframe="1d"))
+        end_dt = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        df = clean(data_provider.get_history(pair, start=start_dt, end=end_dt, timeframe="1d"))
         if not df.empty:
             rate_gbp_quote = float(df["close"].iloc[-1])
             if rate_gbp_quote > 0:
@@ -1181,6 +1217,54 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             stop_dist = params["atr_stop_mult"] * atr
             target_dist = sig.reward_risk * stop_dist
             
+            # Fetch live account state (equity, balance, peak_equity)
+            live_equity, live_balance, live_peak_equity = fetch_live_account_state()
+                 
+            # Fetch resolved trades history to compound virtual equity curve (for comparison)
+            all_resolved_trades = fetch_resolved_trades_for_equity()
+            virtual_equity, peak_equity = calculate_virtual_equity(all_resolved_trades)
+
+            open_trades_list = fetch_open_trades()
+            open_positions = []
+
+            for ot in open_trades_list:
+                sym_ot = ot["symbol"]
+                price_ot = _safe_float(ot.get("price")) or 0.0
+                sl_ot = _safe_float(ot.get("stop_loss"))
+                asset_class_ot = cfg.asset_class_of(sym_ot)
+                
+                trade_notional = 1000.0
+                quote_ot = sym_ot.split("/")[-1] if "/" in sym_ot else "GBP"
+                rate_ot = get_quote_to_account_rate(quote_ot, "GBP")
+                
+                if sl_ot and abs(price_ot - sl_ot) > 1e-6:
+                    stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
+                    risk_cap = 0.01 * live_equity
+                    units = risk_cap / stop_dist_ot_gbp if stop_dist_ot_gbp > 0 else 1000.0
+                    if asset_class_ot == "forex":
+                        units = min(units, 500000.0)
+                    else:
+                        units = min(units, 1000.0)
+                    trade_notional = units * (price_ot * rate_ot)
+                else:
+                    price_ot_gbp = price_ot * rate_ot
+                    if asset_class_ot == "forex":
+                        trade_notional = price_ot_gbp * 10000.0
+                    else:
+                        trade_notional = price_ot_gbp * 1.0
+                        
+                open_positions.append(OpenPosition(
+                    instrument=sym_ot,
+                    direction=Direction.LONG if ot["verdict"] in ("BUY", "LONG") else Direction.SHORT,
+                    notional=trade_notional
+                ))
+            
+            account_state = AccountState(
+                equity=live_equity,
+                peak_equity=live_peak_equity,
+                open_positions=open_positions
+            )
+            
             if sig.direction.value.upper() == "LONG":
                 sl = close_p - stop_dist
                 tp = close_p + target_dist
@@ -1192,50 +1276,6 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             try:
                 # 1. Fetch current active trades for correlation check
                 print(f"  [SIGNAL] {sym} -> Direction: {sig.direction.value.upper()} | Win Prob: {sig.probability:.1%} | R:R: {sig.reward_risk:.1f}:1")
-                open_trades_list = fetch_open_trades()
-
-                open_positions = []
-                # Fetch resolved trades history to compound virtual equity curve
-                all_resolved_trades = fetch_resolved_trades_for_equity()
-                virtual_equity, peak_equity = calculate_virtual_equity(all_resolved_trades)
-
-                for ot in open_trades_list:
-                    sym_ot = ot["symbol"]
-                    price_ot = _safe_float(ot.get("price")) or 0.0
-                    sl_ot = _safe_float(ot.get("stop_loss"))
-                    asset_class_ot = cfg.asset_class_of(sym_ot)
-                    
-                    trade_notional = 1000.0
-                    quote_ot = sym_ot.split("/")[-1] if "/" in sym_ot else "GBP"
-                    rate_ot = get_quote_to_account_rate(quote_ot, "GBP")
-                    
-                    if sl_ot and abs(price_ot - sl_ot) > 1e-6:
-                        stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
-                        risk_cap = 0.01 * virtual_equity
-                        units = risk_cap / stop_dist_ot_gbp if stop_dist_ot_gbp > 0 else 1000.0
-                        if asset_class_ot == "forex":
-                            units = min(units, 500000.0)
-                        else:
-                            units = min(units, 1000.0)
-                        trade_notional = units * (price_ot * rate_ot)
-                    else:
-                        price_ot_gbp = price_ot * rate_ot
-                        if asset_class_ot == "forex":
-                            trade_notional = price_ot_gbp * 10000.0
-                        else:
-                            trade_notional = price_ot_gbp * 1.0
-                            
-                    open_positions.append(OpenPosition(
-                        instrument=sym_ot,
-                        direction=Direction.LONG if ot["verdict"] in ("BUY", "LONG") else Direction.SHORT,
-                        notional=trade_notional
-                    ))
-                
-                account_state = AccountState(
-                    equity=virtual_equity,
-                    peak_equity=peak_equity,
-                    open_positions=open_positions
-                )
                 
                 # 2. Volatility estimate via Yang-Zhang
                 yz_vol_calc = YangZhangVol(window=21)
@@ -1278,7 +1318,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 cost_model = cfg.mechanics_for(sym).cost_model if hasattr(cfg, 'mechanics_for') else 'pips'
                 sized_volume = units_to_lots(sym, permitted_pos.units, cost_model)
                 print(f"  [RISK SIZED] Bayesian Risk Manager allocated {permitted_pos.risk_fraction:.2%} risk. "
-                      f"Equity: ${virtual_equity:,.2f}. Lots: {sized_volume}.")
+                      f"Live Equity: £{live_equity:,.2f} (Drawdown: {account_state.drawdown:.2%}). Lots: {sized_volume}.")
             except Exception as re:
                 print(f"  [WARN] Risk manager sizing failed, fallback to defaults: {re}")
                 import traceback
