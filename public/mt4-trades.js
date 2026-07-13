@@ -4,12 +4,14 @@ let _mt4TradesFilter = 'open'; // 'open' or 'closed'
 let _mt4TradesCache = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-  initPulse();
-  initMt4Tabs();
+  try { initPulse(); } catch(e) { console.error('Pulse err:', e); }
+  try { initMt4Tabs(); } catch(e) { console.error('Tabs err:', e); }
   
   // Start polling MT4 trades
-  loadMt4Trades();
-  setInterval(loadMt4Trades, 3000); // 3-second rapid refresh for live broker feed
+  try { loadMt4Trades(); } catch(e) { console.error('Initial load err:', e); }
+  setInterval(() => {
+    try { loadMt4Trades(); } catch(e) { console.error('Poll load err:', e); }
+  }, 3000); // 3-second rapid refresh for live broker feed
 });
 
 function initMt4Tabs() {
@@ -54,11 +56,21 @@ function initMt4Tabs() {
   }
 }
 
+let _mt4AccountCache = {};
+
 async function loadMt4Trades() {
   try {
-    const res = await fetch('/api/mt4-trades');
-    if (!res.ok) throw new Error('Failed to load MT4 execution data');
-    _mt4TradesCache = await res.json();
+    const [tradesRes, accountRes] = await Promise.all([
+      fetch('/api/mt4-trades'),
+      fetch('/api/mt4-account').catch(() => null)
+    ]);
+    
+    if (!tradesRes.ok) throw new Error('Failed to load MT4 execution data');
+    _mt4TradesCache = await tradesRes.json();
+    
+    if (accountRes && accountRes.ok) {
+      _mt4AccountCache = await accountRes.json();
+    }
     
     // Update stats scoreboard
     updateScoreboard();
@@ -78,10 +90,27 @@ function updateScoreboard() {
   const activeTrades = _mt4TradesCache.filter(t => t.status === 'open');
   const closedTrades = _mt4TradesCache.filter(t => t.status === 'closed');
   
-  // 1. Active & Closed Counts
-  document.getElementById('statActiveCount').textContent = activeTrades.length;
-  document.getElementById('statClosedCount').textContent = closedTrades.length;
+  // 1. Account Details from Cache
+  const startBal = _mt4AccountCache.start_balance || 10000.00;
+  const currentBal = _mt4AccountCache.balance || startBal;
+  const equity = _mt4AccountCache.equity || currentBal;
+  const currency = _mt4AccountCache.currency || 'GBP';
   
+  const symbolMap = { 'GBP': '£', 'USD': '$', 'EUR': '€', 'CHF': 'CHF' };
+  const curSymbol = symbolMap[currency] || '£';
+  
+  document.getElementById('statStartBalance').textContent = curSymbol + startBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('statCurrentBalance').textContent = curSymbol + currentBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  // Equity card color coding
+  const equityEl = document.getElementById('statEquity');
+  if (equityEl) {
+    const floatDiff = equity - currentBal;
+    const colorClass = floatDiff > 0 ? 'green' : (floatDiff < 0 ? 'red' : '');
+    equityEl.className = `hs-val ${colorClass}`;
+    equityEl.textContent = curSymbol + equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   // 2. Win Rate (Closed Trades only)
   if (closedTrades.length > 0) {
     const wins = closedTrades.filter(t => (t.profit || 0) > 0).length;
@@ -100,8 +129,35 @@ function updateScoreboard() {
     const sign = totalRealised >= 0 ? '+' : '';
     const colorClass = totalRealised > 0 ? 'green' : (totalRealised < 0 ? 'red' : '');
     totalProfitEl.className = `hs-val ${colorClass}`;
-    totalProfitEl.innerHTML = `${sign}£${totalRealised.toFixed(2)} <span style="font-size: 11px; font-weight: normal; color: var(--text3); display: block; margin-top: 2px;">Float: £${totalFloating.toFixed(2)}</span>`;
+    totalProfitEl.innerHTML = `${sign}${curSymbol}${totalRealised.toFixed(2)} <span style="font-size: 11px; font-weight: normal; color: var(--text3); display: block; margin-top: 2px;">Float: ${totalFloating >= 0 ? '+' : ''}${curSymbol}${totalFloating.toFixed(2)}</span>`;
   }
+
+  // 4. Average Reward:Risk (R:R)
+  let rrSum = 0;
+  let rrCount = 0;
+  for (let t of closedTrades) {
+    const risk = Math.abs(t.open_price - t.sl);
+    const reward = Math.abs(t.tp - t.open_price);
+    if (risk > 0 && reward > 0 && t.sl > 0 && t.tp > 0) {
+      rrSum += (reward / risk);
+      rrCount++;
+    }
+  }
+  const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : '1.20';
+  document.getElementById('statAverageRR').textContent = '1:' + avgRR;
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '—';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (mins > 0 || parts.length === 0) parts.push(`${mins}m`);
+  return parts.join(' ');
 }
 
 function renderMt4Trades() {
@@ -161,6 +217,10 @@ function renderMt4Trades() {
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Close Price</span>
           <span style="font-family: var(--mono); color: var(--text2);">${t.close_price ? t.close_price.toFixed(5) : '—'}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <span style="color: var(--text3)">Duration</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${formatDuration(t.close_time - t.open_time)}</span>
         </div>
         ` : ''}
         

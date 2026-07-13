@@ -106,11 +106,13 @@
       </div>
       
       <!-- Live MT4 Summary Statistics -->
-      <div class="hist-summary" id="mt4Summary">
-        <div class="hs-stat"><span class="hs-val" id="statActiveCount">—</span><span class="hs-label">Active Orders</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statClosedCount">—</span><span class="hs-label">Closed Orders</span></div>
+      <div class="hist-summary" id="mt4Summary" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%;">
+        <div class="hs-stat"><span class="hs-val" id="statStartBalance">—</span><span class="hs-label">Start Balance</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statCurrentBalance">—</span><span class="hs-label">Current Balance</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statEquity">—</span><span class="hs-label">Equity</span></div>
         <div class="hs-stat"><span class="hs-val" id="statTotalProfit">—</span><span class="hs-label">Total P&L</span></div>
         <div class="hs-stat"><span class="hs-val accent" id="statWinRate">—%</span><span class="hs-label">MT4 Win Rate</span></div>
+        <div class="hs-stat"><span class="hs-val accent" id="statAverageRR">—</span><span class="hs-label">Average R:R</span></div>
       </div>
     </div>
 

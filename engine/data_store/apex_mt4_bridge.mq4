@@ -43,6 +43,7 @@ void OnTimer()
 {
    WriteLiveTrades();
    WriteClosedHistory();
+   WriteAccountInfo();
 
    // Check if file exists in the shared folder
    if(!FileIsExist(SignalFileName, FILE_COMMON))
@@ -354,6 +355,49 @@ void WriteClosedHistory()
       }
    }
    content += "]";
+   FileWriteString(handle, content);
+   FileClose(handle);
+}
+
+//+------------------------------------------------------------------+
+//| Write live account statistics to a shared common JSON file       |
+//+------------------------------------------------------------------+
+void WriteAccountInfo()
+{
+   string filename = "mt4_account.json";
+   int handle = FileOpen(filename, FILE_WRITE|FILE_TXT|FILE_COMMON);
+   if(handle == INVALID_HANDLE) return;
+
+   double startBalance = 0.0;
+   for(int i = 0; i < OrdersHistoryTotal(); i++)
+   {
+      if(OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
+      {
+         if(OrderType() == 6) // OP_BALANCE (deposit/withdrawal)
+         {
+            double p = OrderProfit();
+            if(p > 0.0) // only positive deposits as starting base
+            {
+               startBalance += p;
+            }
+         }
+      }
+   }
+   if(startBalance <= 0.0) {
+      // Fallback: current balance minus floating profit if history lacks deposits
+      startBalance = AccountBalance() - AccountProfit();
+   }
+
+   string content = "{\"balance\":" + DoubleToString(AccountBalance(), 2) +
+                    ",\"equity\":" + DoubleToString(AccountEquity(), 2) +
+                    ",\"profit\":" + DoubleToString(AccountProfit(), 2) +
+                    ",\"free_margin\":" + DoubleToString(AccountFreeMargin(), 2) +
+                    ",\"leverage\":" + IntegerToString(AccountLeverage()) +
+                    ",\"currency\":\"" + AccountCurrency() + "\"" +
+                    ",\"name\":\"" + AccountName() + "\"" +
+                    ",\"company\":\"" + AccountCompany() + "\"" +
+                    ",\"start_balance\":" + DoubleToString(startBalance, 2) + "}";
+                    
    FileWriteString(handle, content);
    FileClose(handle);
 }

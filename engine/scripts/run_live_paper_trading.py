@@ -1280,6 +1280,21 @@ def sync_mt4_trades():
         except Exception as e:
             print(f"  [WARN] Error syncing closed history: {e}")
 
+    # 3. Sync Account Info
+    account_file = os.path.join(common_dir, "mt4_account.json")
+    if os.path.exists(account_file):
+        try:
+            with open(account_file, "r") as f:
+                account_data = json.load(f)
+            account_data["id"] = 1
+            r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
+            if r.status_code not in (200, 201, 204):
+                print(f"  [WARN] Failed to sync account info to Supabase: {r.text}")
+            else:
+                print(f"  [INFO] Synced live MT4 account stats to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing account info: {e}")
+
 def run_once():
     print("\n" + "="*80)
     print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.utcnow().isoformat()} UTC")
