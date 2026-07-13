@@ -3,15 +3,22 @@
 let _mt4TradesFilter = 'open'; // 'open' or 'closed'
 let _mt4TradesCache = [];
 
+let _pollIntervalId = null;
+
+function startPolling(ms) {
+  if (_pollIntervalId) clearInterval(_pollIntervalId);
+  _pollIntervalId = setInterval(() => {
+    try { loadMt4Trades(); } catch(e) { console.error('Poll refresh error:', e); }
+  }, ms);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try { initPulse(); } catch(e) { console.error('Pulse err:', e); }
   try { initMt4Tabs(); } catch(e) { console.error('Tabs err:', e); }
   
-  // Start polling MT4 trades
+  // Start polling MT4 trades (initial load + slow 15-minute background auto-refresh)
   try { loadMt4Trades(); } catch(e) { console.error('Initial load err:', e); }
-  setInterval(() => {
-    try { loadMt4Trades(); } catch(e) { console.error('Poll load err:', e); }
-  }, 3000); // 3-second rapid refresh for live broker feed
+  startPolling(900000); // 15 minutes background refresh
 });
 
 function initMt4Tabs() {
@@ -53,6 +60,45 @@ function initMt4Tabs() {
         btnRefresh.style.opacity = '1';
         if (text) text.textContent = 'Refresh Terminal';
       }, 600);
+    });
+  }
+
+  const btnLiveToggle = document.getElementById('btnLiveToggle');
+  if (btnLiveToggle) {
+    let isLive = false;
+    btnLiveToggle.addEventListener('click', () => {
+      isLive = !isLive;
+      const dot = document.getElementById('liveDot');
+      const txt = document.getElementById('liveToggleText');
+      
+      if (isLive) {
+        // Toggle to Live Stream mode (5-second rapid updates)
+        btnLiveToggle.style.background = 'rgba(0, 212, 160, 0.1)';
+        btnLiveToggle.style.border = '1px solid rgba(0, 212, 160, 0.3)';
+        btnLiveToggle.style.color = 'var(--green)';
+        
+        if (dot) {
+          dot.style.background = 'var(--green)';
+          dot.style.boxShadow = '0 0 8px var(--green)';
+        }
+        if (txt) txt.textContent = 'Live Stream';
+        
+        startPolling(5000); // Poll every 5 seconds
+        loadMt4Trades(); // trigger load instantly
+      } else {
+        // Toggle to Not Live mode (15-minute background updates)
+        btnLiveToggle.style.background = 'rgba(255, 170, 0, 0.1)';
+        btnLiveToggle.style.border = '1px solid rgba(255, 170, 0, 0.3)';
+        btnLiveToggle.style.color = 'var(--orange)';
+        
+        if (dot) {
+          dot.style.background = 'var(--orange)';
+          dot.style.boxShadow = '0 0 8px var(--orange)';
+        }
+        if (txt) txt.textContent = 'Not Live';
+        
+        startPolling(900000); // Poll every 15 minutes
+      }
     });
   }
 }
