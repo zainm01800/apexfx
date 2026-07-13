@@ -62,45 +62,6 @@ function initMt4Tabs() {
       }, 600);
     });
   }
-
-  const btnLiveToggle = document.getElementById('btnLiveToggle');
-  if (btnLiveToggle) {
-    let isLive = false;
-    btnLiveToggle.addEventListener('click', () => {
-      isLive = !isLive;
-      const dot = document.getElementById('liveDot');
-      const txt = document.getElementById('liveToggleText');
-      
-      if (isLive) {
-        // Toggle to Live Stream mode (5-second rapid updates)
-        btnLiveToggle.style.background = 'rgba(0, 212, 160, 0.1)';
-        btnLiveToggle.style.border = '1px solid rgba(0, 212, 160, 0.3)';
-        btnLiveToggle.style.color = 'var(--green)';
-        
-        if (dot) {
-          dot.style.background = 'var(--green)';
-          dot.style.boxShadow = '0 0 8px var(--green)';
-        }
-        if (txt) txt.textContent = 'Live Stream';
-        
-        startPolling(5000); // Poll every 5 seconds
-        loadMt4Trades(); // trigger load instantly
-      } else {
-        // Toggle to Not Live mode (15-minute background updates)
-        btnLiveToggle.style.background = 'rgba(255, 170, 0, 0.1)';
-        btnLiveToggle.style.border = '1px solid rgba(255, 170, 0, 0.3)';
-        btnLiveToggle.style.color = 'var(--orange)';
-        
-        if (dot) {
-          dot.style.background = 'var(--orange)';
-          dot.style.boxShadow = '0 0 8px var(--orange)';
-        }
-        if (txt) txt.textContent = 'Not Live';
-        
-        startPolling(900000); // Poll every 15 minutes
-      }
-    });
-  }
 }
 
 let _mt4AccountCache = {};
@@ -196,6 +157,50 @@ function updateScoreboard() {
   }
   const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : '1.20';
   document.getElementById('statAverageRR').textContent = '1:' + avgRR;
+
+  // 5. Live Status Badge & Last Updated Time
+  const badge = document.getElementById('liveStatusBadge');
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveStatusText');
+  const label = document.getElementById('lastUpdatedLabel');
+  
+  if (badge && dot && txt && label) {
+    if (_mt4AccountCache.updated_at) {
+      const lastUpdate = new Date(_mt4AccountCache.updated_at);
+      if (!isNaN(lastUpdate.getTime())) {
+        const timeStr = lastUpdate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        label.textContent = 'Sync: ' + timeStr;
+        
+        // Calculate age of last sync in seconds
+        const ageSec = (Date.now() - lastUpdate.getTime()) / 1000;
+        const isLive = ageSec < 35; // Sync within last 35 seconds is considered active live!
+        
+        if (isLive) {
+          badge.style.background = 'rgba(0, 212, 160, 0.1)';
+          badge.style.border = '1px solid rgba(0, 212, 160, 0.3)';
+          badge.style.color = 'var(--green)';
+          dot.style.background = 'var(--green)';
+          dot.style.boxShadow = '0 0 8px var(--green)';
+          txt.textContent = 'LIVE';
+        } else {
+          badge.style.background = 'rgba(255, 170, 0, 0.1)';
+          badge.style.border = '1px solid rgba(255, 170, 0, 0.3)';
+          badge.style.color = 'var(--orange)';
+          dot.style.background = 'var(--orange)';
+          dot.style.boxShadow = '0 0 8px var(--orange)';
+          txt.textContent = 'NOT LIVE';
+        }
+      }
+    } else {
+      label.textContent = 'Sync: —';
+      badge.style.background = 'rgba(255, 170, 0, 0.1)';
+      badge.style.border = '1px solid rgba(255, 170, 0, 0.3)';
+      badge.style.color = 'var(--orange)';
+      dot.style.background = 'var(--orange)';
+      dot.style.boxShadow = '0 0 8px var(--orange)';
+      txt.textContent = 'NOT LIVE';
+    }
+  }
 }
 
 function formatDuration(seconds) {
