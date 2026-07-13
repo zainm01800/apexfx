@@ -312,31 +312,43 @@ function rowTs(row) {
   return 0;
 }
 
-// Scan time of day in UTC ("17:30 UTC") — shown alongside the date so trades scanned
-// on the same day (or across a midnight boundary) are never ambiguous. UTC matches the
-// candle data the outcomes are graded against. Empty when there's no usable timestamp.
+function localTimezone() {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(new Date());
+    const tzPart = parts.find(p => p.type === 'timeZoneName');
+    return tzPart ? tzPart.value : 'UTC';
+  } catch (e) {
+    return 'UTC';
+  }
+}
+
+// Scan time of day in Local Time (e.g. "17:30 BST") — shown alongside the date so trades scanned
+// on the same day (or across a midnight boundary) are never ambiguous. Empty when there's no usable timestamp.
 function fmtTimeUTC(row) {
   const t = rowTs(row);
   if (!t) return '';
   // Skip midnight-only fallbacks (analysis_date with no real time component).
   if (!row.created_at && !/_(\d{10,})$/.test(String(row.id || ''))) return '';
   const d = new Date(t);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+  const tz = localTimezone();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${tz}`;
 }
-// Date + time, e.g. "2026-06-05 · 17:30 UTC".
+// Date + time, e.g. "2026-06-05 · 17:30 BST".
 function fmtDateTime(row) {
   const time = fmtTimeUTC(row);
-  return `${row.analysis_date || ''}${time ? ' · ' + time : ''}`;
+  const dateStr = row.analysis_date || '';
+  return `${dateStr}${time ? ' · ' + time : ''}`;
 }
 
-// Format outcome date/time, e.g. "2026-06-05 · 17:30 UTC" or fallback to "2026-06-05" if no time exists.
+// Format outcome date/time, e.g. "2026-06-05 · 17:30 BST" or fallback to "2026-06-05" if no time exists.
 function fmtOutcomeDateTime(outcomeDate) {
   if (!outcomeDate) return '';
   if (outcomeDate.includes('T') || outcomeDate.includes(' ')) {
     const d = new Date(outcomeDate);
     if (!isNaN(d.getTime())) {
-      const datePart = d.toISOString().slice(0, 10);
-      const timePart = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+      const tz = localTimezone();
+      const datePart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const timePart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${tz}`;
       return `${datePart} · ${timePart}`;
     }
   }
@@ -457,9 +469,10 @@ function validationSummary(v, isFilled = false) {
   const prog = v.progressPct != null ? ` · ${v.progressPct}% to ${v.progressToward}` : '';
   return `${label}${conf}${then}${prog}`;
 }
-// "Jun 5, 17:30 UTC" from a validation record's ISO timestamp.
+// "Jun 5, 17:30 BST" from a validation record's ISO timestamp.
 function fmtUTC(d) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')} · ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')} UTC`;
+  const tz = localTimezone();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ${tz}`;
 }
 function fmtValTs(ts) {
   const t = Date.parse(ts); if (isNaN(t)) return '';
