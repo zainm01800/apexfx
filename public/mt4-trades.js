@@ -15,6 +15,7 @@ function startPolling(ms) {
 document.addEventListener('DOMContentLoaded', () => {
   try { initPulse(); } catch(e) { console.error('Pulse err:', e); }
   try { initMt4Tabs(); } catch(e) { console.error('Tabs err:', e); }
+  try { initRefreshButton(); } catch(e) { console.error('Refresh btn err:', e); }
   
   // Start polling MT4 trades (initial load + slow 15-minute background auto-refresh)
   try { loadMt4Trades(); } catch(e) { console.error('Initial load err:', e); }
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function initMt4Tabs() {
   const btnOpen = document.getElementById('btnOpen');
   const btnClosed = document.getElementById('btnClosed');
-  const btnRefresh = document.getElementById('btnRefresh');
   if (!btnOpen || !btnClosed) return;
 
   btnOpen.addEventListener('click', () => {
@@ -40,7 +40,10 @@ function initMt4Tabs() {
     _mt4TradesFilter = 'closed';
     renderMt4Trades();
   });
+}
 
+function initRefreshButton() {
+  const btnRefresh = document.getElementById('btnRefresh');
   if (btnRefresh) {
     let rotation = 0;
     btnRefresh.addEventListener('click', async () => {
@@ -53,13 +56,17 @@ function initMt4Tabs() {
       btnRefresh.disabled = true;
       btnRefresh.style.opacity = '0.7';
       
-      await loadMt4Trades();
-      
-      setTimeout(() => {
-        btnRefresh.disabled = false;
-        btnRefresh.style.opacity = '1';
-        if (text) text.textContent = 'Refresh Terminal';
-      }, 600);
+      try {
+        await loadMt4Trades();
+      } catch (e) {
+        console.error('Refresh fetch error:', e);
+      } finally {
+        setTimeout(() => {
+          btnRefresh.disabled = false;
+          btnRefresh.style.opacity = '1';
+          if (text) text.textContent = 'Refresh Terminal';
+        }, 600);
+      }
     });
   }
 }
@@ -158,47 +165,17 @@ function updateScoreboard() {
   const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : '1.20';
   document.getElementById('statAverageRR').textContent = '1:' + avgRR;
 
-  // 5. Live Status Badge & Last Updated Time
-  const badge = document.getElementById('liveStatusBadge');
-  const dot = document.getElementById('liveDot');
-  const txt = document.getElementById('liveStatusText');
+  // 5. Last Sync Label
   const label = document.getElementById('lastUpdatedLabel');
-  
-  if (badge && dot && txt && label) {
+  if (label) {
     if (_mt4AccountCache.updated_at) {
       const lastUpdate = new Date(_mt4AccountCache.updated_at);
       if (!isNaN(lastUpdate.getTime())) {
         const timeStr = lastUpdate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        label.textContent = 'Sync: ' + timeStr;
-        
-        // Calculate age of last sync in seconds
-        const ageSec = (Date.now() - lastUpdate.getTime()) / 1000;
-        const isLive = ageSec < 35; // Sync within last 35 seconds is considered active live!
-        
-        if (isLive) {
-          badge.style.background = 'rgba(0, 212, 160, 0.1)';
-          badge.style.border = '1px solid rgba(0, 212, 160, 0.3)';
-          badge.style.color = 'var(--green)';
-          dot.style.background = 'var(--green)';
-          dot.style.boxShadow = '0 0 8px var(--green)';
-          txt.textContent = 'LIVE';
-        } else {
-          badge.style.background = 'rgba(255, 170, 0, 0.1)';
-          badge.style.border = '1px solid rgba(255, 170, 0, 0.3)';
-          badge.style.color = 'var(--orange)';
-          dot.style.background = 'var(--orange)';
-          dot.style.boxShadow = '0 0 8px var(--orange)';
-          txt.textContent = 'NOT LIVE';
-        }
+        label.textContent = 'Last Sync: ' + timeStr;
       }
     } else {
-      label.textContent = 'Sync: —';
-      badge.style.background = 'rgba(255, 170, 0, 0.1)';
-      badge.style.border = '1px solid rgba(255, 170, 0, 0.3)';
-      badge.style.color = 'var(--orange)';
-      dot.style.background = 'var(--orange)';
-      dot.style.boxShadow = '0 0 8px var(--orange)';
-      txt.textContent = 'NOT LIVE';
+      label.textContent = 'Last Sync: —';
     }
   }
 }
