@@ -1287,6 +1287,7 @@ def sync_mt4_trades(silent=False):
             with open(account_file, "r") as f:
                 account_data = json.load(f)
             account_data["id"] = 1
+            account_data["updated_at"] = datetime.utcnow().isoformat()
             r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
             if r.status_code not in (200, 201, 204):
                 print(f"  [WARN] Failed to sync account info to Supabase: {r.text}")
