@@ -1205,6 +1205,39 @@ def sync_mt4_trades():
         "Prefer": "resolution=merge-duplicates"
     }
     
+    def get_clean_symbol(sym):
+        return sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+        
+    # Fetch recent analyses to match style (scalp, intraday, swing)
+    style_map = {}
+    try:
+        r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features&order=analysis_date.desc&limit=100", headers=headers)
+        if r.status_code == 200:
+            for row in r.json():
+                sym = row.get("symbol", "").upper()
+                tf = row.get("timeframe", "1d")
+                
+                sf = row.get("setup_features")
+                style = ""
+                if isinstance(sf, str):
+                    try:
+                        sf_data = json.loads(sf)
+                        style = sf_data.get("style", "").lower()
+                    except Exception:
+                        pass
+                elif isinstance(sf, dict):
+                    style = sf.get("style", "").lower()
+                    
+                if not style:
+                    if tf == "1d": style = "swing"
+                    elif tf == "1h": style = "intraday"
+                    elif tf == "15m": style = "scalp"
+                    else: style = "swing"
+                    
+                style_map[get_clean_symbol(sym)] = style
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch recent analyses for style matching: {e}")
+        
     # 1. Sync Open Positions
     if os.path.exists(positions_file):
         try:
@@ -1212,6 +1245,11 @@ def sync_mt4_trades():
                 positions = json.load(f)
             for p in positions:
                 p["status"] = "open"
+                magic = p.get("magic", 0)
+                if magic != 88888:
+                    p["style"] = "manual"
+                else:
+                    p["style"] = style_map.get(get_clean_symbol(p.get("symbol", "")), "swing")
             if positions:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
                 if r.status_code not in (200, 201, 204):
@@ -1228,6 +1266,11 @@ def sync_mt4_trades():
                 closed_trades = json.load(f)
             for c in closed_trades:
                 c["status"] = "closed"
+                magic = c.get("magic", 0)
+                if magic != 88888:
+                    c["style"] = "manual"
+                else:
+                    c["style"] = style_map.get(get_clean_symbol(c.get("symbol", "")), "swing")
             if closed_trades:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
                 if r.status_code not in (200, 201, 204):

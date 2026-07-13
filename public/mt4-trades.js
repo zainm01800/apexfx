@@ -130,7 +130,10 @@ function renderMt4Trades() {
     return `
       <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${t.symbol}</strong>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${t.symbol}</strong>
+            <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
+          </div>
           <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${t.ticket}</span>
         </div>
         
