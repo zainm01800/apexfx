@@ -101,6 +101,8 @@ def _needs_structured_lesson(t: dict) -> bool:
         return True
     if "<strong>" not in lesson:
         return True
+    if "£" not in lesson:
+        return True
 
     # Detect which category is encoded in the stored lesson HTML
     first_100 = lesson[:100]

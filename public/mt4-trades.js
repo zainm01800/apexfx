@@ -703,6 +703,43 @@ function renderMt4Trades() {
       finalColor = '#ffaa00';
     }
 
+    // Determine close reason and targets for display
+    let outcomeLabel = 'Closed Manually (Managed Exit)'; // default
+    let closeReasonColor = '#ffaa00'; // orange
+    
+    if (matchedAi && matchedAi.outcome) {
+      if (matchedAi.outcome === 'tp_hit') {
+        outcomeLabel = 'Hit Take Profit';
+        closeReasonColor = 'var(--green)';
+      } else if (matchedAi.outcome === 'sl_hit') {
+        outcomeLabel = 'Hit Stop Loss';
+        closeReasonColor = 'var(--red)';
+      } else if (matchedAi.outcome === 'invalidated') {
+        outcomeLabel = 'Closed Manually (Managed Exit)';
+        closeReasonColor = '#ffaa00';
+      } else if (matchedAi.outcome === 'expired') {
+        outcomeLabel = 'Expired';
+        closeReasonColor = 'var(--text3)';
+      }
+    } else {
+      // fallback detection
+      const tpVal = parseFloat(t.tp) || 0;
+      const slVal = parseFloat(t.sl) || 0;
+      const closeVal = parseFloat(t.close_price) || 0;
+      if (tpVal > 0 && Math.abs(closeVal - tpVal) < 0.0002) {
+        outcomeLabel = 'Hit Take Profit';
+        closeReasonColor = 'var(--green)';
+      } else if (slVal > 0 && Math.abs(closeVal - slVal) < 0.0002) {
+        outcomeLabel = 'Hit Stop Loss';
+        closeReasonColor = 'var(--red)';
+      }
+    }
+
+    const displayTp = parseFloat(t.tp) || (matchedAi ? parseFloat(matchedAi.target_price) : 0);
+    const displaySl = parseFloat(t.sl) || (matchedAi ? parseFloat(matchedAi.stop_loss) : 0);
+    const tpText = displayTp > 0 ? displayTp.toFixed(5) : '—';
+    const slText = displaySl > 0 ? displaySl.toFixed(5) : '—';
+
     return `
       <div class="stat-item" data-lesson-ticket="${t.ticket}" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
@@ -721,6 +758,16 @@ function renderMt4Trades() {
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Entry / Exit Price</span>
           <span style="font-family: var(--mono); color: var(--text2);">${t.open_price.toFixed(5)} / ${t.close_price.toFixed(5)}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Target TP / SL</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${tpText} / ${slText}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Close Reason</span>
+          <span style="font-family: var(--mono); font-weight: 700; color: ${closeReasonColor};">${outcomeLabel}</span>
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
