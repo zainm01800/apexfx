@@ -1742,13 +1742,20 @@ def is_asset_in_active_session(symbol: str) -> bool:
     if is_crypto:
         return True
         
-    # Check if we are in the daily rollover dead zone (9:00 PM to 10:00 PM UK Time / 21:00 to 21:59)
+    # Check if we are in the daily rollover dead zone (10:00 PM to 11:00 PM UK Time / 22:00 to 22:59)
+    # 5:00 PM New York time is exactly 10:00 PM London time in both GMT and BST.
     # We avoid opening new trades during this hour due to massive spread widening.
-    if h == 21:
+    if h == 22:
+        return False
+        
+    # Friday close protection: Avoid opening new trades after 8:00 PM London time on Fridays
+    # to protect against weekend gap risk (market closes at 10 PM London time / 5 PM NY time).
+    weekday = now_london.weekday()
+    if weekday == 4 and h >= 20:
         return False
         
     # 2. Category C: JPY & Asia-Pacific Forex Pairs (JPY, AUD, NZD)
-    # Active 24 hours a day (except rollover hour which is handled above)
+    # Active 24 hours a day (except rollover / Friday close handled above)
     has_asia_pac = any(ccy in sym_upper for ccy in ["JPY", "AUD", "NZD"])
     if has_asia_pac:
         return True
