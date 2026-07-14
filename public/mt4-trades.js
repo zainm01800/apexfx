@@ -238,6 +238,50 @@ window.toggleMt4Batch = function(batchId, headerId) {
   }
 };
 
+function getExitReason(t) {
+  const isBuy = t.cmd === 0;
+  const tp = parseFloat(t.tp) || 0;
+  const sl = parseFloat(t.sl) || 0;
+  const closePrice = parseFloat(t.close_price) || 0;
+  const openPrice = parseFloat(t.open_price) || 0;
+  const profit = parseFloat(t.profit) || 0;
+
+  if (closePrice <= 0) return 'Closed';
+
+  // Relative tolerance: 0.02% of the close price to handle spread/slippage cleanly across all asset classes
+  const tolerance = closePrice * 0.0002;
+
+  if (isBuy) {
+    if (tp > 0 && closePrice >= (tp - tolerance)) {
+      return 'TP Hit';
+    }
+    if (sl > 0 && closePrice <= (sl + tolerance)) {
+      if (Math.abs(sl - openPrice) <= (openPrice * 0.0005)) {
+        return 'Breakeven Stop Hit';
+      }
+      if (profit > 0) {
+        return 'Trailing Stop Hit';
+      }
+      return 'SL Hit';
+    }
+  } else { // SELL
+    if (tp > 0 && closePrice <= (tp + tolerance)) {
+      return 'TP Hit';
+    }
+    if (sl > 0 && closePrice >= (sl - tolerance)) {
+      if (Math.abs(sl - openPrice) <= (openPrice * 0.0005)) {
+        return 'Breakeven Stop Hit';
+      }
+      if (profit > 0) {
+        return 'Trailing Stop Hit';
+      }
+      return 'SL Hit';
+    }
+  }
+
+  return 'Manually Closed';
+}
+
 function renderMt4Trades() {
   const grid = document.getElementById('mt4TradesGrid');
   if (!grid) return;
@@ -274,10 +318,25 @@ function renderMt4Trades() {
     // ── WIN / LOSS badge (closed cards only) ─────────────────────────────
     const isClosedView = _mt4TradesFilter === 'closed';
     let winBadge = '';
+    let exitReasonBadge = '';
     if (isClosedView) {
-      if (pnl > 0)      winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;">WIN</span>`;
-      else if (pnl < 0) winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;">LOSS</span>`;
-      else              winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(150,150,150,0.1);color:var(--text3);font-family:var(--mono);">BREAK</span>`;
+      if (pnl > 0)      winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">WIN</span>`;
+      else if (pnl < 0) winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">LOSS</span>`;
+      else              winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(150,150,150,0.1);color:var(--text3);font-family:var(--mono);border:1px solid rgba(150,150,150,0.15);">BREAK</span>`;
+
+      // exit reason
+      const exitReason = getExitReason(t);
+      if (exitReason === 'TP Hit') {
+        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.1);color:var(--green);font-family:var(--mono);border:1px solid rgba(0,200,100,0.25);letter-spacing:0.04em;">TP HIT</span>`;
+      } else if (exitReason === 'SL Hit') {
+        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.1);color:var(--red);font-family:var(--mono);border:1px solid rgba(255,70,70,0.25);letter-spacing:0.04em;">SL HIT</span>`;
+      } else if (exitReason === 'Trailing Stop Hit') {
+        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,195,255,0.1);color:var(--accent);font-family:var(--mono);border:1px solid rgba(0,195,255,0.25);letter-spacing:0.04em;">TRAILING SL</span>`;
+      } else if (exitReason === 'Breakeven Stop Hit') {
+        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,170,0,0.1);color:#ffaa00;font-family:var(--mono);border:1px solid rgba(255,170,0,0.25);letter-spacing:0.04em;">BE SL HIT</span>`;
+      } else {
+        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text3);font-family:var(--mono);border:1px solid var(--border);letter-spacing:0.04em;">MANUAL</span>`;
+      }
     }
 
     // ── PARTIAL CLOSE detection ───────────────────────────────────────────
@@ -328,9 +387,11 @@ function renderMt4Trades() {
             <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
             <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
             ${winBadge}
+            ${exitReasonBadge}
           </div>
           <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${t.ticket}</span>
         </div>
+
 
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
           <span style="color: var(--text3)">Direction</span>
