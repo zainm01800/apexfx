@@ -47,3 +47,37 @@ def units_from_risk(equity: float, risk_fraction: float, stop_distance: float) -
     if stop_distance <= 0:
         return 0.0
     return risk_fraction * equity / stop_distance
+
+
+def round_lot_size(
+    volume: float,
+    min_lot: float = 0.01,
+    lot_step: float = 0.01,
+) -> float:
+    """Round ``volume`` DOWN to the nearest valid broker lot step.
+
+    MT4 requires order volumes in exact multiples of ``lot_step`` (0.01 for most
+    forex brokers). A raw sizer output such as 0.0734 must be floored to 0.07 —
+    not rounded, because rounding UP could cause oversizing. If the floored value
+    is below the broker's ``min_lot`` (typically 0.01), the order cannot be placed
+    and this function returns 0.0 as a sentinel for "do not trade".
+
+    Args:
+        volume:   Raw computed volume in lots (e.g. 0.0734).
+        min_lot:  Minimum tradeable lot size for the broker/instrument.
+        lot_step: Increment between valid lot sizes (0.01 = micro-lot steps).
+
+    Returns:
+        Rounded volume in lots, or 0.0 if below minimum (don't trade).
+    """
+    if volume <= 0 or lot_step <= 0:
+        return 0.0
+    # Floor to the nearest lot_step
+    rounded = float(int(volume / lot_step)) * lot_step
+    # Guard precision drift (e.g. 0.07000000000000001 → 0.07)
+    rounded = round(rounded, 10)
+    # Below minimum → signal caller to skip this order
+    if rounded < min_lot - 1e-9:
+        return 0.0
+    return round(rounded, 2)
+

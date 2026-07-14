@@ -83,45 +83,75 @@ def _build_lesson(trade: dict) -> str | None:
     outcome = trade.get("outcome", "?")
     summary = (trade.get("summary") or "")[:400]
     tech = (trade.get("technical_analysis") or "")[:400]
-    is_win = outcome == "tp_hit"
+
+    # Determine win/loss from ACTUAL profit first, fall back to outcome code.
+    # Using profit > 0 is the ground truth — outcome codes like 'invalidated'
+    # can appear on winning manual closes, partial takes, etc.
+    profit_raw = trade.get("profit") or trade.get("pnl") or 0
+    try:
+        profit_val = float(profit_raw)
+    except (TypeError, ValueError):
+        profit_val = 0.0
+
+    # Outcome code → human description (never let raw codes appear in lesson)
+    _OUTCOME_LABELS = {
+        "tp_hit":      "Hit Take Profit — closed in full profit",
+        "sl_hit":      "Hit Stop Loss — closed at a loss",
+        "expired":     "Trade expired due to time limit",
+        "invalidated": "Trade was manually closed or invalidated before SL/TP",
+    }
+    outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
+
+    # Final win/loss decision: profit is the authority
+    if profit_val > 0:
+        is_win = True
+        trade_result_text = f"WINNING TRADE (+{profit_val:.2f}) — {outcome_human}"
+    elif profit_val < 0:
+        is_win = False
+        trade_result_text = f"LOSING TRADE ({profit_val:.2f}) — {outcome_human}"
+    else:
+        # Fallback to outcome code if profit is zero/missing
+        is_win = outcome == "tp_hit"
+        trade_result_text = outcome_human
 
     prompt = f"""Trade Details:
 Symbol: {sym}
 Direction: {direction}
 Entry: {entry}  SL: {sl}  TP: {tp}
-Outcome: {outcome}
+Result: {trade_result_text}
 
 Analysis: {summary}
 Technical: {tech}
 
+This was a {'WINNING' if is_win else 'LOSING'} trade.
+
 Reply ONLY with a JSON object with exactly these 4 keys:
-- "what_went_wrong_or_right": what actually happened (stopped out / hit TP / expired / invalidated)
-- "why_it_went_wrong_or_right": the core technical or market reason
-- "improvement_or_preservation": one concrete actionable rule for next time
-- "action_plan": what the engine will do differently next time
+- "what_happened": one sentence describing what actually happened (e.g. 'Price moved strongly in our direction and hit take profit' or 'Price reversed and stopped us out'). Do NOT use raw codes like 'sl_hit', 'tp_hit', 'invalidated'.
+- "the_reason": the core technical or market structure reason behind the outcome
+- "key_lesson": one concrete actionable rule to preserve or improve next time
+- "action_plan": what the engine will specifically do differently (or keep doing) next time
 
 No prose, no markdown, valid JSON only."""
 
     system = (
         "You are a professional quant trading post-mortem analyst. "
+        f"The trade being analysed is a {'WINNING' if is_win else 'LOSING'} trade. "
         "Analyse closed trades and extract structured lessons. "
-        "Reply ONLY with valid JSON with keys: what_went_wrong_or_right, "
-        "why_it_went_wrong_or_right, improvement_or_preservation, action_plan."
+        "NEVER use raw system codes like sl_hit, tp_hit, invalidated in your response — always write in plain English. "
+        "Reply ONLY with valid JSON with keys: what_happened, the_reason, key_lesson, action_plan."
     )
 
     def _safe_str(val) -> str:
         if val is None:
             return ""
-        
         # If it's a string, try to parse it as JSON first in case it's a nested JSON string
         if isinstance(val, str):
             val_stripped = val.strip()
             if (val_stripped.startswith("{") and val_stripped.endswith("}")) or (val_stripped.startswith("[") and val_stripped.endswith("]")):
                 try:
                     val = json.loads(val_stripped)
-                except:
+                except Exception:
                     pass
-                    
         if isinstance(val, dict):
             parts = []
             for k, v in val.items():
@@ -129,11 +159,14 @@ No prose, no markdown, valid JSON only."""
                 v_str = _safe_str(v)
                 parts.append(f"{k_clean}: {v_str}")
             return " · ".join(parts)
-            
         if isinstance(val, list):
             return " · ".join(_safe_str(x) for x in val)
-            
-        return str(val).strip()
+        # Strip any raw outcome codes that leaked through
+        raw_codes = {"sl_hit", "tp_hit", "invalidated", "expired"}
+        result = str(val).strip()
+        for code in raw_codes:
+            result = result.replace(code, _OUTCOME_LABELS.get(code, code))
+        return result
 
     resp = _groq_complete(prompt, system)
     if not resp:
@@ -144,10 +177,11 @@ No prose, no markdown, valid JSON only."""
         if clean.startswith("```"):
             clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         o = json.loads(clean)
-        wwr = html.escape(_safe_str(o.get("what_went_wrong_or_right")))
-        ywr = html.escape(_safe_str(o.get("why_it_went_wrong_or_right")))
-        imp = html.escape(_safe_str(o.get("improvement_or_preservation")))
-        ap  = html.escape(_safe_str(o.get("action_plan")))
+        # Support both old key names (what_went_wrong_or_right) and new (what_happened)
+        wwr = html.escape(_safe_str(o.get("what_happened") or o.get("what_went_wrong_or_right") or ""))
+        ywr = html.escape(_safe_str(o.get("the_reason") or o.get("why_it_went_wrong_or_right") or ""))
+        imp = html.escape(_safe_str(o.get("key_lesson") or o.get("improvement_or_preservation") or ""))
+        ap  = html.escape(_safe_str(o.get("action_plan") or ""))
         if is_win:
             return (
                 f"<strong>✅ What Went Right:</strong> {wwr}<br>"

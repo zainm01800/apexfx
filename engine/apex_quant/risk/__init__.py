@@ -7,6 +7,7 @@ from apex_quant.risk.manager import RiskManager
 from apex_quant.risk.sizing import (
     fractional_kelly,
     full_kelly,
+    round_lot_size,
     units_from_risk,
     vol_target_notional,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "OpenPosition",
     "fractional_kelly",
     "full_kelly",
+    "round_lot_size",
     "vol_target_notional",
     "units_from_risk",
     "atr",

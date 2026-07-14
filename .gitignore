@@ -6,6 +6,9 @@ node_modules/
 
 # ── Python quant engine ──
 engine/.venv/
+engine/.venv-mac/
+venv/
+.venv/
 engine/**/__pycache__/
 engine/.pytest_cache/
 engine/.env
@@ -14,3 +17,9 @@ engine/.env
 # validation/research JSON cache so it ships in the deployed engine image.
 engine/data_store/*.parquet
 engine/data_store/**/*.parquet
+engine/data_store/*.csv
+engine/data_store/adaptive_rules*.json
+engine/data_store/live_engine.log
+engine/wine_stderr.log
+engine/wine_stdout.log
+project_showcase.html
