@@ -369,10 +369,10 @@ function renderMt4Trades() {
     const startIdx = index * chunkSize + 1;
     const endIdx = Math.min((index + 1) * chunkSize, sorted.length);
 
-    // Default first (most recent) batch to open, others closed
-    const isExpanded = index === 0;
-    const displayStyle = isExpanded ? 'grid' : 'none';
-    const arrowSymbol = isExpanded ? '▼' : '▶';
+    // Default all batches to collapsed
+    const isExpanded = false;
+    const displayStyle = 'none';
+    const arrowSymbol = '▶';
 
     const batchId = `mt4Batch_${index}`;
     const headerId = `mt4BatchHeader_${index}`;
