@@ -63,109 +63,178 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
     return None
 
 
-def _needs_structured_lesson(t: dict) -> bool:
-    """Return True if this trade's lesson is missing or not yet in the structured 4-part HTML format."""
-    lesson = t.get("lesson") or ""
-    if not lesson.strip():
-        return True
-    if "Post-Mortem:" in lesson:
-        return True
-    return "<strong>" not in lesson
+_OUTCOME_LABELS = {
+    "tp_hit":      "Hit Take Profit — closed in full profit",
+    "sl_hit":      "Hit Stop Loss — closed at a loss",
+    "expired":     "Trade expired due to time limit before SL/TP",
+    "invalidated": "Trade was manually closed or managed out before SL/TP",
+}
+
+# Outcomes that represent a managed/neutral close (not a clean win or clean loss)
+_NEUTRAL_OUTCOMES = {"invalidated", "expired"}
 
 
-def _build_lesson(trade: dict) -> str | None:
-    """Generate a structured 4-part HTML post-mortem using Groq."""
-    sym = trade.get("symbol", "?")
-    direction = trade.get("verdict", "?")
-    entry = trade.get("price", "?")
-    sl = trade.get("stop_loss", "?")
-    tp = trade.get("target_price", "?")
-    outcome = trade.get("outcome", "?")
-    summary = (trade.get("summary") or "")[:400]
-    tech = (trade.get("technical_analysis") or "")[:400]
+def _classify_trade(trade: dict) -> str:
+    """Return 'win', 'neutral', or 'loss' for a closed trade.
 
-    # Determine win/loss from ACTUAL profit first, fall back to outcome code.
-    # Using profit > 0 is the ground truth — outcome codes like 'invalidated'
-    # can appear on winning manual closes, partial takes, etc.
+    Categories:
+      win    — hit TP or closed with a clearly profitable result.
+      neutral — manually closed / invalidated / expired before SL or TP;
+                could be near-breakeven, small profit, or small managed loss.
+                The key is it did NOT hit the stop loss and was managed out.
+      loss   — hit the actual stop loss (outcome == sl_hit) or closed with
+                a clearly negative result via a non-managed route.
+    """
+    outcome = trade.get("outcome", "")
     profit_raw = trade.get("profit") or trade.get("pnl") or 0
     try:
         profit_val = float(profit_raw)
     except (TypeError, ValueError):
         profit_val = 0.0
 
-    # Outcome code → human description (never let raw codes appear in lesson)
-    _OUTCOME_LABELS = {
-        "tp_hit":      "Hit Take Profit — closed in full profit",
-        "sl_hit":      "Hit Stop Loss — closed at a loss",
-        "expired":     "Trade expired due to time limit",
-        "invalidated": "Trade was manually closed or invalidated before SL/TP",
-    }
-    outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
-
-    # Final win/loss decision: profit is the authority
+    if outcome == "tp_hit":
+        return "win"
+    if outcome == "sl_hit":
+        return "loss"
+    # Invalidated / expired / manually closed
+    if outcome in _NEUTRAL_OUTCOMES:
+        # If profit is clearly positive it's a managed WIN
+        if profit_val > 0:
+            return "win"
+        # Negative but managed out (not SL) → neutral, not a clean loss
+        return "neutral"
+    # Unknown outcome — fall back to profit sign
     if profit_val > 0:
-        is_win = True
-        trade_result_text = f"WINNING TRADE (+{profit_val:.2f}) — {outcome_human}"
-    elif profit_val < 0:
-        is_win = False
-        trade_result_text = f"LOSING TRADE ({profit_val:.2f}) — {outcome_human}"
+        return "win"
+    if profit_val < 0:
+        return "loss"
+    return "neutral"
+
+
+def _needs_structured_lesson(t: dict) -> bool:
+    """Return True if this trade's lesson is missing, wrong format, or wrong polarity."""
+    lesson = t.get("lesson") or ""
+    if not lesson.strip():
+        return True
+    if "Post-Mortem:" in lesson:
+        return True
+    if "<strong>" not in lesson:
+        return True
+
+    # Detect which category is encoded in the stored lesson HTML
+    first_100 = lesson[:100]
+    if "✅" in first_100:
+        stored_cat = "win"
+    elif "🔄" in first_100:
+        stored_cat = "neutral"
+    elif "❌" in first_100:
+        stored_cat = "loss"
     else:
-        # Fallback to outcome code if profit is zero/missing
-        is_win = outcome == "tp_hit"
-        trade_result_text = outcome_human
+        return True
+
+    return stored_cat != _classify_trade(t)
+
+
+def _build_lesson(trade: dict) -> str | None:
+    """Generate a structured 4-part HTML post-mortem using Groq.
+
+    Three output formats based on trade outcome:
+      ✅ WIN     — hit TP or closed clearly profitable
+      🔄 NEUTRAL — managed out / invalidated / expired without hitting SL
+      ❌ LOSS    — hit stop loss or closed with a clear loss
+    """
+    sym       = trade.get("symbol", "?")
+    direction = trade.get("verdict", "?")
+    entry     = trade.get("price", "?")
+    sl        = trade.get("stop_loss", "?")
+    tp        = trade.get("target_price", "?")
+    outcome   = trade.get("outcome", "?")
+    summary   = (trade.get("summary") or "")[:400]
+    tech      = (trade.get("technical_analysis") or "")[:400]
+
+    profit_raw = trade.get("profit") or trade.get("pnl") or 0
+    try:
+        profit_val = float(profit_raw)
+    except (TypeError, ValueError):
+        profit_val = 0.0
+
+    outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
+    category = _classify_trade(trade)  # 'win' | 'neutral' | 'loss'
+
+    profit_sign = f"+{profit_val:.2f}" if profit_val >= 0 else f"{profit_val:.2f}"
+
+    if category == "win":
+        result_description = f"WINNING TRADE (P&L: {profit_sign}) — {outcome_human}"
+        tone_instruction = (
+            "This trade was PROFITABLE. Focus on what the trader did right, "
+            "why the setup worked, and what patterns/behaviours to preserve and repeat."
+        )
+    elif category == "neutral":
+        result_description = (
+            f"MANAGED/NEUTRAL TRADE (P&L: {profit_sign}) — {outcome_human}. "
+            "The trade did NOT hit the stop loss. It was managed out or "
+            "invalidated before SL/TP."
+        )
+        tone_instruction = (
+            "This trade was NEUTRAL — it did not hit the stop loss and was not a "
+            "clean TP hit either. It was managed or closed early. Focus on the "
+            "risk management decision, whether the early exit was correct, and how "
+            "to handle similar setups in the future. Do NOT treat this as a full loss."
+        )
+    else:  # loss
+        result_description = f"LOSING TRADE (P&L: {profit_sign}) — {outcome_human}"
+        tone_instruction = (
+            "This trade was a LOSS. Focus on what went wrong technically, "
+            "why the setup failed, and what concrete changes will prevent this in future."
+        )
 
     prompt = f"""Trade Details:
 Symbol: {sym}
 Direction: {direction}
 Entry: {entry}  SL: {sl}  TP: {tp}
-Result: {trade_result_text}
+Result: {result_description}
 
 Analysis: {summary}
 Technical: {tech}
 
-This was a {'WINNING' if is_win else 'LOSING'} trade.
+{tone_instruction}
 
 Reply ONLY with a JSON object with exactly these 4 keys:
-- "what_happened": one sentence describing what actually happened (e.g. 'Price moved strongly in our direction and hit take profit' or 'Price reversed and stopped us out'). Do NOT use raw codes like 'sl_hit', 'tp_hit', 'invalidated'.
+- "what_happened": one clear sentence describing what actually happened in plain English. Do NOT use raw codes like 'sl_hit', 'tp_hit', 'invalidated'.
 - "the_reason": the core technical or market structure reason behind the outcome
-- "key_lesson": one concrete actionable rule to preserve or improve next time
-- "action_plan": what the engine will specifically do differently (or keep doing) next time
+- "key_lesson": one concrete actionable rule to preserve, improve, or manage better next time
+- "action_plan": what the engine will specifically do differently (or keep doing) on the next similar setup
 
 No prose, no markdown, valid JSON only."""
 
     system = (
         "You are a professional quant trading post-mortem analyst. "
-        f"The trade being analysed is a {'WINNING' if is_win else 'LOSING'} trade. "
-        "Analyse closed trades and extract structured lessons. "
+        f"The trade category is: {category.upper()}. "
         "NEVER use raw system codes like sl_hit, tp_hit, invalidated in your response — always write in plain English. "
+        "Tailor your tone strictly to the trade category: wins are celebratory/instructive, "
+        "neutrals are analytical/balanced, losses are corrective/constructive. "
         "Reply ONLY with valid JSON with keys: what_happened, the_reason, key_lesson, action_plan."
     )
 
     def _safe_str(val) -> str:
         if val is None:
             return ""
-        # If it's a string, try to parse it as JSON first in case it's a nested JSON string
         if isinstance(val, str):
             val_stripped = val.strip()
-            if (val_stripped.startswith("{") and val_stripped.endswith("}")) or (val_stripped.startswith("[") and val_stripped.endswith("]")):
+            if (val_stripped.startswith("{") and val_stripped.endswith("}")) or \
+               (val_stripped.startswith("[") and val_stripped.endswith("]")):
                 try:
                     val = json.loads(val_stripped)
                 except Exception:
                     pass
         if isinstance(val, dict):
-            parts = []
-            for k, v in val.items():
-                k_clean = str(k).replace("_", " ").title()
-                v_str = _safe_str(v)
-                parts.append(f"{k_clean}: {v_str}")
+            parts = [f"{str(k).replace('_', ' ').title()}: {_safe_str(v)}" for k, v in val.items()]
             return " · ".join(parts)
         if isinstance(val, list):
             return " · ".join(_safe_str(x) for x in val)
-        # Strip any raw outcome codes that leaked through
-        raw_codes = {"sl_hit", "tp_hit", "invalidated", "expired"}
         result = str(val).strip()
-        for code in raw_codes:
-            result = result.replace(code, _OUTCOME_LABELS.get(code, code))
+        for code, label in _OUTCOME_LABELS.items():
+            result = result.replace(code, label)
         return result
 
     resp = _groq_complete(prompt, system)
@@ -177,19 +246,27 @@ No prose, no markdown, valid JSON only."""
         if clean.startswith("```"):
             clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         o = json.loads(clean)
-        # Support both old key names (what_went_wrong_or_right) and new (what_happened)
+        # Support both old and new key names
         wwr = html.escape(_safe_str(o.get("what_happened") or o.get("what_went_wrong_or_right") or ""))
         ywr = html.escape(_safe_str(o.get("the_reason") or o.get("why_it_went_wrong_or_right") or ""))
         imp = html.escape(_safe_str(o.get("key_lesson") or o.get("improvement_or_preservation") or ""))
         ap  = html.escape(_safe_str(o.get("action_plan") or ""))
-        if is_win:
+
+        if category == "win":
             return (
                 f"<strong>✅ What Went Right:</strong> {wwr}<br>"
                 f"<strong>📊 Why It Worked:</strong> {ywr}<br>"
                 f"<strong>🔒 What to Preserve:</strong> {imp}<br>"
                 f"<strong>🎯 Action Plan:</strong> {ap}"
             )
-        else:
+        elif category == "neutral":
+            return (
+                f"<strong>🔄 What Happened:</strong> {wwr}<br>"
+                f"<strong>📐 Why It Was Managed Out:</strong> {ywr}<br>"
+                f"<strong>⚖️ Was the Decision Correct?</strong> {imp}<br>"
+                f"<strong>🎯 Action Plan for Similar Setups:</strong> {ap}"
+            )
+        else:  # loss
             return (
                 f"<strong>❌ What Went Wrong:</strong> {wwr}<br>"
                 f"<strong>🔍 Why It Went Wrong:</strong> {ywr}<br>"

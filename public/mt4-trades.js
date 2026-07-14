@@ -655,18 +655,41 @@ function renderMt4Trades() {
     let lessonText = '';
     let isAiLesson = false;
     if (matchedAi) {
-      lessonText = matchedAi.lesson;
+      lessonText = matchedAi.lesson || '';
       isAiLesson = true;
     } else {
       // Dynamic fallback post-mortem lesson
       if (isWin) {
-        lessonText = `Success outcome: The setup successfully reached its profit target. Trend momentum aligned correctly, and execution parameters successfully protected the locked profit.`;
+        lessonText = `<strong>✅ What Went Right:</strong> The setup reached its profit target. Trend momentum aligned correctly and execution parameters protected the locked profit.<br><strong>📊 Why It Worked:</strong> Market structure and regime conditions were favourable for the direction taken.<br><strong>🔒 What to Preserve:</strong> Maintain this entry criteria and position sizing discipline on similar setups.<br><strong>🎯 Action Plan:</strong> Continue executing the same process on setups with matching confluence.`;
       } else if (isLoss) {
-        lessonText = `Mistake identified: Setup was stopped out. The market structure shifted against the trade bias. The engine has recorded this to adjust system weighting parameters to limit exposure on similar pullbacks.`;
+        lessonText = `<strong>❌ What Went Wrong:</strong> The setup was stopped out. Market structure shifted against the trade bias.<br><strong>🔍 Why It Went Wrong:</strong> The engine has recorded the regime conditions that led to this outcome.<br><strong>💡 What Can Be Improved:</strong> Review the entry confluence score and consider tighter regime filtering.<br><strong>🎯 Action Plan to Prevent Recurrence:</strong> Adjust system weighting to reduce exposure on similar high-volatility regimes.`;
       } else {
-        lessonText = `Neutral outcome: Position closed near entry price. Stop Loss was modified to breakeven or trailing stop protocol activated early to protect trading capital.`;
+        lessonText = `<strong>🔄 What Happened:</strong> Position was closed before reaching SL or TP — managed exit or invalidation.<br><strong>📐 Why It Was Managed Out:</strong> Trade conditions changed or a time-based rule triggered the close.<br><strong>⚖️ Was the Decision Correct?</strong> Closing before SL preserved capital — this is disciplined risk management.<br><strong>🎯 Action Plan for Similar Setups:</strong> Review what triggered the managed exit and whether holding longer would have been justified.`;
       }
     }
+
+    // Detect lesson category from stored HTML emoji marker
+    // This ensures the visual style ALWAYS matches the actual lesson content,
+    // even if the trade's PnL and stored category diverge.
+    let lessonCat = 'loss'; // safe default
+    const lessonFirst80 = lessonText.slice(0, 80);
+    if (lessonFirst80.includes('✅')) lessonCat = 'win';
+    else if (lessonFirst80.includes('🔄')) lessonCat = 'neutral';
+    else if (lessonFirst80.includes('❌')) lessonCat = 'loss';
+    else if (isWin) lessonCat = 'win';
+    else if (!isLoss) lessonCat = 'neutral';
+
+    const lessonBg = lessonCat === 'win'     ? 'rgba(0, 240, 255, 0.03)'
+                   : lessonCat === 'neutral' ? 'rgba(255, 165, 0, 0.05)'
+                   :                           'rgba(255, 70, 70, 0.04)';
+    const lessonBorder = lessonCat === 'win'     ? 'rgba(0, 240, 255, 0.12)'
+                       : lessonCat === 'neutral' ? 'rgba(255, 165, 0, 0.25)'
+                       :                           'rgba(255, 70, 70, 0.15)';
+    const lessonHeaderColor = lessonCat === 'win'     ? 'var(--accent)'
+                             : lessonCat === 'neutral' ? '#f0a832'
+                             :                           'var(--red)';
+    const lessonTitle = lessonCat === 'neutral' ? '🧠 Post-Mortem Review'
+                       : '🧠 Post-Mortem Lesson';
 
     return `
       <div class="stat-item" data-lesson-ticket="${t.ticket}" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
@@ -693,9 +716,9 @@ function renderMt4Trades() {
           <span class="${pnlClass}" style="font-family: var(--mono); font-weight: 700;">${pnlPrefix}£${pnl.toFixed(2)}</span>
         </div>
 
-        <div style="padding: 12px; border-radius: 8px; background: ${isLoss ? 'rgba(255, 70, 70, 0.04)' : 'rgba(0, 240, 255, 0.03)'}; border: 1px solid ${isLoss ? 'rgba(255, 70, 70, 0.15)' : 'rgba(0, 240, 255, 0.12)'}; display: flex; flex-direction: column; gap: 6px;">
+        <div style="padding: 12px; border-radius: 8px; background: ${lessonBg}; border: 1px solid ${lessonBorder}; display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <strong style="font-size: 10px; color: ${isLoss ? 'var(--red)' : 'var(--accent)'}; text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--mono);">🧠 Post-Mortem Lesson</strong>
+            <strong style="font-size: 10px; color: ${lessonHeaderColor}; text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--mono);">${lessonTitle}</strong>
             ${isAiLesson ? `<span style="font-size: 9px; font-weight: 700; color: var(--green); background: rgba(0, 200, 100, 0.15); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">AI LEARNING</span>` : `<span style="font-size: 9px; font-weight: 700; color: var(--text3); background: rgba(255, 255, 255, 0.05); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">DYNAMIC</span>`}
           </div>
           <div style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
