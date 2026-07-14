@@ -540,6 +540,294 @@ def add_validation_to_trade(trade, verdict, confidence, assessment="confirmed"):
         print(f"  [WARN] Failed to write validation to database: {e}")
 
 
+
+# ---------------------------------------------------------------------------
+#  Trade Management System (TMS) — Helpers
+# ---------------------------------------------------------------------------
+
+def _get_mt4_positions() -> list[dict]:
+    """Read the live mt4_positions.json written by the EA every 500 ms.
+
+    Returns a list of position dicts (may be empty if no open trades or file
+    not found).  Each dict contains at least: ticket, symbol, volume,
+    open_price, sl, tp, cmd, profit.
+    """
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") else None
+    if not common_dir:
+        return []
+    pos_path = Path(common_dir) / "mt4_positions.json"
+    if not pos_path.exists():
+        return []
+    try:
+        return json.loads(pos_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _compute_atr_tms(df: pd.DataFrame, window: int = 14) -> float:
+    """Compute ATR(window) from a standard OHLCV DataFrame."""
+    try:
+        high  = df["high"].values
+        low   = df["low"].values
+        close = df["close"].values
+        prev  = np.concatenate([[close[0]], close[:-1]])
+        tr    = np.maximum.reduce([high - low, np.abs(high - prev), np.abs(low - prev)])
+        atr   = float(pd.Series(tr).rolling(window, min_periods=1).mean().iloc[-1])
+        return atr if np.isfinite(atr) and atr > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+def _detect_volatility_squeeze(df: pd.DataFrame, bb_window: int = 20, kc_window: int = 20) -> bool:
+    """Return True when Bollinger Bands are inside Keltner Channels (volatility squeeze).
+
+    A squeeze means a big breakout move is building up.  During a squeeze we
+    tighten the trail to protect any accumulated profit.
+    """
+    try:
+        close = df["close"]
+        high  = df["high"]
+        low   = df["low"]
+
+        # Bollinger Bands
+        bb_mid = close.rolling(bb_window).mean()
+        bb_std = close.rolling(bb_window).std()
+        bb_upper = bb_mid + 2 * bb_std
+        bb_lower = bb_mid - 2 * bb_std
+
+        # Keltner Channels (ATR-based)
+        atr_series = _compute_atr_tms(df.tail(kc_window + 10), window=kc_window)
+        kc_upper = bb_mid + 1.5 * atr_series
+        kc_lower = bb_mid - 1.5 * atr_series
+
+        # Squeeze when BB is inside KC
+        in_squeeze = (bb_upper.iloc[-1] < kc_upper) and (bb_lower.iloc[-1] > kc_lower)
+        return bool(in_squeeze)
+    except Exception:
+        return False
+
+
+# TMS config constants (tunable)
+_TMS_PARTIAL1_R       = 1.0    # Close 50 % of position at 1R profit
+_TMS_PARTIAL1_PCT     = 0.50
+_TMS_PARTIAL2_R       = 1.5    # Close another 25 % at 1.5R profit
+_TMS_PARTIAL2_PCT     = 0.25
+_TMS_BE_BUFFER_PIPS   = 0.0003  # ~3 pips breakeven buffer (0.3 pips for JPY pairs)
+_TMS_CHANDELIER_MULT  = 2.0    # Handled natively by EA — Python only sends modify_sl on non-native trail
+_TMS_SQUEEZE_MULT     = 1.0    # Tighten to 1×ATR from price during squeeze
+_TMS_TIME_STOP_BARS   = {"15m": 8, "1h": 10, "1d": 7, "1w": 3}
+
+
+def apply_trade_management(trade: dict, df: pd.DataFrame) -> None:
+    """Apply all 5 TMS techniques to a single open trade.
+
+    Techniques:
+      1. Partial close (50 %) + move SL to breakeven at 1R profit.
+      2. Second partial close (25 %) + lock 0.5R profit at 1.5R profit.
+      3. ATR Chandelier trail  — delegated to EA natively; Python sends modify_sl
+         when the chandelier level has risen above the current DB stop.
+      4. Time-based exit       — close the whole position if stagnant for N bars.
+      5. Volatility squeeze    — tighten trail to 1×ATR when squeeze is detected.
+
+    All MT4 commands are written via the global ``_EXECUTOR`` (MT4Executor).
+    Supabase state is updated in-place on ``trade`` for subsequent loops.
+    """
+    if _EXECUTOR is None:
+        return
+
+    try:
+        symbol     = trade.get("symbol", "")
+        trade_id   = trade.get("id", "")
+        direction  = trade.get("verdict", "BUY").upper()
+        entry      = _safe_float(trade.get("price")) or 0.0
+        sl         = _safe_float(trade.get("stop_loss")) or 0.0
+        tp         = _safe_float(trade.get("target_price")) or 0.0
+        tf         = trade.get("timeframe", "1d")
+        tf_mapped  = map_timeframe(tf)
+
+        if entry <= 0 or sl <= 0 or tp <= 0 or df.empty:
+            return
+
+        # --- Compute key metrics ---
+        risk_dist   = abs(entry - sl)
+        if risk_dist <= 0:
+            return
+
+        current_price = float(df["close"].iloc[-1])
+        pnl_dist = (current_price - entry) if direction in ("BUY", "LONG") else (entry - current_price)
+        pnl_r    = pnl_dist / risk_dist          # Current profit in R units
+
+        atr = _compute_atr_tms(df, window=14)
+
+        # --- Retrieve state flags from Supabase record ---
+        tms_meta       = trade.get("setup_features") or {}
+        partial1_done  = tms_meta.get("tms_p1", False)
+        partial2_done  = tms_meta.get("tms_p2", False)
+        be_done        = tms_meta.get("tms_be", False)
+        bars_open      = tms_meta.get("bars_open", 0) + 1  # increment each loop
+
+        # --- Find live MT4 ticket ---
+        mt4_sym    = _normalise_symbol(symbol)
+        positions  = _get_mt4_positions()
+        ticket     = None
+        live_lots  = 0.0
+        for pos in positions:
+            pos_sym = pos.get("symbol", "").replace("-g", "").replace(".m", "").replace(".", "")
+            clean   = mt4_sym.replace("-g", "").replace(".m", "").replace(".", "")
+            if pos_sym.upper() == clean.upper():
+                ticket    = pos.get("ticket")
+                live_lots = float(pos.get("volume") or 0.0)
+                break
+
+        tms_log = tms_meta.get("tms_log", [])
+
+        # ----------------------------------------------------------------
+        # Technique 1: Partial 1 (50 %) + Move SL to Breakeven at 1R
+        # ----------------------------------------------------------------
+        if not partial1_done and pnl_r >= _TMS_PARTIAL1_R and ticket and live_lots > 0:
+            close_lots = round(live_lots * _TMS_PARTIAL1_PCT, 2)
+            if close_lots >= 0.01:
+                try:
+                    _EXECUTOR.partial_close(symbol=mt4_sym, ticket=ticket, volume=close_lots)
+                    live_lots = round(live_lots - close_lots, 2)
+                    partial1_done = True
+                    entry_be = (entry + _TMS_BE_BUFFER_PIPS) if direction in ("BUY", "LONG") else (entry - _TMS_BE_BUFFER_PIPS)
+                    tms_log.append({"action": "partial_close_50pct", "r": round(pnl_r, 2), "lots": close_lots})
+                    print(f"  [TMS] P1: Closed {close_lots} lots of {symbol} at {pnl_r:.2f}R. Moving SL to breakeven.")
+                except Exception as e:
+                    print(f"  [TMS] P1 partial_close failed: {e}")
+
+            # Move SL to breakeven (even if partial_close had a minor error, do the SL move)
+            if not be_done and ticket:
+                be_sl = (entry + _TMS_BE_BUFFER_PIPS) if direction in ("BUY", "LONG") else (entry - _TMS_BE_BUFFER_PIPS)
+                try:
+                    _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(be_sl, 5))
+                    be_done = True
+                    sl = be_sl  # update local reference
+                    tms_log.append({"action": "breakeven_sl", "new_sl": round(be_sl, 5)})
+                    print(f"  [TMS] Breakeven stop set to {be_sl:.5f} on {symbol}")
+                except Exception as e:
+                    print(f"  [TMS] Breakeven SL failed: {e}")
+
+        # ----------------------------------------------------------------
+        # Technique 2: Partial 2 (25 %) + Lock 0.5R at 1.5R
+        # ----------------------------------------------------------------
+        if partial1_done and not partial2_done and pnl_r >= _TMS_PARTIAL2_R and ticket and live_lots > 0:
+            close_lots2 = round(live_lots * (_TMS_PARTIAL2_PCT / (1.0 - _TMS_PARTIAL1_PCT)), 2)  # 25% of original
+            if close_lots2 >= 0.01:
+                try:
+                    _EXECUTOR.partial_close(symbol=mt4_sym, ticket=ticket, volume=close_lots2)
+                    live_lots = round(live_lots - close_lots2, 2)
+                    partial2_done = True
+                    tms_log.append({"action": "partial_close_25pct", "r": round(pnl_r, 2), "lots": close_lots2})
+                    print(f"  [TMS] P2: Closed {close_lots2} lots of {symbol} at {pnl_r:.2f}R.")
+                except Exception as e:
+                    print(f"  [TMS] P2 partial_close failed: {e}")
+
+            # Lock 0.5R profit as new SL
+            if partial2_done and ticket and atr > 0:
+                half_r = risk_dist * 0.5
+                locked_sl = (entry + half_r) if direction in ("BUY", "LONG") else (entry - half_r)
+                if (direction in ("BUY", "LONG") and locked_sl > sl) or \
+                   (direction in ("SELL", "SHORT") and locked_sl < sl):
+                    try:
+                        _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(locked_sl, 5))
+                        sl = locked_sl
+                        tms_log.append({"action": "lock_0.5R_sl", "new_sl": round(locked_sl, 5)})
+                        print(f"  [TMS] SL locked at +0.5R = {locked_sl:.5f} on {symbol}")
+                    except Exception as e:
+                        print(f"  [TMS] Lock SL failed: {e}")
+
+        # ----------------------------------------------------------------
+        # Technique 3: ATR Chandelier Trail (Python assist after partial 1)
+        # The EA handles native trailing every 500ms; Python sends a
+        # modify_sl if the chandelier level has moved beyond the DB-stored SL.
+        # ----------------------------------------------------------------
+        if partial1_done and ticket and atr > 0 and len(df) >= 22:
+            if direction in ("BUY", "LONG"):
+                swing_high  = float(df["high"].rolling(22).max().iloc[-1])
+                chandelier  = swing_high - (_TMS_CHANDELIER_MULT * atr)
+                if chandelier > sl and chandelier < current_price:
+                    try:
+                        _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(chandelier, 5))
+                        sl = chandelier
+                        tms_log.append({"action": "chandelier_trail", "new_sl": round(chandelier, 5)})
+                        print(f"  [TMS] Chandelier trail: SL -> {chandelier:.5f} on {symbol}")
+                    except Exception as e:
+                        print(f"  [TMS] Chandelier trail failed: {e}")
+            else:
+                swing_low  = float(df["low"].rolling(22).min().iloc[-1])
+                chandelier = swing_low + (_TMS_CHANDELIER_MULT * atr)
+                if chandelier < sl and chandelier > current_price:
+                    try:
+                        _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(chandelier, 5))
+                        sl = chandelier
+                        tms_log.append({"action": "chandelier_trail", "new_sl": round(chandelier, 5)})
+                        print(f"  [TMS] Chandelier trail: SL -> {chandelier:.5f} on {symbol}")
+                    except Exception as e:
+                        print(f"  [TMS] Chandelier trail failed: {e}")
+
+        # ----------------------------------------------------------------
+        # Technique 4: Time-Based Exit (kill stagnant trades)
+        # ----------------------------------------------------------------
+        max_bars = _TMS_TIME_STOP_BARS.get(tf_mapped, 10)
+        if bars_open > max_bars and pnl_r < 0.25 and ticket:
+            print(f"  [TMS] Time Stop: {symbol} open {bars_open} bars, only {pnl_r:.2f}R. Closing.")
+            try:
+                _EXECUTOR.submit_order(symbol=mt4_sym, cmd="close", volume=live_lots or 0.1)
+                tms_log.append({"action": "time_stop", "bars_open": bars_open, "pnl_r": round(pnl_r, 2)})
+                # Will be resolved on next SL/TP check loop via MT4 sync
+            except Exception as e:
+                print(f"  [TMS] Time stop close failed: {e}")
+
+        # ----------------------------------------------------------------
+        # Technique 5: Volatility Squeeze — tighten trail to 1×ATR
+        # ----------------------------------------------------------------
+        if partial1_done and ticket and atr > 0 and _detect_volatility_squeeze(df):
+            tight_trail = atr * _TMS_SQUEEZE_MULT
+            if direction in ("BUY", "LONG"):
+                tight_sl = current_price - tight_trail
+                if tight_sl > sl and tight_sl < current_price:
+                    try:
+                        _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(tight_sl, 5))
+                        sl = tight_sl
+                        tms_log.append({"action": "squeeze_tighten", "new_sl": round(tight_sl, 5)})
+                        print(f"  [TMS] Squeeze tighten: SL -> {tight_sl:.5f} on {symbol}")
+                    except Exception as e:
+                        print(f"  [TMS] Squeeze tighten failed: {e}")
+            else:
+                tight_sl = current_price + tight_trail
+                if tight_sl < sl and tight_sl > current_price:
+                    try:
+                        _EXECUTOR.modify_sl(symbol=mt4_sym, ticket=ticket, new_sl=round(tight_sl, 5))
+                        sl = tight_sl
+                        tms_log.append({"action": "squeeze_tighten", "new_sl": round(tight_sl, 5)})
+                        print(f"  [TMS] Squeeze tighten: SL -> {tight_sl:.5f} on {symbol}")
+                    except Exception as e:
+                        print(f"  [TMS] Squeeze tighten failed: {e}")
+
+        # ----------------------------------------------------------------
+        # Persist TMS state back to Supabase
+        # ----------------------------------------------------------------
+        new_tms_meta = {
+            **tms_meta,
+            "tms_p1": partial1_done,
+            "tms_p2": partial2_done,
+            "tms_be": be_done,
+            "bars_open": bars_open,
+            "current_sl": round(sl, 5),
+            "tms_log": tms_log[-20:],   # keep last 20 actions
+        }
+        try:
+            patch_url = f"{MEMORY_ENDPOINT}?id=eq.{trade_id}"
+            httpx.patch(patch_url, headers=headers, json={"setup_features": new_tms_meta})
+        except Exception as e:
+            print(f"  [TMS] Failed to persist TMS state for {symbol}: {e}")
+
+    except Exception as e:
+        print(f"  [TMS] Unhandled error in apply_trade_management for {trade.get('symbol', '?')}: {e}")
+
+
 def _normalise_symbol(symbol: str) -> str:
     """Convert internal symbol format to MT4-compatible ticker."""
     sym = symbol.upper().replace("/", "")
@@ -583,12 +871,27 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
                 mt4_symbol = _normalise_symbol(symbol)
                 mt4_cmd = "buy" if str(direction).upper() in ("LONG", "BUY") else "sell"
                 try:
+                    # Compute TP1 = 1R from entry (50% partial target)
+                    entry_p = float(entry_price)
+                    sl_p    = float(stop_loss)
+                    risk_1r = abs(entry_p - sl_p)
+                    if mt4_cmd == "buy":
+                        tp1_price = entry_p + risk_1r
+                    else:
+                        tp1_price = entry_p - risk_1r
+                    tp1_vol = round((volume or 0.1) * 0.50, 2)
+
                     result = _EXECUTOR.submit_order(
                         symbol=mt4_symbol,
                         cmd=mt4_cmd,
-                        volume=volume,       # dynamic Bayesian position size
+                        volume=volume,
                         sl=float(stop_loss),
                         tp=float(target_price),
+                        tp1=round(tp1_price, 5),
+                        tp1_volume=max(tp1_vol, 0.01),
+                        be_buffer=0.0003,
+                        trail_atr_mult=2.0,
+                        trail_lookback=22,
                     )
                     print(f"  [EXECUTOR] Order dispatched — {mt4_cmd.upper()} {mt4_symbol} with size {volume} lots → {result}")
                     try:
@@ -934,6 +1237,17 @@ def check_open_trades(open_trades):
         futures = [executor.submit(check_trade_with_cache, t) for t in open_trades]
         for _ in as_completed(futures):
             pass
+
+    # --- TMS: apply dynamic trade management to all still-open trades ---
+    # We reuse the already-fetched history_cache so no extra API calls are needed.
+    if _EXECUTOR is not None:
+        for t in open_trades:
+            sym = t["symbol"]
+            tf  = map_timeframe(t.get("timeframe", "1d"))
+            key = (sym, tf)
+            df  = history_cache.get(key)
+            if df is not None and not df.empty:
+                apply_trade_management(t, df)
 
 def fetch_lessons_pool():
     try:

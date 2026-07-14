@@ -3,11 +3,19 @@
 Writes JSON order signals to the MetaTrader 4 shared common folder where the
 companion ``apex_mt4_bridge.mq4`` Expert Advisor polls and executes them.
 
-JSON format expected by the MQ4 script:
+Supported signal formats
+------------------------
 
-.. code-block:: json
+Standard entry / full close::
 
-    {"symbol": "EURUSD", "cmd": "buy", "volume": 0.1, "sl": 0.0, "tp": 0.0}
+    {"symbol": "EURUSD", "cmd": "buy",          "volume": 0.10, "sl": 1.08000, "tp": 1.09500}
+    {"symbol": "EURUSD", "cmd": "sell",         "volume": 0.10, "sl": 1.09000, "tp": 1.07500}
+    {"symbol": "EURUSD", "cmd": "close",        "volume": 0.10, "sl": 0.0,     "tp": 0.0}
+
+TMS commands (ticket-based)::
+
+    {"symbol": "EURUSD", "cmd": "partial_close", "ticket": 12345, "volume": 0.05}
+    {"symbol": "EURUSD", "cmd": "modify_sl",     "ticket": 12345, "new_sl": 1.08200}
 
 Thread safety
 -------------
@@ -111,6 +119,38 @@ class MT4Executor:
             self._default_volume,
         )
 
+    # -- private helpers ----------------------------------------------------
+
+    def _write_signal(self, payload: dict) -> Path:
+        """Atomically write *payload* as JSON to the MT4 bridge signal file.
+
+        Uses a ``.tmp`` → ``rename`` pattern so the MQ4 timer never reads a
+        partially-written file.
+
+        Returns
+        -------
+        Path
+            The absolute path of the written signal file.
+
+        Raises
+        ------
+        OSError
+            If the file cannot be written.
+        """
+        raw = json.dumps(payload, separators=(",", ":"))
+        tmp_path = self._signal_path.with_suffix(".tmp")
+        with self._lock:
+            try:
+                tmp_path.write_text(raw, encoding="utf-8")
+                tmp_path.rename(self._signal_path)
+            except OSError:
+                logger.exception("Failed to write MT4 signal to %s", self._signal_path)
+                if tmp_path.exists():
+                    tmp_path.unlink(missing_ok=True)
+                raise
+        logger.debug("MT4 signal written: %s → %s", payload, self._signal_path)
+        return self._signal_path
+
     # -- public API ---------------------------------------------------------
 
     def submit_order(
@@ -120,79 +160,144 @@ class MT4Executor:
         volume: float | None = None,
         sl: float = 0.0,
         tp: float = 0.0,
+        tp1: float = 0.0,
+        tp1_volume: float = 0.0,
+        be_buffer: float = 0.0003,
+        trail_atr_mult: float = 2.0,
+        trail_lookback: int = 22,
     ) -> Path:
-        """Write an order signal to the MT4 bridge file.
+        """Write a standard entry or full-close order signal.
 
-        The write is **atomic**: the JSON payload is first written to a
-        ``.tmp`` file inside the same directory, then renamed to
-        ``mt4_signals.json``.  This guarantees the MQ4 timer callback
-        either sees the complete file or no file at all.
+        For entry orders (``buy`` / ``sell``) you can optionally include TMS
+        parameters that the EA will use to natively manage the position at
+        200 ms resolution without any Python latency:
 
         Parameters
         ----------
         symbol :
             Instrument ticker (e.g. ``"EURUSD"``).
         cmd :
-            Order direction — ``"buy"`` or ``"sell"``.
+            ``"buy"``, ``"sell"``, or ``"close"``.
         volume :
-            Lot size.  Falls back to the configured ``default_volume`` if
+            Lot size.  Falls back to the configured ``default_volume`` when
             ``None`` or ``0``.
         sl :
-            Stop-loss price (0.0 = none).
+            Stop-loss price (``0.0`` = none).
         tp :
-            Take-profit price (0.0 = none).
+            Full take-profit price (``0.0`` = none).
+        tp1 :
+            First partial TP price.  When price reaches this level the EA
+            closes *tp1_volume* lots and sets the SL to breakeven.
+            ``0.0`` disables the native partial close.
+        tp1_volume :
+            Lots to close at *tp1* (e.g. half the position size).
+        be_buffer :
+            Breakeven SL buffer added to the entry price after TP1 fires
+            (in price units, e.g. ``0.0003`` ≈ 3 pips).
+        trail_atr_mult :
+            ATR multiplier for the Chandelier trailing stop (default ``2.0``).
+        trail_lookback :
+            Swing high/low lookback bars for the Chandelier exit (default ``22``).
 
         Returns
         -------
         Path
             The absolute path that was written.
-
-        Raises
-        ------
-        OSError
-            If the file cannot be written (permissions, disk full, etc.).
         """
-        # Resolve effective volume.
         effective_volume = self._default_volume if not volume else float(volume)
-
-        payload = {
+        payload: dict = {
             "symbol": symbol,
             "cmd": cmd,
             "volume": effective_volume,
             "sl": float(sl),
             "tp": float(tp),
         }
-        raw = json.dumps(payload, separators=(",", ":"))
-
-        # Atomic write: write to temp sibling, then rename.
-        tmp_path = self._signal_path.with_suffix(".tmp")
-        with self._lock:
-            try:
-                tmp_path.write_text(raw, encoding="utf-8")
-                tmp_path.rename(self._signal_path)
-            except OSError:
-                logger.exception(
-                    "Failed to write MT4 signal to %s", self._signal_path
-                )
-                # Clean up temp file on failure.
-                if tmp_path.exists():
-                    tmp_path.unlink(missing_ok=True)
-                raise
-
+        # Only attach TMS fields for entry orders to keep close signals clean
+        if cmd in ("buy", "sell"):
+            payload["tp1"]            = round(float(tp1), 5)
+            payload["tp1_volume"]     = round(float(tp1_volume), 2)
+            payload["be_buffer"]      = round(float(be_buffer), 5)
+            payload["trail_atr_mult"] = round(float(trail_atr_mult), 2)
+            payload["trail_lookback"] = int(trail_lookback)
         logger.info(
-            "MT4 signal written — %s %s %.2f lots (SL=%.5f TP=%.5f) → %s",
-            cmd.upper(),
-            symbol,
-            effective_volume,
-            float(sl),
-            float(tp),
-            self._signal_path,
+            "MT4 signal: %s %s %.2f lots (SL=%.5f TP=%.5f TP1=%.5f)",
+            cmd.upper(), symbol, effective_volume, float(sl), float(tp), float(tp1),
         )
-        return self._signal_path
+        return self._write_signal(payload)
 
     def close_position(self, symbol: str) -> Path:
-        """Write a close signal to the MT4 bridge file."""
+        """Write a full-close signal for *symbol*."""
         return self.submit_order(symbol=symbol, cmd="close", volume=0.1)
+
+    def partial_close(self, symbol: str, ticket: int, volume: float) -> Path:
+        """Write a *partial close* TMS command for a specific MT4 ticket.
+
+        The EA will close exactly *volume* lots on the specified ticket,
+        leaving the remainder of the position open.
+
+        Parameters
+        ----------
+        symbol :
+            Instrument ticker — used for logging only (EA routes by ticket).
+        ticket :
+            MT4 order ticket number (from ``mt4_positions.json``).
+        volume :
+            Number of lots to close (must be ≤ the open lot size).
+
+        Returns
+        -------
+        Path
+            The absolute path that was written.
+        """
+        payload = {
+            "symbol": symbol,
+            "cmd": "partial_close",
+            "ticket": int(ticket),
+            "volume": round(float(volume), 2),
+        }
+        logger.info(
+            "MT4 TMS: partial_close ticket=#%d %.2f lots (%s)",
+            ticket, volume, symbol,
+        )
+        return self._write_signal(payload)
+
+    def modify_sl(
+        self,
+        symbol: str,
+        ticket: int,
+        new_sl: float,
+    ) -> Path:
+        """Write a *stop-loss modification* TMS command for a specific MT4 ticket.
+
+        The EA will call ``OrderModify()`` on the ticket, moving the SL to
+        *new_sl*.  The EA validates that the new SL does not immediately
+        trigger before applying the modification.
+
+        Parameters
+        ----------
+        symbol :
+            Instrument ticker — used for logging only.
+        ticket :
+            MT4 order ticket number.
+        new_sl :
+            New stop-loss price in broker quote units.
+
+        Returns
+        -------
+        Path
+            The absolute path that was written.
+        """
+        payload = {
+            "symbol": symbol,
+            "cmd": "modify_sl",
+            "ticket": int(ticket),
+            "new_sl": round(float(new_sl), 5),
+        }
+        logger.info(
+            "MT4 TMS: modify_sl ticket=#%d new_sl=%.5f (%s)",
+            ticket, new_sl, symbol,
+        )
+        return self._write_signal(payload)
 
     # -- convenience / introspection ----------------------------------------
 
