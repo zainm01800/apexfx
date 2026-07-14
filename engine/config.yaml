@@ -221,7 +221,7 @@ ai:
 # Set enabled: true only when the MT4 terminal is running the apex_mt4_bridge.mq4 EA.
 execution:
   enabled: true
-  provider: "mt4"                               # mt4 | zmq | mock
+  provider: "zmq"                               # mt4 | zmq | mock
   mt4:
     common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/users/crossover/AppData/Roaming/MetaQuotes/Terminal/Common/Files"  # macOS Wine shared path
     default_volume: 0.10
