@@ -671,11 +671,18 @@ function renderCard(g) {
   // stamped with its own date+time. Collapsible: expands automatically when re-checks exist.
   const lifeline = buildLifeline(row);
 
-  // Post-mortem lesson — shown on the current call when it (or any resolved scan in
-  // the group) has one. This is the "what went wrong / right" the engine learns from.
-  const lessonRow = g.lesson
-    ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${g.lesson}</div>`
-    : '';
+  let lessonRow = '';
+  if (g.lesson) {
+    const formattedLesson = g.lesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
+    lessonRow = `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups" style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
+        📓 AI POST-MORTEM LESSON
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.5; color: var(--text2);">
+        <div>${formattedLesson}</div>
+      </div>
+    </div>`;
+  }
 
   // Live status + "distance to entry" — verdict-aware. For a real trade: LIVE /
   // APPROACHING / DRIFTING / WAITING. For a WAIT/NO_EDGE: WATCHING / LEVEL-REACHED
@@ -900,7 +907,17 @@ function openPreview(id) {
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
-    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${row.lesson}</div>` : ''}
+    ${row.lesson ? (() => {
+      const formatted = row.lesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
+      return `<div class="pv-lesson" title="AI post-mortem fed back into future analysis" style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
+          📓 AI POST-MORTEM LESSON
+        </div>
+        <div style="font-size: 12.5px; line-height: 1.5; color: var(--text2);">
+          <div>${formatted}</div>
+        </div>
+      </div>`;
+    })() : ''}
 
     ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
 

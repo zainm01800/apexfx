@@ -369,11 +369,26 @@ function renderMt4Trades() {
   const grid = document.getElementById('mt4TradesGrid');
   if (!grid) return;
 
+  const previouslyHighlightedTicket = document.querySelector('.highlighted-lesson')?.getAttribute('data-lesson-ticket');
+
+  function setGridHtml(html) {
+    grid.innerHTML = html;
+    if (previouslyHighlightedTicket) {
+      const newCard = document.querySelector(`[data-lesson-ticket="${previouslyHighlightedTicket}"]`);
+      if (newCard) {
+        newCard.classList.add('highlighted-lesson');
+        newCard.style.outline = '2.5px solid var(--accent)';
+        newCard.style.boxShadow = '0 0 25px rgba(0, 240, 255, 0.6)';
+        newCard.style.transform = 'scale(1.02)';
+      }
+    }
+  }
+
   const filterKey = _mt4TradesFilter === 'lessons' ? 'closed' : _mt4TradesFilter;
   const filtered = _mt4TradesCache.filter(t => t.status === filterKey);
 
   if (!filtered.length && _mt4TradesFilter !== 'lessons') {
-    grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${_mt4TradesFilter} positions synced on MT4 terminal.</div>`;
+    setGridHtml(`<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${_mt4TradesFilter} positions synced on MT4 terminal.</div>`);
     return;
   }
 
@@ -641,9 +656,9 @@ function renderMt4Trades() {
             <strong style="font-size: 10px; color: ${isLoss ? 'var(--red)' : 'var(--accent)'}; text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--mono);">🧠 Post-Mortem Lesson</strong>
             ${isAiLesson ? `<span style="font-size: 9px; font-weight: 700; color: var(--green); background: rgba(0, 200, 100, 0.15); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">AI LEARNING</span>` : `<span style="font-size: 9px; font-weight: 700; color: var(--text3); background: rgba(255, 255, 255, 0.05); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">DYNAMIC</span>`}
           </div>
-          <p style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
-            ${lessonText}
-          </p>
+          <div style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
+            <div>${lessonText.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">')}</div>
+          </div>
         </div>
 
         <div style="font-size: 10.5px; color: var(--text3); text-align: right; font-style: italic; margin-top: 4px;">
@@ -657,7 +672,7 @@ function renderMt4Trades() {
     const closedTrades = _mt4TradesCache.filter(t => t.status === 'closed');
 
     if (closedTrades.length === 0) {
-      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No closed trades found to generate lessons.</div>`;
+      setGridHtml(`<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No closed trades found to generate lessons.</div>`);
       return;
     }
 
@@ -689,7 +704,7 @@ function renderMt4Trades() {
     // Display chunks with newest batch on top
     const displayChunks = [...chunks].reverse();
 
-    grid.innerHTML = displayChunks.map((chunk, index) => {
+    setGridHtml(displayChunks.map((chunk, index) => {
       // Within each batch, display trades descending (newest first)
       const batchTrades = [...chunk.trades].reverse();
       
@@ -714,11 +729,12 @@ function renderMt4Trades() {
       }
       const avgRR = rrCount > 0 ? '1:' + (rrSum / rrCount).toFixed(2) : '1:1.20';
 
-      const displayStyle = 'none';
-      const arrowSymbol = '▶';
-
       const batchId = `mt4LessonBatch_${index}`;
       const headerId = `mt4LessonBatchHeader_${index}`;
+
+      const existingBatch = document.getElementById(batchId);
+      const displayStyle = (existingBatch && existingBatch.style.display !== 'none') ? 'grid' : 'none';
+      const arrowSymbol = (existingBatch && existingBatch.style.display !== 'none') ? '▼' : '▶';
 
       return `
         <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px;">
@@ -751,12 +767,12 @@ function renderMt4Trades() {
           </div>
         </div>
       `;
-    }).join('');
+    }).join(''));
     return;
   }
 
   if (_mt4TradesFilter === 'open') {
-    grid.innerHTML = filtered.map(renderTradeCard).join('');
+    setGridHtml(filtered.map(renderTradeCard).join(''));
     return;
   }
 
@@ -777,7 +793,7 @@ function renderMt4Trades() {
   // Display chunks with newest batch on top
   const displayChunks = [...chunks].reverse();
 
-  grid.innerHTML = displayChunks.map((chunk, index) => {
+  setGridHtml(displayChunks.map((chunk, index) => {
     // Within each batch, display trades descending (newest first)
     const batchTrades = [...chunk.trades].reverse();
     
@@ -802,11 +818,12 @@ function renderMt4Trades() {
     }
     const avgRR = rrCount > 0 ? '1:' + (rrSum / rrCount).toFixed(2) : '1:1.20';
 
-    const displayStyle = 'none';
-    const arrowSymbol = '▶';
-
     const batchId = `mt4Batch_${index}`;
     const headerId = `mt4BatchHeader_${index}`;
+
+    const existingBatch = document.getElementById(batchId);
+    const displayStyle = (existingBatch && existingBatch.style.display !== 'none') ? 'grid' : 'none';
+    const arrowSymbol = (existingBatch && existingBatch.style.display !== 'none') ? '▼' : '▶';
 
     return `
       <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px;">
@@ -839,7 +856,7 @@ function renderMt4Trades() {
         </div>
       </div>
     `;
-  }).join('');
+  }).join(''));
 }
 
 
