@@ -4,6 +4,18 @@ let _mt4TradesFilter = 'open'; // 'open', 'closed', or 'lessons'
 let _mt4TradesCache = [];
 let _engineLessonsCache = [];
 
+// OANDA MT4 server runs on EET (UTC+2). Timestamps stored in mt4_positions.json
+// are in broker server time. We subtract the offset to display in the user's local time.
+// OANDA EET offset vs UTC = +2h. If your local timezone changes (e.g. winter GMT), adjust this.
+const MT4_BROKER_OFFSET_HOURS = 2; // OANDA server = EET (UTC+2)
+
+function mt4Time(unixSeconds) {
+  // Convert broker server time to UTC by subtracting the broker offset,
+  // then let the browser display in the user's local timezone.
+  const brokerOffsetMs = MT4_BROKER_OFFSET_HOURS * 3600 * 1000;
+  return new Date(unixSeconds * 1000 - brokerOffsetMs);
+}
+
 function formatLessonText(text) {
   if (!text) return '';
   function cleanVal(val) {
@@ -436,8 +448,8 @@ function renderMt4Trades() {
       ? `${displaySymbol.substring(0, 3)}/${displaySymbol.substring(3)}`
       : displaySymbol;
 
-    const formattedOpenTime  = new Date(t.open_time  * 1000).toLocaleString();
-    const formattedCloseTime = t.close_time ? new Date(t.close_time * 1000).toLocaleString() : '';
+    const formattedOpenTime  = mt4Time(t.open_time).toLocaleString();
+    const formattedCloseTime = t.close_time ? mt4Time(t.close_time).toLocaleString() : '';
 
     const risk    = Math.abs(t.open_price - t.sl);
     const reward  = Math.abs(t.tp - t.open_price);
@@ -602,7 +614,7 @@ function renderMt4Trades() {
       ? `${displaySymbol.substring(0, 3)}/${displaySymbol.substring(3)}`
       : displaySymbol;
 
-    const formattedDate = t.close_time ? new Date(t.close_time * 1000).toLocaleDateString() : '';
+    const formattedDate = t.close_time ? mt4Time(t.close_time).toLocaleDateString() : '';
 
     const isLoss = pnl < 0;
     const isWin = pnl > 0;
