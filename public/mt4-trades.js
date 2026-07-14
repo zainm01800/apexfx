@@ -651,19 +651,35 @@ function renderMt4Trades() {
       }
     }
     
+    // Determine targets hit status for fallback lesson selection
+    const tpValForFallback = parseFloat(t.tp) || (matchedAi ? parseFloat(matchedAi.target_price) : 0);
+    const slValForFallback = parseFloat(t.sl) || (matchedAi ? parseFloat(matchedAi.stop_loss) : 0);
+    const closeValForFallback = parseFloat(t.close_price) || 0;
+    
+    let hitTpFallback = false;
+    let hitSlFallback = false;
+    
+    if (matchedAi && matchedAi.outcome) {
+      hitTpFallback = matchedAi.outcome === 'tp_hit';
+      hitSlFallback = matchedAi.outcome === 'sl_hit';
+    } else {
+      hitTpFallback = tpValForFallback > 0 && Math.abs(closeValForFallback - tpValForFallback) < 0.0002;
+      hitSlFallback = slValForFallback > 0 && Math.abs(closeValForFallback - slValForFallback) < 0.0002;
+    }
+
     let lessonText = '';
     let isAiLesson = false;
-    if (matchedAi) {
-      lessonText = matchedAi.lesson || '';
+    if (matchedAi && matchedAi.lesson) {
+      lessonText = matchedAi.lesson;
       isAiLesson = true;
     } else {
       // Dynamic fallback post-mortem lesson
-      if (isWin) {
+      if (hitTpFallback) {
         lessonText = `<strong>✅ What Went Right:</strong> The setup reached its profit target. Trend momentum aligned correctly and execution parameters protected the locked profit.<br><strong>📊 Why It Worked:</strong> Market structure and regime conditions were favourable for the direction taken.<br><strong>🔒 What to Preserve:</strong> Maintain this entry criteria and position sizing discipline on similar setups.<br><strong>🎯 Action Plan:</strong> Continue executing the same process on setups with matching confluence.`;
-      } else if (isLoss) {
+      } else if (hitSlFallback) {
         lessonText = `<strong>❌ What Went Wrong:</strong> The setup was stopped out. Market structure shifted against the trade bias.<br><strong>🔍 Why It Went Wrong:</strong> The engine has recorded the regime conditions that led to this outcome.<br><strong>💡 What Can Be Improved:</strong> Review the entry confluence score and consider tighter regime filtering.<br><strong>🎯 Action Plan to Prevent Recurrence:</strong> Adjust system weighting to reduce exposure on similar high-volatility regimes.`;
       } else {
-        lessonText = `<strong>🔄 What Happened:</strong> Position was closed before reaching SL or TP — managed exit or invalidation.<br><strong>📐 Why It Was Managed Out:</strong> Trade conditions changed or a time-based rule triggered the close.<br><strong>⚖️ Was the Decision Correct?</strong> Closing before SL preserved capital — this is disciplined risk management.<br><strong>🎯 Action Plan for Similar Setups:</strong> Review what triggered the managed exit and whether holding longer would have been justified.`;
+        lessonText = `<strong>🔄 What Happened:</strong> Position was closed before reaching SL or TP — managed exit or invalidation.<br><strong>📐 Why It Was Managed Out:</strong> Trade conditions changed or a manual/automated risk limit triggered the early close.<br><strong>⚖️ Was the Decision Correct?</strong> Closing early preserved capital/gains and prevented full stop loss hit — this is active defense.<br><strong>🎯 Action Plan for Similar Setups:</strong> Review what triggered the early exit and whether holding longer would have been justified.`;
       }
     }
 
@@ -675,8 +691,8 @@ function renderMt4Trades() {
     if (lessonFirst80.includes('✅')) lessonCat = 'win';
     else if (lessonFirst80.includes('🔄')) lessonCat = 'neutral';
     else if (lessonFirst80.includes('❌')) lessonCat = 'loss';
-    else if (isWin) lessonCat = 'win';
-    else if (!isLoss) lessonCat = 'neutral';
+    else if (hitTpFallback) lessonCat = 'win';
+    else if (!hitSlFallback) lessonCat = 'neutral';
 
     const lessonBg = lessonCat === 'win'     ? 'rgba(0, 240, 255, 0.03)'
                    : lessonCat === 'neutral' ? 'rgba(255, 165, 0, 0.05)'

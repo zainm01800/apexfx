@@ -294,6 +294,7 @@ def update_lessons():
     url = (
         f"{MEMORY_ENDPOINT}"
         f"?outcome=in.(tp_hit,sl_hit,expired,invalidated)"
+        f"&symbol=ilike.*%2F*"
         f"&order=created_at.desc&limit=200"
     )
     r = httpx.get(url, headers=headers)
