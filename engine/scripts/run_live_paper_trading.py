@@ -1634,7 +1634,8 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                     instrument=sym_ot,
                     direction=Direction.LONG if ot["verdict"] in ("BUY", "LONG") else Direction.SHORT,
                     notional=trade_notional,
-                    risk=risk_gbp
+                    risk=risk_gbp,
+                    timeframe=map_timeframe(ot.get("timeframe", "1h")),
                 ))
             
             account_state = AccountState(
@@ -1681,7 +1682,8 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                     probability=sig.probability,
                     reward_risk=sig.reward_risk,
                     confidence=getattr(sig, 'confidence', 0.5),
-                    rationale=getattr(sig, 'rationale', "")
+                    rationale=getattr(sig, 'rationale', ""),
+                    timeframe=tf,  # pass timeframe for per-bucket slot check
                 )
                 
                 # 4. Permit through Risk Manager

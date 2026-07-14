@@ -97,12 +97,44 @@ class RiskManager:
                 f"{cfg.drawdown_breaker:.0%}; new positions halted.",
             )
 
-        # 1.5. Max concurrent trades count check (prop firm safety)
-        max_trades = getattr(cfg, "max_concurrent_trades", 10)
-        if len(account.open_positions or []) >= max_trades:
+        # 1.5. Per-timeframe slot buckets (replaces single global cap)
+        #
+        #   Swing  (1d / 1w)  → max 5 concurrent positions
+        #   Intraday (1h)     → max 4 concurrent positions
+        #   Scalp  (15m)      → max 3 concurrent positions
+        #
+        # Each bucket is independent — swing trades can NEVER block
+        # intraday or scalp entries. The global hard cap is the sum (12).
+        _TF_BUCKETS: dict[str, int] = {
+            "1w": 5, "1d": 5,        # swing
+            "1h": 4,                  # intraday
+            "15m": 3, "5m": 3,       # scalp / short
+        }
+        _GLOBAL_HARD_CAP: int = getattr(cfg, "max_concurrent_trades", 12)
+
+        # Resolve the candidate timeframe from the signal instrument context.
+        # Signal carries no timeframe directly; we use the instrument name as a
+        # proxy key stored on the signal (added by scan_single_asset).
+        candidate_tf: str = getattr(signal, "timeframe", None) or "1h"
+        bucket_limit = _TF_BUCKETS.get(candidate_tf, 4)
+
+        # Count open positions in the same timeframe bucket.
+        open_in_bucket = sum(
+            1 for pos in (account.open_positions or [])
+            if getattr(pos, "timeframe", candidate_tf) == candidate_tf
+        )
+        total_open = len(account.open_positions or [])
+
+        if open_in_bucket >= bucket_limit:
             return veto(
-                "max_concurrent_trades_exceeded",
-                f"Open trades count {len(account.open_positions)} >= max limit {max_trades}; new positions halted.",
+                "timeframe_bucket_full",
+                f"{candidate_tf} bucket full ({open_in_bucket}/{bucket_limit} slots used); "
+                f"new {candidate_tf} positions blocked. Other timeframe trades can still open.",
+            )
+        if total_open >= _GLOBAL_HARD_CAP:
+            return veto(
+                "global_trade_cap",
+                f"Global trade cap reached ({total_open}/{_GLOBAL_HARD_CAP}); all new positions halted.",
             )
 
         # 2. ATR stop distance

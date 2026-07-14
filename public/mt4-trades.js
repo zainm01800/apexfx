@@ -253,52 +253,105 @@ function renderMt4Trades() {
     const isBuy = t.cmd === 0;
     const sideLabel = isBuy ? 'BUY' : 'SELL';
     const sideClass = isBuy ? 'pos' : 'neg';
-    
+
     const pnl = parseFloat(t.profit) || 0;
     const pnlClass = pnl > 0 ? 'pos' : (pnl < 0 ? 'neg' : '');
     const pnlPrefix = pnl > 0 ? '+' : '';
-    
-    const displaySymbol = (t.symbol || '').replace(/-g|\.m|\.ecn/gi, '').toUpperCase();
-    const formattedSymbol = displaySymbol.length === 6 ? `${displaySymbol.substring(0, 3)}/${displaySymbol.substring(3)}` : displaySymbol;
 
-    const formattedOpenTime = new Date(t.open_time * 1000).toLocaleString();
+    const displaySymbol = (t.symbol || '').replace(/-g|\.m|\.ecn/gi, '').toUpperCase();
+    const formattedSymbol = displaySymbol.length === 6
+      ? `${displaySymbol.substring(0, 3)}/${displaySymbol.substring(3)}`
+      : displaySymbol;
+
+    const formattedOpenTime  = new Date(t.open_time  * 1000).toLocaleString();
     const formattedCloseTime = t.close_time ? new Date(t.close_time * 1000).toLocaleString() : '';
 
-    const risk = Math.abs(t.open_price - t.sl);
-    const reward = Math.abs(t.tp - t.open_price);
+    const risk    = Math.abs(t.open_price - t.sl);
+    const reward  = Math.abs(t.tp - t.open_price);
     const rrRatio = (risk > 0 && reward > 0 && t.sl > 0 && t.tp > 0) ? (reward / risk).toFixed(2) : null;
-    const rrText = rrRatio ? `1:${rrRatio}` : 'None';
+    const rrText  = rrRatio ? `1:${rrRatio}` : 'None';
+
+    // ── WIN / LOSS badge (closed cards only) ─────────────────────────────
+    const isClosedView = _mt4TradesFilter === 'closed';
+    let winBadge = '';
+    if (isClosedView) {
+      if (pnl > 0)      winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;">WIN</span>`;
+      else if (pnl < 0) winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;">LOSS</span>`;
+      else              winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(150,150,150,0.1);color:var(--text3);font-family:var(--mono);">BREAK</span>`;
+    }
+
+    // ── PARTIAL CLOSE detection ───────────────────────────────────────────
+    // When the EA partially closes a trade, MT4 logs it as a separate history
+    // entry on the same symbol with a smaller lot size. We surface those here.
+    const allClosed = _mt4TradesCache.filter(x => x.status === 'closed');
+    let partials = [];
+    if (_mt4TradesFilter === 'open') {
+      // Open position: find history closes on same symbol after this trade opened
+      partials = allClosed.filter(h => {
+        const hSym = (h.symbol || '').replace(/-g|\.m|\.ecn/gi, '').toUpperCase();
+        return hSym === displaySymbol && h.close_time > t.open_time && h.volume < t.volume;
+      });
+    } else {
+      // Closed position: find history closes on same symbol during its lifetime
+      partials = allClosed.filter(h => {
+        const hSym = (h.symbol || '').replace(/-g|\.m|\.ecn/gi, '').toUpperCase();
+        return hSym === displaySymbol
+          && h.ticket !== t.ticket
+          && h.close_time >= t.open_time
+          && h.close_time <= t.close_time
+          && h.volume < t.volume;
+      });
+    }
+
+    const partialsHtml = partials.length > 0 ? `
+      <div style="margin-top:4px;padding:8px 10px;border-radius:8px;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.14);">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">
+          ⚡ Partial Closes &nbsp;<span style="color:var(--text3);font-weight:400;">(${partials.length})</span>
+        </div>
+        ${partials.map(p => {
+          const pp  = parseFloat(p.profit) || 0;
+          const pps = (pp >= 0 ? '+' : '') + '£' + pp.toFixed(2);
+          const ppc = pp > 0 ? 'var(--green)' : (pp < 0 ? 'var(--red)' : 'var(--text3)');
+          const cd  = new Date(p.close_time * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+          return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-family:var(--mono);padding:2px 0;">
+            <span style="color:var(--text3);">${cd} · ${p.volume} lots @ ${p.close_price ? p.close_price.toFixed(5) : '—'}</span>
+            <span style="font-weight:700;color:${ppc};">${pps}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    ` : '';
 
     return `
       <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
             <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
+            ${winBadge}
           </div>
           <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${t.ticket}</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
           <span style="color: var(--text3)">Direction</span>
           <span class="${sideClass}" style="font-weight: 700; font-family: var(--mono);">${sideLabel} (${t.volume} Lots)</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Entry Price</span>
           <span style="font-family: var(--mono); color: var(--text2);">${t.open_price.toFixed(5)}</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Stop Loss</span>
           <span style="font-family: var(--mono); color: var(--red);">${t.sl > 0 ? t.sl.toFixed(5) : 'None'}</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Take Profit</span>
           <span style="font-family: var(--mono); color: var(--green);">${t.tp > 0 ? t.tp.toFixed(5) : 'None'}</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
           <span style="color: var(--text3)">Target R:R</span>
           <span style="font-family: var(--mono); color: ${rrRatio ? 'var(--accent)' : 'var(--text3)'}; font-weight: ${rrRatio ? '700' : 'normal'};">${rrText}</span>
@@ -319,7 +372,9 @@ function renderMt4Trades() {
           <span style="font-family: var(--mono); color: var(--text2);">${formatDuration(t.close_time - t.open_time)}</span>
         </div>
         `}
-        
+
+        ${partialsHtml}
+
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
           <span style="color: var(--text)">Profit / Loss</span>
           <span class="${pnlClass}" style="font-family: var(--mono); font-size: 16px;">${pnlPrefix}£${pnl.toFixed(2)}</span>
@@ -331,6 +386,7 @@ function renderMt4Trades() {
       </div>
     `;
   }
+
 
   if (_mt4TradesFilter === 'open') {
     grid.innerHTML = filtered.map(renderTradeCard).join('');

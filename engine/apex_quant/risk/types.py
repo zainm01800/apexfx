@@ -28,6 +28,7 @@ class Signal(BaseModel):
     reward_risk: float = Field(default=1.0, gt=0.0, description="target:stop payoff ratio b")
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="model self-confidence")
     rationale: str = ""
+    timeframe: str = "1h"  # e.g. '15m', '1h', '1d', '1w' — used for per-bucket slot counting
 
 
 class OpenPosition(BaseModel):
@@ -35,6 +36,8 @@ class OpenPosition(BaseModel):
     direction: Direction
     notional: float = Field(ge=0.0)
     risk: float = Field(default=0.0, description="Absolute risk of position in account currency (GBP)")
+    timeframe: str = "1h"  # trading style bucket: '15m', '1h', '1d', '1w'
+
 
 
 class AccountState(BaseModel):
