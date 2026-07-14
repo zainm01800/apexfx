@@ -60,7 +60,7 @@ export default async function handler(req) {
     // learning loops use this so old resolved swing/position trades never fall
     // off a recent-rows window as scan volume grows).
     const openFlt = open ? '&or=(outcome.is.null,outcome.eq.pending)'
-                  : resolved ? '&outcome=in.(tp_hit,sl_hit)' : '';
+                  : resolved ? '&outcome=in.(tp_hit,sl_hit,expired,invalidated)' : '';
 
     try {
       const query = id

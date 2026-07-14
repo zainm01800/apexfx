@@ -488,9 +488,36 @@ function renderMt4Trades() {
     const outcomeLabel = isWin ? 'WIN' : (isLoss ? 'LOSS' : 'BREAKEVEN');
     const outcomeClass = isWin ? 'pos' : (isLoss ? 'neg' : '');
 
-    // Match with Supabase AI post-mortem lessons if available
+    // Match with Supabase AI post-mortem lessons if available using time proximity
     const cleanedSym = getCleanSymbol(t.symbol);
-    const matchedAi = _engineLessonsCache.find(x => getCleanSymbol(x.symbol) === cleanedSym);
+    
+    function getTimestampFromSetupId(id) {
+      const parts = (id || '').split('_');
+      if (parts.length < 2) return 0;
+      let ts = parseFloat(parts[parts.length - 1]);
+      if (isNaN(ts)) return 0;
+      return ts > 1000000000000 ? ts / 1000.0 : ts;
+    }
+
+    const symbolLessons = _engineLessonsCache.filter(x => getCleanSymbol(x.symbol) === cleanedSym);
+    let matchedAi = null;
+    if (symbolLessons.length > 0) {
+      let minDiff = Infinity;
+      for (const l of symbolLessons) {
+        const setupTime = getTimestampFromSetupId(l.id);
+        if (setupTime > 0) {
+          const diff = Math.abs(t.open_time - setupTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            matchedAi = l;
+          }
+        }
+      }
+      // If the closest match is more than 24 hours away, treat as no match
+      if (minDiff > 86400) {
+        matchedAi = null;
+      }
+    }
     
     let lessonText = '';
     let isAiLesson = false;
