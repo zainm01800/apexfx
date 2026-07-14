@@ -222,6 +222,20 @@ function formatDuration(seconds) {
   return parts.join(' ');
 }
 
+window.toggleMt4Batch = function(batchId, headerId) {
+  const content = document.getElementById(batchId);
+  const header = document.getElementById(headerId);
+  if (!content || !header) return;
+
+  const isCollapsed = content.style.display === 'none';
+  content.style.display = isCollapsed ? 'grid' : 'none';
+  
+  const arrow = header.querySelector('.batch-arrow');
+  if (arrow) {
+    arrow.textContent = isCollapsed ? '▼' : '▶';
+  }
+};
+
 function renderMt4Trades() {
   const grid = document.getElementById('mt4TradesGrid');
   if (!grid) return;
@@ -233,7 +247,7 @@ function renderMt4Trades() {
     return;
   }
 
-  grid.innerHTML = filtered.map(t => {
+  function renderTradeCard(t) {
     const isBuy = t.cmd === 0;
     const sideLabel = isBuy ? 'BUY' : 'SELL';
     const sideClass = isBuy ? 'pos' : 'neg';
@@ -311,6 +325,86 @@ function renderMt4Trades() {
 
         <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
           ${_mt4TradesFilter === 'closed' ? `Closed: ${formattedCloseTime}` : `Opened: ${formattedOpenTime}`}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_mt4TradesFilter === 'open') {
+    grid.innerHTML = filtered.map(renderTradeCard).join('');
+    return;
+  }
+
+  // Batch closed history (batches of 10) sorted by closed time descending (newest first)
+  const sorted = [...filtered].sort((a, b) => b.close_time - a.close_time);
+  const batches = [];
+  const chunkSize = 10;
+  for (let i = 0; i < sorted.length; i += chunkSize) {
+    batches.push(sorted.slice(i, i + chunkSize));
+  }
+
+  grid.innerHTML = batches.map((chunk, index) => {
+    const batchNum = batches.length - index;
+    const totalPnL = chunk.reduce((s, t) => s + (parseFloat(t.profit) || 0), 0);
+    const pnlClass = totalPnL > 0 ? 'pos' : (totalPnL < 0 ? 'neg' : '');
+    const pnlSign = totalPnL > 0 ? '+' : '';
+    
+    // Win Rate
+    const wins = chunk.filter(t => (parseFloat(t.profit) || 0) > 0).length;
+    const winRate = chunk.length > 0 ? (wins / chunk.length * 100).toFixed(1) : '0.0';
+
+    // Avg target R:R
+    let rrSum = 0;
+    let rrCount = 0;
+    for (let t of chunk) {
+      const risk = Math.abs(t.open_price - t.sl);
+      const reward = Math.abs(t.tp - t.open_price);
+      if (risk > 0 && reward > 0 && t.sl > 0 && t.tp > 0) {
+        rrSum += (reward / risk);
+        rrCount++;
+      }
+    }
+    const avgRR = rrCount > 0 ? '1:' + (rrSum / rrCount).toFixed(2) : '1:1.20';
+
+    const startIdx = index * chunkSize + 1;
+    const endIdx = Math.min((index + 1) * chunkSize, sorted.length);
+
+    // Default first (most recent) batch to open, others closed
+    const isExpanded = index === 0;
+    const displayStyle = isExpanded ? 'grid' : 'none';
+    const arrowSymbol = isExpanded ? '▼' : '▶';
+
+    const batchId = `mt4Batch_${index}`;
+    const headerId = `mt4BatchHeader_${index}`;
+
+    return `
+      <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px;">
+        <div id="${headerId}" onclick="toggleMt4Batch('${batchId}', '${headerId}')" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 8px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s, border-color 0.2s; user-select: none;" onmouseover="this.style.background='rgba(0, 240, 255, 0.04)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.02)'; this.style.borderColor='var(--border)';">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="batch-arrow" style="font-size: 11px; color: var(--accent); font-family: var(--mono);">${arrowSymbol}</span>
+            <strong style="font-size: 15px; color: var(--text);">Batch ${batchNum} <span style="font-size: 12px; font-weight: normal; color: var(--text3); font-family: var(--mono); margin-left: 6px;">(Trades ${startIdx} - ${endIdx} of ${sorted.length})</span></strong>
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 24px; font-size: 13px; font-family: var(--mono); flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+              <span style="font-size: 9px; color: var(--text3); text-transform: uppercase;">Win Rate</span>
+              <span class="${parseFloat(winRate) >= 50 ? 'pos' : 'neg'}" style="font-weight: 700;">${winRate}%</span>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+              <span style="font-size: 9px; color: var(--text3); text-transform: uppercase;">Avg R:R</span>
+              <span style="color: var(--accent); font-weight: 700;">${avgRR}</span>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+              <span style="font-size: 9px; color: var(--text3); text-transform: uppercase;">P&L</span>
+              <span class="${pnlClass}" style="font-weight: 700;">${pnlSign}£${totalPnL.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div id="${batchId}" style="display: ${displayStyle}; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; margin-top: 6px; margin-bottom: 12px;">
+          ${chunk.map(renderTradeCard).join('')}
         </div>
       </div>
     `;
