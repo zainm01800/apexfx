@@ -1131,10 +1131,17 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
         
         # ── Apply Multi-Timeframe (MTF) Trend Gating Filter ──
         if sig.direction.value.upper() != "FLAT":
-            higher_tf = "1d" if tf in ("5m", "15m", "1h") else ("1w" if tf == "1d" else None)
-            if higher_tf:
+            tf_targets = []
+            if tf in ("5m", "15m"):
+                tf_targets = ["1h", "1d"]
+            elif tf == "1h":
+                tf_targets = ["1d"]
+            elif tf == "1d":
+                tf_targets = ["1w"]
+                
+            for higher_tf in tf_targets:
                 try:
-                    lookback_higher = 300 if higher_tf == "1d" else 750
+                    lookback_higher = 300 if higher_tf == "1d" else (750 if higher_tf == "1w" else 60)
                     start_higher = (datetime.utcnow() - pd.Timedelta(days=lookback_higher)).strftime("%Y-%m-%d")
                     df_higher = clean(data_provider.get_history(sym, start=start_higher, end=end_date, timeframe=higher_tf))
                     if len(df_higher) >= 50:
@@ -1146,25 +1153,27 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                         sig_dir = sig.direction.value.upper()
                         
                         if sig_dir == "LONG" and macro_trend == "SHORT":
-                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) LONG: Daily close ({latest_close_higher:.5f}) < 50 SMA ({sma_higher:.5f})")
+                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) LONG: {higher_tf} close ({latest_close_higher:.5f}) < 50 SMA ({sma_higher:.5f})")
                             sig = sig.model_copy(update={
                                 "direction": Direction.FLAT,
                                 "probability": 0.5,
                                 "confidence": 0.0,
-                                "rationale": sig.rationale + f" | MTF-VETO: Daily Bearish Trend (Close < 50 SMA)"
+                                "rationale": sig.rationale + f" | MTF-VETO: {higher_tf} Bearish Trend (Close < 50 SMA)"
                             })
+                            break
                         elif sig_dir == "SHORT" and macro_trend == "LONG":
-                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) SHORT: Daily close ({latest_close_higher:.5f}) >= 50 SMA ({sma_higher:.5f})")
+                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) SHORT: {higher_tf} close ({latest_close_higher:.5f}) >= 50 SMA ({sma_higher:.5f})")
                             sig = sig.model_copy(update={
                                 "direction": Direction.FLAT,
                                 "probability": 0.5,
                                 "confidence": 0.0,
-                                "rationale": sig.rationale + f" | MTF-VETO: Daily Bullish Trend (Close >= 50 SMA)"
+                                "rationale": sig.rationale + f" | MTF-VETO: {higher_tf} Bullish Trend (Close >= 50 SMA)"
                             })
+                            break
                     else:
-                        print(f"  [MTF GATE WARN] Insufficient higher timeframe ({higher_tf}) bars for {sym}: {len(df_higher)}/50")
+                        print(f"  [MTF GATE WARN] Insufficient {higher_tf} bars for {sym}: {len(df_higher)}/50")
                 except Exception as mtf_e:
-                    print(f"  [MTF GATE WARN] Failed to apply MTF filter for {sym}: {mtf_e}")
+                    print(f"  [MTF GATE WARN] Failed to apply {higher_tf} MTF filter for {sym}: {mtf_e}")
         
         # ── Apply DeepSeek sentiment veto filter ──────────────────────
         sig = apply_deepseek_sentiment(sig, sym, fetch_headlines, cfg=cfg)
