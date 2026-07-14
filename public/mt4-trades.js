@@ -1,7 +1,8 @@
 // mt4-trades.js — Client-side live broker execution monitor
 
-let _mt4TradesFilter = 'open'; // 'open' or 'closed'
+let _mt4TradesFilter = 'open'; // 'open', 'closed', or 'lessons'
 let _mt4TradesCache = [];
+let _engineLessonsCache = [];
 
 let _pollIntervalId = null;
 
@@ -25,11 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function initMt4Tabs() {
   const btnOpen = document.getElementById('btnOpen');
   const btnClosed = document.getElementById('btnClosed');
-  if (!btnOpen || !btnClosed) return;
+  const btnLessons = document.getElementById('btnLessons');
+  if (!btnOpen || !btnClosed || !btnLessons) return;
 
   btnOpen.addEventListener('click', () => {
     btnOpen.classList.add('active');
     btnClosed.classList.remove('active');
+    btnLessons.classList.remove('active');
     _mt4TradesFilter = 'open';
     renderMt4Trades();
   });
@@ -37,7 +40,16 @@ function initMt4Tabs() {
   btnClosed.addEventListener('click', () => {
     btnClosed.classList.add('active');
     btnOpen.classList.remove('active');
+    btnLessons.classList.remove('active');
     _mt4TradesFilter = 'closed';
+    renderMt4Trades();
+  });
+
+  btnLessons.addEventListener('click', () => {
+    btnLessons.classList.add('active');
+    btnOpen.classList.remove('active');
+    btnClosed.classList.remove('active');
+    _mt4TradesFilter = 'lessons';
     renderMt4Trades();
   });
 }
@@ -75,6 +87,7 @@ let _mt4AccountCache = {};
 
 async function loadMt4Trades() {
   try {
+    _engineLessonsCache = []; // clear to allow reload
     const [tradesRes, accountRes] = await Promise.all([
       fetch('/api/mt4-trades'),
       fetch('/api/mt4-account').catch(() => null)
@@ -448,6 +461,85 @@ function renderMt4Trades() {
     `;
   }
 
+
+  function renderLessonCard(t) {
+    const isBuy = t.verdict === 'BUY' || t.verdict === 'LONG';
+    const sideLabel = isBuy ? 'BUY' : 'SELL';
+    const sideClass = isBuy ? 'pos' : 'neg';
+
+    const displaySymbol = (t.symbol || '').replace(/-g|\.m|\.ecn/gi, '').toUpperCase();
+    const formattedSymbol = displaySymbol.length === 6
+      ? `${displaySymbol.substring(0, 3)}/${displaySymbol.substring(3)}`
+      : displaySymbol;
+
+    const formattedDate = t.analysis_date || new Date(t.created_at).toISOString().slice(0, 10);
+    const outcome = t.outcome || 'resolved';
+    const isLoss = outcome === 'sl_hit';
+    const outcomeLabel = isLoss ? 'LOSS (SL HIT)' : (outcome === 'tp_hit' ? 'WIN (TP HIT)' : outcome.toUpperCase());
+    const outcomeClass = isLoss ? 'neg' : (outcome === 'tp_hit' ? 'pos' : '');
+
+    return `
+      <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
+            <span class="badge-style style-${t.timeframe || '1d'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.timeframe || '1d'}</span>
+          </div>
+          <span class="${outcomeClass}" style="font-size: 11px; font-weight: 700; font-family: var(--mono);">${outcomeLabel}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Setup Direction</span>
+          <span class="${sideClass}" style="font-weight: 700; font-family: var(--mono);">${sideLabel}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Entry Price</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${t.price ? parseFloat(t.price).toFixed(5) : '—'}</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span style="color: var(--text3)">Stop / Target</span>
+          <span style="font-family: var(--mono); color: var(--text2);">${t.stop_loss ? parseFloat(t.stop_loss).toFixed(5) : '—'} / ${t.target_price ? parseFloat(t.target_price).toFixed(5) : '—'}</span>
+        </div>
+
+        <div style="padding: 12px; border-radius: 8px; background: ${isLoss ? 'rgba(255, 70, 70, 0.04)' : 'rgba(0, 240, 255, 0.03)'}; border: 1px solid ${isLoss ? 'rgba(255, 70, 70, 0.15)' : 'rgba(0, 240, 255, 0.12)'}; display: flex; flex-direction: column; gap: 6px;">
+          <strong style="font-size: 10px; color: ${isLoss ? 'var(--red)' : 'var(--accent)'}; text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--mono);">🧠 Post-Mortem Lesson</strong>
+          <p style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
+            ${t.lesson || 'No lesson recorded.'}
+          </p>
+        </div>
+
+        <div style="font-size: 10.5px; color: var(--text3); text-align: right; font-style: italic; margin-top: 4px;">
+          Resolved: ${formattedDate}
+        </div>
+      </div>
+    `;
+  }
+
+  if (_mt4TradesFilter === 'lessons') {
+    if (!_engineLessonsCache || _engineLessonsCache.length === 0) {
+      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">Loading AI Post-Mortem lessons from Supabase memory...</div>`;
+      fetch('/api/memory?all=true&resolved=true&lean=true&limit=500')
+        .then(r => r.json())
+        .then(data => {
+          _engineLessonsCache = data.filter(t => t.lesson && t.lesson.trim() !== '');
+          renderMt4Trades();
+        })
+        .catch(err => {
+          grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Failed to load engine lessons: ${err.message}</div>`;
+        });
+      return;
+    }
+
+    if (_engineLessonsCache.length === 0) {
+      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No AI Post-Mortem lessons found in Supabase memory.</div>`;
+      return;
+    }
+
+    grid.innerHTML = _engineLessonsCache.map(renderLessonCard).join('');
+    return;
+  }
 
   if (_mt4TradesFilter === 'open') {
     grid.innerHTML = filtered.map(renderTradeCard).join('');

@@ -472,7 +472,7 @@ def initialize_bayesian_sizer_from_supabase():
 
 def fetch_open_trades():
     """Fetch unresolved setups from Supabase."""
-    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending"
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
     try:
         r = httpx.get(url, headers=headers)
         if r.status_code == 200:
