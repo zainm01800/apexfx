@@ -456,27 +456,28 @@ function renderMt4Trades() {
     const rrRatio = (risk > 0 && reward > 0 && t.sl > 0 && t.tp > 0) ? (reward / risk).toFixed(2) : null;
     const rrText  = rrRatio ? `1:${rrRatio}` : 'None';
 
-    // ── WIN / LOSS badge (closed cards only) ─────────────────────────────
+    // ── WIN / LOSS / MANAGED badge (closed cards only) ───────────────────
     const isClosedView = _mt4TradesFilter === 'closed';
     let winBadge = '';
     let exitReasonBadge = '';
     if (isClosedView) {
-      if (pnl > 0)      winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">WIN</span>`;
-      else if (pnl < 0) winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">LOSS</span>`;
-      else              winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(150,150,150,0.1);color:var(--text3);font-family:var(--mono);border:1px solid rgba(150,150,150,0.15);">BREAK</span>`;
-
-      // exit reason
       const exitReason = getExitReason(t);
+
       if (exitReason === 'TP Hit') {
+        winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">WIN</span>`;
         exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.1);color:var(--green);font-family:var(--mono);border:1px solid rgba(0,200,100,0.25);letter-spacing:0.04em;">TP HIT</span>`;
       } else if (exitReason === 'SL Hit') {
+        winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">LOSS</span>`;
         exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.1);color:var(--red);font-family:var(--mono);border:1px solid rgba(255,70,70,0.25);letter-spacing:0.04em;">SL HIT</span>`;
-      } else if (exitReason === 'Trailing Stop Hit') {
-        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,195,255,0.1);color:var(--accent);font-family:var(--mono);border:1px solid rgba(0,195,255,0.25);letter-spacing:0.04em;">TRAILING SL</span>`;
-      } else if (exitReason === 'Breakeven Stop Hit') {
-        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,170,0,0.1);color:#ffaa00;font-family:var(--mono);border:1px solid rgba(255,170,0,0.25);letter-spacing:0.04em;">BE SL HIT</span>`;
       } else {
-        exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text3);font-family:var(--mono);border:1px solid var(--border);letter-spacing:0.04em;">MANUAL</span>`;
+        winBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,170,0,0.15);color:#ffaa00;font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,170,0,0.2);">MANAGED</span>`;
+        if (exitReason === 'Trailing Stop Hit') {
+          exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,195,255,0.1);color:var(--accent);font-family:var(--mono);border:1px solid rgba(0,195,255,0.25);letter-spacing:0.04em;">TRAILING SL</span>`;
+        } else if (exitReason === 'Breakeven Stop Hit') {
+          exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,170,0,0.1);color:#ffaa00;font-family:var(--mono);border:1px solid rgba(255,170,0,0.25);letter-spacing:0.04em;">BE SL HIT</span>`;
+        } else {
+          exitReasonBadge = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text3);font-family:var(--mono);border:1px solid var(--border);letter-spacing:0.04em;">MANUAL</span>`;
+        }
       }
     }
 
@@ -618,8 +619,6 @@ function renderMt4Trades() {
 
     const isLoss = pnl < 0;
     const isWin = pnl > 0;
-    const outcomeLabel = isWin ? 'WIN' : (isLoss ? 'LOSS' : 'BREAKEVEN');
-    const outcomeClass = isWin ? 'pos' : (isLoss ? 'neg' : '');
 
     // Match with Supabase AI post-mortem lessons if available using time proximity
     const cleanedSym = getCleanSymbol(t.symbol);
@@ -691,6 +690,19 @@ function renderMt4Trades() {
     const lessonTitle = lessonCat === 'neutral' ? '🧠 Post-Mortem Review'
                        : '🧠 Post-Mortem Lesson';
 
+    let finalLabel = 'BREAKEVEN';
+    let finalColor = 'var(--text3)';
+    if (lessonCat === 'win') {
+      finalLabel = 'WIN';
+      finalColor = 'var(--green)';
+    } else if (lessonCat === 'loss') {
+      finalLabel = 'LOSS';
+      finalColor = 'var(--red)';
+    } else if (lessonCat === 'neutral') {
+      finalLabel = 'MANAGED';
+      finalColor = '#ffaa00';
+    }
+
     return `
       <div class="stat-item" data-lesson-ticket="${t.ticket}" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
@@ -698,7 +710,7 @@ function renderMt4Trades() {
             <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
             <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
           </div>
-          <span class="${outcomeClass}" style="font-size: 11px; font-weight: 700; font-family: var(--mono);">${outcomeLabel}</span>
+          <span style="font-size: 11px; font-weight: 700; font-family: var(--mono); color: ${finalColor};">${finalLabel}</span>
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
