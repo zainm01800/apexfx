@@ -1252,6 +1252,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 quote_ot = sym_ot.split("/")[-1] if "/" in sym_ot else "GBP"
                 rate_ot = get_quote_to_account_rate(quote_ot, "GBP")
                 
+                risk_gbp = 0.0
                 if sl_ot and abs(price_ot - sl_ot) > 1e-6:
                     stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
                     risk_cap = 0.01 * live_equity
@@ -1261,6 +1262,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                     else:
                         units = min(units, 1000.0)
                     trade_notional = units * (price_ot * rate_ot)
+                    risk_gbp = units * stop_dist_ot_gbp
                 else:
                     price_ot_gbp = price_ot * rate_ot
                     if asset_class_ot == "forex":
@@ -1271,7 +1273,8 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 open_positions.append(OpenPosition(
                     instrument=sym_ot,
                     direction=Direction.LONG if ot["verdict"] in ("BUY", "LONG") else Direction.SHORT,
-                    notional=trade_notional
+                    notional=trade_notional,
+                    risk=risk_gbp
                 ))
             
             account_state = AccountState(

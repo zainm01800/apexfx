@@ -172,7 +172,8 @@ def test_min_position_floor_vetoes_dust():
 
 # -- stops + happy path --------------------------------------------------------
 def test_long_stop_below_target_above():
-    rm = RiskManager()
+    cfg = get_config().risk.model_copy(update={"atr_stop_mult": 2.0})
+    rm = RiskManager(cfg=cfg)
     pos = rm.permit(mk_signal(direction="long", p=0.8, b=2.0), mk_account(), mk_market(price=100, atr_val=1.0))
     assert pos.permitted
     assert pos.stop_price == pytest.approx(98.0)        # 100 - 2*ATR
@@ -180,7 +181,8 @@ def test_long_stop_below_target_above():
 
 
 def test_short_stop_above_target_below():
-    rm = RiskManager()
+    cfg = get_config().risk.model_copy(update={"atr_stop_mult": 2.0})
+    rm = RiskManager(cfg=cfg)
     pos = rm.permit(mk_signal(direction="short", p=0.8, b=2.0), mk_account(), mk_market(price=100, atr_val=1.0))
     assert pos.permitted
     assert pos.stop_price == pytest.approx(102.0)
@@ -207,3 +209,43 @@ def test_wider_atr_means_smaller_position():
     tight = rm.permit(sig, acct, mk_market(ann_vol=0.05, atr_val=0.5))
     wide = rm.permit(sig, acct, mk_market(ann_vol=0.05, atr_val=2.0))
     assert wide.units < tight.units  # wider stop -> fewer units for same risk
+
+
+def test_max_concurrent_trades_exceeded():
+    cfg = get_config().risk.model_copy(update={"max_concurrent_trades": 2})
+    rm = RiskManager(cfg=cfg)
+    p1 = OpenPosition(instrument="EUR/USD", direction=Direction.LONG, notional=1000.0, risk=100.0)
+    p2 = OpenPosition(instrument="GBP/USD", direction=Direction.LONG, notional=1000.0, risk=100.0)
+    acct = mk_account(positions=[p1, p2])
+    pos = rm.permit(mk_signal(p=0.8, b=2.0), acct, mk_market())
+    assert not pos.permitted
+    assert "max_concurrent_trades_exceeded" in pos.constraints_applied
+
+
+def test_max_portfolio_risk_exceeded():
+    # max_portfolio_risk = 0.035 (3.5% of 100k equity = 3,500)
+    cfg = get_config().risk.model_copy(update={"max_portfolio_risk": 0.035})
+    rm = RiskManager(cfg=cfg)
+    # Existing trade already has 4% risk (4,000)
+    p1 = OpenPosition(instrument="EUR/USD", direction=Direction.LONG, notional=10000.0, risk=4000.0)
+    acct = mk_account(equity=100000.0, positions=[p1])
+    pos = rm.permit(mk_signal(p=0.8, b=2.0), acct, mk_market())
+    assert not pos.permitted
+    assert "max_portfolio_risk_exceeded" in pos.constraints_applied
+
+
+def test_portfolio_risk_cap_downsize():
+    # max_portfolio_risk = 0.035 (3.5% of 100k equity = 3,500)
+    cfg = get_config().risk.model_copy(update={"max_portfolio_risk": 0.035, "max_risk_per_trade": 0.02})
+    rm = RiskManager(cfg=cfg)
+    # Existing trade has 2% risk (2,000)
+    p1 = OpenPosition(instrument="EUR/USD", direction=Direction.LONG, notional=10000.0, risk=2000.0)
+    acct = mk_account(equity=100000.0, positions=[p1])
+    
+    # Proposed trade wants to risk 2% of equity (2,000), but remaining budget is 1.5% (1,500)
+    pos = rm.permit(mk_signal(p=0.99, b=3.0), acct, mk_market(price=100.0, atr_val=1.0)) # Kelly/max cap suggests 2% risk
+    assert pos.permitted
+    assert "portfolio_risk_cap" in pos.constraints_applied
+    # The final risk fraction must be capped at 1.5% (0.015)
+    assert pos.sizing_detail["max_proposed_risk"] == pytest.approx(0.015)
+

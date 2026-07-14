@@ -34,6 +34,7 @@ class OpenPosition(BaseModel):
     instrument: str
     direction: Direction
     notional: float = Field(ge=0.0)
+    risk: float = Field(default=0.0, description="Absolute risk of position in account currency (GBP)")
 
 
 class AccountState(BaseModel):

@@ -97,6 +97,14 @@ class RiskManager:
                 f"{cfg.drawdown_breaker:.0%}; new positions halted.",
             )
 
+        # 1.5. Max concurrent trades count check (prop firm safety)
+        max_trades = getattr(cfg, "max_concurrent_trades", 10)
+        if len(account.open_positions or []) >= max_trades:
+            return veto(
+                "max_concurrent_trades_exceeded",
+                f"Open trades count {len(account.open_positions)} >= max limit {max_trades}; new positions halted.",
+            )
+
         # 2. ATR stop distance
         stop_price, stop_distance = atr_stop(
             market.price, market.atr, cfg.atr_stop_mult, signal.direction
@@ -145,6 +153,25 @@ class RiskManager:
             applied.append(f"regime_scale={scale:.2f}")
             if risk_fraction <= 0:
                 return veto("regime_zero", f"Regime {detail['regime']} scaled size to zero.")
+
+        # 5.5. Portfolio risk cap (prop firm safety)
+        max_port_risk = getattr(cfg, "max_portfolio_risk", 0.035)
+        total_open_risk = sum(getattr(p, "risk", 0.0) for p in (account.open_positions or []))
+        total_open_risk_pct = total_open_risk / account.equity
+        max_proposed_risk = max_port_risk - total_open_risk_pct
+        
+        detail["total_open_risk_pct"] = total_open_risk_pct
+        detail["max_proposed_risk"] = max_proposed_risk
+        
+        if max_proposed_risk <= 0:
+            return veto(
+                "max_portfolio_risk_exceeded",
+                f"Active portfolio risk {total_open_risk_pct:.2%} >= limit {max_port_risk:.2%}; new trades blocked.",
+            )
+        
+        if risk_fraction > max_proposed_risk:
+            risk_fraction = max_proposed_risk
+            applied.append("portfolio_risk_cap")
 
         # 6. Risk-based vs vol-target notional -> take the more conservative
         rate = getattr(market, "quote_to_account_rate", 1.0)

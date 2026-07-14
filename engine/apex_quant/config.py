@@ -106,6 +106,8 @@ class RiskConfig(BaseModel):
     atr_stop_mult: float = 2.0
     drawdown_breaker: float = 0.20
     min_position: float = 0.0
+    max_concurrent_trades: int = 10
+    max_portfolio_risk: float = 0.035
 
 
 class BacktestConfig(BaseModel):
