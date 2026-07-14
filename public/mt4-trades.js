@@ -4,7 +4,7 @@ let _mt4TradesFilter = 'open'; // 'open', 'closed', or 'lessons'
 let _mt4TradesCache = [];
 let _engineLessonsCache = [];
 
-window.navigateToLesson = function(symbol, openTime) {
+window.navigateToLesson = function(ticket) {
   const btnLessons = document.getElementById('btnLessons');
   const btnOpen = document.getElementById('btnOpen');
   const btnClosed = document.getElementById('btnClosed');
@@ -18,14 +18,12 @@ window.navigateToLesson = function(symbol, openTime) {
   
   renderMt4Trades();
   
-  const cleanedSym = getCleanSymbol(symbol);
-  
   let attempts = 0;
-  const maxAttempts = 15;
+  const maxAttempts = 20;
   const interval = setInterval(() => {
     attempts++;
     
-    const targetCard = document.querySelector(`[data-lesson-sym="${cleanedSym}"][data-lesson-open="${openTime}"]`);
+    const targetCard = document.querySelector(`[data-lesson-ticket="${ticket}"]`);
     
     if (targetCard) {
       clearInterval(interval);
@@ -40,25 +38,41 @@ window.navigateToLesson = function(symbol, openTime) {
         }
       }
       
+      // Clear any other highlighted lesson card
+      document.querySelectorAll('.stat-item').forEach(c => {
+        c.classList.remove('highlighted-lesson');
+        c.style.outline = '1px solid var(--border)';
+        c.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+        c.style.transform = 'scale(1)';
+      });
+      
       targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
       
-      targetCard.style.outline = '2px solid var(--accent)';
-      targetCard.style.boxShadow = '0 0 25px rgba(0, 240, 255, 0.8)';
+      // Apply active highlight state
+      targetCard.classList.add('highlighted-lesson');
+      targetCard.style.outline = '2.5px solid var(--accent)';
+      targetCard.style.boxShadow = '0 0 25px rgba(0, 240, 255, 0.6)';
       targetCard.style.transform = 'scale(1.02)';
-      
-      setTimeout(() => {
-        targetCard.style.transition = 'outline 0.8s, box-shadow 0.8s, transform 0.8s';
-        targetCard.style.outline = '1px solid var(--border)';
-        targetCard.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
-        targetCard.style.transform = 'scale(1)';
-      }, 2000);
       
     } else if (attempts >= maxAttempts) {
       clearInterval(interval);
-      console.warn('Lesson card not found for:', cleanedSym, openTime);
+      console.warn('Lesson card not found for ticket:', ticket);
     }
   }, 150);
 };
+
+// Add global listener to clear highlight on click away
+document.addEventListener('click', (e) => {
+  // Only clear if we clicked outside any highlighted card
+  const highlighted = document.querySelector('.highlighted-lesson');
+  if (highlighted && !highlighted.contains(e.target)) {
+    highlighted.classList.remove('highlighted-lesson');
+    highlighted.style.transition = 'outline 0.5s, box-shadow 0.5s, transform 0.5s';
+    highlighted.style.outline = '1px solid var(--border)';
+    highlighted.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+    highlighted.style.transform = 'scale(1)';
+  }
+});
 
 let _pollIntervalId = null;
 
@@ -512,7 +526,7 @@ function renderMt4Trades() {
         </div>
 
         ${_mt4TradesFilter === 'closed' ? `
-        <button onclick="navigateToLesson('${t.symbol}', ${t.open_time})" style="width: 100%; margin-top: 8px; padding: 8px 12px; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s, border-color 0.2s, transform 0.1s;" onmouseover="this.style.background='rgba(0, 240, 255, 0.16)'; this.style.borderColor='rgba(0, 240, 255, 0.4)';" onmouseout="this.style.background='rgba(0, 240, 255, 0.06)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+        <button onclick="event.stopPropagation(); navigateToLesson(${t.ticket})" style="width: 100%; margin-top: 8px; padding: 8px 12px; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s, border-color 0.2s, transform 0.1s;" onmouseover="this.style.background='rgba(0, 240, 255, 0.16)'; this.style.borderColor='rgba(0, 240, 255, 0.4)';" onmouseout="this.style.background='rgba(0, 240, 255, 0.06)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
           🧠 Show Engine Lesson
         </button>
         ` : ''}
@@ -598,7 +612,7 @@ function renderMt4Trades() {
     }
 
     return `
-      <div class="stat-item" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
+      <div class="stat-item" data-lesson-ticket="${t.ticket}" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>

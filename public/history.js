@@ -674,7 +674,7 @@ function renderCard(g) {
   // Post-mortem lesson — shown on the current call when it (or any resolved scan in
   // the group) has one. This is the "what went wrong / right" the engine learns from.
   const lessonRow = g.lesson
-    ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${escHtml(g.lesson)}</div>`
+    ? `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups">📓 <strong>Lesson:</strong> ${g.lesson}</div>`
     : '';
 
   // Live status + "distance to entry" — verdict-aware. For a real trade: LIVE /
@@ -900,7 +900,7 @@ function openPreview(id) {
 
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
-    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${escHtml(row.lesson)}</div>` : ''}
+    ${row.lesson ? `<div class="pv-lesson" title="AI post-mortem fed back into future analysis">📓 <strong>Lesson learned:</strong> ${row.lesson}</div>` : ''}
 
     ${row.summary ? `<div class="pv-section pv-summary"><h4>Executive summary</h4><p>${escHtml(row.summary)}</p></div>` : ''}
 
