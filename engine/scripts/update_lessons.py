@@ -112,8 +112,27 @@ No prose, no markdown, valid JSON only."""
     def _safe_str(val) -> str:
         if val is None:
             return ""
-        if isinstance(val, (dict, list)):
-            return json.dumps(val)
+        
+        # If it's a string, try to parse it as JSON first in case it's a nested JSON string
+        if isinstance(val, str):
+            val_stripped = val.strip()
+            if (val_stripped.startswith("{") and val_stripped.endswith("}")) or (val_stripped.startswith("[") and val_stripped.endswith("]")):
+                try:
+                    val = json.loads(val_stripped)
+                except:
+                    pass
+                    
+        if isinstance(val, dict):
+            parts = []
+            for k, v in val.items():
+                k_clean = str(k).replace("_", " ").title()
+                v_str = _safe_str(v)
+                parts.append(f"{k_clean}: {v_str}")
+            return " · ".join(parts)
+            
+        if isinstance(val, list):
+            return " · ".join(_safe_str(x) for x in val)
+            
         return str(val).strip()
 
     resp = _groq_complete(prompt, system)

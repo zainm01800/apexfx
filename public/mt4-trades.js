@@ -4,6 +4,36 @@ let _mt4TradesFilter = 'open'; // 'open', 'closed', or 'lessons'
 let _mt4TradesCache = [];
 let _engineLessonsCache = [];
 
+function formatLessonText(text) {
+  if (!text) return '';
+  function cleanVal(val) {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+      if (Array.isArray(val)) {
+        return val.map(cleanVal).join(' · ');
+      }
+      return Object.entries(val).map(([k, v]) => {
+        const kClean = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${kClean}: ${cleanVal(v)}`;
+      }).join(' · ');
+    }
+    return String(val).trim();
+  }
+  let decoded = text.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const jsonRegex = /(\{[^{}]+\})/g;
+  let hasReplacement = false;
+  let formatted = decoded.replace(jsonRegex, (match) => {
+    try {
+      const parsed = JSON.parse(match);
+      hasReplacement = true;
+      return cleanVal(parsed);
+    } catch (e) {
+      return match;
+    }
+  });
+  return hasReplacement ? formatted : text;
+}
+
 window.navigateToLesson = function(ticket) {
   const btnLessons = document.getElementById('btnLessons');
   const btnOpen = document.getElementById('btnOpen');
@@ -657,7 +687,7 @@ function renderMt4Trades() {
             ${isAiLesson ? `<span style="font-size: 9px; font-weight: 700; color: var(--green); background: rgba(0, 200, 100, 0.15); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">AI LEARNING</span>` : `<span style="font-size: 9px; font-weight: 700; color: var(--text3); background: rgba(255, 255, 255, 0.05); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">DYNAMIC</span>`}
           </div>
           <div style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
-            <div>${lessonText.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">')}</div>
+            <div>${formatLessonText(lessonText).replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">')}</div>
           </div>
         </div>
 

@@ -8,6 +8,36 @@
 const API_MEMORY = '/api/memory';
 const API_CANDLES = '/api/candles';   // same endpoint dashboard uses
 
+function formatLessonText(text) {
+  if (!text) return '';
+  function cleanVal(val) {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') {
+      if (Array.isArray(val)) {
+        return val.map(cleanVal).join(' · ');
+      }
+      return Object.entries(val).map(([k, v]) => {
+        const kClean = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${kClean}: ${cleanVal(v)}`;
+      }).join(' · ');
+    }
+    return String(val).trim();
+  }
+  let decoded = text.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const jsonRegex = /(\{[^{}]+\})/g;
+  let hasReplacement = false;
+  let formatted = decoded.replace(jsonRegex, (match) => {
+    try {
+      const parsed = JSON.parse(match);
+      hasReplacement = true;
+      return cleanVal(parsed);
+    } catch (e) {
+      return match;
+    }
+  });
+  return hasReplacement ? formatted : text;
+}
+
 // ── State ────────────────────────────────────────────────────────────────────
 let _allRows      = [];   // all rows from Supabase (flat)
 let _rowById      = {};   // id → row, for the Preview modal + Update lookups
@@ -673,7 +703,8 @@ function renderCard(g) {
 
   let lessonRow = '';
   if (g.lesson) {
-    const formattedLesson = g.lesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
+    const cleanLesson = formatLessonText(g.lesson);
+    const formattedLesson = cleanLesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
     lessonRow = `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups" style="display: flex; flex-direction: column; gap: 4px;">
       <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
         📓 AI POST-MORTEM LESSON
@@ -908,7 +939,8 @@ function openPreview(id) {
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
     ${row.lesson ? (() => {
-      const formatted = row.lesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
+      const cleanLesson = formatLessonText(row.lesson);
+      const formatted = cleanLesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
       return `<div class="pv-lesson" title="AI post-mortem fed back into future analysis" style="display: flex; flex-direction: column; gap: 4px;">
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
           📓 AI POST-MORTEM LESSON
