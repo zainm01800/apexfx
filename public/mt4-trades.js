@@ -818,7 +818,7 @@ function renderMt4Trades() {
 
     if (!_engineLessonsCache || _engineLessonsCache.length === 0) {
       // Fetch in background to enrich cards
-      fetch('/api/memory?all=true&resolved=true&lean=true&limit=500')
+      fetch('/api/memory?all=true&resolved=true&lean=true&symbol=ilike.*%2F*&limit=1000')
         .then(r => r.json())
         .then(data => {
           _engineLessonsCache = data.filter(t => t.lesson && t.lesson.trim() !== '');

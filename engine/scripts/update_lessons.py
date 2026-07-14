@@ -74,22 +74,14 @@ _OUTCOME_LABELS = {
 _NEUTRAL_OUTCOMES = {"invalidated", "expired"}
 
 
-def _classify_trade(trade: dict) -> str:
-    """Return 'win', 'neutral', or 'loss' for a closed trade.
-
-    Categories:
-      win     — ONLY when outcome == 'tp_hit' (full target hit).
-      loss    — ONLY when outcome == 'sl_hit' (full stop loss hit).
-      neutral — any other outcome (e.g. 'invalidated', 'expired'), including
-                trades that were closed early, stopped at breakeven,
-                time-stopped, or had partials taken.
-    """
-    outcome = str(trade.get("outcome", "")).lower().strip()
-    if outcome == "tp_hit":
+def _classify_trade(trade: dict, profit_val: float) -> str:
+    """Return 'win', 'neutral', or 'loss' for a closed trade based on the actual profit/loss value."""
+    if profit_val > 2.0:
         return "win"
-    if outcome == "sl_hit":
+    elif profit_val < -2.0:
         return "loss"
-    return "neutral"
+    else:
+        return "neutral"
 
 
 def _needs_structured_lesson(t: dict) -> bool:
@@ -115,7 +107,30 @@ def _needs_structured_lesson(t: dict) -> bool:
     else:
         return True
 
-    return stored_cat != _classify_trade(t)
+    # Extract profit to classify
+    profit_raw = t.get("profit") or t.get("pnl") or 0
+    try:
+        profit_val = float(profit_raw)
+    except (TypeError, ValueError):
+        profit_val = 0.0
+
+    if profit_val == 0.0:
+        import re
+        m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", lesson)
+        if m:
+            try:
+                profit_val = float(m.group(1))
+            except ValueError:
+                pass
+
+    if profit_val == 0.0:
+        sym = t.get("symbol", "")
+        matched_profit = _fetch_mt4_profit(sym, t["id"], headers)
+        if matched_profit is not None:
+            profit_val = matched_profit
+
+    cat = _classify_trade(t, profit_val)
+    return stored_cat != cat
 
 
 def _fetch_mt4_profit(sym: str, setup_id: str, headers: dict) -> float | None:
@@ -187,7 +202,7 @@ def _build_lesson(trade: dict) -> str | None:
             profit_val = matched_profit
 
     outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
-    category = _classify_trade(trade)  # 'win' | 'neutral' | 'loss'
+    category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss'
 
     prompt = f"""You are analyzing a resolved trade with the following parameters:
 Symbol: {sym}
