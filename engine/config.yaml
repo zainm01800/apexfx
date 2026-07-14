@@ -141,8 +141,8 @@ risk:
   atr_stop_mult: 2.5             # stop distance = 2.5× ATR (optimized baseline)
   drawdown_breaker: 0.20         # halt NEW positions once drawdown from peak ≥ 20%
   min_position: 0.0              # positions below this round to zero (no trade)
-  max_concurrent_trades: 10      # hard limit on active open trades on MT4 (protect VPS and margin)
-  max_portfolio_risk: 0.035      # maximum aggregated risk across open trades (protects 5% daily drawdown)
+  max_concurrent_trades: 12      # hard limit on active open trades on MT4 (protect VPS and margin)
+  max_portfolio_risk: 0.045      # maximum aggregated risk across open trades (protects 5% daily drawdown)
 
 # ── Backtesting (built after the foundation checkpoint) ─────────────────────────
 backtest:

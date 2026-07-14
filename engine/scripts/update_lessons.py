@@ -78,35 +78,16 @@ def _classify_trade(trade: dict) -> str:
     """Return 'win', 'neutral', or 'loss' for a closed trade.
 
     Categories:
-      win    — hit TP or closed with a clearly profitable result.
-      neutral — manually closed / invalidated / expired before SL or TP;
-                could be near-breakeven, small profit, or small managed loss.
-                The key is it did NOT hit the stop loss and was managed out.
-      loss   — hit the actual stop loss (outcome == sl_hit) or closed with
-                a clearly negative result via a non-managed route.
+      win     — ONLY when outcome == 'tp_hit' (full target hit).
+      loss    — ONLY when outcome == 'sl_hit' (full stop loss hit).
+      neutral — any other outcome (e.g. 'invalidated', 'expired'), including
+                trades that were closed early, stopped at breakeven,
+                time-stopped, or had partials taken.
     """
-    outcome = trade.get("outcome", "")
-    profit_raw = trade.get("profit") or trade.get("pnl") or 0
-    try:
-        profit_val = float(profit_raw)
-    except (TypeError, ValueError):
-        profit_val = 0.0
-
+    outcome = str(trade.get("outcome", "")).lower().strip()
     if outcome == "tp_hit":
         return "win"
     if outcome == "sl_hit":
-        return "loss"
-    # Invalidated / expired / manually closed
-    if outcome in _NEUTRAL_OUTCOMES:
-        # If profit is clearly positive it's a managed WIN
-        if profit_val > 0:
-            return "win"
-        # Negative but managed out (not SL) → neutral, not a clean loss
-        return "neutral"
-    # Unknown outcome — fall back to profit sign
-    if profit_val > 0:
-        return "win"
-    if profit_val < 0:
         return "loss"
     return "neutral"
 

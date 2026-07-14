@@ -1688,7 +1688,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 
                 # 4. Permit through Risk Manager
                 risk_manager = RiskManager(cfg.risk, bayesian_sizer=_BAYESIAN_SIZER)
-                permitted_pos = risk_manager.permit(risk_sig, account_state, market_state)
+                permitted_pos = risk_manager.permit(risk_sig, account_state, market_state, t=latest_time)
                 
                 if not permitted_pos.permitted:
                     print(f"  [RISK VETO] Risk manager vetoed trade for {sym}: {permitted_pos.rationale}")

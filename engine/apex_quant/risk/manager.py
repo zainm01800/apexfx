@@ -22,7 +22,9 @@ in ``Position.sizing_detail`` - full decision transparency.
 from __future__ import annotations
 
 import logging
+import pandas as pd
 from typing import TYPE_CHECKING
+from apex_quant.risk.news_calendar import NewsCalendarFilter
 
 from apex_quant.config import RiskConfig, get_config
 from apex_quant.risk.circuit_breaker import breaker_tripped
@@ -50,9 +52,16 @@ class RiskManager:
         self,
         cfg: RiskConfig | None = None,
         bayesian_sizer: BayesianRiskSizer | None = None,
+        news_filter: NewsCalendarFilter | None = None,
     ) -> None:
         self.cfg = cfg or get_config().risk
         self.bayesian_sizer = bayesian_sizer
+        # Initialize or assign the news calendar filter
+        if news_filter is not None:
+            self.news_filter = news_filter
+        else:
+            from apex_quant.risk.news_calendar import NewsCalendarFilter
+            self.news_filter = NewsCalendarFilter()
 
     def permit(
         self,
@@ -61,6 +70,7 @@ class RiskManager:
         market: MarketState,
         *,
         regime: "RegimeLabel | None" = None,
+        t: "pd.Timestamp | None" = None,
     ) -> Position:
         cfg = self.cfg
         applied: list[str] = []
@@ -117,9 +127,9 @@ class RiskManager:
             return "swing"  # Default fallback
 
         _BUCKET_LIMITS: dict[str, int] = {
-            "swing": 5,       # Swing (1d / 1w) -> max 5 concurrent positions total
-            "intraday": 4,    # Intraday (1h) -> max 4 concurrent positions
-            "scalp": 3,       # Scalp (15m / 5m) -> max 3 concurrent positions
+            "swing": 10,      # Swing (1d / 1w) -> max 10 concurrent positions total
+            "intraday": 8,    # Intraday (1h) -> max 8 concurrent positions
+            "scalp": 6,       # Scalp (15m / 5m) -> max 6 concurrent positions
         }
         _GLOBAL_HARD_CAP: int = getattr(cfg, "max_concurrent_trades", 12)
 

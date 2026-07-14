@@ -12,6 +12,8 @@ from apex_quant.risk.sizing import (
     vol_target_notional,
 )
 from apex_quant.risk.stops import atr, atr_stop
+from apex_quant.risk.news_calendar import NewsCalendarFilter
+from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import (
     AccountState,
     Direction,
@@ -42,4 +44,6 @@ __all__ = [
     "correlation_cap",
     "drawdown",
     "breaker_tripped",
+    "NewsCalendarFilter",
+    "TradeManager",
 ]
