@@ -63,10 +63,13 @@ export default async function handler(req) {
                   : resolved ? '&outcome=in.(tp_hit,sl_hit,expired,invalidated)' : '';
 
     try {
+      const symFilterParam = url.searchParams.get('symbol');
+      const symFilter = symFilterParam ? `&symbol=${symFilterParam}` : '';
+
       const query = id
         ? `${TABLE}?id=eq.${encodeURIComponent(id)}&limit=1`
         : all
-          ? `${TABLE}?order=created_at.desc&limit=${limit}${select}${openFlt}`
+          ? `${TABLE}?order=created_at.desc&limit=${limit}${select}${openFlt}${symFilter}`
           : `${TABLE}?symbol=eq.${encodeURIComponent(sym)}&order=created_at.desc&limit=50${select}${openFlt}`;
 
       if (!id && !all && !sym) return new Response(JSON.stringify([]), { headers: cors });
