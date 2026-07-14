@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from apex_quant.config import get_config
-from apex_quant.ai.client import DeepSeekLLM
+from apex_quant.ai.client import build_llm
 
 SUPABASE_URL = "https://dtiuwllodzqpbwohzrgj.supabase.co"
 SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k"
@@ -28,15 +28,15 @@ headers = {
 def update_lessons():
     # Load configuration
     cfg = get_config()
-    llm = DeepSeekLLM(cfg=cfg.ai)
+    llm = build_llm(cfg.ai)
     
-    if not llm.available:
-        print("[ERROR] DeepSeek LLM is not configured/available. Please check your config.yaml.")
+    if not llm or not llm.available:
+        print("[ERROR] No AI client is configured/available. Please check your config.yaml and API keys.")
         return
         
     print("Fetching resolved trades missing lessons from Supabase...")
-    # Fetch rows that are resolved (tp_hit, sl_hit, expired, invalidated) but have no lesson
-    url = f"{MEMORY_ENDPOINT}?outcome=in.(tp_hit,sl_hit,expired,invalidated)"
+    # Fetch rows that are resolved (tp_hit, sl_hit, expired, invalidated) but have no lesson (limit to 30 most recent to protect API limits)
+    url = f"{MEMORY_ENDPOINT}?outcome=in.(tp_hit,sl_hit,expired,invalidated)&order=id.desc&limit=30"
     r = httpx.get(url, headers=headers)
     if r.status_code != 200:
         print(f"Error fetching trades: {r.status_code} - {r.text}")
