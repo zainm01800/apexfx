@@ -105,31 +105,40 @@ class RiskManager:
         #
         # Each bucket is independent — swing trades can NEVER block
         # intraday or scalp entries. The global hard cap is the sum (12).
-        _TF_BUCKETS: dict[str, int] = {
-            "1w": 5, "1d": 5,        # swing
-            "1h": 4,                  # intraday
-            "15m": 3, "5m": 3,       # scalp / short
+        # Group timeframes into semantic style buckets
+        def get_style_bucket(tf: str) -> str:
+            tf_clean = str(tf).lower().strip()
+            if tf_clean in ("1w", "1d"):
+                return "swing"
+            if tf_clean == "1h":
+                return "intraday"
+            if tf_clean in ("15m", "5m"):
+                return "scalp"
+            return "swing"  # Default fallback
+
+        _BUCKET_LIMITS: dict[str, int] = {
+            "swing": 5,       # Swing (1d / 1w) -> max 5 concurrent positions total
+            "intraday": 4,    # Intraday (1h) -> max 4 concurrent positions
+            "scalp": 3,       # Scalp (15m / 5m) -> max 3 concurrent positions
         }
         _GLOBAL_HARD_CAP: int = getattr(cfg, "max_concurrent_trades", 12)
 
-        # Resolve the candidate timeframe from the signal instrument context.
-        # Signal carries no timeframe directly; we use the instrument name as a
-        # proxy key stored on the signal (added by scan_single_asset).
         candidate_tf: str = getattr(signal, "timeframe", None) or "1h"
-        bucket_limit = _TF_BUCKETS.get(candidate_tf, 4)
+        candidate_bucket = get_style_bucket(candidate_tf)
+        bucket_limit = _BUCKET_LIMITS.get(candidate_bucket, 4)
 
-        # Count open positions in the same timeframe bucket.
+        # Count open positions in the same semantic style bucket
         open_in_bucket = sum(
             1 for pos in (account.open_positions or [])
-            if getattr(pos, "timeframe", candidate_tf) == candidate_tf
+            if get_style_bucket(getattr(pos, "timeframe", "1d")) == candidate_bucket
         )
         total_open = len(account.open_positions or [])
 
         if open_in_bucket >= bucket_limit:
             return veto(
                 "timeframe_bucket_full",
-                f"{candidate_tf} bucket full ({open_in_bucket}/{bucket_limit} slots used); "
-                f"new {candidate_tf} positions blocked. Other timeframe trades can still open.",
+                f"{candidate_bucket.upper()} bucket full ({open_in_bucket}/{bucket_limit} slots used); "
+                f"new {candidate_tf} positions blocked.",
             )
         if total_open >= _GLOBAL_HARD_CAP:
             return veto(
