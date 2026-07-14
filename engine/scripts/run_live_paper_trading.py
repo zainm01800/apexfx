@@ -2009,7 +2009,29 @@ def resolve_closed_mt4_setups():
             profit = float(matched_history.get("profit", 0.0))
             close_price = float(matched_history.get("close_price", 0.0))
             close_time_iso = datetime.fromtimestamp(matched_history.get("close_time")).isoformat() + "Z"
-            outcome = "tp_hit" if profit > 0 else "sl_hit"
+            
+            # Determine dynamic outcome based on exit price vs TP and SL targets
+            verdict = s.get("verdict", "BUY").upper()
+            tp = float(s.get("target_price") or 0.0)
+            sl = float(s.get("stop_loss") or 0.0)
+            
+            tolerance = close_price * 0.0002
+            is_sell = verdict in ("SELL", "SHORT")
+            
+            if is_sell:
+                if tp > 0 and close_price <= (tp + tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and close_price >= (sl - tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
+            else:
+                if tp > 0 and close_price >= (tp - tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and close_price <= (sl + tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
             
             payload = {
                 "outcome": outcome,
