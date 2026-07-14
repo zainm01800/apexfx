@@ -82,10 +82,7 @@ async function loadMt4Trades() {
     
     if (!tradesRes.ok) throw new Error('Failed to load MT4 execution data');
     const rawTrades = await tradesRes.json();
-    const testTickets = [
-      361819242, 361819268, 361819276, 361820596, 361820598,
-      361820602, 361820586, 361820589, 361820594, 361819684
-    ];
+    const testTickets = [361819242, 361819268, 361819276];
     _mt4TradesCache = rawTrades.filter(t => !testTickets.includes(t.ticket));
     
     if (accountRes && accountRes.ok) {
