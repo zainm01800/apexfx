@@ -116,14 +116,42 @@ def _needs_structured_lesson(t: dict) -> bool:
     return stored_cat != _classify_trade(t)
 
 
-def _build_lesson(trade: dict) -> str | None:
-    """Generate a structured 4-part HTML post-mortem using Groq.
+def _fetch_mt4_profit(sym: str, setup_id: str, headers: dict) -> float | None:
+    """Query apex_mt4_trades to find the actual profit for the matched trade."""
+    parts = setup_id.split('_')
+    if len(parts) < 2:
+        return None
+    try:
+        setup_time = float(parts[-1])
+        if setup_time > 1000000000000:
+            setup_time /= 1000.0
+    except ValueError:
+        return None
+        
+    clean_sym = sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+    trades_url = f"https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades?order=open_time.desc&limit=100"
+    try:
+        r = httpx.get(trades_url, headers=headers)
+        if r.status_code == 200:
+            trades = r.json()
+            min_diff = 86400.0  # max 24 hours
+            matched_profit = None
+            for t in trades:
+                t_sym = t.get("symbol", "").replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                if t_sym == clean_sym:
+                    open_time = float(t.get("open_time") or 0.0)
+                    diff = abs(open_time - setup_time)
+                    if diff < min_diff:
+                        min_diff = diff
+                        matched_profit = float(t.get("profit") or 0.0)
+            return matched_profit
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch MT4 trades for matching: {e}")
+    return None
 
-    Three output formats based on trade outcome:
-      ✅ WIN     — hit TP or closed clearly profitable
-      🔄 NEUTRAL — managed out / invalidated / expired without hitting SL
-      ❌ LOSS    — hit stop loss or closed with a clear loss
-    """
+
+def _build_lesson(trade: dict) -> str | None:
+    """Generate a structured 4-part HTML post-mortem using Groq."""
     sym       = trade.get("symbol", "?")
     direction = trade.get("verdict", "?")
     entry     = trade.get("price", "?")
@@ -139,62 +167,53 @@ def _build_lesson(trade: dict) -> str | None:
     except (TypeError, ValueError):
         profit_val = 0.0
 
+    # Try parsing profit from initial lesson string if profit is 0.0
+    initial_lesson = trade.get("lesson") or ""
+    if profit_val == 0.0 and initial_lesson and "Resolved automatically" in initial_lesson:
+        import re
+        m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", initial_lesson)
+        if m:
+            try:
+                profit_val = float(m.group(1))
+            except ValueError:
+                pass
+                
+    # If profit is still 0.0, fetch it from apex_mt4_trades by matching setup_id
+    if profit_val == 0.0:
+        matched_profit = _fetch_mt4_profit(sym, trade["id"], headers)
+        if matched_profit is not None:
+            profit_val = matched_profit
+
     outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
     category = _classify_trade(trade)  # 'win' | 'neutral' | 'loss'
 
-    profit_sign = f"+{profit_val:.2f}" if profit_val >= 0 else f"{profit_val:.2f}"
-
-    if category == "win":
-        result_description = f"WINNING TRADE (P&L: {profit_sign}) — {outcome_human}"
-        tone_instruction = (
-            "This trade was PROFITABLE. Focus on what the trader did right, "
-            "why the setup worked, and what patterns/behaviours to preserve and repeat."
-        )
-    elif category == "neutral":
-        result_description = (
-            f"MANAGED/NEUTRAL TRADE (P&L: {profit_sign}) — {outcome_human}. "
-            "The trade did NOT hit the stop loss. It was managed out or "
-            "invalidated before SL/TP."
-        )
-        tone_instruction = (
-            "This trade was NEUTRAL — it did not hit the stop loss and was not a "
-            "clean TP hit either. It was managed or closed early. Focus on the "
-            "risk management decision, whether the early exit was correct, and how "
-            "to handle similar setups in the future. Do NOT treat this as a full loss."
-        )
-    else:  # loss
-        result_description = f"LOSING TRADE (P&L: {profit_sign}) — {outcome_human}"
-        tone_instruction = (
-            "This trade was a LOSS. Focus on what went wrong technically, "
-            "why the setup failed, and what concrete changes will prevent this in future."
-        )
-
-    prompt = f"""Trade Details:
+    prompt = f"""You are analyzing a resolved trade with the following parameters:
 Symbol: {sym}
+Timeframe: {trade.get('timeframe', '1h')}
 Direction: {direction}
-Entry: {entry}  SL: {sl}  TP: {tp}
-Result: {result_description}
+Entry Price: {entry}
+Target Price (TP): {tp}
+Stop Loss (SL): {sl}
+Exit Price: {trade.get('outcome_price', '?')}
+Outcome: {outcome_human}
+Net profit/loss: £{profit_val:.2f}
 
-Analysis: {summary}
-Technical: {tech}
+Technical Setup: {summary}
+Market Structure: {tech}
 
-{tone_instruction}
+Instructions:
+1. "what_happened": Write one detailed sentence describing exactly what happened. You MUST mention the exact profit/loss amount (£{profit_val:.2f}) and state whether this represents a minor, moderate, or significant win/loss. Describe the price direction relative to entry and exit.
+2. "the_reason": Explain the technical and market structure reason behind why the price moved this way and why the trade was closed (e.g., if managed out, analyze why the manual exit triggered at this price, and whether the momentum or support/resistance levels shifted).
+3. "key_lesson": Critically evaluate whether the decision to close was correct. Compare the exit price with the TP and SL. Did exiting early save the account from a larger loss (correct defense), or did it cut a win short before reaching TP (premature exit)? Offer one specific actionable rule.
+4. "action_plan": State exactly what the engine or trader must adjust (e.g., adjusting Bollinger Bands, moving average triggers, timeframe confluences, or spread limits) on similar setups in the future. Be highly specific to {sym} and the {direction} direction.
 
-Reply ONLY with a JSON object with exactly these 4 keys:
-- "what_happened": one clear sentence describing what actually happened in plain English. Do NOT use raw codes like 'sl_hit', 'tp_hit', 'invalidated'.
-- "the_reason": the core technical or market structure reason behind the outcome
-- "key_lesson": one concrete actionable rule to preserve, improve, or manage better next time
-- "action_plan": what the engine will specifically do differently (or keep doing) on the next similar setup
-
-No prose, no markdown, valid JSON only."""
+Your response MUST be a single JSON object. Do NOT use generic template phrases. Tailor the review to this specific trade's £{profit_val:.2f} outcome."""
 
     system = (
-        "You are a professional quant trading post-mortem analyst. "
-        f"The trade category is: {category.upper()}. "
-        "NEVER use raw system codes like sl_hit, tp_hit, invalidated in your response — always write in plain English. "
-        "Tailor your tone strictly to the trade category: wins are celebratory/instructive, "
-        "neutrals are analytical/balanced, losses are corrective/constructive. "
-        "Reply ONLY with valid JSON with keys: what_happened, the_reason, key_lesson, action_plan."
+        "You are an elite quantitative trading post-mortem analyst. Your job is to write deep, specific reviews of closed trades. "
+        "NEVER use generic templates or raw system codes like sl_hit. "
+        "You must analyze the actual profit/loss amount (£ value) and evaluate the quality of the risk management decisions (defense vs premature exits). "
+        "Reply ONLY with a valid JSON object containing keys: what_happened, the_reason, key_lesson, action_plan."
     )
 
     def _safe_str(val) -> str:
