@@ -9,6 +9,7 @@ __all__ = [
     "Strategy",
     "RegimeGatedMomentum",
     "MLStrategy",
+    "MetaLabeledStrategy",
     "ConformalCalibrator",
     "CalibratedProb",
     "triple_barrier_label",
@@ -23,4 +24,7 @@ def __getattr__(name):
     if name == "MLStrategy":
         from apex_quant.strategies.ml_strategy import MLStrategy
         return MLStrategy
+    if name == "MetaLabeledStrategy":
+        from apex_quant.strategies.meta_labeling import MetaLabeledStrategy
+        return MetaLabeledStrategy
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

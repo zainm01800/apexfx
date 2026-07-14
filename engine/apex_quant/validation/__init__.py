@@ -8,6 +8,7 @@ from apex_quant.validation.metrics import (
     sharpe_ratio,
 )
 from apex_quant.validation.report import ValidationReport, run_validation
+from apex_quant.validation.trials import TrialLedger
 
 __all__ = [
     "cpcv_splits",
@@ -18,4 +19,5 @@ __all__ = [
     "probability_of_backtest_overfitting",
     "ValidationReport",
     "run_validation",
+    "TrialLedger",
 ]

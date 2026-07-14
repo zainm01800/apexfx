@@ -42,25 +42,36 @@ def expected_max_sharpe(sr_std: float, n_trials: int) -> float:
     return float(sr_std * ((1.0 - EULER) * z1 + EULER * z2))
 
 
-def deflated_sharpe_ratio(returns, trial_sharpes, periods_per_year: int = 252) -> dict:
+def deflated_sharpe_ratio(returns, trial_sharpes, periods_per_year: int = 252,
+                          n_trials: int | None = None) -> dict:
     """Deflated Sharpe Ratio. ``trial_sharpes`` are the per-period Sharpes of every
     configuration tried (the multiple-testing set). DSR is a probability in [0,1]:
-    P(true Sharpe > deflated benchmark). > 0.95 is the usual significance bar."""
+    P(true Sharpe > deflated benchmark). > 0.95 is the usual significance bar.
+
+    ``n_trials`` optionally overrides the multiple-testing count that sets the
+    deflation benchmark. Pass the TRUE number of configurations evaluated during
+    research (track it with :class:`apex_quant.validation.trials.TrialLedger`) —
+    usually far more than the handful of ``trial_sharpes`` whose return series you
+    kept. More honest trials => higher benchmark => a lower, less self-flattering
+    DSR. The dispersion of trial Sharpes is still estimated from ``trial_sharpes``;
+    ``n_trials`` only raises the count and can never fall below the number observed.
+    """
     r = np.asarray(returns, dtype="float64")
     r = r[np.isfinite(r)]
     T = len(r)
     sd = r.std(ddof=1) if T > 1 else 0.0
+    observed_trials = max(1, len(trial_sharpes))
+    effective_trials = observed_trials if n_trials is None else max(int(n_trials), observed_trials)
     if T < 10 or sd == 0:
         return {"dsr": 0.0, "observed_sharpe": 0.0, "observed_sharpe_ann": 0.0,
-                "sr0": 0.0, "n_trials": len(trial_sharpes), "n_obs": T,
-                "note": "insufficient data / zero variance"}
+                "sr0": 0.0, "n_trials": effective_trials, "n_trials_observed": observed_trials,
+                "n_obs": T, "note": "insufficient data / zero variance"}
 
     sr = float(r.mean() / sd)                      # per-period
     g3 = float(skew(r))
     g4 = float(kurtosis(r, fisher=False))          # Pearson (normal == 3)
-    n_trials = max(1, len(trial_sharpes))
-    sr_std = float(np.std(trial_sharpes, ddof=1)) if n_trials > 1 else 0.0
-    sr0 = expected_max_sharpe(sr_std, n_trials)
+    sr_std = float(np.std(trial_sharpes, ddof=1)) if observed_trials > 1 else 0.0
+    sr0 = expected_max_sharpe(sr_std, effective_trials)
 
     denom = np.sqrt(max(1e-12, 1.0 - g3 * sr + (g4 - 1.0) / 4.0 * sr * sr))
     dsr = float(norm.cdf((sr - sr0) * np.sqrt(max(1, T - 1)) / denom))
@@ -69,7 +80,8 @@ def deflated_sharpe_ratio(returns, trial_sharpes, periods_per_year: int = 252) -
         "observed_sharpe": sr,
         "observed_sharpe_ann": sr * np.sqrt(periods_per_year),
         "sr0": sr0,
-        "n_trials": n_trials,
+        "n_trials": effective_trials,
+        "n_trials_observed": observed_trials,
         "n_obs": T,
         "skew": g3,
         "kurtosis": g4,

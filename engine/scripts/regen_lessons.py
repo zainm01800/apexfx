@@ -1,0 +1,209 @@
+"""
+Regenerate structured post-mortem lessons for all trades that have generic
+"Resolved automatically:" lessons.
+
+Uses Groq directly (fast, no timeout) to write the 4-part analysis:
+  - What Went Wrong / Right
+  - Why It Went Wrong / Right
+  - What Can Be Improved / Preserved
+  - Action Plan
+"""
+import os
+import sys
+import json
+import html
+import time
+import httpx
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+SUPABASE_URL = "https://dtiuwllodzqpbwohzrgj.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k"
+MEMORY = f"{SUPABASE_URL}/rest/v1/apex_research_memory"
+GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
+# Use llama-3.1-8b-instant: ~highest TPM on Groq free tier (500k TPM vs 12k for 70b)
+GROQ_MODEL = "llama-3.1-8b-instant"
+
+supa_headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+}
+
+
+def groq_complete(prompt: str, system: str, retry: int = 3) -> str | None:
+    """Call Groq API directly with a 60s timeout and automatic 429 backoff."""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "max_tokens": 400,
+        "temperature": 0.3,
+        "stream": False,
+    }
+    headers = {
+        "Authorization": f"Bearer {GROQ_KEY}",
+        "Content-Type": "application/json",
+    }
+    for attempt in range(retry):
+        try:
+            r = httpx.post(url, json=payload, headers=headers, timeout=60)
+            if r.status_code == 429:
+                wait = 15 * (attempt + 1)
+                print(f"  [Rate Limit] Waiting {wait}s before retry {attempt+1}/{retry}...")
+                time.sleep(wait)
+                continue
+            if r.status_code != 200:
+                print(f"  [Groq Error] HTTP {r.status_code}: {r.text[:200]}")
+                return None
+            content = r.json()["choices"][0]["message"]["content"]
+            # Strip <think> blocks if present
+            if "<think>" in content and "</think>" in content:
+                import re
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+            return content
+        except Exception as e:
+            print(f"  [Groq Exception] {type(e).__name__}: {e}")
+            return None
+    return None
+
+
+def build_lesson(trade: dict) -> str | None:
+    sym = trade.get("symbol", "?")
+    direction = trade.get("verdict", "?")
+    entry = trade.get("price", "?")
+    sl = trade.get("stop_loss", "?")
+    tp = trade.get("target_price", "?")
+    outcome = trade.get("outcome", "?")
+    summary = (trade.get("summary") or "")[:400]
+    tech = (trade.get("technical_analysis") or "")[:400]
+    is_win = outcome == "tp_hit"
+
+    prompt = f"""Trade Details:
+Symbol: {sym}
+Direction: {direction}
+Entry Price: {entry}
+Stop Loss: {sl}
+Take Profit: {tp}
+Outcome: {outcome}
+
+Original Analysis:
+{summary}
+
+Technical Context:
+{tech}
+
+Reply with a JSON object with EXACTLY these 4 keys:
+- "what_went_wrong_or_right": 1-2 sentences on what actually happened (stopped out / hit TP / expired unfilled / etc.)
+- "why_it_went_wrong_or_right": 1-2 sentences on the underlying technical/market reason
+- "improvement_or_preservation": 1 concrete, actionable rule to improve or preserve this edge
+- "action_plan": 1 sentence on what the engine will do differently next time
+
+Respond ONLY with valid JSON. No prose, no markdown.
+"""
+
+    system = (
+        "You are a professional quant trading post-mortem analyst. "
+        "You review closed trades and extract structured lessons. "
+        "Reply ONLY with a valid JSON object with keys: "
+        "what_went_wrong_or_right, why_it_went_wrong_or_right, "
+        "improvement_or_preservation, action_plan. No other text."
+    )
+
+    resp = groq_complete(prompt, system)
+    if not resp:
+        return None
+
+    # Parse JSON
+    try:
+        clean = resp.strip()
+        if clean.startswith("```"):
+            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        o = json.loads(clean)
+        wwr = html.escape(o.get("what_went_wrong_or_right", "").strip())
+        ywr = html.escape(o.get("why_it_went_wrong_or_right", "").strip())
+        imp = html.escape(o.get("improvement_or_preservation", "").strip())
+        ap = html.escape(o.get("action_plan", "").strip())
+        if is_win:
+            return (
+                f"<strong>✅ What Went Right:</strong> {wwr}<br>"
+                f"<strong>📊 Why It Worked:</strong> {ywr}<br>"
+                f"<strong>🔒 What to Preserve:</strong> {imp}<br>"
+                f"<strong>🎯 Action Plan:</strong> {ap}"
+            )
+        else:
+            return (
+                f"<strong>❌ What Went Wrong:</strong> {wwr}<br>"
+                f"<strong>🔍 Why It Went Wrong:</strong> {ywr}<br>"
+                f"<strong>💡 What Can Be Improved:</strong> {imp}<br>"
+                f"<strong>🎯 Action Plan to Prevent Recurrence:</strong> {ap}"
+            )
+    except Exception as e:
+        print(f"  [WARN] JSON parse failed: {e}")
+        # Fallback - use raw cleaned text
+        return f"<strong>Post-Mortem:</strong> {html.escape(resp.strip()[:400])}"
+
+
+def main():
+    if not GROQ_KEY:
+        print("[ERROR] GROQ_API_KEY not set in environment.")
+        sys.exit(1)
+
+    print("Fetching resolved trades with generic or old lessons from Supabase...")
+    # Fetch resolved trades
+    url = f"{MEMORY}?outcome=in.(tp_hit,sl_hit,expired,invalidated)&order=created_at.desc&limit=500"
+    r = httpx.get(url, headers=supa_headers)
+    if r.status_code != 200:
+        print(f"[ERROR] Supabase fetch failed: {r.status_code} - {r.text}")
+        sys.exit(1)
+
+    trades = r.json()
+    
+    # Find trades that need a real lesson (missing, generic, or old format missing <strong>)
+    def needs_lesson(t):
+        lesson = t.get("lesson") or ""
+        return "<strong>" not in lesson
+    
+    targets = [t for t in trades if needs_lesson(t)]
+    print(f"Found {len(targets)} trades needing structured post-mortems.")
+
+    if not targets:
+        print("All lessons are already structured and up-to-date!")
+        return
+
+    count = 0
+    for trade in targets:
+        tid = trade["id"]
+        sym = trade.get("symbol", "?")
+        outcome = trade.get("outcome", "?")
+        print(f"  [{count+1}/{len(targets)}] Analyzing {sym} ({outcome})...")
+
+        lesson = build_lesson(trade)
+        # Throttle: 2s between calls to stay well within 500k TPM / 30 RPM
+        time.sleep(2)
+        if not lesson:
+            print(f"    [SKIP] Could not generate lesson for {tid}")
+            continue
+
+        # Patch to Supabase
+        patch = httpx.patch(
+            f"{MEMORY}?id=eq.{tid}",
+            headers=supa_headers,
+            json={"lesson": lesson},
+        )
+        if patch.status_code in (200, 204):
+            print(f"    ✓ Saved post-mortem for {sym}")
+            count += 1
+        else:
+            print(f"    [ERROR] Patch failed: {patch.status_code} - {patch.text}")
+
+    print(f"\n✅ Done! Updated {count}/{len(targets)} post-mortem lessons.")
+
+
+if __name__ == "__main__":
+    main()

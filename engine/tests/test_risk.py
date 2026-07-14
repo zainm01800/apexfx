@@ -219,7 +219,9 @@ def test_max_concurrent_trades_exceeded():
     acct = mk_account(positions=[p1, p2])
     pos = rm.permit(mk_signal(p=0.8, b=2.0), acct, mk_market())
     assert not pos.permitted
-    assert "max_concurrent_trades_exceeded" in pos.constraints_applied
+    # Per-timeframe-bucket refactor renamed this constraint: the global ceiling
+    # (sum of buckets, == max_concurrent_trades) now vetoes via "global_trade_cap".
+    assert "global_trade_cap" in pos.constraints_applied
 
 
 def test_max_portfolio_risk_exceeded():

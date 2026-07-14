@@ -80,10 +80,37 @@ def ml_param_grid() -> list[dict]:
     ]
 
 
+def meta_factory(**params):
+    """Regime-gated momentum PRIMARY wrapped in a meta-label gate SECONDARY."""
+    from apex_quant.strategies.meta_labeling import MetaLabeledStrategy
+    base = RegimeGatedMomentum(
+        momentum_lookback=params.get("momentum_lookback", 63),
+        vol_window=params.get("vol_window", 63),
+        holding_horizon=params.get("holding_horizon", 10),
+        reward_risk=params.get("reward_risk", 1.5),
+    )
+    return MetaLabeledStrategy(
+        base, model=params.get("model", "gbm"),
+        threshold=params.get("threshold", 0.5),
+        holding_horizon=params.get("holding_horizon", 10),
+    )
+
+
+def meta_param_grid() -> list[dict]:
+    # The gate threshold is the meta-label knob; sweeping it is part of the
+    # multiple-testing set, so it is deflated by DSR/PBO like any other choice.
+    return [
+        {"model": "gbm", "threshold": 0.50, "holding_horizon": 10},
+        {"model": "gbm", "threshold": 0.55, "holding_horizon": 10},
+        {"model": "linear", "threshold": 0.50, "holding_horizon": 10},
+    ]
+
+
 # name -> (factory, grid). Used by scripts/run_validation.py and the API.
 STRATEGY_SPECS = {
     "regime_gated_momentum": (default_factory, default_param_grid),
     "ml_gbm": (ml_factory, ml_param_grid),
+    "meta_labeled": (meta_factory, meta_param_grid),
 }
 
 
@@ -95,6 +122,7 @@ def run_validation(
     param_grid: list[dict] | None = None,
     cfg: AppConfig | None = None,
     generated_for: str = "",
+    n_trials: int | None = None,
 ) -> ValidationReport:
     cfg = cfg or get_config()
     grid = param_grid or default_param_grid()
@@ -120,8 +148,11 @@ def run_validation(
 
     # 2. DSR on the baseline, deflated by the whole trial set. Annualization is
     # asset-class aware (crypto = 365 days/yr) so the reported Sharpe is correct.
+    # Deflate by the TRUE trial count when the caller tracked it (TrialLedger),
+    # else by the size of this grid. Honest N => harsher, more trustworthy DSR.
     dsr = deflated_sharpe_ratio(baseline_returns.to_numpy(), trial_sharpes,
-                                cfg.mechanics_for(instrument).annualization)
+                                cfg.mechanics_for(instrument).annualization,
+                                n_trials=n_trials)
 
     # 3. PBO across the config grid
     pbo = (probability_of_backtest_overfitting(M, n_splits=cfg.validation.pbo.n_splits, seed=cfg.seed)

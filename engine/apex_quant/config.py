@@ -216,9 +216,12 @@ class ZmqConfig(BaseModel):
     """ZeroMQ TCP push-pull bridge settings."""
     enabled: bool = False          # when True, ZMQBridge is used instead of file polling
     host: str = "127.0.0.1"
-    port: int = 9091
+    port: int = 9091               # PUSH channel: engine -> EA (orders)
+    ack_port: int = 9092           # PULL channel: EA -> engine (acks / fills / heartbeats)
     linger_ms: int = 0             # socket linger on close (0 = drop unsent messages)
     send_timeout_ms: int = 1000    # max ms to block on send before giving up
+    recv_timeout_ms: int = 50      # max ms to block draining one ack message in poll()
+    heartbeat_timeout_s: float = 30.0  # EA considered dead if no heartbeat within this
 
 
 class ExecutionConfig(BaseModel):

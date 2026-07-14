@@ -56,9 +56,14 @@ def test_accepts_tz_aware_start_end():
 
 def test_no_trades_when_flat_market():
     rng = np.random.default_rng(2)
-    df = _series(rng.normal(0.0, 0.0004, 500))  # flat -> ranging -> no trades
+    df = _series(rng.normal(0.0, 0.0004, 500))  # flat -> ranging -> no momentum trades
     pit = PointInTimeAccessor(df)
-    res = Backtester().run(pit, _fitted(df, 300), "EUR/USD", warmup=300)
+    # Pure momentum has no trend to follow on a flat/ranging market, so no trades.
+    # Bollinger mean-reversion is a separate feature that DOES trade ranges by design;
+    # it is disabled here so this test isolates the momentum invariant it was written for.
+    strat = RegimeGatedMomentum(enable_mean_reversion=False)
+    strat.fit(pit, df.index[:300])
+    res = Backtester().run(pit, strat, "EUR/USD", warmup=300)
     assert res.metrics["n_trades"] == 0
     # equity flat (no positions ever opened)
     assert res.equity.nunique() == 1
