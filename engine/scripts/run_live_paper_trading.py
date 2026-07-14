@@ -1129,6 +1129,43 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             
         sig = strat.generate(pit, latest_time, instrument=sym)
         
+        # ── Apply Multi-Timeframe (MTF) Trend Gating Filter ──
+        if sig.direction.value.upper() != "FLAT":
+            higher_tf = "1d" if tf in ("5m", "15m", "1h") else ("1w" if tf == "1d" else None)
+            if higher_tf:
+                try:
+                    lookback_higher = 300 if higher_tf == "1d" else 750
+                    start_higher = (datetime.utcnow() - pd.Timedelta(days=lookback_higher)).strftime("%Y-%m-%d")
+                    df_higher = clean(data_provider.get_history(sym, start=start_higher, end=end_date, timeframe=higher_tf))
+                    if len(df_higher) >= 50:
+                        close_higher = df_higher["close"]
+                        sma_higher = float(close_higher.rolling(window=50).mean().iloc[-1])
+                        latest_close_higher = float(close_higher.iloc[-1])
+                        
+                        macro_trend = "LONG" if latest_close_higher >= sma_higher else "SHORT"
+                        sig_dir = sig.direction.value.upper()
+                        
+                        if sig_dir == "LONG" and macro_trend == "SHORT":
+                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) LONG: Daily close ({latest_close_higher:.5f}) < 50 SMA ({sma_higher:.5f})")
+                            sig = sig.model_copy(update={
+                                "direction": Direction.FLAT,
+                                "probability": 0.5,
+                                "confidence": 0.0,
+                                "rationale": sig.rationale + f" | MTF-VETO: Daily Bearish Trend (Close < 50 SMA)"
+                            })
+                        elif sig_dir == "SHORT" and macro_trend == "LONG":
+                            print(f"  [MTF GATE] Vetoed {sym} ({tf}) SHORT: Daily close ({latest_close_higher:.5f}) >= 50 SMA ({sma_higher:.5f})")
+                            sig = sig.model_copy(update={
+                                "direction": Direction.FLAT,
+                                "probability": 0.5,
+                                "confidence": 0.0,
+                                "rationale": sig.rationale + f" | MTF-VETO: Daily Bullish Trend (Close >= 50 SMA)"
+                            })
+                    else:
+                        print(f"  [MTF GATE WARN] Insufficient higher timeframe ({higher_tf}) bars for {sym}: {len(df_higher)}/50")
+                except Exception as mtf_e:
+                    print(f"  [MTF GATE WARN] Failed to apply MTF filter for {sym}: {mtf_e}")
+        
         # ── Apply DeepSeek sentiment veto filter ──────────────────────
         sig = apply_deepseek_sentiment(sig, sym, fetch_headlines, cfg=cfg)
         # ───────────────────────────────────────────────────────────────
@@ -1587,6 +1624,15 @@ def run_once():
     open_trades = fetch_open_trades()
     check_open_trades(open_trades)
     scan_robust_core(open_trades)
+    
+    # ── Automated Post-Mortem Learning (Self-Review of wins & losses) ──
+    try:
+        print("[AI LEARNING] Running automated post-mortem lessons generation...")
+        from scripts.update_lessons import update_lessons
+        update_lessons()
+        print("[AI LEARNING] Lessons pool updated successfully.")
+    except Exception as e:
+        print(f"[WARN] AI automated post-mortem updater failed: {e}")
 
 
 def start_mt4_sync_daemon():
