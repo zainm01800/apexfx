@@ -299,9 +299,10 @@ function renderMt4Trades() {
   const grid = document.getElementById('mt4TradesGrid');
   if (!grid) return;
 
-  const filtered = _mt4TradesCache.filter(t => t.status === _mt4TradesFilter);
+  const filterKey = _mt4TradesFilter === 'lessons' ? 'closed' : _mt4TradesFilter;
+  const filtered = _mt4TradesCache.filter(t => t.status === filterKey);
 
-  if (!filtered.length) {
+  if (!filtered.length && _mt4TradesFilter !== 'lessons') {
     grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${_mt4TradesFilter} positions synced on MT4 terminal.</div>`;
     return;
   }
