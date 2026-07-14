@@ -1273,13 +1273,13 @@ def get_similar_lessons(symbol, verdict, pool, limit=3):
 
 def apply_deepseek_structural_veto(symbol, direction, df, cfg):
     """Evaluate structural risk flags (counter-trend, chop, volatility, falling knife)
-    against past lessons using DeepSeek LLM."""
-    from apex_quant.ai.client import DeepSeekLLM
+    against past lessons using the best available LLM (Gemini / Groq / DeepSeek)."""
+    from apex_quant.ai.client import build_llm
     from apex_quant.ml.dataset import compute_feature_frame
     
-    # 1. Initialize LLM
-    llm = DeepSeekLLM(cfg=cfg.ai)
-    if not llm.available:
+    # 1. Initialize LLM — uses DeepSeek if key set, else falls back to Gemini → Groq
+    llm = build_llm(cfg.ai)
+    if not llm or not llm.available:
         return True, "LLM not available (fail-ALLOW)"
         
     try:
@@ -1928,6 +1928,102 @@ def sync_mt4_trades(silent=False):
         except Exception as e:
             print(f"  [WARN] Error syncing account info: {e}")
 
+def resolve_closed_mt4_setups():
+    """Look at MT4 positions and history files to automatically resolve pending setups."""
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if not common_dir:
+        return
+        
+    positions_file = os.path.join(common_dir, "mt4_positions.json")
+    history_file = os.path.join(common_dir, "mt4_history.json")
+    
+    mt4_active_symbols = set()
+    if os.path.exists(positions_file):
+        try:
+            positions = safe_load_json(positions_file)
+            for p in positions:
+                sym = p.get("symbol", "")
+                clean = sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                mt4_active_symbols.add(clean)
+        except Exception as e:
+            print(f"  [WARN] Error reading MT4 positions for setup resolution: {e}")
+            
+    mt4_history = []
+    if os.path.exists(history_file):
+        try:
+            mt4_history = safe_load_json(history_file)
+        except Exception as e:
+            print(f"  [WARN] Error reading MT4 history for setup resolution: {e}")
+            
+    # Fetch pending setups
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code != 200:
+            return
+        pending = r.json()
+    except Exception as e:
+        print(f"  [WARN] Connection error fetching pending setups: {e}")
+        return
+        
+    now_utc = datetime.utcnow()
+    for s in pending:
+        s_id = s["id"]
+        sym = s["symbol"]
+        clean_sym = sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+        created_at_str = s.get("created_at")
+        
+        try:
+            clean_ts = created_at_str.replace("Z", "+00:00")
+            created_at = datetime.fromisoformat(clean_ts).replace(tzinfo=None)
+            age_seconds = (now_utc - created_at).total_seconds()
+        except Exception:
+            age_seconds = 600.0
+            
+        # Give MT4 at least 3 minutes to fetch and open the trade
+        if age_seconds < 180:
+            continue
+            
+        if clean_sym in mt4_active_symbols:
+            continue
+            
+        # Try to match in MT4 history
+        matched_history = None
+        for h in mt4_history:
+            h_sym = h.get("symbol", "")
+            h_clean = h_sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+            if h_clean == clean_sym:
+                if h.get("close_time", 0) > (created_at.timestamp() - 300):
+                    matched_history = h
+                    break
+                    
+        patch_url = f"{MEMORY_ENDPOINT}?id=eq.{s_id}"
+        if matched_history:
+            profit = float(matched_history.get("profit", 0.0))
+            close_price = float(matched_history.get("close_price", 0.0))
+            close_time_iso = datetime.fromtimestamp(matched_history.get("close_time")).isoformat() + "Z"
+            outcome = "tp_hit" if profit > 0 else "sl_hit"
+            
+            payload = {
+                "outcome": outcome,
+                "outcome_price": close_price,
+                "outcome_date": close_time_iso,
+                "lesson": f"Resolved automatically: Matched MT4 ticket {matched_history.get('ticket')} exit on {sym}. Profit: £{profit:.2f}."
+            }
+            httpx.patch(patch_url, headers=headers, json=payload)
+            print(f"  [RESOLVE] Setup {s_id} automatically resolved as {outcome} via MT4 ticket.")
+        else:
+            # Mark as expired since it is no longer in open positions or recent history
+            payload = {
+                "outcome": "expired",
+                "outcome_price": float(s.get("price") or 0.0),
+                "outcome_date": now_utc.isoformat() + "Z",
+                "lesson": "Resolved automatically: Setup expired or was not filled on MT4 terminal."
+            }
+            httpx.patch(patch_url, headers=headers, json=payload)
+            print(f"  [RESOLVE] Setup {s_id} marked as expired (no active MT4 trade).")
+
+
 def run_once():
     print("\n" + "="*80)
     print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.now(ZoneInfo('Europe/London')).strftime('%Y-%m-%d %H:%M:%S %Z')}")
@@ -1936,6 +2032,7 @@ def run_once():
     # ── Sync MT4 execution stats to Supabase ──
     try:
         sync_mt4_trades()
+        resolve_closed_mt4_setups()
     except Exception as e:
         print(f"[WARN] Failed to sync MT4 execution stats: {e}")
         
