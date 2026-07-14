@@ -36,7 +36,7 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 400,
+        "max_tokens": 1000,
         "temperature": 0.3,
     }
     gh = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
@@ -66,6 +66,10 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
 def _needs_structured_lesson(t: dict) -> bool:
     """Return True if this trade's lesson is missing or not yet in the structured 4-part HTML format."""
     lesson = t.get("lesson") or ""
+    if not lesson.strip():
+        return True
+    if "Post-Mortem:" in lesson:
+        return True
     return "<strong>" not in lesson
 
 
@@ -105,6 +109,13 @@ No prose, no markdown, valid JSON only."""
         "why_it_went_wrong_or_right, improvement_or_preservation, action_plan."
     )
 
+    def _safe_str(val) -> str:
+        if val is None:
+            return ""
+        if isinstance(val, (dict, list)):
+            return json.dumps(val)
+        return str(val).strip()
+
     resp = _groq_complete(prompt, system)
     if not resp:
         return None
@@ -114,10 +125,10 @@ No prose, no markdown, valid JSON only."""
         if clean.startswith("```"):
             clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         o = json.loads(clean)
-        wwr = html.escape(o.get("what_went_wrong_or_right", "").strip())
-        ywr = html.escape(o.get("why_it_went_wrong_or_right", "").strip())
-        imp = html.escape(o.get("improvement_or_preservation", "").strip())
-        ap  = html.escape(o.get("action_plan", "").strip())
+        wwr = html.escape(_safe_str(o.get("what_went_wrong_or_right")))
+        ywr = html.escape(_safe_str(o.get("why_it_went_wrong_or_right")))
+        imp = html.escape(_safe_str(o.get("improvement_or_preservation")))
+        ap  = html.escape(_safe_str(o.get("action_plan")))
         if is_win:
             return (
                 f"<strong>✅ What Went Right:</strong> {wwr}<br>"
