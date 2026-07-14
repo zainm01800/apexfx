@@ -31,6 +31,7 @@ from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.regime.rule_based import RuleBasedRegime
 from apex_quant.risk.manager import RiskManager
+from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import AccountState, Direction, MarketState, OpenPosition
 from apex_quant.strategies.base import Strategy
 from apex_quant.strategies.labeling import atr_series
@@ -84,6 +85,7 @@ class PortfolioBacktester:
         self.vol_window = vol_window
         self.corr_window = corr_window
         self._regime = RuleBasedRegime()
+        self.trade_manager = TradeManager()
         self._mech_cache: dict = {}
 
     def _mech(self, instrument: str):
@@ -135,6 +137,23 @@ class PortfolioBacktester:
                 df = df[df.index <= _utc(end)]
             mech = self._mech(inst)
             close = df["close"]
+
+            # Precompute Squeeze
+            bb_mid = close.rolling(20).mean()
+            bb_std = close.rolling(20).std()
+            bb_upper = bb_mid + 2 * bb_std
+            bb_lower = bb_mid - 2 * bb_std
+
+            tr = pd.concat([
+                df["high"] - df["low"],
+                (df["high"] - close.shift(1)).abs(),
+                (df["low"] - close.shift(1)).abs()
+            ], axis=1).max(axis=1)
+            kc_atr = tr.rolling(20).mean()
+            kc_upper = bb_mid + 1.5 * kc_atr
+            kc_lower = bb_mid - 1.5 * kc_atr
+            squeeze_arr = ((bb_upper < kc_upper) & (bb_lower > kc_lower)).to_numpy()
+
             data[inst] = {
                 "pos": {ts: i for i, ts in enumerate(df.index)},
                 "open": df["open"].to_numpy(),
@@ -143,6 +162,7 @@ class PortfolioBacktester:
                 "close": close.to_numpy(),
                 "atr": atr_series(df, self.cfg.risk.atr_window),
                 "vol": _vol_series(close, self.vol_window, mech.annualization),
+                "squeeze": squeeze_arr,
                 "commission": mech.commission_per_trade,
                 "tf": timeframes.get(inst, "1d"),
                 "hold": max_hold if max_hold is not None else int(getattr(strategies[inst], "holding_horizon", 20)),
@@ -162,20 +182,49 @@ class PortfolioBacktester:
         eq_points: list[tuple[pd.Timestamp, float]] = []
 
         for t in timeline:
-            # 1. manage exits on open positions
+            # 1. manage exits on open positions via TradeManager
             for inst in list(open_pos.keys()):
                 d = data[inst]
                 i = d["pos"].get(t)
                 if i is None:
                     continue
                 posd = open_pos[inst]
-                exit_price, reason = self._check_exit(posd, d["high"][i], d["low"][i], d["close"][i], i, d["hold"], inst)
-                if exit_price is not None:
-                    pnl = self._pnl(posd, exit_price) - d["commission"]
-                    realized += pnl
-                    trades.append(self._record(posd, exit_price, t, reason, pnl, inst))
+
+                # Prepare past 22 bars high/low window for Chandelier trail
+                high_window = d["high"][max(0, i-21):i+1]
+                low_window = d["low"][max(0, i-21):i+1]
+                bars_history = {
+                    "high": float(high_window.max()),
+                    "low": float(low_window.min()),
+                    "len": i + 1,
+                }
+
+                def fill_fn(price, buying, inst_name=inst):
+                    return self._fill(price, inst_name, buying)
+
+                realized_pnl, exit_reason = self.trade_manager.update_position(
+                    position=posd,
+                    high=d["high"][i],
+                    low=d["low"][i],
+                    close=d["close"][i],
+                    atr=d["atr"][i],
+                    is_squeeze=bool(d["squeeze"][i]),
+                    bars_history=bars_history,
+                    timeframe=posd["tf"],
+                    pip_size=self._pip(inst),
+                    fill_fn=fill_fn,
+                )
+
+                if realized_pnl != 0.0 or exit_reason != "":
+                    # Subtract commission for any close transaction
+                    realized += realized_pnl - d["commission"]
+                    posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
+
+                if exit_reason != "":
+                    exit_price = d["close"][i] if exit_reason == "time" else (posd["stop"] if exit_reason == "stop" else posd["target"])
+                    trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
                     per_inst[inst]["n_trades"] += 1
-                    per_inst[inst]["net_pnl"] += pnl
+                    per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
                     del open_pos[inst]
 
             # 2. execute pending entries at THIS bar's open
@@ -262,28 +311,40 @@ class PortfolioBacktester:
         buying = pos.direction == Direction.LONG
         entry = self._fill(open_price, instrument, buying)
         shift = entry - dec                     # move stop/target by the decision->fill gap
+        stop_price = (pos.stop_price or dec) + shift
         return {
+            "symbol": instrument,
             "direction": pos.direction,
             "units": pos.units,
+            "initial_units": pos.units,
             "entry_price": entry,
             "entry_time": t,
             "entry_idx": i,
-            "stop": (pos.stop_price or dec) + shift,
+            "stop": stop_price,
+            "initial_stop": stop_price,
             "target": (pos.target_price or dec) + shift,
             "risk_abs": pend["risk_abs"],
             "tf": pend["tf"],
             "last_px": entry,
+            "tms_p1": False,
+            "tms_p2": False,
+            "tms_be": False,
+            "bars_open": 0,
+            "tms_log": [],
+            "realized_pnl_total": -self._mech(instrument).commission_per_trade,
         }
 
     def _open_record(self, inst: str, posd: dict) -> OpenPosition:
+        scale = (posd["units"] / posd["initial_units"]) if posd.get("initial_units", 0.0) > 0.0 else 1.0
         return OpenPosition(
             instrument=inst, direction=posd["direction"],
             notional=abs(posd["units"] * posd["last_px"]),
-            risk=posd["risk_abs"], timeframe=posd["tf"],
+            risk=posd["risk_abs"] * scale,
+            timeframe=posd["tf"],
         )
 
     def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument):
-        long = position["direction"] == Direction.LONG
+        long = position["direction"] == Direction.LONG or position["direction"] == "long" or getattr(position["direction"], "value", "") == "long"
         stop, target = position["stop"], position["target"]
         if long:
             if lo <= stop:
@@ -301,26 +362,29 @@ class PortfolioBacktester:
 
     def _pnl(self, position, exit_price) -> float:
         d = exit_price - position["entry_price"]
-        if position["direction"] == Direction.SHORT:
+        if position["direction"] == Direction.SHORT or position["direction"] == "short" or getattr(position["direction"], "value", "") == "short":
             d = -d
         return d * position["units"]
 
     def _unrealized(self, position, price) -> float:
+        if not position or position["units"] <= 0:
+            return 0.0
         d = price - position["entry_price"]
-        if position["direction"] == Direction.SHORT:
+        if position["direction"] == Direction.SHORT or position["direction"] == "short" or getattr(position["direction"], "value", "") == "short":
             d = -d
         return d * position["units"]
 
     def _record(self, position, exit_price, t, reason, pnl, instrument="") -> Trade:
-        notional = position["entry_price"] * position["units"]
+        notional = position["entry_price"] * position["initial_units"]
+        direction_val = position["direction"].value if hasattr(position["direction"], "value") else str(position["direction"])
         return Trade(
             instrument=instrument,
-            direction=position["direction"].value,
+            direction=direction_val,
             entry_time=str(position["entry_time"].date()),
             entry_price=round(position["entry_price"], 6),
             exit_time=str(t.date()),
             exit_price=round(exit_price, 6),
-            units=round(position["units"], 2),
+            units=round(position["initial_units"], 2),
             pnl=round(pnl, 2),
             return_pct=round(pnl / notional, 5) if notional else 0.0,
             exit_reason=reason,

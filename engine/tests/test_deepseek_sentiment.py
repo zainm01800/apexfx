@@ -124,14 +124,11 @@ class TestParseScore:
 # ========================================================================
 
 class TestGetNewsSentimentScore:
-    @patch("httpx.Client")
-    def test_success(self, mock_client_class):
-        mock_client = MagicMock()
-        mock_client_class.return_value.__enter__.return_value = mock_client
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = _mock_deepseek_response(0.85, "Geopolitical tensions escalating")
-        mock_client.post.return_value = mock_response
+    @patch("apex_quant.ai.sentiment_filter.build_llm")
+    def test_success(self, mock_build_llm):
+        mock_llm = MagicMock()
+        mock_llm.complete.return_value = '{"risk_score": 0.85, "reason": "Geopolitical tensions escalating"}'
+        mock_build_llm.return_value = mock_llm
 
         cfg = _cfg()
         result = get_news_sentiment_score("EUR/USD", SAMPLE_HEADLINES, cfg=cfg)
@@ -139,15 +136,11 @@ class TestGetNewsSentimentScore:
         assert result is not None
         assert result["risk_score"] == 0.85
         assert "Geopolitical" in result["reason"]
-
-        # Verify the API payload is well-formed
-        call_kwargs = mock_client.post.call_args[1]
-        payload = call_kwargs["json"]
-        assert payload["model"] == "test-model"
-        assert len(payload["messages"]) == 2
-        assert payload["messages"][0]["role"] == "system"
-        assert payload["messages"][1]["role"] == "user"
-        assert "EUR/USD" in payload["messages"][1]["content"]
+        mock_llm.complete.assert_called_once()
+        call_args = mock_llm.complete.call_args[0]
+        call_kwargs = mock_llm.complete.call_args[1]
+        assert "EUR/USD" in call_args[0]
+        assert call_kwargs["temperature"] == 0.3
 
     @patch("httpx.Client")
     def test_api_error_status(self, mock_client_class):

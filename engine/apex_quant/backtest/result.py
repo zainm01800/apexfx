@@ -53,6 +53,15 @@ def compute_metrics(equity, trades: list["Trade"], periods_per_year: int = 252) 
     max_dd = float(-dd.min())
     calmar = ann_return / max_dd if max_dd > 0 else 0.0
 
+    # Sortino Ratio calculation
+    downside_rets = rets[rets < 0]
+    if len(downside_rets) > 1:
+        downside_std = downside_rets.std(ddof=1)
+        ann_downside_std = downside_std * np.sqrt(periods_per_year)
+        sortino = float(rets.mean() / downside_std * np.sqrt(periods_per_year)) if downside_std > 0 else 0.0
+    else:
+        sortino = 0.0
+
     pnls = [t.pnl for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]
@@ -60,18 +69,37 @@ def compute_metrics(equity, trades: list["Trade"], periods_per_year: int = 252) 
     profit_factor = (sum(wins) / abs(sum(losses))) if losses else (float("inf") if wins else 0.0)
     avg_trade = float(np.mean([t.return_pct for t in trades])) if trades else 0.0
 
+    # Trade Expectancy (standard definition):
+    # Expectancy = (Win Probability * Avg Win Size) - (Loss Probability * Avg Loss Size)
+    # Measured in absolute/PNL terms, or in R-multiple / percent terms.
+    # We will provide both absolute expectancy (in cash/points) and percent expectancy.
+    avg_win_pnl = float(np.mean(wins)) if wins else 0.0
+    avg_loss_pnl = float(np.mean(losses)) if losses else 0.0
+    loss_rate = 1.0 - win_rate
+    expectancy_pnl = (win_rate * avg_win_pnl) + (loss_rate * avg_loss_pnl) # avg_loss_pnl is negative
+
+    # Percent expectancy
+    win_pcts = [t.return_pct for t in trades if t.return_pct > 0]
+    loss_pcts = [t.return_pct for t in trades if t.return_pct < 0]
+    avg_win_pct = float(np.mean(win_pcts)) if win_pcts else 0.0
+    avg_loss_pct = float(np.mean(loss_pcts)) if loss_pcts else 0.0
+    expectancy_pct = (win_rate * avg_win_pct) + (loss_rate * avg_loss_pct)
+
     net_pnl = sum(pnls)
     return {
         "total_return": e1 / e0 - 1,
         "ann_return": ann_return,
         "ann_vol": ann_vol,
         "sharpe": sharpe,
+        "sortino": sortino,
         "max_drawdown": max_dd,
         "calmar": calmar,
         "n_trades": len(trades),
         "win_rate": win_rate,
         "profit_factor": profit_factor if np.isfinite(profit_factor) else None,
         "avg_trade_return": avg_trade,
+        "expectancy_pnl": expectancy_pnl,
+        "expectancy_pct": expectancy_pct,
         "final_equity": e1,
         "net_pnl": net_pnl,
     }
@@ -95,8 +123,9 @@ class BacktestResult:
         return (
             f"{self.instrument}: ret={m['total_return']*100:.1f}% "
             f"ann={m['ann_return']*100:.1f}% vol={m['ann_vol']*100:.1f}% "
-            f"sharpe={m['sharpe']:.2f} maxDD={m['max_drawdown']*100:.1f}% "
-            f"trades={m['n_trades']} win={m['win_rate']*100:.0f}%"
+            f"sharpe={m['sharpe']:.2f} sortino={m['sortino']:.2f} "
+            f"maxDD={m['max_drawdown']*100:.1f}% trades={m['n_trades']} "
+            f"win={m['win_rate']*100:.0f}% expectancy={m['expectancy_pct']*100:.2f}%"
         )
 
     def to_dict(self, equity_points: int = 250) -> dict:

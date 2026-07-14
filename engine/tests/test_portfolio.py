@@ -33,7 +33,7 @@ def test_single_instrument_parity():
     strat = RegimeGatedMomentum()
     strat.fit(pit, df.index[:300])
 
-    single = Backtester().run(pit, strat, "EUR/USD", warmup=300)
+    single = Backtester().run(pit, strat, "EUR/USD", warmup=300, timeframe="1d")
     port = PortfolioBacktester().run(
         {"EUR/USD": pit}, {"EUR/USD": strat}, timeframes={"EUR/USD": "1d"}, warmup=300,
     )

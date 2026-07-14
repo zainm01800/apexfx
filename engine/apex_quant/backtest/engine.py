@@ -19,6 +19,7 @@ from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.regime.rule_based import RuleBasedRegime
 from apex_quant.risk.manager import RiskManager
+from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import AccountState, Direction, MarketState, Position
 from apex_quant.strategies.base import Strategy
 from apex_quant.strategies.labeling import atr_series
@@ -45,6 +46,7 @@ class Backtester:
         self.use_regime = use_regime
         self.vol_window = vol_window
         self._regime = RuleBasedRegime()
+        self.trade_manager = TradeManager()
         self._mech_cache: dict = {}
 
     def _mech(self, instrument: str):
@@ -77,6 +79,7 @@ class Backtester:
         end=None,
         warmup: int = 250,
         max_hold: int | None = None,
+        timeframe: str | None = None,
     ) -> BacktestResult:
         def _utc(ts):
             ts = pd.Timestamp(ts)
@@ -103,6 +106,22 @@ class Backtester:
         atr = atr_series(df, self.cfg.risk.atr_window)
         vol = _vol_series(close, self.vol_window, ann)
 
+        # Precompute Volatility Squeeze for the whole series to speed up the loop
+        bb_mid = close.rolling(20).mean()
+        bb_std = close.rolling(20).std()
+        bb_upper = bb_mid + 2 * bb_std
+        bb_lower = bb_mid - 2 * bb_std
+
+        tr = pd.concat([
+            df["high"] - df["low"],
+            (df["high"] - close.shift(1)).abs(),
+            (df["low"] - close.shift(1)).abs()
+        ], axis=1).max(axis=1)
+        kc_atr = tr.rolling(20).mean()
+        kc_upper = bb_mid + 1.5 * kc_atr
+        kc_lower = bb_mid - 1.5 * kc_atr
+        squeeze_arr = ((bb_upper < kc_upper) & (bb_lower > kc_lower)).to_numpy()
+
         equity = self.bt.initial_equity
         realized = equity
         peak = equity
@@ -111,14 +130,45 @@ class Backtester:
         trades: list[Trade] = []
         eq_points: list[tuple[pd.Timestamp, float]] = []
 
+        pip_val = self._pip(instrument)
+
         for i, t in enumerate(idx):
-            # 1. manage open position (intrabar stop/target/time)
+            # 1. manage open position (intrabar stop/target/time via TradeManager)
             if position is not None:
-                exit_price, reason = self._check_exit(position, high[i], low[i], closes[i], i, max_hold, instrument)
-                if exit_price is not None:
-                    pnl = self._pnl(position, exit_price)
-                    realized += pnl - commission
-                    trades.append(self._record(position, exit_price, t, reason, pnl - commission, instrument))
+                # Prepare past 22 bars high/low window for Chandelier trail
+                high_window = high[max(0, i-21):i+1]
+                low_window = low[max(0, i-21):i+1]
+                bars_history = {
+                    "high": float(high_window.max()),
+                    "low": float(low_window.min()),
+                    "len": i + 1,
+                }
+
+                def fill_fn(price, buying):
+                    return self._fill(price, instrument, buying)
+
+                realized_pnl, exit_reason = self.trade_manager.update_position(
+                    position=position,
+                    high=high[i],
+                    low=low[i],
+                    close=closes[i],
+                    atr=atr[i],
+                    is_squeeze=bool(squeeze_arr[i]),
+                    bars_history=bars_history,
+                    timeframe=timeframe or getattr(strategy, "timeframe", "1h"),
+                    pip_size=pip_val,
+                    fill_fn=fill_fn,
+                )
+
+                if realized_pnl != 0.0 or exit_reason != "":
+                    # Subtract commission for any close transaction (partial or full)
+                    realized += realized_pnl - commission
+                    position["realized_pnl_total"] = position.get("realized_pnl_total", 0.0) + (realized_pnl - commission)
+
+                if exit_reason != "":
+                    # Record the final trade
+                    exit_price = closes[i] if exit_reason == "time" else (position["stop"] if exit_reason == "stop" else position["target"])
+                    trades.append(self._record(position, exit_price, t, exit_reason, position["realized_pnl_total"], instrument))
                     position = None
 
             # 2. execute pending entry at THIS bar's open
@@ -154,20 +204,37 @@ class Backtester:
         buying = pos.direction == Direction.LONG
         entry = self._fill(open_price, instrument, buying)
         shift = entry - decision_price
+        stop_price = (pos.stop_price or decision_price) + shift
         return {
+            "symbol": instrument,
             "direction": pos.direction,
             "units": pos.units,
+            "initial_units": pos.units,
             "entry_price": entry,
             "entry_time": t,
             "entry_idx": i,
-            "stop": (pos.stop_price or decision_price) + shift,
+            "stop": stop_price,
+            "initial_stop": stop_price,
             "target": (pos.target_price or decision_price) + shift,
+            "tms_p1": False,
+            "tms_p2": False,
+            "tms_be": False,
+            "bars_open": 0,
+            "tms_log": [],
+            "realized_pnl_total": -self._mech(instrument).commission_per_trade, # subtract entry commission immediately
         }
 
+    def _unrealized(self, position, price) -> float:
+        if not position or position["units"] <= 0:
+            return 0.0
+        d = price - position["entry_price"]
+        if position["direction"] == Direction.SHORT or position["direction"] == "short" or getattr(position["direction"], "value", "") == "short":
+            d = -d
+        return d * position["units"]
+
     def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument):
-        long = position["direction"] == Direction.LONG
+        long = position["direction"] == Direction.LONG or position["direction"] == "long" or getattr(position["direction"], "value", "") == "long"
         stop, target = position["stop"], position["target"]
-        # conservative: stop checked before target
         if long:
             if lo <= stop:
                 return self._fill(stop, instrument, buying=False), "stop"
@@ -184,28 +251,21 @@ class Backtester:
 
     def _pnl(self, position, exit_price) -> float:
         d = exit_price - position["entry_price"]
-        if position["direction"] == Direction.SHORT:
-            d = -d
-        return d * position["units"]
-
-    def _unrealized(self, position, price) -> float:
-        if not position:
-            return 0.0
-        d = price - position["entry_price"]
-        if position["direction"] == Direction.SHORT:
+        if position["direction"] == Direction.SHORT or position["direction"] == "short" or getattr(position["direction"], "value", "") == "short":
             d = -d
         return d * position["units"]
 
     def _record(self, position, exit_price, t, reason, pnl, instrument="") -> Trade:
-        notional = position["entry_price"] * position["units"]
+        notional = position["entry_price"] * position["initial_units"]
+        direction_val = position["direction"].value if hasattr(position["direction"], "value") else str(position["direction"])
         return Trade(
             instrument=instrument,
-            direction=position["direction"].value,
+            direction=direction_val,
             entry_time=str(position["entry_time"].date()),
             entry_price=round(position["entry_price"], 6),
             exit_time=str(t.date()),
             exit_price=round(exit_price, 6),
-            units=round(position["units"], 2),
+            units=round(position["initial_units"], 2),
             pnl=round(pnl, 2),
             return_pct=round(pnl / notional, 5) if notional else 0.0,
             exit_reason=reason,
