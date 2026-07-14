@@ -4,6 +4,62 @@ let _mt4TradesFilter = 'open'; // 'open', 'closed', or 'lessons'
 let _mt4TradesCache = [];
 let _engineLessonsCache = [];
 
+window.navigateToLesson = function(symbol, openTime) {
+  const btnLessons = document.getElementById('btnLessons');
+  const btnOpen = document.getElementById('btnOpen');
+  const btnClosed = document.getElementById('btnClosed');
+  
+  if (!btnLessons) return;
+  
+  _mt4TradesFilter = 'lessons';
+  btnLessons.classList.add('active');
+  if (btnOpen) btnOpen.classList.remove('active');
+  if (btnClosed) btnClosed.classList.remove('active');
+  
+  renderMt4Trades();
+  
+  const cleanedSym = getCleanSymbol(symbol);
+  
+  let attempts = 0;
+  const maxAttempts = 15;
+  const interval = setInterval(() => {
+    attempts++;
+    
+    const targetCard = document.querySelector(`[data-lesson-sym="${cleanedSym}"][data-lesson-open="${openTime}"]`);
+    
+    if (targetCard) {
+      clearInterval(interval);
+      
+      const batchContainer = targetCard.closest('[id^="mt4LessonBatch_"]');
+      if (batchContainer) {
+        const batchIndex = batchContainer.id.replace('mt4LessonBatch_', '');
+        const headerId = `mt4LessonBatchHeader_${batchIndex}`;
+        
+        if (batchContainer.style.display === 'none') {
+          toggleMt4Batch(batchContainer.id, headerId);
+        }
+      }
+      
+      targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      targetCard.style.outline = '2px solid var(--accent)';
+      targetCard.style.boxShadow = '0 0 25px rgba(0, 240, 255, 0.8)';
+      targetCard.style.transform = 'scale(1.02)';
+      
+      setTimeout(() => {
+        targetCard.style.transition = 'outline 0.8s, box-shadow 0.8s, transform 0.8s';
+        targetCard.style.outline = '1px solid var(--border)';
+        targetCard.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+        targetCard.style.transform = 'scale(1)';
+      }, 2000);
+      
+    } else if (attempts >= maxAttempts) {
+      clearInterval(interval);
+      console.warn('Lesson card not found for:', cleanedSym, openTime);
+    }
+  }, 150);
+};
+
 let _pollIntervalId = null;
 
 function startPolling(ms) {
@@ -455,6 +511,12 @@ function renderMt4Trades() {
           <span class="${pnlClass}" style="font-family: var(--mono); font-size: 16px;">${pnlPrefix}£${pnl.toFixed(2)}</span>
         </div>
 
+        ${_mt4TradesFilter === 'closed' ? `
+        <button onclick="navigateToLesson('${t.symbol}', ${t.open_time})" style="width: 100%; margin-top: 8px; padding: 8px 12px; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s, border-color 0.2s, transform 0.1s;" onmouseover="this.style.background='rgba(0, 240, 255, 0.16)'; this.style.borderColor='rgba(0, 240, 255, 0.4)';" onmouseout="this.style.background='rgba(0, 240, 255, 0.06)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+          🧠 Show Engine Lesson
+        </button>
+        ` : ''}
+
         <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
           ${_mt4TradesFilter === 'closed' ? `Closed: ${formattedCloseTime}` : `Opened: ${formattedOpenTime}`}
         </div>
@@ -536,7 +598,7 @@ function renderMt4Trades() {
     }
 
     return `
-      <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+      <div class="stat-item" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
