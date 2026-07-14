@@ -634,20 +634,43 @@ function renderMt4Trades() {
     const symbolLessons = _engineLessonsCache.filter(x => getCleanSymbol(x.symbol) === cleanedSym);
     let matchedAi = null;
     if (symbolLessons.length > 0) {
-      let minDiff = Infinity;
+      let bestScore = 9999999.0;
+      const tDirection = t.cmd === 0 ? 'BUY' : 'SELL';
+      const tPrice = parseFloat(t.open_price) || 0;
+      const tSl = parseFloat(t.sl) || 0;
+      const tTp = parseFloat(t.tp) || 0;
+
       for (const l of symbolLessons) {
+        // 1. Direction check
+        const mVerdict = (l.verdict || '').toUpperCase().trim();
+        if (mVerdict !== tDirection) continue;
+
+        // 2. Time proximity check (must be within 36 hours)
         const setupTime = getTimestampFromSetupId(l.id);
-        if (setupTime > 0) {
-          const diff = Math.abs(t.open_time - setupTime);
-          if (diff < minDiff) {
-            minDiff = diff;
-            matchedAi = l;
-          }
+        if (setupTime <= 0) continue;
+        const timeDiffHours = Math.abs(t.open_time - setupTime) / 3600.0;
+        if (timeDiffHours > 36.0) continue;
+
+        // 3. Price proximity check (must be within 150 pips)
+        const mPrice = parseFloat(l.price) || 0;
+        const priceDiff = Math.abs(tPrice - mPrice);
+        const pipScale = tPrice > 50.0 ? 1.0 : 0.0100;
+        if (priceDiff > (1.50 * pipScale)) continue;
+
+        // Calculate total price errors
+        const mSl = parseFloat(l.stop_loss) || 0;
+        const slDiff = (tSl > 0 && mSl > 0) ? Math.abs(tSl - mSl) : 0.0;
+
+        const mTp = parseFloat(l.target_price) || 0;
+        const tpDiff = (tTp > 0 && mTp > 0) ? Math.abs(tTp - mTp) : 0.0;
+
+        const totalError = priceDiff + slDiff + tpDiff;
+        const score = totalError * 1000.0 + timeDiffHours;
+
+        if (score < bestScore) {
+          bestScore = score;
+          matchedAi = l;
         }
-      }
-      // If the closest match is more than 24 hours away, treat as no match
-      if (minDiff > 86400) {
-        matchedAi = null;
       }
     }
     
