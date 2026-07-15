@@ -634,16 +634,33 @@ function renderMt4Trades() {
     const symbolLessons = _engineLessonsCache.filter(x => getCleanSymbol(x.symbol) === cleanedSym);
     let matchedAi = null;
     if (symbolLessons.length > 0) {
-      let bestScore = 9999999.0;
-      const tDirection = t.cmd === 0 ? 'BUY' : 'SELL';
-      const tPrice = parseFloat(t.open_price) || 0;
-      const tSl = parseFloat(t.sl) || 0;
-      const tTp = parseFloat(t.tp) || 0;
-
+      // 1. First pass: Check for exact ticket match in lesson comment
       for (const l of symbolLessons) {
-        // 1. Direction check
-        const mVerdict = (l.verdict || '').toUpperCase().trim();
-        if (mVerdict !== tDirection) continue;
+        const lessonText = l.lesson || '';
+        if (lessonText.includes('TICKET_ID: ' + t.ticket)) {
+          matchedAi = l;
+          break;
+        }
+      }
+
+      // 2. Second pass: Fallback to proximity score heuristic if no exact match found
+      if (!matchedAi) {
+        let bestScore = 9999999.0;
+        const tDirection = t.cmd === 0 ? 'BUY' : 'SELL';
+        const tPrice = parseFloat(t.open_price) || 0;
+        const tSl = parseFloat(t.sl) || 0;
+        const tTp = parseFloat(t.tp) || 0;
+
+        for (const l of symbolLessons) {
+          // If this setup contains a different ticket ID comment, it belongs to another trade. Skip it!
+          const lessonText = l.lesson || '';
+          if (lessonText.includes('TICKET_ID:') && !lessonText.includes('TICKET_ID: ' + t.ticket)) {
+            continue;
+          }
+
+          // 1. Direction check
+          const mVerdict = (l.verdict || '').toUpperCase().trim();
+          if (mVerdict !== tDirection) continue;
 
         // 2. Time proximity check (must be within 36 hours)
         const setupTime = getTimestampFromSetupId(l.id);
@@ -673,6 +690,7 @@ function renderMt4Trades() {
         }
       }
     }
+  }
     
     // Determine targets hit status for fallback lesson selection
     const tpValForFallback = parseFloat(t.tp) || (matchedAi ? parseFloat(matchedAi.target_price) : 0);
@@ -690,44 +708,94 @@ function renderMt4Trades() {
       hitSlFallback = slValForFallback > 0 && Math.abs(closeValForFallback - slValForFallback) < 0.0002;
     }
 
+    // Determine close reason and targets for display
+    let outcomeLabel = 'Closed Manually (Managed Exit)'; // default
+    let closeReasonColor = '#ffaa00'; // orange
+    
+    if (matchedAi && matchedAi.outcome) {
+      if (matchedAi.outcome === 'tp_hit') {
+        outcomeLabel = 'Hit Take Profit';
+        closeReasonColor = 'var(--green)';
+      } else if (matchedAi.outcome === 'sl_hit') {
+        if (pnl > 0) {
+          outcomeLabel = 'Trailing Stop Hit';
+          closeReasonColor = 'var(--green)';
+        } else {
+          outcomeLabel = 'Hit Stop Loss';
+          closeReasonColor = 'var(--red)';
+        }
+      } else if (matchedAi.outcome === 'invalidated') {
+        outcomeLabel = 'Closed Manually (Managed Exit)';
+        closeReasonColor = '#ffaa00';
+      } else if (matchedAi.outcome === 'expired') {
+        outcomeLabel = 'Expired';
+        closeReasonColor = 'var(--text3)';
+      }
+    } else {
+      // fallback detection
+      if (hitTpFallback) {
+        outcomeLabel = 'Hit Take Profit';
+        closeReasonColor = 'var(--green)';
+      } else if (hitSlFallback) {
+        if (pnl > 0) {
+          outcomeLabel = 'Trailing Stop Hit';
+          closeReasonColor = 'var(--green)';
+        } else {
+          outcomeLabel = 'Hit Stop Loss';
+          closeReasonColor = 'var(--red)';
+        }
+      }
+    }
+
     let lessonText = '';
     let isAiLesson = false;
     if (matchedAi && matchedAi.lesson) {
       lessonText = matchedAi.lesson;
       isAiLesson = true;
+    } else if (matchedAi && (matchedAi.outcome === 'pending' || !matchedAi.lesson)) {
+      lessonText = `<strong>⏳ AI Post-Mortem Pending:</strong> The trade was recently closed. The engine is analyzing the market structure and generating the structured lesson...<br><strong>🔄 Status:</strong> This trade will be fully resolved and updated automatically in the next few seconds.`;
+      isAiLesson = false;
     } else {
       // Dynamic fallback post-mortem lesson
       if (hitTpFallback) {
         lessonText = `<strong>✅ What Went Right:</strong> The setup reached its profit target. Trend momentum aligned correctly and execution parameters protected the locked profit.<br><strong>📊 Why It Worked:</strong> Market structure and regime conditions were favourable for the direction taken.<br><strong>🔒 What to Preserve:</strong> Maintain this entry criteria and position sizing discipline on similar setups.<br><strong>🎯 Action Plan:</strong> Continue executing the same process on setups with matching confluence.`;
       } else if (hitSlFallback) {
-        lessonText = `<strong>❌ What Went Wrong:</strong> The setup was stopped out. Market structure shifted against the trade bias.<br><strong>🔍 Why It Went Wrong:</strong> The engine has recorded the regime conditions that led to this outcome.<br><strong>💡 What Can Be Improved:</strong> Review the entry confluence score and consider tighter regime filtering.<br><strong>🎯 Action Plan to Prevent Recurrence:</strong> Adjust system weighting to reduce exposure on similar high-volatility regimes.`;
+        if (pnl > 0) {
+          lessonText = `<strong>✅ Trailing Stop Hit:</strong> The trailing stop-loss was triggered in profit at ${closeValForFallback.toFixed(5)}, securing £${pnl.toFixed(2)}.<br><strong>📈 Why It Trailed:</strong> The trade moved in the expected direction and the execution module adjusted the stop-loss to lock in gains.<br><strong>🔒 What to Preserve:</strong> Maintain the dynamic trailing stops to protect capital during regime reversals.<br><strong>🎯 Action Plan:</strong> Continue executing same trailing stop parameters on similar trend-following setups.`;
+        } else {
+          lessonText = `<strong>❌ What Went Wrong:</strong> The setup was stopped out. Market structure shifted against the trade bias.<br><strong>🔍 Why It Went Wrong:</strong> The engine has recorded the regime conditions that led to this outcome.<br><strong>💡 What Can Be Improved:</strong> Review the entry confluence score and consider tighter regime filtering.<br><strong>🎯 Action Plan to Prevent Recurrence:</strong> Adjust system weighting to reduce exposure on similar high-volatility regimes.`;
+        }
       } else {
         lessonText = `<strong>🔄 What Happened:</strong> Position was closed before reaching SL or TP — managed exit or invalidation.<br><strong>📐 Why It Was Managed Out:</strong> Trade conditions changed or a manual/automated risk limit triggered the early close.<br><strong>⚖️ Was the Decision Correct?</strong> Closing early preserved capital/gains and prevented full stop loss hit — this is active defense.<br><strong>🎯 Action Plan for Similar Setups:</strong> Review what triggered the early exit and whether holding longer would have been justified.`;
       }
     }
 
     // Detect lesson category from stored HTML emoji marker
-    // This ensures the visual style ALWAYS matches the actual lesson content,
-    // even if the trade's PnL and stored category diverge.
     let lessonCat = 'loss'; // safe default
     const lessonFirst80 = lessonText.slice(0, 80);
     if (lessonFirst80.includes('✅')) lessonCat = 'win';
     else if (lessonFirst80.includes('🔄')) lessonCat = 'neutral';
     else if (lessonFirst80.includes('❌')) lessonCat = 'loss';
+    else if (lessonFirst80.includes('⏳')) lessonCat = 'pending';
     else if (hitTpFallback) lessonCat = 'win';
+    else if (hitSlFallback && pnl > 0) lessonCat = 'win';
     else if (!hitSlFallback) lessonCat = 'neutral';
 
     const lessonBg = lessonCat === 'win'     ? 'rgba(0, 240, 255, 0.03)'
                    : lessonCat === 'neutral' ? 'rgba(255, 165, 0, 0.05)'
+                   : lessonCat === 'pending' ? 'rgba(255, 255, 255, 0.02)'
                    :                           'rgba(255, 70, 70, 0.04)';
     const lessonBorder = lessonCat === 'win'     ? 'rgba(0, 240, 255, 0.12)'
                        : lessonCat === 'neutral' ? 'rgba(255, 165, 0, 0.25)'
+                       : lessonCat === 'pending' ? 'rgba(255, 255, 255, 0.1)'
                        :                           'rgba(255, 70, 70, 0.15)';
     const lessonHeaderColor = lessonCat === 'win'     ? 'var(--accent)'
                              : lessonCat === 'neutral' ? '#f0a832'
+                             : lessonCat === 'pending' ? 'var(--text3)'
                              :                           'var(--red)';
     const lessonTitle = lessonCat === 'neutral' ? '🧠 Post-Mortem Review'
-                       : '🧠 Post-Mortem Lesson';
+                      : lessonCat === 'pending' ? '⏳ AI Post-Mortem'
+                      : '🧠 Post-Mortem Lesson';
 
     let finalLabel = 'BREAKEVEN';
     let finalColor = 'var(--text3)';
@@ -740,38 +808,9 @@ function renderMt4Trades() {
     } else if (lessonCat === 'neutral') {
       finalLabel = 'MANAGED';
       finalColor = '#ffaa00';
-    }
-
-    // Determine close reason and targets for display
-    let outcomeLabel = 'Closed Manually (Managed Exit)'; // default
-    let closeReasonColor = '#ffaa00'; // orange
-    
-    if (matchedAi && matchedAi.outcome) {
-      if (matchedAi.outcome === 'tp_hit') {
-        outcomeLabel = 'Hit Take Profit';
-        closeReasonColor = 'var(--green)';
-      } else if (matchedAi.outcome === 'sl_hit') {
-        outcomeLabel = 'Hit Stop Loss';
-        closeReasonColor = 'var(--red)';
-      } else if (matchedAi.outcome === 'invalidated') {
-        outcomeLabel = 'Closed Manually (Managed Exit)';
-        closeReasonColor = '#ffaa00';
-      } else if (matchedAi.outcome === 'expired') {
-        outcomeLabel = 'Expired';
-        closeReasonColor = 'var(--text3)';
-      }
-    } else {
-      // fallback detection
-      const tpVal = parseFloat(t.tp) || 0;
-      const slVal = parseFloat(t.sl) || 0;
-      const closeVal = parseFloat(t.close_price) || 0;
-      if (tpVal > 0 && Math.abs(closeVal - tpVal) < 0.0002) {
-        outcomeLabel = 'Hit Take Profit';
-        closeReasonColor = 'var(--green)';
-      } else if (slVal > 0 && Math.abs(closeVal - slVal) < 0.0002) {
-        outcomeLabel = 'Hit Stop Loss';
-        closeReasonColor = 'var(--red)';
-      }
+    } else if (lessonCat === 'pending') {
+      finalLabel = 'PENDING';
+      finalColor = 'var(--text3)';
     }
 
     const displayTp = parseFloat(t.tp) || (matchedAi ? parseFloat(matchedAi.target_price) : 0);
@@ -840,11 +879,11 @@ function renderMt4Trades() {
     }
 
     if (!_engineLessonsCache || _engineLessonsCache.length === 0) {
-      // Fetch in background to enrich cards
-      fetch('/api/memory?all=true&resolved=true&lean=true&symbol=ilike.*%2F*&limit=1000')
+      // Fetch in background to enrich cards (include pending setups too)
+      fetch('/api/memory?all=true&lean=true&symbol=ilike.*%2F*&limit=1000&t=' + Date.now())
         .then(r => r.json())
         .then(data => {
-          _engineLessonsCache = data.filter(t => t.lesson && t.lesson.trim() !== '');
+          _engineLessonsCache = data;
           renderMt4Trades();
         })
         .catch(err => console.error('Error fetching lessons to enrich:', err));
