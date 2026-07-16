@@ -248,3 +248,253 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
         "max_tokens": 1000,
         "temperature": 0.3,
         "response_format": {"type": "json_object"},
+    }
+    gh = {"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"}
+    for attempt in range(retries):
+        try:
+            r = httpx.post(url, json=payload, headers=gh, timeout=60)
+            if r.status_code == 429:
+                wait = 15 * (attempt + 1)
+                print(f"  [Rate Limit] Waiting {wait}s (attempt {attempt+1}/{retries})...")
+                time.sleep(wait)
+                continue
+            if r.status_code != 200:
+                print(f"  [Groq Error] HTTP {r.status_code}: {r.text[:150]}")
+                return None
+            content = r.json()["choices"][0]["message"]["content"]
+            if "<think>" in content:
+                import re
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+            return content
+        except Exception as e:
+            print(f"  [Groq Exception] {type(e).__name__}: {e}")
+            return None
+    return None
+
+
+# Stamped into every generated lesson. Bump this whenever the prompt or format
+# changes materially: _needs_structured_lesson() treats an older/absent marker as
+# "needs regeneration", so an improved prompt rolls out across the whole history on
+# its own instead of leaving a permanent mix of old and new analysis.
+#
+# v2 (2026-07-14): facts templated from the broker record instead of restated by the
+# model; post-exit counterfactual computed and declared authoritative (the model was
+# claiming trades "would have hit TP" on +42 pips of a 138-pip target); base rates
+# injected so a single trade is judged against the book; single-trade parameter
+# tuning explicitly forbidden.
+_LESSON_VERSION = "LESSON_V3"
+
+_OUTCOME_LABELS = {
+    "tp_hit":      "Hit Take Profit — closed in full profit",
+    "sl_hit":      "Hit Stop Loss — closed at a loss",
+    "expired":     "Trade expired due to time limit before SL/TP",
+    "invalidated": "Trade was manually closed or managed out before SL/TP",
+}
+
+# Outcomes that represent a managed/neutral close (not a clean win or clean loss)
+_NEUTRAL_OUTCOMES = {"invalidated", "expired"}
+
+
+def _classify_trade(trade: dict, profit_val: float) -> str:
+    """Return 'win', 'neutral', or 'loss' for a closed trade based on the outcome/close reason."""
+    outcome = str(trade.get("outcome", "")).lower().strip()
+    if outcome == "tp_hit":
+        return "win"
+    elif outcome == "sl_hit":
+        return "loss"
+    else:
+        return "neutral"
+
+
+def _needs_structured_lesson(t: dict) -> bool:
+    """Return True if this trade's lesson is missing, wrong format, or needs hindsight update."""
+    lesson = t.get("lesson") or ""
+    if not lesson.strip():
+        return True
+    if "Post-Mortem:" in lesson:
+        return True
+    # Older prompt version -> regenerate. Lets a prompt improvement propagate across
+    # the whole history via the normal loop, rather than leaving old, worse analysis
+    # (fabricated counterfactuals, n=1 parameter tuning) sitting on the cards forever.
+    if _LESSON_VERSION not in lesson:
+        return True
+    if "<strong>" not in lesson:
+        return True
+    if "£" not in lesson:
+        return True
+
+    # Corrupt lesson: exit price printed as None
+    if "at None" in lesson:
+        return True
+
+    # Corrupt lesson: £0.00 shown but the setup has no profit recorded
+    # (applies to ALL outcomes - invalidated/expired trades can also have real P&L)
+    if "£0.00" in lesson:
+        profit_raw = t.get("profit") or t.get("pnl")
+        # If profit field is None/missing, the lesson definitely used a fallback of 0
+        if profit_raw is None:
+            return True
+        try:
+            if abs(float(profit_raw)) < 0.01:
+                # profit really is zero - only allow £0.00 if outcome is neutral
+                outcome_inner = str(t.get("outcome", "")).lower()
+                if outcome_inner in ("tp_hit", "sl_hit"):
+                    return True  # TP/SL should never be exactly £0.00
+        except (TypeError, ValueError):
+            return True
+
+    # Corrupt lesson: absurd pip count (more than 5 digits)
+    import re as _re2
+    if _re2.search(r'[\d]{5,}\s*pips', lesson):
+        return True
+
+    # Regenerate lesson if hindsight check has run/finalized but isn't yet reflected in the lesson
+    features = t.get("setup_features") or {}
+    hindsight_checked = features.get("hindsight_checked", False)
+    if hindsight_checked and "Hindsight Check:" not in lesson:
+        return True
+
+    # Detect which category is encoded in the stored lesson HTML
+    first_100 = lesson[:100]
+    if "✅" in first_100:
+        stored_cat = "win"
+    elif "🔄" in first_100:
+        stored_cat = "neutral"
+    elif "❌" in first_100:
+        stored_cat = "loss"
+    else:
+        return True
+
+    # Extract profit to classify
+    profit_raw = t.get("profit") or t.get("pnl") or 0
+    try:
+        profit_val = float(profit_raw)
+    except (TypeError, ValueError):
+        profit_val = 0.0
+
+    if profit_val == 0.0:
+        import re
+        m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", lesson)
+        if m:
+            try:
+                profit_val = float(m.group(1))
+            except ValueError:
+                pass
+
+    if profit_val == 0.0:
+        matched_profit = _fetch_mt4_profit(t, headers)
+        if matched_profit is not None:
+            profit_val = matched_profit
+
+    cat = _classify_trade(t, profit_val)
+    if stored_cat != cat:
+        return True
+
+    # Stale linkage: the lesson is bound to a ticket that the authoritative SL+TP
+    # signature disagrees with, so its exit price and P&L were taken from ANOTHER
+    # trade. Format and category look fine, so nothing else here catches it —
+    # without this check the corrupted lessons would never be regenerated.
+    import re as _re
+    truth = _match_mt4_trade(t, headers)
+    m = _re.search(r"TICKET_ID:\s*(\d+)", lesson)
+    if m and truth and str(truth.get("ticket")) != m.group(1):
+        return True
+
+    # Stale FIGURES. A lesson is generated the moment a setup resolves, but MT4 keeps
+    # updating the trade afterwards — partial exits settle and the final fill lands —
+    # so a lesson written mid-flight freezes a P&L that later changes (e.g. quoting
+    # £-20.69 for a trade that finished at £-73.22, while the card header shows the
+    # real number). The ticket, category and version checks all PASS in that case, so
+    # without this the wrong figures would sit on the card forever.
+    if truth:
+        real = float(truth.get("profit") or 0.0)
+        # The first £ amount is the templated "What Happened" P&L; later ones are
+        # base-rate stats.
+        mp = _re.search(r"£\s*(-?[\d,]+\.\d{2})", lesson)
+        if mp:
+            try:
+                quoted = float(mp.group(1).replace(",", ""))
+            except ValueError:
+                return True
+            if abs(quoted - real) > 0.01:
+                return True
+    return False
+
+
+# Matching tolerance. The engine SENDS sl/tp with the order and MT4 stores them
+# verbatim, so (symbol, direction, sl, tp) is effectively a primary key for "which
+# trade did this setup become". Measured on live data: at 0.1 pip it uniquely
+# identifies 78/88 (88.6%) of trades; loosening to 2.0 pips DROPS that to 64/88 with
+# 18 ambiguous. Tighter is strictly better.
+#
+# Entry price is deliberately NOT a filter: it slips, so it cannot identify a trade.
+# The previous heuristic hard-filtered on entry +/-150 pips and treated sl/tp as a
+# soft score (scoring a MISSING value as a perfect match), which systematically
+# linked each setup to a NEIGHBOURING trade's ticket — e.g. every GBP/NZD setup was
+# bound to the next setup's ticket, so lessons quoted another trade's exit and P&L.
+_SLTP_TOL_PIPS = 0.1
+
+
+_MT4_TRADES_CACHE = None
+_MT4_TRADES_URL = ("https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades"
+                   "?order=open_time.desc&limit=500")
+
+
+def _mt4_trades(headers: dict) -> list:
+    """MT4 trade list, fetched once per process. Matching is called for every trade
+    in the batch, so re-fetching 500 rows per call was pure waste."""
+    global _MT4_TRADES_CACHE
+    if _MT4_TRADES_CACHE is None:
+        try:
+            from apex_quant.storage.supabase_util import fetch_all_rows
+            url = f"https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades?order=open_time.desc&or=(ticket.neq.{int(time.time())})"
+            _MT4_TRADES_CACHE = fetch_all_rows(url, headers)
+        except Exception as e:
+            print(f"  [WARN] Failed to fetch MT4 trades: {e}")
+            _MT4_TRADES_CACHE = []
+    return _MT4_TRADES_CACHE
+
+
+def _pip_size(symbol: str) -> float:
+    return 0.01 if "JPY" in (symbol or "").upper() else 0.0001
+
+
+def _clean_symbol(symbol: str) -> str:
+    return (symbol or "").replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+
+
+def _match_mt4_trade(setup: dict, headers: dict) -> dict | None:
+    """Return the MT4 trade this setup actually became, matched on its exact SL+TP
+    signature — or None.
+
+    None is a correct, expected answer: most setups are analysed but never executed.
+    Returning None is strictly better than guessing, because a wrong match silently
+    puts another trade's exit price and P&L into the post-mortem.
+    """
+    clean_sym = _clean_symbol(setup.get("symbol", ""))
+    m_verdict = str(setup.get("verdict", "")).upper().strip()
+    try:
+        m_sl = float(setup.get("stop_loss") or 0.0)
+        m_tp = float(setup.get("target_price") or 0.0)
+        m_price = float(setup.get("price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+
+    url = ("https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades"
+           "?order=open_time.desc&limit=500")
+
+    # Fast path: the setup carries a real ticket (written at resolution time, when the
+    # linkage is known for certain). Exact join — no heuristic needed.
+    linked_ticket = setup.get("ticket")
+    if linked_ticket:
+        hit = next((t for t in _mt4_trades(headers)
+                    if str(t.get("ticket")) == str(linked_ticket)), None)
+        if hit:
+            return hit
+        # fall through to the signature match
+
+    if m_sl <= 0 or m_tp <= 0:
+        return None  # no signature -> cannot be matched honestly
+
+    tol = _SLTP_TOL_PIPS * _pip_size(clean_sym)
+    try:
