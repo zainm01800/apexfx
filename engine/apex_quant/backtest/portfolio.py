@@ -77,6 +77,7 @@ class PortfolioBacktester:
         use_regime: bool = True,
         vol_window: int = 63,
         corr_window: int = 63,
+        exit_mode: Literal["managed", "barrier"] = "managed",
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -84,6 +85,7 @@ class PortfolioBacktester:
         self.use_regime = use_regime
         self.vol_window = vol_window
         self.corr_window = corr_window
+        self.exit_mode = exit_mode
         self._regime = RuleBasedRegime()
         self.trade_manager = TradeManager()
         self._mech_cache: dict = {}
@@ -182,7 +184,7 @@ class PortfolioBacktester:
         eq_points: list[tuple[pd.Timestamp, float]] = []
 
         for t in timeline:
-            # 1. manage exits on open positions via TradeManager
+            # 1. manage exits on open positions via TradeManager or barrier check
             for inst in list(open_pos.keys()):
                 d = data[inst]
                 i = d["pos"].get(t)
@@ -190,42 +192,56 @@ class PortfolioBacktester:
                     continue
                 posd = open_pos[inst]
 
-                # Prepare past 22 bars high/low window for Chandelier trail
-                high_window = d["high"][max(0, i-21):i+1]
-                low_window = d["low"][max(0, i-21):i+1]
-                bars_history = {
-                    "high": float(high_window.max()),
-                    "low": float(low_window.min()),
-                    "len": i + 1,
-                }
+                if self.exit_mode == "barrier":
+                    exit_price, exit_reason = self._check_exit(
+                        posd, d["high"][i], d["low"][i], d["close"][i], i, d["hold"], inst
+                    )
+                    if exit_reason != "":
+                        realized_pnl = self._pnl(posd, exit_price)
+                        realized += realized_pnl - d["commission"]
+                        posd["realized_pnl_total"] += (realized_pnl - d["commission"])
+                        
+                        trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
+                        per_inst[inst]["n_trades"] += 1
+                        per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                        del open_pos[inst]
+                else:
+                    # Prepare past 22 bars high/low window for Chandelier trail
+                    high_window = d["high"][max(0, i-21):i+1]
+                    low_window = d["low"][max(0, i-21):i+1]
+                    bars_history = {
+                        "high": float(high_window.max()),
+                        "low": float(low_window.min()),
+                        "len": i + 1,
+                    }
 
-                def fill_fn(price, buying, inst_name=inst):
-                    return self._fill(price, inst_name, buying)
+                    def fill_fn(price, buying, inst_name=inst):
+                        return self._fill(price, inst_name, buying)
 
-                realized_pnl, exit_reason = self.trade_manager.update_position(
-                    position=posd,
-                    high=d["high"][i],
-                    low=d["low"][i],
-                    close=d["close"][i],
-                    atr=d["atr"][i],
-                    is_squeeze=bool(d["squeeze"][i]),
-                    bars_history=bars_history,
-                    timeframe=posd["tf"],
-                    pip_size=self._pip(inst),
-                    fill_fn=fill_fn,
-                )
+                    realized_pnl, exit_reason = self.trade_manager.update_position(
+                        position=posd,
+                        high=d["high"][i],
+                        low=d["low"][i],
+                        close=d["close"][i],
+                        atr=d["atr"][i],
+                        is_squeeze=bool(d["squeeze"][i]),
+                        bars_history=bars_history,
+                        timeframe=posd["tf"],
+                        pip_size=self._pip(inst),
+                        fill_fn=fill_fn,
+                    )
 
-                if realized_pnl != 0.0 or exit_reason != "":
-                    # Subtract commission for any close transaction
-                    realized += realized_pnl - d["commission"]
-                    posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
+                    if realized_pnl != 0.0 or exit_reason != "":
+                        # Subtract commission for any close transaction
+                        realized += realized_pnl - d["commission"]
+                        posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
 
-                if exit_reason != "":
-                    exit_price = d["close"][i] if exit_reason == "time" else (posd["stop"] if exit_reason == "stop" else posd["target"])
-                    trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
-                    per_inst[inst]["n_trades"] += 1
-                    per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
-                    del open_pos[inst]
+                    if exit_reason != "":
+                        exit_price = d["close"][i] if exit_reason == "time" else (posd["stop"] if exit_reason == "stop" else posd["target"])
+                        trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
+                        per_inst[inst]["n_trades"] += 1
+                        per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                        del open_pos[inst]
 
             # 2. execute pending entries at THIS bar's open
             for inst in list(pending.keys()):
