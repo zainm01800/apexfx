@@ -1598,3 +1598,203 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
         is_fx_instrument = "/" in sym
         max_age = {
             "5m":  1200  if not is_fx_instrument else  7200,   # 20min / 2hrs
+            "15m": 2700  if not is_fx_instrument else 14400,   # 45min / 4hrs
+            "1h":  10800 if not is_fx_instrument else 21600,   # 3hrs  / 6hrs
+            "1d":  129600,   # 36 hours (handles weekend close / daily data lag)
+            "1w":  691200    # 8 days
+        }.get(tf, 86400)
+        
+        if age_seconds > max_age:
+            print(f"  [SKIPPED] {sym} ({tf}) -> Latest bar data is stale (age: {age_seconds/3600:.1f} hours old)")
+            return
+            
+        sig = strat.generate(pit, latest_time, instrument=sym)
+        
+        # ── Apply DeepSeek sentiment veto filter ──────────────────────
+        sig = apply_deepseek_sentiment(sig, sym, fetch_headlines, cfg=cfg)
+        # ───────────────────────────────────────────────────────────────
+        
+        # ── Apply DeepSeek structural risk veto filter ────────────────
+        if sig.direction.value.upper() != "FLAT":
+            permitted, reason = apply_deepseek_structural_veto(sym, sig.direction.value, df, cfg)
+            if not permitted:
+                print(f"  [STRUCTURAL VETO] Vetoed trade for {sym}: {reason}")
+                sig = sig.model_copy(update={
+                    "direction": Direction.FLAT,
+                    "probability": 0.5,
+                    "confidence": 0.0,
+                    "rationale": sig.rationale + f" | STRUCTURAL-VETO: {reason}"
+                })
+        # ───────────────────────────────────────────────────────────────
+        
+        # Check if we have an active trade for this symbol/timeframe
+        active_trade = active_trades_map.get((sym.upper(), tf.lower()))
+        
+        if active_trade:
+            # Determine if this trade was opened by the engine (auto) or by the EA/manually
+            setup_features = active_trade.get("setup_features") or {}
+            if isinstance(setup_features, str):
+                try:
+                    import json as _json
+                    setup_features = _json.loads(setup_features)
+                except Exception:
+                    setup_features = {}
+            engine_owned = bool(setup_features.get("auto", False))
+
+            # Recheck logic for existing open trade
+            trade_verdict = active_trade["verdict"].upper()
+            sig_dir = sig.direction.value.upper()
+            
+            # Map signal to actions
+            if sig_dir == "FLAT":
+                if engine_owned:
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Signal is FLAT. Engine-owned trade: suggesting early close.")
+                    add_validation_to_trade(active_trade, "CLOSE_TRADE", 100, assessment="invalidated")
+                    
+                    # Execute MT4 exit only for engine-owned positions
+                    if _EXECUTOR is not None:
+                        mt4_symbol = _normalise_symbol(sym)
+                        try:
+                            _EXECUTOR.close_position(symbol=mt4_symbol)
+                            print(f"  [EXECUTOR] Position closed for {mt4_symbol}")
+                        except Exception as ex:
+                            print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
+                            
+                    resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
+                    return
+                else:
+                    # EA/manual trade — signal went flat but we leave it alone to hit SL/TP naturally
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Signal is FLAT. EA-managed trade, leaving to run to SL/TP.")
+                    add_validation_to_trade(active_trade, "HOLD_TRADE", 50, assessment="ea_managed")
+                    return
+                
+            elif (trade_verdict in ("BUY", "LONG") and sig_dir == "SHORT") or \
+                 (trade_verdict in ("SELL", "SHORT") and sig_dir == "LONG"):
+                if engine_owned:
+                    # Reversal signal on engine-owned trade — close and flip.
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Reversal signal ({sig_dir}). Engine-owned trade: closing and flipping.")
+                    add_validation_to_trade(active_trade, "CLOSE_TRADE", int(sig.probability * 100), assessment="invalidated")
+                    
+                    # Execute MT4 exit only for engine-owned positions
+                    if _EXECUTOR is not None:
+                        mt4_symbol = _normalise_symbol(sym)
+                        try:
+                            _EXECUTOR.close_position(symbol=mt4_symbol)
+                        except Exception as ex:
+                            print(f"  [EXECUTOR WARN] Failed to close position on MT4: {ex}")
+                            
+                    resolve_trade(active_trade["id"], "invalidated", float(df["close"].iloc[-1]), datetime.utcnow().isoformat())
+                    # Fall through to trigger the new trade in the opposite direction!
+                    pass
+                else:
+                    # EA/manual trade going against current signal — note it but don't interfere
+                    print(f"  [VALIDATION] {sym} ({tf}) -> Reversal signal ({sig_dir}) vs EA-managed {trade_verdict}. Leaving EA trade to run.")
+                    add_validation_to_trade(active_trade, "HOLD_TRADE", int(sig.probability * 100), assessment="ea_managed_reversal")
+                    return
+                
+            else:
+                # Same direction, keep holding
+                print(f"  [VALIDATION] {sym} ({tf}) -> Continuing to hold {trade_verdict} position.")
+                add_validation_to_trade(active_trade, "HOLD_TRADE", int(sig.probability * 100), assessment="confirmed")
+                return
+                
+        if sig.direction.value.upper() == "FLAT":
+            print(f"  [FLAT] {sym} ({tf}) -> Strategy signal is flat (no setup)")
+            return
+            
+        if sig.direction.value.upper() != "FLAT":
+            close_p = float(df["close"].iloc[-1])
+            tr = np.maximum(df["high"] - df["low"], np.maximum(abs(df["high"] - df["close"].shift(1)), abs(df["low"] - df["close"].shift(1))))
+            atr = float(tr.rolling(14).mean().iloc[-1])
+            
+            if not (np.isfinite(atr) and atr > 0):
+                atr = close_p * 0.02
+                
+            stop_dist = params["atr_stop_mult"] * atr
+            target_dist = sig.reward_risk * stop_dist
+            
+            # Fetch live account state (equity, balance, peak_equity)
+            live_equity, live_balance, live_peak_equity = fetch_live_account_state()
+                 
+            # Fetch resolved trades history to compound virtual equity curve (for comparison)
+            all_resolved_trades = fetch_resolved_trades_for_equity()
+            virtual_equity, peak_equity = calculate_virtual_equity(all_resolved_trades)
+
+            open_trades_list = fetch_open_trades()
+            open_positions = []
+
+            for ot in open_trades_list:
+                sym_ot = ot["symbol"]
+                price_ot = _safe_float(ot.get("price")) or 0.0
+                sl_ot = _safe_float(ot.get("stop_loss"))
+                asset_class_ot = cfg.asset_class_of(sym_ot)
+                
+                quote_ot = get_quote_currency(sym_ot)
+                rate_ot = get_quote_to_account_rate(quote_ot, "GBP")
+                
+                risk_gbp = 0.0
+                if sl_ot and abs(price_ot - sl_ot) > 1e-6:
+                    stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
+                    risk_cap = 0.01 * live_equity
+                    units = risk_cap / stop_dist_ot_gbp if stop_dist_ot_gbp > 0 else 1000.0
+                    if asset_class_ot == "forex":
+                        units = min(units, 500000.0)
+                    else:
+                        units = min(units, 1000.0)
+                    trade_notional = units * (price_ot * rate_ot)
+                    risk_gbp = units * stop_dist_ot_gbp
+                else:
+                    price_ot_gbp = price_ot * rate_ot
+                    if asset_class_ot == "forex":
+                        trade_notional = price_ot_gbp * 10000.0
+                    else:
+                        trade_notional = price_ot_gbp * 1.0
+                        
+                open_positions.append(OpenPosition(
+                    instrument=sym_ot,
+                    direction=Direction.LONG if ot["verdict"] in ("BUY", "LONG") else Direction.SHORT,
+                    notional=trade_notional,
+                    risk=risk_gbp,
+                    timeframe=map_timeframe(ot.get("timeframe", "1h")),
+                ))
+            
+            account_state = AccountState(
+                equity=live_equity,
+                peak_equity=live_peak_equity,
+                open_positions=open_positions
+            )
+            
+            if sig.direction.value.upper() == "LONG":
+                sl = close_p - stop_dist
+                tp = close_p + target_dist
+            else:
+                sl = close_p + stop_dist
+                tp = close_p - target_dist
+                
+            # ── Bayesian Risk Sizing Integration ──
+            try:
+                # 1. Fetch current active trades for correlation check
+                print(f"  [SIGNAL] {sym} -> Direction: {sig.direction.value.upper()} | Win Prob: {sig.probability:.1%} | R:R: {sig.reward_risk:.1f}:1")
+                
+                # 2. Volatility estimate via Yang-Zhang
+                yz_vol_calc = YangZhangVol(window=21)
+                ann_vol = yz_vol_calc.compute(pit, latest_time)
+                if not np.isfinite(ann_vol) or ann_vol <= 0:
+                    ann_vol = 0.20 # 20% default
+                
+                quote_cand = get_quote_currency(sym)
+                rate_cand = get_quote_to_account_rate(quote_cand, "GBP")
+                
+                market_state = MarketState(
+                    instrument=sym,
+                    price=close_p,
+                    ann_vol=ann_vol,
+                    atr=atr,
+                    quote_to_account_rate=rate_cand,
+                    correlations=(corr_matrix or {}).get(sym, {})
+                )
+                
+                # 3. Create signal
+                direction_enum = Direction.LONG if sig.direction.value.upper() == "LONG" else Direction.SHORT
+                risk_sig = Signal(
+                    instrument=sym,
