@@ -54,6 +54,7 @@ def run_cpcv(
     *,
     cfg: AppConfig | None = None,
     horizon: int = 10,
+    exit_mode: str = "managed",
 ) -> dict:
     """Run CPCV for one configuration. Returns the OOS Sharpe distribution across
     paths (per-period Sharpes), plus aggregate stats."""
@@ -64,7 +65,7 @@ def run_cpcv(
     n = len(df)
 
     splits = cpcv_splits(n, c.n_groups, c.n_test_groups, c.embargo_pct, purge=horizon)
-    bt = Backtester(cfg)
+    bt = Backtester(cfg, exit_mode=exit_mode)
     oos_sharpes: list[float] = []
 
     for train_idx, test_idx in splits:
