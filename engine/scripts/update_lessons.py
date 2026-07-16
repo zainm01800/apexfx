@@ -282,7 +282,10 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
 # claiming trades "would have hit TP" on +42 pips of a 138-pip target); base rates
 # injected so a single trade is judged against the book; single-trade parameter
 # tuning explicitly forbidden.
-_LESSON_VERSION = "LESSON_V3"
+# v4 (2026-07-16): MT4 cache cleared per-lesson to prevent stale data corruption
+# in long-lived batch runs; setup_features.exit_price / profit_pnl used as
+# authoritative source when already backfilled from the broker record.
+_LESSON_VERSION = "LESSON_V4"
 
 _OUTCOME_LABELS = {
     "tp_hit":      "Hit Take Profit — closed in full profit",
@@ -438,13 +441,18 @@ _SLTP_TOL_PIPS = 0.1
 _MT4_TRADES_CACHE = None
 _MT4_TRADES_URL = ("https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades"
                    "?order=open_time.desc&limit=500")
+# Set to True before each lesson build, False after — forces a fresh MT4 fetch per
+# lesson so that stale cached data from earlier in a long batch run cannot corrupt
+# the profit figure or exit price of a later lesson.
+_MT4_CACHE_NEEDS_REFRESH = False
 
 
 def _mt4_trades(headers: dict) -> list:
-    """MT4 trade list, fetched once per process. Matching is called for every trade
-    in the batch, so re-fetching 500 rows per call was pure waste."""
-    global _MT4_TRADES_CACHE
-    if _MT4_TRADES_CACHE is None:
+    """MT4 trade list. Re-fetched when _MT4_CACHE_NEEDS_REFRESH is True so that
+    long-lived batch runs don't serve stale profit data to later lessons."""
+    global _MT4_TRADES_CACHE, _MT4_CACHE_NEEDS_REFRESH
+    if _MT4_TRADES_CACHE is None or _MT4_CACHE_NEEDS_REFRESH:
+        _MT4_CACHE_NEEDS_REFRESH = False
         try:
             from apex_quant.storage.supabase_util import fetch_all_rows
             url = f"https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades?order=open_time.desc&or=(ticket.neq.{int(time.time())})"
@@ -606,6 +614,11 @@ def _base_rates_text(headers: dict, symbol: str, style: str) -> str:
 
 def _build_lesson(trade: dict) -> str | None:
     """Generate a structured 4-part HTML post-mortem using Groq."""
+    global _MT4_CACHE_NEEDS_REFRESH
+    # Force a fresh MT4 fetch for this lesson so stale cached data from earlier
+    # in a long batch run cannot corrupt exit price or profit figures.
+    _MT4_CACHE_NEEDS_REFRESH = True
+
     sym       = trade.get("symbol", "?")
     direction = trade.get("verdict", "?")
     entry     = trade.get("price", "?")
@@ -624,49 +637,73 @@ def _build_lesson(trade: dict) -> str | None:
     import re
     initial_lesson = trade.get("lesson") or ""
 
-    # Resolve the MT4 trade from the setup's own SL+TP signature. This is
-    # AUTHORITATIVE: previously the ticket was scraped out of the PREVIOUS lesson's
-    # text, so once a bad match was baked in it was inherited forever and then
-    # presented to the frontend as an "exact" ticket match. Deriving it from the
-    # signature every time is self-healing — a wrong historical link gets corrected
-    # on the next regeneration.
-    ticket_id = None
-    matched_trade = _match_mt4_trade(trade, headers)
-    if matched_trade:
-        ticket_id = str(matched_trade.get("ticket"))
-        profit_val = float(matched_trade.get("profit") or 0.0)
-        # Quote the REAL broker fill, not the setup's *intended* levels. The setup row
-        # stores the price the engine wanted (e.g. 1.19936); MT4 filled at 1.19948 and
-        # closed at 1.19741. The dashboard card shows the broker's numbers, so the
-        # lesson must use the same ones or the two visibly disagree.
-        exit_px = float(matched_trade.get("close_price") or 0.0)
-        if exit_px > 0:
-            trade = {**trade, "outcome_price": exit_px}
-        open_px = float(matched_trade.get("open_price") or 0.0)
-        if open_px > 0:
-            entry = open_px
+    # Fast path: when setup_features already contains authoritative MT4 figures
+    # (backfilled by the backfill_tickets / setup job), use them directly rather
+    # than re-running _match_mt4_trade — the matcher can return a different trade
+    # when the SL/TP signature is shared, which causes the wrong P&L to be quoted.
+    features = trade.get("setup_features") or {}
+    sf_exit  = features.get("exit_price")
+    sf_pnl   = features.get("profit_pnl")
+    ticket_id = str(trade.get("ticket")) if trade.get("ticket") else None
+
+    if ticket_id and sf_exit is not None and sf_pnl is not None:
+        # Authoritative broker data already on the card — use it directly.
+        try:
+            profit_val = float(sf_pnl)
+            exit_px = float(sf_exit)
+            if exit_px > 0:
+                trade = {**trade, "outcome_price": exit_px}
+            # Still look up the MT4 trade for entry price accuracy
+            matched_trade = _match_mt4_trade(trade, headers)
+            if matched_trade:
+                open_px = float(matched_trade.get("open_price") or 0.0)
+                if open_px > 0:
+                    entry = open_px
+        except (TypeError, ValueError):
+            pass
     else:
-        # No signature match -> fall back to any ticket recorded previously, but do
-        # NOT invent a profit from a guessed trade.
-        m_ticket = (re.search(r"Matched MT4 ticket (\d+)", initial_lesson)
-                    or re.search(r"TICKET_ID:\s*(\d+)", initial_lesson))
-        if m_ticket:
-            ticket_id = m_ticket.group(1)
+        # Resolve the MT4 trade from the setup's own SL+TP signature. This is
+        # AUTHORITATIVE: previously the ticket was scraped out of the PREVIOUS lesson's
+        # text, so once a bad match was baked in it was inherited forever and then
+        # presented to the frontend as an "exact" ticket match. Deriving it from the
+        # signature every time is self-healing — a wrong historical link gets corrected
+        # on the next regeneration.
+        matched_trade = _match_mt4_trade(trade, headers)
+        if matched_trade:
+            ticket_id = str(matched_trade.get("ticket"))
+            profit_val = float(matched_trade.get("profit") or 0.0)
+            # Quote the REAL broker fill, not the setup's *intended* levels. The setup row
+            # stores the price the engine wanted (e.g. 1.19936); MT4 filled at 1.19948 and
+            # closed at 1.19741. The dashboard card shows the broker's numbers, so the
+            # lesson must use the same ones or the two visibly disagree.
+            exit_px = float(matched_trade.get("close_price") or 0.0)
+            if exit_px > 0:
+                trade = {**trade, "outcome_price": exit_px}
+            open_px = float(matched_trade.get("open_price") or 0.0)
+            if open_px > 0:
+                entry = open_px
+        else:
+            # No signature match -> fall back to any ticket recorded previously, but do
+            # NOT invent a profit from a guessed trade.
+            m_ticket = (re.search(r"Matched MT4 ticket (\d+)", initial_lesson)
+                        or re.search(r"TICKET_ID:\s*(\d+)", initial_lesson))
+            if m_ticket:
+                ticket_id = m_ticket.group(1)
 
-    if profit_val == 0.0 and initial_lesson and "Resolved automatically" in initial_lesson:
-        m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", initial_lesson)
-        if m:
-            try:
-                profit_val = float(m.group(1))
-            except ValueError:
-                pass
+        if profit_val == 0.0 and initial_lesson and "Resolved automatically" in initial_lesson:
+            m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", initial_lesson)
+            if m:
+                try:
+                    profit_val = float(m.group(1))
+                except ValueError:
+                    pass
 
-    # For any setup where profit is still 0 or None, ALWAYS try the MT4 match.
-    # This covers invalidated/expired trades where profit was never written back.
-    if profit_val == 0.0 or profit_raw is None:
-        matched_profit = _fetch_mt4_profit(trade, headers)
-        if matched_profit is not None:
-            profit_val = matched_profit
+        # For any setup where profit is still 0 or None, ALWAYS try the MT4 match.
+        # This covers invalidated/expired trades where profit was never written back.
+        if profit_val == 0.0 or profit_raw is None:
+            matched_profit = _fetch_mt4_profit(trade, headers)
+            if matched_profit is not None:
+                profit_val = matched_profit
 
     outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
     category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss'
