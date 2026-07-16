@@ -80,13 +80,27 @@ def test_pending_and_filled_partitions():
 
 
 def test_heartbeat_liveness():
+    from apex_quant.execution.mt4_clock import set_live_broker_offset, mt4_utc_offset_seconds
+    set_live_broker_offset(None)
+    
     p = ExecutionProtocol()
     assert p.seconds_since_heartbeat() is None
     assert p.is_alive(30) is False
-    now = 1000.0
-    p.on_message({"type": "heartbeat", "ts": now})
-    assert p.is_alive(30, now=now + 10) is True
-    assert p.is_alive(30, now=now + 40) is False  # stale
+    
+    # Use time.time() since ZMQBridge uses it internally in on_message
+    import time
+    now_ts = time.time()
+    server_time = now_ts + 10800
+    
+    p.on_message({"type": "heartbeat", "ts": now_ts, "server_time": server_time})
+    assert p.is_alive(30, now=now_ts + 10) is True
+    assert p.is_alive(30, now=now_ts + 40) is False  # stale
+    
+    assert p.broker_offset_seconds is not None
+    assert abs(p.broker_offset_seconds - 10800) < 1.0
+    assert abs(mt4_utc_offset_seconds() - 10800) < 1.0
+    
+    set_live_broker_offset(None)
 
 
 def test_reconcile_detects_drift():
