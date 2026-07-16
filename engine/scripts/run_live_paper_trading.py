@@ -998,3 +998,203 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
             return True
         print(f"Failed to create new trade for {symbol}: {r.status_code} - {r.text}")
     except Exception as e:
+        print(f"Connection error creating new trade: {e}")
+    return False
+
+def parse_trade_entry_ts(row: dict) -> float:
+    """Extract Unix timestamp of trade creation."""
+    if "created_at" in row and row["created_at"]:
+        try:
+            return pd.to_datetime(row["created_at"]).timestamp()
+        except Exception:
+            pass
+    import re
+    m = re.search(r"_(\d{10,})$", str(row.get("id", "")))
+    if m:
+        return float(m.group(1))
+    if "analysis_date" in row and row["analysis_date"]:
+        try:
+            return pd.to_datetime(row["analysis_date"]).timestamp()
+        except Exception:
+            pass
+    return datetime.utcnow().timestamp()
+
+def safe_load_json(file_path: str, retries: int = 3, delay: float = 0.1):
+    """Load JSON from a file with retries to avoid race conditions with MT4 writing."""
+    for i in range(retries):
+        try:
+            with open(file_path, "r") as f:
+                content = f.read().strip()
+                if content:
+                    return json.loads(content)
+        except Exception:
+            pass
+        time.sleep(delay)
+    with open(file_path, "r") as f:
+        return json.load(f)
+
+def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, float]:
+    """Retrieve actual live account equity, balance, and peak balance/equity from Supabase or local MT4 file."""
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if common_dir:
+        account_file = os.path.join(common_dir, "mt4_account.json")
+        if os.path.exists(account_file):
+            try:
+                account_data = safe_load_json(account_file)
+                eq = float(account_data.get("equity", default_equity))
+                bal = float(account_data.get("balance", default_equity))
+                start_bal = float(account_data.get("start_balance", default_equity))
+                peak_eq = max(start_bal, bal, eq)
+                if eq > 0 and bal > 0:
+                    return eq, bal, peak_eq
+            except Exception:
+                pass
+                
+    # Fallback to Supabase
+    url = f"{SUPABASE_URL}/rest/v1/apex_mt4_account?id=eq.1&select=*"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code == 200 and r.json():
+            data = r.json()[0]
+            eq = float(data.get("equity", default_equity))
+            bal = float(data.get("balance", default_equity))
+            start_bal = float(data.get("start_balance", default_equity))
+            peak_eq = max(start_bal, bal, eq)
+            if eq > 0 and bal > 0:
+                return eq, bal, peak_eq
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch live account stats from database: {e}")
+        
+    return default_equity, default_equity, default_equity
+
+def get_quote_currency(symbol: str) -> str:
+    """Extract quote currency from a symbol, handling various formats (EUR/USD, EURUSD, EURUSD-g)."""
+    s = symbol.split("-")[0].split(".")[0].split("_")[0].upper().strip()
+    if "/" in s:
+        return s.split("/")[-1]
+    if len(s) == 6:
+        return s[3:]
+    return "GBP"
+
+def get_quote_to_account_rate(quote: str, account_currency: str = "GBP") -> float:
+    """Retrieve the exchange rate converting 1 unit of quote currency to account currency."""
+    if not quote or quote.upper() == account_currency.upper():
+        return 1.0
+    pair = f"{account_currency.upper()}/{quote.upper()}"
+    try:
+        start_dt = (datetime.utcnow() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+        end_dt = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        df = clean(data_provider.get_history(pair, start=start_dt, end=end_dt, timeframe="1d"))
+        if not df.empty:
+            rate_gbp_quote = float(df["close"].iloc[-1])
+            if rate_gbp_quote > 0:
+                return 1.0 / rate_gbp_quote
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch live rate for {pair}: {e}")
+    # Static fallback values if database or provider fails
+    fallbacks = {
+        ("USD", "GBP"): 1.0 / 1.30,
+        ("CHF", "GBP"): 1.0 / 1.14,
+        ("CAD", "GBP"): 1.0 / 1.77,
+        ("NZD", "GBP"): 1.0 / 2.10,
+        ("JPY", "GBP"): 1.0 / 206.0,
+        ("EUR", "GBP"): 1.0 / 0.84
+    }
+    return fallbacks.get((quote.upper(), account_currency.upper()), 1.0)
+
+_correlation_matrix_cache = {}
+_correlation_matrix_last_fetched = 0.0
+
+def get_portfolio_correlation_matrix(lookback_days=30):
+    """Compute rolling correlation matrix between core portfolio symbols using last lookback_days daily closes."""
+    global _correlation_matrix_cache, _correlation_matrix_last_fetched
+    now = time.time()
+    if now - _correlation_matrix_last_fetched < 3600 and _correlation_matrix_cache:
+        return _correlation_matrix_cache
+        
+    print("  [INFO] Computing live portfolio correlation matrix...")
+    start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    
+    unique_symbols = list(set([item["instrument"] for item in ROBUST_CORE_PORTFOLIO]))
+    price_series = {}
+    for sym in unique_symbols:
+        try:
+            df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe="1d"))
+            if not df.empty:
+                price_series[sym] = df["close"]
+        except Exception as e:
+            print(f"  [WARN] Failed to fetch correlation history for {sym}: {e}")
+            
+    if not price_series:
+        return {}
+        
+    try:
+        combined_df = pd.DataFrame(price_series).ffill().bfill()
+        corr_matrix = combined_df.corr().to_dict()
+        _correlation_matrix_cache = corr_matrix
+        _correlation_matrix_last_fetched = now
+        print(f"  [INFO] Portfolio correlation matrix computed successfully. Cache updated.")
+        return corr_matrix
+    except Exception as e:
+        print(f"  [WARN] Error computing correlation matrix: {e}")
+        return {}
+
+def map_timeframe(tf_str: str) -> str:
+    """Map database timeframe to Yahoo Finance interval."""
+    tf = str(tf_str).lower()
+    if "15m" in tf or "scalp" in tf:
+        return "15m"
+    if "1h" in tf or "intraday" in tf:
+        return "1h"
+    return "1d"
+
+def check_single_trade(t):
+    """Worker to check a single trade state using its native timeframe and wick data."""
+    sym = t["symbol"]
+    trade_id = t["id"]
+    direction = t["verdict"]
+    sl = _safe_float(t.get("stop_loss")) or 0.0
+    tp = _safe_float(t.get("target_price")) or 0.0
+    tf = map_timeframe(t.get("timeframe", "1d"))
+    
+    try:
+        entry_ts = parse_trade_entry_ts(t)
+        now_ts = datetime.utcnow().timestamp()
+        age_seconds = now_ts - entry_ts
+        
+        if tf == "15m":
+            lookback_days = min(50, max(3, int(age_seconds / 86400) + 1))
+        elif tf == "1h":
+            lookback_days = min(700, max(7, int(age_seconds / 86400) + 1))
+        else:
+            lookback_days = max(30, int(age_seconds / 86400) + 1)
+            
+        start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
+        if df.empty:
+            return
+            
+        # Filter for candles starting on or after the entry timestamp (with a 1-minute buffer)
+        df_timestamps = df.index.tz_localize(None).view("int64") // 10**9
+        df_after = df.loc[df_timestamps >= (entry_ts - 60)]
+        
+        if df_after.empty:
+            return
+            
+        curr_time = datetime.utcnow().isoformat()
+        
+        # Check chronologically
+        for timestamp, bar in df_after.iterrows():
+            high_p = float(bar["high"])
+            low_p = float(bar["low"])
+            bar_time = timestamp.tz_localize(None).isoformat()
+            
+            if direction == "BUY" or direction == "LONG":  # LONG
+                if low_p <= sl:
+                    resolve_trade(trade_id, "sl_hit", sl, bar_time)
+                    return
+                elif high_p >= tp:
+                    resolve_trade(trade_id, "tp_hit", tp, bar_time)
