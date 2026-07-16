@@ -398,3 +398,203 @@ _BAYESIAN_SIZER = BayesianRiskSizer(
     frac_kelly=0.25,
     min_risk=0.005,
     max_risk=0.02,
+    max_drawdown=0.15,
+    min_trades_for_adaptation=5  # adapt quickly using historical demo data
+)
+
+def fetch_resolved_trades_for_equity():
+    """Fetch all resolved setups (wins and losses) from Supabase."""
+    url = f"{MEMORY_ENDPOINT}?outcome=in.(tp_hit,sl_hit)"
+    try:
+        from apex_quant.storage.supabase_util import fetch_all_rows
+        return fetch_all_rows(url, headers)
+    except Exception as e:
+        print(f"Error fetching resolved setups: {e}")
+    return []
+
+def calculate_virtual_equity(trades, initial_equity=300000.0, risk_pct=0.01):
+    """Compute virtual compounded equity from historical trade performance.
+    Defaults to $300k starting capital (three 100k accounts)."""
+    equity = initial_equity
+    peak_equity = initial_equity
+    
+    # Sort chronologically by entry timestamp
+    trades.sort(key=lambda t: parse_trade_entry_ts(t))
+    
+    for t in trades:
+        outcome = t.get("outcome")
+        if outcome not in ("tp_hit", "sl_hit"):
+            continue
+            
+        # Parse risk_reward (e.g. "1:1.5")
+        rr = 1.5
+        rr_str = t.get("risk_reward", "")
+        if ":" in rr_str:
+            try:
+                parts = rr_str.split(":")
+                val1 = float(parts[0])
+                val2 = float(parts[1])
+                rr = max(val1, val2) / min(val1, val2)
+            except Exception:
+                pass
+                
+        risk_amount = equity * risk_pct
+        if outcome == "tp_hit":
+            equity += risk_amount * rr
+        elif outcome == "sl_hit":
+            equity -= risk_amount
+            
+        if equity > peak_equity:
+            peak_equity = equity
+            
+    return equity, peak_equity
+
+def units_to_lots(symbol: str, units: float, cost_model: str) -> float:
+    """Convert raw position units to MT4 lot sizes."""
+    if cost_model == "pips":
+        lots = units / 100000.0
+        return max(0.01, round(lots, 2))
+    else:
+        # Crypto and equities: 1 lot = 1 unit.
+        # Allow micro-lots (down to 0.01) for crypto, but integer shares for equities.
+        is_crypto = "/USD" in symbol.upper() or "/BTC" in symbol.upper() or "-USD" in symbol.upper()
+        if is_crypto:
+            return max(0.01, round(units, 2))
+        else:
+            return max(1.0, round(units, 0))
+
+def fetch_trades_for_learning():
+    """Every resolved setup + its post-exit hindsight scan, for the Bayesian sizer."""
+    url = (f"{MEMORY_ENDPOINT}?outcome=in.(tp_hit,sl_hit,invalidated,expired)"
+           f"&select=id,symbol,outcome,setup_features,ticket")
+    try:
+        from apex_quant.storage.supabase_util import fetch_all_rows
+        return fetch_all_rows(url, headers)
+    except Exception as e:
+        print(f"Error fetching trades for learning: {e}")
+    return []
+
+
+def fetch_closed_mt4_trades():
+    """Fetch all closed MT4 trades from Supabase to match setups with profit/loss."""
+    url = f"{SUPABASE_URL}/rest/v1/apex_mt4_trades?status=eq.closed&select=ticket,profit"
+    try:
+        from apex_quant.storage.supabase_util import fetch_all_rows
+        return fetch_all_rows(url, headers)
+    except Exception as e:
+        print(f"Error fetching closed MT4 trades: {e}")
+    return []
+
+
+def initialize_bayesian_sizer_from_supabase():
+    """Teach the sizer from history — including the trades we exited early.
+
+    Every managed exit used to be invisible here, so the sizer only ever saw the
+    trades that ran to a barrier. The hindsight rescan (see
+    scripts/update_lessons.check_hindsight_trajectory) waits a timeframe-appropriate
+    number of bars after the exit and reports whether the setup WOULD have hit its
+    target or its stop, which converts those exits back into honest evidence.
+    """
+    resolved_trades = fetch_trades_for_learning()
+    if not resolved_trades:
+        return
+    resolved_trades.sort(key=lambda t: parse_trade_entry_ts(t))
+
+    # Fetch closed trades to map ticket to realized profit/loss
+    closed_trades = fetch_closed_mt4_trades()
+    ticket_to_pnl = {}
+    for ct in closed_trades:
+        tk_val = ct.get("ticket")
+        if tk_val is not None:
+            try:
+                ticket_to_pnl[int(tk_val)] = float(ct.get("profit", 0.0))
+            except (ValueError, TypeError):
+                pass
+
+    recorded = pending = 0
+    wins = good = premature = 0
+    for t in resolved_trades:
+        symbol = str(t.get("symbol", "")).upper()
+        win = resolve_learning_outcome(t)
+        if win is None:
+            pending += 1          # awaiting the hindsight scan — no information yet
+            continue
+            
+        tk = t.get("ticket")
+        pnl = None
+        if tk is not None:
+            try:
+                pnl = ticket_to_pnl.get(int(tk))
+            except (ValueError, TypeError):
+                pass
+
+        _BAYESIAN_SIZER.record_outcome(symbol, win, pnl=pnl)
+        recorded += 1
+        wins += int(win)
+        q = exit_decision_quality(t)
+        if q == "good":
+            good += 1
+        elif q == "premature":
+            premature += 1
+
+    rate = (wins / recorded * 100.0) if recorded else 0.0
+    print(f"[BAYESIAN SIZER] Learned from {recorded} resolved trades "
+          f"(win rate {rate:.1f}%); {pending} still awaiting a hindsight verdict.")
+    
+    # Log payoff details for sample instrument
+    active_instruments = [str(t.get("symbol", "")).upper() for t in resolved_trades if t.get("symbol")]
+    if active_instruments:
+        sample_inst = active_instruments[-1]
+        desc = _BAYESIAN_SIZER.describe(sample_inst)
+        if desc.get("n_pnl_trades", 0) > 0:
+            print(f"[BAYESIAN SIZER] Realized payoff status for {sample_inst}: "
+                  f"avg_win={desc.get('avg_win')}, avg_loss={desc.get('avg_loss')}, "
+                  f"realized_payoff={desc.get('realized_payoff')} (adaptation trades: {desc.get('n_pnl_trades')})")
+
+    answered = good + premature
+    if answered:
+        print(f"[EXIT QUALITY] Of {answered} early exits the market has since answered: "
+              f"{good} saved money ({good / answered * 100:.0f}%), {premature} were premature.")
+
+
+def fetch_open_trades():
+    """Fetch unresolved Forex setups from Supabase (since Oanda only trades Forex)."""
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code == 200:
+            trades = r.json()
+            forex_symbols = set(cfg.data.instruments)
+            return [t for t in trades if t.get("symbol") in forex_symbols]
+        print(f"Error fetching open setups: Supabase {r.status_code} - {r.text}")
+    except Exception as e:
+        print(f"Connection error to Supabase: {e}")
+    return []
+
+def resolve_trade(trade_id, outcome, exit_price, exit_date):
+    """PATCH trade outcome to Supabase."""
+    url = f"{MEMORY_ENDPOINT}?id=eq.{trade_id}"
+    payload = {
+        "outcome": outcome,
+        "outcome_price": float(exit_price),
+        "outcome_date": exit_date
+    }
+    try:
+        r = httpx.patch(url, headers=headers, json=payload)
+        if r.status_code in (200, 204):
+            print(f"  [resolved] Trade {trade_id} closed as {outcome} at price {exit_price}")
+            return True
+        print(f"Failed to update trade {trade_id}: {r.status_code} - {r.text}")
+    except Exception as e:
+        print(f"Connection error to Supabase updating trade: {e}")
+    return False
+
+
+def add_validation_to_trade(trade, verdict, confidence, assessment="confirmed"):
+    """Append a validation/re-check record to an open trade in Supabase."""
+    trade_id = trade["id"]
+    current_vals = trade.get("validations") or []
+    if isinstance(current_vals, str):
+        try:
+            current_vals = json.loads(current_vals)
+        except Exception:
