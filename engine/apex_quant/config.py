@@ -47,6 +47,7 @@ class DataConfig(BaseModel):
     crypto: list[str] = Field(default_factory=list)          # crypto universe
     session: SessionConfig = Field(default_factory=SessionConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
+    live_timeframes: list[str] | None = None
 
 
 class FeaturesConfig(BaseModel):
@@ -105,6 +106,7 @@ class RiskConfig(BaseModel):
     atr_window: int = 14
     atr_stop_mult: float = 2.0
     drawdown_breaker: float = 0.20
+    drawdown_reducing_limit: float = 0.10
     min_position: float = 0.0
     max_concurrent_trades: int = 10
     max_portfolio_risk: float = 0.035
@@ -210,6 +212,14 @@ class Mt4Config(BaseModel):
     common_dir: str = ""
     default_volume: float = 0.10
     suffix: str = ""                # Ticker suffix (e.g. "-g" or "-o") required by broker
+    # Broker SERVER clock vs UTC, in hours. MT4's OrderOpenTime()/OrderCloseTime()
+    # return the broker's server time but store it as though it were a unix epoch, so
+    # every comparison against a real UTC timestamp is skewed by this much. Most FX
+    # brokers run UTC+2 in winter and UTC+3 under DST — so THIS VALUE CHANGES TWICE A
+    # YEAR. It is configured rather than auto-detected because it cannot be inferred
+    # reliably: the only observable (newest event minus now) under-reads by however
+    # old the newest trade is. 0.0 = take MT4 timestamps at face value.
+    server_utc_offset_hours: float = 0.0
 
 
 class ZmqConfig(BaseModel):
@@ -230,6 +240,7 @@ class ExecutionConfig(BaseModel):
     provider: Literal["mt4", "mock", "zmq"] = "mt4"
     mt4: Mt4Config = Field(default_factory=Mt4Config)
     zmq: ZmqConfig = Field(default_factory=ZmqConfig)
+    live_min_position: float = 15000.0
 
 
 class AppConfig(BaseModel):
