@@ -559,7 +559,7 @@ def initialize_bayesian_sizer_from_supabase():
 
 def fetch_open_trades():
     """Fetch unresolved Forex setups from Supabase (since Oanda only trades Forex)."""
-    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL,LONG,SHORT,SPECULATIVE_BUY,SPECULATIVE_SELL,SPECULATIVE_LONG,SPECULATIVE_SHORT)"
     try:
         r = httpx.get(url, headers=headers)
         if r.status_code == 200:
@@ -1721,6 +1721,34 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             virtual_equity, peak_equity = calculate_virtual_equity(all_resolved_trades)
 
             open_trades_list = fetch_open_trades()
+            
+            # Filter out Forex setups that are not actually open on MT4
+            active_mt4_symbols = set()
+            common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+            if common_dir:
+                p_file = os.path.join(common_dir, "mt4_positions.json")
+                if os.path.exists(p_file):
+                    try:
+                        from apex_quant.storage.json_util import safe_load_json
+                        positions = safe_load_json(p_file) or []
+                        for p in positions:
+                            p_sym = p.get("symbol", "").replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                            active_mt4_symbols.add(p_sym)
+                    except Exception:
+                        pass
+            
+            filtered_open_trades = []
+            for ot in open_trades_list:
+                sym_ot = ot["symbol"]
+                asset_class_ot = cfg.asset_class_of(sym_ot)
+                if asset_class_ot == "forex":
+                    clean_sym = sym_ot.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                    if clean_sym not in active_mt4_symbols:
+                        # Skip this Forex setup because it is not active on MT4
+                        continue
+                filtered_open_trades.append(ot)
+            open_trades_list = filtered_open_trades
+
             open_positions = []
 
             for ot in open_trades_list:
@@ -1930,7 +1958,7 @@ def scan_robust_core(open_trades):
     # Also include ALL pending Supabase setups (equities, crypto, forex) so the engine
     # never generates a duplicate setup for a symbol/timeframe already queued.
     try:
-        pending_url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+        pending_url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL,LONG,SHORT,SPECULATIVE_BUY,SPECULATIVE_SELL,SPECULATIVE_LONG,SPECULATIVE_SHORT)"
         pending_r = httpx.get(pending_url, headers=headers)
         if pending_r.status_code == 200:
             for ps in pending_r.json():
@@ -2149,7 +2177,7 @@ def resolve_closed_mt4_setups():
     broker_offset = mt4_utc_offset_seconds(mt4_history)
             
     # Fetch pending setups
-    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL,LONG,SHORT,SPECULATIVE_BUY,SPECULATIVE_SELL,SPECULATIVE_LONG,SPECULATIVE_SHORT)"
     try:
         r = httpx.get(url, headers=headers)
         if r.status_code != 200:
