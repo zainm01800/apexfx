@@ -123,6 +123,7 @@ def run_validation(
     cfg: AppConfig | None = None,
     generated_for: str = "",
     n_trials: int | None = None,
+    exit_mode: str = "managed",
 ) -> ValidationReport:
     cfg = cfg or get_config()
     grid = param_grid or default_param_grid()
@@ -130,7 +131,7 @@ def run_validation(
     horizon = int(baseline_params.get("holding_horizon", 10))
 
     # 1. Full backtest per config -> returns columns (for PBO) + per-period Sharpe (for DSR trials)
-    bt = Backtester(cfg)
+    bt = Backtester(cfg, exit_mode=exit_mode)
     returns_by_cfg: list[pd.Series] = []
     trial_sharpes: list[float] = []
     for params in grid:
@@ -159,7 +160,7 @@ def run_validation(
            if M.shape[1] >= 2 and M.shape[0] >= 40 else {"pbo": None, "note": "insufficient matrix"})
 
     # 4. CPCV OOS distribution for the baseline config
-    cpcv = run_cpcv(pit, instrument, strategy_factory, baseline_params, cfg=cfg, horizon=horizon)
+    cpcv = run_cpcv(pit, instrument, strategy_factory, baseline_params, cfg=cfg, horizon=horizon, exit_mode=exit_mode)
 
     # 5. Verdict
     dsr_pass = dsr.get("dsr", 0.0) > DSR_THRESHOLD
