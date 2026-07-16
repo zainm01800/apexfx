@@ -998,3 +998,25 @@ def update_lessons():
 
         lesson = _build_lesson(trade)
         time.sleep(6)  # Throttle to stay within Groq RPM/TPM limits
+
+        if not lesson:
+            print(f"  [SKIP] Could not generate lesson for {tid}")
+            continue
+
+        patch_r = httpx.patch(
+            f"{MEMORY_ENDPOINT}?id=eq.{tid}",
+            headers=headers,
+            json={"lesson": lesson},
+        )
+        if patch_r.status_code in (200, 204):
+            print(f"  ✓ Saved structured post-mortem for {sym}")
+            count += 1
+        else:
+            print(f"  [ERROR] Patch failed: {patch_r.status_code} - {patch_r.text}")
+
+    remaining = len(need_lessons) - len(batch)
+    print(f"\nDone! Updated {count}/{len(batch)} lessons this cycle. {remaining} remaining for next cycle.")
+
+
+if __name__ == "__main__":
+    update_lessons()
