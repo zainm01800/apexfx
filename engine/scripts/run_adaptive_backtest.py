@@ -314,7 +314,8 @@ def run_style_backtest(style: str, instruments: list[str], start_val: str, end_v
                 )
                 base_strat.fit(pit, pit.as_of(pit.end).index)
                 
-                wrapper_strat = AdaptiveWrapperStrategy(base_strat, rules, cfg.ai.app_url)
+                wrapper_strat = AdaptiveWrapperStrategy(base_strat, rules, cfg.ai.app_url,
+                                                        enable_llm_veto=True)
                 res = backtester.run(pit, wrapper_strat, inst, start=start_str, end=end_str, warmup=warmup, max_hold=params["holding_horizon"])
                 pass2_trades.extend(res.trades)
             except Exception as e:
