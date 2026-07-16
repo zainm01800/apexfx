@@ -498,3 +498,253 @@ def _match_mt4_trade(setup: dict, headers: dict) -> dict | None:
 
     tol = _SLTP_TOL_PIPS * _pip_size(clean_sym)
     try:
+        candidates = []
+        for t in _mt4_trades(headers):
+            if _clean_symbol(t.get("symbol")) != clean_sym:
+                continue
+            if m_verdict != ("BUY" if t.get("cmd") == 0 else "SELL"):
+                continue
+            try:
+                t_sl = float(t.get("sl") or 0.0)
+                t_tp = float(t.get("tp") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if t_sl <= 0 or t_tp <= 0:
+                continue
+            if abs(t_sl - m_sl) > tol or abs(t_tp - m_tp) > tol:
+                continue  # HARD filter: the signature must match
+            candidates.append(t)
+
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        # Rare: the same SL/TP signature was reused. Break the tie on entry proximity.
+        return min(candidates, key=lambda t: abs(float(t.get("open_price") or 0.0) - m_price))
+    except Exception as e:
+        print(f"  [WARN] Failed to fetch MT4 trades for matching: {e}")
+        return None
+
+
+def _fetch_mt4_profit(setup: dict, headers: dict) -> float | None:
+    """Profit of the MT4 trade this setup became, or None when unmatched."""
+    t = _match_mt4_trade(setup, headers)
+    return float(t.get("profit") or 0.0) if t else None
+
+
+def _exit_kind(t: dict) -> str:
+    """tp_hit / sl_hit / managed for a closed MT4 trade (same rule as the resolver)."""
+    cp = float(t.get("close_price") or 0.0)
+    tp = float(t.get("tp") or 0.0)
+    sl = float(t.get("sl") or 0.0)
+    if cp <= 0:
+        return "managed"
+    tol = cp * 0.0002
+    if t.get("cmd") == 1:  # SELL
+        if tp > 0 and cp <= tp + tol:
+            return "tp_hit"
+        if sl > 0 and cp >= sl - tol:
+            return "sl_hit"
+    else:
+        if tp > 0 and cp >= tp - tol:
+            return "tp_hit"
+        if sl > 0 and cp <= sl + tol:
+            return "sl_hit"
+    return "managed"
+
+
+def _agg(rows: list) -> dict | None:
+    if not rows:
+        return None
+    pnl = [float(t.get("profit") or 0.0) for t in rows]
+    wins = [p for p in pnl if p > 0]
+    losses = [p for p in pnl if p < 0]
+    return {
+        "n": len(rows),
+        "total": sum(pnl),
+        "win_rate": len(wins) / len(rows) * 100.0,
+        "avg_win": (sum(wins) / len(wins)) if wins else 0.0,
+        "avg_loss": (sum(losses) / len(losses)) if losses else 0.0,
+    }
+
+
+def _base_rates_text(headers: dict, symbol: str, style: str) -> str:
+    """The book's real track record, from the broker record.
+
+    A post-mortem on ONE trade is a story about noise unless it is anchored to a base
+    rate. Handing the model these numbers is what lets a lesson say "this is within
+    normal variance for a 37%-win-rate book" instead of inventing a cause for what is
+    statistically a coin flip — and stops it recommending 'hold longer' when holding
+    to the stop is where all the losses actually are.
+    """
+    trades = [t for t in _mt4_trades(headers) if t.get("close_time")]
+    if not trades:
+        return "(no broker history available)"
+    csym = _clean_symbol(symbol)
+    book = _agg(trades)
+    sym_a = _agg([t for t in trades if _clean_symbol(t.get("symbol")) == csym])
+    sty_a = _agg([t for t in trades if (t.get("style") or "") == style]) if style else None
+    managed = _agg([t for t in trades if _exit_kind(t) == "managed"])
+    slh = _agg([t for t in trades if _exit_kind(t) == "sl_hit"])
+
+    lines = []
+    if book:
+        need = ((100 - book["win_rate"]) / book["win_rate"]) if book["win_rate"] > 0 else 0
+        got = (book["avg_win"] / abs(book["avg_loss"])) if book["avg_loss"] else 0
+        lines.append(f"- Whole book: {book['n']} trades, win rate {book['win_rate']:.1f}%, total £{book['total']:,.2f}.")
+        lines.append(f"- Break-even needs a {need:.2f}:1 payoff; the book actually gets {got:.2f}:1.")
+    if sym_a:
+        lines.append(f"- This symbol ({symbol}): {sym_a['n']} trades, win rate {sym_a['win_rate']:.1f}%, total £{sym_a['total']:,.2f}.")
+    if sty_a:
+        lines.append(f"- This style ({style}): {sty_a['n']} trades, win rate {sty_a['win_rate']:.1f}%, total £{sty_a['total']:,.2f}.")
+    if managed:
+        lines.append(f"- Managed/early exits book-wide: {managed['n']} trades, total £{managed['total']:,.2f} (avg £{managed['total']/managed['n']:,.2f}).")
+    if slh:
+        lines.append(f"- Trades left to hit the STOP: {slh['n']} trades, total £{slh['total']:,.2f} (avg £{slh['total']/slh['n']:,.2f}).")
+    return "\n".join(lines)
+
+
+def _build_lesson(trade: dict) -> str | None:
+    """Generate a structured 4-part HTML post-mortem using Groq."""
+    sym       = trade.get("symbol", "?")
+    direction = trade.get("verdict", "?")
+    entry     = trade.get("price", "?")
+    sl        = trade.get("stop_loss", "?")
+    tp        = trade.get("target_price", "?")
+    outcome   = trade.get("outcome", "?")
+    summary   = (trade.get("summary") or "")[:400]
+    tech      = (trade.get("technical_analysis") or "")[:400]
+
+    profit_raw = trade.get("profit") or trade.get("pnl") or 0
+    try:
+        profit_val = float(profit_raw)
+    except (TypeError, ValueError):
+        profit_val = 0.0
+
+    import re
+    initial_lesson = trade.get("lesson") or ""
+
+    # Resolve the MT4 trade from the setup's own SL+TP signature. This is
+    # AUTHORITATIVE: previously the ticket was scraped out of the PREVIOUS lesson's
+    # text, so once a bad match was baked in it was inherited forever and then
+    # presented to the frontend as an "exact" ticket match. Deriving it from the
+    # signature every time is self-healing — a wrong historical link gets corrected
+    # on the next regeneration.
+    ticket_id = None
+    matched_trade = _match_mt4_trade(trade, headers)
+    if matched_trade:
+        ticket_id = str(matched_trade.get("ticket"))
+        profit_val = float(matched_trade.get("profit") or 0.0)
+        # Quote the REAL broker fill, not the setup's *intended* levels. The setup row
+        # stores the price the engine wanted (e.g. 1.19936); MT4 filled at 1.19948 and
+        # closed at 1.19741. The dashboard card shows the broker's numbers, so the
+        # lesson must use the same ones or the two visibly disagree.
+        exit_px = float(matched_trade.get("close_price") or 0.0)
+        if exit_px > 0:
+            trade = {**trade, "outcome_price": exit_px}
+        open_px = float(matched_trade.get("open_price") or 0.0)
+        if open_px > 0:
+            entry = open_px
+    else:
+        # No signature match -> fall back to any ticket recorded previously, but do
+        # NOT invent a profit from a guessed trade.
+        m_ticket = (re.search(r"Matched MT4 ticket (\d+)", initial_lesson)
+                    or re.search(r"TICKET_ID:\s*(\d+)", initial_lesson))
+        if m_ticket:
+            ticket_id = m_ticket.group(1)
+
+    if profit_val == 0.0 and initial_lesson and "Resolved automatically" in initial_lesson:
+        m = re.search(r"Profit:\s*(?:£)?\s*(-?[\d\.]+)", initial_lesson)
+        if m:
+            try:
+                profit_val = float(m.group(1))
+            except ValueError:
+                pass
+
+    # For any setup where profit is still 0 or None, ALWAYS try the MT4 match.
+    # This covers invalidated/expired trades where profit was never written back.
+    if profit_val == 0.0 or profit_raw is None:
+        matched_profit = _fetch_mt4_profit(trade, headers)
+        if matched_profit is not None:
+            profit_val = matched_profit
+
+    outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
+    category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss'
+
+    # -- Counterfactual: COMPUTED, not inferred -------------------------------
+    #
+    # The model used to be given "MFE +42 pips" with no idea the target was 138 pips
+    # away, so it confidently concluded the trade "would have hit TP". It reached 30%
+    # of the way. Distance-to-target is cheap to compute, so we state the verdict as a
+    # fact and forbid the model from contradicting it.
+    pip = _pip_size(sym)
+    try:
+        f_entry, f_tp, f_sl = float(entry), float(tp), float(sl)
+    except (TypeError, ValueError):
+        f_entry = f_tp = f_sl = 0.0
+    dist_tp = abs(f_tp - f_entry) / pip if (f_tp > 0 and f_entry > 0) else 0.0
+    dist_sl = abs(f_entry - f_sl) / pip if (f_sl > 0 and f_entry > 0) else 0.0
+
+    features = trade.get("setup_features") or {}
+    hindsight_info = "Post-exit trajectory: not yet scanned — do NOT speculate about what would have happened."
+    if "hindsight_outcome" in features:
+        h_outcome = features.get("hindsight_outcome")
+        h_mfe = float(features.get("hindsight_mfe_pips") or 0.0)
+        h_mae = float(features.get("hindsight_mae_pips") or 0.0)
+        h_bars = features.get("hindsight_bars", 0)
+
+        if h_outcome == "tp_hit":
+            verdict = ("WOULD have reached the target after exit. Exiting early therefore "
+                       "forfeited a winner — this is genuine evidence the exit was premature.")
+        elif h_outcome == "sl_hit":
+            verdict = ("WOULD have hit the stop after exit. Exiting early SAVED money — "
+                       "the exit was correct, regardless of it booking a loss.")
+        else:
+            pct = (h_mfe / dist_tp * 100.0) if dist_tp > 0 else 0.0
+            verdict = (
+                f"Did NOT reach the target. Best case after exit was +{h_mfe:.1f} pips of the "
+                f"{dist_tp:.0f} pips needed to reach TP ({pct:.0f}% of the way), then it reversed "
+                f"{h_mae:.1f} pips against. It is NOT true that this trade 'would have hit TP' — "
+                f"do not claim that."
+            )
+        hindsight_info = (
+            f"POST-EXIT COUNTERFACTUAL (computed from price data — authoritative):\n"
+            f"- {verdict}\n"
+            f"- Max favourable excursion after exit: +{h_mfe:.1f} pips "
+            f"(target required {dist_tp:.0f} pips; stop was {dist_sl:.0f} pips away).\n"
+            f"- Max adverse excursion after exit: -{h_mae:.1f} pips. Bars elapsed: {h_bars}.\n"
+        )
+
+    base_rates = _base_rates_text(
+        headers, sym, (matched_trade.get("style") if matched_trade else "") or ""
+    )
+
+    feat_lines = []
+    if features:
+        clean_feats = {k: v for k, v in features.items() if not k.startswith("hindsight")}
+        if clean_feats:
+            for k, v in clean_feats.items():
+                feat_lines.append(f"- {k}: {v}")
+    feat_str = "\n".join(feat_lines) if feat_lines else "None recorded"
+
+    prompt = f"""FACTS (from the broker record — authoritative, never restate them differently):
+Symbol: {sym} | Timeframe: {trade.get('timeframe', '1h')} | Direction: {direction}
+Entry: {entry}   ->   Exit: {trade.get('outcome_price', '?')}
+Target (TP): {tp}  ({dist_tp:.0f} pips from entry)
+Stop (SL): {sl}  ({dist_sl:.0f} pips from entry)
+How it closed: {outcome_human}
+Net profit/loss: £{profit_val:.2f}
+
+{hindsight_info}
+
+TRACK RECORD — the base rate this single trade must be judged against:
+{base_rates}
+
+TECHNICAL SETUP & MARKET STRUCTURE AT ENTRY:
+- Text Summary: {summary}
+- Technical Context: {tech}
+
+STRATEGY INDICATORS & SYSTEM FEATURES AT ENTRY:
+{feat_str}
+
+GLOSSARY FOR SYSTEM FEATURES:
