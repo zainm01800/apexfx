@@ -1798,3 +1798,203 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 direction_enum = Direction.LONG if sig.direction.value.upper() == "LONG" else Direction.SHORT
                 risk_sig = Signal(
                     instrument=sym,
+                    direction=direction_enum,
+                    probability=sig.probability,
+                    reward_risk=sig.reward_risk,
+                    confidence=getattr(sig, 'confidence', 0.5),
+                    rationale=getattr(sig, 'rationale', ""),
+                    timeframe=tf,  # pass timeframe for per-bucket slot check
+                )
+                
+                # 4. Permit through Risk Manager
+                live_risk_cfg = cfg.risk.model_copy(update={"min_position": cfg.execution.live_min_position})
+                risk_manager = RiskManager(live_risk_cfg, bayesian_sizer=_BAYESIAN_SIZER)
+                permitted_pos = risk_manager.permit(risk_sig, account_state, market_state, t=latest_time)
+                
+                if not permitted_pos.permitted:
+                    print(f"  [RISK VETO] Risk manager vetoed trade for {sym}: {permitted_pos.rationale}")
+                    return
+                
+                # Convert units to lots
+                cost_model = cfg.mechanics_for(sym).cost_model if hasattr(cfg, 'mechanics_for') else 'pips'
+                raw_lots = units_to_lots(sym, permitted_pos.units, cost_model)
+                
+                # Apply lot-step rounding (Priority 3)
+                from apex_quant.risk.sizing import round_lot_size
+                sized_volume = round_lot_size(raw_lots, min_lot=0.01, lot_step=0.01)
+                
+                if sized_volume <= 0.0:
+                    print(f"  [RISK VETO] Rounded lot size {sized_volume} is below min_lot (0.01) for {sym} (raw: {raw_lots:.4f} lots). Vetoing entry.")
+                    return
+                
+                print(f"  [RISK SIZED] Bayesian Risk Manager allocated {permitted_pos.risk_fraction:.2%} risk. "
+                      f"Live Equity: £{live_equity:,.2f} (Drawdown: {account_state.drawdown:.2%}). Lots: {sized_volume} (raw: {raw_lots:.4f}).")
+            except Exception as re:
+                print(f"  [WARN] Risk manager sizing failed, fallback to defaults: {re}")
+                import traceback
+                traceback.print_exc()
+                sized_volume = None
+            # ──────────────────────────────────────
+            
+            open_new_trade(
+                symbol=sym,
+                direction=sig.direction.value,
+                entry_price=close_p,
+                stop_loss=sl,
+                target_price=tp,
+                timeframe=tf,
+                confidence=int(sig.probability * 100),
+                rr=sig.reward_risk,
+                volume=sized_volume,
+                style=style,
+            )
+
+    except Exception as e:
+        print(f"  Error scanning {sym}: {e}")
+
+def is_asset_in_active_session(symbol: str) -> bool:
+    """Determine if a given symbol is currently within its primary liquid trading hours (London time).
+    
+    Session Rules (London Time / Europe/London):
+    1. Cryptos (BTC, ETH, etc.): Active 24/7.
+    2. JPY/AUD/NZD Crosses: Active 24/5, except the 9:00 PM to 10:00 PM rollover dead zone.
+    3. US Equities/ETFs/Gold (AAPL, SPY, GLD, etc.): Active 2:30 PM to 9:30 PM.
+    4. Western Forex (EUR/USD, GBP/USD, etc.): Active 8:00 AM to 10:00 PM, except the 9:00 PM to 10:00 PM rollover dead zone.
+    """
+    now_london = datetime.now(ZoneInfo("Europe/London"))
+    h = now_london.hour
+    m = now_london.minute
+    sym_upper = symbol.upper()
+    
+    # 1. Category A: Cryptos (Active 24/7)
+    cryptos = ["BTC", "ETH", "SOL", "SUI", "ADA", "AVAX", "LINK", "XRP", "ARB", "MATIC", "DOGE", "BNB"]
+    is_crypto = any(crypto in sym_upper for crypto in cryptos)
+    if is_crypto:
+        return True
+        
+    # Check if we are in the daily rollover dead zone (10:00 PM to 11:00 PM UK Time / 22:00 to 22:59)
+    # 5:00 PM New York time is exactly 10:00 PM London time in both GMT and BST.
+    # We avoid opening new trades during this hour due to massive spread widening.
+    if h == 22:
+        return False
+        
+    # Friday close protection: Avoid opening new trades after 8:00 PM London time on Fridays
+    # to protect against weekend gap risk (market closes at 10 PM London time / 5 PM NY time).
+    weekday = now_london.weekday()
+    if weekday == 4 and h >= 20:
+        return False
+        
+    # 2. Category C: JPY & Asia-Pacific Forex Pairs (JPY, AUD, NZD)
+    # Active 24 hours a day (except rollover / Friday close handled above)
+    has_asia_pac = any(ccy in sym_upper for ccy in ["JPY", "AUD", "NZD"])
+    if has_asia_pac:
+        return True
+        
+    # 3. Category B: US Equities, Commodities, and Index ETFs
+    # Active US Hours: 2:30 PM (14:30) to 9:30 PM (21:30) London Time.
+    equities_etfs = ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "SPY", "QQQ", "SMH", "SOXX", "GLD", "XBI", "XLK", "XLE", "XLF"]
+    is_equity_etf = any(eq in sym_upper for eq in equities_etfs)
+    if is_equity_etf:
+        return 14 <= h < 21 or (h == 14 and m >= 30)
+        
+    # 4. Category D: Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
+    # Active London + NY hours: 8:00 AM (08:00) to 10:00 PM (22:00) London Time.
+    return 8 <= h < 22
+
+def scan_robust_core(open_trades):
+    """Scan all systems for new entry signals concurrently."""
+    live_tfs = cfg.data.live_timeframes
+    filtered_portfolio = []
+    skipped_tfs = set()
+    for item in ROBUST_CORE_PORTFOLIO:
+        tf = str(item.get("timeframe", "1d")).lower()
+        if live_tfs is not None:
+            allowed_tfs = [x.lower() for x in live_tfs]
+            if tf not in allowed_tfs:
+                skipped_tfs.add(tf)
+                continue
+        filtered_portfolio.append(item)
+        
+    for tf in sorted(list(skipped_tfs)):
+        print(f"  [INFO] Skipping scan for timeframe '{tf}' (not in data.live_timeframes)")
+        
+    active_items = [item for item in filtered_portfolio if is_asset_in_active_session(item["instrument"])]
+    skipped_items = [item for item in filtered_portfolio if not is_asset_in_active_session(item["instrument"])]
+    
+    if skipped_items:
+        print(f"\n  [INFO] Gating: Skipping new trade scans for {len(skipped_items)} systems currently outside session hours (Western Forex/US Equities).")
+        
+    print(f"\nScanning {len(active_items)} Robust Core systems in parallel...")
+    active_trades_map = {(t["symbol"].upper(), str(t.get("timeframe", "1d")).lower()): t for t in open_trades}
+
+    # Also include ALL pending Supabase setups (equities, crypto, forex) so the engine
+    # never generates a duplicate setup for a symbol/timeframe already queued.
+    try:
+        pending_url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+        pending_r = httpx.get(pending_url, headers=headers)
+        if pending_r.status_code == 200:
+            for ps in pending_r.json():
+                key = (ps["symbol"].upper(), str(ps.get("timeframe", "1d")).lower())
+                if key not in active_trades_map:
+                    active_trades_map[key] = ps
+    except Exception as _e:
+        print(f"  [WARN] Could not fetch pending setups for dedup check: {_e}")
+    
+    try:
+        corr_matrix = get_portfolio_correlation_matrix()
+    except Exception as e:
+        print(f"  [WARN] Failed to compute portfolio correlation matrix: {e}")
+        corr_matrix = {}
+        
+    with ThreadPoolExecutor(max_workers=15) as executor:
+        futures = [executor.submit(scan_single_asset, item, active_trades_map, corr_matrix) for item in active_items]
+        for _ in as_completed(futures):
+            pass
+
+_style_map_cache = {}
+_style_map_last_fetched = 0.0
+
+def sync_mt4_trades(silent=False):
+    """Sync live open positions and closed history from MT4 shared files to Supabase."""
+    global _style_map_cache, _style_map_last_fetched
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if not common_dir:
+        return
+        
+    positions_file = os.path.join(common_dir, "mt4_positions.json")
+    history_file = os.path.join(common_dir, "mt4_history.json")
+    
+    headers_upsert = {
+        **headers,
+        "Prefer": "resolution=merge-duplicates"
+    }
+    
+    def get_clean_symbol(sym):
+        return sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+        
+    # Fetch recent analyses to match style (scalp, intraday, swing) once every 15 minutes
+    scans_list = []
+    now_ts = time.time()
+    if not _style_map_cache or (now_ts - _style_map_last_fetched > 900):
+        try:
+            r = httpx.get(f"{SUPABASE_URL}/rest/v1/apex_research_memory?select=symbol,timeframe,setup_features,stop_loss,target_price&order=analysis_date.desc&limit=150", headers=headers, timeout=10.0)
+            if r.status_code == 200:
+                scans_list = r.json()
+                _style_map_cache = scans_list
+                _style_map_last_fetched = now_ts
+            else:
+                scans_list = _style_map_cache
+        except Exception as e:
+            scans_list = _style_map_cache
+            if not silent:
+                print(f"  [WARN] Failed to fetch recent analyses for style matching: {e}")
+    else:
+        scans_list = _style_map_cache
+
+    def get_style_for_trade(p_sym, p_sl, p_tp):
+        p_clean = get_clean_symbol(p_sym)
+        best_scan = None
+        best_score = float('inf')
+        
+        import re
+        def parse_fl(val):
