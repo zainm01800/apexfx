@@ -176,8 +176,8 @@ def test_integrates_with_risk_manager():
     sizer = BayesianRiskSizer(min_trades_for_adaptation=5, min_risk=0.005, max_risk=0.02)
     for _ in range(30):
         sizer.record_outcome("EUR/USD", True)
-    # Disable the manager's own 20% breaker so the sizer's breaker is what we test.
-    cfg = get_config().risk.model_copy(update={"drawdown_breaker": 0.9})
+    # Disable the manager's own breaker and warning limit so the sizer's breaker is what we test.
+    cfg = get_config().risk.model_copy(update={"drawdown_breaker": 0.9, "drawdown_reducing_limit": 0.9})
     rm = RiskManager(cfg=cfg, bayesian_sizer=sizer)
     sig = mk_signal(b=2.0)
     mkt = MarketState(instrument="EUR/USD", price=1.10, ann_vol=0.08, atr=0.01)
@@ -191,3 +191,53 @@ def test_integrates_with_risk_manager():
     vetoed = rm.permit(sig, dd_acct, mkt)
     assert not vetoed.permitted
     assert "bayesian_drawdown_breaker" in vetoed.constraints_applied
+
+
+def test_realized_payoff_adaptation():
+    # min_trades_for_adaptation = 5
+    s = BayesianRiskSizer(min_trades_for_adaptation=5, max_risk=1.0, min_risk=0.0, frac_kelly=1.0, mode="mean")
+    
+    # 1. Prior/Fallback behavior before enough adaptation trades
+    # Record 4 wins and 0 losses (less than 5 trades)
+    for _ in range(4):
+        s.record_outcome("EUR/USD", True, pnl=2.0)
+    
+    sig = mk_signal("EUR/USD", b=2.0)
+    # Before 5 trades, it must return min_risk (which is 0.0)
+    assert s.risk_fraction(sig, mk_account()) == 0.0
+
+    # 2. Realized payoff computation
+    # Record one more win (now 5 trades)
+    s.record_outcome("EUR/USD", True, pnl=2.0)
+    
+    # We recorded 5 wins with pnl=2.0 (avg_win=2.0) and 0 losses. Let's record 5 losses with pnl=-1.0 (avg_loss=1.0)
+    for _ in range(5):
+        s.record_outcome("EUR/USD", False, pnl=-1.0)
+        
+    # Since decay is 0.95, let's look at describe details
+    d = s.describe("EUR/USD")
+    assert d["n_pnl_trades"] == 10
+    assert d["avg_win"] == pytest.approx(2.0)
+    assert d["avg_loss"] == pytest.approx(1.0)
+    assert d["realized_payoff"] == pytest.approx(2.0)
+    
+    # 3. Sizing follows realized b
+    # With 10 trades, we are adapted. Let's check s.risk_fraction
+    rf_adapted = s.risk_fraction(mk_signal("EUR/USD", b=100.0), mk_account())
+    
+    # Let's test with a different sizer that has lower realized b
+    s_low = BayesianRiskSizer(min_trades_for_adaptation=5, max_risk=1.0, min_risk=0.0, frac_kelly=1.0, mode="mean")
+    # 5 wins with pnl=0.5 (avg_win=0.5), 5 losses with pnl=-1.0 (avg_loss=1.0) -> realized b = 0.5
+    for _ in range(5):
+        s_low.record_outcome("EUR/USD", True, pnl=0.5)
+    for _ in range(5):
+        s_low.record_outcome("EUR/USD", False, pnl=-1.0)
+        
+    rf_low = s_low.risk_fraction(mk_signal("EUR/USD", b=100.0), mk_account())
+    
+    # Lower realized b => smaller fraction at equal win rate
+    assert rf_low < rf_adapted
+    
+    # Verify description keys
+    assert d["payoff_source"] == "realized"
+    assert d["payoff_ratio_in_use"] == pytest.approx(2.0)
