@@ -273,8 +273,8 @@ class GroqLLM(LLMClient):
                 messages.append({"role": "system", "content": system})
             messages.append({"role": "user", "content": prompt})
 
-            # Default to qwen/qwen3.6-27b (very fast, excellent logic)
-            model = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
+            # Default to qwen/qwen3-32b (very fast, high limit, great logic)
+            model = os.environ.get("GROQ_MODEL", "qwen/qwen3-32b")
 
             payload = {
                 "model": model,
@@ -326,7 +326,9 @@ class FallbackLLM(LLMClient):
             res = self.primary.complete(prompt, system, max_tokens, temperature)
             if res is not None:
                 return res
-            print("  [WARN] Primary LLM (Gemini) failed. Trying fallback LLM (Groq)...")
+            primary_name = self.primary.__class__.__name__.replace("LLM", "")
+            fallback_name = self.fallback.__class__.__name__.replace("LLM", "")
+            print(f"  [WARN] Primary LLM ({primary_name}) failed. Trying fallback LLM ({fallback_name})...")
 
         if self.fallback.available:
             return self.fallback.complete(prompt, system, max_tokens, temperature)
@@ -337,27 +339,40 @@ class FallbackLLM(LLMClient):
 def build_llm(cfg: AiConfig | None = None) -> LLMClient | None:
     """Factory: returns the best available LLM client for the given config.
 
-    Priority: DeepSeek (direct) > Gemini-with-Groq-Fallback > AppProxy > None.
-    Returns None when no API key or URL is configured.
+    Priority: DeepSeek (direct) > Gemini > Groq > AppProxy > None.
+    If multiple keys are available, chains them into FallbackLLMs dynamically.
     """
     cfg = cfg or get_config().ai
+    
+    clients: list[LLMClient] = []
+    
+    # 1. DeepSeek (primary)
     if cfg.deepseek_api_key:
-        client = DeepSeekLLM(cfg)
-        if client.available:
-            return client
+        ds_client = DeepSeekLLM(cfg)
+        if ds_client.available:
+            clients.append(ds_client)
+            
+    # 2. Gemini (first fallback)
+    gem_client = GeminiLLM(cfg)
+    if gem_client.available:
+        clients.append(gem_client)
+        
+    # 3. Groq (second fallback)
+    groq_client = GroqLLM(cfg)
+    if groq_client.available:
+        clients.append(groq_client)
+        
+    # Chain direct API clients into a FallbackLLM hierarchy if multiple exist
+    if clients:
+        current_client = clients[-1]
+        for next_client in reversed(clients[:-1]):
+            current_client = FallbackLLM(next_client, current_client)
+        return current_client
 
-    client_gem = GeminiLLM(cfg)
-    client_groq = GroqLLM(cfg)
-
-    if client_gem.available and client_groq.available:
-        return FallbackLLM(client_gem, client_groq)
-    elif client_gem.available:
-        return client_gem
-    elif client_groq.available:
-        return client_groq
-
+    # 4. AppProxy legacy fallback
     if cfg.app_url:
         client = AppAILLM(cfg)
         if client.available:
             return client
+            
     return None
