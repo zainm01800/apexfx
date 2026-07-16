@@ -2398,3 +2398,124 @@ def run_once():
         disk_cfg = load_config()
         diffs = []
         for field in disk_cfg.risk.model_fields:
+            disk_val = getattr(disk_cfg.risk, field)
+            mem_val = getattr(cfg.risk, field)
+            if disk_val != mem_val:
+                diffs.append(f"risk.{field}: disk={disk_val} vs memory={mem_val}")
+        if disk_cfg.execution.live_min_position != cfg.execution.live_min_position:
+            diffs.append(f"execution.live_min_position: disk={disk_cfg.execution.live_min_position} vs memory={cfg.execution.live_min_position}")
+        if diffs:
+            print("=" * 80)
+            print("  ⚠️ WARNING: CONFIGURATION DRIFT DETECTED!")
+            print("  The following settings differ on disk compared to the running process:")
+            for d in diffs:
+                print(f"    - {d}")
+            print("  A restart is required to apply these changes because configuration is cached in memory.")
+            print("=" * 80)
+    except Exception as e:
+        print(f"[WARN] Config drift guard failed: {e}")
+
+    # ── Sync MT4 execution stats to Supabase ──
+    try:
+        sync_mt4_trades()
+        with _resolution_lock:
+            resolve_closed_mt4_setups()
+        ensure_active_mt4_setups_pending()
+    except Exception as e:
+        print(f"[WARN] Failed to sync MT4 execution stats: {e}")
+        
+    # ── Bayesian Sizer Setup ──
+    try:
+        initialize_bayesian_sizer_from_supabase()
+    except Exception as e:
+        print(f"[WARN] Failed to initialize Bayesian Sizer trackers: {e}")
+    # ──────────────────────────
+    
+    open_trades = fetch_open_trades()
+    check_open_trades(open_trades)
+    scan_robust_core(open_trades)
+    
+    # ── Automated Post-Mortem Learning (Self-Review of wins & losses) ──
+    try:
+        print("[AI LEARNING] Running automated post-mortem lessons generation...")
+        from scripts.update_lessons import update_lessons
+        with _resolution_lock:
+            update_lessons()
+        print("[AI LEARNING] Lessons pool updated successfully.")
+    except Exception as e:
+        print(f"[WARN] AI automated post-mortem updater failed: {e}")
+
+    # ── Symbol Knowledge Synthesis (aggregates all lessons + MT4 trades per symbol) ──
+    try:
+        print("[AI LEARNING] Refreshing symbol knowledge summaries...")
+        from scripts.build_symbol_knowledge import run as _refresh_knowledge
+        _refresh_knowledge()
+        print("[AI LEARNING] Symbol knowledge updated.")
+    except Exception as e:
+        print(f"[WARN] Symbol knowledge refresh failed: {e}")
+
+
+_resolution_lock = threading.Lock()
+
+def start_mt4_sync_daemon():
+    """Start a background daemon thread to sync MT4 trades every 5 seconds."""
+    def sync_loop():
+        print("[INFO] Background MT4 Sync Daemon started.")
+        while True:
+            try:
+                sync_mt4_trades(silent=True)
+                # Resolve closed setups and update lessons in real-time if lock is available
+                if _resolution_lock.acquire(blocking=False):
+                    try:
+                        resolve_closed_mt4_setups()
+                        from scripts.update_lessons import update_lessons
+                        update_lessons()
+                        # Keep symbol knowledge in sync
+                        try:
+                            from scripts.build_symbol_knowledge import run as _refresh_knowledge
+                            _refresh_knowledge()
+                        except Exception:
+                            pass
+                    finally:
+                        _resolution_lock.release()
+            except Exception:
+                pass
+            time.sleep(5)
+
+    t = threading.Thread(target=sync_loop, daemon=True)
+    t.start()
+
+def main():
+    parser = argparse.ArgumentParser(description="Live Paper Trading Engine")
+    parser.add_argument("--loop", action="store_true", help="Run the engine continuously in a loop")
+    parser.add_argument("--interval", type=int, default=14400, help="Loop interval in seconds (default: 4 hours)")
+    args = parser.parse_args()
+
+    # ── Startup Banner ──
+    print("=" * 80)
+    print("  APEX QUANT ENGINE — STARTUP BANNER")
+    print(f"  Config Version:            {cfg.version}")
+    print(f"  Max Total Exposure:        {cfg.risk.max_total_exposure}")
+    print(f"  Max Correlated Exposure:   {cfg.risk.max_correlated_exposure}")
+    print(f"  Effective Min Position:    {cfg.execution.live_min_position}")
+    print(f"  Drawdown Breaker / Limit:  {cfg.risk.drawdown_breaker} / {cfg.risk.drawdown_reducing_limit}")
+    print(f"  MT4 Server UTC Offset:     {cfg.execution.mt4.server_utc_offset_hours} hours")
+    print("=" * 80)
+
+    # Start real-time MT4 background synchronisation
+    start_mt4_sync_daemon()
+
+    if args.loop:
+        print(f"Running in loop mode. Scanning every {args.interval} seconds...")
+        while True:
+            try:
+                run_once()
+            except Exception as e:
+                print(f"Uncaught loop error: {e}")
+            print(f"Sleeping for {args.interval} seconds...")
+            time.sleep(args.interval)
+    else:
+        run_once()
+
+if __name__ == "__main__":
+    main()
