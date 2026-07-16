@@ -284,7 +284,7 @@ async function resolveIfPending(rows) {
                 body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: resolvedTime, outcome_price: outcomePrice }),
               }).catch(() => {});
             }
-          } else if (graded === null && !closedEarlyVal) {
+          } else if (graded === null && !closedEarlyVal && !row.symbol.includes('/')) {
             // PHANTOM self-heal: stored tp/sl that current data no longer supports
             // (e.g. the entry never filled). Revert — expired if old enough (the setup
             // never triggered), else pending so it can resolve correctly later.
