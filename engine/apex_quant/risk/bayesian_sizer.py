@@ -89,14 +89,26 @@ class BetaBinomialWinRate:
     _alpha: float = field(init=False)
     _beta: float = field(init=False)
     _n_trades: int = field(init=False, default=0)
+    
+    # Payoff parameters
+    _sum_wins: float = field(init=False)
+    _count_wins: float = field(init=False)
+    _sum_losses: float = field(init=False)
+    _count_losses: float = field(init=False)
+    _n_pnl_trades: int = field(init=False)
 
     def __post_init__(self) -> None:
         self._alpha = self.alpha0
         self._beta = self.beta0
         self._n_trades = 0
+        self._sum_wins = 0.0
+        self._count_wins = 0.0
+        self._sum_losses = 0.0
+        self._count_losses = 0.0
+        self._n_pnl_trades = 0
 
-    def record_outcome(self, win: bool) -> None:
-        """Update the posterior with one trade outcome.
+    def record_outcome(self, win: bool, pnl: float | None = None) -> None:
+        """Update the posterior and payoff stats with one trade outcome.
 
         Existing counts are decayed first (exponential forgetting), then the
         new observation is added with weight 1.0.
@@ -108,6 +120,21 @@ class BetaBinomialWinRate:
         else:
             self._beta += 1.0
         self._n_trades += 1
+        
+        if pnl is not None:
+            val = float(pnl)
+            self._sum_wins *= self.decay
+            self._count_wins *= self.decay
+            self._sum_losses *= self.decay
+            self._count_losses *= self.decay
+            
+            if val > 0:
+                self._sum_wins += val
+                self._count_wins += 1.0
+            else:
+                self._sum_losses += abs(val)
+                self._count_losses += 1.0
+            self._n_pnl_trades += 1
 
     @property
     def posterior_mean(self) -> float:
@@ -124,6 +151,30 @@ class BetaBinomialWinRate:
     def n_trades(self) -> int:
         """Total number of trade outcomes recorded."""
         return self._n_trades
+
+    @property
+    def avg_win(self) -> float | None:
+        if self._count_wins > 0:
+            return self._sum_wins / self._count_wins
+        return None
+
+    @property
+    def avg_loss(self) -> float | None:
+        if self._count_losses > 0:
+            return self._sum_losses / self._count_losses
+        return None
+
+    @property
+    def n_pnl_trades(self) -> int:
+        return self._n_pnl_trades
+
+    @property
+    def realized_payoff(self) -> float | None:
+        aw = self.avg_win
+        al = self.avg_loss
+        if aw is not None and al is not None and al > 0:
+            return aw / al
+        return None
 
     def lower_confidence_bound(self, k: float) -> float:
         """Conservative win-rate estimate: posterior mean − ``k`` std devs.
@@ -145,6 +196,10 @@ class BetaBinomialWinRate:
             "posterior_mean": round(self.posterior_mean, 4),
             "posterior_std": round(self.posterior_std, 4),
             "n_trades": self._n_trades,
+            "avg_win": round(self.avg_win, 4) if self.avg_win is not None else None,
+            "avg_loss": round(self.avg_loss, 4) if self.avg_loss is not None else None,
+            "realized_payoff": round(self.realized_payoff, 4) if self.realized_payoff is not None else None,
+            "n_pnl_trades": self._n_pnl_trades,
         }
 
 
@@ -221,9 +276,9 @@ class BayesianRiskSizer:
 
     # -- Public API -----------------------------------------------------------
 
-    def record_outcome(self, instrument: str, win: bool) -> None:
+    def record_outcome(self, instrument: str, win: bool, pnl: float | None = None) -> None:
         """Record a resolved trade outcome for ``instrument``."""
-        self._trackers[instrument].record_outcome(win)
+        self._trackers[instrument].record_outcome(win, pnl=pnl)
 
     def win_rate_estimate(self, instrument: str) -> float:
         """The point win-rate estimate this sizer would use for ``instrument``,
@@ -261,7 +316,13 @@ class BayesianRiskSizer:
             return self.min_risk
 
         p = self._estimate(tracker)          # uncertainty-aware win-rate estimate
-        b = signal.reward_risk  # payoff ratio
+        
+        # Payoff ratio: use realized payoff if we have enough Adaptation trades, otherwise fallback
+        b = signal.reward_risk
+        if tracker.n_pnl_trades >= self.min_trades_for_adaptation:
+            realized_b = tracker.realized_payoff
+            if realized_b is not None:
+                b = float(np.clip(realized_b, 0.3, 3.0))
 
         # Fractional Kelly: f = frac * (p - (1-p)/b)
         raw_kelly = self.frac_kelly * (p - (1.0 - p) / b)
@@ -278,5 +339,16 @@ class BayesianRiskSizer:
             d = t.describe()
             d["mode"] = self.mode
             d["win_rate_estimate"] = round(self._estimate(t), 4)
+            
+            # Determine currently active payoff ratio
+            b = None
+            b_source = "none"
+            if t.n_pnl_trades >= self.min_trades_for_adaptation:
+                rp = t.realized_payoff
+                if rp is not None:
+                    b = round(float(np.clip(rp, 0.3, 3.0)), 4)
+                    b_source = "realized"
+            d["payoff_ratio_in_use"] = b
+            d["payoff_source"] = b_source
             return d
         return {instr: t.describe() for instr, t in self._trackers.items()}
