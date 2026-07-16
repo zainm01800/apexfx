@@ -3,7 +3,7 @@
 # Every tunable parameter lives here. NO magic numbers in code.
 # Bump `version` whenever any value changes — backtests record the version used.
 # ══════════════════════════════════════════════════════════════════════════════
-version: 1
+version: 2
 
 # Global reproducibility seed — applied to numpy, sklearn, hmmlearn, arch.
 seed: 42
@@ -13,6 +13,9 @@ data:
   provider: oanda            # adapter id (see data/adapter.py registry)
   timeframe: "1d"            # base bar size for Phase 1
   store_dir: "data_store"    # local parquet cache (relative to engine/)
+  live_timeframes:
+    - "1d"
+    - "1w"
   # Forex universe — mirrors the dashboard quick-picks (public/dashboard.js).
   instruments:
     - "EUR/USD"
@@ -134,15 +137,21 @@ risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
   kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
   max_risk_per_trade: 0.02       # 2% of equity at risk per trade (optimized cap)
-  max_total_exposure: 100.0      # gross notional ≤ 100× equity (unrestricted paper testing)
-  max_correlated_exposure: 50.0   # combined notional of correlated cluster ≤ 50× equity (unrestricted paper testing)
+  max_total_exposure: 3.0        # gross notional ≤ 3× equity (engine default; re-enabled
+                                 # 2026-07-14 — was 100× "for paper testing" while running on a
+                                 # LIVE account: 28/87 trades breached 3×, peaking at ~19× (18.68
+                                 # lots on 100k). Capping the same trades at 3× cuts the realised
+                                 # loss from -£1,613 to -£920.)
+  max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity (engine
+                                 # default; was 50× — a cluster cap of 50× is no cap at all)
   correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
   atr_window: 14
   atr_stop_mult: 2.5             # stop distance = 2.5× ATR (optimized baseline)
   drawdown_breaker: 0.20         # halt NEW positions once drawdown from peak ≥ 20%
+  drawdown_reducing_limit: 0.10  # reduce/block NEW positions once drawdown from peak ≥ 10%
   min_position: 0.0              # positions below this round to zero (no trade)
   max_concurrent_trades: 12      # hard limit on active open trades on MT4 (protect VPS and margin)
-  max_portfolio_risk: 0.045      # maximum aggregated risk across open trades (protects 5% daily drawdown)
+  max_portfolio_risk: 0.065      # maximum aggregated risk across open trades (protects 5% daily drawdown)
 
 # ── Backtesting (built after the foundation checkpoint) ─────────────────────────
 backtest:
@@ -222,10 +231,19 @@ ai:
 execution:
   enabled: true
   provider: "mt4"                               # mt4 | zmq | mock
+  live_min_position: 15000.0
   mt4:
     common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/users/crossover/AppData/Roaming/MetaQuotes/Terminal/Common/Files"  # macOS Wine shared path
     default_volume: 0.10
     suffix: "-g"
+    # Broker SERVER clock vs UTC, in hours. MT4 reports order times on its own server
+    # clock but stores them as unix epochs, so everything comparing them to real UTC
+    # is skewed by this much. Measured on this account 2026-07: +2.99h.
+    # ⚠️ CHANGES AT DST — most FX brokers run UTC+3 in summer and UTC+2 in winter.
+    # If it is wrong, the hindsight scan window shifts and the Bayesian sizer learns
+    # from the wrong price data. The engine warns at startup when it can prove this
+    # value is too low.
+    server_utc_offset_hours: 3.0
   zmq:
     enabled: true                              # flip to true when EA is running in MT4
     host: "127.0.0.1"
