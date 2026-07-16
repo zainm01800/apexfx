@@ -23,3 +23,4 @@ engine/data_store/live_engine.log
 engine/wine_stderr.log
 engine/wine_stdout.log
 project_showcase.html
+.aider*
