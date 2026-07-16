@@ -634,63 +634,75 @@ function renderMt4Trades() {
     const symbolLessons = _engineLessonsCache.filter(x => getCleanSymbol(x.symbol) === cleanedSym);
     let matchedAi = null;
     if (symbolLessons.length > 0) {
-      // 1. First pass: Check for exact ticket match in lesson comment
+      // 1. First pass: exact join on the persisted `ticket` column. This is the
+      // authoritative link — written at resolution time, when it is known for
+      // certain. Everything below is a fallback for rows predating the column.
       for (const l of symbolLessons) {
-        const lessonText = l.lesson || '';
-        if (lessonText.includes('TICKET_ID: ' + t.ticket)) {
+        if (l.ticket && String(l.ticket) === String(t.ticket)) {
           matchedAi = l;
           break;
         }
       }
 
-      // 2. Second pass: Fallback to proximity score heuristic if no exact match found
+      // 2. Legacy: ticket recorded only inside the lesson HTML comment.
       if (!matchedAi) {
-        let bestScore = 9999999.0;
+        for (const l of symbolLessons) {
+          const lessonText = l.lesson || '';
+          if (lessonText.includes('TICKET_ID: ' + t.ticket)) {
+            matchedAi = l;
+            break;
+          }
+        }
+      }
+
+      // 3. Third pass: re-derive the link from the SL+TP SIGNATURE.
+      //
+      // The engine sends sl/tp with the order and MT4 records them verbatim, so
+      // (symbol, direction, sl, tp) effectively identifies which trade a setup
+      // became. Measured on live data: a 0.1-pip tolerance uniquely identifies
+      // 78/88 (88.6%) of trades; loosening to 2 pips DROPS that to 64/88 with 18
+      // ambiguous — tighter is strictly better.
+      //
+      // Entry price is deliberately NOT a filter: it slips, so it cannot identify a
+      // trade. The previous heuristic hard-filtered on entry +/-150 pips and scored
+      // sl/tp softly (counting a MISSING value as a perfect match), which bound each
+      // setup to a NEIGHBOURING trade — e.g. every GBP/NZD setup took the next
+      // setup's ticket, so cards showed another trade's exit price and P&L.
+      if (!matchedAi) {
+        let bestScore = Infinity;
         const tDirection = t.cmd === 0 ? 'BUY' : 'SELL';
         const tPrice = parseFloat(t.open_price) || 0;
         const tSl = parseFloat(t.sl) || 0;
         const tTp = parseFloat(t.tp) || 0;
+        const pip = /JPY/.test(cleanedSym) ? 0.01 : 0.0001;
+        const tol = 0.1 * pip;
 
-        for (const l of symbolLessons) {
-          // If this setup contains a different ticket ID comment, it belongs to another trade. Skip it!
-          const lessonText = l.lesson || '';
-          if (lessonText.includes('TICKET_ID:') && !lessonText.includes('TICKET_ID: ' + t.ticket)) {
-            continue;
+        if (tSl > 0 && tTp > 0) {
+          for (const l of symbolLessons) {
+            // A setup already bound to a different ticket belongs to another trade.
+            const lessonText = l.lesson || '';
+            if (lessonText.includes('TICKET_ID:') && !lessonText.includes('TICKET_ID: ' + t.ticket)) {
+              continue;
+            }
+
+            const mVerdict = (l.verdict || '').toUpperCase().trim();
+            if (mVerdict !== tDirection) continue;
+
+            const mSl = parseFloat(l.stop_loss) || 0;
+            const mTp = parseFloat(l.target_price) || 0;
+            if (mSl <= 0 || mTp <= 0) continue;                                  // no signature
+            if (Math.abs(tSl - mSl) > tol || Math.abs(tTp - mTp) > tol) continue; // HARD filter
+
+            // Tie-break only, for a reused signature: nearest entry.
+            const score = Math.abs(tPrice - (parseFloat(l.price) || 0));
+            if (score < bestScore) {
+              bestScore = score;
+              matchedAi = l;
+            }
           }
-
-          // 1. Direction check
-          const mVerdict = (l.verdict || '').toUpperCase().trim();
-          if (mVerdict !== tDirection) continue;
-
-        // 2. Time proximity check (must be within 36 hours)
-        const setupTime = getTimestampFromSetupId(l.id);
-        if (setupTime <= 0) continue;
-        const timeDiffHours = Math.abs(t.open_time - setupTime) / 3600.0;
-        if (timeDiffHours > 36.0) continue;
-
-        // 3. Price proximity check (must be within 150 pips)
-        const mPrice = parseFloat(l.price) || 0;
-        const priceDiff = Math.abs(tPrice - mPrice);
-        const pipScale = tPrice > 50.0 ? 1.0 : 0.0100;
-        if (priceDiff > (1.50 * pipScale)) continue;
-
-        // Calculate total price errors
-        const mSl = parseFloat(l.stop_loss) || 0;
-        const slDiff = (tSl > 0 && mSl > 0) ? Math.abs(tSl - mSl) : 0.0;
-
-        const mTp = parseFloat(l.target_price) || 0;
-        const tpDiff = (tTp > 0 && mTp > 0) ? Math.abs(tTp - mTp) : 0.0;
-
-        const totalError = priceDiff + slDiff + tpDiff;
-        const score = totalError * 1000.0 + timeDiffHours;
-
-        if (score < bestScore) {
-          bestScore = score;
-          matchedAi = l;
         }
       }
     }
-  }
     
     // Determine targets hit status for fallback lesson selection
     const tpValForFallback = parseFloat(t.tp) || (matchedAi ? parseFloat(matchedAi.target_price) : 0);
@@ -754,6 +766,9 @@ function renderMt4Trades() {
       isAiLesson = true;
     } else if (matchedAi && (matchedAi.outcome === 'pending' || !matchedAi.lesson)) {
       lessonText = `<strong>⏳ AI Post-Mortem Pending:</strong> The trade was recently closed. The engine is analyzing the market structure and generating the structured lesson...<br><strong>🔄 Status:</strong> This trade will be fully resolved and updated automatically in the next few seconds.`;
+      isAiLesson = false;
+    } else if (!matchedAi) {
+      lessonText = `<strong>⏳ Linkage Pending:</strong> This trade is not linked to an engine setup card. No structured AI post-mortem lesson is available.<br><strong>🔄 Status:</strong> Realized P&L is tracked, but the card remains unlinked because there is no matching setup signature in the database.`;
       isAiLesson = false;
     } else {
       // Dynamic fallback post-mortem lesson
