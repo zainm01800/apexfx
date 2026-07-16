@@ -99,13 +99,47 @@ class RiskManager:
         if signal.direction == Direction.FLAT:
             return veto("flat_signal", "Signal is flat; no position.")
 
-        # 1. Drawdown circuit-breaker (hard, non-overridable)
-        if breaker_tripped(account, cfg.drawdown_breaker):
+        # 1. Drawdown circuit-breaker (Three-state: ACTIVE / REDUCING / HALTED)
+        from apex_quant.risk.circuit_breaker import BreakerState, breaker_state, reducing_scale
+        reducing_limit = getattr(cfg, "drawdown_reducing_limit", cfg.drawdown_breaker * 0.5)
+        breaker_status = breaker_state(account, cfg.drawdown_breaker, reducing_limit)
+
+        if breaker_status == BreakerState.HALTED:
             return veto(
                 "drawdown_breaker",
-                f"Drawdown {account.drawdown:.1%} >= breaker "
+                f"Drawdown {account.drawdown:.1%} >= halted breaker "
                 f"{cfg.drawdown_breaker:.0%}; new positions halted.",
             )
+
+        # Amber zone: de-risk PROGRESSIVELY (applied to risk_fraction at step 5)
+        # rather than blocking entries.
+        #
+        # This branch used to veto anything that did not "reduce exposure" — but the
+        # engine only ever signals an instrument it is FLAT on, so there was never a
+        # position to reduce and EVERY entry was vetoed. That turned reducing_limit
+        # into a silent second hard halt (effective breaker 10%, not the configured
+        # 20%) with no way out: no entries -> flat book -> equity frozen -> drawdown
+        # never recovers -> permanently stuck. Reducing an OPEN position is the exit
+        # path's job (stops/targets/TradeManager); this layer only sizes NEW ones.
+        dd_scale = 1.0
+        if breaker_status == BreakerState.REDUCING:
+            dd_scale = reducing_scale(account, cfg.drawdown_breaker, reducing_limit)
+            detail["circuit_breaker_reducing_active"] = True
+            detail["drawdown_reducing_scale"] = dd_scale
+            logger.info(
+                "RISK AMBER %s: drawdown %.1f%% in warning zone (>= %.0f%%); sizing scaled to %.0f%%.",
+                signal.instrument, account.drawdown * 100, reducing_limit * 100, dd_scale * 100,
+            )
+
+        # 1.2. Economic News Calendar Filter (Nautilus-inspired)
+        if self.news_filter is not None:
+            check_t = t or pd.Timestamp.utcnow()
+            blocked, reason = self.news_filter.check_veto(signal.instrument, check_t)
+            if blocked:
+                return veto(
+                    "economic_news_veto",
+                    f"Economic calendar veto on {signal.instrument}: {reason}"
+                )
 
         # 1.5. Per-timeframe slot buckets (replaces single global cap)
         #
@@ -194,6 +228,17 @@ class RiskManager:
         if risk_fraction > cfg.max_risk_per_trade:
             risk_fraction = cfg.max_risk_per_trade
             applied.append("max_risk_per_trade")
+
+        # 4.5. Drawdown amber-zone ramp (1.0 -> 0.0 between reducing_limit and the halt)
+        if dd_scale < 1.0:
+            risk_fraction *= dd_scale
+            applied.append(f"drawdown_reducing_scale={dd_scale:.2f}")
+            if risk_fraction <= 0:
+                return veto(
+                    "drawdown_reducing_zero",
+                    f"Drawdown {account.drawdown:.1%} scaled size to zero "
+                    f"(halt at {cfg.drawdown_breaker:.0%}).",
+                )
 
         # 5. Regime aggression scaling (optional)
         if regime is not None:
