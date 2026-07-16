@@ -1398,3 +1398,203 @@ def _strip_lesson_html(text: str) -> str:
 def get_similar_lessons(symbol, verdict, pool, limit=3):
     if not pool:
         return []
+    matched = [l for l in pool if l.get("symbol") == symbol and l.get("verdict") == verdict]
+    if len(matched) < limit:
+        matched.extend([l for l in pool if l.get("symbol") == symbol and l not in matched])
+    if len(matched) < limit:
+        matched.extend([l for l in pool if l.get("verdict") == verdict and l not in matched])
+    if len(matched) < limit:
+        matched.extend([l for l in pool if l not in matched])
+    return matched[:limit]
+
+def apply_deepseek_structural_veto(symbol, direction, df, cfg):
+    """Evaluate structural risk flags (counter-trend, chop, volatility, falling knife)
+    against past lessons using the best available LLM (Gemini / Groq / DeepSeek)."""
+    from apex_quant.ai.client import build_llm
+    from apex_quant.ml.dataset import compute_feature_frame
+    
+    # 1. Initialize LLM — uses DeepSeek if key set, else falls back to Gemini → Groq
+    llm = build_llm(cfg.ai)
+    if not llm or not llm.available:
+        return True, "LLM not available (fail-ALLOW)"
+        
+    try:
+        # 2. Compute features for the latest row
+        features_df = compute_feature_frame(df, cfg)
+        if features_df.empty:
+            return True, "No features computed (fail-ALLOW)"
+            
+        row_features = features_df.iloc[-1].to_dict()
+        feat_str = ", ".join([f"{k}: {v:.5f}" for k, v in row_features.items() if np.isfinite(v)])
+        
+        # 3. Calculate risk flags programmatically
+        mom = next((v for k, v in row_features.items() if k.startswith("mom_") and not k.startswith("mom_vs_")), 0.0)
+        rvol = next((v for k, v in row_features.items() if k.startswith("rvol_")), 0.05)
+        trend_slope = next((v for k, v in row_features.items() if k.startswith("trend_slope_")), 0.0)
+        dist_ma = next((v for k, v in row_features.items() if k.startswith("dist_ma_")), 0.0)
+        
+        verdict = "BUY" if str(direction).upper() in ("LONG", "BUY") else "SELL"
+        is_counter_trend = (verdict == "BUY" and trend_slope < -0.00001) or (verdict == "SELL" and trend_slope > 0.00001)
+        is_dead_range_chop = abs(trend_slope) < 0.00002 and rvol < 0.02
+        is_volatility_spike = rvol > 0.25
+        is_overextended_dump = (verdict == "BUY" and dist_ma < -2.0 and mom < -0.015) or (verdict == "SELL" and dist_ma > 2.0 and mom > 0.015)
+        
+        flags = {
+            "is_counter_trend": is_counter_trend,
+            "is_dead_range_chop": is_dead_range_chop,
+            "is_volatility_spike": is_volatility_spike,
+            "is_overextended_dump": is_overextended_dump
+        }
+        
+        flags_str = "\n".join([f"- {k}: {v}" for k, v in flags.items()])
+        
+        # 4. Fetch lessons from database (always — lessons can veto even clean markets)
+        lessons_pool = fetch_lessons_pool()
+        similar_lessons = get_similar_lessons(symbol, verdict, lessons_pool, limit=3)
+        # Strip HTML so the LLM reads clean text, not markup
+        symbol_lessons = [l for l in similar_lessons if l.get("symbol") == symbol]
+        
+        lessons_str = ""
+        for idx, l in enumerate(similar_lessons):
+            clean_lesson = _strip_lesson_html(l.get("lesson") or "")
+            lessons_str += f"{idx+1}. [{l['symbol']} {l['verdict']} -> {l['outcome']}]: \"{clean_lesson[:300]}\"\n"
+
+        # Fast-track ALLOW only when no risk flags AND no same-symbol lessons exist.
+        # If we have lessons for this exact symbol, always consult the LLM so it can
+        # veto based on a losing streak (e.g. 11 losses in a row on CAD/JPY).
+        if not any(flags.values()) and not symbol_lessons:
+            return True, "No risk flags triggered and no symbol-specific lessons."
+
+        # 5. Fetch synthesised symbol knowledge (covers ALL historical trades, not just 3 lessons)
+        symbol_knowledge = fetch_symbol_knowledge(symbol)
+
+        # 6. Build prompt — knowledge summary goes first so it anchors the LLM's judgement
+        prompt = f"""
+We are considering executing a new {verdict} trade on {symbol}.
+
+{f'HISTORICAL KNOWLEDGE BASE FOR {symbol} (synthesised from all past trades and lessons):{chr(10)}{symbol_knowledge}{chr(10)}' if symbol_knowledge else ''}
+Current Market Indicators:
+{feat_str}
+
+Pre-Calculated Risk Flags:
+{flags_str}
+
+Indicator Glossary & Context:
+- mom_X: Price return over the last X periods. A negative value represents a recent pullback/dip, which is common and expected for pullback entry strategies.
+- mom_vs_X: Normalized momentum relative to volatility.
+- rvol_X / pvol_X: Realised/Parkinson historical volatility.
+- trend_slope_X: Slope of the major trend. Positive values indicate an overall upward structural trend bias (bullish structure).
+- dist_ma_X: Distance from the major moving average. A negative value indicates price is trading below its MA (confirming a pullback/discount entry).
+
+Recent individual trade lessons:
+{lessons_str}
+
+DIRECTIVE: Act as a hedge fund risk manager evaluating this trade.
+VETO if any Pre-Calculated Risk Flag is True OR if the Historical Knowledge Base clearly shows this symbol/direction has a pattern of failure under current conditions.
+ALLOW if the flags are clear and historical knowledge supports or is neutral on this setup.
+
+Return ONLY a strict JSON object:
+{{
+  "verdict": "VETO" or "ALLOW",
+  "reason": "1-sentence explanation referencing either the risk flag or the historical pattern"
+}}
+"""
+        system = "You are a pragmatic risk manager. Reply only with valid JSON containing 'verdict' and 'reason'."
+        
+        resp = llm.complete(prompt, system=system, temperature=0.1, max_tokens=300)
+        if not resp:
+            return True, "AI call failed (fail-ALLOW)"
+            
+        clean_resp = resp.strip()
+        if clean_resp.startswith("```"):
+            clean_resp = clean_resp.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            
+        data = json.loads(clean_resp)
+        verdict_res = data.get("verdict", "ALLOW").upper()
+        reason = data.get("reason", "No reason provided")
+        
+        return (verdict_res != "VETO"), reason
+    except Exception as e:
+        return True, f"Error running structural veto check: {e}"
+
+def scan_single_asset(item, active_trades_map, corr_matrix=None):
+    """Worker to scan a single portfolio asset for signals."""
+    sym = item["instrument"]
+    style = item["style"]
+    tf = item["timeframe"]
+    
+    # ── Check Market Hours ──
+    is_eq = sym.upper() in EQUITIES_SET
+    is_fx = "/" in sym and not is_eq
+    
+    if is_eq and not is_us_market_open():
+        return
+        
+    if is_fx and not is_forex_market_open():
+        return
+        
+    print(f"  [SCANNING] {sym} ({tf}) -> Running strategy sweep...")
+    params = get_params_for_trade(style, tf, sym)
+    try:
+        # Look back enough days for warmup and HTF MA trend calculation
+        if tf in ("5m", "15m"):
+            lookback_days = 30
+        elif tf == "1h":
+            lookback_days = 350
+        elif tf == "1d":
+            lookback_days = 400
+        else: # 1w
+            lookback_days = 1000
+            
+        start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
+        if len(df) < params["warmup"] + 15:
+            return
+            
+        pit = PointInTimeAccessor(df)
+        base_strat = RegimeGatedMomentum(
+            momentum_lookback=params["momentum_lookback"],
+            vol_window=params["vol_window"],
+            holding_horizon=params["holding_horizon"],
+            reward_risk=params["reward_risk"],
+            regime_method="rule_based",
+            timeframe=tf,
+            bypass_calibration=True,
+            instrument=sym
+        )
+        
+        # Determine HTF mapping
+        htf_rule = None
+        htf_ma_window = 200
+        if tf == "15m":
+            htf_rule = "1h"
+        elif tf == "1h":
+            htf_rule = "1d"
+        elif tf == "1d":
+            htf_rule = "1w"
+            htf_ma_window = 50
+            
+        strat = MultiTimeframeMomentum(
+            base_strategy=base_strat,
+            htf_rule=htf_rule,
+            htf_ma_window=htf_ma_window,
+            instrument=sym
+        )
+        strat.fit(pit, df.index[:-1])
+        
+        # Evaluate latest signal
+        latest_time = df.index[-1]
+        
+        # Check if the data is stale
+        now_utc = datetime.utcnow()
+        latest_time_utc = latest_time.tz_convert("UTC") if latest_time.tzinfo else latest_time.tz_localize("UTC")
+        age_seconds = (now_utc - latest_time_utc.replace(tzinfo=None)).total_seconds()
+        
+        # Max allowed age based on timeframe.
+        # Forex cross-pairs (GBP/JPY, CHF/JPY, etc.) can have data delays on Yahoo Finance
+        # so we use wider windows for intraday forex to avoid false [SKIPPED] during live hours.
+        is_fx_instrument = "/" in sym
+        max_age = {
+            "5m":  1200  if not is_fx_instrument else  7200,   # 20min / 2hrs
