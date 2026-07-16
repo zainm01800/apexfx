@@ -85,7 +85,8 @@ def test_drawdown_breaker_halts_new_positions():
 
 
 def test_just_below_breaker_allows_trade():
-    rm = RiskManager()
+    cfg = get_config().risk.model_copy(update={"drawdown_reducing_limit": 0.20})
+    rm = RiskManager(cfg=cfg)
     acct = mk_account(equity=85_000, peak=100_000)  # 15% < 20% breaker
     pos = rm.permit(mk_signal(p=0.9, b=2.0), acct, mk_market())
     assert pos.permitted
