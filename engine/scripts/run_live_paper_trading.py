@@ -2198,3 +2198,203 @@ def resolve_closed_mt4_setups():
         s_sl = float(s.get("stop_loss") or 0.0)
         s_tp = float(s.get("target_price") or 0.0)
         s_price = float(s.get("price") or 0.0)
+        pip = 0.01 if "JPY" in clean_sym else 0.0001
+        sig_tol = 0.1 * pip
+
+        matched_history = None
+        if s_sl > 0 and s_tp > 0:
+            candidates = []
+            for h in mt4_history:
+                h_sym = h.get("symbol", "")
+                h_clean = h_sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                if h_clean != clean_sym:
+                    continue
+                if ("BUY" if h.get("cmd") == 0 else "SELL") != verdict:
+                    continue
+                try:
+                    h_sl = float(h.get("sl") or 0.0)
+                    h_tp = float(h.get("tp") or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                if h_sl <= 0 or h_tp <= 0:
+                    continue
+                if abs(h_sl - s_sl) > sig_tol or abs(h_tp - s_tp) > sig_tol:
+                    continue  # HARD filter: the signature must match
+                candidates.append(h)
+            if candidates:
+                # Tie-break a reused signature on entry proximity.
+                matched_history = min(
+                    candidates, key=lambda h: abs(float(h.get("open_price") or 0.0) - s_price)
+                )
+                    
+        patch_url = f"{MEMORY_ENDPOINT}?id=eq.{s_id}"
+        if matched_history:
+            profit = float(matched_history.get("profit", 0.0))
+            close_price = float(matched_history.get("close_price", 0.0))
+            # Normalise the broker clock to real UTC exactly once, here, where it
+            # enters the engine. This line previously had two stacked bugs:
+            #   1. close_time is a BROKER epoch (~+3h), not UTC;
+            #   2. fromtimestamp() with no tz renders it in the LOCAL machine
+            #      timezone, and the "Z" then falsely declared it UTC.
+            # The result (outcome_date) is what check_hindsight_trajectory uses to
+            # decide where to start scanning price, so a skewed value silently shifts
+            # the whole hindsight window — and those verdicts now feed the Bayesian
+            # sizer's learning.
+            close_ts_utc = float(matched_history.get("close_time") or 0.0) - broker_offset
+            close_time_iso = datetime.fromtimestamp(close_ts_utc, tz=timezone.utc).isoformat()
+            
+            # Determine dynamic outcome based on exit price vs TP and SL targets
+            verdict = s.get("verdict", "BUY").upper()
+            tp = float(s.get("target_price") or 0.0)
+            sl = float(s.get("stop_loss") or 0.0)
+            
+            tolerance = close_price * 0.0002
+            is_sell = verdict in ("SELL", "SHORT")
+            
+            if is_sell:
+                if tp > 0 and close_price <= (tp + tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and close_price >= (sl - tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
+            else:
+                if tp > 0 and close_price >= (tp - tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and close_price <= (sl + tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
+            
+            payload = {
+                "outcome": outcome,
+                "outcome_price": close_price,
+                "outcome_date": close_time_iso,
+                "lesson": f"Resolved automatically: Matched MT4 ticket {matched_history.get('ticket')} exit on {sym}. Profit: £{profit:.2f}."
+            }
+            # Persist the linkage in a real column, not just inside the lesson text.
+            # The ticket is known for certain HERE and nowhere else; storing it only in
+            # free text meant it was lost whenever a lesson was regenerated.
+            if _memory_has_ticket_column():
+                payload["ticket"] = matched_history.get("ticket")
+            httpx.patch(patch_url, headers=headers, json=payload)
+            print(f"  [RESOLVE] Setup {s_id} automatically resolved as {outcome} via MT4 ticket.")
+        else:
+            # Mark as expired since it is no longer in open positions or recent history
+            payload = {
+                "outcome": "expired",
+                "outcome_price": float(s.get("price") or 0.0),
+                "outcome_date": now_utc.isoformat() + "Z",
+                "lesson": "Resolved automatically: Setup expired or was not filled on MT4 terminal."
+            }
+            httpx.patch(patch_url, headers=headers, json=payload)
+            print(f"  [RESOLVE] Setup {s_id} marked as expired (no active MT4 trade).")
+
+
+def ensure_active_mt4_setups_pending():
+    """Verify that all open positions in MT4 have their corresponding setups marked as pending in Supabase.
+    
+    If they were accidentally marked as expired or invalidated, restore them to pending.
+    """
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if not common_dir:
+        return
+        
+    positions_file = os.path.join(common_dir, "mt4_positions.json")
+    if not os.path.exists(positions_file):
+        return
+        
+    try:
+        positions = safe_load_json(positions_file)
+        if not positions:
+            return
+    except Exception as e:
+        print(f"  [WARN] Error reading MT4 positions for setup check: {e}")
+        return
+
+    # Fetch recent analyses (resolved and pending) from the last 7 days
+    url = f"{MEMORY_ENDPOINT}?order=created_at.desc&limit=250"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code != 200:
+            return
+        scans_list = r.json()
+    except Exception as e:
+        print(f"  [WARN] Connection error fetching recent analyses for pending check: {e}")
+        return
+
+    import re
+    def parse_fl(val):
+        if val is None: return 0.0
+        if isinstance(val, (int, float)): return float(val)
+        val_str = str(val).strip()
+        if not val_str: return 0.0
+        try: return float(val_str)
+        except ValueError:
+            m = re.findall(r'[-+]?\d*\.\d+|\d+', val_str)
+            return float(m[0]) if m else 0.0
+
+    def get_clean_symbol(sym):
+        return sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+
+    for p in positions:
+        magic = p.get("magic", 0)
+        # Only check positions opened by the engine (magic 88888)
+        if magic != 88888:
+            continue
+            
+        p_sym = p.get("symbol", "")
+        p_clean = get_clean_symbol(p_sym)
+        p_sl = float(p.get("sl", 0.0))
+        p_tp = float(p.get("tp", 0.0))
+        
+        best_scan = None
+        best_score = float('inf')
+        
+        for scan in scans_list:
+            s_clean = get_clean_symbol(scan.get("symbol", ""))
+            if s_clean != p_clean:
+                continue
+            s_sl = parse_fl(scan.get("stop_loss"))
+            s_tp = parse_fl(scan.get("target_price"))
+            
+            # Match score by relative difference in SL and TP
+            rel_diff_sl = abs(s_sl - p_sl) / (s_sl if s_sl > 0 else 1.0)
+            rel_diff_tp = abs(s_tp - p_tp) / (s_tp if s_tp > 0 else 1.0)
+            score = rel_diff_sl + rel_diff_tp
+            if score < best_score:
+                best_score = score
+                best_scan = scan
+                
+        # If we have a close match (e.g. SL/TP diff < 1%), check its outcome
+        if best_scan and best_score < 0.01:
+            s_id = best_scan["id"]
+            outcome = best_scan.get("outcome")
+            
+            # If the trade is active in MT4 but not marked as pending in Supabase, restore it!
+            if outcome != "pending" and outcome is not None:
+                patch_url = f"{MEMORY_ENDPOINT}?id=eq.{s_id}"
+                patch_payload = {
+                    "outcome": "pending",
+                    "outcome_price": None,
+                    "outcome_date": None
+                }
+                try:
+                    patch_r = httpx.patch(patch_url, headers=headers, json=patch_payload)
+                    if patch_r.status_code in (200, 204):
+                        print(f"  [RESTORE] Restored active MT4 trade {s_id} back to pending (was {outcome}).")
+                except Exception as e:
+                    print(f"  [WARN] Failed to patch active MT4 trade setup {s_id}: {e}")
+
+
+def run_once():
+    print("\n" + "="*80)
+    print(f"APEX QUANT - LIVE PAPER TRADING SCAN started at {datetime.now(ZoneInfo('Europe/London')).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print("="*80)
+    
+    # ── Config Drift Guard ──
+    try:
+        from apex_quant.config import load_config
+        disk_cfg = load_config()
+        diffs = []
+        for field in disk_cfg.risk.model_fields:
