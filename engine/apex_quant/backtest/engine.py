@@ -39,12 +39,14 @@ class Backtester:
         *,
         use_regime: bool = True,
         vol_window: int = 63,
+        exit_mode: Literal["managed", "barrier"] = "managed",
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
         self.risk = risk_manager or RiskManager(self.cfg.risk)
         self.use_regime = use_regime
         self.vol_window = vol_window
+        self.exit_mode = exit_mode
         self._regime = RuleBasedRegime()
         self.trade_manager = TradeManager()
         self._mech_cache: dict = {}
@@ -133,43 +135,54 @@ class Backtester:
         pip_val = self._pip(instrument)
 
         for i, t in enumerate(idx):
-            # 1. manage open position (intrabar stop/target/time via TradeManager)
+            # 1. manage open position (intrabar stop/target/time via TradeManager or barrier check)
             if position is not None:
-                # Prepare past 22 bars high/low window for Chandelier trail
-                high_window = high[max(0, i-21):i+1]
-                low_window = low[max(0, i-21):i+1]
-                bars_history = {
-                    "high": float(high_window.max()),
-                    "low": float(low_window.min()),
-                    "len": i + 1,
-                }
+                if self.exit_mode == "barrier":
+                    exit_price, exit_reason = self._check_exit(
+                        position, high[i], low[i], closes[i], i, max_hold, instrument
+                    )
+                    if exit_reason != "":
+                        realized_pnl = self._pnl(position, exit_price)
+                        realized += realized_pnl - commission
+                        position["realized_pnl_total"] += (realized_pnl - commission)
+                        trades.append(self._record(position, exit_price, t, exit_reason, position["realized_pnl_total"], instrument))
+                        position = None
+                else:
+                    # Prepare past 22 bars high/low window for Chandelier trail
+                    high_window = high[max(0, i-21):i+1]
+                    low_window = low[max(0, i-21):i+1]
+                    bars_history = {
+                        "high": float(high_window.max()),
+                        "low": float(low_window.min()),
+                        "len": i + 1,
+                    }
 
-                def fill_fn(price, buying):
-                    return self._fill(price, instrument, buying)
+                    def fill_fn(price, buying):
+                        return self._fill(price, instrument, buying)
 
-                realized_pnl, exit_reason = self.trade_manager.update_position(
-                    position=position,
-                    high=high[i],
-                    low=low[i],
-                    close=closes[i],
-                    atr=atr[i],
-                    is_squeeze=bool(squeeze_arr[i]),
-                    bars_history=bars_history,
-                    timeframe=timeframe or getattr(strategy, "timeframe", "1h"),
-                    pip_size=pip_val,
-                    fill_fn=fill_fn,
-                )
+                    realized_pnl, exit_reason = self.trade_manager.update_position(
+                        position=position,
+                        high=high[i],
+                        low=low[i],
+                        close=closes[i],
+                        atr=atr[i],
+                        is_squeeze=bool(squeeze_arr[i]),
+                        bars_history=bars_history,
+                        timeframe=timeframe or getattr(strategy, "timeframe", "1h"),
+                        pip_size=pip_val,
+                        fill_fn=fill_fn,
+                    )
 
-                if realized_pnl != 0.0 or exit_reason != "":
-                    # Subtract commission for any close transaction (partial or full)
-                    realized += realized_pnl - commission
-                    position["realized_pnl_total"] = position.get("realized_pnl_total", 0.0) + (realized_pnl - commission)
+                    if realized_pnl != 0.0 or exit_reason != "":
+                        # Subtract commission for any close transaction (partial or full)
+                        realized += realized_pnl - commission
+                        position["realized_pnl_total"] = position.get("realized_pnl_total", 0.0) + (realized_pnl - commission)
 
-                if exit_reason != "":
-                    # Record the final trade
-                    exit_price = closes[i] if exit_reason == "time" else (position["stop"] if exit_reason == "stop" else position["target"])
-                    trades.append(self._record(position, exit_price, t, exit_reason, position["realized_pnl_total"], instrument))
-                    position = None
+                    if exit_reason != "":
+                        # Record the final trade
+                        exit_price = closes[i] if exit_reason == "time" else (position["stop"] if exit_reason == "stop" else position["target"])
+                        trades.append(self._record(position, exit_price, t, exit_reason, position["realized_pnl_total"], instrument))
+                        position = None
 
             # 2. execute pending entry at THIS bar's open
             if pending is not None and position is None and i > 0:
