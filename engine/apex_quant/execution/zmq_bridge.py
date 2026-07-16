@@ -82,6 +82,7 @@ class ExecutionProtocol:
         self._orders: dict[str, OrderState] = {}
         self._broker_tickets: set[int] = set()
         self._last_heartbeat: float | None = None
+        self.broker_offset_seconds: float | None = None
 
     # -- outbound -------------------------------------------------------------
     def new_order(
@@ -113,7 +114,12 @@ class ExecutionProtocol:
 
         if typ == "heartbeat":
             self._last_heartbeat = float(msg.get("ts", time.time()))
-            return {"type": "heartbeat", "ts": self._last_heartbeat}
+            server_time = msg.get("server_time")
+            if server_time is not None:
+                self.broker_offset_seconds = float(server_time - time.time())
+                from apex_quant.execution.mt4_clock import set_live_broker_offset
+                set_live_broker_offset(self.broker_offset_seconds)
+            return {"type": "heartbeat", "ts": self._last_heartbeat, "broker_offset_seconds": self.broker_offset_seconds}
 
         if typ == "positions":
             self._broker_tickets = {int(x) for x in msg.get("tickets", [])}
