@@ -127,7 +127,7 @@ void OnTimer()
     uint now = GetTickCount();
     if(now - g_last_heartbeat >= (uint)HEARTBEAT_MS)
     {
-        SendReply("{\"type\":\"heartbeat\"}");
+        SendReply("{\"type\":\"heartbeat\",\"server_time\":" + IntegerToString(TimeCurrent()) + "}");
         g_last_heartbeat = now;
     }
 }
