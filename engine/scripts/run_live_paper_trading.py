@@ -1998,3 +1998,203 @@ def sync_mt4_trades(silent=False):
         
         import re
         def parse_fl(val):
+            if val is None: return 0.0
+            if isinstance(val, (int, float)): return float(val)
+            val_str = str(val).strip()
+            if not val_str: return 0.0
+            try: return float(val_str)
+            except ValueError:
+                m = re.findall(r'[-+]?\d*\.\d+|\d+', val_str)
+                return float(m[0]) if m else 0.0
+
+        for scan in scans_list:
+            s_clean = get_clean_symbol(scan.get("symbol", ""))
+            if s_clean != p_clean:
+                continue
+            s_sl = parse_fl(scan.get("stop_loss"))
+            s_tp = parse_fl(scan.get("target_price"))
+            
+            # Match score by relative difference in SL and TP
+            rel_diff_sl = abs(s_sl - p_sl) / (s_sl if s_sl > 0 else 1.0)
+            rel_diff_tp = abs(s_tp - p_tp) / (s_tp if s_tp > 0 else 1.0)
+            score = rel_diff_sl + rel_diff_tp
+            if score < best_score:
+                best_score = score
+                best_scan = scan
+                
+        if best_scan and best_score < 0.01:
+            sf = best_scan.get("setup_features") or {}
+            if isinstance(sf, str):
+                try: sf = json.loads(sf)
+                except: sf = {}
+            style = sf.get("style", "")
+            if not style:
+                tf = best_scan.get("timeframe", "1d")
+                if tf == "1d": style = "swing"
+                elif tf == "1h": style = "intraday"
+                elif tf == "15m": style = "scalp"
+                else: style = "swing"
+            return style.lower()
+            
+        return "swing"
+        
+    # 1. Sync Open Positions
+    if os.path.exists(positions_file):
+        try:
+            positions = safe_load_json(positions_file)
+            for p in positions:
+                p["status"] = "open"
+                magic = p.get("magic", 0)
+                if magic != 88888:
+                    p["style"] = "manual"
+                else:
+                    p["style"] = get_style_for_trade(p.get("symbol", ""), float(p.get("sl", 0.0)), float(p.get("tp", 0.0)))
+            if positions:
+                r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
+                if r.status_code not in (200, 201, 204):
+                    print(f"  [WARN] Failed to sync open positions to Supabase: {r.text}")
+                elif not silent:
+                    print(f"  [INFO] Synced {len(positions)} open positions from MT4 to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing open positions: {e}")
+            
+    # 2. Sync Closed History
+    if os.path.exists(history_file):
+        try:
+            closed_trades = safe_load_json(history_file)
+            for c in closed_trades:
+                c["status"] = "closed"
+                magic = c.get("magic", 0)
+                if magic != 88888:
+                    c["style"] = "manual"
+                else:
+                    c["style"] = get_style_for_trade(c.get("symbol", ""), float(c.get("sl", 0.0)), float(c.get("tp", 0.0)))
+            if closed_trades:
+                r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
+                if r.status_code not in (200, 201, 204):
+                    print(f"  [WARN] Failed to sync closed history to Supabase: {r.text}")
+                elif not silent:
+                    print(f"  [INFO] Synced {len(closed_trades)} closed history trades from MT4 to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing closed history: {e}")
+
+    # 3. Sync Account Info
+    account_file = os.path.join(common_dir, "mt4_account.json")
+    if os.path.exists(account_file):
+        try:
+            account_data = safe_load_json(account_file)
+            account_data["id"] = 1
+            account_data["updated_at"] = datetime.utcnow().isoformat()
+            r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
+            if r.status_code not in (200, 201, 204):
+                print(f"  [WARN] Failed to sync account info to Supabase: {r.text}")
+            elif not silent:
+                print(f"  [INFO] Synced live MT4 account stats to Supabase.")
+        except Exception as e:
+            print(f"  [WARN] Error syncing account info: {e}")
+
+_TICKET_COLUMN_OK = None
+
+
+def _memory_has_ticket_column() -> bool:
+    """Detect once whether apex_research_memory has the `ticket` column.
+
+    A real ticket column is the permanent fix for setup<->trade linkage: it lets the
+    dashboard join a card to its post-mortem exactly, instead of re-deriving the link
+    from an SL/TP signature. Until the column is added (see scripts/backfill_tickets.py
+    for the one-line DDL) we simply skip writing it, so live resolution keeps working
+    unchanged on the older schema.
+    """
+    global _TICKET_COLUMN_OK
+    if _TICKET_COLUMN_OK is None:
+        try:
+            r = httpx.get(f"{MEMORY_ENDPOINT}?select=id,ticket&limit=1", headers=headers, timeout=15)
+            _TICKET_COLUMN_OK = r.status_code == 200
+        except Exception:
+            _TICKET_COLUMN_OK = False
+        if not _TICKET_COLUMN_OK:
+            print("  [INFO] apex_research_memory.ticket column not present — skipping ticket "
+                  "persistence (see scripts/backfill_tickets.py to enable exact card matching).")
+    return _TICKET_COLUMN_OK
+
+
+def resolve_closed_mt4_setups():
+    """Look at MT4 positions and history files to automatically resolve pending setups."""
+    common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
+    if not common_dir:
+        return
+        
+    positions_file = os.path.join(common_dir, "mt4_positions.json")
+    history_file = os.path.join(common_dir, "mt4_history.json")
+    
+    mt4_active_symbols = set()
+    if os.path.exists(positions_file):
+        try:
+            positions = safe_load_json(positions_file)
+            for p in positions:
+                sym = p.get("symbol", "")
+                clean = sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                mt4_active_symbols.add(clean)
+        except Exception as e:
+            print(f"  [WARN] Error reading MT4 positions for setup resolution: {e}")
+            
+    mt4_history = []
+    if os.path.exists(history_file):
+        try:
+            mt4_history = safe_load_json(history_file)
+        except Exception as e:
+            print(f"  [WARN] Error reading MT4 history for setup resolution: {e}")
+
+    # Broker clock vs UTC (config; warns if this batch proves it wrong).
+    broker_offset = mt4_utc_offset_seconds(mt4_history)
+            
+    # Fetch pending setups
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL)"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code != 200:
+            return
+        pending = r.json()
+    except Exception as e:
+        print(f"  [WARN] Connection error fetching pending setups: {e}")
+        return
+        
+    from datetime import timezone
+    now_utc = datetime.now(timezone.utc)
+    for s in pending:
+        s_id = s["id"]
+        sym = s["symbol"]
+        clean_sym = sym.replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+        created_at_str = s.get("created_at")
+        verdict = s.get("verdict", "BUY").upper()
+        
+        try:
+            clean_ts = created_at_str.replace("Z", "+00:00")
+            setup_dt = datetime.fromisoformat(clean_ts)
+            setup_timestamp = setup_dt.timestamp()
+            age_seconds = (now_utc - setup_dt).total_seconds()
+        except Exception:
+            setup_timestamp = 0.0
+            age_seconds = 600.0
+            
+        # Give MT4 at least 3 minutes to fetch and open the trade
+        if age_seconds < 180:
+            continue
+            
+
+            
+        # Try to match in MT4 history by open time proximity
+        # Match this setup to its MT4 trade by its EXACT SL+TP signature.
+        #
+        # The engine SENDS sl/tp with the order and MT4 records them verbatim, so
+        # (symbol, direction, sl, tp) identifies which trade a setup became. Measured
+        # on live data: a 0.1-pip tolerance uniquely identifies ~89% of trades, and
+        # LOOSENING it makes matching worse, not better.
+        #
+        # The previous rule — first symbol+direction trade opened within 12h — picked
+        # an arbitrary trade whenever several were open on the same pair. That is the
+        # origin of the corruption: each setup got bound to a NEIGHBOURING trade's
+        # ticket, so post-mortems quoted another trade's exit price and P&L.
+        s_sl = float(s.get("stop_loss") or 0.0)
+        s_tp = float(s.get("target_price") or 0.0)
+        s_price = float(s.get("price") or 0.0)
