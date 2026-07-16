@@ -1198,3 +1198,203 @@ def check_single_trade(t):
                     return
                 elif high_p >= tp:
                     resolve_trade(trade_id, "tp_hit", tp, bar_time)
+                    return
+            elif direction == "SELL" or direction == "SHORT":  # SHORT
+                if high_p >= sl:
+                    resolve_trade(trade_id, "sl_hit", sl, bar_time)
+                    return
+                elif low_p <= tp:
+                    resolve_trade(trade_id, "tp_hit", tp, bar_time)
+                    return
+    except Exception as e:
+        print(f"Error checking status for {sym}: {e}")
+
+def check_open_trades(open_trades):
+    """Check open positions against current market price concurrently with cached historical data."""
+    if not open_trades:
+        print("No pending open trades in database.")
+        return
+        
+    print(f"Checking {len(open_trades)} active trades in parallel...")
+    
+    # 1. Group trades by (symbol, timeframe)
+    grouped_trades = {}
+    us_open = is_us_market_open()
+    fx_open = is_forex_market_open()
+    
+    for t in open_trades:
+        sym = t["symbol"]
+        is_eq = sym.upper() in EQUITIES_SET
+        is_fx = "/" in sym and not is_eq
+        
+        # Skip checking if market is closed
+        if is_eq and not us_open:
+            continue
+        if is_fx and not fx_open:
+            continue
+            
+        tf = map_timeframe(t.get("timeframe", "1d"))
+        key = (sym, tf)
+        if key not in grouped_trades:
+            grouped_trades[key] = []
+        grouped_trades[key].append(t)
+        
+    # 2. Fetch history for each group in parallel
+    history_cache = {}
+    history_lock = threading.Lock()
+    
+    def fetch_group_history(key):
+        sym, tf = key
+        trades = grouped_trades[key]
+        
+        # Find earliest entry timestamp
+        earliest_entry = None
+        for t in trades:
+            try:
+                entry_ts = parse_trade_entry_ts(t)
+                if earliest_entry is None or entry_ts < earliest_entry:
+                    earliest_entry = entry_ts
+            except Exception:
+                pass
+                
+        if earliest_entry is None:
+            earliest_entry = datetime.utcnow().timestamp()
+            
+        now_ts = datetime.utcnow().timestamp()
+        age_seconds = now_ts - earliest_entry
+        
+        if tf == "15m":
+            lookback_days = min(50, max(3, int(age_seconds / 86400) + 1))
+        elif tf == "1h":
+            lookback_days = min(700, max(7, int(age_seconds / 86400) + 1))
+        else:
+            lookback_days = max(30, int(age_seconds / 86400) + 1)
+            
+        start_date = (datetime.utcnow() - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        end_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        try:
+            df = clean(data_provider.get_history(sym, start=start_date, end=end_date, timeframe=tf))
+            if not df.empty:
+                with history_lock:
+                    history_cache[key] = df
+        except Exception as e:
+            print(f"Error fetching history for check cache on {sym} ({tf}): {e}")
+
+    # Fetch all histories in parallel
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(fetch_group_history, key) for key in grouped_trades.keys()]
+        for _ in as_completed(futures):
+            pass
+            
+    # 3. Now check each trade using the cached history data
+    def check_trade_with_cache(t):
+        sym = t["symbol"]
+        trade_id = t["id"]
+        direction = t["verdict"]
+        sl = _safe_float(t.get("stop_loss")) or 0.0
+        tp = _safe_float(t.get("target_price")) or 0.0
+        tf = map_timeframe(t.get("timeframe", "1d"))
+        key = (sym, tf)
+        
+        df = history_cache.get(key)
+        if df is None or df.empty:
+            return
+            
+        try:
+            entry_ts = parse_trade_entry_ts(t)
+            df_timestamps = df.index.tz_localize(None).view("int64") // 10**9
+            df_after = df.loc[df_timestamps >= (entry_ts - 60)]
+            
+            if df_after.empty:
+                return
+                
+            for timestamp, bar in df_after.iterrows():
+                high_p = float(bar["high"])
+                low_p = float(bar["low"])
+                bar_time = timestamp.tz_localize(None).isoformat()
+                
+                if direction == "BUY" or direction == "LONG":
+                    if low_p <= sl:
+                        resolve_trade(trade_id, "sl_hit", sl, bar_time)
+                        return
+                    elif high_p >= tp:
+                        resolve_trade(trade_id, "tp_hit", tp, bar_time)
+                        return
+                elif direction == "SELL" or direction == "SHORT":
+                    if high_p >= sl:
+                        resolve_trade(trade_id, "sl_hit", sl, bar_time)
+                        return
+                    elif low_p <= tp:
+                        resolve_trade(trade_id, "tp_hit", tp, bar_time)
+                        return
+        except Exception as e:
+            print(f"Error checking status for {sym}: {e}")
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(check_trade_with_cache, t) for t in open_trades]
+        for _ in as_completed(futures):
+            pass
+
+    # --- TMS: apply dynamic trade management to all still-open trades ---
+    # We reuse the already-fetched history_cache so no extra API calls are needed.
+    if _EXECUTOR is not None:
+        for t in open_trades:
+            sym = t["symbol"]
+            tf  = map_timeframe(t.get("timeframe", "1d"))
+            key = (sym, tf)
+            df  = history_cache.get(key)
+            if df is not None and not df.empty:
+                apply_trade_management(t, df)
+
+def fetch_lessons_pool():
+    try:
+        url = f"{MEMORY_ENDPOINT}?select=symbol,verdict,outcome,lesson&lesson=not.is.null&limit=1000"
+        r = httpx.get(url, headers=headers)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"  [WARN] Failed to load lessons pool: {e}")
+    return []
+
+
+def fetch_symbol_knowledge(symbol: str) -> str:
+    """Fetch the synthesised strategic knowledge summary for this symbol.
+    Returns plain text summary or empty string if not yet available."""
+    try:
+        clean = symbol.replace("/","").replace("-g","").upper()
+        url = f"{SUPABASE_URL}/rest/v1/apex_symbol_knowledge?symbol=eq.{clean}&select=summary,n_trades,win_rate"
+        r = httpx.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            rows = r.json()
+            if rows:
+                row = rows[0]
+                summary = (row.get("summary") or "").strip()
+                n = row.get("n_trades", 0)
+                wr = row.get("win_rate", 0)
+                if summary:
+                    return f"[SYMBOL KNOWLEDGE: {symbol} | {n} trades | {wr*100:.0f}% win rate]\n{summary}"
+    except Exception as e:
+        print(f"  [WARN] Could not fetch symbol knowledge for {symbol}: {e}")
+    return ""
+
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+def _strip_lesson_html(text: str) -> str:
+    """Convert an HTML lesson to clean plain text for LLM consumption."""
+    if not text:
+        return ""
+    text = _HTML_COMMENT_RE.sub("", text)   # strip <!-- TICKET_ID: … -->
+    text = _HTML_TAG_RE.sub("", text)        # strip all HTML tags
+    import html as _html_mod
+    text = _html_mod.unescape(text)          # decode &amp; &lt; etc.
+    # Collapse whitespace / multiple blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text.strip())
+    return text
+
+
+def get_similar_lessons(symbol, verdict, pool, limit=3):
+    if not pool:
+        return []
