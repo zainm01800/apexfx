@@ -748,3 +748,253 @@ STRATEGY INDICATORS & SYSTEM FEATURES AT ENTRY:
 {feat_str}
 
 GLOSSARY FOR SYSTEM FEATURES:
+- adx: Trend strength (0 to 1). Values > 0.25 indicate strong trending environments; < 0.20 indicate ranges/chop.
+- rsi: Relative Strength Index (0 to 1). Overbought when > 0.70; oversold when < 0.30.
+- pxVsSma50: Normalized price distance to 50 SMA.
+- trendAlign: Trend alignment score (-1 for bearish, 1 for bullish, 0 for range).
+- regime: Market regime classification (e.g. up/low-vol, down/high-vol).
+- confluence: Convergence/confluence score of multiple signals (0 to 1).
+
+Write the post-mortem as ONE JSON object with exactly these keys:
+
+"the_reason": Why price behaved this way and why the position was closed here. Analyze the setup features and regime: was the entry counter-trend, was it caught in low-volatility chop, or did a volatility spike hit the stop? If the evidence does not identify a cause, say the signals were ambiguous — do NOT invent a cause.
+
+"key_lesson": Judge the DECISION, not the outcome. Use the COUNTERFACTUAL above verbatim — never claim the trade "would have hit TP" unless it explicitly says so. Compare against the TRACK RECORD: if this result sits within normal variance for a book with this win rate, say so plainly.
+
+"action_plan": Ask honestly whether this ONE trade justifies changing anything. The correct answer is almost always NO — tuning parameters on a single trade is overfitting. Only propose a change if the TRACK RECORD (not this trade) supports it, and state how many trades would be needed to test it.
+
+Rules: valid JSON, double-quoted strings, no markdown, no invented numbers. Never contradict the FACTS or the COUNTERFACTUAL."""
+
+    system = (
+        "You are a quantitative trading analyst performing post-mortems on the APEX Quant engine. "
+        "Your engine uses a RegimeGatedMomentum strategy with multi-timeframe trend gating and Bayesian risk sizing.\n\n"
+        "Analyze the trade using both the technical text summary and the quantitative SYSTEM FEATURES. "
+        "You must evaluate:\n"
+        "1. Strategy Fit: Did the trade match the current trend/volatility regime? (e.g. counter-trend entry in strong trend, or momentum trading in a low-vol regime?)\n"
+        "2. Multi-Timeframe Alignment: Did trendAlign and pxVsSma50 indicate a high-probability confluence?\n"
+        "3. Sizing/SL appropriateness: Did the ATR/volatility warrant a wider stop, or did the sizer size it correctly?\n"
+        "4. Early Exit/Management: If closed early, did the post-exit counterfactual prove the exit saved money or forfeited profit?\n\n"
+        "Rules:\n"
+        "- Reply ONLY with a valid JSON object with keys: the_reason, key_lesson, action_plan.\n"
+        "- Do not contradict or re-state the supplied FACTS or COUNTERFACTUAL.\n"
+        "- Never recommend parameter changes or stop/target adjustments based on a single trade (n=1 is overfitting). Keep the action plan grounded in whole-book track record statistics.\n"
+        "- Avoid raw system codes like tp_hit, sl_hit, range/low-vol in your text; write natural financial prose."
+    )
+
+    def _safe_str(val) -> str:
+        if val is None:
+            return ""
+        if isinstance(val, str):
+            val_stripped = val.strip()
+            if (val_stripped.startswith("{") and val_stripped.endswith("}")) or \
+               (val_stripped.startswith("[") and val_stripped.endswith("]")):
+                try:
+                    val = json.loads(val_stripped)
+                except Exception:
+                    pass
+        if isinstance(val, dict):
+            parts = [f"{str(k).replace('_', ' ').title()}: {_safe_str(v)}" for k, v in val.items()]
+            return " · ".join(parts)
+        if isinstance(val, list):
+            return " · ".join(_safe_str(x) for x in val)
+        result = str(val).strip()
+        for code, label in _OUTCOME_LABELS.items():
+            result = result.replace(code, label)
+        return result
+
+    resp = _groq_complete(prompt, system)
+    if not resp:
+        return None
+
+    try:
+        clean_resp = resp.strip()
+        if clean_resp.startswith("```"):
+            clean_resp = clean_resp.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        o = json.loads(clean_resp)
+        # "What happened" is TEMPLATED from the broker record, never generated. The
+        # model cannot mis-state a number it was never asked to produce, so numeric
+        # drift (a lesson quoting £-60.85 for an £-84.60 trade) becomes structurally
+        # impossible rather than merely discouraged.
+        def _px(v) -> str:
+            """Prices come back as raw floats (2.2905200000000008) — round for display."""
+            try:
+                return f"{float(v):.5f}".rstrip("0").rstrip(".")
+            except (TypeError, ValueError):
+                return str(v)
+
+        _abs = abs(profit_val)
+        size_word = "minor" if _abs < 100 else ("moderate" if _abs < 500 else "significant")
+        wl = "gain" if profit_val > 0 else ("loss" if profit_val < 0 else "flat result")
+        exit_disp = _px(trade.get("outcome_price", "?"))
+        if outcome == "tp_hit":
+            _facts = (f"Hit the take-profit at {exit_disp} from an entry of {_px(entry)} — "
+                      f"a {size_word} {wl} of £{profit_val:.2f}.")
+        elif outcome == "sl_hit":
+            _facts = (f"Hit the stop-loss at {exit_disp} from an entry of {_px(entry)} — "
+                      f"a {size_word} {wl} of £{profit_val:.2f}.")
+        else:
+            _facts = (f"Closed manually at {exit_disp} from an entry of {_px(entry)}, before either "
+                      f"the target ({_px(tp)}) or the stop ({_px(sl)}) was reached — "
+                      f"a {size_word} {wl} of £{profit_val:.2f}.")
+        wwr = html.escape(_facts)
+        ywr = html.escape(_safe_str(o.get("the_reason") or o.get("why_it_went_wrong_or_right") or ""))
+        imp = html.escape(_safe_str(o.get("key_lesson") or o.get("improvement_or_preservation") or ""))
+        ap  = html.escape(_safe_str(o.get("action_plan") or ""))
+
+        # Build Hindsight HTML line if finalized
+        hindsight_html = ""
+        if features.get("hindsight_checked", False):
+            h_outcome = features.get("hindsight_outcome")
+            h_mfe = features.get("hindsight_mfe_pips", 0.0)
+            h_mae = features.get("hindsight_mae_pips", 0.0)
+            
+            outcome_icons = {
+                "tp_hit": f"🟢 <strong>Hindsight Check:</strong> Trade eventually hit Take Profit (+{h_mfe} pips max run, -{h_mae} pips drawdown post-exit). Exit was premature.",
+                "sl_hit": f"🔴 <strong>Hindsight Check:</strong> Trade eventually hit Stop Loss (-{h_mae} pips drawdown, +{h_mfe} pips max run post-exit). Exit saved money.",
+                "drifting_limit": f"🟡 <strong>Hindsight Check:</strong> Trade drifted without hitting targets (+{h_mfe} pips max run, -{h_mae} pips drawdown post-exit)."
+            }
+            h_text = outcome_icons.get(h_outcome, f"🔍 <strong>Hindsight Check:</strong> Post-exit trajectory: {h_outcome} (MFE: +{h_mfe} pips, MAE: -{h_mae} pips).")
+            hindsight_html = f"<br>{h_text}"
+
+        if category == "win":
+            html_res = (
+                f"<strong>✅ What Went Right:</strong> {wwr}<br>"
+                f"<strong>📊 Why It Worked:</strong> {ywr}<br>"
+                f"<strong>🔒 What to Preserve:</strong> {imp}"
+                f"{hindsight_html}<br>"
+                f"<strong>🎯 Action Plan:</strong> {ap}"
+            )
+        elif category == "neutral":
+            html_res = (
+                f"<strong>🔄 What Happened:</strong> {wwr}<br>"
+                f"<strong>📐 Why It Was Managed Out:</strong> {ywr}<br>"
+                f"<strong>⚖️ Was the Decision Correct?</strong> {imp}"
+                f"{hindsight_html}<br>"
+                f"<strong>🎯 Action Plan for Similar Setups:</strong> {ap}"
+            )
+        else:  # loss
+            html_res = (
+                f"<strong>❌ What Went Wrong:</strong> {wwr}<br>"
+                f"<strong>🔍 Why It Went Wrong:</strong> {ywr}<br>"
+                f"<strong>💡 What Can Be Improved:</strong> {imp}"
+                f"{hindsight_html}<br>"
+                f"<strong>🎯 Action Plan to Prevent Recurrence:</strong> {ap}"
+            )
+
+        if ticket_id:
+            html_res += f"\n<!-- TICKET_ID: {ticket_id} -->"
+        html_res += f"\n<!-- {_LESSON_VERSION} -->"
+        print(f"  [DEBUG] _build_lesson for {trade.get('id')}: ticket_id={ticket_id}")
+        return html_res
+    except Exception as e:
+        print(f"  [WARN] JSON parse failed: {e}")
+        raw_res = f"<strong>Post-Mortem:</strong> {html.escape(resp.strip()[:300])}"
+        if ticket_id:
+            raw_res += f"\n<!-- TICKET_ID: {ticket_id} -->"
+        print(f"  [DEBUG-RAW] _build_lesson for {trade.get('id')}: ticket_id={ticket_id}")
+        return raw_res
+
+
+def update_lessons():
+    """Upgrade any resolved trade whose lesson is missing or not yet in structured HTML format.
+    
+    Also runs hindsight checking to see what price did after exit.
+    Called every loop cycle. Processes up to 20 trades per call so it doesn't
+    block the loop. Remaining trades will be caught in the next cycle.
+    """
+    if not GROQ_KEY:
+        print("[WARN] GROQ_API_KEY not set — skipping lesson generation.")
+        return
+
+    print("Fetching resolved trades from Supabase...")
+    url = (
+        f"{MEMORY_ENDPOINT}"
+        f"?outcome=in.(tp_hit,sl_hit,expired,invalidated)"
+        f"&symbol=ilike.*%2F*"
+        f"&order=created_at.desc"
+        f"&or=(id.neq.cachebust_{int(time.time())})"
+    )
+    try:
+        from apex_quant.storage.supabase_util import fetch_all_rows
+        trades = fetch_all_rows(url, headers)
+    except Exception as e:
+        print(f"  [ERROR] Failed to fetch trades: {e}")
+        return
+
+    # 1. Run hindsight checking for trades that don't have it finalized
+    print("Running hindsight trajectory scans on resolved trades...")
+    hindsight_updated = 0
+    
+    # Filter candidates and sort by creation date desc (most recent first)
+    hindsight_candidates = []
+    for t in trades:
+        features = t.get("setup_features") or {}
+        if features.get("hindsight_checked", False):
+            continue
+            
+        last_checked_str = features.get("hindsight_last_checked_at")
+        if last_checked_str:
+            try:
+                dt_str = last_checked_str.replace("Z", "+00:00")
+                last_checked = datetime.fromisoformat(dt_str)
+                elapsed_sec = (datetime.now(timezone.utc) - last_checked).total_seconds()
+                
+                tf = map_timeframe(t.get("timeframe", "1d"))
+                intervals = {
+                    "15m": 15 * 60,
+                    "1h": 60 * 60,
+                    "1d": 24 * 60 * 60,
+                    "1w": 7 * 24 * 60 * 60
+                }
+                min_interval = intervals.get(tf, 60 * 60)
+                if elapsed_sec < min_interval:
+                    continue
+            except Exception:
+                pass
+        hindsight_candidates.append(t)
+        
+    hindsight_candidates.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    
+    # Process at most 15 candidates per cycle to avoid OANDA/Yahoo rate limits
+    batch_hindsight = hindsight_candidates[:15]
+    print(f"Found {len(hindsight_candidates)} trades needing hindsight checks. Scanning {len(batch_hindsight)} this cycle...")
+    
+    for trade in batch_hindsight:
+        features = trade.get("setup_features") or {}
+        # Run trajectory check
+        hindsight_data = check_hindsight_trajectory(trade)
+        if hindsight_data:
+            # Merge into existing features
+            new_features = {**features, **hindsight_data}
+            patch_url = f"{MEMORY_ENDPOINT}?id=eq.{trade['id']}"
+            patch_r = httpx.patch(patch_url, headers=headers, json={"setup_features": new_features})
+            if patch_r.status_code in (200, 204):
+                trade["setup_features"] = new_features
+                hindsight_updated += 1
+                print(f"  ✓ Hindsight checked for {trade['id']}: {hindsight_data['hindsight_outcome']} (MFE: +{hindsight_data['hindsight_mfe_pips']} pips)")
+            else:
+                print(f"  [ERROR] Failed to patch setup_features for {trade['id']}: {patch_r.status_code}")
+
+    if hindsight_updated > 0:
+        print(f"Scanned and updated hindsight trajectory for {hindsight_updated} trades.")
+
+    # 2. Filter for trades needing lessons or lesson updates
+    need_lessons = [t for t in trades if _needs_structured_lesson(t)]
+
+    if not need_lessons:
+        print("All recent resolved trades already have structured post-mortem lessons!")
+        return
+
+    # Cap at 20 per loop call to avoid blocking the main scan too long
+    batch = need_lessons[:20]
+    print(f"Found {len(need_lessons)} trades needing structured lessons. Processing {len(batch)} this cycle...")
+
+    count = 0
+    for trade in batch:
+        tid = trade["id"]
+        sym = trade.get("symbol", "?")
+        outcome = trade.get("outcome", "?")
+        print(f"  Generating lesson for {tid} {sym} ({outcome})...")
+
+        lesson = _build_lesson(trade)
+        time.sleep(6)  # Throttle to stay within Groq RPM/TPM limits
