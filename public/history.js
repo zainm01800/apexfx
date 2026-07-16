@@ -270,9 +270,18 @@ async function resolveIfPending(rows) {
               row.outcome = resolved;
               const resolvedTime = closedEarlyVal ? closedEarlyVal.ts : (row._resolved_at ? new Date(row._resolved_at).toISOString() : new Date().toISOString());
               row.outcome_date = resolvedTime;
+              
+              const tp = parseFloat(row.target_price), sl = parseFloat(row.stop_loss);
+              let outcomePrice = null;
+              if (resolved === 'tp_hit') outcomePrice = tp;
+              else if (resolved === 'sl_hit') outcomePrice = sl;
+              else if (resolved === 'invalidated') outcomePrice = parseFloat(row.price);
+              else if (resolved === 'expired') outcomePrice = parseFloat(row.price);
+              row.outcome_price = outcomePrice;
+
               fetch(API_MEMORY, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: resolvedTime }),
+                body: JSON.stringify({ id: row.id, outcome: resolved, outcome_date: resolvedTime, outcome_price: outcomePrice }),
               }).catch(() => {});
             }
           } else if (graded === null && !closedEarlyVal) {

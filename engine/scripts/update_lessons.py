@@ -705,6 +705,54 @@ def _build_lesson(trade: dict) -> str | None:
             if matched_profit is not None:
                 profit_val = matched_profit
 
+        # Calculate simulated profit/exit price for paper trades (where there is no MT4 ticket matched)
+        if not ticket_id:
+            try:
+                f_entry = float(entry) if entry != "?" else 0.0
+                f_tp = float(tp) if tp != "?" else 0.0
+                f_sl = float(sl) if sl != "?" else 0.0
+            except (TypeError, ValueError):
+                f_entry = f_tp = f_sl = 0.0
+                
+            exit_px = trade.get("outcome_price")
+            if exit_px is None or exit_px == 0:
+                if outcome == "tp_hit" and f_tp > 0:
+                    exit_px = f_tp
+                elif outcome == "sl_hit" and f_sl > 0:
+                    exit_px = f_sl
+                else:
+                    exit_px = f_entry  # Fallback to entry
+                trade["outcome_price"] = exit_px
+            
+            # Calculate simulated paper P&L assuming a standard 1% risk on a £100,000 account (£1,000 risk)
+            try:
+                f_exit = float(exit_px) if exit_px is not None else 0.0
+            except (TypeError, ValueError):
+                f_exit = 0.0
+                
+            if f_entry > 0 and f_sl > 0 and abs(f_entry - f_sl) > 1e-6:
+                is_sell = direction in ("SELL", "SHORT")
+                stop_dist = abs(f_entry - f_sl)
+                risk_gbp = 1000.0
+                
+                if outcome == "tp_hit":
+                    rr = 1.5
+                    rr_str = trade.get("risk_reward", "")
+                    if ":" in rr_str:
+                        try:
+                            parts = rr_str.split(":")
+                            val1 = float(parts[0])
+                            val2 = float(parts[1])
+                            rr = max(val1, val2) / min(val1, val2)
+                        except Exception:
+                            pass
+                    profit_val = risk_gbp * rr
+                elif outcome == "sl_hit":
+                    profit_val = -risk_gbp
+                else:
+                    exit_change = (f_entry - f_exit) if is_sell else (f_exit - f_entry)
+                    profit_val = risk_gbp * (exit_change / stop_dist)
+
     outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
     category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss'
 
@@ -947,7 +995,6 @@ def update_lessons():
     url = (
         f"{MEMORY_ENDPOINT}"
         f"?outcome=in.(tp_hit,sl_hit,expired,invalidated)"
-        f"&symbol=ilike.*%2F*"
         f"&order=created_at.desc"
         f"&or=(id.neq.cachebust_{int(time.time())})"
     )

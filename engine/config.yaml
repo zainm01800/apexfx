@@ -14,6 +14,8 @@ data:
   timeframe: "1d"            # base bar size for Phase 1
   store_dir: "data_store"    # local parquet cache (relative to engine/)
   live_timeframes:
+    - "15m"
+    - "1h"
     - "1d"
     - "1w"
   # Forex universe — mirrors the dashboard quick-picks (public/dashboard.js).
