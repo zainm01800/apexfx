@@ -1,0 +1,59 @@
+name: paper-portfolio
+
+# Daily forward paper step for the FROZEN multi-asset trend book (Book C,
+# lookback 126 — pre-registered in engine/data_store/pre_registration_paper_trend_2026-07-17.md).
+# The stepper is engine-simulated (no broker): each run tops up the parquet
+# cache, restores the paper portfolio from the Supabase mirror, advances it one
+# closed daily bar, and writes the state back to Supabase. Idempotent — only
+# bars strictly before today 00:00 UTC are processed, so re-runs are no-ops.
+#
+# Scheduled daily 7x (not weekdays-only): crypto trades 365, so the weekend
+# runs advance the crypto sleeve (the only class with weekend bars); equity/FX
+# bars from Friday are processed by the Saturday run. No separate catch-up
+# logic is needed — the stepper processes whatever new closed bars exist.
+
+on:
+  schedule:
+    - cron: "30 23 * * *"     # 23:30 UTC daily — after US equity (20:00) and FX (21:00/22:00) closes
+  workflow_dispatch: {}        # run on demand from the Actions tab
+
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: https://dtiuwllodzqpbwohzrgj.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Supabase tables exist (fail fast if not)
+        run: |
+          for t in apex_paper_positions apex_paper_daily; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              "$SUPABASE_URL/rest/v1/$t?select=*&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+            echo "$t REST status: $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::$t not reachable (HTTP $code). Run supabase/apex_paper_portfolio.sql in the Supabase SQL editor first."
+              exit 1
+            fi
+          done
+          echo "Tables OK — proceeding."
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System deps (LightGBM OpenMP runtime)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgomp1
+      - name: Install Python deps
+        run: pip install -r engine/requirements.txt
+      - name: Restore parquet price cache (history stays stable across runs)
+        uses: actions/cache@v4
+        with:
+          # parquets only — NOT paper_portfolio/state.json: in CI the Supabase
+          # mirror is the single source of truth for portfolio state.
+          path: engine/data_store/*.parquet
+          key: paper-portfolio-data-${{ github.run_id }}
+          restore-keys: paper-portfolio-data-
+      - name: Advance the paper book one closed bar
+        working-directory: engine
+        run: python scripts/run_paper_portfolio.py

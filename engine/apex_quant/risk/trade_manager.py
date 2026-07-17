@@ -21,7 +21,7 @@ class TradeManager:
         p1_pct: float = 0.50,
         p2_r: float = 1.5,
         p2_pct: float = 0.25,
-        be_buffer_pips: float = 0.0003,
+        be_buffer_pips: float = 3.0,
         chandelier_mult: float = 2.0,
         squeeze_mult: float = 1.0,
         time_stop_bars: dict[str, int] | None = None,
@@ -30,6 +30,10 @@ class TradeManager:
         self.p1_pct = p1_pct
         self.p2_r = p2_r
         self.p2_pct = p2_pct
+        # Breakeven-stop buffer in PIPS (multiplied by pip_size at apply time).
+        # 3.0 pips matches the legacy live path's intent (0.0003 price on a
+        # 5-decimal pair); the old 0.0003 default collapsed to ~3e-8 price once
+        # multiplied by pip_size, so managed BE exits booked -cost every time.
         self.be_buffer_pips = be_buffer_pips
         self.chandelier_mult = chandelier_mult
         self.squeeze_mult = squeeze_mult
@@ -57,6 +61,7 @@ class TradeManager:
         timeframe: str,
         pip_size: float,
         fill_fn: Callable[[float, bool], float],
+        max_bars: int | None = None,
     ) -> Tuple[float, str]:
         """Update position state (stops, partial closes) based on the current bar.
 
@@ -71,6 +76,10 @@ class TradeManager:
             timeframe:    Timeframe string (e.g. '1h', '15m').
             pip_size:     Pip size for the instrument.
             fill_fn:      Callback `fill_fn(price, buying)` to compute fill with costs.
+            max_bars:     Optional per-call time-stop override (bars). Engines pass
+                          the strategy's holding_horizon so managed time-stops match
+                          the barrier engine's max_hold exactly; None falls back to
+                          the per-timeframe ``time_stop_bars`` table.
 
         Returns:
             (realized_pnl, exit_reason)
@@ -131,7 +140,9 @@ class TradeManager:
 
         # Initialize tracking variables for this step
         realized_pnl = 0.0
-        be_buffer = self.be_buffer_pips * (100.0 if "JPY" in str(position.get("symbol", "")) else 1.0) * pip_size
+        # Buffer is pips x pip_size; pip_size is already JPY-aware at the call
+        # sites (0.01 for JPY pairs), so no per-pair multiplier hacks here.
+        be_buffer = self.be_buffer_pips * pip_size
 
         # ----------------------------------------------------------------
         # Technique 1: Partial 1 (50 %) + Move SL to Breakeven at 1R
@@ -233,9 +244,12 @@ class TradeManager:
         # ----------------------------------------------------------------
         # Technique 4: Time-Based Exit (kill stagnant trades)
         # ----------------------------------------------------------------
-        # Map timeframe to get the max bars limit
+        # Per-call override wins (engines pass the strategy's holding_horizon so
+        # managed time-stops match the barrier engine's max_hold); otherwise fall
+        # back to the per-timeframe table.
         tf_clean = str(timeframe).lower().strip()
-        max_bars = self.time_stop_bars.get(tf_clean, 10)
+        if max_bars is None:
+            max_bars = self.time_stop_bars.get(tf_clean, 10)
         
         # Calculate current profit in R
         current_pnl_dist = (close - entry) if is_long else (entry - close)

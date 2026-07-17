@@ -29,6 +29,8 @@ class Signal(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="model self-confidence")
     rationale: str = ""
     timeframe: str = "1h"  # e.g. '15m', '1h', '1d', '1w' — used for per-bucket slot counting
+    stop_price: float | None = Field(default=None, description="Optional custom stop loss price")
+    target_price: float | None = Field(default=None, description="Optional custom take profit price")
 
 
 class OpenPosition(BaseModel):

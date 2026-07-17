@@ -6,6 +6,8 @@ based on whether they align with the trend on a higher timeframe (HTF).
 
 from __future__ import annotations
 
+import weakref
+
 import logging
 import numpy as np
 import pandas as pd
@@ -67,10 +69,28 @@ class MultiTimeframeMomentum(Strategy):
         if hasattr(self.base_strategy, "fit"):
             self.base_strategy.fit(pit, train_timestamps)
 
+    # Class-level cache sharing HTF trend calculations across strategy instances,
+    # scoped PER DATA OBJECT. Keying by (instrument, rule, window, t) alone served
+    # one dataset's trend to any other dataset sharing the instrument name and
+    # timestamp — the same cross-contamination bug as the regime cache (an uptrend
+    # fixture's result answered for a downtrend fixture; live, a trend computed on
+    # a half-formed current bar would be frozen for that timestamp). A
+    # WeakKeyDictionary ties entries to the pit's lifetime, which also prevents
+    # unbounded growth in the long-running live loop.
+    _global_htf_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
     def _determine_htf_trend(self, pit: PointInTimeAccessor, t) -> int:
         """Returns +1 for UP trend, -1 for DOWN trend, or 0 if indeterminate."""
         if not self.htf_rule:
             return 0  # No HTF rule -> no-op (always allow)
+
+        per_pit = self._global_htf_cache.get(pit)
+        if per_pit is None:
+            per_pit = {}
+            self._global_htf_cache[pit] = per_pit
+        cache_key = (self.instrument, self.htf_rule, self.htf_ma_window, t)
+        if cache_key in per_pit:
+            return per_pit[cache_key]
 
         # Retrieve a large window of history to ensure we have enough bars for the HTF MA.
         # e.g., 200 daily bars require at least 4800 hourly bars, but let's request up to 3000
@@ -78,12 +98,14 @@ class MultiTimeframeMomentum(Strategy):
         # We fetch up to 4000 bars.
         df_ltf = pit.window(t, 4000)
         if df_ltf.empty:
+            per_pit[cache_key] = 0
             return 0
 
         # Resample to HTF
         df_htf = resample_ohlcv(df_ltf, self.htf_rule)
         if len(df_htf) < self.htf_ma_window + 5:
             # If not enough history on HTF, return 0 (no-op/neutral) or fallback
+            per_pit[cache_key] = 0
             return 0
 
         # Compute Simple Moving Average on close
@@ -94,14 +116,21 @@ class MultiTimeframeMomentum(Strategy):
         latest_ma = float(ma.iloc[-1])
 
         if not np.isfinite(latest_close) or not np.isfinite(latest_ma):
+            per_pit[cache_key] = 0
             return 0
 
-        return 1 if latest_close > latest_ma else -1
+        res = 1 if latest_close > latest_ma else -1
+        per_pit[cache_key] = res
+        return res
 
     def generate(self, pit: PointInTimeAccessor, t, instrument: str = "") -> Signal:
         # Get base strategy signal first
         sig = self.base_strategy.generate(pit, t, instrument or self.instrument)
         if sig.direction == Direction.FLAT:
+            return sig
+
+        # Bypass HTF trend filter for counter-trend mean-reversion signals
+        if "mode=mean_reversion" in sig.rationale:
             return sig
 
         # Determine HTF trend direction

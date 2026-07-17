@@ -1,0 +1,27 @@
+/Users/zain/Documents/apexfx/engine/scratch/fetch_cross_gaps.py:27: Pandas4Warning: Timestamp.utcnow is deprecated and will be removed in a future version. Use Timestamp.now('UTC') instead.
+  NOW = pd.Timestamp.utcnow().tz_convert("UTC").floor("s")
+GBP/NZD   15m: total n=31980 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28530
+AUD/NZD   15m: total n=31988 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28532
+EUR/AUD   15m: total n=31989 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+EUR/CAD   15m: total n=31989 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+CHF/JPY   15m: total n=31959 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28520
+GBP/CAD   15m: total n=31989 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+GBP/CHF   15m: total n=31975 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28525
+GBP/AUD   15m: total n=31988 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+EUR/CHF   15m: total n=31980 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28525
+EUR/NZD   15m: total n=31989 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+NZD/JPY   15m: total n=31986 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28530
+CAD/JPY   15m: total n=31989 last=2026-07-17 02:00:00+00:00 | since 2025-05-25: n=28533
+GBP/NZD   1h: total n=14327 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+AUD/NZD   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+EUR/AUD   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+EUR/CAD   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+CHF/JPY   1h: total n=14328 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+GBP/CAD   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+GBP/CHF   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+GBP/AUD   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+EUR/CHF   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+EUR/NZD   1h: total n=14328 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+NZD/JPY   1h: total n=14328 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+CAD/JPY   1h: total n=14329 last=2026-07-17 02:00:00+00:00 | since 2025-05-01: n=7539
+DONE

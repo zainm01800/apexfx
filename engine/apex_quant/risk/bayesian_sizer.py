@@ -36,7 +36,7 @@ bet them the same. This sizer therefore supports three win-rate estimators
 
 The chosen win-rate estimate feeds fractional Kelly:
 
-    f = frac_kelly * (p̂ - (1-p̂)/b)      clipped to [min_rf, max_rf]
+    f = frac_kelly * (p̂ - (1-p̂)/b)      capped at max_rf; <= 0 vetoes the trade
 
 A portfolio-level max-drawdown circuit breaker (default 15%) hard-vetoes
 all new positions until equity recovers, regardless of the Bayesian edge.
@@ -215,8 +215,11 @@ class BayesianRiskSizer:
         Kelly fraction (default 0.25 = quarter-Kelly, conservative under
         parameter uncertainty).
     min_risk :
-        Minimum allowed risk fraction per trade (floor). Guards against
-        zero-sizing when the prior is uninformed.
+        Minimum allowed risk fraction per trade (floor), returned ONLY during
+        the pre-adaptation cold start (fewer than ``min_trades_for_adaptation``
+        recorded trades). Guards against zero-sizing when the prior is
+        uninformed. It is NOT a floor after adaptation — a non-positive Kelly
+        from an informed posterior vetoes the trade (returns ``None``).
     max_risk :
         Maximum allowed risk fraction per trade (ceiling). Hard cap.
     max_drawdown :
@@ -302,8 +305,12 @@ class BayesianRiskSizer:
         Returns
         -------
         float | None
-            The risk fraction in [min_risk, max_risk], or ``None`` if the
-            drawdown circuit breaker is tripped (caller should veto).
+            The risk fraction in (0, max_risk], or ``None`` when the trade must
+            be vetoed: either the drawdown circuit breaker is tripped, or the
+            POST-ADAPTATION Kelly is non-positive — a demonstrated losing record
+            has no edge to bet (audit A-H2). The ``min_risk`` floor applies ONLY
+            to the pre-adaptation cold start; it must never keep a proven loser
+            in the game.
         """
         # Hard drawdown circuit breaker
         if account.drawdown >= self.max_drawdown:
@@ -327,8 +334,14 @@ class BayesianRiskSizer:
         # Fractional Kelly: f = frac * (p - (1-p)/b)
         raw_kelly = self.frac_kelly * (p - (1.0 - p) / b)
 
-        # Clamp to [min_risk, max_risk]
-        return float(min(self.max_risk, max(self.min_risk, raw_kelly)))
+        # Post-adaptation a non-positive Kelly VETOES the trade (None -> the
+        # RiskManager's no-edge veto), mirroring the static fractional-Kelly
+        # gate. Flooring it to min_risk here kept demonstrated losers trading.
+        if raw_kelly <= 0:
+            return None
+
+        # Positive edge: cap only at max_risk (no min_risk floor once informed).
+        return float(min(self.max_risk, raw_kelly))
 
     def describe(self, instrument: str | None = None) -> dict:
         """Return a summary dict for logging / dashboard display."""

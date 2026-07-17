@@ -3,9 +3,17 @@
 Every DataFrame that flows through the engine obeys this contract:
 
   * index:   tz-aware (UTC) ``DatetimeIndex`` named ``timestamp``, sorted ascending,
-             unique. Each bar's timestamp is its **close / information time** - i.e.
-             the bar is considered *known* only at or after this timestamp. This is
-             the single convention the point-in-time accessor relies on.
+             unique. Each bar's timestamp is its **open time**: the bar labelled
+             ``t`` covers ``[t, t + bar_duration)`` and is fully knowable only at
+             ``t + bar_duration`` (its close). Bars are labelled by open time
+             because that is what every vendor feed (OANDA, Yahoo, TwelveData)
+             actually delivers; an earlier revision of this contract claimed
+             close-time labels, which was aspirational and false (audit D-H1).
+             Day-based bars are pinned to 00:00 UTC of their *session date*
+             (forex: the 17:00-NY session, Sunday-open session labelled Monday —
+             see :mod:`apex_quant.data.calendar`). Consumers must not treat a
+             bar as known before its close; the store trims still-forming
+             terminal bars so caches only ever hold completed bars.
   * columns: exactly ``open, high, low, close, volume`` (float64).
 
 ``validate_ohlcv`` enforces the contract loudly so leakage / corruption surfaces

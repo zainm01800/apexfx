@@ -1,0 +1,246 @@
+/Users/zain/Documents/apexfx/engine/scratch/run_baseline_portfolio.py:64: Pandas4Warning: Timestamp.utcnow is deprecated and will be removed in a future version. Use Timestamp.now('UTC') instead.
+  NOW = pd.Timestamp.utcnow().tz_convert("UTC").floor("s")
+window: 2025-07-17 00:00:00+00:00 -> 2026-07-17 02:38:09+00:00
+[SKIP] EUR/USD@15m: vetoed-skip
+[SKIP] GBP/USD@15m: vetoed-skip
+[SKIP] USD/JPY@15m: vetoed-skip
+[SKIP] USD/CHF@15m: vetoed-skip
+[SKIP] AUD/USD@15m: vetoed-skip
+[SKIP] USD/CAD@15m: vetoed-skip
+[SKIP] NZD/USD@15m: vetoed-skip
+[SKIP] GBP/JPY@15m: vetoed-skip
+[SKIP] EUR/GBP@15m: vetoed-skip
+[SKIP] EUR/JPY@15m: vetoed-skip
+[OK] GBP/NZD@15m        bars= 28038 last=2026-07-17 02:00:00+00:00 (17s)
+[SKIP] AUD/NZD@15m: vetoed-skip
+[SKIP] EUR/AUD@15m: vetoed-skip
+[SKIP] EUR/CAD@15m: vetoed-skip
+[OK] CHF/JPY@15m        bars= 28028 last=2026-07-17 02:00:00+00:00 (35s)
+[SKIP] GBP/CAD@15m: vetoed-skip
+[SKIP] GBP/CHF@15m: vetoed-skip
+[SKIP] GBP/AUD@15m: vetoed-skip
+[SKIP] EUR/CHF@15m: vetoed-skip
+[OK] EUR/NZD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (52s)
+[OK] NZD/JPY@15m        bars= 28038 last=2026-07-17 02:00:00+00:00 (69s)
+[OK] CAD/JPY@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (87s)
+[SKIP] EUR/USD@1h: vetoed-skip
+[SKIP] GBP/USD@1h: vetoed-skip
+[SKIP] USD/JPY@1h: vetoed-skip
+[SKIP] USD/CHF@1h: vetoed-skip
+[OK] AUD/USD@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (91s)
+[SKIP] USD/CAD@1h: vetoed-skip
+[SKIP] NZD/USD@1h: vetoed-skip
+[OK] GBP/JPY@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (95s)
+[SKIP] EUR/GBP@1h: vetoed-skip
+[SKIP] EUR/JPY@1h: vetoed-skip
+[SKIP] GBP/NZD@1h: vetoed-skip
+[OK] AUD/NZD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (99s)
+[OK] EUR/AUD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (104s)
+[SKIP] EUR/CAD@1h: vetoed-skip
+[SKIP] CHF/JPY@1h: vetoed-skip
+[SKIP] GBP/CAD@1h: vetoed-skip
+[SKIP] GBP/CHF@1h: vetoed-skip
+[OK] GBP/AUD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (108s)
+[SKIP] EUR/CHF@1h: vetoed-skip
+[SKIP] EUR/NZD@1h: vetoed-skip
+[SKIP] NZD/JPY@1h: vetoed-skip
+[SKIP] CAD/JPY@1h: vetoed-skip
+[SKIP] EUR/USD@1d: vetoed-skip
+[SKIP] GBP/USD@1d: vetoed-skip
+[SKIP] USD/JPY@1d: vetoed-skip
+[SKIP] USD/CHF@1d: vetoed-skip
+[SKIP] AUD/USD@1d: vetoed-skip
+[SKIP] USD/CAD@1d: vetoed-skip
+[OK] NZD/USD@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (108s)
+[SKIP] GBP/JPY@1d: vetoed-skip
+[SKIP] EUR/GBP@1d: vetoed-skip
+[SKIP] EUR/JPY@1d: vetoed-skip
+[SKIP] GBP/NZD@1d: vetoed-skip
+[SKIP] AUD/NZD@1d: vetoed-skip
+[SKIP] EUR/AUD@1d: vetoed-skip
+[OK] EUR/CAD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (109s)
+[OK] CHF/JPY@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (109s)
+[OK] GBP/CAD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (109s)
+[SKIP] GBP/CHF@1d: vetoed-skip
+[OK] GBP/AUD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (109s)
+[OK] EUR/CHF@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (109s)
+[SKIP] EUR/NZD@1d: vetoed-skip
+[SKIP] NZD/JPY@1d: vetoed-skip
+[SKIP] CAD/JPY@1d: vetoed-skip
+[SKIP] EUR/USD@1w: only 208 bars
+[SKIP] GBP/USD@1w: only 208 bars
+[SKIP] USD/JPY@1w: only 208 bars
+[SKIP] USD/CHF@1w: only 208 bars
+[SKIP] AUD/USD@1w: only 208 bars
+[SKIP] USD/CAD@1w: only 208 bars
+[SKIP] NZD/USD@1w: only 208 bars
+[SKIP] GBP/JPY@1w: only 208 bars
+[SKIP] EUR/GBP@1w: only 208 bars
+[SKIP] EUR/JPY@1w: only 208 bars
+[SKIP] GBP/NZD@1w: only 208 bars
+[SKIP] AUD/NZD@1w: only 208 bars
+[SKIP] EUR/AUD@1w: only 208 bars
+[SKIP] EUR/CAD@1w: only 208 bars
+[SKIP] CHF/JPY@1w: only 208 bars
+[SKIP] GBP/CAD@1w: only 208 bars
+[SKIP] GBP/CHF@1w: only 208 bars
+[SKIP] GBP/AUD@1w: only 208 bars
+[SKIP] EUR/CHF@1w: only 208 bars
+[SKIP] EUR/NZD@1w: only 208 bars
+[SKIP] NZD/JPY@1w: only 208 bars
+[SKIP] CAD/JPY@1w: only 208 bars
+
+16 systems built in 109s. Running portfolio backtest...
+backtest done in 37s
+portfolio[16]: ret=-19.4% sharpe=-0.29 maxDD=20.0% trades=3090 | caps bound: below_min_position×3047, drawdown_breaker×33342, drawdown_reducing_scale=0.00×194, drawdown_reducing_scale=0.01×84, drawdown_reducing_scale=0.02×92, drawdown_reducing_scale=0.03×49, drawdown_reducing_scale=0.04×14, drawdown_reducing_scale=0.05×19, drawdown_reducing_scale=0.06×18, drawdown_reducing_scale=0.07×37, drawdown_reducing_scale=0.08×45, drawdown_reducing_scale=0.09×21, drawdown_reducing_scale=0.10×34, drawdown_reducing_scale=0.11×45, drawdown_reducing_scale=0.12×44, drawdown_reducing_scale=0.13×40, drawdown_reducing_scale=0.14×15, drawdown_reducing_scale=0.15×30, drawdown_reducing_scale=0.16×29, drawdown_reducing_scale=0.17×43, drawdown_reducing_scale=0.18×51, drawdown_reducing_scale=0.19×60, drawdown_reducing_scale=0.20×58, drawdown_reducing_scale=0.21×44, drawdown_reducing_scale=0.22×38, drawdown_reducing_scale=0.23×10, drawdown_reducing_scale=0.24×10, drawdown_reducing_scale=0.25×15, drawdown_reducing_scale=0.26×1, drawdown_reducing_scale=0.27×2, drawdown_reducing_scale=0.28×8, drawdown_reducing_scale=0.29×23, drawdown_reducing_scale=0.30×5, drawdown_reducing_scale=0.32×3, drawdown_reducing_scale=0.33×4, drawdown_reducing_scale=0.35×9, drawdown_reducing_scale=0.36×7, drawdown_reducing_scale=0.41×14, drawdown_reducing_scale=0.42×25, drawdown_reducing_scale=0.43×29, drawdown_reducing_scale=0.44×3, drawdown_reducing_scale=0.46×4, drawdown_reducing_scale=0.47×1, drawdown_reducing_scale=0.48×3, drawdown_reducing_scale=0.49×10, drawdown_reducing_scale=0.50×12, drawdown_reducing_scale=0.51×9, drawdown_reducing_scale=0.52×27, drawdown_reducing_scale=0.53×78, drawdown_reducing_scale=0.54×78, drawdown_reducing_scale=0.55×119, drawdown_reducing_scale=0.56×107, drawdown_reducing_scale=0.57×105, drawdown_reducing_scale=0.58×41, drawdown_reducing_scale=0.59×57, drawdown_reducing_scale=0.60×17, drawdown_reducing_scale=0.61×33, drawdown_reducing_scale=0.62×35, drawdown_reducing_scale=0.63×57, drawdown_reducing_scale=0.64×39, drawdown_reducing_scale=0.65×86, drawdown_reducing_scale=0.66×108, drawdown_reducing_scale=0.67×43, drawdown_reducing_scale=0.68×47, drawdown_reducing_scale=0.69×66, drawdown_reducing_scale=0.70×85, drawdown_reducing_scale=0.71×96, drawdown_reducing_scale=0.72×65, drawdown_reducing_scale=0.73×38, drawdown_reducing_scale=0.74×14, drawdown_reducing_scale=0.75×23, drawdown_reducing_scale=0.76×35, drawdown_reducing_scale=0.77×33, drawdown_reducing_scale=0.78×68, drawdown_reducing_scale=0.79×89, drawdown_reducing_scale=0.80×56, drawdown_reducing_scale=0.81×99, drawdown_reducing_scale=0.82×69, drawdown_reducing_scale=0.83×45, drawdown_reducing_scale=0.84×50, drawdown_reducing_scale=0.85×41, drawdown_reducing_scale=0.86×61, drawdown_reducing_scale=0.87×42, drawdown_reducing_scale=0.88×17, drawdown_reducing_scale=0.89×6, drawdown_reducing_scale=0.90×70, drawdown_reducing_scale=0.91×45, drawdown_reducing_scale=0.92×18, drawdown_reducing_scale=0.93×6, drawdown_reducing_scale=0.94×2, drawdown_reducing_scale=0.95×1, drawdown_reducing_scale=0.96×1, drawdown_reducing_scale=0.98×6, drawdown_reducing_scale=1.00×11, global_trade_cap×1, max_correlated_exposure×1349, max_risk_per_trade×6089, max_total_exposure×5610, no_edge×196, vol_target×797
+/Users/zain/Documents/apexfx/engine/scratch/run_baseline_portfolio.py:179: Pandas4Warning: 'd' is deprecated and will be removed in a future version, please use 'D' instead.
+  eq_daily = res.equity.resample("1d").last().dropna()
+trades -> /Users/zain/Documents/apexfx/engine/data_store/baseline_portfolio_trades_2026-07-17.csv
+metrics -> /Users/zain/Documents/apexfx/engine/data_store/baseline_portfolio_metrics_2026-07-17.json
+{
+  "per_timeframe": {
+    "15m": {
+      "n_trades": 2369,
+      "win_rate": 0.4394259181089067,
+      "net_pnl": -13290.440000000002,
+      "expectancy_pnl": -5.61014774166315,
+      "profit_factor": 0.7955087263646532,
+      "exit_reasons": {
+        "time": 1055,
+        "stop": 841,
+        "target": 473
+      }
+    },
+    "1d": {
+      "n_trades": 17,
+      "win_rate": 0.47058823529411764,
+      "net_pnl": -398.80999999999995,
+      "expectancy_pnl": -23.45941176470588,
+      "profit_factor": 0.5424129424588378,
+      "exit_reasons": {
+        "time": 12,
+        "target": 4,
+        "stop": 1
+      }
+    },
+    "1h": {
+      "n_trades": 704,
+      "win_rate": 0.4772727272727273,
+      "net_pnl": -5701.799999999999,
+      "expectancy_pnl": -8.099147727272726,
+      "profit_factor": 0.8163773214495041,
+      "exit_reasons": {
+        "time": 291,
+        "stop": 268,
+        "target": 145
+      }
+    }
+  },
+  "constraint_log": {
+    "max_risk_per_trade": 6089,
+    "max_total_exposure": 5610,
+    "max_correlated_exposure": 1349,
+    "vol_target": 797,
+    "below_min_position": 3047,
+    "no_edge": 196,
+    "drawdown_reducing_scale=1.00": 11,
+    "drawdown_reducing_scale=0.98": 6,
+    "drawdown_reducing_scale=0.95": 1,
+    "drawdown_reducing_scale=0.96": 1,
+    "drawdown_reducing_scale=0.93": 6,
+    "drawdown_reducing_scale=0.92": 18,
+    "drawdown_reducing_scale=0.91": 45,
+    "drawdown_reducing_scale=0.94": 2,
+    "drawdown_reducing_scale=0.90": 70,
+    "drawdown_reducing_scale=0.89": 6,
+    "drawdown_reducing_scale=0.88": 17,
+    "drawdown_reducing_scale=0.86": 61,
+    "drawdown_reducing_scale=0.87": 42,
+    "drawdown_reducing_scale=0.85": 41,
+    "drawdown_reducing_scale=0.83": 45,
+    "drawdown_reducing_scale=0.82": 69,
+    "drawdown_reducing_scale=0.81": 99,
+    "drawdown_reducing_scale=0.79": 89,
+    "drawdown_reducing_scale=0.77": 33,
+    "drawdown_reducing_scale=0.78": 68,
+    "drawdown_reducing_scale=0.80": 56,
+    "drawdown_reducing_scale=0.84": 50,
+    "drawdown_reducing_scale=0.76": 35,
+    "drawdown_reducing_scale=0.75": 23,
+    "drawdown_reducing_scale=0.74": 14,
+    "drawdown_reducing_scale=0.73": 38,
+    "drawdown_reducing_scale=0.72": 65,
+    "drawdown_reducing_scale=0.71": 96,
+    "drawdown_reducing_scale=0.70": 85,
+    "drawdown_reducing_scale=0.69": 66,
+    "drawdown_reducing_scale=0.68": 47,
+    "drawdown_reducing_scale=0.66": 108,
+    "drawdown_reducing_scale=0.67": 43,
+    "drawdown_reducing_scale=0.64": 39,
+    "drawdown_reducing_scale=0.65": 86,
+    "drawdown_reducing_scale=0.63": 57,
+    "drawdown_reducing_scale=0.61": 33,
+    "drawdown_reducing_scale=0.62": 35,
+    "global_trade_cap": 1,
+    "drawdown_reducing_scale=0.60": 17,
+    "drawdown_reducing_scale=0.59": 57,
+    "drawdown_reducing_scale=0.56": 107,
+    "drawdown_reducing_scale=0.57": 105,
+    "drawdown_reducing_scale=0.55": 119,
+    "drawdown_reducing_scale=0.58": 41,
+    "drawdown_reducing_scale=0.53": 78,
+    "drawdown_reducing_scale=0.54": 78,
+    "drawdown_reducing_scale=0.52": 27,
+    "drawdown_reducing_scale=0.50": 12,
+    "drawdown_reducing_scale=0.44": 3,
+    "drawdown_reducing_scale=0.43": 29,
+    "drawdown_reducing_scale=0.42": 25,
+    "drawdown_reducing_scale=0.41": 14,
+    "drawdown_reducing_scale=0.49": 10,
+    "drawdown_reducing_scale=0.51": 9,
+    "drawdown_reducing_scale=0.48": 3,
+    "drawdown_reducing_scale=0.47": 1,
+    "drawdown_reducing_scale=0.46": 4,
+    "drawdown_reducing_scale=0.36": 7,
+    "drawdown_reducing_scale=0.35": 9,
+    "drawdown_reducing_scale=0.32": 3,
+    "drawdown_reducing_scale=0.33": 4,
+    "drawdown_reducing_scale=0.30": 5,
+    "drawdown_reducing_scale=0.29": 23,
+    "drawdown_reducing_scale=0.27": 2,
+    "drawdown_reducing_scale=0.28": 8,
+    "drawdown_reducing_scale=0.25": 15,
+    "drawdown_reducing_scale=0.24": 10,
+    "drawdown_reducing_scale=0.22": 38,
+    "drawdown_reducing_scale=0.21": 44,
+    "drawdown_reducing_scale=0.20": 58,
+    "drawdown_reducing_scale=0.23": 10,
+    "drawdown_reducing_scale=0.19": 60,
+    "drawdown_reducing_scale=0.18": 51,
+    "drawdown_reducing_scale=0.17": 43,
+    "drawdown_reducing_scale=0.16": 29,
+    "drawdown_reducing_scale=0.15": 30,
+    "drawdown_reducing_scale=0.14": 15,
+    "drawdown_reducing_scale=0.13": 40,
+    "drawdown_reducing_scale=0.12": 44,
+    "drawdown_reducing_scale=0.11": 45,
+    "drawdown_reducing_scale=0.10": 34,
+    "drawdown_reducing_scale=0.26": 1,
+    "drawdown_reducing_scale=0.07": 37,
+    "drawdown_reducing_scale=0.08": 45,
+    "drawdown_reducing_scale=0.09": 21,
+    "drawdown_reducing_scale=0.06": 18,
+    "drawdown_reducing_scale=0.05": 19,
+    "drawdown_reducing_scale=0.04": 14,
+    "drawdown_reducing_scale=0.03": 49,
+    "drawdown_reducing_scale=0.02": 92,
+    "drawdown_reducing_scale=0.01": 84,
+    "drawdown_reducing_scale=0.00": 194,
+    "drawdown_breaker": 33342
+  },
+  "approx_gross_leverage": {
+    "max": 32.555216073022955,
+    "p95": 24.814003956027427
+  }
+}
+DONE

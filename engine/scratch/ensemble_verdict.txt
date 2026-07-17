@@ -1,0 +1,12 @@
+--- Ensemble vote validation on 22 FX pairs (daily) ---
+
+============================================================
+VALIDATION REPORT:
+============================================================
+[FAIL] ensemble_vote on 22 instruments: DSR=0.019 PBO=0.28925 CPCV medOOS=-0.017 (0% of 15 paths +ve)
+  - DSR 0.019 <= 0.95 (deflated by 40 trials)
+  - PBO 0.28925 < 0.5 (config-selection overfit probability)
+  - CPCV median OOS Sharpe -0.017, 0% of 15 paths positive
+  - VERDICT: rejected - insufficient evidence of a real, non-overfit edge
+  CPCV paths: [-0.0199, -0.0173, -0.0171, -0.017, -0.017, -0.0066, -0.012, -0.0047, -0.0039, -0.0235, -0.0105, -0.0082, -0.0357, -0.0276, -0.0351]
+============================================================

@@ -1,0 +1,29 @@
+========================================================================
+CANDIDATE CHECK 'p3c-meta63' | mode=ITERATION | factory=meta | timeframe=1d | grid=3 config(s)
+window: 2014-01-01 -> <2025-01-01 (strict)
+ledger: /Users/zain/Documents/apexfx/engine/data_store/validation/trial_ledger.json (n_trials=104 before this run)
+========================================================================
+
+[forex] EUR/USD: 3117 bars (2014-01-01 -> 2024-12-31)
+  ledger n_trials=104 used for DSR deflation (grid contributes 3)
+  VERDICT: REJECT
+    [FAIL] DSR 0.000 vs > 0.95 (deflated by n_trials=104)
+    [FAIL] PBO 1.0 vs < 0.5 (n/a with <2 configs => gate fails closed)
+    [pass] CPCV median OOS Sharpe 0.004 vs > 0; 60% of 15 paths positive vs > 50%
+  saved local cache: meta_regime_gated_momentum_gbm__EUR_USD.json
+  supabase post_backtest[p3c-meta63]: ok
+
+[forex] GBP/USD: 3118 bars (2014-01-01 -> 2024-12-31)
+  ledger n_trials=104 used for DSR deflation (grid contributes 3)
+  VERDICT: REJECT
+    [FAIL] DSR 0.144 vs > 0.95 (deflated by n_trials=104)
+    [FAIL] PBO 0.71575 vs < 0.5 (n/a with <2 configs => gate fails closed)
+    [FAIL] CPCV median OOS Sharpe 0.000 vs > 0; 13% of 15 paths positive vs > 50%
+  saved local cache: meta_regime_gated_momentum_gbm__GBP_USD.json
+  supabase post_backtest[p3c-meta63]: ok
+
+========================================================================
+DONE 'p3c-meta63': 0 PASS, 2 REJECT, 0 skipped/errored
+ledger now holds n_trials=104 at /Users/zain/Documents/apexfx/engine/data_store/validation/trial_ledger.json
+========================================================================
+exit=1

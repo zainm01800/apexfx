@@ -124,3 +124,30 @@ def test_aggression_scalar_bounds():
     calm = RegimeLabel(trend="up", vol="low", confidence=1.0, method="x")
     loud = RegimeLabel(trend="up", vol="high", confidence=1.0, method="x")
     assert loud.aggression_scalar() < calm.aggression_scalar()
+
+
+def test_rule_based_cache_is_scoped_per_data_object():
+    """Regression: a class-level cache keyed only by timestamp+config served ONE
+    instrument's regime to EVERY instrument sharing that timestamp (EUR/USD's
+    label answered for GBP/USD). The key must include the data's identity."""
+    import numpy as np
+    import pandas as pd
+    from apex_quant.data.point_in_time import PointInTimeAccessor
+    from apex_quant.regime.rule_based import RuleBasedRegime
+
+    idx = pd.bdate_range("2020-01-01", periods=320, tz="UTC", name="timestamp")
+    up = 1.0 * np.exp(np.cumsum(np.full(320, 0.002)))     # strong uptrend
+    dn = 1.0 * np.exp(np.cumsum(np.full(320, -0.002)))    # strong downtrend
+
+    def frame(close):
+        op = np.concatenate([[close[0]], close[:-1]])
+        return pd.DataFrame({"open": op, "high": np.maximum(op, close) * 1.001,
+                             "low": np.minimum(op, close) * 0.999,
+                             "close": close, "volume": 1.0}, index=idx)
+
+    clf = RuleBasedRegime()
+    t = idx[-1]  # identical timestamp, identical config -> old key collided
+    up_label = clf.classify(PointInTimeAccessor(frame(up)), t)
+    dn_label = clf.classify(PointInTimeAccessor(frame(dn)), t)
+    assert up_label.trend == "up"
+    assert dn_label.trend == "down"   # served the cached "up" before the fix

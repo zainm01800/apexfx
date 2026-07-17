@@ -27,13 +27,16 @@ class Trade(BaseModel):
     exit_reason: str
 
 
-def compute_metrics(equity, trades: list["Trade"], periods_per_year: int = 252) -> dict:
+def compute_metrics(equity, trades: list["Trade"], periods_per_year: float = 252) -> dict:
     """Compute performance metrics from an equity curve and trade list.
 
     Args:
         equity: pd.Series or list of equity values (one per bar).
         trades: list of Trade objects.
-        periods_per_year: annualisation factor (252 for daily/intraday equities).
+        periods_per_year: annualisation factor. 252 is the daily forex/equity
+            convention; callers that know the bar size should pass
+            ``AppConfig.bars_per_year(instrument, timeframe)`` (intraday Sharpe
+            at flat 252 is understated ~sqrt(bars/day), audit E5).
     """
     # Accept either a plain list (from the backtest engine) or a pd.Series
     if not isinstance(equity, pd.Series):

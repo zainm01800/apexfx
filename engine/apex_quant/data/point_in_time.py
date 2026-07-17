@@ -8,9 +8,18 @@ funnel all historical access through this accessor:
   * ``as_of(t)`` returns a *copy* containing only rows with ``timestamp <= t``.
   * ``walk()`` drives event-driven backtests, yielding a clean view per step.
 
+CONVENTION CAVEAT (audit D-H1): bars are **open-time labelled** — the bar
+labelled ``t`` is fully knowable only at ``t + bar_duration``. ``as_of(t)``
+therefore includes a bar whose close is still ahead of ``t``. For completed
+historical series (all cached data — the store trims forming bars) the honest
+reading is: a decision stamped ``t`` uses the bar that *opened* at ``t``, i.e.
+it is a decision made at that bar's close at the earliest. Backtests in this
+engine trade on the *next* bar's open, which respects exactly that. Do not
+read these docstrings as promising close-time labels.
+
 Because callers only ever receive ``<= t`` copies, a feature *cannot* see the
-future even by accident. The leakage test suite proves this by injecting a
-poison future bar and asserting feature values are unchanged.
+future beyond the bar that opened at ``t``. The leakage test suite proves this
+by injecting a poison future bar and asserting feature values are unchanged.
 """
 
 from __future__ import annotations
@@ -54,10 +63,12 @@ class PointInTimeAccessor:
 
     # -- the core leakage-safe slice -------------------------------------------
     def as_of(self, t: pd.Timestamp | str, *, inclusive: bool = True) -> pd.DataFrame:
-        """All bars known at ``t`` - i.e. ``timestamp <= t`` (or ``< t``).
+        """All bars opened at or before ``t`` - i.e. ``timestamp <= t`` (or ``< t``).
 
-        Returns a *copy*; mutating it cannot affect the accessor or leak future
-        rows into another caller.
+        Bars are open-time labelled: the most recent bar in the returned frame
+        opened at ``t`` and is only fully knowable at ``t + bar_duration``
+        (see the module docstring). Returns a *copy*; mutating it cannot
+        affect the accessor or leak future rows into another caller.
         """
         ts = self._norm(t)
         mask = self._df.index <= ts if inclusive else self._df.index < ts
@@ -67,12 +78,20 @@ class PointInTimeAccessor:
         """The last ``n`` bars known at ``t`` (most recent last)."""
         if n <= 0:
             raise ValueError("n must be positive")
-        return self.as_of(t, inclusive=inclusive).iloc[-n:]
+        ts = self._norm(t)
+        idx = self._df.index
+        pos = idx.searchsorted(ts, side="right" if inclusive else "left")
+        if pos == 0:
+            return self._df.iloc[:0]
+        start_pos = max(0, pos - n)
+        return self._df.iloc[start_pos:pos].copy()
 
     def latest(self, t: pd.Timestamp | str, *, inclusive: bool = True) -> pd.Series | None:
         """The most recent bar known at ``t`` (or ``None`` if none exists)."""
-        sub = self.as_of(t, inclusive=inclusive)
-        return sub.iloc[-1] if len(sub) else None
+        ts = self._norm(t)
+        idx = self._df.index
+        pos = idx.searchsorted(ts, side="right" if inclusive else "left")
+        return self._df.iloc[pos - 1] if pos > 0 else None
 
     def value_at(self, t: pd.Timestamp | str, column: str, *, inclusive: bool = True) -> float | None:
         bar = self.latest(t, inclusive=inclusive)

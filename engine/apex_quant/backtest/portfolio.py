@@ -29,7 +29,7 @@ import pandas as pd
 
 from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
-from apex_quant.regime.rule_based import RuleBasedRegime
+from apex_quant.regime.rule_based import RuleBasedRegime, regime_config_for
 from apex_quant.risk.manager import RiskManager
 from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import AccountState, Direction, MarketState, OpenPosition
@@ -86,9 +86,18 @@ class PortfolioBacktester:
         self.vol_window = vol_window
         self.corr_window = corr_window
         self.exit_mode = exit_mode
-        self._regime = RuleBasedRegime()
+        # Engine-level regimes per (timeframe, asset class), built with the SAME
+        # slope-eps scaling the strategy gate uses (audit E4) — see engine.py.
+        self._regimes: dict[tuple[str, str], RuleBasedRegime] = {}
         self.trade_manager = TradeManager()
         self._mech_cache: dict = {}
+
+    def _regime_for(self, instrument: str, timeframe: str) -> RuleBasedRegime:
+        key = (str(timeframe).lower().strip(), self.cfg.asset_class_of(instrument))
+        reg = self._regimes.get(key)
+        if reg is None:
+            reg = self._regimes[key] = RuleBasedRegime(regime_config_for(*key))
+        return reg
 
     def _mech(self, instrument: str):
         m = self._mech_cache.get(instrument)
@@ -100,10 +109,11 @@ class PortfolioBacktester:
     def _pip(self, instrument: str) -> float:
         return 0.01 if "JPY" in instrument.upper() else self._mech(instrument).pip_size
 
-    def _fill(self, price: float, instrument: str, buying: bool) -> float:
+    def _fill(self, price: float, instrument: str, buying: bool, timeframe: str | None = None) -> float:
         m = self._mech(instrument)
         if m.cost_model == "pips":
-            cost = 0.5 * m.spread_pips * self._pip(instrument) + m.slippage_bps / 1e4 * price
+            spread_pips, slippage_bps = self.cfg.forex_cost_components(instrument, timeframe)
+            cost = 0.5 * spread_pips * self._pip(instrument) + slippage_bps / 1e4 * price
         else:
             cost = (0.5 * m.spread_bps + m.slippage_bps) / 1e4 * price
         return price + cost if buying else price - cost
@@ -119,7 +129,7 @@ class PortfolioBacktester:
         end=None,
         warmup: int = 250,
         max_hold: int | None = None,
-        periods_per_year: int = 252,
+        periods_per_year: float | None = None,
     ) -> PortfolioResult:
         def _utc(ts):
             ts = pd.Timestamp(ts)
@@ -137,6 +147,11 @@ class PortfolioBacktester:
                 df = df[df.index >= _utc(start)]
             if end is not None:
                 df = df[df.index <= _utc(end)]
+            if df.empty:
+                # No bars inside [start, end] (e.g. a late-listing instrument in
+                # an early CPCV window) - the instrument simply doesn't exist
+                # for this run; it can neither be traded nor marked.
+                continue
             mech = self._mech(inst)
             close = df["close"]
 
@@ -171,6 +186,17 @@ class PortfolioBacktester:
             }
             logret_cols[inst] = np.log(close).diff()
 
+        # Instruments with no bars in [start, end] dropped above are excluded everywhere.
+        instruments = [inst for inst in instruments if inst in data]
+
+        if periods_per_year is None:
+            # Annualize at the union timeline's effective bar size (audit E5):
+            # the finest timeframe present, per asset class session conventions.
+            periods_per_year = max(
+                (self.cfg.bars_per_year(inst, d["tf"]) for inst, d in data.items()),
+                default=252.0,
+            )
+
         R = pd.DataFrame(logret_cols).sort_index()
         timeline = R.index
 
@@ -194,7 +220,7 @@ class PortfolioBacktester:
 
                 if self.exit_mode == "barrier":
                     exit_price, exit_reason = self._check_exit(
-                        posd, d["high"][i], d["low"][i], d["close"][i], i, d["hold"], inst
+                        posd, d["high"][i], d["low"][i], d["close"][i], i, d["hold"], inst, timeframe=d["tf"]
                     )
                     if exit_reason != "":
                         realized_pnl = self._pnl(posd, exit_price)
@@ -215,8 +241,8 @@ class PortfolioBacktester:
                         "len": i + 1,
                     }
 
-                    def fill_fn(price, buying, inst_name=inst):
-                        return self._fill(price, inst_name, buying)
+                    def fill_fn(price, buying, inst_name=inst, tf=posd["tf"]):
+                        return self._fill(price, inst_name, buying, timeframe=tf)
 
                     realized_pnl, exit_reason = self.trade_manager.update_position(
                         position=posd,
@@ -229,6 +255,7 @@ class PortfolioBacktester:
                         timeframe=posd["tf"],
                         pip_size=self._pip(inst),
                         fill_fn=fill_fn,
+                        max_bars=d["hold"],
                     )
 
                     if realized_pnl != 0.0 or exit_reason != "":
@@ -297,8 +324,8 @@ class PortfolioBacktester:
                     instrument=inst, price=float(d["close"][i]), ann_vol=float(vol_i),
                     atr=float(atr_i), correlations=corrs,
                 )
-                regime = self._regime.classify(pits[inst], t) if self.use_regime else None
-                pos = self.risk.permit(signal, account, market, regime=regime)
+                regime = self._regime_for(inst, d["tf"]).classify(pits[inst], t) if self.use_regime else None
+                pos = self.risk.permit(signal, account, market, regime=regime, t=t)
                 for c in pos.constraints_applied:
                     constraint_log[c] += 1
                 if pos.permitted:
@@ -325,7 +352,7 @@ class PortfolioBacktester:
         pos = pend["pos"]
         dec = pend["dec"]                       # close at decision time
         buying = pos.direction == Direction.LONG
-        entry = self._fill(open_price, instrument, buying)
+        entry = self._fill(open_price, instrument, buying, timeframe=pend.get("tf"))
         shift = entry - dec                     # move stop/target by the decision->fill gap
         stop_price = (pos.stop_price or dec) + shift
         return {
@@ -351,29 +378,35 @@ class PortfolioBacktester:
         }
 
     def _open_record(self, inst: str, posd: dict) -> OpenPosition:
-        scale = (posd["units"] / posd["initial_units"]) if posd.get("initial_units", 0.0) > 0.0 else 1.0
+        # Open risk is what the book actually loses if this position stops out
+        # NOW: remaining units x distance from last price to the live stop,
+        # floored at 0 (a breakeven/trailed stop at or beyond last price risks
+        # ~nothing). Scaling INITIAL risk by the remaining-units fraction kept
+        # breakeven-stopped trades at ~full risk and let max_portfolio_risk
+        # block entries it shouldn't (audit E6).
+        risk = max(0.0, posd["units"] * abs(float(posd["last_px"]) - float(posd["stop"])))
         return OpenPosition(
             instrument=inst, direction=posd["direction"],
             notional=abs(posd["units"] * posd["last_px"]),
-            risk=posd["risk_abs"] * scale,
+            risk=risk,
             timeframe=posd["tf"],
         )
 
-    def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument):
+    def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument, timeframe: str | None = None):
         long = position["direction"] == Direction.LONG or position["direction"] == "long" or getattr(position["direction"], "value", "") == "long"
         stop, target = position["stop"], position["target"]
         if long:
             if lo <= stop:
-                return self._fill(stop, instrument, buying=False), "stop"
+                return self._fill(stop, instrument, buying=False, timeframe=timeframe), "stop"
             if hi >= target:
-                return self._fill(target, instrument, buying=False), "target"
+                return self._fill(target, instrument, buying=False, timeframe=timeframe), "target"
         else:
             if hi >= stop:
-                return self._fill(stop, instrument, buying=True), "stop"
+                return self._fill(stop, instrument, buying=True, timeframe=timeframe), "stop"
             if lo <= target:
-                return self._fill(target, instrument, buying=True), "target"
+                return self._fill(target, instrument, buying=True, timeframe=timeframe), "target"
         if i - position["entry_idx"] >= max_hold:
-            return self._fill(close_px, instrument, buying=not long), "time"
+            return self._fill(close_px, instrument, buying=not long, timeframe=timeframe), "time"
         return None, ""
 
     def _pnl(self, position, exit_price) -> float:

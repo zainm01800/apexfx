@@ -12,12 +12,26 @@ significance.
 canonical key) and its in-sample Sharpe, and persists across runs. Feed
 ``ledger.n_trials`` into :func:`deflated_sharpe_ratio` (or ``run_validation``'s
 ``n_trials`` argument) so the deflation reflects reality.
+
+Persistence integrity (2026-07-17 audit, D-H4): writes are atomic (tmp file +
+``os.replace`` — a crash mid-write can never tear the JSON), loads treat a
+corrupt file as *missing* (logged, start empty) rather than raising
+permanently, and :meth:`locked` serialises the whole load->record->save
+sequence under an fcntl file lock so concurrent gate runs cannot undercount
+trials by losing each other's updates.
 """
 
 from __future__ import annotations
 
 import json
+import logging
+import os
+from contextlib import contextmanager
 from pathlib import Path
+
+from apex_quant.data._filelock import file_lock
+
+logger = logging.getLogger(__name__)
 
 
 class TrialLedger:
@@ -59,23 +73,66 @@ class TrialLedger:
         """In-sample Sharpes recorded so far (configs with a known Sharpe only)."""
         return [v for v in self._trials.values() if v is not None]
 
-    def save(self, path: str | Path) -> Path:
-        """Persist the ledger to JSON so the count survives across sessions."""
-        p = Path(path)
+    def _write(self, p: Path) -> None:
+        """Atomic write (tmp + os.replace); caller holds any lock."""
         p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w", encoding="utf-8") as fh:
-            json.dump(self._trials, fh, indent=2)
+        tmp = p.with_name(f"{p.name}.tmp{os.getpid()}")
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(self._trials, fh, indent=2)
+            os.replace(tmp, p)
+        finally:
+            if tmp.exists():
+                tmp.unlink()
+
+    def save(self, path: str | Path) -> Path:
+        """Persist the ledger to JSON, atomically, under an exclusive lock."""
+        p = Path(path)
+        with file_lock(p):
+            self._write(p)
         return p
 
     @classmethod
     def load(cls, path: str | Path) -> "TrialLedger":
-        """Load a ledger from JSON. Missing file => empty ledger."""
+        """Load a ledger from JSON. Missing OR CORRUPT file => empty ledger.
+
+        A torn/invalid file is logged and treated as missing — the ledger is
+        an append-only counter, so rebuilding it by re-recording is always
+        safe, and a crash must never brick every future gate run (D-H4).
+        """
         led = cls()
         p = Path(path)
         if p.exists():
-            with open(p, "r", encoding="utf-8") as fh:
-                led._trials = json.load(fh) or {}
+            try:
+                with open(p, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if isinstance(data, dict):
+                    led._trials = data
+                else:
+                    raise ValueError(f"expected JSON object, got {type(data).__name__}")
+            except Exception as exc:  # JSONDecodeError, UnicodeDecodeError, OSError, ValueError
+                logger.warning(
+                    "TrialLedger.load: %s unreadable (%s: %s) — starting empty",
+                    p, type(exc).__name__, exc,
+                )
         return led
+
+    @classmethod
+    @contextmanager
+    def locked(cls, path: str | Path):
+        """``with TrialLedger.locked(path) as led:`` — load, mutate, save under
+        one exclusive file lock.
+
+        This is the race-free way to record trials from scripts that run
+        concurrently: the whole load->record->save is serialised, so two gate
+        runs can no longer read the same file, each add their configs, and
+        have the last writer silently drop the other's trials (D-H4).
+        """
+        p = Path(path)
+        with file_lock(p):
+            led = cls.load(p)
+            yield led
+            led._write(p)
 
     def __len__(self) -> int:
         return self.n_trials

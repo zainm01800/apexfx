@@ -43,6 +43,7 @@ class MockExecutor:
         volume: float | None = None,
         sl: float = 0.0,
         tp: float = 0.0,
+        ticket: int | None = None,
     ) -> dict:
         """Log an order signal (no file I/O).
 
@@ -58,6 +59,8 @@ class MockExecutor:
             Stop-loss price (0.0 = none).
         tp :
             Take-profit price (0.0 = none).
+        ticket :
+            MT4 ticket for ticket-scoped closes (mirrors MT4Executor).
 
         Returns
         -------
@@ -74,6 +77,8 @@ class MockExecutor:
             "sl": float(sl),
             "tp": float(tp),
         }
+        if ticket:
+            payload["ticket"] = int(ticket)
 
         logger.info(
             "[MOCK ORDER] %s %s %.2f lots (SL=%.5f TP=%.5f) — payload=%s",
@@ -85,6 +90,14 @@ class MockExecutor:
             payload,
         )
         return payload
+
+    def wait_for_ack(self, signal_id=None, timeout_s=None, poll_interval_s=0.5) -> dict:
+        """Synthetic instant fill ack (mirrors MT4Executor's fills handshake).
+
+        Mock orders 'fill' immediately, so callers that require an ack before
+        stamping ``filled_at`` get an honest-in-context receipt here.
+        """
+        return {"ok": True, "ticket": None, "fill_price": None, "id": signal_id}
 
     def __repr__(self) -> str:
         return (

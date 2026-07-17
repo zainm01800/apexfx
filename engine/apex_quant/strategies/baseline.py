@@ -15,17 +15,18 @@ strength)); regime gating is applied at decision time.
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
 
-from apex_quant.config import get_config, RuleBasedConfig
+from apex_quant.config import get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.features.momentum import VolScaledMomentum
 from apex_quant.regime.base import RegimeClassifier
 from apex_quant.regime.hmm import HmmRegime
-from apex_quant.regime.rule_based import RuleBasedRegime
+from apex_quant.regime.rule_based import RuleBasedRegime, regime_config_for
 from apex_quant.risk.types import Direction, Signal
 from apex_quant.strategies.base import Strategy
 from apex_quant.strategies.calibration import CalibratedProb, ConformalCalibrator
@@ -51,7 +52,7 @@ def _bollinger_signal(df: pd.DataFrame, window: int = 20, n_std: float = 2.0) ->
     latest_std = float(std.iloc[-1])
 
     if not (np.isfinite(latest_mid) and np.isfinite(latest_std) and latest_std > 0):
-        return 0, 0.0
+        return 0, 0.0, 0.0
 
     lower = latest_mid - n_std * latest_std
     upper = latest_mid + n_std * latest_std
@@ -60,13 +61,13 @@ def _bollinger_signal(df: pd.DataFrame, window: int = 20, n_std: float = 2.0) ->
     if latest_close <= lower:
         # Price at or below lower band: buy the dip
         strength = min(1.0, (lower - latest_close) / (latest_std + 1e-10))
-        return 1, float(strength)
+        return 1, float(strength), latest_mid
     elif latest_close >= upper:
         # Price at or above upper band: sell the rally
         strength = min(1.0, (latest_close - upper) / (latest_std + 1e-10))
-        return -1, float(strength)
+        return -1, float(strength), latest_mid
 
-    return 0, 0.0
+    return 0, 0.0, latest_mid
 
 
 class RegimeGatedMomentum(Strategy):
@@ -84,6 +85,7 @@ class RegimeGatedMomentum(Strategy):
         bypass_calibration: bool = True,
         instrument: str | None = None,
         enable_mean_reversion: bool = True,
+        atr_stop_mult: float | None = None,
     ):
         self.bypass_calibration = bypass_calibration
         self.momentum_lookback = momentum_lookback
@@ -92,6 +94,7 @@ class RegimeGatedMomentum(Strategy):
         self.reward_risk = reward_risk
         self.regime_method = regime_method
         self.instrument = instrument or ""
+        self.timeframe = timeframe
         self._mom = VolScaledMomentum(momentum_lookback, vol_window)
 
         # Determine asset class for per-class tuning
@@ -105,42 +108,17 @@ class RegimeGatedMomentum(Strategy):
         mr_tf_allowed = timeframe in ("1h", "1d")
         self.enable_mean_reversion = enable_mean_reversion and (self._asset_class != "crypto") and mr_tf_allowed
 
-        # Scale slope epsilon dynamically based on timeframe & asset class volatility
-        base_cfg = get_config().regime.rule_based
-        timeframe_scale = 1.0
-        if timeframe == "5m":
-            timeframe_scale = 0.02
-        elif timeframe == "15m":
-            timeframe_scale = 0.05
-        elif timeframe == "1h":
-            timeframe_scale = 0.15
-
-        # Asset class multiplier:
-        # - crypto is ~8x more volatile than forex on scalp (raised from 5x to reduce false breaks)
-        # - equities ~1.5x
-        ac_multiplier = 1.0
-        if self._asset_class == "crypto":
-            ac_multiplier = 8.0 if timeframe in ("5m", "15m") else 5.0
-        elif self._asset_class == "equity":
-            ac_multiplier = 1.5
-
-        final_eps = base_cfg.ranging_slope_eps * timeframe_scale * ac_multiplier
-
-        custom_regime_cfg = RuleBasedConfig(
-            ma_window=base_cfg.ma_window,
-            slope_window=base_cfg.slope_window,
-            vol_percentile_window=base_cfg.vol_percentile_window,
-            vol_high_pct=base_cfg.vol_high_pct,
-            vol_low_pct=base_cfg.vol_low_pct,
-            ranging_slope_eps=final_eps
-        )
-
+        # Scale slope epsilon dynamically based on timeframe & asset class volatility.
+        # Shared helper (audit E4): the engine-level regime the risk layer scales
+        # by uses the SAME config, so backtest risk-damping sees the same regime
+        # semantics as this signal gate.
         self._regime: RegimeClassifier = (
-            HmmRegime() if regime_method == "hmm" else RuleBasedRegime(custom_regime_cfg)
+            HmmRegime() if regime_method == "hmm"
+            else RuleBasedRegime(regime_config_for(timeframe, self._asset_class, get_config().regime.rule_based))
         )
         self._cal = ConformalCalibrator(alpha=alpha, seed=get_config().seed)
         rc = get_config().risk
-        self._stop_mult = rc.atr_stop_mult
+        self._stop_mult = atr_stop_mult if atr_stop_mult is not None else rc.atr_stop_mult
         self._atr_window = rc.atr_window
         self._fitted = False
 
@@ -163,6 +141,10 @@ class RegimeGatedMomentum(Strategy):
         ret = (close / close.shift(self.momentum_lookback) - 1.0)
         vol = logc.diff().rolling(self.vol_window).std(ddof=1)
         score = (ret / vol).to_numpy()
+        
+        # Store score cache for fast O(1) evaluation during backtesting/loops
+        self._score_cache = {ts: val for ts, val in zip(df.index, score)}
+        
         atr = atr_series(df, self._atr_window)
         high = df["high"].to_numpy()
         low = df["low"].to_numpy()
@@ -198,10 +180,26 @@ class RegimeGatedMomentum(Strategy):
     def is_fitted(self) -> bool:
         return self._fitted
 
+    # Class-level cache sharing Bollinger Band signals across strategy instances,
+    # scoped PER DATA OBJECT. The original flat dict keyed only by
+    # (instrument, timeframe, t), so two different datasets sharing an instrument
+    # name and timestamp cross-read each other's bands (the same bug class as the
+    # regime/HTF caches — see rule_based.py / multi_timeframe.py). A
+    # WeakKeyDictionary ties each sub-cache to the pit's LIFETIME — entries vanish
+    # when the pit is collected, which also stops the live loop (new pit every
+    # cycle) growing the cache without bound.
+    _global_bb_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
     # -- inference -------------------------------------------------------------
     def _evaluate(self, pit: PointInTimeAccessor, t) -> dict:
         regime = self._regime.classify(pit, t)
-        score = self._mom.compute(pit, t)
+        
+        # O(1) cache lookup if available
+        if hasattr(self, "_score_cache") and t in self._score_cache:
+            score = self._score_cache[t]
+        else:
+            score = self._mom.compute(pit, t)
+            
         out = {"regime": regime, "score": score, "direction": Direction.FLAT, "prob": None,
                "reason": "", "mode": "momentum"}
 
@@ -238,13 +236,24 @@ class RegimeGatedMomentum(Strategy):
             out["reason"] = f"regime {regime.name} not trending (MR disabled for {self._asset_class})"
             return out
 
-        # Get recent bars for Bollinger Band calculation
-        df_window = pit.window(t, 60)
-        if len(df_window) < 22:
-            out["reason"] = "insufficient bars for Bollinger Band MR"
-            return out
+        # Check the per-pit cache for the Bollinger Band signal first to avoid
+        # slow rolling std dev calculations (never across datasets — see E3 note
+        # on the cache declaration).
+        per_pit = self._global_bb_cache.get(pit)
+        if per_pit is None:
+            per_pit = {}
+            self._global_bb_cache[pit] = per_pit
+        cache_key = (self.instrument, self.timeframe, t)
+        if cache_key in per_pit:
+            bb_dir, bb_strength, bb_mid = per_pit[cache_key]
+        else:
+            df_window = pit.window(t, 60)
+            if len(df_window) < 22:
+                out["reason"] = "insufficient bars for Bollinger Band MR"
+                return out
+            bb_dir, bb_strength, bb_mid = _bollinger_signal(df_window, window=20, n_std=2.0)
+            per_pit[cache_key] = (bb_dir, bb_strength, bb_mid)
 
-        bb_dir, bb_strength = _bollinger_signal(df_window, window=20, n_std=2.0)
         if bb_dir == 0:
             out["reason"] = "ranging regime: price inside Bollinger Bands (no MR signal)"
             return out
@@ -255,6 +264,7 @@ class RegimeGatedMomentum(Strategy):
         out["direction"] = mr_direction
         out["prob"] = cal
         out["mode"] = "mean_reversion"
+        out["target_price"] = bb_mid
         out["reason"] = f"MR: BB signal strength={bb_strength:.3f}"
         return out
 
@@ -270,12 +280,15 @@ class RegimeGatedMomentum(Strategy):
         regime = ev["regime"]
         # Use tighter R:R for mean-reversion (targets are bounded by the band midline)
         rr = 1.2 if ev.get("mode") == "mean_reversion" else self.reward_risk
+        target_price = ev.get("target_price")
+        
         return Signal(
             instrument=instrument,
             direction=ev["direction"],
             probability=cal.probability,
             reward_risk=rr,
             confidence=cal.confidence,
+            target_price=target_price,
             rationale=(
                 f"{ev['direction'].value} | mode={ev.get('mode','momentum')} | "
                 f"mom={ev['score']:.2f} | regime={regime.name} "

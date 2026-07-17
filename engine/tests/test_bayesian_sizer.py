@@ -119,11 +119,14 @@ def test_strong_edge_clamps_to_max_risk():
     assert s.risk_fraction(mk_signal(b=2.0), mk_account()) == pytest.approx(0.02)
 
 
-def test_no_edge_floors_to_min_risk():
+def test_no_edge_vetoes_after_adaptation():
+    # Audit A-H2: once the posterior is informed, a non-positive Kelly VETOES
+    # (None -> the RiskManager's no-edge veto) instead of flooring to min_risk —
+    # a proven losing record is not a small bet, it is no bet.
     s = BayesianRiskSizer(min_risk=0.005, min_trades_for_adaptation=5)
     for _ in range(30):
         s.record_outcome("EUR/USD", False)  # all losses -> negative Kelly
-    assert s.risk_fraction(mk_signal(b=2.0), mk_account()) == pytest.approx(0.005)
+    assert s.risk_fraction(mk_signal(b=2.0), mk_account()) is None
 
 
 def test_lcb_sizes_below_mean():
@@ -227,9 +230,11 @@ def test_realized_payoff_adaptation():
     
     # Let's test with a different sizer that has lower realized b
     s_low = BayesianRiskSizer(min_trades_for_adaptation=5, max_risk=1.0, min_risk=0.0, frac_kelly=1.0, mode="mean")
-    # 5 wins with pnl=0.5 (avg_win=0.5), 5 losses with pnl=-1.0 (avg_loss=1.0) -> realized b = 0.5
+    # 5 wins with pnl=1.5 (avg_win=1.5), 5 losses with pnl=-1.0 (avg_loss=1.0) -> realized b = 1.5
+    # (b below the Kelly break-even now vetoes outright — audit A-H2 — so this
+    # comparison uses a positive-edge b to keep both sizers trading)
     for _ in range(5):
-        s_low.record_outcome("EUR/USD", True, pnl=0.5)
+        s_low.record_outcome("EUR/USD", True, pnl=1.5)
     for _ in range(5):
         s_low.record_outcome("EUR/USD", False, pnl=-1.0)
         

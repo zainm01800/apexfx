@@ -17,7 +17,7 @@ import pandas as pd
 
 from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
-from apex_quant.regime.rule_based import RuleBasedRegime
+from apex_quant.regime.rule_based import RuleBasedRegime, regime_config_for
 from apex_quant.risk.manager import RiskManager
 from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import AccountState, Direction, MarketState, Position
@@ -63,10 +63,11 @@ class Backtester:
     def _pip(self, instrument: str) -> float:
         return 0.01 if "JPY" in instrument.upper() else self._mech(instrument).pip_size
 
-    def _fill(self, price: float, instrument: str, buying: bool) -> float:
+    def _fill(self, price: float, instrument: str, buying: bool, timeframe: str | None = None) -> float:
         m = self._mech(instrument)
         if m.cost_model == "pips":
-            cost = 0.5 * m.spread_pips * self._pip(instrument) + m.slippage_bps / 1e4 * price
+            spread_pips, slippage_bps = self.cfg.forex_cost_components(instrument, timeframe)
+            cost = 0.5 * spread_pips * self._pip(instrument) + slippage_bps / 1e4 * price
         else:  # bps of price — equities & crypto
             cost = (0.5 * m.spread_bps + m.slippage_bps) / 1e4 * price
         return price + cost if buying else price - cost
@@ -95,6 +96,17 @@ class Backtester:
 
         if max_hold is None:
             max_hold = int(getattr(strategy, "holding_horizon", 20))
+
+        # Dynamically align trade manager time stops with the strategy's holding horizon
+        tf_clean = str(timeframe or getattr(strategy, "timeframe", "1h")).lower().strip()
+        self.trade_manager.time_stop_bars[tf_clean] = max_hold
+
+        # Engine-level regime must use the SAME slope-eps scaling as the strategy
+        # gate (audit E4): the unscaled global eps reads "ranging" on intraday,
+        # so backtests damped risk 40-50% where live (which passes no regime to
+        # permit()) never does. This deliberately CHANGES backtest risk-scaling
+        # vs the old numbers — that damping was a simulation artifact.
+        self._regime = RuleBasedRegime(regime_config_for(tf_clean, self.cfg.asset_class_of(instrument)))
 
         idx = df.index
         close = df["close"]
@@ -139,7 +151,7 @@ class Backtester:
             if position is not None:
                 if self.exit_mode == "barrier":
                     exit_price, exit_reason = self._check_exit(
-                        position, high[i], low[i], closes[i], i, max_hold, instrument
+                        position, high[i], low[i], closes[i], i, max_hold, instrument, timeframe=tf_clean
                     )
                     if exit_reason != "":
                         realized_pnl = self._pnl(position, exit_price)
@@ -158,7 +170,7 @@ class Backtester:
                     }
 
                     def fill_fn(price, buying):
-                        return self._fill(price, instrument, buying)
+                        return self._fill(price, instrument, buying, timeframe=tf_clean)
 
                     realized_pnl, exit_reason = self.trade_manager.update_position(
                         position=position,
@@ -186,7 +198,7 @@ class Backtester:
 
             # 2. execute pending entry at THIS bar's open
             if pending is not None and position is None and i > 0:
-                position = self._enter(pending, opens[i], t, i, instrument)
+                position = self._enter(pending, opens[i], t, i, instrument, timeframe=tf_clean)
                 pending = None
 
             # 3. mark-to-market equity
@@ -201,21 +213,24 @@ class Backtester:
                     market = MarketState(instrument=instrument, price=float(closes[i]), ann_vol=float(vol[i]), atr=float(atr[i]))
                     account = AccountState(equity=eq, peak_equity=peak)
                     regime = self._regime.classify(pit, t) if self.use_regime else None
-                    pos = self.risk.permit(signal, account, market, regime=regime)
+                    pos = self.risk.permit(signal, account, market, regime=regime, t=t)
                     if pos.permitted:
                         pending = (pos, float(closes[i]))
 
         equity_series = pd.Series(
             [v for _, v in eq_points], index=pd.DatetimeIndex([ts for ts, _ in eq_points], name="timestamp")
         )
-        metrics = compute_metrics(equity_series, trades, ann)
+        # Annualize per-bar metrics at the bar's own frequency (audit E5): the
+        # class annualization (``ann``) is the DAILY convention and stays on the
+        # vol estimate; Sharpe/ann_return/Calmar use bars-per-year for tf_clean.
+        metrics = compute_metrics(equity_series, trades, self.cfg.bars_per_year(instrument, tf_clean))
         return BacktestResult(instrument=instrument, equity=equity_series, trades=trades, metrics=metrics)
 
     # -- mechanics -------------------------------------------------------------
-    def _enter(self, pending, open_price, t, i, instrument) -> dict:
+    def _enter(self, pending, open_price, t, i, instrument, timeframe: str | None = None) -> dict:
         pos, decision_price = pending
         buying = pos.direction == Direction.LONG
-        entry = self._fill(open_price, instrument, buying)
+        entry = self._fill(open_price, instrument, buying, timeframe=timeframe)
         shift = entry - decision_price
         stop_price = (pos.stop_price or decision_price) + shift
         return {
@@ -245,21 +260,21 @@ class Backtester:
             d = -d
         return d * position["units"]
 
-    def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument):
+    def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument, timeframe: str | None = None):
         long = position["direction"] == Direction.LONG or position["direction"] == "long" or getattr(position["direction"], "value", "") == "long"
         stop, target = position["stop"], position["target"]
         if long:
             if lo <= stop:
-                return self._fill(stop, instrument, buying=False), "stop"
+                return self._fill(stop, instrument, buying=False, timeframe=timeframe), "stop"
             if hi >= target:
-                return self._fill(target, instrument, buying=False), "target"
+                return self._fill(target, instrument, buying=False, timeframe=timeframe), "target"
         else:
             if hi >= stop:
-                return self._fill(stop, instrument, buying=True), "stop"
+                return self._fill(stop, instrument, buying=True, timeframe=timeframe), "stop"
             if lo <= target:
-                return self._fill(target, instrument, buying=True), "target"
+                return self._fill(target, instrument, buying=True, timeframe=timeframe), "target"
         if i - position["entry_idx"] >= max_hold:
-            return self._fill(close_px, instrument, buying=not long), "time"
+            return self._fill(close_px, instrument, buying=not long, timeframe=timeframe), "time"
         return None, ""
 
     def _pnl(self, position, exit_price) -> float:

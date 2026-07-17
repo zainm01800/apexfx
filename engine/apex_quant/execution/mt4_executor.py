@@ -3,19 +3,28 @@
 Writes JSON order signals to the MetaTrader 4 shared common folder where the
 companion ``apex_mt4_bridge.mq4`` Expert Advisor polls and executes them.
 
-Supported signal formats
-------------------------
+Signal protocol (EA v1.10)
+--------------------------
+Every signal is written to its own unique ``signal_<id>.json`` file (one
+client order id per signal) and the EA batch-processes all pending
+``signal_*.json`` files each poll — the old single-slot ``mt4_signals.json``
+was last-write-wins and silently dropped orders written inside the same EA
+poll window (audit L2). After executing, the EA writes a fill receipt to
+``ack_<id>.json`` containing the client order id, the MT4 ticket and the
+fill price; :meth:`MT4Executor.wait_for_ack` polls for it.
 
-Standard entry / full close::
+Payloads::
 
-    {"symbol": "EURUSD", "cmd": "buy",          "volume": 0.10, "sl": 1.08000, "tp": 1.09500}
-    {"symbol": "EURUSD", "cmd": "sell",         "volume": 0.10, "sl": 1.09000, "tp": 1.07500}
-    {"symbol": "EURUSD", "cmd": "close",        "volume": 0.10, "sl": 0.0,     "tp": 0.0}
+    {"id": "...", "symbol": "EURUSD", "cmd": "buy",           "volume": 0.10, "sl": 1.08000, "tp": 1.09500}
+    {"id": "...", "symbol": "EURUSD", "cmd": "sell",          "volume": 0.10, "sl": 1.09000, "tp": 1.07500}
+    {"id": "...", "symbol": "EURUSD", "cmd": "close",         "volume": 0.10, "ticket": 12345}
 
-TMS commands (ticket-based)::
+Ticket-scoped TMS commands (audit L3/L4 — when ``ticket`` is present the EA
+operates ONLY on that ticket; without it, ``close`` keeps the legacy
+symbol-scoped semantics for pre-handshake trades)::
 
-    {"symbol": "EURUSD", "cmd": "partial_close", "ticket": 12345, "volume": 0.05}
-    {"symbol": "EURUSD", "cmd": "modify_sl",     "ticket": 12345, "new_sl": 1.08200}
+    {"id": "...", "symbol": "EURUSD", "cmd": "partial_close", "ticket": 12345, "volume": 0.05}
+    {"id": "...", "symbol": "EURUSD", "cmd": "modify_sl",     "ticket": 12345, "new_sl": 1.08200}
 
 Thread safety
 -------------
@@ -29,6 +38,8 @@ import json
 import logging
 import os
 import threading
+import time
+import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -47,8 +58,13 @@ _DEFAULT_MT4_COMMON_DIR = (
     "wine/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Files"
 )
 
-#: Filename the MQ4 bridge polls for.
+#: Legacy single-slot filename the EA (< v1.10) polls. No longer written by
+#: this executor — kept for reference/back-compat with old EA versions.
 SIGNAL_FILENAME = "mt4_signals.json"
+
+#: v1.10 protocol: one unique file per signal / per ack.
+SIGNAL_GLOB = "signal_*.json"
+ACK_PREFIX = "ack_"
 
 
 # ---------------------------------------------------------------------------
@@ -75,11 +91,22 @@ def _resolve_common_dir() -> Path:
     return Path(_DEFAULT_MT4_COMMON_DIR).resolve()
 
 
+def resolve_mt4_common_dir() -> Path:
+    """Public resolver for the MT4 shared common directory (audit L11).
+
+    THE single resolution path — order writes (this executor) and engine
+    reads (``mt4_positions.json`` / ``mt4_account.json`` in the live script)
+    must both go through here so the ``MT4_COMMON_DIR`` env override cannot
+    desync writes from reads.
+    """
+    return _resolve_common_dir()
+
+
 # ---------------------------------------------------------------------------
 #  Executor
 # ---------------------------------------------------------------------------
 class MT4Executor:
-    """Write order signals to the MT4 bridge file with atomic, thread-safe I/O.
+    """Write order signals to the MT4 bridge directory with atomic, thread-safe I/O.
 
     Parameters
     ----------
@@ -89,6 +116,13 @@ class MT4Executor:
     default_volume : float
         Volume (lot size) used when ``submit_order`` receives ``volume=None``
         or ``volume=0.0``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the resolved common directory does not exist. Fail-closed
+        (audit L10): a wrong ``common_dir`` must be a loud startup error,
+        never a silently ``mkdir``-ed black hole that swallows orders.
     """
 
     def __init__(
@@ -101,10 +135,17 @@ class MT4Executor:
         # Resolve target directory.
         base = Path(common_dir).resolve() if common_dir else _resolve_common_dir()
         self._signal_dir = base
-        self._signal_path = self._signal_dir / SIGNAL_FILENAME
 
-        # Ensure the target directory exists.
-        self._signal_dir.mkdir(parents=True, exist_ok=True)
+        # Fail closed when the directory is missing — do NOT create it.
+        if not self._signal_dir.is_dir():
+            raise FileNotFoundError(
+                f"MT4 common_dir does not exist: {self._signal_dir}. "
+                "Refusing to create it (audit L10): a wrong path must fail "
+                "loudly, not become an order black hole. Fix "
+                "execution.mt4.common_dir or MT4_COMMON_DIR."
+            )
+
+        self._last_signal_id: str | None = None
 
         # Default volume fallback.
         if default_volume is not None and default_volume > 0:
@@ -114,15 +155,19 @@ class MT4Executor:
             self._default_volume = cfg.execution.mt4.default_volume
 
         logger.info(
-            "MT4Executor initialised — signal path: %s, default volume: %.2f",
-            self._signal_path,
+            "MT4Executor initialised — signal dir: %s, default volume: %.2f",
+            self._signal_dir,
             self._default_volume,
         )
 
     # -- private helpers ----------------------------------------------------
 
     def _write_signal(self, payload: dict) -> Path:
-        """Atomically write *payload* as JSON to the MT4 bridge signal file.
+        """Atomically write *payload* as JSON to a unique signal file.
+
+        Each signal gets a client order id (``id`` field, uuid4 hex) and its
+        own ``signal_<id>.json`` file so the EA can batch-process every
+        pending signal without last-write-wins losses (audit L2).
 
         Uses a ``.tmp`` → ``rename`` pattern so the MQ4 timer never reads a
         partially-written file.
@@ -137,19 +182,22 @@ class MT4Executor:
         OSError
             If the file cannot be written.
         """
+        signal_id = payload.setdefault("id", uuid.uuid4().hex)
+        signal_path = self._signal_dir / f"signal_{signal_id}.json"
         raw = json.dumps(payload, separators=(",", ":"))
-        tmp_path = self._signal_path.with_suffix(".tmp")
+        tmp_path = signal_path.with_suffix(".tmp")
         with self._lock:
             try:
                 tmp_path.write_text(raw, encoding="utf-8")
-                tmp_path.rename(self._signal_path)
+                tmp_path.rename(signal_path)
             except OSError:
-                logger.exception("Failed to write MT4 signal to %s", self._signal_path)
+                logger.exception("Failed to write MT4 signal to %s", signal_path)
                 if tmp_path.exists():
                     tmp_path.unlink(missing_ok=True)
                 raise
-        logger.debug("MT4 signal written: %s → %s", payload, self._signal_path)
-        return self._signal_path
+            self._last_signal_id = signal_id
+        logger.debug("MT4 signal written: %s → %s", payload, signal_path)
+        return signal_path
 
     # -- public API ---------------------------------------------------------
 
@@ -165,6 +213,7 @@ class MT4Executor:
         be_buffer: float = 0.0003,
         trail_atr_mult: float = 2.0,
         trail_lookback: int = 22,
+        ticket: int | None = None,
     ) -> Path:
         """Write a standard entry or full-close order signal.
 
@@ -198,6 +247,11 @@ class MT4Executor:
             ATR multiplier for the Chandelier trailing stop (default ``2.0``).
         trail_lookback :
             Swing high/low lookback bars for the Chandelier exit (default ``22``).
+        ticket :
+            MT4 order ticket for ``cmd="close"`` (audit L3). When set, the EA
+            closes ONLY that ticket; when omitted the close keeps the legacy
+            symbol-scoped semantics (all engine positions on the pair) for
+            pre-handshake trades.
 
         Returns
         -------
@@ -212,6 +266,8 @@ class MT4Executor:
             "sl": float(sl),
             "tp": float(tp),
         }
+        if ticket:
+            payload["ticket"] = int(ticket)
         # Only attach TMS fields for entry orders to keep close signals clean
         if cmd in ("buy", "sell"):
             payload["tp1"]            = round(float(tp1), 5)
@@ -220,14 +276,20 @@ class MT4Executor:
             payload["trail_atr_mult"] = round(float(trail_atr_mult), 2)
             payload["trail_lookback"] = int(trail_lookback)
         logger.info(
-            "MT4 signal: %s %s %.2f lots (SL=%.5f TP=%.5f TP1=%.5f)",
+            "MT4 signal: %s %s %.2f lots (SL=%.5f TP=%.5f TP1=%.5f ticket=%s)",
             cmd.upper(), symbol, effective_volume, float(sl), float(tp), float(tp1),
+            ticket if ticket else "-",
         )
         return self._write_signal(payload)
 
-    def close_position(self, symbol: str) -> Path:
-        """Write a full-close signal for *symbol*."""
-        return self.submit_order(symbol=symbol, cmd="close", volume=0.1)
+    def close_position(self, symbol: str, ticket: int | None = None) -> Path:
+        """Write a full-close signal for *symbol*.
+
+        With *ticket* the EA closes exactly that ticket (audit L3); without
+        it the legacy symbol-scoped close (all engine positions on the pair)
+        applies — kept only for trades opened before the fills handshake.
+        """
+        return self.submit_order(symbol=symbol, cmd="close", volume=0.1, ticket=ticket)
 
     def partial_close(self, symbol: str, ticket: int, volume: float) -> Path:
         """Write a *partial close* TMS command for a specific MT4 ticket.
@@ -240,7 +302,8 @@ class MT4Executor:
         symbol :
             Instrument ticker — used for logging only (EA routes by ticket).
         ticket :
-            MT4 order ticket number (from ``mt4_positions.json``).
+            MT4 order ticket number (from the fill ack or
+            ``mt4_positions.json``).
         volume :
             Number of lots to close (must be ≤ the open lot size).
 
@@ -299,20 +362,68 @@ class MT4Executor:
         )
         return self._write_signal(payload)
 
+    def wait_for_ack(
+        self,
+        signal_id: str | None = None,
+        timeout_s: float | None = None,
+        poll_interval_s: float = 0.5,
+    ) -> dict | None:
+        """Poll for the EA's fill receipt ``ack_<id>.json`` (fills handshake).
+
+        The EA v1.10 writes an ack after executing any order, containing the
+        client order id, the MT4 ticket and the fill price. Callers MUST NOT
+        treat an order as filled without this ack (audit L10).
+
+        Parameters
+        ----------
+        signal_id :
+            Client order id to wait for. Defaults to the id of the most
+            recently written signal on this executor.
+        timeout_s :
+            Poll budget in seconds. Defaults to
+            ``config.execution.mt4_ack_timeout_s`` (10 s when unset).
+        poll_interval_s :
+            Delay between polls (default 0.5 s — the EA polls every 500 ms).
+
+        Returns
+        -------
+        dict | None
+            The parsed ack payload, or ``None`` on timeout / missing id.
+        """
+        sid = signal_id or self._last_signal_id
+        if not sid:
+            return None
+        if timeout_s is None:
+            try:
+                timeout_s = float(getattr(get_config().execution, "mt4_ack_timeout_s", 10.0))
+            except Exception:
+                timeout_s = 10.0
+        ack_path = self._signal_dir / f"{ACK_PREFIX}{sid}.json"
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        while time.monotonic() < deadline:
+            if ack_path.exists():
+                try:
+                    ack = json.loads(ack_path.read_text(encoding="utf-8"))
+                    logger.info("MT4 ack received for signal %s: %s", sid, ack)
+                    return ack
+                except (OSError, json.JSONDecodeError):
+                    pass  # mid-write by the EA — retry until the deadline
+            time.sleep(poll_interval_s)
+        logger.warning(
+            "MT4 ack TIMEOUT for signal %s after %.1fs — no fill receipt from the EA",
+            sid, timeout_s,
+        )
+        return None
+
     # -- convenience / introspection ----------------------------------------
 
     @property
-    def signal_path(self) -> Path:
-        """Absolute path to the bridge signal file."""
-        return self._signal_path
-
-    @property
     def signal_dir(self) -> Path:
-        """Absolute path to the directory containing the signal file."""
+        """Absolute path to the directory signals are written to."""
         return self._signal_dir
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(signal_path={self._signal_path!r}, "
+            f"{self.__class__.__name__}(signal_dir={self._signal_dir!r}, "
             f"default_volume={self._default_volume:.2f})"
         )

@@ -24,3 +24,8 @@ engine/wine_stderr.log
 engine/wine_stdout.log
 project_showcase.html
 .aider*
+
+# Generated result artifacts are regenerable; huge JSONs choke flaky uploads (2026-07-17)
+engine/data_store/validation/
+engine/data_store/*.json
+engine/data_store/paper_portfolio/

@@ -132,6 +132,11 @@ class RiskManager:
             )
 
         # 1.2. Economic News Calendar Filter (Nautilus-inspired)
+        #
+        # ``t`` is the DECISION time: backtest engines pass the current bar's
+        # timestamp (deterministic — wall-clock reads made backtests depend on
+        # when they were run, audit E2); only live contexts may leave it None,
+        # which means "now".
         if self.news_filter is not None:
             check_t = t or pd.Timestamp.utcnow()
             blocked, reason = self.news_filter.check_veto(signal.instrument, check_t)
@@ -190,10 +195,14 @@ class RiskManager:
                 f"Global trade cap reached ({total_open}/{_GLOBAL_HARD_CAP}); all new positions halted.",
             )
 
-        # 2. ATR stop distance
-        stop_price, stop_distance = atr_stop(
-            market.price, market.atr, cfg.atr_stop_mult, signal.direction
-        )
+        # 2. Stop distance
+        if getattr(signal, "stop_price", None) is not None:
+            stop_price = signal.stop_price
+            stop_distance = abs(market.price - stop_price)
+        else:
+            stop_price, stop_distance = atr_stop(
+                market.price, market.atr, cfg.atr_stop_mult, signal.direction
+            )
         detail["stop_distance"] = stop_distance
         if stop_distance <= 0:
             return veto("invalid_stop", "Non-positive stop distance; cannot size.")
@@ -202,10 +211,19 @@ class RiskManager:
         if self.bayesian_sizer is not None:
             bayes_rf = self.bayesian_sizer.risk_fraction(signal, account)
             if bayes_rf is None:
+                if account.drawdown >= self.bayesian_sizer.max_drawdown:
+                    return veto(
+                        "bayesian_drawdown_breaker",
+                        f"Bayesian drawdown breaker: drawdown {account.drawdown:.1%} "
+                        f">= {self.bayesian_sizer.max_drawdown:.0%}; new positions halted.",
+                    )
+                # Non-positive post-adaptation Kelly: the demonstrated record has
+                # no edge — veto exactly like the static fractional-Kelly gate
+                # below (audit A-H2) instead of flooring to the sizer's min_risk.
                 return veto(
-                    "bayesian_drawdown_breaker",
-                    f"Bayesian drawdown breaker: drawdown {account.drawdown:.1%} "
-                    f">= {self.bayesian_sizer.max_drawdown:.0%}; new positions halted.",
+                    "bayesian_no_edge",
+                    f"Bayesian Kelly <= 0 after adaptation on {signal.instrument}; "
+                    "demonstrated record has no edge to bet.",
                 )
             kelly_rf = bayes_rf
             detail["bayesian_risk_fraction"] = kelly_rf
@@ -305,12 +323,16 @@ class RiskManager:
         # Finalise
         units = notional / price_account
         final_risk_fraction = units * stop_distance_account / account.equity
-        target_distance = signal.reward_risk * stop_distance
-        target_price = (
-            market.price + target_distance
-            if signal.direction == Direction.LONG
-            else market.price - target_distance
-        )
+        
+        if getattr(signal, "target_price", None) is not None:
+            target_price = signal.target_price
+        else:
+            target_distance = signal.reward_risk * stop_distance
+            target_price = (
+                market.price + target_distance
+                if signal.direction == Direction.LONG
+                else market.price - target_distance
+            )
 
         rationale = (
             f"{signal.direction.value.upper()} {signal.instrument}: "

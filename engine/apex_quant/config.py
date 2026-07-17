@@ -130,12 +130,26 @@ CRYPTO_BASES = {
     "ARB", "SUI",
 }
 
+# Timeframe string -> bar length in minutes, for bars-per-year annualization
+# (AppConfig.bars_per_year). Daily/weekly are handled separately.
+_TF_MINUTES = {
+    "1m": 1, "5m": 5, "15m": 15, "30m": 30,
+    "1h": 60, "2h": 120, "4h": 240, "8h": 480, "12h": 720,
+}
+_WEEKS_PER_YEAR = 52.14
+
 
 class AssetClassConfig(BaseModel):
     """Trading mechanics for one asset class. Forex quotes spreads in *pips*;
     equities and crypto quote them in *basis points of price* — using a forex
     cost model on a $200 stock would manufacture a fake edge. Crypto trades 365
-    days/yr; forex and (cash) equities ~252."""
+    days/yr; forex and (cash) equities ~252.
+
+    Forex only: ``pair_rt_cost_pips`` / ``pair_tf_rt_cost_pips`` carry measured
+    per-pair realized round-trip costs (pips) and ``cross_rt_cost_pips`` the
+    fallback for unlisted crosses. An override REPLACES ``spread_pips`` +
+    ``slippage_bps`` for that pair — it already is the full round-trip cost,
+    applied half per fill (slippage resolves to 0.0)."""
     annualization: int = 252
     cost_model: Literal["pips", "bps"] = "pips"
     spread_pips: float = 1.0          # pips model only
@@ -143,6 +157,9 @@ class AssetClassConfig(BaseModel):
     spread_bps: float = 2.0           # bps model only
     slippage_bps: float = 0.5
     commission_per_trade: float = 0.0
+    cross_rt_cost_pips: float | None = None   # pips model: unlisted-cross RT default
+    pair_rt_cost_pips: dict[str, float] = Field(default_factory=dict)
+    pair_tf_rt_cost_pips: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
 class AssetClassesConfig(BaseModel):
@@ -241,6 +258,25 @@ class ExecutionConfig(BaseModel):
     mt4: Mt4Config = Field(default_factory=Mt4Config)
     zmq: ZmqConfig = Field(default_factory=ZmqConfig)
     live_min_position: float = 15000.0
+    # 2026-07-17: new trades are exit-managed by TradeManager (backtest parity);
+    # false → legacy inline TMS + 15-min invalidation scans for everything.
+    managed_exits: bool = True
+    # 2026-07-17: 15m/1h only time pullback entries into the 1d direction;
+    # false → legacy standalone intraday directional signals.
+    htf_direction_only: bool = True
+    # 2026-07-17 (audit A-C1): LLM structural veto kill-switch. Default OFF —
+    # the research verdict was DROP (lessons invent thresholds from n=1 and can
+    # flatten any signal). The veto function stays intact but only runs when
+    # this is explicitly switched on.
+    llm_structural_veto: bool = False
+    # 2026-07-17 (audit L9/L10): freshness tolerance for the EA-written bridge
+    # files (mt4_positions.json / mt4_account.json), rewritten every ~500 ms.
+    # Older files mean a dead EA or a wrong common_dir — dispatch and TMS are
+    # skipped (fail closed).
+    mt4_max_file_age_s: float = 5.0
+    # 2026-07-17 (fills handshake): poll budget for the EA's ack_<id>.json
+    # after dispatching an order. No ack → the trade is NOT stamped filled_at.
+    mt4_ack_timeout_s: float = 10.0
 
 
 class AppConfig(BaseModel):
@@ -289,6 +325,64 @@ class AppConfig(BaseModel):
         """Resolve the trading-mechanics (cost model + annualization) for an
         instrument from its asset class."""
         return getattr(self.asset_classes, self.asset_class_of(instrument))
+
+    def forex_cost_components(self, instrument: str, timeframe: str | None = None) -> tuple[float, float]:
+        """Effective ``(spread_pips, slippage_bps)`` for a forex instrument.
+
+        Per-pair overrides (measured realized round-trip costs, config v5) take
+        precedence — pair×timeframe, then pair, then the unlisted-cross default
+        (a forex pair with no USD leg). An override IS the full round-trip cost
+        in pips, so it is returned with slippage 0.0 and the backtest applies
+        half per fill. Anything else falls back to the class spread/slippage.
+        """
+        m = self.mechanics_for(instrument)
+        if self.asset_class_of(instrument) == "forex":
+            fx = self.asset_classes.forex
+            tf = (timeframe or "").lower()
+            rt = fx.pair_tf_rt_cost_pips.get(instrument, {}).get(tf)
+            if rt is None:
+                rt = fx.pair_rt_cost_pips.get(instrument)
+            if rt is None and "USD" not in instrument.upper():
+                rt = fx.cross_rt_cost_pips
+            if rt is not None:
+                return rt, 0.0
+        return m.spread_pips, m.slippage_bps
+
+    def bars_per_year(self, instrument: str, timeframe: str | None = None) -> float:
+        """Annualization factor (bars per year) for per-bar performance metrics
+        (Sharpe / ann_return / Calmar / Sortino).
+
+        ``AssetClassConfig.annualization`` is the DAILY convention (252 forex /
+        equity, 365 crypto) and stays the fallback when the timeframe is unknown
+        — hardcoding it for every bar size understated a 1h Sharpe by ~sqrt(24)
+        (audit E5). Intraday factors derive from the session conventions:
+
+          * forex:  ~5x24h week (SessionConfig: Sun 22:00 -> Fri 22:00 UTC)
+                    => 1h = 24 x 5 x 52.14 ~ 6257, 15m = 4x that
+          * equity: ~6.5h cash session x 252 days
+          * crypto: 24/7 => 1h = 24 x 365
+
+        Daily and weekly keep the conventional counts (252 / 52; 365, 365/7 for
+        crypto) rather than the session-derived 260.7 so daily numbers stay
+        comparable with the existing record.
+        """
+        tf = str(timeframe or "1d").lower().strip()
+        ac = self.asset_class_of(instrument)
+        daily = float(self.mechanics_for(instrument).annualization)
+        if tf in ("1d", "d", "1day"):
+            return daily
+        if tf in ("1w", "w", "1week"):
+            return 52.0 if ac != "crypto" else daily / 7.0
+        minutes = _TF_MINUTES.get(tf)
+        if minutes is None:
+            return daily  # unknown timeframe -> daily convention (old behaviour)
+        if ac == "crypto":
+            bars_per_day, days_per_year = 24.0 * 60.0 / minutes, daily
+        elif ac == "forex":
+            bars_per_day, days_per_year = 24.0 * 60.0 / minutes, 5.0 * _WEEKS_PER_YEAR
+        else:  # equity cash session ~6.5h
+            bars_per_day, days_per_year = 6.5 * 60.0 / minutes, daily
+        return bars_per_day * days_per_year
 
 
 # -- Loading + env overrides ---------------------------------------------------

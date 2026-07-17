@@ -285,7 +285,7 @@ def _groq_complete(prompt: str, system: str, retries: int = 3) -> str | None:
 # v4 (2026-07-16): MT4 cache cleared per-lesson to prevent stale data corruption
 # in long-lived batch runs; setup_features.exit_price / profit_pnl used as
 # authoritative source when already backfilled from the broker record.
-_LESSON_VERSION = "LESSON_V4"
+_LESSON_VERSION = "LESSON_V5"  # V5: paper (unticketed) setups quote NO fabricated £; outcome-only
 
 _OUTCOME_LABELS = {
     "tp_hit":      "Hit Take Profit — closed in full profit",
@@ -323,7 +323,11 @@ def _needs_structured_lesson(t: dict) -> bool:
         return True
     if "<strong>" not in lesson:
         return True
-    if "£" not in lesson:
+    # Real (executed) trades must quote a £ P&L; paper/research setups must NOT (they
+    # carry no cash figure). Without this split, the new no-£ paper lessons would be
+    # flagged stale on every pass and regenerate forever.
+    is_paper_lesson = ("Research setup" in lesson) or ("no cash P&L" in lesson)
+    if not is_paper_lesson and "£" not in lesson:
         return True
 
     # Corrupt lesson: exit price printed as None
@@ -724,37 +728,17 @@ def _build_lesson(trade: dict) -> str | None:
                     exit_px = f_entry  # Fallback to entry
                 trade["outcome_price"] = exit_px
             
-            # Calculate simulated paper P&L assuming a standard 1% risk on a £100,000 account (£1,000 risk)
-            try:
-                f_exit = float(exit_px) if exit_px is not None else 0.0
-            except (TypeError, ValueError):
-                f_exit = 0.0
-                
-            if f_entry > 0 and f_sl > 0 and abs(f_entry - f_sl) > 1e-6:
-                is_sell = direction in ("SELL", "SHORT")
-                stop_dist = abs(f_entry - f_sl)
-                risk_gbp = 1000.0
-                
-                if outcome == "tp_hit":
-                    rr = 1.5
-                    rr_str = trade.get("risk_reward", "")
-                    if ":" in rr_str:
-                        try:
-                            parts = rr_str.split(":")
-                            val1 = float(parts[0])
-                            val2 = float(parts[1])
-                            rr = max(val1, val2) / min(val1, val2)
-                        except Exception:
-                            pass
-                    profit_val = risk_gbp * rr
-                elif outcome == "sl_hit":
-                    profit_val = -risk_gbp
-                else:
-                    exit_change = (f_entry - f_exit) if is_sell else (f_exit - f_entry)
-                    profit_val = risk_gbp * (exit_change / stop_dist)
+            # NO cash P&L for a paper setup. A £1000 x R:R figure used to be fabricated
+            # here, which rendered identically to real broker money on the card (a
+            # 2.3:1 setup always "made £2,300", even for SMH/AAPL the engine can't even
+            # trade). The exit price above is REAL — where it hit TP/SL in the price
+            # data — so the OUTCOME is honest; the invented cash amount was not. Paper
+            # setups are judged by outcome + hit-rate downstream, never by pounds.
+            pass
 
+    is_paper = not ticket_id   # analysed but never executed -> no real money at stake
     outcome_human = _OUTCOME_LABELS.get(outcome, outcome)
-    category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss'
+    category = _classify_trade(trade, profit_val)  # 'win' | 'neutral' | 'loss' (outcome-based)
 
     # -- Counterfactual: COMPUTED, not inferred -------------------------------
     #
@@ -812,13 +796,20 @@ def _build_lesson(trade: dict) -> str | None:
                 feat_lines.append(f"- {k}: {v}")
     feat_str = "\n".join(feat_lines) if feat_lines else "None recorded"
 
-    prompt = f"""FACTS (from the broker record — authoritative, never restate them differently):
+    if is_paper:
+        pnl_line = ("Result: PAPER / research setup — analysed but NOT executed on the account, so "
+                    "there is NO cash profit or loss. Judge it ONLY by whether it reached its target "
+                    "or its stop. Do NOT state or imply any £ amount.")
+    else:
+        pnl_line = f"Net profit/loss: £{profit_val:.2f}"
+
+    prompt = f"""FACTS (from the broker record / a rescan of real prices — authoritative, never restate them differently):
 Symbol: {sym} | Timeframe: {trade.get('timeframe', '1h')} | Direction: {direction}
 Entry: {entry}   ->   Exit: {trade.get('outcome_price', '?')}
 Target (TP): {tp}  ({dist_tp:.0f} pips from entry)
 Stop (SL): {sl}  ({dist_sl:.0f} pips from entry)
 How it closed: {outcome_human}
-Net profit/loss: £{profit_val:.2f}
+{pnl_line}
 
 {hindsight_info}
 
@@ -907,20 +898,32 @@ Rules: valid JSON, double-quoted strings, no markdown, no invented numbers. Neve
             except (TypeError, ValueError):
                 return str(v)
 
-        _abs = abs(profit_val)
-        size_word = "minor" if _abs < 100 else ("moderate" if _abs < 500 else "significant")
-        wl = "gain" if profit_val > 0 else ("loss" if profit_val < 0 else "flat result")
         exit_disp = _px(trade.get("outcome_price", "?"))
-        if outcome == "tp_hit":
-            _facts = (f"Hit the take-profit at {exit_disp} from an entry of {_px(entry)} — "
-                      f"a {size_word} {wl} of £{profit_val:.2f}.")
-        elif outcome == "sl_hit":
-            _facts = (f"Hit the stop-loss at {exit_disp} from an entry of {_px(entry)} — "
-                      f"a {size_word} {wl} of £{profit_val:.2f}.")
+        if is_paper:
+            # Paper/research setup: real OUTCOME, no cash. Never quote a £ amount.
+            if outcome == "tp_hit":
+                _facts = (f"Reached its take-profit target at {exit_disp} from an entry of {_px(entry)}. "
+                          f"Research setup — not executed, so no cash P&L; judged on outcome only.")
+            elif outcome == "sl_hit":
+                _facts = (f"Hit its stop-loss at {exit_disp} from an entry of {_px(entry)}. "
+                          f"Research setup — not executed, so no cash P&L; judged on outcome only.")
+            else:
+                _facts = (f"Did not reach its target ({_px(tp)}) or stop ({_px(sl)}) within the scan "
+                          f"window. Research setup — not executed, so no cash P&L.")
         else:
-            _facts = (f"Closed manually at {exit_disp} from an entry of {_px(entry)}, before either "
-                      f"the target ({_px(tp)}) or the stop ({_px(sl)}) was reached — "
-                      f"a {size_word} {wl} of £{profit_val:.2f}.")
+            _abs = abs(profit_val)
+            size_word = "minor" if _abs < 100 else ("moderate" if _abs < 500 else "significant")
+            wl = "gain" if profit_val > 0 else ("loss" if profit_val < 0 else "flat result")
+            if outcome == "tp_hit":
+                _facts = (f"Hit the take-profit at {exit_disp} from an entry of {_px(entry)} — "
+                          f"a {size_word} {wl} of £{profit_val:.2f}.")
+            elif outcome == "sl_hit":
+                _facts = (f"Hit the stop-loss at {exit_disp} from an entry of {_px(entry)} — "
+                          f"a {size_word} {wl} of £{profit_val:.2f}.")
+            else:
+                _facts = (f"Closed manually at {exit_disp} from an entry of {_px(entry)}, before either "
+                          f"the target ({_px(tp)}) or the stop ({_px(sl)}) was reached — "
+                          f"a {size_word} {wl} of £{profit_val:.2f}.")
         wwr = html.escape(_facts)
         ywr = html.escape(_safe_str(o.get("the_reason") or o.get("why_it_went_wrong_or_right") or ""))
         imp = html.escape(_safe_str(o.get("key_lesson") or o.get("improvement_or_preservation") or ""))

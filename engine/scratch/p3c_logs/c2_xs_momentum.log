@@ -1,0 +1,14 @@
+--- Currency-leg XS momentum validation on 22 FX pairs (daily, iteration window -> 2024-12-31) ---
+shared ledger: /Users/zain/Documents/apexfx/engine/data_store/validation/trial_ledger.json (n_trials=104 used for DSR deflation)
+
+============================================================
+VALIDATION REPORT:
+============================================================
+[FAIL] currency_cross_sectional_momentum on 22 instruments: DSR=0.002 PBO=0.31775 CPCV medOOS=-0.044 (7% of 15 paths +ve)
+  - DSR 0.002 <= 0.95 (deflated by 104 trials)
+  - PBO 0.31775 < 0.5 (config-selection overfit probability)
+  - CPCV median OOS Sharpe -0.044, 7% of 15 paths positive
+  - VERDICT: rejected - insufficient evidence of a real, non-overfit edge
+  CPCV paths: [-0.0522, -0.0481, -0.048, -0.048, -0.048, -0.0472, -0.0359, -0.0353, -0.0355, -0.0389, -0.0435, -0.0475, 0.0054, -0.0092, -0.0065]
+============================================================
+exit=1

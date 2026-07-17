@@ -1,0 +1,16 @@
+built 16 systems in 110s
+portfolio[16]: ret=-11.3% sharpe=-0.50 maxDD=12.3% trades=1370 | caps bound: below_min_position×1406, drawdown_reducing_scale=0.77×3, drawdown_reducing_scale=0.78×1, drawdown_reducing_scale=0.79×15, drawdown_reducing_scale=0.80×15, drawdown_reducing_scale=0.81×6, drawdown_reducing_scale=0.82×2, drawdown_reducing_scale=0.83×4, drawdown_reducing_scale=0.85×6, drawdown_reducing_scale=0.86×32, drawdown_reducing_scale=0.87×28, drawdown_reducing_scale=0.88×12, drawdown_reducing_scale=0.89×5, drawdown_reducing_scale=0.90×70, drawdown_reducing_scale=0.91×45, drawdown_reducing_scale=0.92×18, drawdown_reducing_scale=0.93×6, drawdown_reducing_scale=0.94×2, drawdown_reducing_scale=0.95×1, drawdown_reducing_scale=0.96×1, drawdown_reducing_scale=0.98×6, drawdown_reducing_scale=1.00×11, max_correlated_exposure×656, max_risk_per_trade×2757, max_total_exposure×2779, no_edge×89, vol_target×630
+{
+ "max_leverage_raw_as_capped": 3.0000000000000004,
+ "max_leverage_gbp_corrected": 1.9777267979468134,
+ "p50_leverage_gbp_at_entries": 0.8446955804204049,
+ "p95_leverage_gbp_at_entries": 1.5875000267321897,
+ "n_permitted_entries": 1374,
+ "subset_window": [
+  "2025-07-17 00:00:00+00:00",
+  "2025-09-30 00:00:00+00:00"
+ ],
+ "subset_net_pnl_raw": -11252.15,
+ "subset_n_trades": 1370
+}
+DONE

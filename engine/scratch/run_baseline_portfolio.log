@@ -1,0 +1,254 @@
+/Users/zain/Documents/apexfx/engine/scratch/run_baseline_portfolio.py:64: Pandas4Warning: Timestamp.utcnow is deprecated and will be removed in a future version. Use Timestamp.now('UTC') instead.
+  NOW = pd.Timestamp.utcnow().tz_convert("UTC").floor("s")
+window: 2025-07-17 00:00:00+00:00 -> 2026-07-17 02:17:33+00:00
+[OK] EUR/USD@15m        bars=  9616 last=2026-07-17 02:00:00+00:00 (5s)
+[OK] GBP/USD@15m        bars=  9615 last=2026-07-17 02:00:00+00:00 (9s)
+[OK] USD/JPY@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (13s)
+[OK] USD/CHF@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (17s)
+[OK] AUD/USD@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (21s)
+[OK] USD/CAD@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (25s)
+[OK] NZD/USD@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (30s)
+[OK] GBP/JPY@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (34s)
+[OK] EUR/GBP@15m        bars=  9328 last=2026-07-17 02:00:00+00:00 (38s)
+[OK] EUR/JPY@15m        bars=  9327 last=2026-07-17 02:00:00+00:00 (42s)
+[OK] GBP/NZD@15m        bars= 28038 last=2026-07-17 02:00:00+00:00 (63s)
+[OK] AUD/NZD@15m        bars= 28040 last=2026-07-17 02:00:00+00:00 (83s)
+[OK] EUR/AUD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (103s)
+[OK] EUR/CAD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (122s)
+[OK] CHF/JPY@15m        bars= 28028 last=2026-07-17 02:00:00+00:00 (142s)
+[OK] GBP/CAD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (161s)
+[OK] GBP/CHF@15m        bars= 28035 last=2026-07-17 02:00:00+00:00 (178s)
+[OK] GBP/AUD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (196s)
+[OK] EUR/CHF@15m        bars= 28033 last=2026-07-17 02:00:00+00:00 (214s)
+[OK] EUR/NZD@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (232s)
+[OK] NZD/JPY@15m        bars= 28038 last=2026-07-17 02:00:00+00:00 (251s)
+[OK] CAD/JPY@15m        bars= 28041 last=2026-07-17 02:00:00+00:00 (268s)
+[OK] EUR/USD@1h         bars= 10794 last=2026-07-17 01:00:00+00:00 (273s)
+[OK] GBP/USD@1h         bars= 10793 last=2026-07-17 01:00:00+00:00 (277s)
+[OK] USD/JPY@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (281s)
+[OK] USD/CHF@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (286s)
+[OK] AUD/USD@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (290s)
+[OK] USD/CAD@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (294s)
+[OK] NZD/USD@1h         bars= 10796 last=2026-07-17 01:00:00+00:00 (299s)
+[OK] GBP/JPY@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (303s)
+[OK] EUR/GBP@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (307s)
+[OK] EUR/JPY@1h         bars= 10790 last=2026-07-17 01:00:00+00:00 (312s)
+[OK] GBP/NZD@1h         bars= 10725 last=2026-07-17 01:00:00+00:00 (316s)
+[OK] AUD/NZD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (321s)
+[OK] EUR/AUD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (325s)
+[OK] EUR/CAD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (330s)
+[OK] CHF/JPY@1h         bars= 10726 last=2026-07-17 01:00:00+00:00 (334s)
+[OK] GBP/CAD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (338s)
+[OK] GBP/CHF@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (343s)
+[OK] GBP/AUD@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (347s)
+[OK] EUR/CHF@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (352s)
+[OK] EUR/NZD@1h         bars= 10726 last=2026-07-17 01:00:00+00:00 (356s)
+[OK] NZD/JPY@1h         bars= 10726 last=2026-07-17 01:00:00+00:00 (360s)
+[OK] CAD/JPY@1h         bars= 10727 last=2026-07-17 01:00:00+00:00 (365s)
+[OK] EUR/USD@1d         bars=  1172 last=2026-07-15 21:00:00+00:00 (365s)
+[OK] GBP/USD@1d         bars=  1182 last=2026-07-15 21:00:00+00:00 (365s)
+[OK] USD/JPY@1d         bars=  1192 last=2026-07-15 21:00:00+00:00 (366s)
+[OK] USD/CHF@1d         bars=  1197 last=2026-07-15 21:00:00+00:00 (366s)
+[OK] AUD/USD@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (366s)
+[OK] USD/CAD@1d         bars=  1212 last=2026-07-15 21:00:00+00:00 (367s)
+[OK] NZD/USD@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (367s)
+[OK] GBP/JPY@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (367s)
+[OK] EUR/GBP@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] EUR/JPY@1d         bars=  1213 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] GBP/NZD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] AUD/NZD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] EUR/AUD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] EUR/CAD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (368s)
+[OK] CHF/JPY@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] GBP/CAD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] GBP/CHF@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] GBP/AUD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] EUR/CHF@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] EUR/NZD@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] NZD/JPY@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (369s)
+[OK] CAD/JPY@1d         bars=   550 last=2026-07-15 21:00:00+00:00 (370s)
+[SKIP] EUR/USD@1w: only 208 bars
+[SKIP] GBP/USD@1w: only 208 bars
+[SKIP] USD/JPY@1w: only 208 bars
+[SKIP] USD/CHF@1w: only 208 bars
+[SKIP] AUD/USD@1w: only 208 bars
+[SKIP] USD/CAD@1w: only 208 bars
+[SKIP] NZD/USD@1w: only 208 bars
+[SKIP] GBP/JPY@1w: only 208 bars
+[SKIP] EUR/GBP@1w: only 208 bars
+[SKIP] EUR/JPY@1w: only 208 bars
+[SKIP] GBP/NZD@1w: only 208 bars
+[SKIP] AUD/NZD@1w: only 208 bars
+[SKIP] EUR/AUD@1w: only 208 bars
+[SKIP] EUR/CAD@1w: only 208 bars
+[SKIP] CHF/JPY@1w: only 208 bars
+[SKIP] GBP/CAD@1w: only 208 bars
+[SKIP] GBP/CHF@1w: only 208 bars
+[SKIP] GBP/AUD@1w: only 208 bars
+[SKIP] EUR/CHF@1w: only 208 bars
+[SKIP] EUR/NZD@1w: only 208 bars
+[SKIP] NZD/JPY@1w: only 208 bars
+[SKIP] CAD/JPY@1w: only 208 bars
+
+66 systems built in 370s. Running portfolio backtest...
+backtest done in 139s
+portfolio[66]: ret=-16.9% sharpe=-0.30 maxDD=20.0% trades=4292 | caps bound: below_min_position×24158, drawdown_breaker×98600, drawdown_reducing_scale=0.00×396, drawdown_reducing_scale=0.01×34, drawdown_reducing_scale=0.02×24, drawdown_reducing_scale=0.03×106, drawdown_reducing_scale=0.04×164, drawdown_reducing_scale=0.05×51, drawdown_reducing_scale=0.06×34, drawdown_reducing_scale=0.07×2, drawdown_reducing_scale=0.08×8, drawdown_reducing_scale=0.09×60, drawdown_reducing_scale=0.10×106, drawdown_reducing_scale=0.11×91, drawdown_reducing_scale=0.12×119, drawdown_reducing_scale=0.13×170, drawdown_reducing_scale=0.14×218, drawdown_reducing_scale=0.15×434, drawdown_reducing_scale=0.16×453, drawdown_reducing_scale=0.17×799, drawdown_reducing_scale=0.18×731, drawdown_reducing_scale=0.19×367, drawdown_reducing_scale=0.20×154, drawdown_reducing_scale=0.21×304, drawdown_reducing_scale=0.22×330, drawdown_reducing_scale=0.23×318, drawdown_reducing_scale=0.24×575, drawdown_reducing_scale=0.25×212, drawdown_reducing_scale=0.26×243, drawdown_reducing_scale=0.27×118, drawdown_reducing_scale=0.28×245, drawdown_reducing_scale=0.29×125, drawdown_reducing_scale=0.30×232, drawdown_reducing_scale=0.31×311, drawdown_reducing_scale=0.32×284, drawdown_reducing_scale=0.33×169, drawdown_reducing_scale=0.34×227, drawdown_reducing_scale=0.35×82, drawdown_reducing_scale=0.36×84, drawdown_reducing_scale=0.37×85, drawdown_reducing_scale=0.38×91, drawdown_reducing_scale=0.39×151, drawdown_reducing_scale=0.40×49, drawdown_reducing_scale=0.41×40, drawdown_reducing_scale=0.42×32, drawdown_reducing_scale=0.43×37, drawdown_reducing_scale=0.45×1, drawdown_reducing_scale=0.46×24, drawdown_reducing_scale=0.47×232, drawdown_reducing_scale=0.48×233, drawdown_reducing_scale=0.49×134, drawdown_reducing_scale=0.50×64, drawdown_reducing_scale=0.51×136, drawdown_reducing_scale=0.52×228, drawdown_reducing_scale=0.53×144, drawdown_reducing_scale=0.54×159, drawdown_reducing_scale=0.55×46, drawdown_reducing_scale=0.56×47, drawdown_reducing_scale=0.57×197, drawdown_reducing_scale=0.58×256, drawdown_reducing_scale=0.59×467, drawdown_reducing_scale=0.60×246, drawdown_reducing_scale=0.61×186, drawdown_reducing_scale=0.62×135, drawdown_reducing_scale=0.63×190, drawdown_reducing_scale=0.64×300, drawdown_reducing_scale=0.65×398, drawdown_reducing_scale=0.66×290, drawdown_reducing_scale=0.67×352, drawdown_reducing_scale=0.68×398, drawdown_reducing_scale=0.69×293, drawdown_reducing_scale=0.70×115, drawdown_reducing_scale=0.71×152, drawdown_reducing_scale=0.72×75, drawdown_reducing_scale=0.73×122, drawdown_reducing_scale=0.74×105, drawdown_reducing_scale=0.75×123, drawdown_reducing_scale=0.76×154, drawdown_reducing_scale=0.77×117, drawdown_reducing_scale=0.78×80, drawdown_reducing_scale=0.79×20, drawdown_reducing_scale=0.80×27, drawdown_reducing_scale=0.81×23, drawdown_reducing_scale=0.82×58, drawdown_reducing_scale=0.83×95, drawdown_reducing_scale=0.84×179, drawdown_reducing_scale=0.85×214, drawdown_reducing_scale=0.86×279, drawdown_reducing_scale=0.87×173, drawdown_reducing_scale=0.88×54, drawdown_reducing_scale=0.89×137, drawdown_reducing_scale=0.90×354, drawdown_reducing_scale=0.91×159, drawdown_reducing_scale=0.92×175, drawdown_reducing_scale=0.93×63, drawdown_reducing_scale=0.94×218, drawdown_reducing_scale=0.95×105, drawdown_reducing_scale=0.96×114, drawdown_reducing_scale=0.97×163, drawdown_reducing_scale=0.98×116, drawdown_reducing_scale=0.99×96, drawdown_reducing_scale=1.00×14, global_trade_cap×3304, max_correlated_exposure×1194, max_risk_per_trade×28404, max_total_exposure×27965, no_edge×140, timeframe_bucket_full×13764, vol_target×3778
+/Users/zain/Documents/apexfx/engine/scratch/run_baseline_portfolio.py:170: Pandas4Warning: 'd' is deprecated and will be removed in a future version, please use 'D' instead.
+  eq_daily = res.equity.resample("1d").last().dropna()
+trades -> /Users/zain/Documents/apexfx/engine/data_store/baseline_portfolio_trades_2026-07-17.csv
+metrics -> /Users/zain/Documents/apexfx/engine/data_store/baseline_portfolio_metrics_2026-07-17.json
+{
+  "per_timeframe": {
+    "15m": {
+      "n_trades": 3312,
+      "win_rate": 0.38556763285024154,
+      "net_pnl": -18281.13,
+      "expectancy_pnl": -5.519664855072464,
+      "profit_factor": 0.7249486680319083,
+      "exit_reasons": {
+        "time": 1620,
+        "stop": 1175,
+        "target": 517
+      }
+    },
+    "1d": {
+      "n_trades": 15,
+      "win_rate": 0.06666666666666667,
+      "net_pnl": -708.37,
+      "expectancy_pnl": -47.224666666666664,
+      "profit_factor": 0.0010153859171614322,
+      "exit_reasons": {
+        "time": 12,
+        "stop": 3
+      }
+    },
+    "1h": {
+      "n_trades": 965,
+      "win_rate": 0.46010362694300516,
+      "net_pnl": 2074.6100000000006,
+      "expectancy_pnl": 2.1498549222797934,
+      "profit_factor": 1.1100343690000107,
+      "exit_reasons": {
+        "stop": 432,
+        "time": 366,
+        "target": 167
+      }
+    }
+  },
+  "constraint_log": {
+    "max_risk_per_trade": 28404,
+    "max_total_exposure": 27965,
+    "max_correlated_exposure": 1194,
+    "below_min_position": 24158,
+    "vol_target": 3778,
+    "timeframe_bucket_full": 13764,
+    "no_edge": 140,
+    "global_trade_cap": 3304,
+    "drawdown_reducing_scale=0.99": 96,
+    "drawdown_reducing_scale=1.00": 14,
+    "drawdown_reducing_scale=0.98": 116,
+    "drawdown_reducing_scale=0.97": 163,
+    "drawdown_reducing_scale=0.96": 114,
+    "drawdown_reducing_scale=0.95": 105,
+    "drawdown_reducing_scale=0.94": 218,
+    "drawdown_reducing_scale=0.93": 63,
+    "drawdown_reducing_scale=0.92": 175,
+    "drawdown_reducing_scale=0.91": 159,
+    "drawdown_reducing_scale=0.90": 354,
+    "drawdown_reducing_scale=0.89": 137,
+    "drawdown_reducing_scale=0.88": 54,
+    "drawdown_reducing_scale=0.87": 173,
+    "drawdown_reducing_scale=0.86": 279,
+    "drawdown_reducing_scale=0.85": 214,
+    "drawdown_reducing_scale=0.82": 58,
+    "drawdown_reducing_scale=0.81": 23,
+    "drawdown_reducing_scale=0.83": 95,
+    "drawdown_reducing_scale=0.84": 179,
+    "drawdown_reducing_scale=0.80": 27,
+    "drawdown_reducing_scale=0.79": 20,
+    "drawdown_reducing_scale=0.78": 80,
+    "drawdown_reducing_scale=0.76": 154,
+    "drawdown_reducing_scale=0.77": 117,
+    "drawdown_reducing_scale=0.74": 105,
+    "drawdown_reducing_scale=0.75": 123,
+    "drawdown_reducing_scale=0.73": 122,
+    "drawdown_reducing_scale=0.72": 75,
+    "drawdown_reducing_scale=0.71": 152,
+    "drawdown_reducing_scale=0.70": 115,
+    "drawdown_reducing_scale=0.69": 293,
+    "drawdown_reducing_scale=0.68": 398,
+    "drawdown_reducing_scale=0.67": 352,
+    "drawdown_reducing_scale=0.66": 290,
+    "drawdown_reducing_scale=0.65": 398,
+    "drawdown_reducing_scale=0.64": 300,
+    "drawdown_reducing_scale=0.63": 190,
+    "drawdown_reducing_scale=0.62": 135,
+    "drawdown_reducing_scale=0.61": 186,
+    "drawdown_reducing_scale=0.60": 246,
+    "drawdown_reducing_scale=0.58": 256,
+    "drawdown_reducing_scale=0.59": 467,
+    "drawdown_reducing_scale=0.57": 197,
+    "drawdown_reducing_scale=0.56": 47,
+    "drawdown_reducing_scale=0.54": 159,
+    "drawdown_reducing_scale=0.55": 46,
+    "drawdown_reducing_scale=0.53": 144,
+    "drawdown_reducing_scale=0.50": 64,
+    "drawdown_reducing_scale=0.52": 228,
+    "drawdown_reducing_scale=0.49": 134,
+    "drawdown_reducing_scale=0.51": 136,
+    "drawdown_reducing_scale=0.48": 233,
+    "drawdown_reducing_scale=0.47": 232,
+    "drawdown_reducing_scale=0.46": 24,
+    "drawdown_reducing_scale=0.45": 1,
+    "drawdown_reducing_scale=0.43": 37,
+    "drawdown_reducing_scale=0.42": 32,
+    "drawdown_reducing_scale=0.40": 49,
+    "drawdown_reducing_scale=0.39": 151,
+    "drawdown_reducing_scale=0.38": 91,
+    "drawdown_reducing_scale=0.37": 85,
+    "drawdown_reducing_scale=0.36": 84,
+    "drawdown_reducing_scale=0.35": 82,
+    "drawdown_reducing_scale=0.34": 227,
+    "drawdown_reducing_scale=0.33": 169,
+    "drawdown_reducing_scale=0.41": 40,
+    "drawdown_reducing_scale=0.32": 284,
+    "drawdown_reducing_scale=0.31": 311,
+    "drawdown_reducing_scale=0.30": 232,
+    "drawdown_reducing_scale=0.29": 125,
+    "drawdown_reducing_scale=0.28": 245,
+    "drawdown_reducing_scale=0.27": 118,
+    "drawdown_reducing_scale=0.26": 243,
+    "drawdown_reducing_scale=0.25": 212,
+    "drawdown_reducing_scale=0.24": 575,
+    "drawdown_reducing_scale=0.23": 318,
+    "drawdown_reducing_scale=0.22": 330,
+    "drawdown_reducing_scale=0.21": 304,
+    "drawdown_reducing_scale=0.20": 154,
+    "drawdown_reducing_scale=0.18": 731,
+    "drawdown_reducing_scale=0.19": 367,
+    "drawdown_reducing_scale=0.17": 799,
+    "drawdown_reducing_scale=0.16": 453,
+    "drawdown_reducing_scale=0.15": 434,
+    "drawdown_reducing_scale=0.14": 218,
+    "drawdown_reducing_scale=0.13": 170,
+    "drawdown_reducing_scale=0.11": 91,
+    "drawdown_reducing_scale=0.10": 106,
+    "drawdown_reducing_scale=0.09": 60,
+    "drawdown_reducing_scale=0.12": 119,
+    "drawdown_reducing_scale=0.08": 8,
+    "drawdown_reducing_scale=0.07": 2,
+    "drawdown_reducing_scale=0.06": 34,
+    "drawdown_reducing_scale=0.05": 51,
+    "drawdown_reducing_scale=0.04": 164,
+    "drawdown_reducing_scale=0.03": 106,
+    "drawdown_reducing_scale=0.02": 24,
+    "drawdown_reducing_scale=0.01": 34,
+    "drawdown_reducing_scale=0.00": 396,
+    "drawdown_breaker": 98600
+  },
+  "approx_gross_leverage": {
+    "max": 35.34472576240744,
+    "p95": 24.705999454769323
+  }
+}
+DONE

@@ -101,7 +101,14 @@ class OandaAdapter(DataAdapter):
         end: pd.Timestamp | str,
         timeframe: str = "1d",
     ) -> pd.DataFrame:
-        """Fetch OHLVC candles in the range [start, end] with paginated OANDA calls."""
+        """Fetch OHLVC candles in the range [start, end] with paginated OANDA calls.
+
+        Still-forming candles (OANDA ``complete: false`` — the in-progress bar
+        at the live edge) are dropped, so the adapter only ever returns
+        completed bars and a partial bar can never be persisted downstream
+        (D-H2). Bars are returned with OANDA's open-time labels; the store
+        remaps day-based bars onto session dates (see data.calendar).
+        """
         if not self._api_key:
             raise RuntimeError("OandaAdapter: APEX_OANDA_API_KEY is not configured in environment variables.")
 
@@ -142,7 +149,7 @@ class OandaAdapter(DataAdapter):
                 time.sleep(0.40)  # Throttling delay to prevent rate-limit blocks
                 data = self._fetch_chunk(ticker, start_iso, end_iso, granularity)
             except Exception as e:
-                logger.error("OANDA fetch chunk failed: %s", e)
+                logger.debug("OANDA fetch chunk failed (expected for unsupported instruments e.g. crypto): %s", e)
                 break
 
             candles = data.get("candles", [])
@@ -164,21 +171,30 @@ class OandaAdapter(DataAdapter):
             else:
                 current_start = next_start
 
-            # If we received fewer candles than OANDA's limit, we've reached the end
-            if len(candles) < 4800:
-                break
+            # NOTE: do NOT terminate on a short batch. Weekend/holiday gaps make
+            # a full 4800-bar span return fewer than 4800 candles; only an empty
+            # response (or current_start reaching ts_end) means no more data.
 
         if not all_candles:
             from apex_quant.data.schema import empty_ohlcv
             return empty_ohlcv()
 
+        # Drop still-forming candles (OANDA marks the in-progress bar at the
+        # live edge with complete=false); only completed bars may leave the
+        # adapter. Pagination has already advanced past a dropped tail bar —
+        # it will be returned, complete, by a later fetch.
+        complete_candles = [c for c in all_candles if c.get("complete", True)]
+        if not complete_candles:
+            from apex_quant.data.schema import empty_ohlcv
+            return empty_ohlcv()
+
         # Parse final list of candles into DataFrame
-        timestamps = [pd.to_datetime(c["time"]) for c in all_candles]
-        opens = [float(c["mid"]["o"]) for c in all_candles]
-        highs = [float(c["mid"]["h"]) for c in all_candles]
-        lows = [float(c["mid"]["l"]) for c in all_candles]
-        closes = [float(c["mid"]["c"]) for c in all_candles]
-        volumes = [float(c["volume"]) for c in all_candles]
+        timestamps = [pd.to_datetime(c["time"]) for c in complete_candles]
+        opens = [float(c["mid"]["o"]) for c in complete_candles]
+        highs = [float(c["mid"]["h"]) for c in complete_candles]
+        lows = [float(c["mid"]["l"]) for c in complete_candles]
+        closes = [float(c["mid"]["c"]) for c in complete_candles]
+        volumes = [float(c["volume"]) for c in complete_candles]
 
         frame = pd.DataFrame(
             {
