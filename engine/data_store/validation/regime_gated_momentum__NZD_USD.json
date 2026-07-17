@@ -1,44 +1,46 @@
 {
   "strategy": "regime_gated_momentum",
   "instrument": "NZD/USD",
-  "config_version": 1,
+  "config_version": 5,
   "generated_for": "2024-12-31",
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": -0.004047479833522816,
-    "oos_sharpe_std": 0.010364248749512162,
-    "oos_sharpe_median": 0.0,
-    "frac_positive": 0.0,
+    "oos_sharpe_mean": -0.015672493425938776,
+    "oos_sharpe_std": 0.01698297300897958,
+    "oos_sharpe_median": -0.019009672472981173,
+    "frac_positive": 0.26666666666666666,
     "oos_sharpe_paths": [
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      -0.0303,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      -0.0016,
-      -0.0288,
-      0.0,
-      0.0,
-      0.0
+      -0.0224,
+      -0.019,
+      0.0015,
+      -0.0063,
+      -0.0004,
+      -0.0487,
+      -0.0319,
+      -0.0356,
+      -0.0276,
+      -0.0201,
+      -0.0239,
+      -0.0174,
+      0.0038,
+      0.0105,
+      0.0023
     ]
   },
   "dsr": {
-    "dsr": 0.0,
-    "observed_sharpe": 0.0,
-    "observed_sharpe_ann": 0.0,
-    "sr0": 0.0,
-    "n_trials": 3,
-    "n_obs": 2866,
-    "note": "insufficient data / zero variance"
+    "dsr": 0.04684630248647845,
+    "observed_sharpe": -0.02003853025274249,
+    "observed_sharpe_ann": -0.3181018061280054,
+    "sr0": 0.01480563224112507,
+    "n_trials": 170,
+    "n_trials_observed": 3,
+    "n_obs": 2335,
+    "skew": 0.3654249687335399,
+    "kurtosis": 13.107172466597543
   },
   "pbo": {
-    "pbo": 0.7675,
+    "pbo": 0.9815,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -49,9 +51,9 @@
     "pbo_pass": false,
     "cpcv_pass": false,
     "reasons": [
-      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
-      "PBO 0.7675 >= 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe 0.000, 0% of 15 paths positive",
+      "DSR 0.047 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.9815 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.019, 27% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }

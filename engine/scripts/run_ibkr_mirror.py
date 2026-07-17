@@ -7,7 +7,13 @@ the experiment of record; this script only OBSERVES its state file and
 replicates the fills on an IBKR paper account (default DUQ278370, hard
 allowlist in apex_quant/execution/ibkr_executor.py) so that real-vs-model
 fill divergence can be measured. It never writes to the paper portfolio's
-state and never touches Supabase.
+state.
+
+After a run (and on demand via --sync-only) it pushes account + positions
+(+ the run's fills) to Supabase (apex_quant/storage/ibkr_store.py, tables in
+supabase/apex_ibkr.sql) so the serverless website's IBKR Terminal can read
+them — the site can never reach the local Gateway. The Supabase push is
+best-effort: it never changes the mirror's exit code.
 
 What it mirrors (from engine/data_store/paper_portfolio/state.json)
 -------------------------------------------------------------------
@@ -52,9 +58,16 @@ Usage:
     cd engine
     .venv-mac/bin/python scripts/run_ibkr_mirror.py                 # mirror latest processed bar
     .venv-mac/bin/python scripts/run_ibkr_mirror.py --dry-run       # print the plan, connect to nothing
+    .venv-mac/bin/python scripts/run_ibkr_mirror.py --sync-only     # push account+positions to Supabase, exit
     .venv-mac/bin/python scripts/run_ibkr_mirror.py --timeout-s 180
 
-Exit code 0 on success / no-op, 1 on hard failure (connect/allowlist/state).
+--sync-only connects to the Gateway, reads account + positions, pushes them
+to Supabase and exits — refresh the website's IBKR Terminal anytime without
+placing orders. If the Gateway is unreachable it logs and exits 0 (it must
+never crash a calling pipeline).
+
+Exit code 0 on success / no-op, 1 on hard failure (connect/allowlist/state;
+--sync-only only fails on allowlist refusal or a failed Supabase push).
 """
 
 from __future__ import annotations
@@ -157,6 +170,7 @@ def _order_record(kind: str, item: dict, action: str, handle, fill) -> dict:
         "engine_fill_price": item["engine_fill_price"],
         "ibkr_avg_fill_price": fill.avg_fill_price if fill else None,
         "ibkr_order_id": fill.order_id if fill else None,
+        "ibkr_perm_id": fill.perm_id if fill else None,
         "status": fill.status if fill else "error",
         "raw_status": fill.raw_status if fill else "",
         "filled_quantity": fill.filled_quantity if fill else 0.0,
@@ -194,6 +208,103 @@ def _summary(orders: list[dict]) -> dict:
             "total_commission": round(sum(comms), 2) if comms else None,
         }
     return out
+
+
+# ── Supabase sync (website IBKR Terminal) ─────────────────────────────────────
+def _web_asset_class(cls: str) -> str:
+    """Engine asset classes ('equity'/'forex'/'crypto') -> website classes."""
+    return "stocks" if cls == "equity" else cls
+
+
+def sync_ibkr_state(executor, record: dict | None = None) -> bool:
+    """Push account + positions (+ a run's fills, when *record* is given) to
+    Supabase for the website's IBKR Terminal. Best-effort: NEVER raises and
+    never touches orders — a Supabase outage must not crash a mirror run or
+    a pipeline calling --sync-only. Returns True when every write succeeded.
+    """
+    from apex_quant.storage import ibkr_store
+
+    ok = True
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    # 1. account snapshot (skip the write entirely if the fetch failed —
+    #    never overwrite a good row with nulls)
+    acct: dict = {}
+    try:
+        acct = executor.get_account()
+    except Exception as e:  # noqa: BLE001 - report, keep going
+        print(f"  sync: account fetch failed: {type(e).__name__}: {e}", flush=True)
+    pnl: dict = {}
+    try:
+        pnl = executor.get_pnl() or {}
+    except Exception:  # noqa: BLE001 - optional feed
+        pnl = {}
+    if acct.get("NetLiquidation") is not None:
+        account_row = {
+            "net_liquidation": acct.get("NetLiquidation"),
+            "cash": acct.get("TotalCashValue"),
+            "buying_power": acct.get("BuyingPower"),
+            "daily_pnl": pnl.get("daily_pnl"),
+            "unrealized_pnl": pnl.get("unrealized_pnl", acct.get("UnrealizedPnL")),
+            "realized_pnl": pnl.get("realized_pnl", acct.get("RealizedPnL")),
+            "currency": acct.get("currency") or "USD",
+            "updated_at": now,
+        }
+        if not ibkr_store.sync_account(account_row):
+            print("  sync: account upsert FAILED", flush=True)
+            ok = False
+    else:
+        ok = False
+
+    # 2. open positions (state, not history: stale rows are deleted)
+    portfolio = None
+    try:
+        portfolio = executor.get_portfolio()
+    except Exception as e:  # noqa: BLE001 - report, keep going
+        print(f"  sync: portfolio fetch failed: {type(e).__name__}: {e}", flush=True)
+    if portfolio is not None:
+        pos_rows = [{
+            "instrument": p["engine_symbol"],
+            "direction": "long" if p["quantity"] > 0 else "short",
+            "units": abs(p["quantity"]),
+            "avg_price": p.get("avg_cost"),
+            "market_value": p.get("market_value"),
+            "unrealized_pnl": p.get("unrealized_pnl"),
+            "asset_class": _web_asset_class(str(p.get("asset_class", ""))),
+            "updated_at": now,
+        } for p in portfolio if p.get("quantity")]
+        if not ibkr_store.sync_positions(pos_rows):
+            print("  sync: positions sync FAILED", flush=True)
+            ok = False
+    else:
+        ok = False
+
+    # 3. this run's fills (append-only; exec_id PK makes re-syncs idempotent)
+    if record:
+        trade_rows = []
+        for o in record.get("orders") or []:
+            if o.get("status") != "filled" or o.get("ibkr_avg_fill_price") is None:
+                continue
+            perm = o.get("ibkr_perm_id") or o.get("ibkr_order_id")
+            exec_id = str(perm) if perm is not None else (
+                f"{record.get('date')}-{o['instrument']}-{o['action']}")
+            trade_rows.append({
+                "exec_id": exec_id,
+                "instrument": o["instrument"],
+                "asset_class": _web_asset_class(str(o.get("asset_class", ""))),
+                "side": o["action"],
+                "qty": o.get("filled_quantity") or o.get("quantity_sent"),
+                "price": o["ibkr_avg_fill_price"],
+                "commission": o.get("commission"),
+                "exec_time": o.get("submitted_at") or record.get("mirrored_at"),
+            })
+        if trade_rows and not ibkr_store.sync_trades(trade_rows):
+            print("  sync: trades upsert FAILED", flush=True)
+            ok = False
+
+    print(f"  sync: Supabase {'updated' if ok else 'PARTIAL/FAILED (see above)'} "
+          f"@ {now}", flush=True)
+    return ok
 
 
 def run_mirror(state_path: Path, mirror_dir: Path, executor,
@@ -363,6 +474,11 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     if check:
         print(f"post-run position check: {len(check)} residual mismatch(es) "
               f"(see record; informational only)", flush=True)
+
+    # 5. push account + positions + this run's fills to Supabase for the
+    #    website's IBKR Terminal (best-effort: never changes the exit code)
+    print("syncing IBKR state to Supabase (website IBKR Terminal)...", flush=True)
+    sync_ibkr_state(executor, record)
     return 0, record
 
 
@@ -399,9 +515,34 @@ def main(argv: list[str] | None = None, executor=None) -> int:
     ap.add_argument("--timeout-s", type=float, default=120.0, help="per-order fill wait budget")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the plan for the latest bar; connect to nothing, write nothing")
+    ap.add_argument("--sync-only", action="store_true",
+                    help="no orders: connect, push account+positions to Supabase, exit "
+                         "(gateway unreachable -> log + exit 0)")
     args = ap.parse_args(argv)
 
     state_path = Path(args.state)
+
+    if args.sync_only:
+        own = executor is None
+        if own:
+            executor = IBKRExecutor()   # env-overridable host/port/client/account
+        try:
+            executor.connect()   # hard allowlist still applies
+        except IBKRAccountError as e:
+            print(f"ACCOUNT ALLOWLIST REFUSAL: {e}", flush=True)
+            return 1
+        except (ConnectionError, OSError) as e:
+            print(f"IBKR connection failed: {e} — gateway down? Nothing synced; "
+                  f"exiting 0 (never crash a pipeline).", flush=True)
+            return 0
+        try:
+            print("sync-only: pushing account + positions to Supabase...", flush=True)
+            ok = sync_ibkr_state(executor)
+            return 0 if ok else 1
+        finally:
+            if own:
+                executor.disconnect()
+
     if not state_path.exists():
         print(f"state file not found: {state_path}", flush=True)
         return 1

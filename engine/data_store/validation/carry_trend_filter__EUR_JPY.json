@@ -1,0 +1,60 @@
+{
+  "strategy": "carry_trend_filter",
+  "instrument": "EUR/JPY",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 3,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.03157011092130921,
+    "oos_sharpe_std": 0.001639663272366697,
+    "oos_sharpe_median": -0.030956281207894596,
+    "frac_positive": 0.0,
+    "oos_sharpe_paths": [
+      -0.0311,
+      -0.0311,
+      -0.0311,
+      -0.0311,
+      -0.0311,
+      -0.0309,
+      -0.0309,
+      -0.0309,
+      -0.0309,
+      -0.0308,
+      -0.0308,
+      -0.0308,
+      -0.0356,
+      -0.0356,
+      -0.031
+    ]
+  },
+  "dsr": {
+    "dsr": 0.01908570706152447,
+    "observed_sharpe": -0.01772950544114717,
+    "observed_sharpe_ann": -0.28144717359265153,
+    "sr0": 0.001248859391973521,
+    "n_trials": 104,
+    "n_trials_observed": 3,
+    "n_obs": 3138,
+    "skew": -55.211559043491064,
+    "kurtosis": 3077.9335308897394
+  },
+  "pbo": {
+    "pbo": 0.473,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.019 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.473 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.031, 0% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

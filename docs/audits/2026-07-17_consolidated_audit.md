@@ -95,6 +95,11 @@ Effort: S/M/L.
 **Tier 1 — money & security (this week):**
 1. Live-path hardening: startup lockfile; ticket-scoped close/partial/modify (fills handshake);
    fail-closed sizing; freshness checks on MT4 files; verify deployed EA version (USER: check MT4).
+1a. ✅ DONE (2026-07-17): IBKR live-paper provider — `execution.provider: "ibkr"` routes the live FX
+   book to the IBKR paper account (DUQ278370) via IBKRLiveBridge (virtual tickets = permIds, venue-side
+   OCA STP+LMT brackets, ledger in `engine/data_store/ibkr_live_book.json`, sync to `apex_ibkr_*`);
+   rollback = provider `mt4`. Offline proof: `engine/scratch/smoke_live_ibkr.py` 66/66,
+   `smoke_live_hardening.py` 40/40 (mt4 path unchanged). USER flips the provider at the maintenance window.
 2. Supabase lockdown: service-role key for all writes (env secrets), anon = SELECT-only;
    rotate keys (USER: dashboard + apply SQL + GitHub/Vercel secrets).
 3. Data integrity: session-calendar layer (reject weekend FX bars, one session→date

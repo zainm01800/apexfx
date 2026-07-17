@@ -1,0 +1,455 @@
+{
+  "generated_at": "2026-07-17T19:47:26+00:00",
+  "book": "book_e_126",
+  "params": {
+    "carry_filter": false,
+    "momentum_lookback": 126,
+    "vol_window": 63,
+    "holding_horizon": 21,
+    "reward_risk": 1.5,
+    "regime_method": "rule_based",
+    "timeframe": "1d",
+    "htf_rule": "1w",
+    "htf_ma_window": 50
+  },
+  "holdout_start": "2025-01-01",
+  "run_start": "2024-01-01",
+  "universe": [
+    "AAPL",
+    "ADA/USD",
+    "AGG",
+    "AMD",
+    "AMZN",
+    "ARB/USD",
+    "ARKK",
+    "AUD/USD",
+    "AVAX/USD",
+    "BA",
+    "BNB/USD",
+    "BTC/USD",
+    "DIA",
+    "DOGE/USD",
+    "DOT/USD",
+    "EEM",
+    "EFA",
+    "ETH/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "GLD",
+    "GOOGL",
+    "GS",
+    "GSG",
+    "HD",
+    "HYG",
+    "IBB",
+    "ITA",
+    "IWM",
+    "IYR",
+    "JNJ",
+    "JPM",
+    "KO",
+    "LINK/USD",
+    "LQD",
+    "LTC/USD",
+    "MA",
+    "MDY",
+    "META",
+    "MSFT",
+    "NFLX",
+    "NVDA",
+    "NZD/USD",
+    "PG",
+    "PLTR",
+    "QQQ",
+    "RSP",
+    "SLV",
+    "SMH",
+    "SOL/USD",
+    "SOXX",
+    "SPY",
+    "SUI/USD",
+    "TIP",
+    "TLT",
+    "TSLA",
+    "TSM",
+    "UBER",
+    "USD/CAD",
+    "USD/CHF",
+    "USD/JPY",
+    "USO",
+    "V",
+    "VTI",
+    "WMT",
+    "XBI",
+    "XLB",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLU",
+    "XLV",
+    "XLY",
+    "XOM",
+    "XRP/USD"
+  ],
+  "excluded_insufficient_holdout": {},
+  "determinism_identical": true,
+  "holdout": {
+    "metrics": {
+      "total_return": 0.07525738937220439,
+      "ann_return": 0.03301120766310994,
+      "ann_vol": 0.11255433434303348,
+      "sharpe": 0.34534775859764055,
+      "sortino": 0.43858711019434016,
+      "max_drawdown": 0.15535153965027948,
+      "calmar": 0.21249359830886333,
+      "n_trades": 293,
+      "win_rate": 0.5221843003412969,
+      "profit_factor": 1.0907525227996908,
+      "avg_trade_return": 0.008969556313993174,
+      "expectancy_pnl": 21.99692807852324,
+      "expectancy_pct": 0.0077309430581417315,
+      "final_equity": 117409.46015944655,
+      "net_pnl": 8494.83
+    },
+    "entries_per_week": 3.649,
+    "trades_per_year": 190.4,
+    "span_days": 562,
+    "window": "2025-01-01 -> 2026-07-17",
+    "max_gross_leverage": 1.5616501243667884,
+    "per_instrument": {
+      "AAPL": {
+        "n_trades": 19,
+        "net_pnl": 159.34
+      },
+      "ADA/USD": {
+        "n_trades": 8,
+        "net_pnl": 696.62
+      },
+      "AMD": {
+        "n_trades": 19,
+        "net_pnl": 5422.12
+      },
+      "AMZN": {
+        "n_trades": 18,
+        "net_pnl": -4820.72
+      },
+      "ARB/USD": {
+        "n_trades": 5,
+        "net_pnl": 68.28
+      },
+      "AVAX/USD": {
+        "n_trades": 7,
+        "net_pnl": 5321.33
+      },
+      "BNB/USD": {
+        "n_trades": 3,
+        "net_pnl": 1371.38
+      },
+      "BTC/USD": {
+        "n_trades": 7,
+        "net_pnl": 782.22
+      },
+      "DOGE/USD": {
+        "n_trades": 1,
+        "net_pnl": 409.41
+      },
+      "DOT/USD": {
+        "n_trades": 4,
+        "net_pnl": -577.42
+      },
+      "ETH/USD": {
+        "n_trades": 9,
+        "net_pnl": 2171.92
+      },
+      "GLD": {
+        "n_trades": 2,
+        "net_pnl": -705.82
+      },
+      "GOOGL": {
+        "n_trades": 19,
+        "net_pnl": 3447.06
+      },
+      "IWM": {
+        "n_trades": 3,
+        "net_pnl": -844.9
+      },
+      "LINK/USD": {
+        "n_trades": 3,
+        "net_pnl": 536.86
+      },
+      "LTC/USD": {
+        "n_trades": 1,
+        "net_pnl": 91.65
+      },
+      "META": {
+        "n_trades": 23,
+        "net_pnl": -4989.96
+      },
+      "MSFT": {
+        "n_trades": 20,
+        "net_pnl": -1677.6
+      },
+      "NFLX": {
+        "n_trades": 10,
+        "net_pnl": 157.69
+      },
+      "NVDA": {
+        "n_trades": 23,
+        "net_pnl": 119.33
+      },
+      "PLTR": {
+        "n_trades": 18,
+        "net_pnl": 759.42
+      },
+      "QQQ": {
+        "n_trades": 2,
+        "net_pnl": -184.16
+      },
+      "SOL/USD": {
+        "n_trades": 9,
+        "net_pnl": 546.74
+      },
+      "SPY": {
+        "n_trades": 3,
+        "net_pnl": -251.69
+      },
+      "SUI/USD": {
+        "n_trades": 2,
+        "net_pnl": 617.94
+      },
+      "TLT": {
+        "n_trades": 1,
+        "net_pnl": 93.2
+      },
+      "TSLA": {
+        "n_trades": 17,
+        "net_pnl": -3911.62
+      },
+      "TSM": {
+        "n_trades": 18,
+        "net_pnl": 5433.23
+      },
+      "UBER": {
+        "n_trades": 8,
+        "net_pnl": -1620.63
+      },
+      "XLE": {
+        "n_trades": 3,
+        "net_pnl": 2063.23
+      },
+      "XLF": {
+        "n_trades": 2,
+        "net_pnl": -928.89
+      },
+      "XRP/USD": {
+        "n_trades": 6,
+        "net_pnl": -1260.73
+      }
+    },
+    "per_asset_class": {
+      "crypto": {
+        "instruments": [
+          "ADA/USD",
+          "ARB/USD",
+          "AVAX/USD",
+          "BNB/USD",
+          "BTC/USD",
+          "DOGE/USD",
+          "DOT/USD",
+          "ETH/USD",
+          "LINK/USD",
+          "LTC/USD",
+          "SOL/USD",
+          "SUI/USD",
+          "XRP/USD"
+        ],
+        "n_trades": 65,
+        "net_pnl": 10776.2
+      },
+      "equity": {
+        "instruments": [
+          "AAPL",
+          "AMD",
+          "AMZN",
+          "GLD",
+          "GOOGL",
+          "IWM",
+          "META",
+          "MSFT",
+          "NFLX",
+          "NVDA",
+          "PLTR",
+          "QQQ",
+          "SPY",
+          "TLT",
+          "TSLA",
+          "TSM",
+          "UBER",
+          "XLE",
+          "XLF"
+        ],
+        "n_trades": 228,
+        "net_pnl": -2281.37
+      }
+    },
+    "instruments_net_positive": 20,
+    "carryover_trades": [
+      {
+        "instrument": "XRP/USD",
+        "entry": "2024-12-10",
+        "exit": "2025-01-01",
+        "pnl": 150.17
+      },
+      {
+        "instrument": "ADA/USD",
+        "entry": "2024-12-10",
+        "exit": "2025-01-01",
+        "pnl": -265.33
+      },
+      {
+        "instrument": "AVAX/USD",
+        "entry": "2024-12-10",
+        "exit": "2025-01-01",
+        "pnl": -687.21
+      },
+      {
+        "instrument": "SUI/USD",
+        "entry": "2024-12-20",
+        "exit": "2025-01-07",
+        "pnl": 406.64
+      },
+      {
+        "instrument": "BTC/USD",
+        "entry": "2024-12-18",
+        "exit": "2025-01-09",
+        "pnl": -210.38
+      },
+      {
+        "instrument": "ETH/USD",
+        "entry": "2024-12-19",
+        "exit": "2025-01-10",
+        "pnl": -161.69
+      },
+      {
+        "instrument": "SOL/USD",
+        "entry": "2024-12-20",
+        "exit": "2025-01-11",
+        "pnl": -196.14
+      },
+      {
+        "instrument": "LINK/USD",
+        "entry": "2024-12-20",
+        "exit": "2025-01-11",
+        "pnl": -333.48
+      },
+      {
+        "instrument": "DOGE/USD",
+        "entry": "2024-12-20",
+        "exit": "2025-01-12",
+        "pnl": 186.78
+      },
+      {
+        "instrument": "BNB/USD",
+        "entry": "2024-12-22",
+        "exit": "2025-01-13",
+        "pnl": 147.23
+      }
+    ],
+    "top3_trades": [
+      {
+        "instrument": "TSM",
+        "direction": "long",
+        "entry": "2025-11-24",
+        "exit": "2025-12-10",
+        "pnl": 2642.05
+      },
+      {
+        "instrument": "ETH/USD",
+        "direction": "short",
+        "entry": "2026-02-01",
+        "exit": "2026-02-04",
+        "pnl": 2240.71
+      },
+      {
+        "instrument": "TSM",
+        "direction": "long",
+        "entry": "2025-12-16",
+        "exit": "2026-01-02",
+        "pnl": 2081.18
+      }
+    ],
+    "top3_pnl_share": 0.8198,
+    "monthly_returns": {
+      "2025-01-31": 0.03318,
+      "2025-02-28": -0.0648,
+      "2025-03-31": -0.02346,
+      "2025-04-30": -0.04169,
+      "2025-05-31": -0.03111,
+      "2025-06-30": 0.04303,
+      "2025-07-31": 0.05814,
+      "2025-08-31": 0.00386,
+      "2025-09-30": 0.04049,
+      "2025-10-31": 0.06651,
+      "2025-11-30": 0.03379,
+      "2025-12-31": 0.01496,
+      "2026-01-31": 0.00832,
+      "2026-02-28": 0.04204,
+      "2026-03-31": 0.00315,
+      "2026-04-30": -0.05786,
+      "2026-05-31": 0.00316,
+      "2026-06-30": -0.02199,
+      "2026-07-31": -0.02347
+    },
+    "best_month": [
+      "2025-10-31",
+      0.06651
+    ],
+    "worst_month": [
+      "2025-02-28",
+      -0.0648
+    ],
+    "months_positive": 12,
+    "months_total": 19
+  },
+  "cpcv_holdout_window": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.0018347987519289875,
+    "oos_sharpe_std": 0.04844164233439131,
+    "oos_sharpe_median": -0.006901021192618123,
+    "frac_positive": 0.4,
+    "oos_sharpe_paths": [
+      -0.0069,
+      0.1225,
+      -0.0029,
+      0.0667,
+      -0.0101,
+      0.0046,
+      0.0102,
+      -0.0297,
+      -0.0634,
+      0.0549,
+      -0.0473,
+      -0.0528,
+      -0.013,
+      -0.0069,
+      0.0016
+    ]
+  },
+  "constraint_profile_full_run": {
+    "families": {
+      "max_risk_per_trade": 3542,
+      "regime_scale": 3542,
+      "portfolio_risk_cap": 132,
+      "max_portfolio_risk_exceeded": 3169,
+      "vol_target": 7,
+      "drawdown_reducing_scale": 674,
+      "timeframe_bucket_full": 9718
+    },
+    "veto_events": 12887,
+    "scaling_events": 7897
+  },
+  "verdict": "MARGINAL",
+  "verdict_criteria": "CONFIRMED = sharpe>0.5 & expectancy>0; DEAD = sharpe<=0 or expectancy<=0; MARGINAL = between (pre-fixed by parent)"
+}

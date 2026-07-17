@@ -72,6 +72,36 @@ Known venue constraints (recorded, not hidden)
 * The engine book is GBP-denominated paper; the IBKR paper account is USD.
   Units are passed through 1:1 (1 share / 1 coin / 1 base unit) with no FX
   conversion — the mirror measures FILL divergence, not currency effects.
+
+Live lifecycle extension (2026-07-17, IBKR live-paper migration)
+----------------------------------------------------------------
+The mirror behaviour above is UNCHANGED: by default ``attach_stop=False`` and
+stops/targets are still recorded, never attached (MKT DAY entries only). For
+the live daemon (``scripts/run_live_paper_trading.py``, provider ``ibkr``) the
+executor additionally supports the full managed-trade lifecycle:
+
+* ``submit_order(..., attach_stop=True)`` — parent MKT DAY plus an attached
+  GTC STP child (and a GTC LMT child when ``target=`` is given), all in one
+  OCA group: the venue-side equivalent of an MT4 order carrying SL/TP. The
+  parent is sent with ``transmit=False`` and the last child with
+  ``transmit=True`` so the bracket submits atomically; if the LMT sibling is
+  present the STP child is also held (``transmit=False``) until it goes.
+* ``modify_stop(handle, new_stop, quantity=None)`` — amends the STP child in
+  place (TWS modify = re-place with the same orderId). A ``quantity`` amend
+  keeps the OCA LMT sibling's size in sync after a partial close, so the
+  bracket can never over-close the remaining position.
+* ``partial_close(symbol, qty)`` — MKT DAY reduction of the net position,
+  clamped to what the gateway actually reports (never overshoots).
+* ``close_position(symbol)`` — MKT DAY flatten of the net position (as used
+  by the mirror; unchanged).
+* ``wait_for_ack(handle=None, ...)`` — ack-shaped dict ``{ok, id, ticket,
+  fill_price, filled_qty, status, raw_status, commission}`` mirroring
+  ``MT4Executor.wait_for_ack`` so the daemon's fills handshake works
+  unchanged; ``ticket`` is the IBKR permId (orderId fallback). A venue
+  rejection (session closed, margin, long-only crypto) returns ``ok=False``
+  with the raw status — recorded, never retried by the executor.
+* ``get_open_orders()`` — resting-order inspection (stop/target state).
+* ``cancel_order(order)`` — thin cancel passthrough for bracket teardown.
 """
 
 from __future__ import annotations
@@ -112,8 +142,11 @@ _QTY_DECIMALS: dict[str, int] = {"equity": 2, "crypto": 6, "forex": 0}
 #: accountSummary tags surfaced by get_account().
 _ACCOUNT_TAGS = (
     "NetLiquidation", "TotalCashValue", "AvailableFunds",
-    "BuyingPower", "GrossPositionValue",
+    "BuyingPower", "GrossPositionValue", "UnrealizedPnL", "RealizedPnL",
 )
+
+#: ib_async UNSET_DOUBLE sentinel guard for streamed P&L values.
+_UNSET = 1e300
 
 
 class IBKRAccountError(RuntimeError):
@@ -207,7 +240,9 @@ def round_quantity(asset_class: AssetClass, units: float) -> float:
 @dataclass
 class OrderHandle:
     """A submitted order plus the mirror context (stop/target are recorded,
-    not attached — see module docstring)."""
+    not attached — see module docstring). When submitted with
+    ``attach_stop=True`` the venue-side child trades are carried on
+    ``stop_trade`` / ``target_trade`` for later amendment/cancellation."""
 
     symbol: str
     direction: str              # "long" | "short" (engine side)
@@ -217,13 +252,22 @@ class OrderHandle:
     stop: float | None = None
     target: float | None = None
     contract: Any = None
-    trade: Any = None           # ib_async Trade
+    trade: Any = None           # ib_async Trade (parent)
+    stop_trade: Any = None      # ib_async Trade of the attached STP child (live mode)
+    target_trade: Any = None    # ib_async Trade of the attached LMT child (live mode)
     submitted_at: str = ""
 
     @property
     def order_id(self) -> int | None:
         order = getattr(self.trade, "order", None)
         return getattr(order, "orderId", None) if order is not None else None
+
+    def __repr__(self) -> str:
+        return (
+            f"OrderHandle({self.action} {self.quantity} {self.symbol} "
+            f"order_id={self.order_id} stop={self.stop} target={self.target} "
+            f"bracket={'yes' if self.stop_trade is not None else 'no'})"
+        )
 
 
 @dataclass
@@ -290,6 +334,7 @@ class IBKRExecutor:
         self._connect_timeout_s = float(connect_timeout_s)
         self._ib = ib
         self._connected = False
+        self._last_handle: OrderHandle | None = None
         logger.info(
             "IBKRExecutor initialised — %s:%s clientId=%s account=%s (allowlisted)",
             self._host, self._port, self._client_id, self._account,
@@ -388,7 +433,63 @@ class IBKRExecutor:
                     summary[av.tag] = float(av.value)
                 except (TypeError, ValueError):
                     summary[av.tag] = av.value
+                if av.tag == "NetLiquidation" and getattr(av, "currency", ""):
+                    summary.setdefault("currency", av.currency)
         return summary
+
+    def get_portfolio(self) -> list[dict]:
+        """Portfolio items for the allowlisted account (marked-to-market).
+
+        Richer than :meth:`get_positions`: each row carries ``market_price``,
+        ``market_value`` and ``unrealized_pnl`` alongside the signed
+        ``quantity`` and ``avg_cost``, in the account currency. Only non-zero
+        positions are returned (ib_async portfolio semantics).
+        """
+        self._require_connection()
+        out = []
+        for p in self._ib.portfolio(self._account):
+            spec = contract_spec(engine_symbol_for_contract(p.contract)) \
+                if getattr(p.contract, "secType", "") in ("STK", "CRYPTO", "CASH") else {}
+            out.append({
+                "engine_symbol": engine_symbol_for_contract(p.contract),
+                "asset_class": spec.get("asset_class", "unknown"),
+                "quantity": float(p.position),
+                "avg_cost": float(p.averageCost),
+                "market_price": float(p.marketPrice),
+                "market_value": float(p.marketValue),
+                "unrealized_pnl": float(p.unrealizedPNL),
+            })
+        return out
+
+    def get_pnl(self, wait_s: float = 2.5) -> dict:
+        """Streamed account P&L (daily / unrealized / realized) via reqPnL.
+
+        accountSummary has no daily-P&L tag, so this subscribes briefly to the
+        TWS P&L feed. Returns {} on ANY failure (feed unavailable, timeout) —
+        P&L is a nice-to-have for the dashboard, never worth killing a sync.
+        """
+        self._require_connection()
+        try:
+            sub = self._ib.reqPnL(self._account)
+            try:
+                self._ib.sleep(max(0.0, wait_s))
+                out: dict[str, float] = {}
+                for attr, key in (("dailyPnL", "daily_pnl"),
+                                  ("unrealizedPnL", "unrealized_pnl"),
+                                  ("realizedPnL", "realized_pnl")):
+                    v = getattr(sub, attr, None)
+                    if v is not None and abs(float(v)) < _UNSET:
+                        out[key] = float(v)
+                return out
+            finally:
+                try:
+                    self._ib.cancelPnL(self._account)
+                except Exception:  # noqa: BLE001 - teardown must not raise
+                    logger.debug("cancelPnL failed", exc_info=True)
+        except Exception as e:  # noqa: BLE001 - optional feed; degrade to {}
+            logger.info("IBKR reqPnL unavailable: %s", e)
+            return {}
+
 
     # -- orders ---------------------------------------------------------------
     def _qualify(self, contract) -> None:
@@ -404,6 +505,7 @@ class IBKRExecutor:
         notional: float | None = None,
         stop: float | None = None,
         target: float | None = None,
+        attach_stop: bool = False,
     ) -> OrderHandle:
         """Submit a MARKET DAY order mirroring one engine decision.
 
@@ -422,8 +524,16 @@ class IBKRExecutor:
             subscription); pass ``volume``. Raises ValueError if only
             notional is given.
         stop, target :
-            Recorded on the handle and in the mirror record; deliberately NOT
+            With the default ``attach_stop=False`` (the mirror path) these are
+            recorded on the handle and in the mirror record; deliberately NOT
             attached as bracket children (see module docstring).
+        attach_stop :
+            Live-daemon path: attach a GTC STP child at ``stop`` (required
+            when True — a managed trade must never run naked) and, when
+            ``target`` is also given, a GTC LMT child, in a single OCA group
+            so one barrier fill cancels the other. The parent is held with
+            ``transmit=False`` until the last child goes out, so the bracket
+            reaches the venue atomically.
 
         Returns
         -------
@@ -445,6 +555,11 @@ class IBKRExecutor:
                     "data); pass volume= (engine units) instead"
                 )
             raise ValueError("submit_order requires volume > 0")
+        if attach_stop and (not stop or float(stop) <= 0):
+            raise ValueError(
+                "attach_stop=True requires a positive stop= — refusing to run "
+                "a managed position naked"
+            )
 
         spec = contract_spec(symbol)
         qty = round_quantity(spec["asset_class"], float(volume))
@@ -458,16 +573,48 @@ class IBKRExecutor:
         self._qualify(contract)
         order = iba.MarketOrder(action, qty)
         order.tif = "DAY"
-        trade = self._ib.placeOrder(contract, order)
+
+        stop_trade = None
+        target_trade = None
+        if attach_stop:
+            # Bracket: parent MKT DAY (held) + STP/LMT GTC children in one OCA
+            # group — the venue-side equivalent of an MT4 order with SL/TP.
+            order.transmit = False
+            trade = self._ib.placeOrder(contract, order)
+            child_action = "SELL" if action == "BUY" else "BUY"
+            oca_group = f"apex-{order.orderId}"
+            stop_order = iba.StopOrder(child_action, qty, float(stop))
+            stop_order.tif = "GTC"
+            stop_order.parentId = order.orderId
+            stop_order.ocaGroup = oca_group
+            stop_order.ocaType = 1  # cancel remaining with the group
+            if target and float(target) > 0:
+                stop_order.transmit = False
+                lmt_order = iba.LimitOrder(child_action, qty, float(target))
+                lmt_order.tif = "GTC"
+                lmt_order.parentId = order.orderId
+                lmt_order.ocaGroup = oca_group
+                lmt_order.ocaType = 1
+                lmt_order.transmit = True   # last order releases the bracket
+                target_trade = self._ib.placeOrder(contract, lmt_order)
+            else:
+                stop_order.transmit = True
+            stop_trade = self._ib.placeOrder(contract, stop_order)
+        else:
+            trade = self._ib.placeOrder(contract, order)
+
         handle = OrderHandle(
             symbol=symbol, direction=engine_dir, action=action, quantity=qty,
             asset_class=spec["asset_class"], stop=stop, target=target,
-            contract=contract, trade=trade,
+            contract=contract, trade=trade, stop_trade=stop_trade,
+            target_trade=target_trade,
             submitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
+        self._last_handle = handle
         logger.info(
-            "IBKR order: %s %s %s %s (stop=%s target=%s, recorded not attached)",
+            "IBKR order: %s %s %s %s (stop=%s target=%s%s)",
             action, qty, symbol, spec["secType"], stop, target,
+            ", attached OCA bracket" if attach_stop else ", recorded not attached",
         )
         return handle
 
@@ -491,6 +638,146 @@ class IBKRExecutor:
         return self.submit_order(
             symbol=symbol, direction=action, volume=abs(held["quantity"]),
         )
+
+    def partial_close(self, symbol: str, qty: float) -> OrderHandle | None:
+        """Market-close *qty* base units of the position in *symbol* (DAY tif).
+
+        Clamped to the position the gateway actually reports — a partial close
+        can never overshoot into a flip. Returns ``None`` when the account
+        holds nothing in *symbol*. Raises ValueError for a non-positive qty.
+        """
+        self._require_connection()
+        if not qty or float(qty) <= 0:
+            raise ValueError(f"partial_close requires qty > 0, got {qty!r}")
+        held = None
+        for p in self.get_positions():
+            if p["engine_symbol"] == symbol and p["quantity"] != 0:
+                held = p
+                break
+        if held is None:
+            logger.info("IBKR partial_close: no position in %s — nothing to do", symbol)
+            return None
+        spec = contract_spec(symbol)
+        close_qty = round_quantity(spec["asset_class"], min(float(qty), abs(held["quantity"])))
+        if close_qty <= 0:
+            raise ValueError(f"qty {qty} rounds to zero for {spec['asset_class']} — refusing")
+        action: DirectionLike = "sell" if held["quantity"] > 0 else "buy"
+        return self.submit_order(symbol=symbol, direction=action, volume=close_qty)
+
+    def modify_stop(
+        self,
+        handle: OrderHandle,
+        new_stop: float,
+        quantity: float | None = None,
+    ) -> Any:
+        """Amend the STP child attached to *handle* (TWS modify = re-place).
+
+        A stop amendment only ever changes ``auxPrice``; passing ``quantity``
+        (post-partial remaining size) amends the STP size AND the OCA LMT
+        sibling's size, so the bracket always matches the live position and
+        can never over-close into a flip. Returns the (re-)placed stop trade.
+        Raises when the handle has no live stop order to amend.
+        """
+        self._require_connection()
+        if handle is None or handle.stop_trade is None:
+            raise ValueError("handle has no attached stop order to amend")
+        if handle.stop_trade.isDone():
+            raise RuntimeError(
+                f"stop order for {handle.symbol} is already done "
+                f"({getattr(handle.stop_trade.orderStatus, 'status', '?')}) — cannot amend"
+            )
+        if not new_stop or float(new_stop) <= 0:
+            raise ValueError(f"modify_stop requires new_stop > 0, got {new_stop!r}")
+        order = handle.stop_trade.order
+        order.auxPrice = round(float(new_stop), 5)
+        if quantity is not None:
+            q = round_quantity(handle.asset_class, float(quantity))
+            if q <= 0:
+                raise ValueError(f"quantity {quantity} rounds to zero — refusing amend")
+            order.totalQuantity = q
+            if handle.target_trade is not None and not handle.target_trade.isDone():
+                handle.target_trade.order.totalQuantity = q
+                handle.target_trade = self._ib.placeOrder(handle.contract, handle.target_trade.order)
+        handle.stop_trade = self._ib.placeOrder(handle.contract, order)
+        logger.info(
+            "IBKR modify_stop: %s stop -> %.5f (qty %s)", handle.symbol,
+            float(new_stop), order.totalQuantity,
+        )
+        return handle.stop_trade
+
+    def cancel_order(self, order) -> None:
+        """Cancel a resting order (bracket teardown on manual/time-stop close)."""
+        self._require_connection()
+        self._ib.cancelOrder(order)
+
+    def get_open_orders(self) -> list[dict]:
+        """Resting (non-done) orders on the account — stop/target inspection.
+
+        Each row: ``order_id``, ``perm_id``, ``symbol`` (engine form),
+        ``action``, ``qty``, ``order_type``, ``aux_price`` (STP trigger),
+        ``lmt_price``, ``status``, ``parent_id``, ``oca_group`` — plus the raw
+        ib_async trade under ``_trade`` for amendment rebinding after restart.
+        """
+        self._require_connection()
+        out = []
+        for t in self._ib.openTrades():
+            o = t.order
+            os_ = t.orderStatus
+
+            def _px(v):  # None for unset/zero/sentinel prices, else float
+                return None if not v or float(v) >= _UNSET else float(v)
+
+            out.append({
+                "order_id": getattr(o, "orderId", None),
+                "perm_id": getattr(os_, "permId", None),
+                "symbol": engine_symbol_for_contract(t.contract),
+                "action": getattr(o, "action", ""),
+                "qty": float(getattr(o, "totalQuantity", 0.0) or 0.0),
+                "order_type": getattr(o, "orderType", ""),
+                "aux_price": _px(getattr(o, "auxPrice", None)),
+                "lmt_price": _px(getattr(o, "lmtPrice", None)),
+                "status": str(getattr(os_, "status", "") or ""),
+                "parent_id": getattr(o, "parentId", 0),
+                "oca_group": getattr(o, "ocaGroup", "") or "",
+                "_trade": t,
+            })
+        return out
+
+    def wait_for_ack(
+        self,
+        handle: OrderHandle | None = None,
+        timeout_s: float | None = None,
+        poll_interval_s: float = 0.25,
+    ) -> dict | None:
+        """Ack-shaped fill receipt, mirroring ``MT4Executor.wait_for_ack``.
+
+        Waits on *handle* (default: the most recently submitted order on this
+        executor) and returns ``{ok, id, ticket, fill_price, filled_qty,
+        status, raw_status, commission}`` so the daemon's fills handshake
+        works unchanged. ``ticket`` is the IBKR permId (permanent across
+        sessions), falling back to the orderId. ``ok`` is True only on a real
+        fill — a venue rejection (closed session, margin, long-only crypto)
+        or a cancel-on-timeout returns ``ok=False`` with the raw status, so
+        the caller records it instead of stamping a phantom fill.
+        """
+        handle = handle or self._last_handle
+        if handle is None:
+            return None
+        res = self.wait_for_fill(
+            handle, timeout_s=120.0 if timeout_s is None else timeout_s,
+            poll_interval_s=poll_interval_s,
+        )
+        ticket = res.perm_id if res.perm_id is not None else res.order_id
+        return {
+            "ok": res.status == "filled",
+            "id": handle.order_id,
+            "ticket": ticket,
+            "fill_price": res.avg_fill_price,
+            "filled_qty": res.filled_quantity,
+            "status": res.status,
+            "raw_status": res.raw_status,
+            "commission": res.commission,
+        }
 
     def wait_for_fill(
         self,

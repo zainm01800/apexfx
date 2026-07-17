@@ -1,0 +1,639 @@
+{
+  "q1_eur_usd_raw": {
+    "instrument": "EUR/USD",
+    "factory": "carry_trend",
+    "timeframe": "1d",
+    "cost_rt_pips_override": 0.6,
+    "effective_cost_components": {
+      "rt_pips": 0.6,
+      "slippage_bps": 0.0
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 10,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.336718615498576,
+      "observed_sharpe": 0.0204910981687522,
+      "observed_sharpe_ann": 0.3252860990707762,
+      "sr0": 0.02794057039286133,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 3116,
+      "skew": 1.4230139368394998,
+      "kurtosis": 24.43668164577112
+    },
+    "pbo": {
+      "pbo": 0.997,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.028745362651163443,
+      "oos_sharpe_std": 0.02372653292438008,
+      "oos_sharpe_median": 0.02531073247086614,
+      "frac_positive": 0.8666666666666667,
+      "oos_sharpe_paths": [
+        0.0495,
+        0.0596,
+        0.0516,
+        0.0574,
+        0.0621,
+        0.0137,
+        -0.009,
+        0.0068,
+        0.0166,
+        0.0253,
+        0.035,
+        0.0418,
+        -0.0019,
+        0.0113,
+        0.0113
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": true,
+      "reasons": [
+        "DSR 0.337 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.997 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe 0.025, 87% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 77,
+      "sharpe": 0.3252860990707762,
+      "total_return": 0.07242335035596659,
+      "max_drawdown": 0.0408191278208031,
+      "expectancy_pnl": 87.06337662337657,
+      "profit_factor": 1.4206374553488235,
+      "win_rate": 0.6233766233766234,
+      "n_signals": 437,
+      "n_scaled": null,
+      "n_standdowns": null,
+      "n_vetoes": 359,
+      "determinism_equity_identical": true
+    }
+  },
+  "generated_at": "2026-07-17T14:59:43+00:00",
+  "q1_usd_chf_raw": {
+    "instrument": "USD/CHF",
+    "factory": "carry_trend",
+    "timeframe": "1d",
+    "cost_rt_pips_override": 0.6,
+    "effective_cost_components": {
+      "rt_pips": 0.6,
+      "slippage_bps": 0.0
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 10,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d"
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.2877795592148549,
+      "observed_sharpe": -0.004902833068420754,
+      "observed_sharpe_ann": -0.07783006211223024,
+      "sr0": 0.005058985597692095,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 3142,
+      "skew": -1.1996753662460777,
+      "kurtosis": 43.79260720943207
+    },
+    "pbo": {
+      "pbo": 0.94525,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.0020062727678120053,
+      "oos_sharpe_std": 0.026094255838771913,
+      "oos_sharpe_median": -0.002029463996154328,
+      "frac_positive": 0.4666666666666667,
+      "oos_sharpe_paths": [
+        0.0171,
+        -0.0052,
+        -0.002,
+        0.0403,
+        0.0022,
+        -0.0134,
+        -0.0111,
+        0.054,
+        -0.0038,
+        -0.038,
+        0.0144,
+        -0.0289,
+        0.0205,
+        -0.0342,
+        0.0183
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": false,
+      "reasons": [
+        "DSR 0.288 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.94525 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe -0.002, 47% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 87,
+      "sharpe": -0.07783006211223024,
+      "total_return": -0.022005376914194796,
+      "max_drawdown": 0.08487062634696663,
+      "expectancy_pnl": -25.29356321839083,
+      "profit_factor": 0.9120641901760642,
+      "win_rate": 0.5402298850574713,
+      "n_signals": 363,
+      "n_scaled": null,
+      "n_standdowns": null,
+      "n_vetoes": 276,
+      "determinism_equity_identical": true
+    }
+  },
+  "q2_overlay_current": {
+    "instrument": "EUR/USD",
+    "factory": "vol_managed",
+    "timeframe": "1d",
+    "cost_rt_pips_override": null,
+    "effective_cost_components": {
+      "rt_pips": 1.0,
+      "slippage_bps": 0.5
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": false
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.8039516634106535,
+      "observed_sharpe": 0.03265267747682759,
+      "observed_sharpe_ann": 0.5183451854645149,
+      "sr0": 0.017821073264763128,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 3116,
+      "skew": 2.2829737180083898,
+      "kurtosis": 38.88335492764057
+    },
+    "pbo": {
+      "pbo": 0.82525,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.041019571414354306,
+      "oos_sharpe_std": 0.023613392484146074,
+      "oos_sharpe_median": 0.032990748601012254,
+      "frac_positive": 1.0,
+      "oos_sharpe_paths": [
+        0.0606,
+        0.0734,
+        0.0648,
+        0.0805,
+        0.0676,
+        0.0279,
+        0.0016,
+        0.0291,
+        0.0173,
+        0.0287,
+        0.0496,
+        0.0378,
+        0.033,
+        0.0163,
+        0.027
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": true,
+      "reasons": [
+        "DSR 0.804 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.82525 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe 0.033, 100% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 55,
+      "sharpe": 0.5183451854645149,
+      "total_return": 0.09876868808662631,
+      "max_drawdown": 0.024133266800951625,
+      "expectancy_pnl": 179.5790909090909,
+      "profit_factor": 2.020638350420011,
+      "win_rate": 0.6545454545454545,
+      "n_signals": 216,
+      "n_scaled": 11,
+      "n_standdowns": 161,
+      "n_vetoes": 381,
+      "determinism_equity_identical": true
+    }
+  },
+  "q2_overlay_raw": {
+    "instrument": "EUR/USD",
+    "factory": "vol_managed",
+    "timeframe": "1d",
+    "cost_rt_pips_override": 0.6,
+    "effective_cost_components": {
+      "rt_pips": 0.6,
+      "slippage_bps": 0.0
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": false
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.8150854368472927,
+      "observed_sharpe": 0.033253898670771366,
+      "observed_sharpe_ann": 0.5278892760372144,
+      "sr0": 0.017722200805464144,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 3116,
+      "skew": 2.289171271472698,
+      "kurtosis": 38.89750343990095
+    },
+    "pbo": {
+      "pbo": 0.82475,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.04162518482857868,
+      "oos_sharpe_std": 0.02358714647167565,
+      "oos_sharpe_median": 0.03343967255809846,
+      "frac_positive": 1.0,
+      "oos_sharpe_paths": [
+        0.0613,
+        0.074,
+        0.0653,
+        0.081,
+        0.0683,
+        0.0286,
+        0.0023,
+        0.0297,
+        0.018,
+        0.0294,
+        0.0502,
+        0.0386,
+        0.0334,
+        0.0169,
+        0.0275
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": true,
+      "reasons": [
+        "DSR 0.815 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.82475 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe 0.033, 100% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 55,
+      "sharpe": 0.5278892760372144,
+      "total_return": 0.10068556044192079,
+      "max_drawdown": 0.02395670902132263,
+      "expectancy_pnl": 183.06436363636362,
+      "profit_factor": 2.0453109913725975,
+      "win_rate": 0.6545454545454545,
+      "n_signals": 216,
+      "n_scaled": 11,
+      "n_standdowns": 161,
+      "n_vetoes": 381,
+      "determinism_equity_identical": true
+    }
+  },
+  "q2_overlay_current__clean_2026-07-17": {
+    "instrument": "EUR/USD",
+    "factory": "vol_managed",
+    "timeframe": "1d",
+    "cost_rt_pips_override": null,
+    "effective_cost_components": {
+      "rt_pips": 1.0,
+      "slippage_bps": 0.5
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": false
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.258079898955592,
+      "observed_sharpe": -0.010115988571064998,
+      "observed_sharpe_ann": -0.16058634014765782,
+      "sr0": 0.0021701125997439655,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 2758,
+      "skew": -1.3731411964814406,
+      "kurtosis": 43.69337959026883
+    },
+    "pbo": {
+      "pbo": 0.9475,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.0035123341896574106,
+      "oos_sharpe_std": 0.015331658692613371,
+      "oos_sharpe_median": 0.0060351055422801884,
+      "frac_positive": 0.6666666666666666,
+      "oos_sharpe_paths": [
+        0.0153,
+        0.0241,
+        0.0053,
+        0.0141,
+        0.006,
+        0.0118,
+        -0.0196,
+        -0.001,
+        -0.0142,
+        0.0114,
+        0.0219,
+        0.0102,
+        -0.0095,
+        -0.029,
+        0.0059
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": true,
+      "reasons": [
+        "DSR 0.258 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.9475 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe 0.006, 67% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 52,
+      "sharpe": -0.16058634014765782,
+      "total_return": -0.03125256401647625,
+      "max_drawdown": 0.04235883282258324,
+      "expectancy_pnl": -60.10096153846149,
+      "profit_factor": 0.7993290098882754,
+      "win_rate": 0.5576923076923077,
+      "n_signals": 132,
+      "n_scaled": 17,
+      "n_standdowns": 80,
+      "n_vetoes": 339,
+      "determinism_equity_identical": true
+    }
+  },
+  "q2_overlay_raw__clean_2026-07-17": {
+    "instrument": "EUR/USD",
+    "factory": "vol_managed",
+    "timeframe": "1d",
+    "cost_rt_pips_override": 0.6,
+    "effective_cost_components": {
+      "rt_pips": 0.6,
+      "slippage_bps": 0.0
+    },
+    "grid": [
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": false
+      },
+      {
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 2.0,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "stand_down": true
+      }
+    ],
+    "n_trials": 150,
+    "dsr": {
+      "dsr": 0.2836938677784662,
+      "observed_sharpe": -0.009533851586729463,
+      "observed_sharpe_ann": -0.15134520201050825,
+      "sr0": 0.0012924745570096555,
+      "n_trials": 150,
+      "n_trials_observed": 3,
+      "n_obs": 2758,
+      "skew": -1.36108000942325,
+      "kurtosis": 43.70371734562125
+    },
+    "pbo": {
+      "pbo": 0.945,
+      "n_combos": 4000,
+      "n_splits": 16,
+      "n_configs": 3
+    },
+    "cpcv": {
+      "n_paths": 15,
+      "oos_sharpe_mean": 0.00411970857368325,
+      "oos_sharpe_std": 0.015337277924334692,
+      "oos_sharpe_median": 0.006677323286260155,
+      "frac_positive": 0.6666666666666666,
+      "oos_sharpe_paths": [
+        0.0158,
+        0.0247,
+        0.0058,
+        0.0147,
+        0.0067,
+        0.0124,
+        -0.0191,
+        -0.0004,
+        -0.0136,
+        0.012,
+        0.0225,
+        0.011,
+        -0.0089,
+        -0.0283,
+        0.0065
+      ]
+    },
+    "verdict": {
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": false,
+      "cpcv_pass": true,
+      "reasons": [
+        "DSR 0.284 <= 0.95 (multiple-testing deflation)",
+        "PBO 0.945 >= 0.5 (overfit probability)",
+        "CPCV median OOS Sharpe 0.007, 67% of 15 paths positive",
+        "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+      ]
+    },
+    "diag": {
+      "n_trades": 52,
+      "sharpe": -0.15134520201050825,
+      "total_return": -0.029554431556412797,
+      "max_drawdown": 0.041428601869034076,
+      "expectancy_pnl": -56.834999999999866,
+      "profit_factor": 0.8094850703934815,
+      "win_rate": 0.5576923076923077,
+      "n_signals": 132,
+      "n_scaled": 17,
+      "n_standdowns": 80,
+      "n_vetoes": 341,
+      "determinism_equity_identical": true
+    }
+  }
+}

@@ -4,21 +4,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 5,
-      "hold_horizon": 24,
+      "momentum_lookback": 10,
+      "hold_horizon": 8,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 44,
-      "net_pnl": 15859.108517326507,
-      "win_rate": 0.5,
-      "profit_factor": 1.8611723384683063
+      "n_trades": 316,
+      "net_pnl": 51026.52613784505,
+      "win_rate": 0.5854430379746836,
+      "profit_factor": 1.5897745035394177
     },
     "oos": {
-      "n_trades": 14,
-      "net_pnl": 6285.290405551257,
-      "win_rate": 0.5,
-      "profit_factor": 2.242749877937148
+      "n_trades": 98,
+      "net_pnl": 2669.2258914313124,
+      "win_rate": 0.5612244897959183,
+      "profit_factor": 1.1156164736665921
     }
   },
   {
@@ -48,21 +48,87 @@
     "asset_class": "Equity",
     "timeframe": "15m",
     "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 148,
+      "net_pnl": 25519.289619007515,
+      "win_rate": 0.4391891891891892,
+      "profit_factor": 1.312850992548605
+    },
+    "oos": {
+      "n_trades": 48,
+      "net_pnl": 7622.224047507849,
+      "win_rate": 0.4166666666666667,
+      "profit_factor": 1.281062654078391
+    }
+  },
+  {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 8,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 255,
+      "net_pnl": 28304.63085673789,
+      "win_rate": 0.5137254901960784,
+      "profit_factor": 1.3146092967129923
+    },
+    "oos": {
+      "n_trades": 79,
+      "net_pnl": 9511.820195302436,
+      "win_rate": 0.5316455696202531,
+      "profit_factor": 1.3471364007926812
+    }
+  },
+  {
+    "symbol": "AMD",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 41,
+      "net_pnl": 8588.998048323336,
+      "win_rate": 0.4878048780487805,
+      "profit_factor": 1.4091079846550523
+    },
+    "oos": {
+      "n_trades": 13,
+      "net_pnl": 189.4598669052807,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.0261266495402732
+    }
+  },
+  {
+    "symbol": "AMZN",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
       "momentum_lookback": 5,
       "hold_horizon": 24,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 140,
-      "net_pnl": 23256.77558449707,
-      "win_rate": 0.4642857142857143,
-      "profit_factor": 1.3323836790024706
+      "n_trades": 119,
+      "net_pnl": 20646.976398425293,
+      "win_rate": 0.5126050420168067,
+      "profit_factor": 1.409405465448529
     },
     "oos": {
-      "n_trades": 45,
-      "net_pnl": 3517.5007140856806,
-      "win_rate": 0.37777777777777777,
-      "profit_factor": 1.1388848238248201
+      "n_trades": 38,
+      "net_pnl": 1199.11041862171,
+      "win_rate": 0.39473684210526316,
+      "profit_factor": 1.072278362615259
     }
   },
   {
@@ -90,67 +156,23 @@
   {
     "symbol": "ARKK",
     "asset_class": "Equity",
-    "timeframe": "15m",
-    "parameters": {
-      "momentum_lookback": 14,
-      "hold_horizon": 24,
-      "reward_risk": 1.5
-    },
-    "train": {
-      "n_trades": 25,
-      "net_pnl": 3944.888782428035,
-      "win_rate": 0.56,
-      "profit_factor": 1.3568435411465334
-    },
-    "oos": {
-      "n_trades": 7,
-      "net_pnl": 778.3223796693042,
-      "win_rate": 0.5714285714285714,
-      "profit_factor": 1.2509298357109773
-    }
-  },
-  {
-    "symbol": "ARKK",
-    "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
+      "momentum_lookback": 10,
       "hold_horizon": 24,
       "reward_risk": 2.0
     },
     "train": {
-      "n_trades": 44,
-      "net_pnl": 18847.113958380887,
-      "win_rate": 0.5,
-      "profit_factor": 1.9691558670073588
+      "n_trades": 121,
+      "net_pnl": 29157.161100581794,
+      "win_rate": 0.5206611570247934,
+      "profit_factor": 1.5424641297267407
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 1061.6462024713578,
-      "win_rate": 0.5384615384615384,
-      "profit_factor": 1.1745061862069353
-    }
-  },
-  {
-    "symbol": "AUD/USD",
-    "asset_class": "Forex",
-    "timeframe": "1d",
-    "parameters": {
-      "momentum_lookback": 5,
-      "hold_horizon": 48,
-      "reward_risk": 2.0
-    },
-    "train": {
-      "n_trades": 30,
-      "net_pnl": 6312.787839701459,
-      "win_rate": 0.5,
-      "profit_factor": 1.4104952537539495
-    },
-    "oos": {
-      "n_trades": 9,
-      "net_pnl": 3788.477087024615,
-      "win_rate": 0.5555555555555556,
-      "profit_factor": 2.4610546314168302
+      "n_trades": 38,
+      "net_pnl": 713.7254471575403,
+      "win_rate": 0.39473684210526316,
+      "profit_factor": 1.0462635694284423
     }
   },
   {
@@ -202,21 +224,21 @@
     "asset_class": "Crypto",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
+      "momentum_lookback": 5,
       "hold_horizon": 4,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 327,
-      "net_pnl": 31122.988650980835,
-      "win_rate": 0.5321100917431193,
-      "profit_factor": 1.4090034748569729
+      "n_trades": 629,
+      "net_pnl": 75464.0071756134,
+      "win_rate": 0.49920508744038156,
+      "profit_factor": 1.5195237679579816
     },
     "oos": {
-      "n_trades": 100,
-      "net_pnl": 5053.247149913307,
+      "n_trades": 198,
+      "net_pnl": 7908.8441199083745,
       "win_rate": 0.5,
-      "profit_factor": 1.4111719090134753
+      "profit_factor": 1.3315684209123824
     }
   },
   {
@@ -246,65 +268,43 @@
     "asset_class": "Crypto",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
+      "momentum_lookback": 10,
       "hold_horizon": 24,
-      "reward_risk": 1.5
-    },
-    "train": {
-      "n_trades": 56,
-      "net_pnl": 11284.689560304845,
-      "win_rate": 0.5357142857142857,
-      "profit_factor": 1.5016555753483645
-    },
-    "oos": {
-      "n_trades": 17,
-      "net_pnl": 630.5749314934404,
-      "win_rate": 0.5294117647058824,
-      "profit_factor": 1.0996066729760836
-    }
-  },
-  {
-    "symbol": "EUR/USD",
-    "asset_class": "Forex",
-    "timeframe": "1d",
-    "parameters": {
-      "momentum_lookback": 28,
-      "hold_horizon": 24,
-      "reward_risk": 2.0
-    },
-    "train": {
-      "n_trades": 58,
-      "net_pnl": 9692.144507627461,
-      "win_rate": 0.5,
-      "profit_factor": 1.4618169984367044
-    },
-    "oos": {
-      "n_trades": 18,
-      "net_pnl": 566.2325078417148,
-      "win_rate": 0.6111111111111112,
-      "profit_factor": 1.1002550291082314
-    }
-  },
-  {
-    "symbol": "GBP/USD",
-    "asset_class": "Forex",
-    "timeframe": "1d",
-    "parameters": {
-      "momentum_lookback": 28,
-      "hold_horizon": 48,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 30,
-      "net_pnl": 7596.42149796559,
-      "win_rate": 0.5,
-      "profit_factor": 1.5321207551409262
+      "n_trades": 99,
+      "net_pnl": 25031.289802158655,
+      "win_rate": 0.5757575757575758,
+      "profit_factor": 1.6556766229616904
     },
     "oos": {
-      "n_trades": 9,
-      "net_pnl": 1932.5529846339582,
-      "win_rate": 0.5555555555555556,
-      "profit_factor": 1.4647510218686992
+      "n_trades": 31,
+      "net_pnl": 7196.652666365692,
+      "win_rate": 0.5161290322580645,
+      "profit_factor": 1.7149370856526251
+    }
+  },
+  {
+    "symbol": "ETH/USD",
+    "asset_class": "Crypto",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 126,
+      "net_pnl": 17402.08282847803,
+      "win_rate": 0.4603174603174603,
+      "profit_factor": 1.2547030520427997
+    },
+    "oos": {
+      "n_trades": 40,
+      "net_pnl": 11949.869116849872,
+      "win_rate": 0.475,
+      "profit_factor": 1.6639937769498867
     }
   },
   {
@@ -312,21 +312,21 @@
     "asset_class": "Equity",
     "timeframe": "15m",
     "parameters": {
-      "momentum_lookback": 14,
-      "hold_horizon": 24,
+      "momentum_lookback": 10,
+      "hold_horizon": 8,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 24,
-      "net_pnl": 3865.623810875814,
-      "win_rate": 0.375,
-      "profit_factor": 1.2615979993870767
+      "n_trades": 75,
+      "net_pnl": 10534.216248872544,
+      "win_rate": 0.4666666666666667,
+      "profit_factor": 1.4407550612135038
     },
     "oos": {
-      "n_trades": 7,
-      "net_pnl": 662.0581841105723,
-      "win_rate": 0.42857142857142855,
-      "profit_factor": 1.147981508415541
+      "n_trades": 19,
+      "net_pnl": 2910.277755194747,
+      "win_rate": 0.5263157894736842,
+      "profit_factor": 1.495236052845483
     }
   },
   {
@@ -334,21 +334,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 5,
-      "hold_horizon": 8,
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 112,
-      "net_pnl": 15484.181784795208,
-      "win_rate": 0.48214285714285715,
-      "profit_factor": 1.4511304491177934
+      "n_trades": 119,
+      "net_pnl": 19955.491639858115,
+      "win_rate": 0.46218487394957986,
+      "profit_factor": 1.3728123857001218
     },
     "oos": {
-      "n_trades": 34,
-      "net_pnl": 12642.115544793473,
-      "win_rate": 0.6764705882352942,
-      "profit_factor": 2.1753942314171884
+      "n_trades": 38,
+      "net_pnl": 12030.166695020793,
+      "win_rate": 0.47368421052631576,
+      "profit_factor": 1.6834395748656363
     }
   },
   {
@@ -361,38 +361,38 @@
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 255,
-      "net_pnl": 36032.85649152471,
-      "win_rate": 0.5176470588235295,
-      "profit_factor": 1.3441626368995985
+      "n_trades": 258,
+      "net_pnl": 33962.86090356864,
+      "win_rate": 0.5155038759689923,
+      "profit_factor": 1.3159710350781244
     },
     "oos": {
-      "n_trades": 76,
-      "net_pnl": 7599.712370056824,
-      "win_rate": 0.47368421052631576,
-      "profit_factor": 1.253006912392438
+      "n_trades": 78,
+      "net_pnl": 6351.198753896984,
+      "win_rate": 0.47435897435897434,
+      "profit_factor": 1.2011278309150302
     }
   },
   {
-    "symbol": "GOOGL",
+    "symbol": "GLD",
     "asset_class": "Equity",
-    "timeframe": "1d",
+    "timeframe": "5m",
     "parameters": {
-      "momentum_lookback": 10,
+      "momentum_lookback": 28,
       "hold_horizon": 24,
-      "reward_risk": 1.5
+      "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 45,
-      "net_pnl": 10189.89801382211,
-      "win_rate": 0.5111111111111111,
-      "profit_factor": 1.491169129388128
+      "n_trades": 80,
+      "net_pnl": 4632.899875009838,
+      "win_rate": 0.4625,
+      "profit_factor": 1.1260798238265173
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 10324.591832209762,
-      "win_rate": 0.7692307692307693,
-      "profit_factor": 4.759180756430501
+      "n_trades": 25,
+      "net_pnl": 9316.961323399883,
+      "win_rate": 0.56,
+      "profit_factor": 1.8201688488097811
     }
   },
   {
@@ -405,16 +405,38 @@
       "reward_risk": 2.0
     },
     "train": {
-      "n_trades": 246,
-      "net_pnl": 33251.135196215306,
-      "win_rate": 0.516260162601626,
-      "profit_factor": 1.388451775095363
+      "n_trades": 249,
+      "net_pnl": 33028.40562739096,
+      "win_rate": 0.5180722891566265,
+      "profit_factor": 1.3798107340057169
     },
     "oos": {
-      "n_trades": 83,
-      "net_pnl": 9258.88980093087,
-      "win_rate": 0.5421686746987951,
-      "profit_factor": 1.352688542916621
+      "n_trades": 85,
+      "net_pnl": 8736.644273156302,
+      "win_rate": 0.5411764705882353,
+      "profit_factor": 1.3172429331502788
+    }
+  },
+  {
+    "symbol": "GOOGL",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "hold_horizon": 48,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 41,
+      "net_pnl": 13776.52357921854,
+      "win_rate": 0.4634146341463415,
+      "profit_factor": 1.6221709072902721
+    },
+    "oos": {
+      "n_trades": 12,
+      "net_pnl": 4683.121023397352,
+      "win_rate": 0.4166666666666667,
+      "profit_factor": 1.7772522302216405
     }
   },
   {
@@ -440,25 +462,69 @@
     }
   },
   {
-    "symbol": "NFLX",
+    "symbol": "META",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 77,
+      "net_pnl": 10683.171971526754,
+      "win_rate": 0.4805194805194805,
+      "profit_factor": 1.25051532673084
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 800.77287715085,
+      "win_rate": 0.4166666666666667,
+      "profit_factor": 1.063708946634146
+    }
+  },
+  {
+    "symbol": "MSFT",
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 5,
+      "momentum_lookback": 28,
       "hold_horizon": 24,
-      "reward_risk": 2.0
+      "reward_risk": 1.5
     },
     "train": {
-      "n_trades": 44,
-      "net_pnl": 6800.291617936797,
-      "win_rate": 0.4772727272727273,
-      "profit_factor": 1.3748648358569424
+      "n_trades": 124,
+      "net_pnl": 26304.66625200865,
+      "win_rate": 0.5645161290322581,
+      "profit_factor": 1.5437450317658328
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 6262.492104059774,
-      "win_rate": 0.6153846153846154,
-      "profit_factor": 2.223692559383266
+      "n_trades": 39,
+      "net_pnl": 107.89414672227417,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.0070082417272146
+    }
+  },
+  {
+    "symbol": "MSFT",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 8,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 216,
+      "net_pnl": 5719.09232136265,
+      "win_rate": 0.4537037037037037,
+      "profit_factor": 1.0865449573887944
+    },
+    "oos": {
+      "n_trades": 68,
+      "net_pnl": 2377.334261120933,
+      "win_rate": 0.4264705882352941,
+      "profit_factor": 1.1113574540652118
     }
   },
   {
@@ -466,21 +532,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 28,
-      "hold_horizon": 4,
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 217,
-      "net_pnl": 19452.513420389318,
-      "win_rate": 0.5299539170506913,
-      "profit_factor": 1.4382682766642605
+      "n_trades": 122,
+      "net_pnl": 21459.32456410681,
+      "win_rate": 0.5081967213114754,
+      "profit_factor": 1.3840597251311555
     },
     "oos": {
-      "n_trades": 65,
-      "net_pnl": 2918.618126213591,
-      "win_rate": 0.5076923076923077,
-      "profit_factor": 1.1938022380986701
+      "n_trades": 38,
+      "net_pnl": 660.0812497761037,
+      "win_rate": 0.42105263157894735,
+      "profit_factor": 1.0411382267200398
     }
   },
   {
@@ -493,16 +559,60 @@
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 73,
-      "net_pnl": 20917.822646995122,
-      "win_rate": 0.4246575342465753,
-      "profit_factor": 1.4285782613010636
+      "n_trades": 76,
+      "net_pnl": 21400.14705653685,
+      "win_rate": 0.42105263157894735,
+      "profit_factor": 1.4175258263737556
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 4153.0040402576815,
+      "win_rate": 0.375,
+      "profit_factor": 1.2811599334786659
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
+    },
+    "train": {
+      "n_trades": 80,
+      "net_pnl": 12063.778032437194,
+      "win_rate": 0.5125,
+      "profit_factor": 1.4028473616274553
+    },
+    "oos": {
+      "n_trades": 26,
+      "net_pnl": 68.40673762995488,
+      "win_rate": 0.5384615384615384,
+      "profit_factor": 1.0065912294956223
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 78,
+      "net_pnl": 2953.760707756228,
+      "win_rate": 0.3974358974358974,
+      "profit_factor": 1.072003815673535
     },
     "oos": {
       "n_trades": 23,
-      "net_pnl": 6200.576031148567,
+      "net_pnl": 542.6334833312835,
       "win_rate": 0.43478260869565216,
-      "profit_factor": 1.4573435661040808
+      "profit_factor": 1.0455172841184268
     }
   },
   {
@@ -515,16 +625,16 @@
       "reward_risk": 1.5
     },
     "train": {
-      "n_trades": 24,
-      "net_pnl": 10381.88873262727,
-      "win_rate": 0.7083333333333334,
-      "profit_factor": 2.4881303883795103
+      "n_trades": 28,
+      "net_pnl": 13528.815235410808,
+      "win_rate": 0.7142857142857143,
+      "profit_factor": 2.8992466078432084
     },
     "oos": {
-      "n_trades": 7,
-      "net_pnl": 135.2339211525607,
-      "win_rate": 0.42857142857142855,
-      "profit_factor": 1.0323448758162004
+      "n_trades": 8,
+      "net_pnl": 2267.9026190888135,
+      "win_rate": 0.5,
+      "profit_factor": 1.95490178167946
     }
   },
   {
@@ -532,21 +642,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
-      "hold_horizon": 8,
-      "reward_risk": 2.5
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.0
     },
     "train": {
-      "n_trades": 122,
-      "net_pnl": 14841.094951062734,
-      "win_rate": 0.5573770491803278,
-      "profit_factor": 1.4118531348190448
+      "n_trades": 119,
+      "net_pnl": 31836.37617166261,
+      "win_rate": 0.5798319327731093,
+      "profit_factor": 1.6302596253392203
     },
     "oos": {
       "n_trades": 38,
-      "net_pnl": 1343.8732787692998,
-      "win_rate": 0.5,
-      "profit_factor": 1.0891628271325613
+      "net_pnl": 6405.892415122721,
+      "win_rate": 0.5263157894736842,
+      "profit_factor": 1.423647981108111
     }
   },
   {
@@ -554,21 +664,43 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 10,
-      "hold_horizon": 24,
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
       "reward_risk": 1.5
     },
     "train": {
-      "n_trades": 45,
-      "net_pnl": 14962.52208758175,
-      "win_rate": 0.5555555555555556,
-      "profit_factor": 1.817998868508343
+      "n_trades": 64,
+      "net_pnl": 14770.147159645147,
+      "win_rate": 0.546875,
+      "profit_factor": 1.466701615558757
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 4596.410548029395,
-      "win_rate": 0.5384615384615384,
-      "profit_factor": 1.8333672956078553
+      "n_trades": 20,
+      "net_pnl": 4383.401846015722,
+      "win_rate": 0.55,
+      "profit_factor": 1.477514454537257
+    }
+  },
+  {
+    "symbol": "SMH",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 78,
+      "net_pnl": 1880.5864448946118,
+      "win_rate": 0.4358974358974359,
+      "profit_factor": 1.054034600915945
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 5520.11186544606,
+      "win_rate": 0.5,
+      "profit_factor": 1.5345132111965898
     }
   },
   {
@@ -596,45 +728,45 @@
   {
     "symbol": "SOXX",
     "asset_class": "Equity",
-    "timeframe": "15m",
+    "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
-      "hold_horizon": 24,
-      "reward_risk": 1.5
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
+      "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 26,
-      "net_pnl": 8647.365089954965,
-      "win_rate": 0.5384615384615384,
-      "profit_factor": 1.7916987437878789
+      "n_trades": 63,
+      "net_pnl": 15449.01831441333,
+      "win_rate": 0.4603174603174603,
+      "profit_factor": 1.4447364195049528
     },
     "oos": {
-      "n_trades": 7,
-      "net_pnl": 2470.507909435926,
-      "win_rate": 0.5714285714285714,
-      "profit_factor": 1.7983943428981444
+      "n_trades": 20,
+      "net_pnl": 3359.1601851206424,
+      "win_rate": 0.4,
+      "profit_factor": 1.3038934585264457
     }
   },
   {
     "symbol": "SOXX",
     "asset_class": "Equity",
-    "timeframe": "1d",
+    "timeframe": "5m",
     "parameters": {
-      "momentum_lookback": 10,
+      "momentum_lookback": 14,
       "hold_horizon": 24,
-      "reward_risk": 2.0
+      "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 45,
-      "net_pnl": 14392.352152235771,
-      "win_rate": 0.5111111111111111,
-      "profit_factor": 1.8355584350844336
+      "n_trades": 79,
+      "net_pnl": 6827.984710943165,
+      "win_rate": 0.4810126582278481,
+      "profit_factor": 1.191849394387069
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 3812.2258084849877,
-      "win_rate": 0.5384615384615384,
-      "profit_factor": 1.6199491238472414
+      "n_trades": 24,
+      "net_pnl": 8401.6863562889,
+      "win_rate": 0.5,
+      "profit_factor": 1.8294407201264498
     }
   },
   {
@@ -642,21 +774,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 10,
-      "hold_horizon": 24,
+      "momentum_lookback": 5,
+      "hold_horizon": 48,
       "reward_risk": 2.0
     },
     "train": {
-      "n_trades": 45,
-      "net_pnl": 15285.483032801407,
-      "win_rate": 0.5555555555555556,
-      "profit_factor": 1.7926691584445336
+      "n_trades": 63,
+      "net_pnl": 12385.21704534213,
+      "win_rate": 0.49206349206349204,
+      "profit_factor": 1.362546301682721
     },
     "oos": {
-      "n_trades": 13,
-      "net_pnl": 3371.8194079986233,
-      "win_rate": 0.5384615384615384,
-      "profit_factor": 1.5446655139167762
+      "n_trades": 20,
+      "net_pnl": 3292.1139477472707,
+      "win_rate": 0.5,
+      "profit_factor": 1.3578178771757268
     }
   },
   {
@@ -682,25 +814,47 @@
     }
   },
   {
+    "symbol": "TLT",
+    "asset_class": "Equity",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 5,
+      "hold_horizon": 48,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 62,
+      "net_pnl": 12942.714416558725,
+      "win_rate": 0.43548387096774194,
+      "profit_factor": 1.36979679086068
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": 1480.545212293223,
+      "win_rate": 0.5,
+      "profit_factor": 1.156151627092882
+    }
+  },
+  {
     "symbol": "TSLA",
     "asset_class": "Equity",
     "timeframe": "15m",
     "parameters": {
-      "momentum_lookback": 14,
+      "momentum_lookback": 10,
       "hold_horizon": 48,
       "reward_risk": 2.0
     },
     "train": {
-      "n_trades": 73,
-      "net_pnl": 14533.853461927441,
-      "win_rate": 0.4520547945205479,
-      "profit_factor": 1.3381680649531076
+      "n_trades": 75,
+      "net_pnl": 13910.147363940207,
+      "win_rate": 0.4266666666666667,
+      "profit_factor": 1.317839490224403
     },
     "oos": {
-      "n_trades": 23,
-      "net_pnl": 8743.1829869049,
-      "win_rate": 0.5217391304347826,
-      "profit_factor": 1.7521887910741825
+      "n_trades": 24,
+      "net_pnl": 1946.2959994585515,
+      "win_rate": 0.375,
+      "profit_factor": 1.1281445570323076
     }
   },
   {
@@ -708,21 +862,43 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 10,
-      "hold_horizon": 4,
+      "momentum_lookback": 14,
+      "hold_horizon": 24,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 189,
-      "net_pnl": 18250.815718965292,
-      "win_rate": 0.544973544973545,
-      "profit_factor": 1.38986234329812
+      "n_trades": 121,
+      "net_pnl": 31328.75837190221,
+      "win_rate": 0.49586776859504134,
+      "profit_factor": 1.557609855784373
     },
     "oos": {
-      "n_trades": 62,
-      "net_pnl": 1144.9000804940786,
-      "win_rate": 0.5161290322580645,
-      "profit_factor": 1.0767054981720496
+      "n_trades": 39,
+      "net_pnl": 8331.882898456272,
+      "win_rate": 0.5128205128205128,
+      "profit_factor": 1.5608616616903457
+    }
+  },
+  {
+    "symbol": "TSLA",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 78,
+      "net_pnl": 3120.4039896132886,
+      "win_rate": 0.4230769230769231,
+      "profit_factor": 1.08806967567653
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 5409.7242080617,
+      "win_rate": 0.625,
+      "profit_factor": 1.6045977910094387
     }
   },
   {
@@ -735,16 +911,16 @@
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 143,
-      "net_pnl": 33348.48747058355,
-      "win_rate": 0.46153846153846156,
-      "profit_factor": 1.384688625748532
+      "n_trades": 147,
+      "net_pnl": 32453.006118119345,
+      "win_rate": 0.4557823129251701,
+      "profit_factor": 1.3574623094158682
     },
     "oos": {
-      "n_trades": 46,
-      "net_pnl": 4460.210272486852,
-      "win_rate": 0.45652173913043476,
-      "profit_factor": 1.202443835002137
+      "n_trades": 48,
+      "net_pnl": 10389.035066255265,
+      "win_rate": 0.5,
+      "profit_factor": 1.477409371312433
     }
   },
   {
@@ -752,21 +928,21 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 10,
-      "hold_horizon": 4,
-      "reward_risk": 2.0
+      "momentum_lookback": 28,
+      "hold_horizon": 24,
+      "reward_risk": 1.5
     },
     "train": {
-      "n_trades": 197,
-      "net_pnl": 20491.531624175197,
-      "win_rate": 0.47715736040609136,
-      "profit_factor": 1.4931180697052022
+      "n_trades": 124,
+      "net_pnl": 27955.54619344566,
+      "win_rate": 0.532258064516129,
+      "profit_factor": 1.5692573977168467
     },
     "oos": {
-      "n_trades": 62,
-      "net_pnl": 6741.503704244353,
-      "win_rate": 0.5967741935483871,
-      "profit_factor": 1.6633893456384181
+      "n_trades": 40,
+      "net_pnl": 11766.564317288829,
+      "win_rate": 0.55,
+      "profit_factor": 1.877290738149209
     }
   },
   {
@@ -775,20 +951,64 @@
     "timeframe": "15m",
     "parameters": {
       "momentum_lookback": 28,
-      "hold_horizon": 24,
+      "hold_horizon": 8,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 26,
-      "net_pnl": 6042.140772489303,
-      "win_rate": 0.46153846153846156,
-      "profit_factor": 1.4295607052637966
+      "n_trades": 84,
+      "net_pnl": 11680.009582810273,
+      "win_rate": 0.5357142857142857,
+      "profit_factor": 1.5018792533856247
     },
     "oos": {
-      "n_trades": 7,
-      "net_pnl": 7103.949287194571,
-      "win_rate": 0.7142857142857143,
-      "profit_factor": 4.16045830372857
+      "n_trades": 24,
+      "net_pnl": 703.4508686810262,
+      "win_rate": 0.4166666666666667,
+      "profit_factor": 1.0813854527484201
+    }
+  },
+  {
+    "symbol": "XBI",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 10,
+      "hold_horizon": 48,
+      "reward_risk": 1.5
+    },
+    "train": {
+      "n_trades": 39,
+      "net_pnl": 1715.3573145563928,
+      "win_rate": 0.48717948717948717,
+      "profit_factor": 1.0814745906396634
+    },
+    "oos": {
+      "n_trades": 13,
+      "net_pnl": 1571.2454483563397,
+      "win_rate": 0.6153846153846154,
+      "profit_factor": 1.283354978742279
+    }
+  },
+  {
+    "symbol": "XLE",
+    "asset_class": "Equity",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 5,
+      "hold_horizon": 8,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 74,
+      "net_pnl": 14049.692324550511,
+      "win_rate": 0.5540540540540541,
+      "profit_factor": 1.667939673757171
+    },
+    "oos": {
+      "n_trades": 23,
+      "net_pnl": 1898.830834106499,
+      "win_rate": 0.43478260869565216,
+      "profit_factor": 1.2170129514161476
     }
   },
   {
@@ -796,21 +1016,21 @@
     "asset_class": "Equity",
     "timeframe": "15m",
     "parameters": {
-      "momentum_lookback": 28,
-      "hold_horizon": 24,
+      "momentum_lookback": 10,
+      "hold_horizon": 8,
       "reward_risk": 2.5
     },
     "train": {
-      "n_trades": 26,
-      "net_pnl": 16505.916362349144,
-      "win_rate": 0.5769230769230769,
-      "profit_factor": 2.3966877061765914
+      "n_trades": 76,
+      "net_pnl": 8165.574856440905,
+      "win_rate": 0.5263157894736842,
+      "profit_factor": 1.3710204754635145
     },
     "oos": {
-      "n_trades": 7,
-      "net_pnl": 1316.7042623844281,
-      "win_rate": 0.42857142857142855,
-      "profit_factor": 1.345069990875305
+      "n_trades": 22,
+      "net_pnl": 1273.1679081047507,
+      "win_rate": 0.6363636363636364,
+      "profit_factor": 1.2287253916960057
     }
   },
   {
@@ -818,21 +1038,43 @@
     "asset_class": "Equity",
     "timeframe": "1d",
     "parameters": {
-      "momentum_lookback": 14,
+      "momentum_lookback": 10,
       "hold_horizon": 24,
+      "reward_risk": 2.5
+    },
+    "train": {
+      "n_trades": 122,
+      "net_pnl": 25891.531691158983,
+      "win_rate": 0.5901639344262295,
+      "profit_factor": 1.5343969595504656
+    },
+    "oos": {
+      "n_trades": 38,
+      "net_pnl": 8858.618290021763,
+      "win_rate": 0.5526315789473685,
+      "profit_factor": 1.645981815118547
+    }
+  },
+  {
+    "symbol": "XLK",
+    "asset_class": "Equity",
+    "timeframe": "5m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "hold_horizon": 48,
       "reward_risk": 1.5
     },
     "train": {
-      "n_trades": 45,
-      "net_pnl": 22839.218521271676,
-      "win_rate": 0.5777777777777777,
-      "profit_factor": 2.3516627134459935
+      "n_trades": 41,
+      "net_pnl": 7551.2686191806315,
+      "win_rate": 0.5609756097560976,
+      "profit_factor": 1.402537494356296
     },
     "oos": {
       "n_trades": 13,
-      "net_pnl": 7017.855107910458,
-      "win_rate": 0.6153846153846154,
-      "profit_factor": 2.319633992583221
+      "net_pnl": 395.4154994046596,
+      "win_rate": 0.46153846153846156,
+      "profit_factor": 1.059974696284578
     }
   },
   {
@@ -856,5 +1098,1801 @@
       "win_rate": 0.41134751773049644,
       "profit_factor": 1.2183696286478483
     }
+  },
+  {
+    "symbol": "EUR/USD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/USD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 63,
+      "hold_horizon": 60,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 97,
+      "net_pnl": 3996.2400000000002,
+      "win_rate": 0.6185567010309279,
+      "profit_factor": 1.2722892797645207,
+      "sharpe": 0.20013199629237005
+    },
+    "oos": {
+      "n_trades": 25,
+      "net_pnl": -2486.7599999999998,
+      "win_rate": 0.36,
+      "profit_factor": 0.4749250951750524,
+      "sharpe": -0.5862516889506042
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "hold_horizon": 20,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 158,
+      "net_pnl": 1816.4300000000003,
+      "win_rate": 0.5316455696202531,
+      "profit_factor": 1.0680640219911657,
+      "sharpe": 0.06810173974724208
+    },
+    "oos": {
+      "n_trades": 42,
+      "net_pnl": -1151.1899999999998,
+      "win_rate": 0.38095238095238093,
+      "profit_factor": 0.7841772341749845,
+      "sharpe": -0.20031963245877182
+    },
+    "veto": true
+  },
+  {
+    "symbol": "AUD/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 95,
+      "net_pnl": 3936.0699999999997,
+      "win_rate": 0.5157894736842106,
+      "profit_factor": 1.1521882863501598,
+      "sharpe": 0.15333804718292415
+    },
+    "oos": {
+      "n_trades": 31,
+      "net_pnl": 70.01999999999994,
+      "win_rate": 0.5161290322580645,
+      "profit_factor": 1.0122659837049155,
+      "sharpe": -0.009859470067151904
+    },
+    "veto": true
+  },
+  {
+    "symbol": "NZD/USD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "hold_horizon": 60,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 204,
+      "net_pnl": 7500.01,
+      "win_rate": 0.6176470588235294,
+      "profit_factor": 1.1224745975775863,
+      "sharpe": 0.19462666750322186
+    },
+    "oos": {
+      "n_trades": 60,
+      "net_pnl": 4762.71,
+      "win_rate": 0.65,
+      "profit_factor": 1.3740951420438479,
+      "sharpe": 0.5026704103383819
+    },
+    "veto": false
+  },
+  {
+    "symbol": "USD/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/CAD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/USD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 225,
+      "net_pnl": 3244.7599999999998,
+      "win_rate": 0.5066666666666667,
+      "profit_factor": 1.1174606921027996,
+      "sharpe": 0.08288975815094665
+    },
+    "oos": {
+      "n_trades": 69,
+      "net_pnl": -3761.47,
+      "win_rate": 0.36231884057971014,
+      "profit_factor": 0.6327711525600784,
+      "sharpe": -0.35772837815473796
+    },
+    "veto": true
+  },
+  {
+    "symbol": "NZD/USD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "AUD/USD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 261,
+      "net_pnl": 2596.7499999999995,
+      "win_rate": 0.4942528735632184,
+      "profit_factor": 1.0642158751386697,
+      "sharpe": 0.05182679767836149
+    },
+    "oos": {
+      "n_trades": 64,
+      "net_pnl": -2523.28,
+      "win_rate": 0.453125,
+      "profit_factor": 0.7268672016141515,
+      "sharpe": -0.1779461526129102
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/USD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "NZD/USD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "AUD/USD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 583,
+      "net_pnl": 5754.4800000000005,
+      "win_rate": 0.5471698113207547,
+      "profit_factor": 1.0581685001087155,
+      "sharpe": 0.0711544352736856
+    },
+    "oos": {
+      "n_trades": 216,
+      "net_pnl": 1391.1600000000003,
+      "win_rate": 0.6018518518518519,
+      "profit_factor": 1.0443404251792776,
+      "sharpe": 0.05692328598520535
+    },
+    "veto": false
+  },
+  {
+    "symbol": "USD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 1.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 132,
+      "net_pnl": 2713.3099999999995,
+      "win_rate": 0.5,
+      "profit_factor": 1.106735822633434,
+      "sharpe": 0.11444135931562291
+    },
+    "oos": {
+      "n_trades": 44,
+      "net_pnl": -1751.7400000000002,
+      "win_rate": 0.4318181818181818,
+      "profit_factor": 0.8019542957537086,
+      "sharpe": -0.20285626109599245
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/CHF",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 285,
+      "net_pnl": 938.4,
+      "win_rate": 0.5017543859649123,
+      "profit_factor": 1.0276114912529775,
+      "sharpe": 0.024510123387329375
+    },
+    "oos": {
+      "n_trades": 83,
+      "net_pnl": -2288.76,
+      "win_rate": 0.43373493975903615,
+      "profit_factor": 0.7715281666731552,
+      "sharpe": -0.19306872865715524
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 218,
+      "net_pnl": 3440.6,
+      "win_rate": 0.4908256880733945,
+      "profit_factor": 1.1226635597317274,
+      "sharpe": 0.08650213351635376
+    },
+    "oos": {
+      "n_trades": 60,
+      "net_pnl": -3027.74,
+      "win_rate": 0.4,
+      "profit_factor": 0.550683752439323,
+      "sharpe": -0.3645175984507741
+    },
+    "veto": true
+  },
+  {
+    "symbol": "USD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 71,
+      "net_pnl": 1043.8499999999997,
+      "win_rate": 0.5915492957746479,
+      "profit_factor": 1.0663178338652015,
+      "sharpe": 0.09053465668218455
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": 638.1400000000001,
+      "win_rate": 0.5833333333333334,
+      "profit_factor": 1.1042106225790227,
+      "sharpe": 0.18036244555343905
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "CHF/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 10,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 108,
+      "net_pnl": 13755.45,
+      "win_rate": 0.6018518518518519,
+      "profit_factor": 1.6695708850605149,
+      "sharpe": 0.6666247337022975
+    },
+    "oos": {
+      "n_trades": 40,
+      "net_pnl": 8833.99,
+      "win_rate": 0.65,
+      "profit_factor": 2.112355037334576,
+      "sharpe": 1.055769133407752
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "CAD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "hold_horizon": 60,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 76,
+      "net_pnl": 8520.96,
+      "win_rate": 0.7236842105263158,
+      "profit_factor": 1.6274320376946974,
+      "sharpe": 0.46898312769418143
+    },
+    "oos": {
+      "n_trades": 25,
+      "net_pnl": -2427.2400000000002,
+      "win_rate": 0.6,
+      "profit_factor": 0.7090146197603534,
+      "sharpe": -0.3790450302303864
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/CHF",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 67,
+      "net_pnl": 3172.61,
+      "win_rate": 0.5223880597014925,
+      "profit_factor": 1.6095347331492784,
+      "sharpe": 0.4825041627171296
+    },
+    "oos": {
+      "n_trades": 25,
+      "net_pnl": -709.41,
+      "win_rate": 0.32,
+      "profit_factor": 0.6695931218212643,
+      "sharpe": -0.2817045730824084
+    },
+    "veto": true
+  },
+  {
+    "symbol": "CHF/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 98,
+      "net_pnl": 2141.33,
+      "win_rate": 0.6428571428571429,
+      "profit_factor": 1.2149597351413537,
+      "sharpe": 0.24207474866864567
+    },
+    "oos": {
+      "n_trades": 33,
+      "net_pnl": 1014.53,
+      "win_rate": 0.6363636363636364,
+      "profit_factor": 1.3996289410244696,
+      "sharpe": 0.3318686722978098
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "CAD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 1.5
+    },
+    "train": {
+      "n_trades": 163,
+      "net_pnl": 6514.55,
+      "win_rate": 0.5766871165644172,
+      "profit_factor": 1.3432652656893338,
+      "sharpe": 0.5226391402560863
+    },
+    "oos": {
+      "n_trades": 64,
+      "net_pnl": 283.95000000000005,
+      "win_rate": 0.5,
+      "profit_factor": 1.0434026981666773,
+      "sharpe": 0.09116053285322213
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "EUR/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 81,
+      "net_pnl": 2969.9900000000002,
+      "win_rate": 0.5432098765432098,
+      "profit_factor": 1.2172268016354235,
+      "sharpe": 0.16363787937681765
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": -4173.58,
+      "win_rate": 0.4,
+      "profit_factor": 0.22141528634615992,
+      "sharpe": -0.8529683757068051
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 1.5
+    },
+    "train": {
+      "n_trades": 148,
+      "net_pnl": 15464.02,
+      "win_rate": 0.5202702702702703,
+      "profit_factor": 1.3154123954626689,
+      "sharpe": 0.4486410579597907
+    },
+    "oos": {
+      "n_trades": 43,
+      "net_pnl": -5295.99,
+      "win_rate": 0.4418604651162791,
+      "profit_factor": 0.689096093323009,
+      "sharpe": -0.5549722747615368
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 243,
+      "net_pnl": 2587.3399999999997,
+      "win_rate": 0.5432098765432098,
+      "profit_factor": 1.0625059339012322,
+      "sharpe": 0.0979477790220713
+    },
+    "oos": {
+      "n_trades": 75,
+      "net_pnl": -6241.17,
+      "win_rate": 0.38666666666666666,
+      "profit_factor": 0.5712289476124884,
+      "sharpe": -0.7918366838319604
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/CHF",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 77,
+      "net_pnl": 6590.88,
+      "win_rate": 0.6493506493506493,
+      "profit_factor": 2.162582882503082,
+      "sharpe": 0.8346327494505246
+    },
+    "oos": {
+      "n_trades": 22,
+      "net_pnl": -1008.4800000000001,
+      "win_rate": 0.36363636363636365,
+      "profit_factor": 0.5760408959440371,
+      "sharpe": -0.4761745436193634
+    },
+    "veto": true
+  },
+  {
+    "symbol": "CHF/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 63,
+      "hold_horizon": 60,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 280,
+      "net_pnl": 5017.12,
+      "win_rate": 0.6464285714285715,
+      "profit_factor": 1.1190834708405566,
+      "sharpe": 0.17275780517453765
+    },
+    "oos": {
+      "n_trades": 82,
+      "net_pnl": -1394.61,
+      "win_rate": 0.5853658536585366,
+      "profit_factor": 0.8939532655559695,
+      "sharpe": -0.16671173444099205
+    },
+    "veto": true
+  },
+  {
+    "symbol": "CAD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 263,
+      "net_pnl": 7476.97,
+      "win_rate": 0.5247148288973384,
+      "profit_factor": 1.1417750066934302,
+      "sharpe": 0.21731541816243724
+    },
+    "oos": {
+      "n_trades": 80,
+      "net_pnl": -924.3000000000001,
+      "win_rate": 0.475,
+      "profit_factor": 0.9447941801849153,
+      "sharpe": -0.08574903264834748
+    },
+    "veto": true
+  },
+  {
+    "symbol": "NZD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 106,
+      "net_pnl": 4896.47,
+      "win_rate": 0.5471698113207547,
+      "profit_factor": 1.2140258257517942,
+      "sharpe": 0.21662158975199214
+    },
+    "oos": {
+      "n_trades": 34,
+      "net_pnl": -3457.1600000000003,
+      "win_rate": 0.5,
+      "profit_factor": 0.6070373098362296,
+      "sharpe": -0.4943335910540462
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/CHF",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 168,
+      "net_pnl": 8553.72,
+      "win_rate": 0.5773809523809523,
+      "profit_factor": 1.3291990318445255,
+      "sharpe": 0.3049436715798927
+    },
+    "oos": {
+      "n_trades": 58,
+      "net_pnl": -4022.44,
+      "win_rate": 0.4827586206896552,
+      "profit_factor": 0.6621039164609299,
+      "sharpe": -0.5047735126191512
+    },
+    "veto": true
+  },
+  {
+    "symbol": "NZD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 1.5
+    },
+    "train": {
+      "n_trades": 180,
+      "net_pnl": 4672.4400000000005,
+      "win_rate": 0.5388888888888889,
+      "profit_factor": 1.1991440001159293,
+      "sharpe": 0.34764464680777996
+    },
+    "oos": {
+      "n_trades": 63,
+      "net_pnl": 137.2600000000002,
+      "win_rate": 0.5079365079365079,
+      "profit_factor": 1.0201849972794519,
+      "sharpe": 0.04447828564770048
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "NZD/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 10,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 303,
+      "net_pnl": 15634.06,
+      "win_rate": 0.5379537953795379,
+      "profit_factor": 1.404937871258535,
+      "sharpe": 0.5205006715426758
+    },
+    "oos": {
+      "n_trades": 113,
+      "net_pnl": -6118.37,
+      "win_rate": 0.4424778761061947,
+      "profit_factor": 0.6272112051658407,
+      "sharpe": -0.6709716410147285
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 307,
+      "net_pnl": 4697.94,
+      "win_rate": 0.498371335504886,
+      "profit_factor": 1.1134327810436868,
+      "sharpe": 0.09993439662511563
+    },
+    "oos": {
+      "n_trades": 69,
+      "net_pnl": -6166.5,
+      "win_rate": 0.34782608695652173,
+      "profit_factor": 0.3813846590618395,
+      "sharpe": -0.7031865538608805
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/JPY",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 415,
+      "net_pnl": 3564.82,
+      "win_rate": 0.5012048192771085,
+      "profit_factor": 1.0582827386913107,
+      "sharpe": 0.0656212789514809
+    },
+    "oos": {
+      "n_trades": 95,
+      "net_pnl": -6361.13,
+      "win_rate": 0.4,
+      "profit_factor": 0.4411786926607116,
+      "sharpe": -0.6245118277070221
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/JPY",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 559,
+      "net_pnl": 17217.69,
+      "win_rate": 0.5652951699463328,
+      "profit_factor": 1.1647937762765048,
+      "sharpe": 0.18841118848257055
+    },
+    "oos": {
+      "n_trades": 197,
+      "net_pnl": 1943.74,
+      "win_rate": 0.6091370558375635,
+      "profit_factor": 1.0676435459981959,
+      "sharpe": 0.08076744967059175
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "AUD/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 81,
+      "net_pnl": 4234.04,
+      "win_rate": 0.691358024691358,
+      "profit_factor": 1.255344760416026,
+      "sharpe": 0.22705981274779558
+    },
+    "oos": {
+      "n_trades": 27,
+      "net_pnl": 209.97999999999982,
+      "win_rate": 0.6666666666666666,
+      "profit_factor": 1.0408313272223109,
+      "sharpe": 0.05755604021986348
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "EUR/AUD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/CAD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "AUD/NZD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/AUD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 1.5
+    },
+    "train": {
+      "n_trades": 134,
+      "net_pnl": 1740.12,
+      "win_rate": 0.5447761194029851,
+      "profit_factor": 1.1668134971571762,
+      "sharpe": 0.2351448138140478
+    },
+    "oos": {
+      "n_trades": 49,
+      "net_pnl": -773.9100000000001,
+      "win_rate": 0.4489795918367347,
+      "profit_factor": 0.8002529391268437,
+      "sharpe": -0.4012742475200107
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/GBP",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 78,
+      "net_pnl": 3787.6000000000004,
+      "win_rate": 0.6666666666666666,
+      "profit_factor": 1.3062312678327,
+      "sharpe": 0.18024042246566735
+    },
+    "oos": {
+      "n_trades": 24,
+      "net_pnl": -2109.75,
+      "win_rate": 0.4583333333333333,
+      "profit_factor": 0.4456764205896495,
+      "sharpe": -0.6414204145560646
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 86,
+      "net_pnl": 6378.72,
+      "win_rate": 0.5697674418604651,
+      "profit_factor": 1.260382062852025,
+      "sharpe": 0.31823945924262154
+    },
+    "oos": {
+      "n_trades": 30,
+      "net_pnl": -3478.56,
+      "win_rate": 0.5,
+      "profit_factor": 0.6387570590959788,
+      "sharpe": -0.5820159411991737
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/NZD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 67,
+      "net_pnl": 4416.95,
+      "win_rate": 0.6119402985074627,
+      "profit_factor": 1.6345390238015882,
+      "sharpe": 0.5538801468445876
+    },
+    "oos": {
+      "n_trades": 25,
+      "net_pnl": 755.94,
+      "win_rate": 0.52,
+      "profit_factor": 1.2672573192246095,
+      "sharpe": 0.3188759581140342
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "AUD/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 40,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 158,
+      "net_pnl": 2254.7499999999995,
+      "win_rate": 0.6265822784810127,
+      "profit_factor": 1.1051585645173854,
+      "sharpe": 0.11803218500164145
+    },
+    "oos": {
+      "n_trades": 53,
+      "net_pnl": 57.43999999999995,
+      "win_rate": 0.6037735849056604,
+      "profit_factor": 1.0102487608348887,
+      "sharpe": 2.690946549507331e-05
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "EUR/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/AUD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 69,
+      "net_pnl": 2142.31,
+      "win_rate": 0.5362318840579711,
+      "profit_factor": 1.4071733486397209,
+      "sharpe": 0.30744733989294243
+    },
+    "oos": {
+      "n_trades": 26,
+      "net_pnl": -473.57,
+      "win_rate": 0.34615384615384615,
+      "profit_factor": 0.7774911667418433,
+      "sharpe": -0.24225307610656033
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/AUD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 191,
+      "net_pnl": 8182.9800000000005,
+      "win_rate": 0.5706806282722513,
+      "profit_factor": 1.231307061935211,
+      "sharpe": 0.2716459778374096
+    },
+    "oos": {
+      "n_trades": 66,
+      "net_pnl": 5460.89,
+      "win_rate": 0.6212121212121212,
+      "profit_factor": 1.490825486049256,
+      "sharpe": 0.5805986491784748
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "GBP/AUD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 70,
+      "net_pnl": 14740.74,
+      "win_rate": 0.6285714285714286,
+      "profit_factor": 2.0527731394918662,
+      "sharpe": 0.7753289537730935
+    },
+    "oos": {
+      "n_trades": 26,
+      "net_pnl": 984.2400000000001,
+      "win_rate": 0.6538461538461539,
+      "profit_factor": 1.2123815894525602,
+      "sharpe": 0.2193556356484555
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "GBP/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 59,
+      "net_pnl": 2300.6800000000003,
+      "win_rate": 0.5932203389830508,
+      "profit_factor": 1.1514860005754768,
+      "sharpe": 0.14743920529631488
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": 167.59,
+      "win_rate": 0.7,
+      "profit_factor": 1.05360255618849,
+      "sharpe": 0.055929793999598784
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "GBP/CAD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 48,
+      "net_pnl": 565.54,
+      "win_rate": 0.5,
+      "profit_factor": 1.1810400020487606,
+      "sharpe": 0.12955575682363168
+    },
+    "oos": {
+      "n_trades": 23,
+      "net_pnl": -1869.52,
+      "win_rate": 0.2608695652173913,
+      "profit_factor": 0.2702318682176595,
+      "sharpe": -1.2367532139794175
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1d",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/NZD",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 41,
+      "net_pnl": 3085.15,
+      "win_rate": 0.6097560975609756,
+      "profit_factor": 2.2081902307785697,
+      "sharpe": 0.49286729495610493
+    },
+    "oos": {
+      "n_trades": 20,
+      "net_pnl": 576.12,
+      "win_rate": 0.6,
+      "profit_factor": 1.5901055003584965,
+      "sharpe": 0.35969112651542645
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "EUR/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 63,
+      "hold_horizon": 60,
+      "reward_risk": 1.0,
+      "atr_stop_mult": 3.0
+    },
+    "train": {
+      "n_trades": 191,
+      "net_pnl": 10233.37,
+      "win_rate": 0.5654450261780105,
+      "profit_factor": 1.3036674989302435,
+      "sharpe": 0.35653483722165147
+    },
+    "oos": {
+      "n_trades": 57,
+      "net_pnl": -1986.92,
+      "win_rate": 0.543859649122807,
+      "profit_factor": 0.8245816319773986,
+      "sharpe": -0.23559895043871856
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/CAD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "hold_horizon": 20,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 269,
+      "net_pnl": 4850.61,
+      "win_rate": 0.5241635687732342,
+      "profit_factor": 1.1102363511038496,
+      "sharpe": 0.16866168566906553
+    },
+    "oos": {
+      "n_trades": 98,
+      "net_pnl": -832.2699999999999,
+      "win_rate": 0.46938775510204084,
+      "profit_factor": 0.9458509379973169,
+      "sharpe": -0.08436802362440987
+    },
+    "veto": true
+  },
+  {
+    "symbol": "GBP/AUD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "hold_horizon": 60,
+      "reward_risk": 1.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 138,
+      "net_pnl": 4180.780000000001,
+      "win_rate": 0.5797101449275363,
+      "profit_factor": 1.182415065196856,
+      "sharpe": 0.19125310933027986
+    },
+    "oos": {
+      "n_trades": 48,
+      "net_pnl": 674.04,
+      "win_rate": 0.5625,
+      "profit_factor": 1.0789375680708289,
+      "sharpe": 0.041833580278419956
+    },
+    "veto": true,
+    "veto_reason": "2026-07-17 majors-only allowlist (cross costs 2-10 pips exceed edge; user-approved)"
+  },
+  {
+    "symbol": "GBP/NZD",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "hold_horizon": 10,
+      "reward_risk": 0.5,
+      "atr_stop_mult": 4.0
+    },
+    "train": {
+      "n_trades": 293,
+      "net_pnl": 4074.56,
+      "win_rate": 0.5733788395904437,
+      "profit_factor": 1.158104374124269,
+      "sharpe": 0.20467789675816914
+    },
+    "oos": {
+      "n_trades": 92,
+      "net_pnl": -227.26999999999998,
+      "win_rate": 0.5760869565217391,
+      "profit_factor": 0.9759590414081631,
+      "sharpe": -0.06817468477364313
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/GBP",
+    "asset_class": "Forex",
+    "timeframe": "15m",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
+  },
+  {
+    "symbol": "EUR/GBP",
+    "asset_class": "Forex",
+    "timeframe": "1h",
+    "parameters": {
+      "momentum_lookback": 28,
+      "vol_window": 28,
+      "hold_horizon": 24,
+      "reward_risk": 2.0,
+      "atr_stop_mult": 2.5
+    },
+    "train": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "oos": {
+      "n_trades": 0,
+      "net_pnl": 0.0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "sharpe": 0.0
+    },
+    "veto": true
   }
 ]

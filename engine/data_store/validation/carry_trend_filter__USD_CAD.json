@@ -1,0 +1,58 @@
+{
+  "strategy": "carry_trend_filter",
+  "instrument": "USD/CAD",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 1,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.04943229535436578,
+    "oos_sharpe_std": 0.02701878107751841,
+    "oos_sharpe_median": -0.030943377306813333,
+    "frac_positive": 0.0,
+    "oos_sharpe_paths": [
+      -0.0305,
+      -0.0305,
+      -0.0305,
+      -0.0305,
+      -0.0305,
+      -0.0309,
+      -0.0309,
+      -0.0309,
+      -0.031,
+      -0.0886,
+      -0.0886,
+      -0.0886,
+      -0.087,
+      -0.0782,
+      -0.0344
+    ]
+  },
+  "dsr": {
+    "dsr": 0.019699308078849436,
+    "observed_sharpe": -0.018093305262036993,
+    "observed_sharpe_ann": -0.2872223167111574,
+    "sr0": 0.0,
+    "n_trials": 138,
+    "n_trials_observed": 1,
+    "n_obs": 3148,
+    "skew": -56.07552989873854,
+    "kurtosis": 3145.6426170013438
+  },
+  "pbo": {
+    "pbo": null,
+    "note": "insufficient matrix"
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.020 <= 0.95 (multiple-testing deflation)",
+      "PBO n/a >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.031, 0% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

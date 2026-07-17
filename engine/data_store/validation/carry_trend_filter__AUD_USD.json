@@ -1,0 +1,58 @@
+{
+  "strategy": "carry_trend_filter",
+  "instrument": "AUD/USD",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 1,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.03537651355186689,
+    "oos_sharpe_std": 0.006838263331246138,
+    "oos_sharpe_median": -0.031784002748447546,
+    "frac_positive": 0.0,
+    "oos_sharpe_paths": [
+      -0.0323,
+      -0.044,
+      -0.044,
+      -0.044,
+      -0.044,
+      -0.0294,
+      -0.0294,
+      -0.0294,
+      -0.0294,
+      -0.0296,
+      -0.0296,
+      -0.0296,
+      -0.0421,
+      -0.0421,
+      -0.0318
+    ]
+  },
+  "dsr": {
+    "dsr": 0.042569050151959664,
+    "observed_sharpe": -0.01696780140388446,
+    "observed_sharpe_ann": -0.26935549686126553,
+    "sr0": 0.0,
+    "n_trials": 137,
+    "n_trials_observed": 1,
+    "n_obs": 3136,
+    "skew": -53.50682653040298,
+    "kurtosis": 2952.1193546331
+  },
+  "pbo": {
+    "pbo": null,
+    "note": "insufficient matrix"
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.043 <= 0.95 (multiple-testing deflation)",
+      "PBO n/a >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.032, 0% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

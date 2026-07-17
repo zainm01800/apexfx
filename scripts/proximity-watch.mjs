@@ -98,11 +98,15 @@ function gradeRow(row, res, candles) {
       }
     }
     if (dir === 'short') {
-      if (bar.low  <= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
-      if (bar.high >= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+      const hitTp = bar.low <= tp, hitSl = bar.high >= sl;
+      if (hitTp && hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'ambiguous'; }
+      if (hitTp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     } else {
-      if (bar.high >= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
-      if (bar.low  <= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+      const hitTp = bar.high >= tp, hitSl = bar.low <= sl;
+      if (hitTp && hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'ambiguous'; }
+      if (hitTp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     }
   }
   if (filled) row.filled_at = filledAt;

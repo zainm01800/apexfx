@@ -1,0 +1,60 @@
+{
+  "strategy": "intraday_close_momentum",
+  "instrument": "ETH/USD",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 4,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.0027271418814440165,
+    "oos_sharpe_std": 0.005945815730220344,
+    "oos_sharpe_median": -0.002305721490118991,
+    "frac_positive": 0.26666666666666666,
+    "oos_sharpe_paths": [
+      0.0054,
+      -0.0023,
+      0.0053,
+      0.0037,
+      0.0049,
+      -0.0109,
+      -0.0014,
+      -0.0029,
+      -0.0017,
+      -0.0104,
+      -0.0114,
+      -0.0107,
+      -0.0031,
+      -0.002,
+      -0.0035
+    ]
+  },
+  "dsr": {
+    "dsr": 3.60246410973653e-07,
+    "observed_sharpe": -0.0024611341300178496,
+    "observed_sharpe_ann": -0.04701990153294275,
+    "sr0": 0.017818433780807306,
+    "n_trials": 136,
+    "n_trials_observed": 4,
+    "n_obs": 61245,
+    "skew": 9.84813272216048,
+    "kurtosis": 874.1273814730583
+  },
+  "pbo": {
+    "pbo": 0.0,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 4
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": true,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.0 < 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.002, 27% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

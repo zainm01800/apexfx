@@ -1,0 +1,622 @@
+{
+  "generated_utc": "2026-07-17T11:10:38+00:00",
+  "ledger_before": 120,
+  "ledger_after": 136,
+  "holdout_start": "2025-01-01",
+  "exit_mode": "barrier",
+  "runs": [
+    {
+      "candidate": "close_momentum",
+      "instrument": "BTC/USD",
+      "cost_tag": "rt2.5_config",
+      "asset_class": "crypto",
+      "bars": 61246,
+      "years": 7.0,
+      "headline_params": {
+        "holding_horizon": 1,
+        "vol_filter": true
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 1,
+          "vol_filter": false
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": false
+        }
+      ],
+      "dsr": {
+        "dsr": 1.1164928956867852e-05,
+        "observed_sharpe": -0.0030159570971509987,
+        "observed_sharpe_ann": -0.0576197794366418,
+        "sr0": 0.01452293879308706,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 61245,
+        "skew": 14.834205824030759,
+        "kurtosis": 1360.1110504160479
+      },
+      "pbo": {
+        "pbo": 0.0055,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.0033405364213890754,
+        "oos_sharpe_std": 0.005212943606234335,
+        "oos_sharpe_median": -0.0022322469354158422,
+        "frac_positive": 0.3333333333333333,
+        "oos_sharpe_paths": [
+          -0.0022,
+          0.0027,
+          0.0004,
+          0.0029,
+          -0.0078,
+          -0.0028,
+          -0.0046,
+          -0.0017,
+          -0.0139,
+          -0.0002,
+          0.0025,
+          -0.0093,
+          0.0007,
+          -0.0101,
+          -0.0067
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.0055 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.002, 33% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 615,
+        "trades_per_year": 87.9,
+        "net_bps_per_trade": -8.84,
+        "win_rate": 0.439,
+        "exit_reasons": {
+          "time": 614,
+          "target": 1
+        },
+        "subperiods": {
+          "pre_2021": {
+            "sharpe": 0.012,
+            "n_trades": 251
+          },
+          "post_2021": {
+            "sharpe": -0.102,
+            "n_trades": 360
+          }
+        }
+      }
+    },
+    {
+      "candidate": "close_momentum",
+      "instrument": "BTC/USD",
+      "cost_tag": "rt10_stress",
+      "asset_class": "crypto",
+      "bars": 61246,
+      "years": 7.0,
+      "headline_params": {
+        "holding_horizon": 1,
+        "vol_filter": true
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 1,
+          "vol_filter": false
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": false
+        }
+      ],
+      "dsr": {
+        "dsr": 2.4619877009843552e-14,
+        "observed_sharpe": -0.008753768846672928,
+        "observed_sharpe_ann": -0.16724051899183476,
+        "sr0": 0.023830999131570486,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 61245,
+        "skew": 13.71695279408789,
+        "kurtosis": 1335.8713201203027
+      },
+      "pbo": {
+        "pbo": 0.0,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.00908878903024349,
+        "oos_sharpe_std": 0.005849493885573901,
+        "oos_sharpe_median": -0.007417790612190751,
+        "frac_positive": 0.0,
+        "oos_sharpe_paths": [
+          -0.0072,
+          -0.002,
+          -0.0046,
+          -0.0024,
+          -0.0141,
+          -0.008,
+          -0.0101,
+          -0.0074,
+          -0.0208,
+          -0.0054,
+          -0.0029,
+          -0.0159,
+          -0.0051,
+          -0.0168,
+          -0.0135
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.0 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.007, 0% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 615,
+        "trades_per_year": 87.9,
+        "net_bps_per_trade": -16.34,
+        "win_rate": 0.4049,
+        "exit_reasons": {
+          "time": 614,
+          "target": 1
+        },
+        "subperiods": {
+          "pre_2021": {
+            "sharpe": -0.091,
+            "n_trades": 251
+          },
+          "post_2021": {
+            "sharpe": -0.218,
+            "n_trades": 360
+          }
+        }
+      }
+    },
+    {
+      "candidate": "close_momentum",
+      "instrument": "ETH/USD",
+      "cost_tag": "rt2.5_config",
+      "asset_class": "crypto",
+      "bars": 61246,
+      "years": 7.0,
+      "headline_params": {
+        "holding_horizon": 1,
+        "vol_filter": true
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 1,
+          "vol_filter": false
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": false
+        }
+      ],
+      "dsr": {
+        "dsr": 3.60246410973653e-07,
+        "observed_sharpe": -0.0024611341300178496,
+        "observed_sharpe_ann": -0.04701990153294275,
+        "sr0": 0.017818433780807306,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 61245,
+        "skew": 9.84813272216048,
+        "kurtosis": 874.1273814730583
+      },
+      "pbo": {
+        "pbo": 0.0,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.0027271418814440165,
+        "oos_sharpe_std": 0.005945815730220344,
+        "oos_sharpe_median": -0.002305721490118991,
+        "frac_positive": 0.26666666666666666,
+        "oos_sharpe_paths": [
+          0.0054,
+          -0.0023,
+          0.0053,
+          0.0037,
+          0.0049,
+          -0.0109,
+          -0.0014,
+          -0.0029,
+          -0.0017,
+          -0.0104,
+          -0.0114,
+          -0.0107,
+          -0.0031,
+          -0.002,
+          -0.0035
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.0 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.002, 27% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 685,
+        "trades_per_year": 97.9,
+        "net_bps_per_trade": -7.46,
+        "win_rate": 0.4569,
+        "exit_reasons": {
+          "time": 684,
+          "target": 1
+        },
+        "subperiods": {
+          "pre_2021": {
+            "sharpe": 0.025,
+            "n_trades": 313
+          },
+          "post_2021": {
+            "sharpe": -0.103,
+            "n_trades": 366
+          }
+        }
+      }
+    },
+    {
+      "candidate": "close_momentum",
+      "instrument": "ETH/USD",
+      "cost_tag": "rt10_stress",
+      "asset_class": "crypto",
+      "bars": 61246,
+      "years": 7.0,
+      "headline_params": {
+        "holding_horizon": 1,
+        "vol_filter": true
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": true
+        },
+        {
+          "holding_horizon": 1,
+          "vol_filter": false
+        },
+        {
+          "holding_horizon": 2,
+          "vol_filter": false
+        }
+      ],
+      "dsr": {
+        "dsr": 1.7818837470670138e-15,
+        "observed_sharpe": -0.007998132347439992,
+        "observed_sharpe_ann": -0.15280410394428406,
+        "sr0": 0.02513474104806448,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 61245,
+        "skew": 8.987762328068252,
+        "kurtosis": 863.2357506459196
+      },
+      "pbo": {
+        "pbo": 0.0,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.008309849304339012,
+        "oos_sharpe_std": 0.006327139489662718,
+        "oos_sharpe_median": -0.008550987009727097,
+        "frac_positive": 0.13333333333333333,
+        "oos_sharpe_paths": [
+          0.0007,
+          -0.0067,
+          0.0011,
+          -0.0014,
+          -0.0006,
+          -0.0164,
+          -0.0065,
+          -0.009,
+          -0.0086,
+          -0.0153,
+          -0.0172,
+          -0.0172,
+          -0.0087,
+          -0.0082,
+          -0.0105
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.0 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.009, 13% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 685,
+        "trades_per_year": 97.9,
+        "net_bps_per_trade": -14.96,
+        "win_rate": 0.4321,
+        "exit_reasons": {
+          "time": 684,
+          "target": 1
+        },
+        "subperiods": {
+          "pre_2021": {
+            "sharpe": -0.073,
+            "n_trades": 313
+          },
+          "post_2021": {
+            "sharpe": -0.215,
+            "n_trades": 366
+          }
+        }
+      }
+    },
+    {
+      "candidate": "fix_flow",
+      "instrument": "EUR/USD",
+      "cost_tag": "config_v5",
+      "asset_class": "forex",
+      "bars": 23808,
+      "years": 3.8,
+      "data_note": " (adapter gap-fill: 27663 cached + 23700 fetched)",
+      "headline_params": {
+        "holding_horizon": 1,
+        "condition_on_premove": false
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "condition_on_premove": false
+        },
+        {
+          "holding_horizon": 2,
+          "condition_on_premove": false
+        },
+        {
+          "holding_horizon": 1,
+          "condition_on_premove": true
+        },
+        {
+          "holding_horizon": 2,
+          "condition_on_premove": true
+        }
+      ],
+      "dsr": {
+        "dsr": 1.0584649473053193e-14,
+        "observed_sharpe": -0.028327598917592525,
+        "observed_sharpe_ann": -0.4496866918531938,
+        "sr0": 0.021599605782082337,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 23807,
+        "skew": 0.03554743003095498,
+        "kurtosis": 74.60819471434155
+      },
+      "pbo": {
+        "pbo": 0.00825,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.028509132231504905,
+        "oos_sharpe_std": 0.01130978439191072,
+        "oos_sharpe_median": -0.02814707671893585,
+        "frac_positive": 0.0,
+        "oos_sharpe_paths": [
+          -0.0431,
+          -0.0401,
+          -0.034,
+          -0.0359,
+          -0.0498,
+          -0.024,
+          -0.0183,
+          -0.0211,
+          -0.0344,
+          -0.0147,
+          -0.0179,
+          -0.0324,
+          -0.0096,
+          -0.0242,
+          -0.0281
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.00825 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.028, 0% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 978,
+        "trades_per_year": 257.5,
+        "net_bps_per_trade": -2.03,
+        "win_rate": 0.4264,
+        "exit_reasons": {
+          "time": 978
+        },
+        "subperiods": {
+          "pre_2021": null,
+          "post_2021": {
+            "sharpe": -0.45,
+            "n_trades": 978
+          }
+        }
+      }
+    },
+    {
+      "candidate": "fix_flow",
+      "instrument": "USD/JPY",
+      "cost_tag": "config_v5",
+      "asset_class": "forex",
+      "bars": 23815,
+      "years": 3.8,
+      "data_note": " (adapter gap-fill: 24392 cached + 23700 fetched)",
+      "headline_params": {
+        "holding_horizon": 1,
+        "condition_on_premove": false
+      },
+      "grid": [
+        {
+          "holding_horizon": 1,
+          "condition_on_premove": false
+        },
+        {
+          "holding_horizon": 2,
+          "condition_on_premove": false
+        },
+        {
+          "holding_horizon": 1,
+          "condition_on_premove": true
+        },
+        {
+          "holding_horizon": 2,
+          "condition_on_premove": true
+        }
+      ],
+      "dsr": {
+        "dsr": 9.54966991079404e-12,
+        "observed_sharpe": -0.030617506033377002,
+        "observed_sharpe_ann": -0.48603784037601133,
+        "sr0": 0.01461312370094831,
+        "n_trials": 136,
+        "n_trials_observed": 4,
+        "n_obs": 23814,
+        "skew": 1.5697319109577876,
+        "kurtosis": 142.11235454919046
+      },
+      "pbo": {
+        "pbo": 0.1575,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 4
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": -0.032055278913165786,
+        "oos_sharpe_std": 0.008613842225780965,
+        "oos_sharpe_median": -0.03075617759767564,
+        "frac_positive": 0.0,
+        "oos_sharpe_paths": [
+          -0.0454,
+          -0.0371,
+          -0.0494,
+          -0.0399,
+          -0.0356,
+          -0.0261,
+          -0.0366,
+          -0.029,
+          -0.0251,
+          -0.0308,
+          -0.0235,
+          -0.0196,
+          -0.0324,
+          -0.0283,
+          -0.0219
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": false,
+        "reasons": [
+          "DSR 0.000 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.1575 < 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe -0.031, 0% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "diagnostics": {
+        "n_trades": 978,
+        "trades_per_year": 257.5,
+        "net_bps_per_trade": -1.77,
+        "win_rate": 0.4121,
+        "exit_reasons": {
+          "time": 977,
+          "target": 1
+        },
+        "subperiods": {
+          "pre_2021": null,
+          "post_2021": {
+            "sharpe": -0.486,
+            "n_trades": 978
+          }
+        }
+      }
+    }
+  ]
+}

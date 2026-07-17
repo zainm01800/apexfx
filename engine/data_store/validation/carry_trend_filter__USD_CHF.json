@@ -1,0 +1,58 @@
+{
+  "strategy": "carry_trend_filter",
+  "instrument": "USD/CHF",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 1,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.012823456341340822,
+    "oos_sharpe_std": 0.02454329783844508,
+    "oos_sharpe_median": 0.015721139255489704,
+    "frac_positive": 0.7333333333333333,
+    "oos_sharpe_paths": [
+      0.0157,
+      -0.0147,
+      0.0105,
+      0.041,
+      0.0325,
+      -0.0195,
+      0.0029,
+      0.0322,
+      0.0239,
+      -0.033,
+      0.0011,
+      -0.0084,
+      0.0326,
+      0.0215,
+      0.0539
+    ]
+  },
+  "dsr": {
+    "dsr": 0.6391303858428591,
+    "observed_sharpe": 0.0063712291122879445,
+    "observed_sharpe_ann": 0.10114012666157231,
+    "sr0": 0.0,
+    "n_trials": 137,
+    "n_trials_observed": 1,
+    "n_obs": 3142,
+    "skew": -0.7937460107540719,
+    "kurtosis": 22.333148651585642
+  },
+  "pbo": {
+    "pbo": null,
+    "note": "insufficient matrix"
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": true,
+    "reasons": [
+      "DSR 0.639 <= 0.95 (multiple-testing deflation)",
+      "PBO n/a >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe 0.016, 73% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}

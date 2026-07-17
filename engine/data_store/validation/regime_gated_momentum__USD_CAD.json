@@ -1,44 +1,46 @@
 {
   "strategy": "regime_gated_momentum",
   "instrument": "USD/CAD",
-  "config_version": 1,
+  "config_version": 5,
   "generated_for": "2024-12-31",
   "n_trials": 3,
   "cpcv": {
     "n_paths": 15,
-    "oos_sharpe_mean": -0.00388025701563943,
-    "oos_sharpe_std": 0.015028170800576007,
-    "oos_sharpe_median": 0.0,
-    "frac_positive": 0.0,
+    "oos_sharpe_mean": -0.03287192779395156,
+    "oos_sharpe_std": 0.03359891979370416,
+    "oos_sharpe_median": -0.03358929679713248,
+    "frac_positive": 0.26666666666666666,
     "oos_sharpe_paths": [
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      -0.0582,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      -0.0302,
+      -0.0106,
+      -0.068,
+      -0.0336,
+      0.0096,
+      -0.02,
+      -0.0776,
+      -0.0493,
+      0.0068,
+      -0.0707,
+      -0.0401,
+      0.0115,
+      -0.0899,
+      -0.0373,
+      0.0063
     ]
   },
   "dsr": {
-    "dsr": 0.0,
-    "observed_sharpe": 0.0,
-    "observed_sharpe_ann": 0.0,
-    "sr0": 0.0,
-    "n_trials": 3,
-    "n_obs": 2866,
-    "note": "insufficient data / zero variance"
+    "dsr": 0.0013206013715060065,
+    "observed_sharpe": -0.036512236781521906,
+    "observed_sharpe_ann": -0.5796137900076741,
+    "sr0": 0.024978504315481993,
+    "n_trials": 170,
+    "n_trials_observed": 3,
+    "n_obs": 2332,
+    "skew": -0.8516560409990349,
+    "kurtosis": 19.17955494713474
   },
   "pbo": {
-    "pbo": 0.46325,
+    "pbo": 0.837,
     "n_combos": 4000,
     "n_splits": 16,
     "n_configs": 3
@@ -46,12 +48,12 @@
   "verdict": {
     "passed": false,
     "dsr_pass": false,
-    "pbo_pass": true,
+    "pbo_pass": false,
     "cpcv_pass": false,
     "reasons": [
-      "DSR 0.000 <= 0.95 (multiple-testing deflation)",
-      "PBO 0.46325 < 0.5 (overfit probability)",
-      "CPCV median OOS Sharpe 0.000, 0% of 15 paths positive",
+      "DSR 0.001 <= 0.95 (multiple-testing deflation)",
+      "PBO 0.837 >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.034, 27% of 15 paths positive",
       "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
     ]
   }

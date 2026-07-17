@@ -25,7 +25,9 @@ engine/wine_stdout.log
 project_showcase.html
 .aider*
 
-# Generated result artifacts are regenerable; huge JSONs choke flaky uploads (2026-07-17)
-engine/data_store/validation/
-engine/data_store/*.json
-engine/data_store/paper_portfolio/
+# ── Runtime artifacts (2026-07-17 audit wave) ──
+engine/data_store/backup_*/
+*.lock
+engine/data_store/paper_portfolio/state.json
+engine/data_store/paper_portfolio/state.json.*
+engine/data_store/ibkr_mirror/

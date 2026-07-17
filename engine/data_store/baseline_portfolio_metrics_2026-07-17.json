@@ -1,0 +1,518 @@
+{
+  "run_at": "2026-07-17T02:38:09+00:00",
+  "window": {
+    "start": "2025-07-17 00:00:00+00:00",
+    "end": "2026-07-17 02:38:09+00:00"
+  },
+  "n_systems": 16,
+  "param_audit": {
+    "EUR/USD@15m": {
+      "source": "vetoed-skip"
+    },
+    "GBP/USD@15m": {
+      "source": "vetoed-skip"
+    },
+    "USD/JPY@15m": {
+      "source": "vetoed-skip"
+    },
+    "USD/CHF@15m": {
+      "source": "vetoed-skip"
+    },
+    "AUD/USD@15m": {
+      "source": "vetoed-skip"
+    },
+    "USD/CAD@15m": {
+      "source": "vetoed-skip"
+    },
+    "NZD/USD@15m": {
+      "source": "vetoed-skip"
+    },
+    "GBP/JPY@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/GBP@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/JPY@15m": {
+      "source": "vetoed-skip"
+    },
+    "GBP/NZD@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "AUD/NZD@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/AUD@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/CAD@15m": {
+      "source": "vetoed-skip"
+    },
+    "CHF/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 0.5
+    },
+    "GBP/CAD@15m": {
+      "source": "vetoed-skip"
+    },
+    "GBP/CHF@15m": {
+      "source": "vetoed-skip"
+    },
+    "GBP/AUD@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/CHF@15m": {
+      "source": "vetoed-skip"
+    },
+    "EUR/NZD@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "NZD/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "CAD/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "EUR/USD@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/USD@1h": {
+      "source": "vetoed-skip"
+    },
+    "USD/JPY@1h": {
+      "source": "vetoed-skip"
+    },
+    "USD/CHF@1h": {
+      "source": "vetoed-skip"
+    },
+    "AUD/USD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 1.5
+    },
+    "USD/CAD@1h": {
+      "source": "vetoed-skip"
+    },
+    "NZD/USD@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/JPY@1h": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "EUR/GBP@1h": {
+      "source": "vetoed-skip"
+    },
+    "EUR/JPY@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/NZD@1h": {
+      "source": "vetoed-skip"
+    },
+    "AUD/NZD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 2.0
+    },
+    "EUR/AUD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/CAD@1h": {
+      "source": "vetoed-skip"
+    },
+    "CHF/JPY@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/CAD@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/CHF@1h": {
+      "source": "vetoed-skip"
+    },
+    "GBP/AUD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "EUR/CHF@1h": {
+      "source": "vetoed-skip"
+    },
+    "EUR/NZD@1h": {
+      "source": "vetoed-skip"
+    },
+    "NZD/JPY@1h": {
+      "source": "vetoed-skip"
+    },
+    "CAD/JPY@1h": {
+      "source": "vetoed-skip"
+    },
+    "EUR/USD@1d": {
+      "source": "vetoed-skip"
+    },
+    "GBP/USD@1d": {
+      "source": "vetoed-skip"
+    },
+    "USD/JPY@1d": {
+      "source": "vetoed-skip"
+    },
+    "USD/CHF@1d": {
+      "source": "vetoed-skip"
+    },
+    "AUD/USD@1d": {
+      "source": "vetoed-skip"
+    },
+    "USD/CAD@1d": {
+      "source": "vetoed-skip"
+    },
+    "NZD/USD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 60,
+      "reward_risk": 0.5
+    },
+    "GBP/JPY@1d": {
+      "source": "vetoed-skip"
+    },
+    "EUR/GBP@1d": {
+      "source": "vetoed-skip"
+    },
+    "EUR/JPY@1d": {
+      "source": "vetoed-skip"
+    },
+    "GBP/NZD@1d": {
+      "source": "vetoed-skip"
+    },
+    "AUD/NZD@1d": {
+      "source": "vetoed-skip"
+    },
+    "EUR/AUD@1d": {
+      "source": "vetoed-skip"
+    },
+    "EUR/CAD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 1.5
+    },
+    "CHF/JPY@1d": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "GBP/CAD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "GBP/CHF@1d": {
+      "source": "vetoed-skip"
+    },
+    "GBP/AUD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/CHF@1d": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/NZD@1d": {
+      "source": "vetoed-skip"
+    },
+    "NZD/JPY@1d": {
+      "source": "vetoed-skip"
+    },
+    "CAD/JPY@1d": {
+      "source": "vetoed-skip"
+    }
+  },
+  "metrics_union_timeline": {
+    "total_return": -0.19391068447587057,
+    "ann_return": -0.0020757748016130284,
+    "ann_vol": 0.007126976471742056,
+    "sharpe": -0.2880027025301426,
+    "sortino": -0.20544260463706357,
+    "max_drawdown": 0.20014530922455676,
+    "calmar": -0.010371338752106721,
+    "n_trades": 3090,
+    "win_rate": 0.4482200647249191,
+    "profit_factor": 0.7999189400879958,
+    "avg_trade_return": -0.00015780582524271844,
+    "expectancy_pnl": -7.2425210571215075,
+    "expectancy_pct": -0.00017330485860517664,
+    "final_equity": 80608.93155241295,
+    "net_pnl": -19391.05
+  },
+  "metrics_daily_resampled": {
+    "total_return": -0.19233645817406841,
+    "ann_return": -0.1371190002092525,
+    "ann_vol": 0.05860490684805173,
+    "sharpe": -2.4932536061986377,
+    "sortino": -1.876337236702913,
+    "max_drawdown": 0.19841592371778272,
+    "calmar": -0.6910685273641847,
+    "n_trades": 3090,
+    "win_rate": 0.4482200647249191,
+    "profit_factor": 0.7999189400879958,
+    "avg_trade_return": -0.00015780582524271844,
+    "expectancy_pnl": -7.2425210571215075,
+    "expectancy_pct": -0.00017330485860517664,
+    "final_equity": 80608.93155241295,
+    "net_pnl": -19391.05
+  },
+  "per_timeframe": {
+    "15m": {
+      "n_trades": 2369,
+      "win_rate": 0.4394259181089067,
+      "net_pnl": -13290.440000000002,
+      "expectancy_pnl": -5.61014774166315,
+      "profit_factor": 0.7955087263646532,
+      "exit_reasons": {
+        "time": 1055,
+        "stop": 841,
+        "target": 473
+      }
+    },
+    "1d": {
+      "n_trades": 17,
+      "win_rate": 0.47058823529411764,
+      "net_pnl": -398.80999999999995,
+      "expectancy_pnl": -23.45941176470588,
+      "profit_factor": 0.5424129424588378,
+      "exit_reasons": {
+        "time": 12,
+        "target": 4,
+        "stop": 1
+      }
+    },
+    "1h": {
+      "n_trades": 704,
+      "win_rate": 0.4772727272727273,
+      "net_pnl": -5701.799999999999,
+      "expectancy_pnl": -8.099147727272726,
+      "profit_factor": 0.8163773214495041,
+      "exit_reasons": {
+        "time": 291,
+        "stop": 268,
+        "target": 145
+      }
+    }
+  },
+  "per_instrument": {
+    "GBP/NZD@15m": {
+      "n_trades": 415,
+      "net_pnl": -1159.313193886966
+    },
+    "CHF/JPY@15m": {
+      "n_trades": 732,
+      "net_pnl": -5737.627085912045
+    },
+    "EUR/NZD@15m": {
+      "n_trades": 415,
+      "net_pnl": -2331.3842966130314
+    },
+    "NZD/JPY@15m": {
+      "n_trades": 423,
+      "net_pnl": -2580.7611825309755
+    },
+    "CAD/JPY@15m": {
+      "n_trades": 384,
+      "net_pnl": -1481.368773086108
+    },
+    "AUD/USD@1h": {
+      "n_trades": 170,
+      "net_pnl": -646.1436067716885
+    },
+    "GBP/JPY@1h": {
+      "n_trades": 149,
+      "net_pnl": -1055.6975677020316
+    },
+    "AUD/NZD@1h": {
+      "n_trades": 134,
+      "net_pnl": -1736.8069188108802
+    },
+    "EUR/AUD@1h": {
+      "n_trades": 127,
+      "net_pnl": -702.3097921533749
+    },
+    "GBP/AUD@1h": {
+      "n_trades": 124,
+      "net_pnl": -1560.8525761383826
+    },
+    "NZD/USD@1d": {
+      "n_trades": 8,
+      "net_pnl": -315.0108418904493
+    },
+    "EUR/CAD@1d": {
+      "n_trades": 1,
+      "net_pnl": 9.394472949495675
+    },
+    "CHF/JPY@1d": {
+      "n_trades": 4,
+      "net_pnl": -109.28361094124207
+    },
+    "GBP/CAD@1d": {
+      "n_trades": 1,
+      "net_pnl": 82.8316141557741
+    },
+    "GBP/AUD@1d": {
+      "n_trades": 1,
+      "net_pnl": -405.51318973670976
+    },
+    "EUR/CHF@1d": {
+      "n_trades": 2,
+      "net_pnl": 338.7781014811946
+    }
+  },
+  "constraint_log": {
+    "max_risk_per_trade": 6089,
+    "max_total_exposure": 5610,
+    "max_correlated_exposure": 1349,
+    "vol_target": 797,
+    "below_min_position": 3047,
+    "no_edge": 196,
+    "drawdown_reducing_scale=1.00": 11,
+    "drawdown_reducing_scale=0.98": 6,
+    "drawdown_reducing_scale=0.95": 1,
+    "drawdown_reducing_scale=0.96": 1,
+    "drawdown_reducing_scale=0.93": 6,
+    "drawdown_reducing_scale=0.92": 18,
+    "drawdown_reducing_scale=0.91": 45,
+    "drawdown_reducing_scale=0.94": 2,
+    "drawdown_reducing_scale=0.90": 70,
+    "drawdown_reducing_scale=0.89": 6,
+    "drawdown_reducing_scale=0.88": 17,
+    "drawdown_reducing_scale=0.86": 61,
+    "drawdown_reducing_scale=0.87": 42,
+    "drawdown_reducing_scale=0.85": 41,
+    "drawdown_reducing_scale=0.83": 45,
+    "drawdown_reducing_scale=0.82": 69,
+    "drawdown_reducing_scale=0.81": 99,
+    "drawdown_reducing_scale=0.79": 89,
+    "drawdown_reducing_scale=0.77": 33,
+    "drawdown_reducing_scale=0.78": 68,
+    "drawdown_reducing_scale=0.80": 56,
+    "drawdown_reducing_scale=0.84": 50,
+    "drawdown_reducing_scale=0.76": 35,
+    "drawdown_reducing_scale=0.75": 23,
+    "drawdown_reducing_scale=0.74": 14,
+    "drawdown_reducing_scale=0.73": 38,
+    "drawdown_reducing_scale=0.72": 65,
+    "drawdown_reducing_scale=0.71": 96,
+    "drawdown_reducing_scale=0.70": 85,
+    "drawdown_reducing_scale=0.69": 66,
+    "drawdown_reducing_scale=0.68": 47,
+    "drawdown_reducing_scale=0.66": 108,
+    "drawdown_reducing_scale=0.67": 43,
+    "drawdown_reducing_scale=0.64": 39,
+    "drawdown_reducing_scale=0.65": 86,
+    "drawdown_reducing_scale=0.63": 57,
+    "drawdown_reducing_scale=0.61": 33,
+    "drawdown_reducing_scale=0.62": 35,
+    "global_trade_cap": 1,
+    "drawdown_reducing_scale=0.60": 17,
+    "drawdown_reducing_scale=0.59": 57,
+    "drawdown_reducing_scale=0.56": 107,
+    "drawdown_reducing_scale=0.57": 105,
+    "drawdown_reducing_scale=0.55": 119,
+    "drawdown_reducing_scale=0.58": 41,
+    "drawdown_reducing_scale=0.53": 78,
+    "drawdown_reducing_scale=0.54": 78,
+    "drawdown_reducing_scale=0.52": 27,
+    "drawdown_reducing_scale=0.50": 12,
+    "drawdown_reducing_scale=0.44": 3,
+    "drawdown_reducing_scale=0.43": 29,
+    "drawdown_reducing_scale=0.42": 25,
+    "drawdown_reducing_scale=0.41": 14,
+    "drawdown_reducing_scale=0.49": 10,
+    "drawdown_reducing_scale=0.51": 9,
+    "drawdown_reducing_scale=0.48": 3,
+    "drawdown_reducing_scale=0.47": 1,
+    "drawdown_reducing_scale=0.46": 4,
+    "drawdown_reducing_scale=0.36": 7,
+    "drawdown_reducing_scale=0.35": 9,
+    "drawdown_reducing_scale=0.32": 3,
+    "drawdown_reducing_scale=0.33": 4,
+    "drawdown_reducing_scale=0.30": 5,
+    "drawdown_reducing_scale=0.29": 23,
+    "drawdown_reducing_scale=0.27": 2,
+    "drawdown_reducing_scale=0.28": 8,
+    "drawdown_reducing_scale=0.25": 15,
+    "drawdown_reducing_scale=0.24": 10,
+    "drawdown_reducing_scale=0.22": 38,
+    "drawdown_reducing_scale=0.21": 44,
+    "drawdown_reducing_scale=0.20": 58,
+    "drawdown_reducing_scale=0.23": 10,
+    "drawdown_reducing_scale=0.19": 60,
+    "drawdown_reducing_scale=0.18": 51,
+    "drawdown_reducing_scale=0.17": 43,
+    "drawdown_reducing_scale=0.16": 29,
+    "drawdown_reducing_scale=0.15": 30,
+    "drawdown_reducing_scale=0.14": 15,
+    "drawdown_reducing_scale=0.13": 40,
+    "drawdown_reducing_scale=0.12": 44,
+    "drawdown_reducing_scale=0.11": 45,
+    "drawdown_reducing_scale=0.10": 34,
+    "drawdown_reducing_scale=0.26": 1,
+    "drawdown_reducing_scale=0.07": 37,
+    "drawdown_reducing_scale=0.08": 45,
+    "drawdown_reducing_scale=0.09": 21,
+    "drawdown_reducing_scale=0.06": 18,
+    "drawdown_reducing_scale=0.05": 19,
+    "drawdown_reducing_scale=0.04": 14,
+    "drawdown_reducing_scale=0.03": 49,
+    "drawdown_reducing_scale=0.02": 92,
+    "drawdown_reducing_scale=0.01": 84,
+    "drawdown_reducing_scale=0.00": 194,
+    "drawdown_breaker": 33342
+  },
+  "approx_gross_leverage": {
+    "max": 32.555216073022955,
+    "p95": 24.814003956027427
+  },
+  "final_equity": 80608.93155241295,
+  "n_open_at_end": 540
+}

@@ -1,0 +1,1 @@
+2026-07-17T19:47:26Z | look #1 | book=book_e_126 | window=2025-01-01->2026-07-17 (562d) | sharpe=0.345 ann_ret=+3.3% maxDD=15.5% trades=293 expectancy_pnl=+22.00/trade | verdict=MARGINAL (pre-fixed bar: CONFIRMED=sharpe>0.5&exp>0, DEAD=sharpe<=0 or exp<=0)

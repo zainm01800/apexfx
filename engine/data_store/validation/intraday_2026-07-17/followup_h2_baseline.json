@@ -1,0 +1,35 @@
+{
+  "note": "Follow-up gate runs (2026-07-17): close-momentum grid reordered so h=2, vol_filter=on is the baseline config. All four configs were already recorded in the TrialLedger before the first campaign (ledger unchanged, n=136); DSR deflated by n=136. Values transcribed from the deterministic run output; full campaign records for the headline baseline are in the sibling files.",
+  "baseline_params": {"holding_horizon": 2, "vol_filter": true},
+  "n_trials": 136,
+  "runs": [
+    {
+      "instrument": "BTC/USD", "cost_tag": "rt2.5_config",
+      "dsr": 0.031, "pbo": 0.0055,
+      "cpcv": {"oos_sharpe_median": 0.008, "frac_positive": 1.0, "n_paths": 15,
+               "oos_sharpe_paths": [0.01, 0.0116, 0.0132, 0.0094, 0.0048, 0.0078, 0.0097, 0.0062, 0.0009, 0.0104, 0.0066, 0.001, 0.0091, 0.0045, 0.0014]},
+      "verdict": "REJECT (DSR)"
+    },
+    {
+      "instrument": "BTC/USD", "cost_tag": "rt10_stress",
+      "dsr": 0.0, "pbo": 0.0,
+      "cpcv": {"oos_sharpe_median": 0.004, "frac_positive": 0.67, "n_paths": 15,
+               "oos_sharpe_paths": [0.0059, 0.0077, 0.0089, 0.005, -0.0005, 0.0035, 0.0051, 0.0016, -0.0046, 0.0059, 0.0021, -0.0045, 0.0043, -0.0013, -0.0042]},
+      "verdict": "REJECT (DSR)"
+    },
+    {
+      "instrument": "ETH/USD", "cost_tag": "rt2.5_config",
+      "dsr": 0.001, "pbo": 0.0,
+      "cpcv": {"oos_sharpe_median": 0.006, "frac_positive": 0.87, "n_paths": 15,
+               "oos_sharpe_paths": [0.0069, 0.0061, 0.0092, 0.007, 0.0123, -0.001, 0.0028, 0.0004, 0.0066, 0.0021, -0.0004, 0.0061, 0.0028, 0.0091, 0.0065]},
+      "verdict": "REJECT (DSR)"
+    },
+    {
+      "instrument": "ETH/USD", "cost_tag": "rt10_stress",
+      "dsr": 0.0, "pbo": 0.0,
+      "cpcv": {"oos_sharpe_median": 0.001, "frac_positive": 0.6, "n_paths": 15,
+               "oos_sharpe_paths": [0.0031, 0.0024, 0.0057, 0.0027, 0.0078, -0.0055, -0.0014, -0.0047, 0.0013, -0.0021, -0.0055, 0.0008, -0.0019, 0.0041, 0.0007]},
+      "verdict": "REJECT (DSR)"
+    }
+  ]
+}

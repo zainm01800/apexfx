@@ -254,7 +254,9 @@ class ZmqConfig(BaseModel):
 class ExecutionConfig(BaseModel):
     """Live execution settings. Off by default — paper/live only when enabled."""
     enabled: bool = False
-    provider: Literal["mt4", "mock", "zmq"] = "mt4"
+    # 2026-07-17: "ibkr" routes the live FX book to the IBKR paper account
+    # (IBKRLiveBridge over IBKRExecutor); rollback = provider "mt4".
+    provider: Literal["mt4", "mock", "zmq", "ibkr"] = "mt4"
     mt4: Mt4Config = Field(default_factory=Mt4Config)
     zmq: ZmqConfig = Field(default_factory=ZmqConfig)
     live_min_position: float = 15000.0

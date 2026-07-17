@@ -31,6 +31,7 @@
     <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-research" href="index.html">Research</a>
+      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-mt4" href="mt4-trades.html">MT4 Terminal</a>
       <a class="nav-link active" id="nav-history" href="history.html">History</a>
     </nav>
@@ -118,8 +119,14 @@
       </div>
     </div>
 
+    <!-- Forward paper test: the engine's frozen book, marked to market daily -->
+    <div class="acc-board" id="paperCard"></div>
+
     <!-- Accuracy scoreboard -->
     <div class="acc-board" id="accBoard"></div>
+
+    <!-- Learning by setup: deterministic per-setup stats (n / win rate / avg R) + latest lesson -->
+    <div class="acc-board" id="learnBoard"></div>
 
     <!-- View toggle: Scan History vs Watchlist -->
     <div class="view-toggle">
@@ -150,6 +157,7 @@
         <button class="hf-pill" data-filter="pending">Pending</button>
         <button class="hf-pill" data-filter="tp_hit">TP Hit ✅</button>
         <button class="hf-pill" data-filter="sl_hit">SL Hit ❌</button>
+        <button class="hf-pill" data-filter="ambiguous" title="One bar spanned both target and stop — graded as neither win nor loss">Ambiguous ⚖️</button>
         <button class="hf-pill" data-filter="expired">Expired ⏱</button>
       </div>
       <div class="hf-pills">

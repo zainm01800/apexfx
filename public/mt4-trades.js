@@ -16,6 +16,14 @@ function mt4Time(unixSeconds) {
   return new Date(unixSeconds * 1000 - brokerOffsetMs);
 }
 
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function formatLessonText(text) {
   if (!text) return '';
   function cleanVal(val) {
@@ -31,10 +39,13 @@ function formatLessonText(text) {
     }
     return String(val).trim();
   }
-  let decoded = text.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  // Lessons are PLAIN TEXT from the DB (attacker-writable — see audit J-C2): never
+  // entity-decode them (that turned stored `&lt;img onerror=…&gt;` into live HTML).
+  // Legacy engine lessons carry an invisible `<!-- TICKET_ID: n -->` marker — strip it.
+  const cleaned = String(text).replace(/<!--[\s\S]*?-->/g, '').trim();
   const jsonRegex = /(\{[^{}]+\})/g;
   let hasReplacement = false;
-  let formatted = decoded.replace(jsonRegex, (match) => {
+  let formatted = cleaned.replace(jsonRegex, (match) => {
     try {
       const parsed = JSON.parse(match);
       hasReplacement = true;
@@ -43,7 +54,7 @@ function formatLessonText(text) {
       return match;
     }
   });
-  return hasReplacement ? formatted : text;
+  return hasReplacement ? formatted : cleaned;
 }
 
 window.navigateToLesson = function(ticket) {
@@ -223,7 +234,7 @@ async function loadMt4Trades() {
     console.error('Error fetching MT4 trades:', e);
     const grid = document.getElementById('mt4TradesGrid');
     if (grid) {
-      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Error syncing with MT4 bridge: ${e.message}</div>`;
+      grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Error syncing with MT4 bridge: ${escHtml(e.message || e)}</div>`;
     }
   }
 }
@@ -526,12 +537,12 @@ function renderMt4Trades() {
       <div class="stat-item" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
-            <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
+            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(formattedSymbol)}</strong>
+            <span class="badge-style style-${escHtml(t.style || 'swing')}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${escHtml(t.style || 'swing')}</span>
             ${winBadge}
             ${exitReasonBadge}
           </div>
-          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${t.ticket}</span>
+          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">#${escHtml(t.ticket)}</span>
         </div>
 
 
@@ -584,7 +595,7 @@ function renderMt4Trades() {
         </div>
 
         ${_mt4TradesFilter === 'closed' ? `
-        <button onclick="event.stopPropagation(); navigateToLesson(${t.ticket})" style="width: 100%; margin-top: 8px; padding: 8px 12px; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s, border-color 0.2s, transform 0.1s;" onmouseover="this.style.background='rgba(0, 240, 255, 0.16)'; this.style.borderColor='rgba(0, 240, 255, 0.4)';" onmouseout="this.style.background='rgba(0, 240, 255, 0.06)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+        <button onclick="event.stopPropagation(); navigateToLesson(${parseInt(t.ticket, 10) || 0})" style="width: 100%; margin-top: 8px; padding: 8px 12px; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s, border-color 0.2s, transform 0.1s;" onmouseover="this.style.background='rgba(0, 240, 255, 0.16)'; this.style.borderColor='rgba(0, 240, 255, 0.4)';" onmouseout="this.style.background='rgba(0, 240, 255, 0.06)'; this.style.borderColor='rgba(0, 240, 255, 0.2)';" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
           🧠 Show Engine Lesson
         </button>
         ` : ''}
@@ -736,6 +747,9 @@ function renderMt4Trades() {
           outcomeLabel = 'Hit Stop Loss';
           closeReasonColor = 'var(--red)';
         }
+      } else if (matchedAi.outcome === 'ambiguous') {
+        outcomeLabel = 'Ambiguous (TP & SL in one bar)';
+        closeReasonColor = '#ffaa00';
       } else if (matchedAi.outcome === 'invalidated') {
         outcomeLabel = 'Closed Manually (Managed Exit)';
         closeReasonColor = '#ffaa00';
@@ -812,6 +826,14 @@ function renderMt4Trades() {
                       : lessonCat === 'pending' ? '⏳ AI Post-Mortem'
                       : '🧠 Post-Mortem Lesson';
 
+    // AI lessons are DB text (attacker-writable — audit J-C2) → escape, keeping the
+    // legacy literal <br> breaks as layout. The fallback post-mortems above are
+    // hardcoded trusted HTML → keep their <strong>/<br> formatting.
+    const lessonBrSplit = '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">';
+    const lessonHtml = isAiLesson
+      ? escHtml(formatLessonText(lessonText)).replace(/&lt;br\s*\/?&gt;/gi, lessonBrSplit)
+      : formatLessonText(lessonText).replace(/<br>/gi, lessonBrSplit);
+
     let finalLabel = 'BREAKEVEN';
     let finalColor = 'var(--text3)';
     if (lessonCat === 'win') {
@@ -834,11 +856,11 @@ function renderMt4Trades() {
     const slText = displaySl > 0 ? displaySl.toFixed(5) : '—';
 
     return `
-      <div class="stat-item" data-lesson-ticket="${t.ticket}" data-lesson-sym="${cleanedSym}" data-lesson-open="${t.open_time}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
+      <div class="stat-item" data-lesson-ticket="${escHtml(t.ticket)}" data-lesson-sym="${escHtml(cleanedSym)}" data-lesson-open="${escHtml(t.open_time)}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, outline 0.2s, box-shadow 0.2s;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${formattedSymbol}</strong>
-            <span class="badge-style style-${t.style || 'swing'}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${t.style || 'swing'}</span>
+            <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(formattedSymbol)}</strong>
+            <span class="badge-style style-${escHtml(t.style || 'swing')}" style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${escHtml(t.style || 'swing')}</span>
           </div>
           <span style="font-size: 11px; font-weight: 700; font-family: var(--mono); color: ${finalColor};">${finalLabel}</span>
         </div>
@@ -874,7 +896,7 @@ function renderMt4Trades() {
             ${isAiLesson ? `<span style="font-size: 9px; font-weight: 700; color: var(--green); background: rgba(0, 200, 100, 0.15); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">AI LEARNING</span>` : `<span style="font-size: 9px; font-weight: 700; color: var(--text3); background: rgba(255, 255, 255, 0.05); padding: 1px 5px; border-radius: 3px; font-family: var(--mono);">DYNAMIC</span>`}
           </div>
           <div style="font-size: 12.5px; color: var(--text2); margin: 0; line-height: 1.5; font-family: inherit;">
-            <div>${formatLessonText(lessonText).replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">')}</div>
+            <div>${lessonHtml}</div>
           </div>
         </div>
 
@@ -894,8 +916,14 @@ function renderMt4Trades() {
     }
 
     if (!_engineLessonsCache || _engineLessonsCache.length === 0) {
-      // Fetch in background to enrich cards (include pending setups too)
-      fetch('/api/memory?all=true&lean=true&symbol=ilike.*%2F*&limit=1000&t=' + Date.now())
+      // Fetch in background to enrich cards (include pending setups too).
+      // Egress audit 2026-07-17 (Supabase free-plan grace ends 2026-08-12): was
+      // limit=1000. The lessons tab only ever renders the closed trades from
+      // /api/mt4-trades (default limit=100, newest first), so the 400 NEWEST
+      // engine rows give ~4x headroom over the 100 cards shown. A setup that
+      // falls outside the window simply renders the existing "DYNAMIC"
+      // fallback lesson — the page already handles missing AI lessons.
+      fetch('/api/memory?all=true&lean=true&symbol=ilike.*%2F*&limit=400&t=' + Date.now())
         .then(r => r.json())
         .then(data => {
           _engineLessonsCache = data;

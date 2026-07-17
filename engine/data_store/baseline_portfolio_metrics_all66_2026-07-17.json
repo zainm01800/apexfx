@@ -1,0 +1,926 @@
+{
+  "run_at": "2026-07-17T02:17:33+00:00",
+  "window": {
+    "start": "2025-07-17 00:00:00+00:00",
+    "end": "2026-07-17 02:17:33+00:00"
+  },
+  "n_systems": 66,
+  "param_audit": {
+    "EUR/USD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "GBP/USD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "USD/JPY@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "USD/CHF@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "AUD/USD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "USD/CAD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "NZD/USD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "GBP/JPY@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/GBP@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/JPY@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "GBP/NZD@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "AUD/NZD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/AUD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/CAD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "CHF/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 0.5
+    },
+    "GBP/CAD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "GBP/CHF@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "GBP/AUD@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/CHF@15m": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 14,
+      "vol_window": 14,
+      "holding_horizon": 36,
+      "reward_risk": 1.5
+    },
+    "EUR/NZD@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "NZD/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "CAD/JPY@15m": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 20,
+      "reward_risk": 2.0
+    },
+    "EUR/USD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/USD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "USD/JPY@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "USD/CHF@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "AUD/USD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 126,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 1.5
+    },
+    "USD/CAD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "NZD/USD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/JPY@1h": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "EUR/GBP@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "EUR/JPY@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/NZD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "AUD/NZD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 2.0
+    },
+    "EUR/AUD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/CAD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "CHF/JPY@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/CAD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/CHF@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "GBP/AUD@1h": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 1.5
+    },
+    "EUR/CHF@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "EUR/NZD@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "NZD/JPY@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "CAD/JPY@1h": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 24,
+      "vol_window": 24,
+      "holding_horizon": 72,
+      "reward_risk": 2.0
+    },
+    "EUR/USD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "GBP/USD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "USD/JPY@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "USD/CHF@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "AUD/USD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "USD/CAD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "NZD/USD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 60,
+      "reward_risk": 0.5
+    },
+    "GBP/JPY@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "EUR/GBP@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "EUR/JPY@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "GBP/NZD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "AUD/NZD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "EUR/AUD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "EUR/CAD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 40,
+      "reward_risk": 1.5
+    },
+    "CHF/JPY@1d": {
+      "source": "optimized",
+      "momentum_lookback": 14,
+      "vol_window": 21,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "GBP/CAD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "GBP/CHF@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "GBP/AUD@1d": {
+      "source": "optimized",
+      "momentum_lookback": 28,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/CHF@1d": {
+      "source": "optimized",
+      "momentum_lookback": 63,
+      "vol_window": 21,
+      "holding_horizon": 60,
+      "reward_risk": 2.0
+    },
+    "EUR/NZD@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "NZD/JPY@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    },
+    "CAD/JPY@1d": {
+      "source": "vetoed->fallback",
+      "momentum_lookback": 63,
+      "vol_window": 63,
+      "holding_horizon": 10,
+      "reward_risk": 2.0
+    }
+  },
+  "metrics_union_timeline": {
+    "total_return": -0.16914886558196984,
+    "ann_return": -0.0017090422946705042,
+    "ann_vol": 0.005672391220233172,
+    "sharpe": -0.29872311970197163,
+    "sortino": -0.23170758508784525,
+    "max_drawdown": 0.20021345288761483,
+    "calmar": -0.008536101196106115,
+    "n_trades": 4292,
+    "win_rate": 0.40121155638397016,
+    "profit_factor": 0.8033786086624172,
+    "avg_trade_return": -0.00016385601118359738,
+    "expectancy_pnl": -5.761638595594601,
+    "expectancy_pct": -0.00020208288054136207,
+    "final_equity": 83085.11344180301,
+    "net_pnl": -16914.89
+  },
+  "metrics_daily_resampled": {
+    "total_return": -0.16684758777949893,
+    "ann_return": -0.11840869998068315,
+    "ann_vol": 0.04803852034342719,
+    "sharpe": -2.606060946854524,
+    "sortino": -2.447642974753272,
+    "max_drawdown": 0.19770574366352123,
+    "calmar": -0.598913808908885,
+    "n_trades": 4292,
+    "win_rate": 0.40121155638397016,
+    "profit_factor": 0.8033786086624172,
+    "avg_trade_return": -0.00016385601118359738,
+    "expectancy_pnl": -5.761638595594601,
+    "expectancy_pct": -0.00020208288054136207,
+    "final_equity": 83085.11344180301,
+    "net_pnl": -16914.89
+  },
+  "per_timeframe": {
+    "15m": {
+      "n_trades": 3312,
+      "win_rate": 0.38556763285024154,
+      "net_pnl": -18281.13,
+      "expectancy_pnl": -5.519664855072464,
+      "profit_factor": 0.7249486680319083,
+      "exit_reasons": {
+        "time": 1620,
+        "stop": 1175,
+        "target": 517
+      }
+    },
+    "1d": {
+      "n_trades": 15,
+      "win_rate": 0.06666666666666667,
+      "net_pnl": -708.37,
+      "expectancy_pnl": -47.224666666666664,
+      "profit_factor": 0.0010153859171614322,
+      "exit_reasons": {
+        "time": 12,
+        "stop": 3
+      }
+    },
+    "1h": {
+      "n_trades": 965,
+      "win_rate": 0.46010362694300516,
+      "net_pnl": 2074.6100000000006,
+      "expectancy_pnl": 2.1498549222797934,
+      "profit_factor": 1.1100343690000107,
+      "exit_reasons": {
+        "stop": 432,
+        "time": 366,
+        "target": 167
+      }
+    }
+  },
+  "per_instrument": {
+    "EUR/USD@15m": {
+      "n_trades": 121,
+      "net_pnl": 781.4202179688921
+    },
+    "GBP/USD@15m": {
+      "n_trades": 113,
+      "net_pnl": -249.00324810291147
+    },
+    "USD/JPY@15m": {
+      "n_trades": 128,
+      "net_pnl": -2176.233462938591
+    },
+    "USD/CHF@15m": {
+      "n_trades": 96,
+      "net_pnl": -1085.366195686441
+    },
+    "AUD/USD@15m": {
+      "n_trades": 91,
+      "net_pnl": -387.37044402993854
+    },
+    "USD/CAD@15m": {
+      "n_trades": 70,
+      "net_pnl": -431.3424404958525
+    },
+    "NZD/USD@15m": {
+      "n_trades": 71,
+      "net_pnl": 204.42326824978588
+    },
+    "GBP/JPY@15m": {
+      "n_trades": 83,
+      "net_pnl": 797.542877806532
+    },
+    "EUR/GBP@15m": {
+      "n_trades": 74,
+      "net_pnl": -635.2872603919287
+    },
+    "EUR/JPY@15m": {
+      "n_trades": 93,
+      "net_pnl": -780.6912238055232
+    },
+    "GBP/NZD@15m": {
+      "n_trades": 353,
+      "net_pnl": -1280.815934600969
+    },
+    "AUD/NZD@15m": {
+      "n_trades": 243,
+      "net_pnl": -2559.4013697611763
+    },
+    "EUR/AUD@15m": {
+      "n_trades": 267,
+      "net_pnl": -1447.115526578678
+    },
+    "EUR/CAD@15m": {
+      "n_trades": 214,
+      "net_pnl": -883.263941822328
+    },
+    "CHF/JPY@15m": {
+      "n_trades": 429,
+      "net_pnl": -2420.861172397166
+    },
+    "GBP/CAD@15m": {
+      "n_trades": 165,
+      "net_pnl": -1336.0022601864673
+    },
+    "GBP/CHF@15m": {
+      "n_trades": 143,
+      "net_pnl": -327.30489155112036
+    },
+    "GBP/AUD@15m": {
+      "n_trades": 124,
+      "net_pnl": -1444.1722281034579
+    },
+    "EUR/CHF@15m": {
+      "n_trades": 85,
+      "net_pnl": -744.8374895707371
+    },
+    "EUR/NZD@15m": {
+      "n_trades": 124,
+      "net_pnl": -762.0822126958665
+    },
+    "NZD/JPY@15m": {
+      "n_trades": 129,
+      "net_pnl": -315.62117596510745
+    },
+    "CAD/JPY@15m": {
+      "n_trades": 96,
+      "net_pnl": -797.733228866983
+    },
+    "EUR/USD@1h": {
+      "n_trades": 142,
+      "net_pnl": 957.4505418381547
+    },
+    "GBP/USD@1h": {
+      "n_trades": 112,
+      "net_pnl": 33.01890726688453
+    },
+    "USD/JPY@1h": {
+      "n_trades": 123,
+      "net_pnl": -58.57166343743807
+    },
+    "USD/CHF@1h": {
+      "n_trades": 89,
+      "net_pnl": 953.6884482358389
+    },
+    "AUD/USD@1h": {
+      "n_trades": 98,
+      "net_pnl": 506.0180094519502
+    },
+    "USD/CAD@1h": {
+      "n_trades": 65,
+      "net_pnl": 31.93494592407841
+    },
+    "NZD/USD@1h": {
+      "n_trades": 50,
+      "net_pnl": 333.0070526070108
+    },
+    "GBP/JPY@1h": {
+      "n_trades": 55,
+      "net_pnl": 147.69879531879488
+    },
+    "EUR/GBP@1h": {
+      "n_trades": 32,
+      "net_pnl": -548.3309037675789
+    },
+    "EUR/JPY@1h": {
+      "n_trades": 46,
+      "net_pnl": -593.8195218173336
+    },
+    "GBP/NZD@1h": {
+      "n_trades": 22,
+      "net_pnl": -188.1190882548898
+    },
+    "AUD/NZD@1h": {
+      "n_trades": 19,
+      "net_pnl": -190.51310934827683
+    },
+    "EUR/AUD@1h": {
+      "n_trades": 22,
+      "net_pnl": 288.84539435409886
+    },
+    "EUR/CAD@1h": {
+      "n_trades": 14,
+      "net_pnl": 132.87241442110056
+    },
+    "CHF/JPY@1h": {
+      "n_trades": 18,
+      "net_pnl": 62.225445653302515
+    },
+    "GBP/CAD@1h": {
+      "n_trades": 10,
+      "net_pnl": 95.45167673730104
+    },
+    "GBP/CHF@1h": {
+      "n_trades": 9,
+      "net_pnl": -68.77448666452705
+    },
+    "GBP/AUD@1h": {
+      "n_trades": 12,
+      "net_pnl": -182.13620204633233
+    },
+    "EUR/CHF@1h": {
+      "n_trades": 8,
+      "net_pnl": 11.81132675748549
+    },
+    "EUR/NZD@1h": {
+      "n_trades": 8,
+      "net_pnl": 438.9154186604625
+    },
+    "NZD/JPY@1h": {
+      "n_trades": 7,
+      "net_pnl": -47.0956726110459
+    },
+    "CAD/JPY@1h": {
+      "n_trades": 4,
+      "net_pnl": -40.98577831382164
+    },
+    "EUR/USD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "GBP/USD@1d": {
+      "n_trades": 1,
+      "net_pnl": -6.689668347246458e-05
+    },
+    "USD/JPY@1d": {
+      "n_trades": 3,
+      "net_pnl": -420.99489377232106
+    },
+    "USD/CHF@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AUD/USD@1d": {
+      "n_trades": 2,
+      "net_pnl": -33.75790398415533
+    },
+    "USD/CAD@1d": {
+      "n_trades": 1,
+      "net_pnl": -2.5959773532554592e-05
+    },
+    "NZD/USD@1d": {
+      "n_trades": 2,
+      "net_pnl": -0.497604029336845
+    },
+    "GBP/JPY@1d": {
+      "n_trades": 3,
+      "net_pnl": -252.9939659573889
+    },
+    "EUR/GBP@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/JPY@1d": {
+      "n_trades": 1,
+      "net_pnl": -0.07146965400731277
+    },
+    "GBP/NZD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AUD/NZD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/AUD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/CAD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "CHF/JPY@1d": {
+      "n_trades": 1,
+      "net_pnl": -0.019727865145910115
+    },
+    "GBP/CAD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "GBP/CHF@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "GBP/AUD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/CHF@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/NZD@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "NZD/JPY@1d": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "CAD/JPY@1d": {
+      "n_trades": 1,
+      "net_pnl": -0.02350751749405221
+    }
+  },
+  "constraint_log": {
+    "max_risk_per_trade": 28404,
+    "max_total_exposure": 27965,
+    "max_correlated_exposure": 1194,
+    "below_min_position": 24158,
+    "vol_target": 3778,
+    "timeframe_bucket_full": 13764,
+    "no_edge": 140,
+    "global_trade_cap": 3304,
+    "drawdown_reducing_scale=0.99": 96,
+    "drawdown_reducing_scale=1.00": 14,
+    "drawdown_reducing_scale=0.98": 116,
+    "drawdown_reducing_scale=0.97": 163,
+    "drawdown_reducing_scale=0.96": 114,
+    "drawdown_reducing_scale=0.95": 105,
+    "drawdown_reducing_scale=0.94": 218,
+    "drawdown_reducing_scale=0.93": 63,
+    "drawdown_reducing_scale=0.92": 175,
+    "drawdown_reducing_scale=0.91": 159,
+    "drawdown_reducing_scale=0.90": 354,
+    "drawdown_reducing_scale=0.89": 137,
+    "drawdown_reducing_scale=0.88": 54,
+    "drawdown_reducing_scale=0.87": 173,
+    "drawdown_reducing_scale=0.86": 279,
+    "drawdown_reducing_scale=0.85": 214,
+    "drawdown_reducing_scale=0.82": 58,
+    "drawdown_reducing_scale=0.81": 23,
+    "drawdown_reducing_scale=0.83": 95,
+    "drawdown_reducing_scale=0.84": 179,
+    "drawdown_reducing_scale=0.80": 27,
+    "drawdown_reducing_scale=0.79": 20,
+    "drawdown_reducing_scale=0.78": 80,
+    "drawdown_reducing_scale=0.76": 154,
+    "drawdown_reducing_scale=0.77": 117,
+    "drawdown_reducing_scale=0.74": 105,
+    "drawdown_reducing_scale=0.75": 123,
+    "drawdown_reducing_scale=0.73": 122,
+    "drawdown_reducing_scale=0.72": 75,
+    "drawdown_reducing_scale=0.71": 152,
+    "drawdown_reducing_scale=0.70": 115,
+    "drawdown_reducing_scale=0.69": 293,
+    "drawdown_reducing_scale=0.68": 398,
+    "drawdown_reducing_scale=0.67": 352,
+    "drawdown_reducing_scale=0.66": 290,
+    "drawdown_reducing_scale=0.65": 398,
+    "drawdown_reducing_scale=0.64": 300,
+    "drawdown_reducing_scale=0.63": 190,
+    "drawdown_reducing_scale=0.62": 135,
+    "drawdown_reducing_scale=0.61": 186,
+    "drawdown_reducing_scale=0.60": 246,
+    "drawdown_reducing_scale=0.58": 256,
+    "drawdown_reducing_scale=0.59": 467,
+    "drawdown_reducing_scale=0.57": 197,
+    "drawdown_reducing_scale=0.56": 47,
+    "drawdown_reducing_scale=0.54": 159,
+    "drawdown_reducing_scale=0.55": 46,
+    "drawdown_reducing_scale=0.53": 144,
+    "drawdown_reducing_scale=0.50": 64,
+    "drawdown_reducing_scale=0.52": 228,
+    "drawdown_reducing_scale=0.49": 134,
+    "drawdown_reducing_scale=0.51": 136,
+    "drawdown_reducing_scale=0.48": 233,
+    "drawdown_reducing_scale=0.47": 232,
+    "drawdown_reducing_scale=0.46": 24,
+    "drawdown_reducing_scale=0.45": 1,
+    "drawdown_reducing_scale=0.43": 37,
+    "drawdown_reducing_scale=0.42": 32,
+    "drawdown_reducing_scale=0.40": 49,
+    "drawdown_reducing_scale=0.39": 151,
+    "drawdown_reducing_scale=0.38": 91,
+    "drawdown_reducing_scale=0.37": 85,
+    "drawdown_reducing_scale=0.36": 84,
+    "drawdown_reducing_scale=0.35": 82,
+    "drawdown_reducing_scale=0.34": 227,
+    "drawdown_reducing_scale=0.33": 169,
+    "drawdown_reducing_scale=0.41": 40,
+    "drawdown_reducing_scale=0.32": 284,
+    "drawdown_reducing_scale=0.31": 311,
+    "drawdown_reducing_scale=0.30": 232,
+    "drawdown_reducing_scale=0.29": 125,
+    "drawdown_reducing_scale=0.28": 245,
+    "drawdown_reducing_scale=0.27": 118,
+    "drawdown_reducing_scale=0.26": 243,
+    "drawdown_reducing_scale=0.25": 212,
+    "drawdown_reducing_scale=0.24": 575,
+    "drawdown_reducing_scale=0.23": 318,
+    "drawdown_reducing_scale=0.22": 330,
+    "drawdown_reducing_scale=0.21": 304,
+    "drawdown_reducing_scale=0.20": 154,
+    "drawdown_reducing_scale=0.18": 731,
+    "drawdown_reducing_scale=0.19": 367,
+    "drawdown_reducing_scale=0.17": 799,
+    "drawdown_reducing_scale=0.16": 453,
+    "drawdown_reducing_scale=0.15": 434,
+    "drawdown_reducing_scale=0.14": 218,
+    "drawdown_reducing_scale=0.13": 170,
+    "drawdown_reducing_scale=0.11": 91,
+    "drawdown_reducing_scale=0.10": 106,
+    "drawdown_reducing_scale=0.09": 60,
+    "drawdown_reducing_scale=0.12": 119,
+    "drawdown_reducing_scale=0.08": 8,
+    "drawdown_reducing_scale=0.07": 2,
+    "drawdown_reducing_scale=0.06": 34,
+    "drawdown_reducing_scale=0.05": 51,
+    "drawdown_reducing_scale=0.04": 164,
+    "drawdown_reducing_scale=0.03": 106,
+    "drawdown_reducing_scale=0.02": 24,
+    "drawdown_reducing_scale=0.01": 34,
+    "drawdown_reducing_scale=0.00": 396,
+    "drawdown_breaker": 98600
+  },
+  "approx_gross_leverage": {
+    "max": 35.34472576240744,
+    "p95": 24.705999454769323
+  },
+  "final_equity": 83085.11344180301,
+  "n_open_at_end": 782
+}

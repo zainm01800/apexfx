@@ -1,0 +1,58 @@
+{
+  "strategy": "carry_trend_filter",
+  "instrument": "NZD/USD",
+  "config_version": 5,
+  "generated_for": "2024-12-31",
+  "n_trials": 1,
+  "cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": -0.025969092132447767,
+    "oos_sharpe_std": 0.018752499084251285,
+    "oos_sharpe_median": -0.03054954375715763,
+    "frac_positive": 0.2,
+    "oos_sharpe_paths": [
+      -0.0138,
+      -0.034,
+      -0.0439,
+      -0.0439,
+      -0.0439,
+      -0.0305,
+      0.0069,
+      0.0069,
+      0.0069,
+      -0.0301,
+      -0.0301,
+      -0.0301,
+      -0.0443,
+      -0.0348,
+      -0.0309
+    ]
+  },
+  "dsr": {
+    "dsr": 0.02381681170998433,
+    "observed_sharpe": -0.018182349210249277,
+    "observed_sharpe_ann": -0.2886358455675075,
+    "sr0": 0.0,
+    "n_trials": 139,
+    "n_trials_observed": 1,
+    "n_obs": 3146,
+    "skew": -54.018592659988514,
+    "kurtosis": 2992.2895601806104
+  },
+  "pbo": {
+    "pbo": null,
+    "note": "insufficient matrix"
+  },
+  "verdict": {
+    "passed": false,
+    "dsr_pass": false,
+    "pbo_pass": false,
+    "cpcv_pass": false,
+    "reasons": [
+      "DSR 0.024 <= 0.95 (multiple-testing deflation)",
+      "PBO n/a >= 0.5 (overfit probability)",
+      "CPCV median OOS Sharpe -0.031, 20% of 15 paths positive",
+      "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+    ]
+  }
+}
