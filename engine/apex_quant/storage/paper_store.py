@@ -1,9 +1,9 @@
 """Persistence for the forward paper portfolio.
 
 Tables live in ``supabase/apex_paper_portfolio.sql`` (``apex_paper_positions``,
-``apex_paper_daily``). Reuses the same project URL + public anon key as
-``supabase_store`` (the anon key is shipped to the browser app, so it is not a
-secret; SUPABASE_URL / SUPABASE_ANON_KEY env vars override).
+``apex_paper_daily``). Auth prefers SUPABASE_SERVICE_KEY (the 2026-07-17 RLS
+lockdown makes the public anon key SELECT-only) and falls back to the public
+anon key — see ``apex_quant.storage._keys``.
 
 Every function degrades to ``False`` / ``None`` on ANY error (table missing,
 offline, 4xx) and never raises: the local JSON state is the primary store, and
@@ -13,7 +13,8 @@ not kill a paper step.
 
 from __future__ import annotations
 
-from apex_quant.storage.supabase_store import _SUPA_ANON, _SUPA_URL
+from apex_quant.storage._keys import service_or_anon_key
+from apex_quant.storage.supabase_store import _SUPA_URL
 
 POSITIONS_TABLE = "apex_paper_positions"
 DAILY_TABLE = "apex_paper_daily"
@@ -24,9 +25,10 @@ def _url(table: str) -> str:
 
 
 def _headers(*, prefer: str | None = None) -> dict:
+    key = service_or_anon_key()
     h = {
-        "apikey": _SUPA_ANON,
-        "Authorization": f"Bearer {_SUPA_ANON}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
     if prefer:

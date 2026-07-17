@@ -277,7 +277,7 @@ ai:
 # Set enabled: true only when the MT4 terminal is running the apex_mt4_bridge.mq4 EA.
 execution:
   enabled: true
-  provider: "mt4"                               # mt4 | zmq | mock
+  provider: "ibkr"                              # mt4 | zmq | mock | ibkr — flipped to ibkr 2026-07-17 (FX book migrated; rollback: "mt4" + restart)
   live_min_position: 15000.0
   # 2026-07-17 (baseline findings): new trades get TradeManager exits
   # (partials/BE/chandelier/time stops) matching the backtester; pre-existing

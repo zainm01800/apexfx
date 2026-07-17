@@ -1,0 +1,1615 @@
+{
+  "generated_at": "2026-07-17T19:23:13+00:00",
+  "mode": "iteration",
+  "holdout_start": "2025-01-01",
+  "universe": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "META",
+    "AMZN",
+    "GOOGL",
+    "TSLA",
+    "AMD",
+    "PLTR",
+    "TSM",
+    "NFLX",
+    "UBER",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "GLD",
+    "TLT",
+    "XLK",
+    "XLE",
+    "XLF",
+    "ARKK",
+    "SMH",
+    "SOXX",
+    "XBI",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "BNB/USD",
+    "XRP/USD",
+    "ADA/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "LINK/USD",
+    "ARB/USD",
+    "SUI/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "NZD/USD",
+    "DIA",
+    "VTI",
+    "EFA",
+    "EEM",
+    "RSP",
+    "MDY",
+    "TIP",
+    "LQD",
+    "HYG",
+    "AGG",
+    "SLV",
+    "USO",
+    "GSG",
+    "IYR",
+    "XLU",
+    "XLV",
+    "XLP",
+    "XLI",
+    "XLY",
+    "XLB",
+    "IBB",
+    "ITA",
+    "JPM",
+    "JNJ",
+    "XOM",
+    "WMT",
+    "PG",
+    "KO",
+    "V",
+    "MA",
+    "HD",
+    "BA",
+    "GS",
+    "LTC/USD",
+    "DOT/USD"
+  ],
+  "dropped": {
+    "MATIC/USD": "no cached 1d data"
+  },
+  "n_trials_before": 150,
+  "n_trials_used": 152,
+  "ledger_recorded": true,
+  "pbo": {
+    "pbo": 0.2055,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 2
+  },
+  "books": {
+    "book_e_252": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50
+      },
+      "metrics": {
+        "total_return": 2.4776419572224664,
+        "ann_return": 0.10023469643042482,
+        "ann_vol": 0.12864365613627432,
+        "sharpe": 0.8073318802095308,
+        "sortino": 0.7924079640257424,
+        "max_drawdown": 0.2021183463588534,
+        "calmar": 0.49592082181625385,
+        "n_trades": 1178,
+        "win_rate": 0.5432937181663837,
+        "profit_factor": 1.3054792668599882,
+        "avg_trade_return": 0.008551612903225807,
+        "expectancy_pnl": 197.28621736250466,
+        "expectancy_pct": 0.0074237280402775566,
+        "final_equity": 347764.19572224666,
+        "net_pnl": 247764.29
+      },
+      "max_gross_leverage": 3.0316366141239848,
+      "constraint_log": {
+        "max_risk_per_trade": 13317,
+        "regime_scale=0.41": 212,
+        "regime_scale=0.31": 162,
+        "regime_scale=0.57": 183,
+        "regime_scale=0.35": 153,
+        "regime_scale=0.56": 181,
+        "regime_scale=0.55": 230,
+        "regime_scale=0.70": 250,
+        "regime_scale=0.63": 211,
+        "regime_scale=0.60": 210,
+        "regime_scale=0.72": 188,
+        "regime_scale=0.38": 157,
+        "regime_scale=0.71": 154,
+        "portfolio_risk_cap": 430,
+        "regime_scale=0.66": 184,
+        "max_portfolio_risk_exceeded": 12137,
+        "regime_scale=0.47": 256,
+        "regime_scale=0.58": 220,
+        "regime_scale=0.68": 183,
+        "regime_scale=0.98": 47,
+        "regime_scale=0.50": 424,
+        "regime_scale=0.43": 362,
+        "regime_scale=0.51": 237,
+        "regime_scale=0.64": 212,
+        "regime_scale=0.61": 153,
+        "regime_scale=0.48": 211,
+        "regime_scale=0.78": 230,
+        "regime_scale=0.96": 70,
+        "regime_scale=0.65": 165,
+        "regime_scale=0.75": 139,
+        "regime_scale=0.97": 114,
+        "regime_scale=0.24": 65,
+        "regime_scale=0.59": 221,
+        "regime_scale=0.40": 220,
+        "regime_scale=0.45": 214,
+        "regime_scale=0.52": 182,
+        "regime_scale=0.33": 168,
+        "regime_scale=0.32": 169,
+        "regime_scale=0.21": 55,
+        "regime_scale=0.44": 201,
+        "regime_scale=0.94": 43,
+        "regime_scale=0.19": 58,
+        "timeframe_bucket_full": 29777,
+        "regime_scale=0.13": 50,
+        "regime_scale=0.99": 122,
+        "regime_scale=0.62": 172,
+        "regime_scale=0.18": 61,
+        "regime_scale=0.42": 292,
+        "regime_scale=0.76": 159,
+        "regime_scale=0.06": 19,
+        "regime_scale=0.95": 109,
+        "regime_scale=0.37": 136,
+        "regime_scale=0.27": 149,
+        "max_correlated_exposure": 15,
+        "regime_scale=0.86": 56,
+        "regime_scale=0.91": 101,
+        "regime_scale=0.54": 195,
+        "regime_scale=0.49": 305,
+        "regime_scale=0.16": 62,
+        "regime_scale=1.00": 90,
+        "regime_scale=0.82": 57,
+        "regime_scale=0.92": 43,
+        "regime_scale=0.87": 117,
+        "regime_scale=0.90": 55,
+        "regime_scale=0.84": 62,
+        "regime_scale=0.11": 37,
+        "regime_scale=0.30": 157,
+        "regime_scale=0.69": 155,
+        "regime_scale=0.79": 168,
+        "regime_scale=0.53": 166,
+        "regime_scale=0.89": 99,
+        "regime_scale=0.93": 75,
+        "regime_scale=0.80": 87,
+        "regime_scale=0.20": 64,
+        "regime_scale=0.88": 57,
+        "regime_scale=0.36": 140,
+        "regime_scale=0.34": 138,
+        "regime_scale=0.73": 132,
+        "regime_scale=0.74": 209,
+        "regime_scale=0.77": 125,
+        "regime_scale=0.81": 102,
+        "vol_target": 32,
+        "regime_scale=0.46": 218,
+        "regime_scale=0.85": 97,
+        "regime_scale=0.83": 83,
+        "regime_scale=0.67": 223,
+        "regime_scale=0.29": 180,
+        "regime_scale=0.17": 57,
+        "regime_scale=0.23": 73,
+        "regime_scale=0.39": 163,
+        "regime_scale=0.28": 145,
+        "regime_scale=0.15": 46,
+        "regime_scale=0.26": 182,
+        "regime_scale=0.09": 33,
+        "regime_scale=0.04": 7,
+        "regime_scale=0.10": 46,
+        "regime_scale=0.14": 59,
+        "regime_scale=0.08": 26,
+        "regime_scale=0.12": 34,
+        "regime_scale=0.22": 62,
+        "max_total_exposure": 1,
+        "regime_scale=0.25": 108,
+        "regime_scale=0.05": 17,
+        "regime_scale=0.03": 11,
+        "regime_scale=0.07": 20,
+        "drawdown_reducing_scale=0.95": 76,
+        "drawdown_reducing_scale=0.97": 59,
+        "drawdown_reducing_scale=0.96": 65,
+        "drawdown_reducing_scale=0.86": 5,
+        "drawdown_reducing_scale=0.92": 20,
+        "regime_scale=0.01": 4,
+        "drawdown_reducing_scale=0.94": 50,
+        "drawdown_reducing_scale=0.91": 30,
+        "regime_scale=0.02": 6,
+        "drawdown_reducing_scale=0.99": 4,
+        "drawdown_reducing_scale=1.00": 28,
+        "drawdown_reducing_scale=0.93": 33,
+        "drawdown_reducing_scale=0.78": 2,
+        "drawdown_reducing_scale=0.80": 45,
+        "drawdown_reducing_scale=0.82": 2,
+        "drawdown_reducing_scale=0.79": 6,
+        "drawdown_reducing_scale=0.76": 3,
+        "drawdown_reducing_scale=0.74": 9,
+        "drawdown_reducing_scale=0.52": 5,
+        "drawdown_reducing_scale=0.46": 4,
+        "drawdown_reducing_scale=0.34": 2,
+        "drawdown_reducing_scale=0.20": 5,
+        "drawdown_reducing_scale=0.24": 1,
+        "drawdown_reducing_scale=0.38": 1,
+        "drawdown_reducing_scale=0.32": 1,
+        "drawdown_reducing_scale=0.39": 1,
+        "drawdown_reducing_scale=0.48": 1,
+        "drawdown_reducing_scale=0.45": 3,
+        "drawdown_reducing_scale=0.44": 3,
+        "drawdown_reducing_scale=0.47": 1,
+        "drawdown_reducing_scale=0.53": 1,
+        "drawdown_reducing_scale=0.55": 3,
+        "drawdown_reducing_scale=0.61": 1,
+        "drawdown_reducing_scale=0.54": 6,
+        "drawdown_reducing_scale=0.58": 2,
+        "drawdown_reducing_scale=0.56": 3,
+        "drawdown_reducing_scale=0.43": 7,
+        "drawdown_reducing_scale=0.41": 2,
+        "drawdown_reducing_scale=0.49": 1,
+        "drawdown_reducing_scale=0.60": 1,
+        "drawdown_reducing_scale=0.64": 1,
+        "drawdown_reducing_scale=0.62": 11,
+        "drawdown_reducing_scale=0.98": 25,
+        "drawdown_reducing_scale=0.90": 64,
+        "drawdown_reducing_scale=0.84": 27,
+        "below_min_position": 2,
+        "drawdown_reducing_scale=0.70": 7,
+        "drawdown_reducing_scale=0.89": 8,
+        "drawdown_reducing_scale=0.81": 7,
+        "drawdown_reducing_scale=0.73": 3,
+        "drawdown_reducing_scale=0.87": 20,
+        "drawdown_reducing_scale=0.88": 34,
+        "drawdown_reducing_scale=0.77": 2,
+        "drawdown_reducing_scale=0.71": 1,
+        "drawdown_reducing_scale=0.72": 4,
+        "drawdown_reducing_scale=0.59": 1,
+        "drawdown_reducing_scale=0.65": 27,
+        "drawdown_reducing_scale=0.63": 2,
+        "drawdown_reducing_scale=0.66": 3,
+        "drawdown_reducing_scale=0.68": 2,
+        "drawdown_reducing_scale=0.75": 27,
+        "drawdown_reducing_scale=0.69": 3,
+        "drawdown_reducing_scale=0.31": 2,
+        "drawdown_reducing_scale=0.17": 2,
+        "drawdown_reducing_scale=0.15": 2,
+        "drawdown_reducing_scale=0.14": 2,
+        "drawdown_reducing_scale=0.11": 2,
+        "drawdown_reducing_scale=0.03": 4,
+        "drawdown_reducing_scale=0.04": 1,
+        "drawdown_reducing_scale=0.02": 4,
+        "drawdown_reducing_scale=0.01": 2,
+        "drawdown_breaker": 17247
+      },
+      "constraint_profile": {
+        "families": {
+          "max_risk_per_trade": 13317,
+          "regime_scale": 13317,
+          "portfolio_risk_cap": 430,
+          "max_portfolio_risk_exceeded": 12137,
+          "timeframe_bucket_full": 29777,
+          "max_correlated_exposure": 15,
+          "vol_target": 32,
+          "max_total_exposure": 1,
+          "drawdown_reducing_scale": 792,
+          "below_min_position": 2,
+          "drawdown_breaker": 17247
+        },
+        "veto_events": 59163,
+        "scaling_events": 27904
+      },
+      "frequency": {
+        "entries_per_week": 2.509,
+        "trades_per_year": 130.9,
+        "span_days": 3287
+      },
+      "per_instrument": {
+        "AAPL": {
+          "n_trades": 91,
+          "net_pnl": -12977.518851416477
+        },
+        "MSFT": {
+          "n_trades": 83,
+          "net_pnl": 36540.02829382681
+        },
+        "NVDA": {
+          "n_trades": 85,
+          "net_pnl": 6383.287694353137
+        },
+        "META": {
+          "n_trades": 82,
+          "net_pnl": 31095.45676946747
+        },
+        "AMZN": {
+          "n_trades": 89,
+          "net_pnl": 36610.04675838807
+        },
+        "GOOGL": {
+          "n_trades": 80,
+          "net_pnl": 21748.023450616412
+        },
+        "TSLA": {
+          "n_trades": 80,
+          "net_pnl": 15617.761711494875
+        },
+        "AMD": {
+          "n_trades": 68,
+          "net_pnl": 21225.66566382949
+        },
+        "PLTR": {
+          "n_trades": 19,
+          "net_pnl": 11591.1385118685
+        },
+        "TSM": {
+          "n_trades": 61,
+          "net_pnl": 20948.560609050888
+        },
+        "NFLX": {
+          "n_trades": 59,
+          "net_pnl": 30395.95816052304
+        },
+        "UBER": {
+          "n_trades": 18,
+          "net_pnl": 7453.003019690714
+        },
+        "SPY": {
+          "n_trades": 49,
+          "net_pnl": 16312.579546267665
+        },
+        "QQQ": {
+          "n_trades": 38,
+          "net_pnl": 2639.5691805109977
+        },
+        "IWM": {
+          "n_trades": 26,
+          "net_pnl": -2451.493408014053
+        },
+        "GLD": {
+          "n_trades": 28,
+          "net_pnl": -4615.559053624433
+        },
+        "TLT": {
+          "n_trades": 20,
+          "net_pnl": 4624.320866836348
+        },
+        "XLK": {
+          "n_trades": 8,
+          "net_pnl": -3118.3143705040493
+        },
+        "XLE": {
+          "n_trades": 18,
+          "net_pnl": -11722.460139440434
+        },
+        "XLF": {
+          "n_trades": 5,
+          "net_pnl": 4855.812084108505
+        },
+        "ARKK": {
+          "n_trades": 6,
+          "net_pnl": 1834.3843544616866
+        },
+        "SMH": {
+          "n_trades": 3,
+          "net_pnl": 2590.1128737690005
+        },
+        "SOXX": {
+          "n_trades": 4,
+          "net_pnl": 3490.8073119204646
+        },
+        "XBI": {
+          "n_trades": 2,
+          "net_pnl": -201.7968847084387
+        },
+        "BTC/USD": {
+          "n_trades": 51,
+          "net_pnl": 32553.826925700057
+        },
+        "ETH/USD": {
+          "n_trades": 10,
+          "net_pnl": -6741.91852828675
+        },
+        "SOL/USD": {
+          "n_trades": 4,
+          "net_pnl": -441.141360949059
+        },
+        "BNB/USD": {
+          "n_trades": 13,
+          "net_pnl": -1664.6656405648932
+        },
+        "XRP/USD": {
+          "n_trades": 2,
+          "net_pnl": -2457.5363989282537
+        },
+        "ADA/USD": {
+          "n_trades": 6,
+          "net_pnl": -3720.7242377795637
+        },
+        "AVAX/USD": {
+          "n_trades": 5,
+          "net_pnl": -1915.213332320407
+        },
+        "DOGE/USD": {
+          "n_trades": 4,
+          "net_pnl": -5784.422829797978
+        },
+        "LINK/USD": {
+          "n_trades": 2,
+          "net_pnl": -995.9143936756552
+        },
+        "ARB/USD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "SUI/USD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "EUR/USD": {
+          "n_trades": 8,
+          "net_pnl": 8263.732383615708
+        },
+        "GBP/USD": {
+          "n_trades": 4,
+          "net_pnl": -191.35612405178836
+        },
+        "USD/JPY": {
+          "n_trades": 1,
+          "net_pnl": -1229.4361398059893
+        },
+        "USD/CHF": {
+          "n_trades": 4,
+          "net_pnl": -2115.5584425207257
+        },
+        "AUD/USD": {
+          "n_trades": 2,
+          "net_pnl": -1519.3562012881598
+        },
+        "USD/CAD": {
+          "n_trades": 1,
+          "net_pnl": 353.23582970293353
+        },
+        "NZD/USD": {
+          "n_trades": 2,
+          "net_pnl": 963.4535982983159
+        },
+        "DIA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "VTI": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "EFA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "EEM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "RSP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "MDY": {
+          "n_trades": 1,
+          "net_pnl": -2381.074183316853
+        },
+        "TIP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "LQD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "HYG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "AGG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "SLV": {
+          "n_trades": 2,
+          "net_pnl": 80.05484691442541
+        },
+        "USO": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "GSG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "IYR": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLU": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLV": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLI": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLY": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLB": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "IBB": {
+          "n_trades": 1,
+          "net_pnl": -4965.711733283922
+        },
+        "ITA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "JPM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "JNJ": {
+          "n_trades": 1,
+          "net_pnl": 593.4604698619979
+        },
+        "XOM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "WMT": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "PG": {
+          "n_trades": 1,
+          "net_pnl": -309.7470761095281
+        },
+        "KO": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "V": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "MA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "HD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "BA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "GS": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "LTC/USD": {
+          "n_trades": 31,
+          "net_pnl": 520.8341375561818
+        },
+        "DOT/USD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        }
+      },
+      "per_asset_class": {
+        "equity": {
+          "instruments": [
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "META",
+            "AMZN",
+            "GOOGL",
+            "TSLA",
+            "AMD",
+            "PLTR",
+            "TSM",
+            "NFLX",
+            "UBER",
+            "SPY",
+            "QQQ",
+            "IWM",
+            "GLD",
+            "TLT",
+            "XLK",
+            "XLE",
+            "XLF",
+            "ARKK",
+            "SMH",
+            "SOXX",
+            "XBI",
+            "DIA",
+            "VTI",
+            "EFA",
+            "EEM",
+            "RSP",
+            "MDY",
+            "TIP",
+            "LQD",
+            "HYG",
+            "AGG",
+            "SLV",
+            "USO",
+            "GSG",
+            "IYR",
+            "XLU",
+            "XLV",
+            "XLP",
+            "XLI",
+            "XLY",
+            "XLB",
+            "IBB",
+            "ITA",
+            "JPM",
+            "JNJ",
+            "XOM",
+            "WMT",
+            "PG",
+            "KO",
+            "V",
+            "MA",
+            "HD",
+            "BA",
+            "GS"
+          ],
+          "n_trades": 1028,
+          "net_pnl": 233886.36
+        },
+        "crypto": {
+          "instruments": [
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "BNB/USD",
+            "XRP/USD",
+            "ADA/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "LINK/USD",
+            "ARB/USD",
+            "SUI/USD",
+            "LTC/USD",
+            "DOT/USD"
+          ],
+          "n_trades": 128,
+          "net_pnl": 9353.12
+        },
+        "forex": {
+          "instruments": [
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD"
+          ],
+          "n_trades": 22,
+          "net_pnl": 4524.71
+        }
+      },
+      "full_window_sharpe_per_period": 0.05085712810782398,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05608842344140383,
+        "oos_sharpe_std": 0.026058769700576464,
+        "oos_sharpe_median": 0.0605119474207255,
+        "frac_positive": 0.9333333333333333,
+        "oos_sharpe_paths": [
+          0.0605,
+          0.0698,
+          0.0961,
+          0.0311,
+          0.0657,
+          0.0502,
+          0.0731,
+          0.0497,
+          0.0884,
+          0.0673,
+          -0.0034,
+          0.0458,
+          0.0333,
+          0.0822,
+          0.0316
+        ]
+      },
+      "gate": {
+        "book": "book_e_252",
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.7116053533831976,
+          "observed_sharpe": 0.05085712810782398,
+          "observed_sharpe_ann": 0.8073318802095308,
+          "sr0": 0.0410029896013308,
+          "n_trials": 152,
+          "n_trials_observed": 2,
+          "n_obs": 3287,
+          "skew": -0.3566924888492616,
+          "kurtosis": 10.831489666963584
+        },
+        "pbo": {
+          "pbo": 0.2055,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 2
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.05608842344140383,
+          "oos_sharpe_std": 0.026058769700576464,
+          "oos_sharpe_median": 0.0605119474207255,
+          "frac_positive": 0.9333333333333333,
+          "oos_sharpe_paths": [
+            0.0605,
+            0.0698,
+            0.0961,
+            0.0311,
+            0.0657,
+            0.0502,
+            0.0731,
+            0.0497,
+            0.0884,
+            0.0673,
+            -0.0034,
+            0.0458,
+            0.0333,
+            0.0822,
+            0.0316
+          ]
+        }
+      }
+    },
+    "book_e_126": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 126,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50
+      },
+      "metrics": {
+        "total_return": 6.485889122508584,
+        "ann_return": 0.16682051282287635,
+        "ann_vol": 0.14294928731087717,
+        "sharpe": 1.1515059771225111,
+        "sortino": 1.312211314312768,
+        "max_drawdown": 0.16775513243620144,
+        "calmar": 0.9944286675480375,
+        "n_trades": 1537,
+        "win_rate": 0.556929082628497,
+        "profit_factor": 1.5033162020856217,
+        "avg_trade_return": 0.01155562134027326,
+        "expectancy_pnl": 384.7862682835731,
+        "expectancy_pct": 0.009780740769891036,
+        "final_equity": 748588.9122508584,
+        "net_pnl": 657992.71
+      },
+      "max_gross_leverage": 2.9983530878716502,
+      "constraint_log": {
+        "max_risk_per_trade": 20165,
+        "regime_scale=0.41": 343,
+        "regime_scale=0.31": 221,
+        "regime_scale=0.57": 232,
+        "regime_scale=0.36": 199,
+        "regime_scale=0.65": 208,
+        "regime_scale=0.58": 286,
+        "regime_scale=0.56": 255,
+        "regime_scale=0.10": 54,
+        "regime_scale=0.55": 311,
+        "regime_scale=0.70": 360,
+        "regime_scale=0.63": 290,
+        "portfolio_risk_cap": 630,
+        "regime_scale=0.68": 270,
+        "max_portfolio_risk_exceeded": 18614,
+        "regime_scale=0.60": 299,
+        "regime_scale=0.33": 237,
+        "regime_scale=0.50": 652,
+        "regime_scale=0.42": 436,
+        "regime_scale=0.77": 232,
+        "regime_scale=0.71": 207,
+        "regime_scale=0.76": 233,
+        "regime_scale=0.29": 221,
+        "regime_scale=0.30": 196,
+        "regime_scale=0.67": 302,
+        "regime_scale=0.59": 302,
+        "regime_scale=0.28": 209,
+        "regime_scale=0.62": 235,
+        "regime_scale=0.84": 130,
+        "regime_scale=0.51": 270,
+        "regime_scale=0.48": 360,
+        "regime_scale=0.93": 213,
+        "regime_scale=0.38": 253,
+        "regime_scale=0.47": 395,
+        "regime_scale=0.75": 211,
+        "regime_scale=0.54": 283,
+        "regime_scale=0.53": 207,
+        "regime_scale=1.00": 317,
+        "regime_scale=0.21": 66,
+        "regime_scale=0.52": 253,
+        "regime_scale=0.79": 250,
+        "regime_scale=0.83": 179,
+        "regime_scale=0.96": 141,
+        "regime_scale=0.66": 241,
+        "regime_scale=0.72": 249,
+        "regime_scale=0.98": 145,
+        "regime_scale=0.43": 517,
+        "regime_scale=0.64": 274,
+        "regime_scale=0.61": 222,
+        "regime_scale=0.78": 323,
+        "regime_scale=0.97": 248,
+        "regime_scale=0.24": 87,
+        "regime_scale=0.40": 373,
+        "regime_scale=0.45": 314,
+        "regime_scale=0.44": 328,
+        "regime_scale=0.94": 110,
+        "timeframe_bucket_full": 41376,
+        "regime_scale=0.13": 58,
+        "regime_scale=0.32": 226,
+        "regime_scale=0.99": 329,
+        "regime_scale=0.18": 79,
+        "regime_scale=0.27": 217,
+        "regime_scale=0.19": 71,
+        "regime_scale=0.06": 22,
+        "regime_scale=0.95": 199,
+        "regime_scale=0.37": 230,
+        "regime_scale=0.22": 77,
+        "regime_scale=0.87": 186,
+        "regime_scale=0.46": 326,
+        "regime_scale=0.26": 214,
+        "regime_scale=0.88": 101,
+        "regime_scale=0.91": 192,
+        "regime_scale=0.90": 116,
+        "regime_scale=0.86": 113,
+        "regime_scale=0.34": 213,
+        "regime_scale=0.17": 63,
+        "regime_scale=0.69": 210,
+        "regime_scale=0.73": 188,
+        "regime_scale=0.35": 228,
+        "regime_scale=0.49": 558,
+        "regime_scale=0.15": 65,
+        "regime_scale=0.89": 198,
+        "regime_scale=0.85": 161,
+        "vol_target": 48,
+        "regime_scale=0.81": 214,
+        "regime_scale=0.80": 143,
+        "regime_scale=0.82": 103,
+        "regime_scale=0.39": 229,
+        "regime_scale=0.74": 307,
+        "regime_scale=0.09": 41,
+        "regime_scale=0.20": 79,
+        "regime_scale=0.11": 48,
+        "regime_scale=0.23": 92,
+        "regime_scale=0.16": 67,
+        "regime_scale=0.92": 113,
+        "regime_scale=0.08": 29,
+        "regime_scale=0.25": 123,
+        "regime_scale=0.04": 16,
+        "regime_scale=0.14": 62,
+        "regime_scale=0.12": 49,
+        "max_correlated_exposure": 10,
+        "below_min_position": 4,
+        "regime_scale=0.05": 24,
+        "regime_scale=0.03": 4,
+        "regime_scale=0.07": 24,
+        "max_total_exposure": 5,
+        "drawdown_reducing_scale=0.90": 32,
+        "drawdown_reducing_scale=1.00": 8,
+        "drawdown_reducing_scale=0.97": 49,
+        "drawdown_reducing_scale=0.96": 49,
+        "drawdown_reducing_scale=0.98": 47,
+        "regime_scale=0.02": 5,
+        "drawdown_reducing_scale=0.99": 98,
+        "drawdown_reducing_scale=0.91": 99,
+        "drawdown_reducing_scale=0.67": 6,
+        "drawdown_reducing_scale=0.88": 31,
+        "drawdown_reducing_scale=0.93": 33,
+        "regime_scale=0.01": 4,
+        "drawdown_reducing_scale=0.92": 22,
+        "drawdown_reducing_scale=0.84": 3,
+        "drawdown_reducing_scale=0.83": 59,
+        "drawdown_reducing_scale=0.89": 4,
+        "drawdown_reducing_scale=0.95": 32,
+        "drawdown_reducing_scale=0.82": 21,
+        "drawdown_reducing_scale=0.74": 5,
+        "drawdown_reducing_scale=0.64": 2,
+        "drawdown_reducing_scale=0.60": 32,
+        "drawdown_reducing_scale=0.58": 10,
+        "drawdown_reducing_scale=0.68": 1,
+        "drawdown_reducing_scale=0.76": 4,
+        "drawdown_reducing_scale=0.72": 27,
+        "drawdown_reducing_scale=0.75": 5,
+        "drawdown_reducing_scale=0.65": 3,
+        "drawdown_reducing_scale=0.63": 2,
+        "drawdown_reducing_scale=0.61": 2,
+        "drawdown_reducing_scale=0.70": 4,
+        "drawdown_reducing_scale=0.79": 1,
+        "drawdown_reducing_scale=0.81": 24,
+        "drawdown_reducing_scale=0.86": 19,
+        "drawdown_reducing_scale=0.94": 3,
+        "drawdown_reducing_scale=0.55": 10,
+        "drawdown_reducing_scale=0.77": 6,
+        "drawdown_reducing_scale=0.87": 77,
+        "drawdown_reducing_scale=0.71": 41,
+        "drawdown_reducing_scale=0.78": 16,
+        "drawdown_reducing_scale=0.54": 7,
+        "drawdown_reducing_scale=0.56": 3,
+        "drawdown_reducing_scale=0.85": 2,
+        "drawdown_reducing_scale=0.80": 4,
+        "drawdown_reducing_scale=0.43": 9,
+        "drawdown_reducing_scale=0.40": 5,
+        "drawdown_reducing_scale=0.57": 4,
+        "drawdown_reducing_scale=0.45": 2,
+        "drawdown_reducing_scale=0.41": 4,
+        "drawdown_reducing_scale=0.44": 1,
+        "drawdown_reducing_scale=0.39": 3,
+        "drawdown_reducing_scale=0.42": 1,
+        "drawdown_reducing_scale=0.36": 1,
+        "drawdown_reducing_scale=0.32": 1,
+        "drawdown_reducing_scale=0.37": 1,
+        "drawdown_reducing_scale=0.47": 6,
+        "drawdown_reducing_scale=0.46": 1,
+        "drawdown_reducing_scale=0.50": 2
+      },
+      "constraint_profile": {
+        "families": {
+          "max_risk_per_trade": 20165,
+          "regime_scale": 20165,
+          "portfolio_risk_cap": 630,
+          "max_portfolio_risk_exceeded": 18614,
+          "timeframe_bucket_full": 41376,
+          "vol_target": 48,
+          "max_correlated_exposure": 10,
+          "below_min_position": 4,
+          "max_total_exposure": 5,
+          "drawdown_reducing_scale": 944
+        },
+        "veto_events": 59994,
+        "scaling_events": 41967
+      },
+      "frequency": {
+        "entries_per_week": 3.273,
+        "trades_per_year": 170.8,
+        "span_days": 3287
+      },
+      "per_instrument": {
+        "AAPL": {
+          "n_trades": 117,
+          "net_pnl": 33723.60987810748
+        },
+        "MSFT": {
+          "n_trades": 113,
+          "net_pnl": 35672.64656497739
+        },
+        "NVDA": {
+          "n_trades": 127,
+          "net_pnl": 103647.62111699865
+        },
+        "META": {
+          "n_trades": 115,
+          "net_pnl": 83699.589381938
+        },
+        "AMZN": {
+          "n_trades": 107,
+          "net_pnl": 17172.489802078428
+        },
+        "GOOGL": {
+          "n_trades": 101,
+          "net_pnl": 19220.07891258656
+        },
+        "TSLA": {
+          "n_trades": 101,
+          "net_pnl": 55744.46605871804
+        },
+        "AMD": {
+          "n_trades": 97,
+          "net_pnl": 20019.40748444663
+        },
+        "PLTR": {
+          "n_trades": 36,
+          "net_pnl": 27449.882279239217
+        },
+        "TSM": {
+          "n_trades": 91,
+          "net_pnl": 50381.04764826604
+        },
+        "NFLX": {
+          "n_trades": 60,
+          "net_pnl": 23708.668165537485
+        },
+        "UBER": {
+          "n_trades": 24,
+          "net_pnl": 13316.189739444437
+        },
+        "SPY": {
+          "n_trades": 37,
+          "net_pnl": 21340.229880380968
+        },
+        "QQQ": {
+          "n_trades": 33,
+          "net_pnl": 12848.000135516277
+        },
+        "IWM": {
+          "n_trades": 24,
+          "net_pnl": 505.50200891567147
+        },
+        "GLD": {
+          "n_trades": 37,
+          "net_pnl": 15599.270666311812
+        },
+        "TLT": {
+          "n_trades": 24,
+          "net_pnl": 9006.71436402572
+        },
+        "XLK": {
+          "n_trades": 6,
+          "net_pnl": 5237.075262006058
+        },
+        "XLE": {
+          "n_trades": 14,
+          "net_pnl": -2814.8799441407355
+        },
+        "XLF": {
+          "n_trades": 5,
+          "net_pnl": -1159.7318310636947
+        },
+        "ARKK": {
+          "n_trades": 2,
+          "net_pnl": 6518.3610437051775
+        },
+        "SMH": {
+          "n_trades": 2,
+          "net_pnl": 2013.722250231576
+        },
+        "SOXX": {
+          "n_trades": 2,
+          "net_pnl": 3238.9220811646737
+        },
+        "XBI": {
+          "n_trades": 3,
+          "net_pnl": 11494.095629192449
+        },
+        "BTC/USD": {
+          "n_trades": 68,
+          "net_pnl": 50976.397021675926
+        },
+        "ETH/USD": {
+          "n_trades": 21,
+          "net_pnl": -279.5069768849114
+        },
+        "SOL/USD": {
+          "n_trades": 14,
+          "net_pnl": -3839.6011215992003
+        },
+        "BNB/USD": {
+          "n_trades": 16,
+          "net_pnl": 5111.875019409354
+        },
+        "XRP/USD": {
+          "n_trades": 13,
+          "net_pnl": 13927.686063503168
+        },
+        "ADA/USD": {
+          "n_trades": 13,
+          "net_pnl": 984.5926889570992
+        },
+        "AVAX/USD": {
+          "n_trades": 8,
+          "net_pnl": 13532.99503077511
+        },
+        "DOGE/USD": {
+          "n_trades": 9,
+          "net_pnl": -5191.518800213038
+        },
+        "LINK/USD": {
+          "n_trades": 10,
+          "net_pnl": 16406.31999167977
+        },
+        "ARB/USD": {
+          "n_trades": 1,
+          "net_pnl": -172.2513217202305
+        },
+        "SUI/USD": {
+          "n_trades": 2,
+          "net_pnl": 1079.5966642891804
+        },
+        "EUR/USD": {
+          "n_trades": 10,
+          "net_pnl": 2011.3262156869807
+        },
+        "GBP/USD": {
+          "n_trades": 8,
+          "net_pnl": 11684.546286723986
+        },
+        "USD/JPY": {
+          "n_trades": 7,
+          "net_pnl": -869.1207592437313
+        },
+        "USD/CHF": {
+          "n_trades": 3,
+          "net_pnl": -1309.9583333271173
+        },
+        "AUD/USD": {
+          "n_trades": 6,
+          "net_pnl": -1245.2895169305473
+        },
+        "USD/CAD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "NZD/USD": {
+          "n_trades": 2,
+          "net_pnl": 1152.4338709561948
+        },
+        "DIA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "VTI": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "EFA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "EEM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "RSP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "MDY": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "TIP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "LQD": {
+          "n_trades": 2,
+          "net_pnl": 114.91409793375074
+        },
+        "HYG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "AGG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "SLV": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "USO": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "GSG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "IYR": {
+          "n_trades": 1,
+          "net_pnl": 2722.838293254586
+        },
+        "XLU": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLV": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLP": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLI": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLY": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XLB": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "IBB": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "ITA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "JPM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "JNJ": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "XOM": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "WMT": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "PG": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "KO": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "V": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "MA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "HD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "BA": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "GS": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "LTC/USD": {
+          "n_trades": 38,
+          "net_pnl": -5845.36426712635
+        },
+        "DOT/USD": {
+          "n_trades": 7,
+          "net_pnl": -10543.218476592123
+        }
+      },
+      "per_asset_class": {
+        "equity": {
+          "instruments": [
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "META",
+            "AMZN",
+            "GOOGL",
+            "TSLA",
+            "AMD",
+            "PLTR",
+            "TSM",
+            "NFLX",
+            "UBER",
+            "SPY",
+            "QQQ",
+            "IWM",
+            "GLD",
+            "TLT",
+            "XLK",
+            "XLE",
+            "XLF",
+            "ARKK",
+            "SMH",
+            "SOXX",
+            "XBI",
+            "DIA",
+            "VTI",
+            "EFA",
+            "EEM",
+            "RSP",
+            "MDY",
+            "TIP",
+            "LQD",
+            "HYG",
+            "AGG",
+            "SLV",
+            "USO",
+            "GSG",
+            "IYR",
+            "XLU",
+            "XLV",
+            "XLP",
+            "XLI",
+            "XLY",
+            "XLB",
+            "IBB",
+            "ITA",
+            "JPM",
+            "JNJ",
+            "XOM",
+            "WMT",
+            "PG",
+            "KO",
+            "V",
+            "MA",
+            "HD",
+            "BA",
+            "GS"
+          ],
+          "n_trades": 1281,
+          "net_pnl": 570420.73
+        },
+        "crypto": {
+          "instruments": [
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "BNB/USD",
+            "XRP/USD",
+            "ADA/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "LINK/USD",
+            "ARB/USD",
+            "SUI/USD",
+            "LTC/USD",
+            "DOT/USD"
+          ],
+          "n_trades": 220,
+          "net_pnl": 76148.0
+        },
+        "forex": {
+          "instruments": [
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD"
+          ],
+          "n_trades": 36,
+          "net_pnl": 11423.94
+        }
+      },
+      "full_window_sharpe_per_period": 0.07253805830168086,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.06019471180472067,
+        "oos_sharpe_std": 0.02082862080454984,
+        "oos_sharpe_median": 0.05746605792118778,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0762,
+          0.0832,
+          0.0822,
+          0.0633,
+          0.0862,
+          0.0385,
+          0.048,
+          0.0159,
+          0.0351,
+          0.0573,
+          0.0456,
+          0.0569,
+          0.0575,
+          0.0787,
+          0.0783
+        ]
+      },
+      "gate": {
+        "book": "book_e_126",
+        "passed": true,
+        "dsr_pass": true,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9623853147153238,
+          "observed_sharpe": 0.07253805830168086,
+          "observed_sharpe_ann": 1.1515059771225111,
+          "sr0": 0.0410029896013308,
+          "n_trials": 152,
+          "n_trials_observed": 2,
+          "n_obs": 3287,
+          "skew": -0.3202337937386295,
+          "kurtosis": 8.015577086797778
+        },
+        "pbo": {
+          "pbo": 0.2055,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 2
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.06019471180472067,
+          "oos_sharpe_std": 0.02082862080454984,
+          "oos_sharpe_median": 0.05746605792118778,
+          "frac_positive": 1.0,
+          "oos_sharpe_paths": [
+            0.0762,
+            0.0832,
+            0.0822,
+            0.0633,
+            0.0862,
+            0.0385,
+            0.048,
+            0.0159,
+            0.0351,
+            0.0573,
+            0.0456,
+            0.0569,
+            0.0575,
+            0.0787,
+            0.0783
+          ]
+        }
+      }
+    }
+  },
+  "verdicts": {
+    "book_e_252": {
+      "book": "book_e_252",
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.7116053533831976,
+        "observed_sharpe": 0.05085712810782398,
+        "observed_sharpe_ann": 0.8073318802095308,
+        "sr0": 0.0410029896013308,
+        "n_trials": 152,
+        "n_trials_observed": 2,
+        "n_obs": 3287,
+        "skew": -0.3566924888492616,
+        "kurtosis": 10.831489666963584
+      },
+      "pbo": {
+        "pbo": 0.2055,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 2
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05608842344140383,
+        "oos_sharpe_std": 0.026058769700576464,
+        "oos_sharpe_median": 0.0605119474207255,
+        "frac_positive": 0.9333333333333333,
+        "oos_sharpe_paths": [
+          0.0605,
+          0.0698,
+          0.0961,
+          0.0311,
+          0.0657,
+          0.0502,
+          0.0731,
+          0.0497,
+          0.0884,
+          0.0673,
+          -0.0034,
+          0.0458,
+          0.0333,
+          0.0822,
+          0.0316
+        ]
+      },
+      "reasons": [
+        "DSR 0.712 <= 0.95 (deflated by 152 trials)",
+        "PBO 0.2055 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.061, 93% of 15 paths positive"
+      ]
+    },
+    "book_e_126": {
+      "book": "book_e_126",
+      "passed": true,
+      "dsr_pass": true,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9623853147153238,
+        "observed_sharpe": 0.07253805830168086,
+        "observed_sharpe_ann": 1.1515059771225111,
+        "sr0": 0.0410029896013308,
+        "n_trials": 152,
+        "n_trials_observed": 2,
+        "n_obs": 3287,
+        "skew": -0.3202337937386295,
+        "kurtosis": 8.015577086797778
+      },
+      "pbo": {
+        "pbo": 0.2055,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 2
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.06019471180472067,
+        "oos_sharpe_std": 0.02082862080454984,
+        "oos_sharpe_median": 0.05746605792118778,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0762,
+          0.0832,
+          0.0822,
+          0.0633,
+          0.0862,
+          0.0385,
+          0.048,
+          0.0159,
+          0.0351,
+          0.0573,
+          0.0456,
+          0.0569,
+          0.0575,
+          0.0787,
+          0.0783
+        ]
+      },
+      "reasons": [
+        "DSR 0.962 > 0.95 (deflated by 152 trials)",
+        "PBO 0.2055 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.057, 100% of 15 paths positive"
+      ]
+    }
+  }
+}

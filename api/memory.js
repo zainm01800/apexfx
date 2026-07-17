@@ -8,12 +8,14 @@ export const config = { runtime: 'edge' };
 
 const SUPA_URL  = 'https://dtiuwllodzqpbwohzrgj.supabase.co';
 const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k';
+// Prefer the service-role key: the 2026-07-17 RLS lockdown makes anon SELECT-only.
+const SUPA_KEY  = process.env.SUPABASE_SERVICE_KEY || SUPA_ANON;
 const TABLE     = `${SUPA_URL}/rest/v1/apex_research_memory`;
 
 function supaHeaders(extra = {}) {
   return {
-    'apikey': SUPA_ANON,
-    'Authorization': `Bearer ${SUPA_ANON}`,
+    'apikey': SUPA_KEY,
+    'Authorization': `Bearer ${SUPA_KEY}`,
     'Content-Type': 'application/json',
     ...extra,
   };

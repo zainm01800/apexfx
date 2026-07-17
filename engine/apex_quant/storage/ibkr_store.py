@@ -1,10 +1,10 @@
 """Push IBKR paper-account state to Supabase for the website IBKR Terminal.
 
 Tables live in ``supabase/apex_ibkr.sql`` (``apex_ibkr_account``,
-``apex_ibkr_positions``, ``apex_ibkr_trades``). Reuses the same project URL +
-public anon key as ``paper_store`` (the anon key is shipped to the browser
-app, so it is not a secret; SUPABASE_URL / SUPABASE_ANON_KEY env vars
-override).
+``apex_ibkr_positions``, ``apex_ibkr_trades``). Auth prefers
+SUPABASE_SERVICE_KEY (the 2026-07-17 RLS lockdown makes the public anon key
+SELECT-only) and falls back to the public anon key — see
+``apex_quant.storage._keys``.
 
 The website is serverless (Vercel) and can ONLY read Supabase — it can never
 reach the local IB Gateway. These functions are the bridge: the mirror
@@ -16,7 +16,8 @@ must not kill a mirror run.
 
 from __future__ import annotations
 
-from apex_quant.storage.supabase_store import _SUPA_ANON, _SUPA_URL
+from apex_quant.storage._keys import service_or_anon_key
+from apex_quant.storage.supabase_store import _SUPA_URL
 
 ACCOUNT_TABLE = "apex_ibkr_account"
 POSITIONS_TABLE = "apex_ibkr_positions"
@@ -28,9 +29,10 @@ def _url(table: str) -> str:
 
 
 def _headers(*, prefer: str | None = None) -> dict:
+    key = service_or_anon_key()
     h = {
-        "apikey": _SUPA_ANON,
-        "Authorization": f"Bearer {_SUPA_ANON}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
     if prefer:

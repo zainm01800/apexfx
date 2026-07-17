@@ -9,9 +9,9 @@ name: auto-scan
 # Cadence: TWICE daily on weekdays, once on weekends — ~200 scans/week total across
 # ALL four trade styles, allocated per the learning-loop research (intraday 30% /
 # swing 30% / scalp 20% / position 20%):
-#   - midday  (15:10 UTC, Mon–Fri): scalp 6 + intraday 10 — US + London markets are
+#   - midday  (12:17 UTC, Mon–Fri): scalp 6 + intraday 10 — US + London markets are
 #     OPEN, which scalp/intraday need; these resolve in hours–days (fast learning).
-#   - evening (22:07 UTC, daily):   swing 10 + position 6 on fresh post-close daily
+#   - evening (19:47 UTC, daily):   swing 10 + position 6 on fresh post-close daily
 #     bars; weekends/US holidays the script itself switches to crypto-only, all four
 #     styles (5 each). Re-validation of open trades runs in the evening only.
 # The script excludes instrument×style cells that already have an OPEN trade
@@ -19,8 +19,8 @@ name: auto-scan
 
 on:
   schedule:
-    - cron: "0 8-22/2 * * 1-5"    # every 2 hours from 08:00 to 22:00 UTC on weekdays (8 runs/day)
-    - cron: "0 22 * * *"          # evening run daily at 22:00 UTC (swing/position check and weekend crypto check)
+    - cron: "17 12 * * 1-5"       # midday run on weekdays (scalp/intraday, markets open)
+    - cron: "47 19 * * *"         # evening run daily (swing/position check and weekend crypto check)
   workflow_dispatch:
     inputs:
       symbols:

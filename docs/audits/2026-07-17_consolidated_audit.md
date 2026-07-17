@@ -102,6 +102,9 @@ Effort: S/M/L.
    `smoke_live_hardening.py` 40/40 (mt4 path unchanged). USER flips the provider at the maintenance window.
 2. Supabase lockdown: service-role key for all writes (env secrets), anon = SELECT-only;
    rotate keys (USER: dashboard + apply SQL + GitHub/Vercel secrets).
+   Code side DONE (2026-07-17): every writer now prefers `SUPABASE_SERVICE_KEY` with anon
+   fallback (engine `apex_quant/storage/_keys.py` + scripts, `api/memory.js`, `api/backtest-runs.js`,
+   `scripts/historical-scan.js`, workflow env wiring) — apply the SQL + set the env vars to activate.
 3. Data integrity: session-calendar layer (reject weekend FX bars, one session→date
    convention), atomic writes + locks, forming-bar filter; then REBUILD all 1d caches from
    OANDA + backfill 1h holes; re-run the borderline vol-managed EUR/USD gate on clean data.

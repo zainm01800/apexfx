@@ -5,7 +5,8 @@
 //        GET ...&runs=true                 -> distinct recent run_ids (for the UI)
 //
 // Append-only: each row id embeds the run timestamp, so re-running adds new rows
-// rather than overwriting. Mirrors api/memory.js (Supabase REST, anon key, RLS).
+// rather than overwriting. Mirrors api/memory.js (Supabase REST; service-role key
+// preferred since the 2026-07-17 RLS lockdown, anon fallback).
 // Writes go to apex_strategy_backtests — a NEW table, separate from the Python
 // engine's apex_backtests, which is left untouched.
 
@@ -13,10 +14,12 @@ export const config = { runtime: 'edge' };
 
 const SUPA_URL  = 'https://dtiuwllodzqpbwohzrgj.supabase.co';
 const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k';
+// Prefer the service-role key: the 2026-07-17 RLS lockdown makes anon SELECT-only.
+const SUPA_KEY  = process.env.SUPABASE_SERVICE_KEY || SUPA_ANON;
 const TABLE     = `${SUPA_URL}/rest/v1/apex_strategy_backtests`;
 
 function supaHeaders(extra = {}) {
-  return { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}`, 'Content-Type': 'application/json', ...extra };
+  return { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', ...extra };
 }
 function cors(origin) {
   return {

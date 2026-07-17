@@ -23,10 +23,14 @@ function formatLessonText(text) {
     }
     return String(val).trim();
   }
-  let decoded = text.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  // Lessons are PLAIN TEXT from the DB (attacker-writable — see audit J-C2): never
+  // entity-decode them (that turned stored `&lt;img onerror=…&gt;` into live HTML).
+  // Legacy engine lessons carry an invisible `<!-- TICKET_ID: n -->` marker — strip
+  // it (the engine does the same before display).
+  const cleaned = String(text).replace(/<!--[\s\S]*?-->/g, '').trim();
   const jsonRegex = /(\{[^{}]+\})/g;
   let hasReplacement = false;
-  let formatted = decoded.replace(jsonRegex, (match) => {
+  let formatted = cleaned.replace(jsonRegex, (match) => {
     try {
       const parsed = JSON.parse(match);
       hasReplacement = true;
@@ -35,7 +39,14 @@ function formatLessonText(text) {
       return match;
     }
   });
-  return hasReplacement ? formatted : text;
+  return hasReplacement ? formatted : cleaned;
+}
+
+// Render a DB lesson for innerHTML: escape EVERYTHING, then honour the legacy
+// literal `<br>` paragraph breaks (now inert `&lt;br&gt;`) as visual separators.
+function lessonToHtml(text) {
+  return escHtml(formatLessonText(text))
+    .replace(/&lt;br\s*\/?&gt;/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -135,9 +146,19 @@ function parseReasons(v) {
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
+// Fetch-level pagination (Supabase-egress diet): the page initially loads only the
+// newest SCAN_PAGE rows instead of the old flat 1000. "Load older" grows the window
+// in SCAN_PAGE steps, bounded at SCAN_LIMIT_MAX — /api/memory supports `limit` but
+// no offset/created_before, so each click re-fetches a slightly larger newest-first
+// window and the loaded set is re-sliced from it. Stats, the scoreboard, the
+// learning panel and the outcome grader all compute over the LOADED set only.
+const SCAN_PAGE      = 100;
+const SCAN_LIMIT_MAX = 300;
+let _scanLimit       = SCAN_PAGE;
+let _loadingOlder    = false;
+
 async function fetchAllScans() {
-  // 1000 recent rows to make sure full history of resolved trades is visible.
-  const res = await fetch(`${API_MEMORY}?all=true&limit=1000`);
+  const res = await fetch(`${API_MEMORY}?all=true&limit=${_scanLimit}`);
   if (!res.ok) throw new Error('Failed to load scan history');
   return res.json();
 }
@@ -166,10 +187,14 @@ function resolutionFor(row) {
 }
 
 // TP/SL grading for ONE row against its candles (no expiry). Returns 'tp_hit' |
-// 'sl_hit' | null. Shared by the pending-resolution AND the phantom self-heal paths
-// so the two can never diverge. Honours the no-look-ahead gate (daily = strictly later
-// calendar day; intraday = one bar-period clearance) + the entry-fill gate (a TP/SL
-// only counts once price has actually traded INTO the entry zone).
+// 'sl_hit' | 'ambiguous' | null. Shared by the pending-resolution AND the phantom
+// self-heal paths so the two can never diverge. Honours the no-look-ahead gate (daily
+// = strictly later calendar day; intraday = one bar-period clearance) + the entry-fill
+// gate (a TP/SL only counts once price has actually traded INTO the entry zone).
+// PESSIMISTIC, matching both backtesters (stop-first): when ONE bar spans both TP and
+// SL we cannot know which was hit first — instead of crediting the target (the old,
+// track-record-flattering rule) the outcome is 'ambiguous' and excluded from win-rate
+// numerators AND denominators everywhere.
 function gradeRow(row, res, candles) {
   const tp = parseFloat(row.target_price), sl = parseFloat(row.stop_loss);
   if (isNaN(tp) || isNaN(sl)) return null;
@@ -215,11 +240,15 @@ function gradeRow(row, res, candles) {
       }
     }
     if (dir === 'short') {
-      if (bar.low  <= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
-      if (bar.high >= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+      const hitTp = bar.low <= tp, hitSl = bar.high >= sl;
+      if (hitTp && hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'ambiguous'; }
+      if (hitTp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     } else {
-      if (bar.high >= tp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
-      if (bar.low  <= sl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
+      const hitTp = bar.high >= tp, hitSl = bar.low <= sl;
+      if (hitTp && hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'ambiguous'; }
+      if (hitTp) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'tp_hit'; }
+      if (hitSl) { row.filled_at = filledAt; row._resolved_at = bar.time * 1000; return 'sl_hit'; }
     }
   }
   if (filled) row.filled_at = filledAt;
@@ -329,6 +358,7 @@ function outcomeLabel(o, row) {
   switch (o) {
     case 'tp_hit':  return '✅ TP Hit';
     case 'sl_hit':  return '❌ SL Hit';
+    case 'ambiguous': return '⚖️ Ambiguous — both hit in one bar';
     case 'expired': return '⏱ Expired';
     case 'invalidated': return (row && row.filled_at) ? '❌ Closed Early' : '❌ Cancelled Setup';
     default:        return '⏳ Pending';
@@ -627,7 +657,7 @@ function buildLifeline(row) {
   if (!isOpen) {
     const endCls = row.outcome === 'tp_hit' ? 'win' : row.outcome === 'sl_hit' ? 'loss' : 'neutral';
     steps.push({
-      icon: row.outcome === 'tp_hit' ? '🎯' : row.outcome === 'sl_hit' ? '🛑' : '⏱',
+      icon: row.outcome === 'tp_hit' ? '🎯' : row.outcome === 'sl_hit' ? '🛑' : row.outcome === 'ambiguous' ? '⚖️' : '⏱',
       label: outcomeLabel(row.outcome, row).replace(/^\S+\s/, ''),   // drop the emoji baked into outcomeLabel
       time: row.outcome_date ? fmtOutcomeDateTime(row.outcome_date) : '',
       cls: endCls,
@@ -712,14 +742,12 @@ function renderCard(g) {
 
   let lessonRow = '';
   if (g.lesson) {
-    const cleanLesson = formatLessonText(g.lesson);
-    const formattedLesson = cleanLesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
     lessonRow = `<div class="sc-lesson" title="AI post-mortem — fed back into future analysis of similar setups" style="display: flex; flex-direction: column; gap: 4px;">
       <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
         📓 AI POST-MORTEM LESSON
       </div>
       <div style="font-size: 12.5px; line-height: 1.5; color: var(--text2);">
-        <div>${formattedLesson}</div>
+        <div>${lessonToHtml(g.lesson)}</div>
       </div>
     </div>`;
   }
@@ -859,6 +887,7 @@ function renderGrid(resetCount = true) {
   _valReliability = computeValidationReliability(_allRows);   // refresh learned re-check stats
   updateSummary(); // keep stats reactive
   renderScoreboard(); // keep scoreboard reactive
+  renderLearningPanel(); // keep the learning-by-setup panel reactive
   
   if (resetCount) {
     _visibleCardCount = 40;
@@ -873,6 +902,7 @@ function renderGrid(resetCount = true) {
     empty.style.display = 'block';
     const lm = document.getElementById('loadMoreContainer');
     if (lm) lm.remove();
+    updateLoadOlderUI();
     return;
   }
   empty.style.display = 'none';
@@ -893,6 +923,7 @@ function renderGrid(resetCount = true) {
   } else {
     if (lm) lm.remove();
   }
+  updateLoadOlderUI();
 }
 
 window.loadMoreCards = function() {
@@ -948,14 +979,12 @@ function openPreview(id) {
     ${targets ? `<div class="pv-targets">${targets}</div>` : ''}
 
     ${row.lesson ? (() => {
-      const cleanLesson = formatLessonText(row.lesson);
-      const formatted = cleanLesson.replace(/<br>/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
       return `<div class="pv-lesson" title="AI post-mortem fed back into future analysis" style="display: flex; flex-direction: column; gap: 4px;">
         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--accent); font-weight: 700; font-size: 12px; font-family: var(--font-mono);">
           📓 AI POST-MORTEM LESSON
         </div>
         <div style="font-size: 12.5px; line-height: 1.5; color: var(--text2);">
-          <div>${formatted}</div>
+          <div>${lessonToHtml(row.lesson)}</div>
         </div>
       </div>`;
     })() : ''}
@@ -1176,6 +1205,9 @@ function computeAccuracy(rows) {
   const losses   = resolved.filter(r => r.outcome === 'sl_hit');
   const winRate  = resolved.length ? Math.round(wins.length / resolved.length * 100) : null;
   const pctResolved = total ? Math.round(finished.length / total * 100) : 0;
+  // One bar spanned BOTH barriers → unknowable, so excluded from win/loss counts AND
+  // the win-rate denominator (the pessimistic stop-first rule the backtesters use).
+  const ambiguousN = finished.filter(r => r.outcome === 'ambiguous').length;
 
   const avgConf = arr => arr.length ? Math.round(arr.reduce((s, r) => s + (Number(r.confidence) || 0), 0) / arr.length) : null;
 
@@ -1235,7 +1267,7 @@ function computeAccuracy(rows) {
 
   return {
     total, finishedN: finished.length, resolvedN: resolved.length, pctResolved, winRate,
-    wins: wins.length, losses: losses.length,
+    wins: wins.length, losses: losses.length, ambiguousN,
     avgWinConf: avgConf(wins), avgLossConf: avgConf(losses),
     buyAcc: acc(buyRes),   buyN: buyRes.length,
     sellAcc: acc(sellRes), sellN: sellRes.length,
@@ -1275,6 +1307,82 @@ function reliabilityNote(assessment, minN = 4) {
   if (!s || s.n < minN) return '';
   if (assessment === 'confirmed') return ` · historically ${s.tpRate}% hit target (n=${s.n})`;
   return ` · historically ${s.slRate}% hit stop (n=${s.n})`;
+}
+
+// ── Learning by setup ─────────────────────────────────────────────────────────
+// The learning loop made visible: group RESOLVED calls by the setup's structural
+// identity (asset · style · regime, from the persisted setup_features vector) and
+// show DETERMINISTIC stats first (n / win rate / avg R multiple) with the most
+// recent prose lesson second — evidence, not an anecdote wall. 'ambiguous' rows
+// (one bar spanned both barriers) count toward n but are excluded from the win
+// rate AND the avg-R denominator.
+function computeLearningBySetup(rows) {
+  const groups = {};
+  for (const r of rows) {
+    if (r.outcome !== 'tp_hit' && r.outcome !== 'sl_hit' && r.outcome !== 'ambiguous') continue;
+    let f = r.setup_features;
+    if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+    f = f || {};
+    const st     = tradeStyleOf(r);
+    const asset  = r.asset_type || f.asset || 'Unknown';
+    const style  = (f.style ? String(f.style) : (st ? st.label : 'unknown')).toLowerCase();
+    const regime = f.regime ? String(f.regime) : 'unknown';
+    const key    = `${asset}|${style}|${regime}`;
+    const g = (groups[key] ||= { asset, style, regime, n: 0, wins: 0, losses: 0, ambiguous: 0, rSum: 0, lesson: null, lessonTs: 0 });
+    g.n++;
+    if (r.lesson && String(r.lesson).trim()) {
+      const ts = Date.parse(r.outcome_date || '') || rowTs(r);
+      if (ts >= g.lessonTs) { g.lessonTs = ts; g.lesson = String(r.lesson).trim(); }
+    }
+    if (r.outcome === 'ambiguous') { g.ambiguous++; continue; }
+    if (r.outcome === 'tp_hit') { g.wins++; const rr = parseRewardRisk(r.risk_reward); g.rSum += rr !== null ? rr : 2.0; }
+    else { g.losses++; g.rSum -= 1.0; }
+  }
+  return Object.values(groups).map(g => {
+    const decided = g.wins + g.losses;
+    return {
+      ...g, decided,
+      winRate: decided ? Math.round(g.wins / decided * 100) : null,
+      avgR: decided ? +(g.rSum / decided).toFixed(2) : null,
+    };
+  }).sort((a, b) => b.decided - a.decided || b.n - a.n);
+}
+
+function renderLearningPanel() {
+  const el = document.getElementById('learnBoard');
+  if (!el) return;
+  const groups = computeLearningBySetup(getFilteredRowsForSummary());
+  const title = `<div class="acc-header"><div class="acc-title">🧠 Learning by setup</div></div>`;
+  if (!groups.length) {
+    el.innerHTML = `${title}<div class="acc-empty">No resolved calls in this selection yet — as trades hit their target or stop, they group here by asset · style · regime and show what actually works.</div>`;
+    return;
+  }
+  const MAX_GROUPS = 8;
+  const shown = groups.slice(0, MAX_GROUPS);
+  const rowsHtml = shown.map(g => {
+    const wrCls = g.winRate == null ? '' : g.winRate >= 50 ? 'pos' : 'neg';
+    const rCls  = g.avgR == null ? '' : g.avgR > 0 ? 'pos' : g.avgR < 0 ? 'neg' : '';
+    const label = `${g.asset} · ${g.style.charAt(0).toUpperCase() + g.style.slice(1)} · ${g.regime}`;
+    const amb   = g.ambiguous ? ` <span class="learn-amb" title="${g.ambiguous} ambiguous — one bar spanned both TP and SL; excluded from win rate and avg R">+${g.ambiguous} ⚖️</span>` : '';
+    const lesson = g.lesson
+      ? `<div class="learn-lesson" title="${escHtml(g.lesson)}">📓 ${escHtml(g.lesson.length > 180 ? g.lesson.slice(0, 180).trimEnd() + '…' : g.lesson)}</div>`
+      : `<div class="learn-lesson none">No post-mortem lesson for this group yet.</div>`;
+    return `<div class="learn-row">
+      <div class="learn-main">
+        <span class="learn-key">${escHtml(label)}</span>
+        <span class="learn-n">n=${g.n}${amb}</span>
+        <span class="learn-wr acc-rel-bar"><span class="acc-rel-fill ${wrCls}" style="width:${g.winRate == null ? 0 : Math.max(3, g.winRate)}%"></span></span>
+        <span class="acc-rel-val ${wrCls}">${g.winRate != null ? g.winRate + '%' : '—'}</span>
+        <span class="learn-r ${rCls}">${g.avgR != null ? (g.avgR > 0 ? '+' : '') + g.avgR.toFixed(2) + 'R' : '—'}</span>
+      </div>
+      ${lesson}
+    </div>`;
+  }).join('');
+  const decidedTotal = groups.reduce((s, g) => s + g.decided, 0);
+  const more = groups.length > shown.length ? ` · +${groups.length - shown.length} smaller-sample group${groups.length - shown.length === 1 ? '' : 's'} hidden` : '';
+  el.innerHTML = `${title}
+    <div class="learn-rows">${rowsHtml}</div>
+    <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}. Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
 }
 
 function accStat(label, value, sub, cls) {
@@ -1422,6 +1530,7 @@ function renderScoreboard() {
       ${accStat('Total Scans', a.total, `${a.finishedN} completed`, '')}
       ${accStat('% Resolved', a.pctResolved + '%', `${a.total - a.finishedN} still open`, '')}
       ${accStat('Win Rate', a.winRate != null ? a.winRate + '%' : '—', a.resolvedN ? `${a.wins}W / ${a.losses}L` : 'no resolved calls', wrCls)}
+      ${a.ambiguousN ? accStat('Ambiguous ⚖️', a.ambiguousN, 'TP & SL in one bar — excluded from win rate', '') : ''}
       ${accStat('Average R:R', a.avgRR != null ? a.avgRR + ':1' : '—', a.resolvedN ? `based on ${a.resolvedN} resolved` : 'no resolved calls', rrCls)}
       ${accStat('Profitability', profVal, profSub, profCls)}
       ${accStat('Conf · Win vs Loss', cmp, 'avg confidence by outcome', cmpCls)}
@@ -1468,6 +1577,7 @@ function setView(view) {
   if (empty && !isScans) empty.style.display = 'none';
   document.getElementById('watchlistView').style.display = isScans ? 'none' : '';
   if (isScans) renderGrid(); else renderWatchlist();
+  updateLoadOlderUI();
 }
 
 function initViewToggle() {
@@ -1779,6 +1889,52 @@ function initAutoRefresh() {
   window.addEventListener('focus', () => { if (Date.now() - _lastScanLoad > 4000) reloadScans(); });
 }
 
+// ── Load older scans (fetch-level pagination) ────────────────────────────────
+// Everything downstream (stats, scoreboard, learning panel, grader) computes over
+// the LOADED set (_allRows); older history loads on demand via the button under
+// the grid. Each click grows the fetch window by SCAN_PAGE up to SCAN_LIMIT_MAX.
+function updateLoadOlderUI() {
+  const wrap = document.getElementById('loadOlderWrap');
+  if (!wrap) return;
+  const btn  = document.getElementById('loadOlderBtn');
+  const note = document.getElementById('loadOlderNote');
+  const canGrow = _scanLimit < SCAN_LIMIT_MAX && _allRows.length >= _scanLimit;
+  wrap.style.display = (_currentView === 'scans' && _allRows.length) ? '' : 'none';
+  if (btn) {
+    btn.style.display = canGrow ? '' : 'none';
+    btn.disabled = _loadingOlder;
+    btn.textContent = _loadingOlder ? 'Loading older scans…' : `Load older scans (next ${SCAN_PAGE})`;
+  }
+  if (note) note.textContent =
+    `Stats, scoreboard & lessons cover the ${_allRows.length} newest scans — older history loads on demand.`;
+}
+
+async function loadOlderScans() {
+  if (_loadingOlder) return;
+  _loadingOlder = true;
+  updateLoadOlderUI();
+  try {
+    _scanLimit = Math.min(_scanLimit + SCAN_PAGE, SCAN_LIMIT_MAX);
+    _allRows = await fetchAllScans();
+    indexRows();
+    _lastScanLoad = Date.now();
+    renderGrid();
+    // Grade + lesson-generate the newly-loaded older rows — same pipeline as init.
+    resolveIfPending(_allRows)
+      .then(() => generateLessons(_allRows))
+      .then(() => { indexRows(); renderGrid(); })
+      .catch(() => {});
+    loadOpenTradePrices();
+  } catch (e) {
+    _scanLimit = Math.max(SCAN_PAGE, _scanLimit - SCAN_PAGE); // keep the old window on failure
+    console.error('Load older failed:', e);
+  } finally {
+    _loadingOlder = false;
+    updateLoadOlderUI();
+  }
+}
+window.loadOlderScans = loadOlderScans;
+
 // ── Post-mortem lessons ──────────────────────────────────────────────────────
 // When a trade resolves, generate a short "what went right / wrong" lesson and
 // persist it. The live committee later retrieves lessons from STRUCTURALLY-similar
@@ -1814,6 +1970,7 @@ async function callAgent(system, prompt, maxTokens = 400) {
 function outcomePlain(o) {
   if (o === 'tp_hit')  return 'WON — price reached the target before the stop';
   if (o === 'sl_hit')  return 'LOST — price hit the stop-loss before the target';
+  if (o === 'ambiguous') return 'AMBIGUOUS — a single bar spanned BOTH the target and the stop; impossible to know which hit first, so it counts as neither a win nor a loss';
   if (o === 'expired') return 'EXPIRED — neither target nor stop was reached within the trade window';
   return 'unresolved';
 }
@@ -1982,10 +2139,98 @@ async function loadOpenTradePrices() {
   if (_currentView === 'scans') renderGrid();
 }
 
+// ── Forward paper test ───────────────────────────────────────────────────────
+// The engine's frozen forward book (book_d_multiasset_252), stepped one daily bar at
+// a time and snapshotted into apex_paper_daily (GBP paper). Read-only card, fetched
+// ONCE on load (no polling): equity sparkline, day/cum PnL, drawdown vs the 15%
+// HALT line, open-position count. Sits above the scan record as the forward evidence.
+const API_PAPER = '/api/paper';
+const PAPER_HALT_DD_PCT = 15;   // book halts at 15% drawdown from peak equity
+
+function _ppMoney(x) {
+  const n = Number(x);
+  if (!isFinite(n)) return '—';
+  return '£' + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+function _ppSigned(x) {
+  const n = Number(x);
+  if (!isFinite(n)) return { txt: '—', cls: '' };
+  return { txt: (n > 0 ? '+' : n < 0 ? '-' : '') + '£' + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+           cls: n > 0 ? 'pos' : n < 0 ? 'neg' : '' };
+}
+
+// Inline-SVG sparkline of the daily equity curve; a dashed red line marks the
+// 15%-below-peak HALT level when it falls inside the plotted range.
+function _ppSparkline(series) {
+  if (series.length < 2) return '';
+  const W = 300, H = 56, PAD = 3;
+  const peak = Math.max(...series);
+  const halt = peak * (1 - PAPER_HALT_DD_PCT / 100);
+  let lo = Math.min(...series), hi = Math.max(...series);
+  if (hi - lo <= 0) { hi += 1; lo -= 1; }   // flat-line guard
+  const X = i => PAD + (i / (series.length - 1)) * (W - 2 * PAD);
+  const Y = v => PAD + (1 - (v - lo) / (hi - lo)) * (H - 2 * PAD);
+  const pts = series.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const stroke = series[series.length - 1] >= series[0] ? '#4ade80' : '#f87171';
+  const haltLine = (halt >= lo && halt <= hi)
+    ? `<line x1="${PAD}" y1="${Y(halt).toFixed(1)}" x2="${W - PAD}" y2="${Y(halt).toFixed(1)}" stroke="#f87171" stroke-width="1" stroke-dasharray="4 3" opacity="0.7"><title>HALT line: 15% below peak equity</title></line>`
+    : '';
+  return `<svg class="pp-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Equity curve">
+    ${haltLine}
+    <polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function renderPaperCard(rows) {
+  const el = document.getElementById('paperCard');
+  if (!el) return;
+  const head = `<div class="acc-header"><div class="acc-title">📄 Forward Paper Test <span class="pp-book">book_d_multiasset_252</span></div></div>`;
+  if (!rows.length) {
+    el.innerHTML = `${head}<div class="acc-empty">No paper-trading rows yet — the frozen book writes its first daily equity snapshot at the next daily checkpoint, then this card tracks it forward.</div>`;
+    return;
+  }
+  const latest = rows[rows.length - 1];
+  const series = rows.map(r => Number(r.equity)).filter(Number.isFinite);
+  const day    = _ppSigned(latest.day_pnl);
+  const cum    = _ppSigned(latest.cum_pnl);
+  const ddFrac = Math.abs(Number(latest.drawdown_from_peak) || 0);
+  const ddPct  = ddFrac <= 1 ? ddFrac * 100 : ddFrac;   // column stores a fraction; tolerate %
+  const ddCls  = ddPct >= 12 ? 'neg' : ddPct >= 7.5 ? '' : 'pos';
+  const nOpen  = latest.n_open != null ? latest.n_open : '—';
+  const exposure = latest.gross_exposure_x != null && isFinite(Number(latest.gross_exposure_x))
+    ? Number(latest.gross_exposure_x).toFixed(2) + '× gross' : null;
+
+  el.innerHTML = `${head}
+    <div class="pp-stats">
+      ${accStat('Equity', _ppMoney(latest.equity), latest.date ? `as of ${escHtml(String(latest.date))}` : '', '')}
+      ${accStat('Day PnL', day.txt, '', day.cls)}
+      ${accStat('Cum PnL', cum.txt, '', cum.cls)}
+      ${accStat('Open', nOpen, exposure || 'positions', '')}
+      ${accStat('Drawdown', ddPct.toFixed(1) + '%', `of ${PAPER_HALT_DD_PCT}% HALT`, ddCls)}
+    </div>
+    ${_ppSparkline(series)}
+    <div class="pp-dd" title="Drawdown from peak equity vs the ${PAPER_HALT_DD_PCT}% HALT rule">
+      <span class="pp-dd-fill ${ddCls}" style="width:${Math.min(100, ddPct / PAPER_HALT_DD_PCT * 100).toFixed(1)}%"></span>
+      <span class="pp-dd-halt"></span>
+    </div>
+    <div class="acc-rel-foot">Frozen pre-registered book stepped one daily bar at a time — the engine's forward evidence, separate from the scan record below. Drawdown bar at full width = ${PAPER_HALT_DD_PCT}% HALT.</div>`;
+}
+
+async function loadPaperCard() {
+  try {
+    const res = await fetch(`${API_PAPER}?table=daily&limit=120`);
+    const rows = res.ok ? await res.json() : [];
+    renderPaperCard(Array.isArray(rows) ? rows : []);
+  } catch {
+    renderPaperCard([]);
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
   initPulse();
+  loadPaperCard();            // forward paper book (one-shot fetch, no polling) — independent of the scan load
   const loadingEl = document.getElementById('histLoading');
 
   try {

@@ -1,20 +1,19 @@
 """Write backtest/validation results to the Supabase knowledge base.
 
-Reuses the same project + public anon key as the JS app's /api/memory (the anon
-key is already shipped to the browser, so it's not a secret). Override with
-SUPABASE_URL / SUPABASE_ANON_KEY env vars if needed. Upserts on the row id so
-re-running a config refreshes its latest result rather than duplicating.
+Auth prefers SUPABASE_SERVICE_KEY (the 2026-07-17 RLS lockdown makes the
+public anon key SELECT-only on the apex_* tables) and falls back to the public
+anon key so nothing breaks before the service key is deployed — see
+``apex_quant.storage._keys``. Upserts on the row id so re-running a config
+refreshes its latest result rather than duplicating.
 """
 
 from __future__ import annotations
 
 import os
 
+from apex_quant.storage._keys import service_or_anon_key
+
 _SUPA_URL = os.environ.get("SUPABASE_URL", "https://dtiuwllodzqpbwohzrgj.supabase.co").rstrip("/")
-_SUPA_ANON = os.environ.get(
-    "SUPABASE_ANON_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k",
-)
 _TABLE = f"{_SUPA_URL}/rest/v1/apex_backtests"
 
 
@@ -58,12 +57,13 @@ def upsert_backtests(rows: list[dict]) -> bool:
     try:
         import httpx
 
+        key = service_or_anon_key()
         with httpx.Client(timeout=20) as c:
             r = c.post(
                 _TABLE,
                 headers={
-                    "apikey": _SUPA_ANON,
-                    "Authorization": f"Bearer {_SUPA_ANON}",
+                    "apikey": key,
+                    "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
                     "Prefer": "resolution=merge-duplicates,return=minimal",
                 },
