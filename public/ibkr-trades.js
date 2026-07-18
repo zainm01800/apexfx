@@ -6,6 +6,7 @@ let _ibkrClassFilter = 'forex'; // 'forex' | 'stocks' | 'crypto'
 let _ibkrAccountCache = {};
 let _ibkrPositionsCache = [];
 let _ibkrTradesCache = [];
+let _ibkrPaperMap = {}; // instrument -> apex_paper_positions row (stop/target join source)
 
 const CLASS_LABELS = { forex: 'forex', stocks: 'stock', crypto: 'crypto' };
 
@@ -70,10 +71,11 @@ function setText(id, text, cls) {
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadIbkr() {
   try {
-    const [accountRes, positionsRes, tradesRes] = await Promise.all([
+    const [accountRes, positionsRes, tradesRes, paperRes] = await Promise.all([
       fetch('/api/ibkr?view=account'),
       fetch('/api/ibkr?view=positions'),
       fetch('/api/ibkr?view=trades&limit=200'),
+      fetch('/api/paper?table=positions&limit=500').catch(() => null),
     ]);
 
     if (!accountRes.ok || !positionsRes.ok || !tradesRes.ok) {
@@ -84,11 +86,28 @@ async function loadIbkr() {
     _ibkrPositionsCache = await positionsRes.json();
     _ibkrTradesCache = await tradesRes.json();
 
+    // Stop/target join source: the engine paper book (apex_paper_positions)
+    // carries live stops/targets per instrument; the IBKR mirror does not.
+    // Tolerate failure — cards simply show '—' for stop/target.
+    _ibkrPaperMap = {};
+    if (paperRes && paperRes.ok) {
+      try {
+        const rows = await paperRes.json();
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            if (r && r.instrument) _ibkrPaperMap[String(r.instrument)] = r;
+          }
+        }
+      } catch (e) {
+        console.warn('Paper positions parse failed:', e);
+      }
+    }
+
     updateScoreboard();
     renderClassTab();
   } catch (e) {
     console.error('Error fetching IBKR data:', e);
-    const msg = `<div style="text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Error syncing with IBKR bridge: ${escHtml(e.message || e)}</div>`;
+    const msg = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Error syncing with IBKR bridge: ${escHtml(e.message || e)}</div>`;
     const pw = document.getElementById('ibkrPositionsWrap');
     const tw = document.getElementById('ibkrTradesWrap');
     if (pw) pw.innerHTML = msg;
@@ -194,46 +213,97 @@ function renderClassTab() {
   const ccEl = document.getElementById('clsClosedCount');
   if (ccEl) ccEl.textContent = `${closed.closedCount} closed`;
 
-  renderPositionsTable(positions, cls);
+  renderPositionsCards(positions, cls);
   renderTradesTable(trades, cls);
 }
 
-function renderPositionsTable(positions, cls) {
+// ── Open positions: MT4-style per-position cards ─────────────────────────────
+function renderPositionsCards(positions, cls) {
   const wrap = document.getElementById('ibkrPositionsWrap');
   if (!wrap) return;
 
   if (!positions.length) {
-    wrap.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
+    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
     return;
   }
 
   const sym = curSymbol();
-  const rows = positions.map(p => {
-    const dir = String(p.direction || '').toLowerCase();
-    const dirBadge = dir === 'long'
-      ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
-      : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
-    const upnl = num(p.unrealized_pnl);
-    const upnlTxt = upnl === null ? '—' : fmtSignedMoney(upnl, sym);
-    const updated = p.updated_at ? new Date(p.updated_at).toLocaleString() : '—';
-    return `<tr class="wl-row">
-      <td><span class="wl-sym">${escHtml(p.instrument)}</span></td>
-      <td>${dirBadge}</td>
-      <td style="font-family: var(--mono);">${escHtml(fmtQty(p.units))}</td>
-      <td style="font-family: var(--mono);">${escHtml(fmtPrice(p.avg_price, cls))}</td>
-      <td style="font-family: var(--mono);">${escHtml(fmtMoney(p.market_value, sym))}</td>
-      <td class="${upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''))}" style="font-family: var(--mono); font-weight: 700;">${escHtml(upnlTxt)}</td>
-      <td style="color: var(--text3); font-size: 12px;">${escHtml(updated)}</td>
-    </tr>`;
-  }).join('');
+  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym)).join('');
+}
 
-  wrap.innerHTML = `<div class="wl-table-wrap"><table class="wl-table">
-    <thead><tr>
-      <th>Instrument</th><th>Direction</th><th>Units</th><th>Avg Price</th>
-      <th>Market Value</th><th>Unrealized P&amp;L</th><th>Updated</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+function renderPositionCard(p, cls, sym) {
+  const dir = String(p.direction || '').toLowerCase();
+  const isLong = dir !== 'short';
+  const dirBadge = isLong
+    ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
+    : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
+
+  const units = num(p.units);
+  const mv = num(p.market_value);
+  // Shorts carry a NEGATIVE market_value at IBKR — always display the absolute
+  // notional, and derive the current mark as |market_value| / |units|.
+  const absMv = mv === null ? null : Math.abs(mv);
+  const curPx = (mv !== null && units) ? Math.abs(mv) / Math.abs(units) : null;
+
+  // P&L sign is already correct in the data for both longs and shorts — show as-is.
+  const upnl = num(p.unrealized_pnl);
+  const upnlPct = (upnl !== null && absMv) ? (upnl / absMv) * 100 : null;
+  const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
+  const pctTxt = upnlPct === null ? '' :
+    ` <span style="font-size: 12px; font-weight: 400;">(${(upnlPct >= 0 ? '+' : '') + upnlPct.toFixed(2)}%)</span>`;
+
+  // Stop/target join: apex_paper_positions keyed by instrument, when present.
+  const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
+  const stopTxt = pp && num(pp.stop) !== null ? fmtPrice(pp.stop, cls) : '—';
+  const targetTxt = pp && num(pp.target) !== null ? fmtPrice(pp.target, cls) : '—';
+
+  const updated = p.updated_at ? new Date(p.updated_at).toLocaleString() : '—';
+
+  return `
+    <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(p.instrument)}</strong>
+          ${dirBadge}
+        </div>
+        <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
+        <span style="color: var(--text3)">Avg Entry</span>
+        <span style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(p.avg_price, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Current Price</span>
+        <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${curPx === null ? '—' : escHtml(fmtPrice(curPx, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Market Value</span>
+        <span style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtMoney(absMv, sym))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Stop Loss</span>
+        <span style="font-family: var(--mono); color: var(--red);">${escHtml(stopTxt)}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--text3)">Take Profit</span>
+        <span style="font-family: var(--mono); color: var(--green);">${escHtml(targetTxt)}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
+        <span style="color: var(--text)">Unrealized P&amp;L</span>
+        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}${pctTxt}</span>
+      </div>
+
+      <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
+        Updated: ${escHtml(updated)}
+      </div>
+    </div>
+  `;
 }
 
 function renderTradesTable(trades, cls) {
