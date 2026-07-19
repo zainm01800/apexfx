@@ -273,8 +273,10 @@ class GroqLLM(LLMClient):
                 messages.append({"role": "system", "content": system})
             messages.append({"role": "user", "content": prompt})
 
-            # Default to qwen/qwen3-32b (very fast, high limit, great logic)
-            model = os.environ.get("GROQ_MODEL", "qwen/qwen3-32b")
+            # Default to llama-3.3-70b-versatile (fast, high limit, strong synthesis).
+            # 2026-07-19: previous default qwen/qwen3-32b was retired by Groq (404 on
+            # every call — lesson synthesis silently skipped). Override via GROQ_MODEL.
+            model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
             payload = {
                 "model": model,

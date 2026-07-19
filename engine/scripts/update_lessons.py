@@ -18,7 +18,8 @@ SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 MEMORY_ENDPOINT = f"{SUPABASE_URL}/rest/v1/apex_research_memory"
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 # llama-3.1-8b-instant: 500k TPM, much higher limit than 70b
-GROQ_MODEL = "qwen/qwen3-32b"
+# 2026-07-19: qwen/qwen3-32b retired by Groq (404) — back to 8b-instant per the note above.
+GROQ_MODEL = "llama-3.1-8b-instant"
 
 headers = {
     "apikey": SUPABASE_ANON,

@@ -19,7 +19,8 @@ SUPABASE_ANON = os.environ.get("SUPABASE_SERVICE_KEY") or (
     "fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k"
 )
 GROQ_KEY   = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL = "qwen/qwen3-32b"
+# 2026-07-19: qwen/qwen3-32b retired by Groq (404 on every call) -> 70b-versatile.
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 BASE_HDR   = {"apikey": SUPABASE_ANON, "Authorization": f"Bearer {SUPABASE_ANON}", "Content-Type": "application/json"}
 UPSERT_HDR = {**BASE_HDR, "Prefer": "resolution=merge-duplicates"}
