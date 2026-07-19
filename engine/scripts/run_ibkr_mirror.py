@@ -145,6 +145,41 @@ def plan_for_day(state: dict) -> dict:
     return {"date": day, "entries": entries, "exits": exits}
 
 
+# ── safety guards (pure, unit-testable) ───────────────────────────────────────
+#: Hard ceiling on orders one mirror run may place. The mirror trusts
+#: state.json; a corrupted or regenerated state file could otherwise emit an
+#: arbitrarily large batch in one run. The frozen book's normal day is 0-6
+#: orders, so 25 is generous headroom — anything above it is a malformed state
+#: until a human says otherwise (override with --max-orders).
+DEFAULT_MAX_ORDERS = 25
+
+
+def runaway_guard(plan: dict, max_orders: int) -> str | None:
+    """Return a refusal message when the plan exceeds the per-run order budget,
+    else None. Checked BEFORE connecting — a refused run touches nothing."""
+    n = len(plan.get("entries") or []) + len(plan.get("exits") or [])
+    if n > max_orders:
+        return (f"RUNAWAY GUARD: plan for {plan.get('date')} contains {n} orders "
+                f"(> --max-orders {max_orders}). A normal day is 0-6; this smells "
+                f"like a corrupted/regenerated state.json. Refusing to trade — "
+                f"review the state and re-run with an explicit --max-orders if real.")
+    return None
+
+
+def equity_floor_breached(net_liq, floor) -> bool:
+    """Last-line account protection, independent of any engine risk config.
+
+    ``floor`` is in the ACCOUNT's base currency (NetLiquidation's currency).
+    None/unset floor -> never breached (paper default). A missing/unparseable
+    NetLiquidation with a floor SET counts as breached — fail closed."""
+    if floor is None:
+        return False
+    try:
+        return float(net_liq) < float(floor)
+    except (TypeError, ValueError):
+        return True
+
+
 # ── divergence math ────────────────────────────────────────────────────────────
 def _divergence_bps(engine_price: float, ibkr_price: float, action: str) -> dict:
     """Signed divergence and direction-adjusted cost of the IBKR fill vs the
@@ -182,6 +217,15 @@ def _order_record(kind: str, item: dict, action: str, handle, fill) -> dict:
         rec["stop_recorded"] = item.get("stop")
         rec["target_recorded"] = item.get("target")
         rec["brackets_attached"] = False
+        # SIZE divergence, kept separate from PRICE divergence. Whole-share
+        # rounding (equities reject fractional API orders, error 10243) changes
+        # the quantity, not the fill quality — folding it into one bps number
+        # would make the mirror's headline metric uninterpretable.
+        if handle is not None and item["units"]:
+            rec["size_delta_pct"] = round(
+                (float(handle.quantity) - float(item["units"])) / float(item["units"]) * 100.0, 3)
+        else:
+            rec["size_delta_pct"] = None
     if fill is not None and fill.avg_fill_price is not None:
         rec.update(_divergence_bps(item["engine_fill_price"], fill.avg_fill_price, action))
     else:
@@ -200,12 +244,26 @@ def _summary(orders: list[dict]) -> dict:
     out = {}
     for cls, rows in sorted(by_class.items()):
         abs_divs = [abs(r["divergence_bps"]) for r in rows]
-        comms = [r["commission"] for r in rows if r.get("commission") is not None]
+        # Commissions must not be summed across currencies (IBKR reports them in
+        # the instrument's own currency). Group by currency; the flat
+        # total_commission survives only when a single currency is present.
+        comm_by_ccy: dict[str, float] = {}
+        for r in rows:
+            if r.get("commission") is not None:
+                ccy = r.get("commission_currency") or "?"
+                comm_by_ccy[ccy] = comm_by_ccy.get(ccy, 0.0) + float(r["commission"])
+        comm_by_ccy = {k: round(v, 2) for k, v in comm_by_ccy.items()}
+        size_deltas = [abs(r["size_delta_pct"]) for r in rows
+                       if r.get("size_delta_pct") is not None]
         out[cls] = {
             "n_filled": len(rows),
             "mean_abs_divergence_bps": round(sum(abs_divs) / len(abs_divs), 3),
             "max_abs_divergence_bps": round(max(abs_divs), 3),
-            "total_commission": round(sum(comms), 2) if comms else None,
+            "mean_abs_size_delta_pct": (round(sum(size_deltas) / len(size_deltas), 3)
+                                        if size_deltas else None),
+            "total_commission": (next(iter(comm_by_ccy.values()))
+                                 if len(comm_by_ccy) == 1 else None),
+            "commission_by_currency": comm_by_ccy or None,
         }
     return out
 
@@ -308,7 +366,8 @@ def sync_ibkr_state(executor, record: dict | None = None) -> bool:
 
 
 def run_mirror(state_path: Path, mirror_dir: Path, executor,
-               timeout_s: float) -> tuple[int, dict | None]:
+               timeout_s: float, max_orders: int = DEFAULT_MAX_ORDERS,
+               min_net_liq: float | None = None) -> tuple[int, dict | None]:
     """Mirror the latest processed bar onto IBKR. Returns (exit_code, record)."""
     state = json.loads(state_path.read_text(encoding="utf-8"))
     plan = plan_for_day(state)
@@ -327,6 +386,13 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
               f"strict no-op (idempotent). State NOT re-traded.", flush=True)
         return 0, None
 
+    # Runaway guard — BEFORE connecting: a refused run touches nothing, writes
+    # nothing, and is retryable after human review.
+    refusal = runaway_guard(plan, max_orders)
+    if refusal:
+        print(refusal, flush=True)
+        return 1, None
+
     print("=" * 72, flush=True)
     print(f"IBKR PAPER MIRROR | book={state.get('book')} | bar {day} "
           f"| entries {len(plan['entries'])} exits {len(plan['exits'])}")
@@ -337,6 +403,16 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     acct = executor.get_account()
     print(f"account {acct.get('account')} | NetLiq {acct.get('NetLiquidation')} "
           f"| AvailableFunds {acct.get('AvailableFunds')}", flush=True)
+
+    # Equity floor — last-line balance protection, independent of engine risk
+    # config (the allowlist protects the account IDENTITY; this protects the
+    # BALANCE from a compromised upstream state). Floor is in the account's
+    # base currency. Unset (default, paper) -> no-op.
+    if equity_floor_breached(acct.get("NetLiquidation"), min_net_liq):
+        print(f"EQUITY FLOOR: NetLiquidation {acct.get('NetLiquidation')} is below "
+              f"the configured floor {min_net_liq} (IBKR_MIN_NET_LIQ). "
+              f"Refusing to place orders.", flush=True)
+        return 1, None
 
     record: dict = {
         "date": day,
@@ -513,6 +589,16 @@ def main(argv: list[str] | None = None, executor=None) -> int:
     ap.add_argument("--state", default=str(STATE_PATH), help="paper portfolio state.json path")
     ap.add_argument("--mirror-dir", default=str(MIRROR_DIR), help="mirror record directory")
     ap.add_argument("--timeout-s", type=float, default=120.0, help="per-order fill wait budget")
+    ap.add_argument("--max-orders", type=int, default=DEFAULT_MAX_ORDERS,
+                    help="runaway guard: refuse (exit 1, before connecting) if the "
+                         f"plan holds more orders than this (default {DEFAULT_MAX_ORDERS}; "
+                         "a normal day is 0-6 — bigger plans mean a bad state.json)")
+    ap.add_argument("--min-net-liq", type=float,
+                    default=(float(os.environ["IBKR_MIN_NET_LIQ"])
+                             if os.environ.get("IBKR_MIN_NET_LIQ") else None),
+                    help="equity floor in the ACCOUNT's base currency: refuse to place "
+                         "orders when NetLiquidation is below this (default: env "
+                         "IBKR_MIN_NET_LIQ, unset = off)")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the plan for the latest bar; connect to nothing, write nothing")
     ap.add_argument("--sync-only", action="store_true",
@@ -553,7 +639,8 @@ def main(argv: list[str] | None = None, executor=None) -> int:
     if own_executor:
         executor = IBKRExecutor()   # env-overridable host/port/client/account
     try:
-        code, _ = run_mirror(state_path, Path(args.mirror_dir), executor, args.timeout_s)
+        code, _ = run_mirror(state_path, Path(args.mirror_dir), executor, args.timeout_s,
+                             max_orders=args.max_orders, min_net_liq=args.min_net_liq)
         return code
     except IBKRAccountError as e:
         print(f"ACCOUNT ALLOWLIST REFUSAL: {e}", flush=True)
