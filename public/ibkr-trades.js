@@ -276,12 +276,23 @@ function renderPositionCard(p, cls, sym, gross) {
     ? ` <span style="font-size:11px;color:var(--text3);font-weight:400;">(${((absMv / gross) * 100).toFixed(0)}% of book)</span>`
     : '';
 
-  // P&L sign is already correct in the data for both longs and shorts — show as-is.
+  // Two distinct readouts on the card:
+  //   • Profit / Loss Now — the actual money you're up/down right now. The data's
+  //     sign is already direction-correct for longs and shorts, so show as-is.
+  //   • Price Move — how far the PRICE itself has travelled from your avg entry,
+  //     coloured by whether that move helps (green) or hurts (red) the position,
+  //     so a short that profits on a falling price still reads green.
   const upnl = num(p.unrealized_pnl);
-  const upnlPct = (upnl !== null && absMv) ? (upnl / absMv) * 100 : null;
   const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
-  const pctTxt = upnlPct === null ? '' :
-    ` <span style="font-size: 12px; font-weight: 400;">(${(upnlPct >= 0 ? '+' : '') + upnlPct.toFixed(2)}%)</span>`;
+
+  const entryPx = num(p.avg_price);
+  const priceDelta = (curPx !== null && entryPx !== null) ? curPx - entryPx : null;
+  const priceDeltaPct = (priceDelta !== null && entryPx) ? (priceDelta / entryPx) * 100 : null;
+  const moveAgainst = priceDelta === null ? 0 : (isLong ? priceDelta : -priceDelta); // >0 helps, <0 hurts
+  const moveColor = moveAgainst > 0 ? 'var(--green)' : (moveAgainst < 0 ? 'var(--red)' : 'var(--text2)');
+  const priceMoveTxt = priceDelta === null ? '—'
+    : (priceDelta >= 0 ? '+' : '-') + fmtPrice(Math.abs(priceDelta), cls)
+      + (priceDeltaPct === null ? '' : ` (${priceDeltaPct >= 0 ? '+' : '-'}${Math.abs(priceDeltaPct).toFixed(2)}%)`);
 
   // Stop/target join: apex_paper_positions keyed by instrument, when present.
   const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
@@ -311,6 +322,11 @@ function renderPositionCard(p, cls, sym, gross) {
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Price Move</span>
+        <span style="font-family: var(--mono); color: ${moveColor}; font-weight: 600;">${escHtml(priceMoveTxt)}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
         <span style="color: var(--text3)">Open Now</span>
         <span style="font-family: var(--mono); color: var(--text); font-weight: 600;">${escHtml(fmtMoney(absMv, sym))}${sharePct}</span>
       </div>
@@ -326,8 +342,8 @@ function renderPositionCard(p, cls, sym, gross) {
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
-        <span style="color: var(--text)">Unrealized P&amp;L</span>
-        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}${pctTxt}</span>
+        <span style="color: var(--text)">Profit / Loss Now</span>
+        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
       </div>
 
       <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
