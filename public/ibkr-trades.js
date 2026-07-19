@@ -55,6 +55,18 @@ function fmtQty(v) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
 
+// Every timestamp on this page is shown in UK time (Europe/London), explicitly
+// labeled "UK". Supabase stores UTC ISO strings — this is the single conversion
+// point. Crypto is 24/7 ("BTC time"), so no session conversion is ever needed.
+const UK_TZ = 'Europe/London';
+function fmtUK(ts, withSeconds) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '—';
+  const opts = { timeZone: UK_TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false };
+  if (withSeconds) opts.second = '2-digit';
+  return d.toLocaleString('en-GB', opts) + ' UK';
+}
+
 function pnlClass(v) {
   const n = num(v);
   if (n === null || n === 0) return '';
@@ -155,8 +167,8 @@ function updateScoreboard() {
     if (a.updated_at) {
       const lastUpdate = new Date(a.updated_at);
       if (!isNaN(lastUpdate.getTime())) {
-        const timeStr = lastUpdate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        label.textContent = 'Last Sync: ' + timeStr;
+        const timeStr = lastUpdate.toLocaleTimeString('en-GB', { timeZone: UK_TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        label.textContent = 'Last Sync: ' + timeStr + ' UK';
       }
     } else {
       label.textContent = 'Last Sync: —';
@@ -299,7 +311,7 @@ function renderPositionCard(p, cls, sym, gross) {
   const stopTxt = pp && num(pp.stop) !== null ? fmtPrice(pp.stop, cls) : '—';
   const targetTxt = pp && num(pp.target) !== null ? fmtPrice(pp.target, cls) : '—';
 
-  const updated = p.updated_at ? new Date(p.updated_at).toLocaleString() : '—';
+  const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
     <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
@@ -370,7 +382,7 @@ function renderTradesTable(trades, cls) {
       ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">BUY</span>'
       : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SELL</span>';
     const comm = num(t.commission);
-    const when = t.exec_time ? new Date(t.exec_time).toLocaleString() : '—';
+    const when = t.exec_time ? fmtUK(t.exec_time) : '—';
     return `<tr class="wl-row">
       <td style="color: var(--text3); font-size: 12px; white-space: nowrap;">${escHtml(when)}</td>
       <td><span class="wl-sym">${escHtml(t.instrument)}</span></td>
