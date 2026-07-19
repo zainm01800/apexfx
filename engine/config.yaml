@@ -146,7 +146,11 @@ regime:
 risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
   kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
-  max_risk_per_trade: 0.02       # 2% of equity at risk per trade (optimized cap)
+  max_risk_per_trade: 0.01       # 1% of equity at risk per trade — set 2026-07-19 from the
+                                 # prop-rules Monte Carlo sweep (engine/scratch/prop_risk_sweep.py,
+                                 # Book H gold trade stats, static-floor two-step rules): 1.0% is the
+                                 # survival-adjusted optimum — ~82-94% pass/attempt, ~97-99.6% with one
+                                 # retry inside 6 months, ~89-97% funded 12-mo survival. Was 0.02.
   max_total_exposure: 3.0        # gross notional ≤ 3× equity (engine default; re-enabled
                                  # 2026-07-14 — was 100× "for paper testing" while running on a
                                  # LIVE account: 28/87 trades breached 3×, peaking at ~19× (18.68

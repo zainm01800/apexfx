@@ -7,6 +7,14 @@ from apex_quant.strategies.cross_sectional import (
     CrossSectionalMomentum,
     CrossSectionalMomentumStrategy,
 )
+from apex_quant.strategies.crypto_xs_momentum import (
+    CryptoXsMomentum,
+    CryptoXsMomentumStrategy,
+)
+from apex_quant.strategies.st_reversal import (
+    ShortTermReversal,
+    ShortTermReversalStrategy,
+)
 from apex_quant.strategies.labeling import atr_series, triple_barrier_label
 
 __all__ = [
@@ -16,6 +24,10 @@ __all__ = [
     "MetaLabeledStrategy",
     "CrossSectionalMomentum",
     "CrossSectionalMomentumStrategy",
+    "CryptoXsMomentum",
+    "CryptoXsMomentumStrategy",
+    "ShortTermReversal",
+    "ShortTermReversalStrategy",
     "ConformalCalibrator",
     "CalibratedProb",
     "triple_barrier_label",

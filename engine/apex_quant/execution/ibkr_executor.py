@@ -137,7 +137,10 @@ AssetClass = Literal["equity", "crypto", "forex"]
 DirectionLike = Literal["long", "short", "buy", "sell"]
 
 #: Decimal places for order quantities per asset class (venue conventions).
-_QTY_DECIMALS: dict[str, int] = {"equity": 2, "crypto": 6, "forex": 0}
+_QTY_DECIMALS: dict[str, int] = {"equity": 0, "crypto": 6, "forex": 0}
+# 2026-07-18: equity forced to WHOLE shares — the DUQ278370 paper account
+# rejects fractional API orders (IBKR error 10243). Rounding delta vs the
+# model's fractional size is recorded as mirror divergence.
 
 #: accountSummary tags surfaced by get_account().
 _ACCOUNT_TAGS = (

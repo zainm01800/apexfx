@@ -1,0 +1,573 @@
+{
+  "generated_utc": "2026-07-19T02:55:25+00:00",
+  "prereg": "data_store/crypto_4h_prereg_2026-07-17.md",
+  "ledger_before": 170,
+  "ledger_after": 182,
+  "holdout_start": "2025-01-01",
+  "timeframe": "4h",
+  "exit_mode": "managed",
+  "grid": [
+    {
+      "momentum_lookback": 42,
+      "vol_window": 42,
+      "holding_horizon": 10,
+      "reward_risk": 1.5,
+      "regime_method": "rule_based",
+      "timeframe": "4h"
+    },
+    {
+      "momentum_lookback": 21,
+      "vol_window": 21,
+      "holding_horizon": 10,
+      "reward_risk": 1.5,
+      "regime_method": "rule_based",
+      "timeframe": "4h"
+    },
+    {
+      "momentum_lookback": 84,
+      "vol_window": 84,
+      "holding_horizon": 10,
+      "reward_risk": 1.5,
+      "regime_method": "rule_based",
+      "timeframe": "4h"
+    }
+  ],
+  "cost_levels": [
+    "rt2.5_config",
+    "rt10_stress"
+  ],
+  "runs": [
+    {
+      "instrument": "BTC/USD",
+      "cost_tag": "rt2.5_config",
+      "asset_class": "crypto",
+      "bars": 15290,
+      "years": 7.0,
+      "headline_params": {
+        "momentum_lookback": 42,
+        "vol_window": 42,
+        "holding_horizon": 10,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "4h"
+      },
+      "dsr": {
+        "dsr": 0.9855462783556383,
+        "observed_sharpe": 0.018440065467154647,
+        "observed_sharpe_ann": 0.35229695608680256,
+        "sr0": 0.0010500836190044589,
+        "n_trials": 182,
+        "n_trials_observed": 3,
+        "n_obs": 15289,
+        "skew": 2.322636554716807,
+        "kurtosis": 135.51391577722626
+      },
+      "pbo": {
+        "pbo": 0.98875,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.01973072798054174,
+        "oos_sharpe_std": 0.006783569948381494,
+        "oos_sharpe_median": 0.020240226863198072,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0315,
+          0.0246,
+          0.0223,
+          0.0198,
+          0.0202,
+          0.028,
+          0.0259,
+          0.0238,
+          0.0241,
+          0.0162,
+          0.0128,
+          0.0137,
+          0.0113,
+          0.0124,
+          0.0092
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": true,
+        "pbo_pass": false,
+        "cpcv_pass": true,
+        "reasons": [
+          "DSR 0.986 > 0.95 (multiple-testing deflation)",
+          "PBO 0.98875 >= 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe 0.020, 100% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "per_config": [
+        {
+          "params": {
+            "momentum_lookback": 42,
+            "vol_window": 42
+          },
+          "n_trades": 937,
+          "trades_per_week": 2.57,
+          "net_bps_per_trade": 28.42,
+          "win_rate": 0.5123,
+          "expectancy_pnl": 46.1,
+          "expectancy_pct": 0.2842,
+          "profit_factor": 1.2300244289395859,
+          "total_return_pct": 43.19,
+          "sharpe": 0.863,
+          "max_drawdown_pct": 7.45,
+          "exit_reasons": {
+            "target": 171,
+            "stop": 340,
+            "time": 426
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 21,
+            "vol_window": 21
+          },
+          "n_trades": 831,
+          "trades_per_week": 2.28,
+          "net_bps_per_trade": 28.19,
+          "win_rate": 0.5199,
+          "expectancy_pnl": 46.65,
+          "expectancy_pct": 0.2819,
+          "profit_factor": 1.2456824576085095,
+          "total_return_pct": 38.77,
+          "sharpe": 0.828,
+          "max_drawdown_pct": 6.78,
+          "exit_reasons": {
+            "stop": 306,
+            "target": 159,
+            "time": 366
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 84,
+            "vol_window": 84
+          },
+          "n_trades": 895,
+          "trades_per_week": 2.45,
+          "net_bps_per_trade": 27.64,
+          "win_rate": 0.5229,
+          "expectancy_pnl": 45.62,
+          "expectancy_pct": 0.2764,
+          "profit_factor": 1.2348686745976143,
+          "total_return_pct": 40.83,
+          "sharpe": 0.854,
+          "max_drawdown_pct": 6.99,
+          "exit_reasons": {
+            "stop": 329,
+            "time": 410,
+            "target": 156
+          }
+        }
+      ]
+    },
+    {
+      "instrument": "BTC/USD",
+      "cost_tag": "rt10_stress",
+      "asset_class": "crypto",
+      "bars": 15290,
+      "years": 7.0,
+      "headline_params": {
+        "momentum_lookback": 42,
+        "vol_window": 42,
+        "holding_horizon": 10,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "4h"
+      },
+      "dsr": {
+        "dsr": 0.9369101840490612,
+        "observed_sharpe": 0.014425261341847783,
+        "observed_sharpe_ann": 0.27559423097177116,
+        "sr0": 0.0021962196995522743,
+        "n_trials": 182,
+        "n_trials_observed": 3,
+        "n_obs": 15289,
+        "skew": 2.0421616077774614,
+        "kurtosis": 135.17178472286898
+      },
+      "pbo": {
+        "pbo": 0.89625,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.0156967458222514,
+        "oos_sharpe_std": 0.007191937612848092,
+        "oos_sharpe_median": 0.017402552684379728,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0282,
+          0.0221,
+          0.0209,
+          0.0174,
+          0.0174,
+          0.0228,
+          0.0217,
+          0.0183,
+          0.0184,
+          0.0127,
+          0.0077,
+          0.0084,
+          0.0077,
+          0.0085,
+          0.0034
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": false,
+        "cpcv_pass": true,
+        "reasons": [
+          "DSR 0.937 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.89625 >= 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe 0.017, 100% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "per_config": [
+        {
+          "params": {
+            "momentum_lookback": 42,
+            "vol_window": 42
+          },
+          "n_trades": 935,
+          "trades_per_week": 2.56,
+          "net_bps_per_trade": 22.16,
+          "win_rate": 0.5048,
+          "expectancy_pnl": 33.99,
+          "expectancy_pct": 0.2216,
+          "profit_factor": 1.1733333435151996,
+          "total_return_pct": 31.78,
+          "sharpe": 0.675,
+          "max_drawdown_pct": 7.88,
+          "exit_reasons": {
+            "target": 168,
+            "stop": 339,
+            "time": 428
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 21,
+            "vol_window": 21
+          },
+          "n_trades": 830,
+          "trades_per_week": 2.27,
+          "net_bps_per_trade": 24.15,
+          "win_rate": 0.512,
+          "expectancy_pnl": 41.3,
+          "expectancy_pct": 0.2415,
+          "profit_factor": 1.217265217337847,
+          "total_return_pct": 34.28,
+          "sharpe": 0.749,
+          "max_drawdown_pct": 6.92,
+          "exit_reasons": {
+            "stop": 307,
+            "target": 157,
+            "time": 366
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 84,
+            "vol_window": 84
+          },
+          "n_trades": 893,
+          "trades_per_week": 2.45,
+          "net_bps_per_trade": 21.1,
+          "win_rate": 0.5129,
+          "expectancy_pnl": 35.74,
+          "expectancy_pct": 0.211,
+          "profit_factor": 1.1862383073449867,
+          "total_return_pct": 31.91,
+          "sharpe": 0.701,
+          "max_drawdown_pct": 7.36,
+          "exit_reasons": {
+            "stop": 329,
+            "time": 410,
+            "target": 154
+          }
+        }
+      ]
+    },
+    {
+      "instrument": "ETH/USD",
+      "cost_tag": "rt2.5_config",
+      "asset_class": "crypto",
+      "bars": 15290,
+      "years": 7.0,
+      "headline_params": {
+        "momentum_lookback": 42,
+        "vol_window": 42,
+        "holding_horizon": 10,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "4h"
+      },
+      "dsr": {
+        "dsr": 0.8648020542519052,
+        "observed_sharpe": 0.014329211445151592,
+        "observed_sharpe_ann": 0.2737592002719728,
+        "sr0": 0.005369151949756833,
+        "n_trials": 182,
+        "n_trials_observed": 3,
+        "n_obs": 15289,
+        "skew": -0.60701832320051,
+        "kurtosis": 34.00437659818258
+      },
+      "pbo": {
+        "pbo": 0.50575,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.01256311834474898,
+        "oos_sharpe_std": 0.016512488371195018,
+        "oos_sharpe_median": 0.008646095207523288,
+        "frac_positive": 0.6,
+        "oos_sharpe_paths": [
+          0.0404,
+          0.0297,
+          0.0293,
+          0.0357,
+          0.0335,
+          0.0085,
+          0.0087,
+          0.0116,
+          0.0086,
+          -0.0014,
+          -0.0012,
+          -0.0041,
+          -0.003,
+          -0.0058,
+          -0.002
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": false,
+        "cpcv_pass": true,
+        "reasons": [
+          "DSR 0.865 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.50575 >= 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe 0.009, 60% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "per_config": [
+        {
+          "params": {
+            "momentum_lookback": 42,
+            "vol_window": 42
+          },
+          "n_trades": 1085,
+          "trades_per_week": 2.97,
+          "net_bps_per_trade": 43.82,
+          "win_rate": 0.506,
+          "expectancy_pnl": 32.21,
+          "expectancy_pct": 0.4382,
+          "profit_factor": 1.1361060345409484,
+          "total_return_pct": 35.38,
+          "sharpe": 0.671,
+          "max_drawdown_pct": 13.16,
+          "exit_reasons": {
+            "stop": 426,
+            "time": 462,
+            "target": 197
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 21,
+            "vol_window": 21
+          },
+          "n_trades": 974,
+          "trades_per_week": 2.67,
+          "net_bps_per_trade": 30.45,
+          "win_rate": 0.5062,
+          "expectancy_pnl": 23.06,
+          "expectancy_pct": 0.3045,
+          "profit_factor": 1.100843068936854,
+          "total_return_pct": 22.46,
+          "sharpe": 0.487,
+          "max_drawdown_pct": 14.48,
+          "exit_reasons": {
+            "stop": 378,
+            "time": 415,
+            "target": 181
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 84,
+            "vol_window": 84
+          },
+          "n_trades": 1033,
+          "trades_per_week": 2.83,
+          "net_bps_per_trade": 49.63,
+          "win_rate": 0.5092,
+          "expectancy_pnl": 27.58,
+          "expectancy_pct": 0.4963,
+          "profit_factor": 1.117936112444376,
+          "total_return_pct": 28.76,
+          "sharpe": 0.572,
+          "max_drawdown_pct": 15.12,
+          "exit_reasons": {
+            "stop": 399,
+            "time": 446,
+            "target": 188
+          }
+        }
+      ]
+    },
+    {
+      "instrument": "ETH/USD",
+      "cost_tag": "rt10_stress",
+      "asset_class": "crypto",
+      "bars": 15290,
+      "years": 7.0,
+      "headline_params": {
+        "momentum_lookback": 42,
+        "vol_window": 42,
+        "holding_horizon": 10,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "4h"
+      },
+      "dsr": {
+        "dsr": 0.8334266637581522,
+        "observed_sharpe": 0.010827354582806254,
+        "observed_sharpe_ann": 0.20685631885577652,
+        "sr0": 0.002973889828909712,
+        "n_trials": 182,
+        "n_trials_observed": 3,
+        "n_obs": 15289,
+        "skew": -0.5329187382997601,
+        "kurtosis": 33.22656576617206
+      },
+      "pbo": {
+        "pbo": 0.782,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.009042279190873307,
+        "oos_sharpe_std": 0.016539195290457182,
+        "oos_sharpe_median": 0.004266258703048483,
+        "frac_positive": 0.6,
+        "oos_sharpe_paths": [
+          0.0363,
+          0.0267,
+          0.0251,
+          0.0331,
+          0.0307,
+          0.0046,
+          0.0035,
+          0.0078,
+          0.0043,
+          -0.0051,
+          -0.0033,
+          -0.0068,
+          -0.0065,
+          -0.01,
+          -0.0048
+        ]
+      },
+      "verdict": {
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": false,
+        "cpcv_pass": true,
+        "reasons": [
+          "DSR 0.833 <= 0.95 (multiple-testing deflation)",
+          "PBO 0.782 >= 0.5 (overfit probability)",
+          "CPCV median OOS Sharpe 0.004, 60% of 15 paths positive",
+          "VERDICT: rejected - insufficient evidence of a real, non-overfit edge"
+        ]
+      },
+      "per_config": [
+        {
+          "params": {
+            "momentum_lookback": 42,
+            "vol_window": 42
+          },
+          "n_trades": 1084,
+          "trades_per_week": 2.97,
+          "net_bps_per_trade": 35.81,
+          "win_rate": 0.4954,
+          "expectancy_pnl": 22.87,
+          "expectancy_pct": 0.3581,
+          "profit_factor": 1.1000011739210889,
+          "total_return_pct": 25.12,
+          "sharpe": 0.507,
+          "max_drawdown_pct": 13.99,
+          "exit_reasons": {
+            "stop": 421,
+            "time": 466,
+            "target": 197
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 21,
+            "vol_window": 21
+          },
+          "n_trades": 973,
+          "trades_per_week": 2.66,
+          "net_bps_per_trade": 24.52,
+          "win_rate": 0.5015,
+          "expectancy_pnl": 18.43,
+          "expectancy_pct": 0.2452,
+          "profit_factor": 1.0835645696888507,
+          "total_return_pct": 17.94,
+          "sharpe": 0.405,
+          "max_drawdown_pct": 15.36,
+          "exit_reasons": {
+            "stop": 375,
+            "time": 416,
+            "target": 182
+          }
+        },
+        {
+          "params": {
+            "momentum_lookback": 84,
+            "vol_window": 84
+          },
+          "n_trades": 1029,
+          "trades_per_week": 2.82,
+          "net_bps_per_trade": 43.04,
+          "win_rate": 0.4976,
+          "expectancy_pnl": 20.88,
+          "expectancy_pct": 0.4304,
+          "profit_factor": 1.091766191556006,
+          "total_return_pct": 21.69,
+          "sharpe": 0.454,
+          "max_drawdown_pct": 15.78,
+          "exit_reasons": {
+            "stop": 395,
+            "time": 447,
+            "target": 187
+          }
+        }
+      ]
+    }
+  ]
+}
