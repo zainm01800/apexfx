@@ -250,10 +250,13 @@ function renderPositionsCards(positions, cls) {
   }
 
   const sym = curSymbol();
-  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym)).join('');
+  // Gross book = sum of every position's absolute notional; each card shows its
+  // own slice of it so "how much is open right now" reads off the card directly.
+  const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
+  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('');
 }
 
-function renderPositionCard(p, cls, sym) {
+function renderPositionCard(p, cls, sym, gross) {
   const dir = String(p.direction || '').toLowerCase();
   const isLong = dir !== 'short';
   const dirBadge = isLong
@@ -266,6 +269,12 @@ function renderPositionCard(p, cls, sym) {
   // notional, and derive the current mark as |market_value| / |units|.
   const absMv = mv === null ? null : Math.abs(mv);
   const curPx = (mv !== null && units) ? Math.abs(mv) / Math.abs(units) : null;
+
+  // Share of the class book this position accounts for, so the card answers
+  // "how much of my open exposure is this one trade?" at a glance.
+  const sharePct = (absMv !== null && gross > 0)
+    ? ` <span style="font-size:11px;color:var(--text3);font-weight:400;">(${((absMv / gross) * 100).toFixed(0)}% of book)</span>`
+    : '';
 
   // P&L sign is already correct in the data for both longs and shorts — show as-is.
   const upnl = num(p.unrealized_pnl);
@@ -302,8 +311,8 @@ function renderPositionCard(p, cls, sym) {
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-        <span style="color: var(--text3)">Market Value</span>
-        <span style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtMoney(absMv, sym))}</span>
+        <span style="color: var(--text3)">Open Now</span>
+        <span style="font-family: var(--mono); color: var(--text); font-weight: 600;">${escHtml(fmtMoney(absMv, sym))}${sharePct}</span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
