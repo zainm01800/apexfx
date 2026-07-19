@@ -42,11 +42,19 @@ function formatLessonText(text) {
   return hasReplacement ? formatted : cleaned;
 }
 
-// Render a DB lesson for innerHTML: escape EVERYTHING, then honour the legacy
-// literal `<br>` paragraph breaks (now inert `&lt;br&gt;`) as visual separators.
+// Render a DB lesson for innerHTML. Security model (audit J-C2): lesson text is
+// LLM-influenceable, so escape EVERYTHING first, then restore ONLY the engine's
+// own structural markup — exact `<strong>`/`</strong>`/`<br>` tags (no attributes
+// can survive) — and repair Python-pre-escaped entities (&amp; &#x27; &quot;)
+// that double-escaping would otherwise show literally. Anything else (e.g. an
+// injected &lt;img onerror…&gt;) stays inert escaped text.
 function lessonToHtml(text) {
   return escHtml(formatLessonText(text))
-    .replace(/&lt;br\s*\/?&gt;/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">');
+    .replace(/&lt;br\s*\/?&gt;/gi, '</div><div style="margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 6px;">')
+    .replace(/&lt;strong&gt;/gi, '<strong>')
+    .replace(/&lt;\/strong&gt;/gi, '</strong>')
+    .replace(/&amp;amp;/g, '&amp;')
+    .replace(/&amp;(#x27;|#39;|quot;)/g, '&$1');
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -1365,7 +1373,7 @@ function renderLearningPanel() {
     const label = `${g.asset} · ${g.style.charAt(0).toUpperCase() + g.style.slice(1)} · ${g.regime}`;
     const amb   = g.ambiguous ? ` <span class="learn-amb" title="${g.ambiguous} ambiguous — one bar spanned both TP and SL; excluded from win rate and avg R">+${g.ambiguous} ⚖️</span>` : '';
     const lesson = g.lesson
-      ? `<div class="learn-lesson" title="${escHtml(g.lesson)}">📓 ${g.lesson.replace(/<!--[\s\S]*?-->/g, '').trim()}</div>`
+      ? `<div class="learn-lesson" title="${escHtml(g.lesson)}">📓 ${lessonToHtml(g.lesson)}</div>`
       : `<div class="learn-lesson none">No post-mortem lesson for this group yet.</div>`;
     return `<div class="learn-row">
       <div class="learn-main">
