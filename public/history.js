@@ -1365,7 +1365,7 @@ function renderLearningPanel() {
     const label = `${g.asset} · ${g.style.charAt(0).toUpperCase() + g.style.slice(1)} · ${g.regime}`;
     const amb   = g.ambiguous ? ` <span class="learn-amb" title="${g.ambiguous} ambiguous — one bar spanned both TP and SL; excluded from win rate and avg R">+${g.ambiguous} ⚖️</span>` : '';
     const lesson = g.lesson
-      ? `<div class="learn-lesson" title="${escHtml(g.lesson)}">📓 ${escHtml(g.lesson.length > 180 ? g.lesson.slice(0, 180).trimEnd() + '…' : g.lesson)}</div>`
+      ? `<div class="learn-lesson" title="${escHtml(g.lesson)}">📓 ${g.lesson.replace(/<!--[\s\S]*?-->/g, '').trim()}</div>`
       : `<div class="learn-lesson none">No post-mortem lesson for this group yet.</div>`;
     return `<div class="learn-row">
       <div class="learn-main">

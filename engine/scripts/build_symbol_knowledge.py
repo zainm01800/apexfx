@@ -108,7 +108,7 @@ Total trades: {len(mt4_trades)}
 Wins (profit > 0): {len(wins)}
 Losses (profit < 0): {len(losses)}
 Total P&L: £{total_pnl:+.2f}
-Win rate: {len(wins)/len(mt4_trades)*100:.1f}% if {len(mt4_trades)} > 0 else 0
+Win rate: {(len(wins)/len(mt4_trades)*100) if mt4_trades else 0.0:.1f}%
 
 Individual trades:
 {trade_lines}
@@ -169,8 +169,11 @@ def run():
         sym = clean_sym(l.get("symbol",""))
         if sym: lessons_by_sym[sym].append(l)
 
-    print(f"Processing {len(by_sym)} symbols...\n")
-    for sym, trades in sorted(by_sym.items()):
+    print(f"Processing {len(set(by_sym) | set(lessons_by_sym))} symbols...\n")
+    # Union of symbols with MT4 trades OR lessons — lesson-only symbols (research
+    # scans, future IBKR-resolved rows) get knowledge too, not silence.
+    for sym in sorted(set(by_sym) | set(lessons_by_sym)):
+        trades   = by_sym.get(sym, [])
         wins     = sum(1 for t in trades if float(t.get("profit",0)) > 0)
         win_rate = wins / len(trades) if trades else 0.0
         lessons  = lessons_by_sym.get(sym, [])

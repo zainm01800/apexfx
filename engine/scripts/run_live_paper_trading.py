@@ -521,12 +521,17 @@ def initialize_bayesian_sizer_from_supabase():
             continue
             
         tk = t.get("ticket")
+        if tk is None:
+            # Research/simulated outcome (web scan or unlinked expired setup) —
+            # it informs lessons and panels, but must NEVER size or veto orders.
+            # Only executed, ticket-linked trades feed the posterior.
+            pending += 1
+            continue
         pnl = None
-        if tk is not None:
-            try:
-                pnl = ticket_to_pnl.get(int(tk))
-            except (ValueError, TypeError):
-                pass
+        try:
+            pnl = ticket_to_pnl.get(int(tk))
+        except (ValueError, TypeError):
+            pass
 
         _BAYESIAN_SIZER.record_outcome(symbol, win, pnl=pnl)
         recorded += 1
@@ -538,8 +543,8 @@ def initialize_bayesian_sizer_from_supabase():
             premature += 1
 
     rate = (wins / recorded * 100.0) if recorded else 0.0
-    print(f"[BAYESIAN SIZER] Learned from {recorded} resolved trades "
-          f"(win rate {rate:.1f}%); {pending} still awaiting a hindsight verdict.")
+    print(f"[BAYESIAN SIZER] Learned from {recorded} executed (ticket-linked) trades "
+          f"(win rate {rate:.1f}%); {pending} research/pending rows excluded from sizing.")
     
     # Log payoff details for sample instrument
     active_instruments = [str(t.get("symbol", "")).upper() for t in resolved_trades if t.get("symbol")]
