@@ -62,6 +62,33 @@ from apex_quant.features.microstructure import YangZhangVol
 cfg = get_config()
 EQUITIES_SET = set(cfg.data.equities) if hasattr(cfg.data, "equities") and cfg.data.equities else set()
 
+# ── Web asset taxonomy (Crypto / Forex / ETF / Stock) ─────────────────────────
+# The dashboard "Learning by setup" panel groups by asset_type; engine rows used
+# to say "Equity" while web rows say Stock/ETF, splitting every stat in two. New
+# engine rows use the web labels; the ETF set mirrors public/dashboard.js.
+ETF_SYMBOLS = {
+    "SPY", "QQQ", "IWM", "GLD", "SLV", "USO", "TLT", "HYG", "LQD", "XLF", "XLE",
+    "XLK", "XLV", "XLI", "XLC", "ARKK", "VTI", "VOO", "VNQ", "EEM", "EFA", "GDX",
+    "GDXJ", "XBI", "IBB", "DIA", "SMH", "SOXX",
+}
+
+def _web_asset_type(symbol: str) -> str:
+    """Web taxonomy asset label for *symbol*: Crypto / Forex / ETF / Stock."""
+    sym = (symbol or "").strip().upper()
+    if sym in ETF_SYMBOLS:
+        return "ETF"
+    cls = cfg.asset_class_of(symbol)
+    return {"forex": "Forex", "crypto": "Crypto", "equity": "Stock"}.get(cls, "Stock")
+
+# ── IBKR ticket namespace ─────────────────────────────────────────────────────
+# apex_research_memory.ticket joins to apex_mt4_trades.ticket for realized P&L.
+# IBKR virtual tickets (permIds) live in the same int range as MT4 tickets, so
+# they are offset into their own namespace before being written to the column:
+# no collision with any real MT4 ticket, and the posterior's pnl join can never
+# match an IBKR-resolved row to somebody else's MT4 trade (it falls back to the
+# row's own setup_features.profit_pnl instead — see initialize_bayesian_sizer).
+IBKR_TICKET_OFFSET = 9_000_000_000_000
+
 def _safe_float(val):
     if val is None:
         return None
@@ -372,10 +399,29 @@ def _create_executor():
         print("[EXECUTOR] Execution is DISABLED in config — no orders will be sent.")
         return None
 
-    provider = cfg.execution.provider
+    # Env wins over the cached config singleton so the rollback/migration
+    # switch (and the smoke test's per-call override) works without a restart.
+    provider = os.environ.get("APEX_EXECUTION__PROVIDER") or cfg.execution.provider
     if provider == "mt4":
         print(f"[EXECUTOR] Using MT4Executor (common_dir from config/env)")
         return MT4Executor()
+    elif provider == "ibkr":
+        try:
+            from apex_quant.execution.ibkr_bridge import IBKRLiveBridge
+            print("[EXECUTOR] Using IBKRLiveBridge (IBKR paper account)")
+            bridge = IBKRLiveBridge()
+            try:
+                acct = bridge.connect()
+                print(f"[EXECUTOR] IBKR connected — account {acct}")
+            except Exception as e:
+                # Clean degradation: return the unconnected bridge so the ledger
+                # stays readable for resolution; order dispatch will fail loudly
+                # per-call until the gateway is up, exactly like a dead MT4 dir.
+                print(f"[EXECUTOR ERROR] IBKR connect failed: {e} — orders will fail until the gateway is up")
+            return bridge
+        except ImportError as e:
+            print(f"[EXECUTOR ERROR] IBKRLiveBridge import failed: {e}. Falling back to MT4Executor.")
+            return MT4Executor()
     elif provider == "zmq":
         try:
             from apex_quant.execution.zmq_bridge import ZMQBridge
@@ -392,6 +438,14 @@ def _create_executor():
         return None
 
 _EXECUTOR = _create_executor()
+
+def _is_ibkr_executor() -> bool:
+    """True when the live executor is the IBKR bridge (provider=ibkr)."""
+    return type(_EXECUTOR).__name__ == "IBKRLiveBridge"
+
+# Setups this process has already resolved via the IBKR ledger — guards the
+# 5-second sync loop against re-PATCHing a setup between write and next fetch.
+_resolved_setup_ids: set = set()
 
 # ── Bayesian Sizer Global Setup ──
 _BAYESIAN_SIZER = BayesianRiskSizer(
@@ -532,6 +586,22 @@ def initialize_bayesian_sizer_from_supabase():
             pnl = ticket_to_pnl.get(int(tk))
         except (ValueError, TypeError):
             pass
+        if pnl is None:
+            # Executed trade with no MT4 pnl join — IBKR-paper fills (ticket in
+            # the IBKR_TICKET_OFFSET namespace, which can never join to
+            # apex_mt4_trades) and MT4 rows outside the closed-trade fetch both
+            # land here. Their resolver wrote the exact realized figure into
+            # setup_features.profit_pnl from the broker/ledger record, so use
+            # it rather than degrading the payoff estimate to "unknown".
+            try:
+                sf = t.get("setup_features") or {}
+                if isinstance(sf, str):
+                    sf = json.loads(sf)
+                sf_pnl = sf.get("profit_pnl")
+                if sf_pnl is not None:
+                    pnl = float(sf_pnl)
+            except (ValueError, TypeError):
+                pass
 
         _BAYESIAN_SIZER.record_outcome(symbol, win, pnl=pnl)
         recorded += 1
@@ -640,12 +710,20 @@ def add_validation_to_trade(trade, verdict, confidence, assessment="confirmed"):
 # ---------------------------------------------------------------------------
 
 def _get_mt4_positions() -> list[dict]:
-    """Read the live mt4_positions.json written by the EA every 500 ms.
+    """Read the live open engine positions in ``mt4_positions.json`` shape.
 
-    Returns a list of position dicts (may be empty if no open trades or file
-    not found).  Each dict contains at least: ticket, symbol, volume,
-    open_price, sl, tp, cmd, profit.
+    With ``provider=ibkr`` the rows come from the IBKRLiveBridge virtual-ticket
+    ledger instead of the MT4 EA file (same shape: ticket, symbol, volume,
+    open_price, sl, tp, cmd, profit). Otherwise reads the file the EA writes
+    every 500 ms (may be empty if no open trades or file not found).
     """
+    bridge_positions = getattr(_EXECUTOR, "get_positions_mt4", None)
+    if callable(bridge_positions):
+        try:
+            return bridge_positions()
+        except Exception as e:
+            print(f"  [WARN] IBKR positions read failed: {e}")
+            return []
     common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") else None
     if not common_dir:
         return []
@@ -868,9 +946,9 @@ def apply_trade_management(trade: dict, df: pd.DataFrame) -> None:
         if bars_open > max_bars and pnl_r < 0.25 and ticket:
             print(f"  [TMS] Time Stop: {symbol} open {bars_open} bars, only {pnl_r:.2f}R. Closing.")
             try:
-                _EXECUTOR.submit_order(symbol=mt4_sym, cmd="close", volume=live_lots or 0.1)
+                _EXECUTOR.submit_order(symbol=mt4_sym, cmd="close", volume=live_lots or 0.1, ticket=ticket)
                 tms_log.append({"action": "time_stop", "bars_open": bars_open, "pnl_r": round(pnl_r, 2)})
-                # Will be resolved on next SL/TP check loop via MT4 sync
+                # Resolved on a later loop by the provider resolver (MT4 sync / IBKR ledger)
             except Exception as e:
                 print(f"  [TMS] Time stop close failed: {e}")
 
@@ -929,18 +1007,15 @@ def _normalise_symbol(symbol: str) -> str:
     return f"{sym}{suffix}"
 
 
-def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr, volume=None, style=None):
+def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, timeframe, confidence, rr, volume=None, style=None, regime=None):
     """POST new trade entry to Supabase and dispatch to live executor."""
     trade_id = f"{symbol.upper()}_{int(time.time())}"
-    
+    asset_label = _web_asset_type(symbol)
+
     payload = {
         "id": trade_id,
         "symbol": symbol.upper(),
-        "asset_type": (
-            "Equity" if symbol.upper() in EQUITIES_SET else
-            ("Crypto" if "/" in symbol and any(c in symbol.upper() for c in ("BTC", "ETH", "AVAX", "SOL", "ADA", "DOGE", "XRP", "BNB")) else
-             "Forex" if "/" in symbol else "Equity")
-        ),
+        "asset_type": asset_label,
         "analysis_date": datetime.utcnow().strftime("%Y-%m-%d"),
         "price": float(entry_price),
         "verdict": "BUY" if str(direction).upper() in ("LONG", "BUY") else "SELL",
@@ -952,15 +1027,20 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
         "timeframe": timeframe,
         "summary": f"Automated entry trigger via APEX Quant Robust Core on {timeframe} timeframe.",
         "technical_analysis": f"Regime detection classifies market structure. Momentum/Mean-Reversion signals aligned.",
-        "setup_features": {"auto": True, "style": style or "swing"},
+        "setup_features": {
+            "auto": True,
+            "style": style or "swing",
+            "regime": regime or "unknown",
+            "asset": asset_label,
+        },
         "outcome": "pending"
     }
-    
+
     try:
         r = httpx.post(MEMORY_ENDPOINT, headers=headers, json=payload)
         if r.status_code in (200, 201, 204):
             print(f"  [triggered] Logged new {direction} trade on {symbol} at entry {entry_price}")
-            # Dispatch to live executor (MT4, ZMQ, or mock) when enabled.
+            # Dispatch to live executor (MT4, ZMQ, IBKR, or mock) when enabled.
             if _EXECUTOR is not None:
                 mt4_symbol = _normalise_symbol(symbol)
                 mt4_cmd = "buy" if str(direction).upper() in ("LONG", "BUY") else "sell"
@@ -988,11 +1068,44 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
                         trail_lookback=22,
                     )
                     print(f"  [EXECUTOR] Order dispatched — {mt4_cmd.upper()} {mt4_symbol} with size {volume} lots → {result}")
-                    try:
-                        patch_url = f"{MEMORY_ENDPOINT}?id=eq.{trade_id}"
-                        httpx.patch(patch_url, headers=headers, json={"filled_at": int(time.time())})
-                    except Exception as patch_err:
-                        print(f"  [WARN] Failed to update filled_at in database: {patch_err}")
+
+                    filled_patch = {"filled_at": int(time.time())}
+                    if cfg.execution.provider == "ibkr" and _is_ibkr_executor() and result is not None:
+                        # Fills handshake: the bridge binds a virtual ticket
+                        # (IBKR permId) on a REAL fill. The ticket + fill price
+                        # ride the same patch as filled_at so the setup's
+                        # fill<->row linkage lands atomically; on a venue
+                        # rejection NOTHING is stamped (no phantom fill) and the
+                        # IBKR resolver expires the setup after the grace.
+                        filled_patch = None
+                        try:
+                            ack = _EXECUTOR.wait_for_ack(
+                                handle=result,
+                                timeout_s=float(getattr(cfg.execution, "mt4_ack_timeout_s", 10.0)),
+                            )
+                            if ack and ack.get("ok") and ack.get("ticket") is not None:
+                                filled_patch = {
+                                    "filled_at": int(time.time()),
+                                    "setup_features": {
+                                        **payload["setup_features"],
+                                        "mt4_ticket": int(ack["ticket"]),
+                                        "fill_price": ack.get("fill_price"),
+                                    },
+                                }
+                                print(f"  [EXECUTOR] IBKR virtual ticket {int(ack['ticket'])} "
+                                      f"linked to setup {trade_id} (fill {ack.get('fill_price')})")
+                            else:
+                                print(f"  [EXECUTOR] IBKR order NOT filled (status={ack.get('status') if ack else 'no ack'}) "
+                                      f"— setup stays pending; the IBKR resolver will expire it.")
+                        except Exception as ack_err:
+                            print(f"  [EXECUTOR WARN] IBKR fills handshake failed: {ack_err} "
+                                  f"(resolver will fall back to the SL+TP signature)")
+                    if filled_patch is not None:
+                        try:
+                            patch_url = f"{MEMORY_ENDPOINT}?id=eq.{trade_id}"
+                            httpx.patch(patch_url, headers=headers, json=filled_patch)
+                        except Exception as patch_err:
+                            print(f"  [WARN] Failed to update filled_at in database: {patch_err}")
                 except Exception as e:
                     print(f"  [EXECUTOR ERROR] Failed to dispatch order: {e}")
             # Show Native Windows Notification
@@ -1005,6 +1118,32 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
     except Exception as e:
         print(f"Connection error creating new trade: {e}")
     return False
+
+
+def _patch_ibkr_ticket(trade_id: str, ibkr_ticket: int) -> None:
+    """Merge the IBKR virtual ticket into the setup's setup_features.mt4_ticket.
+
+    This is the fill<->setup linkage for the IBKR resolver (the bridge ledger is
+    keyed by the same id). The raw permId stays in setup_features; the namespaced
+    form (IBKR_TICKET_OFFSET + permId) is only written to the `ticket` column at
+    RESOLUTION time by resolve_closed_ibkr_setups.
+    """
+    try:
+        r = httpx.get(f"{MEMORY_ENDPOINT}?id=eq.{trade_id}&select=setup_features", headers=headers, timeout=15)
+        features = {}
+        if r.status_code == 200 and r.json():
+            features = r.json()[0].get("setup_features") or {}
+            if isinstance(features, str):
+                features = json.loads(features)
+        features = {**features, "mt4_ticket": ibkr_ticket}
+        pr = httpx.patch(f"{MEMORY_ENDPOINT}?id=eq.{trade_id}", headers=headers,
+                         json={"setup_features": features})
+        if pr.status_code in (200, 204):
+            print(f"  [EXECUTOR] IBKR virtual ticket {ibkr_ticket} linked to setup {trade_id}")
+        else:
+            print(f"  [WARN] Failed to persist IBKR ticket on {trade_id}: {pr.status_code}")
+    except Exception as e:
+        print(f"  [WARN] Could not link IBKR ticket to {trade_id}: {e}")
 
 def parse_trade_entry_ts(row: dict) -> float:
     """Extract Unix timestamp of trade creation."""
@@ -1040,6 +1179,16 @@ def safe_load_json(file_path: str, retries: int = 3, delay: float = 0.1):
 
 def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, float]:
     """Retrieve actual live account equity, balance, and peak balance/equity from Supabase or local MT4 file."""
+    bridge_state = getattr(_EXECUTOR, "get_account_state", None)
+    if callable(bridge_state):
+        # IBKR paper account is the live book — size from the venue's own numbers
+        # (the bridge keeps the running peak in its ledger for the DD breaker).
+        try:
+            eq, bal, peak = bridge_state()
+            if eq > 0 and bal > 0:
+                return eq, bal, max(peak, eq, bal)
+        except Exception as e:
+            print(f"  [WARN] IBKR account state failed, falling back to files/Supabase: {e}")
     common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
     if common_dir:
         account_file = os.path.join(common_dir, "mt4_account.json")
@@ -1727,20 +1876,15 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
 
             open_trades_list = fetch_open_trades()
             
-            # Filter out Forex setups that are not actually open on MT4
+            # Filter out Forex setups that are not actually open on the venue
+            # (MT4 file under provider=mt4, the bridge ledger under provider=ibkr)
             active_mt4_symbols = set()
-            common_dir = cfg.execution.mt4.common_dir if hasattr(cfg.execution, "mt4") and hasattr(cfg.execution.mt4, "common_dir") else ""
-            if common_dir:
-                p_file = os.path.join(common_dir, "mt4_positions.json")
-                if os.path.exists(p_file):
-                    try:
-                        from apex_quant.storage.json_util import safe_load_json
-                        positions = safe_load_json(p_file) or []
-                        for p in positions:
-                            p_sym = p.get("symbol", "").replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
-                            active_mt4_symbols.add(p_sym)
-                    except Exception:
-                        pass
+            try:
+                for p in (_get_mt4_positions() or []):
+                    p_sym = p.get("symbol", "").replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+                    active_mt4_symbols.add(p_sym)
+            except Exception:
+                pass
             
             filtered_open_trades = []
             for ot in open_trades_list:
@@ -1869,6 +2013,14 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 sized_volume = None
             # ──────────────────────────────────────
             
+            # Regime at entry — the rule-based classifier the strategy itself
+            # gates on, persisted so "Learning by setup" can group by it.
+            regime_name = None
+            try:
+                regime_name = base_strat._regime.classify(pit, latest_time).name
+            except Exception:
+                regime_name = None
+
             open_new_trade(
                 symbol=sym,
                 direction=sig.direction.value,
@@ -1880,6 +2032,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 rr=sig.reward_risk,
                 volume=sized_volume,
                 style=style,
+                regime=regime_name,
             )
 
     except Exception as e:
@@ -2324,6 +2477,316 @@ def resolve_closed_mt4_setups():
             print(f"  [RESOLVE] Setup {s_id} marked as expired (no active MT4 trade).")
 
 
+def _load_ibkr_ledger() -> dict:
+    """The IBKR bridge's virtual-ticket ledger as {int ticket: position dict}.
+
+    Read-only. Uses the live bridge's ledger path when the bridge is in-process,
+    else the default engine/data_store/ibkr_live_book.json. Each vp carries:
+    symbol, direction, entry_price, initial_units, remaining_units, stop, target,
+    status ("open"/"closed"), exit_price, exit_reason ("stop"/"target"/"close"/
+    "external"), opened_at, and a fills list (entry/partial/stop/target/close
+    with qty+price+ts).
+    """
+    path = getattr(_EXECUTOR, "_ledger_path", None) or (
+        ENGINE_DIR / "data_store" / "ibkr_live_book.json")
+    try:
+        raw = safe_load_json(str(path)) or {}
+    except Exception as e:
+        print(f"  [WARN] IBKR ledger unreadable ({path}): {e}")
+        return {}
+    out = {}
+    for tk, vp in (raw.get("tickets") or {}).items():
+        try:
+            vp["ticket"] = int(vp.get("ticket") or tk)
+            out[int(tk)] = vp
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _match_ibkr_signature(setup: dict, book: dict) -> dict | None:
+    """Self-healing fallback: match a setup to a ledger ticket by its exact
+    SL+TP signature (the engine sends sl/tp with the order and the ledger stores
+    them verbatim — the same 0.1-pip rule the MT4 resolver measured at ~89%
+    unique). Only used when setup_features.mt4_ticket is missing (e.g. the ack
+    patch failed after a real fill); returns None rather than guessing."""
+    clean_sym = str(setup.get("symbol", "")).replace("-g", "").replace(".m", "").replace(".ecn", "").replace("/", "").upper()
+    verdict = str(setup.get("verdict", "BUY")).upper()
+    try:
+        s_sl = float(setup.get("stop_loss") or 0.0)
+        s_tp = float(setup.get("target_price") or 0.0)
+        s_px = float(setup.get("price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if s_sl <= 0 or s_tp <= 0:
+        return None
+    pip = 0.01 if "JPY" in clean_sym else 0.0001
+    tol = 0.1 * pip
+    candidates = []
+    for vp in book.values():
+        v_sym = str(vp.get("symbol", "")).replace("/", "").upper()
+        if v_sym != clean_sym:
+            continue
+        if ("BUY" if vp.get("direction") == "long" else "SELL") != ("BUY" if verdict in ("BUY", "LONG") else "SELL"):
+            continue
+        try:
+            v_sl = float(vp.get("stop") or 0.0)
+            v_tp = float(vp.get("target") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if v_sl <= 0 or v_tp <= 0:
+            continue
+        if abs(v_sl - s_sl) > tol or abs(v_tp - s_tp) > tol:
+            continue
+        candidates.append(vp)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    return min(candidates, key=lambda v: abs(float(v.get("entry_price") or 0.0) - s_px))
+
+
+def _ibkr_realized_pnl_gbp(vp: dict) -> float | None:
+    """Realized P&L of a ledger ticket in GBP, summed over its actual exit fills
+    (partials included), converted quote->GBP. None when the entry fill is
+    unknown — an honest gap beats a fabricated figure."""
+    try:
+        entry = float(vp.get("entry_price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if entry <= 0:
+        return None
+    sign = 1.0 if vp.get("direction") == "long" else -1.0
+    total = 0.0
+    used = False
+    for f in vp.get("fills") or []:
+        if f.get("kind") == "entry" or f.get("price") is None:
+            continue
+        total += sign * (float(f["price"]) - entry) * float(f.get("qty") or 0.0)
+        used = True
+    if not used:
+        ex = vp.get("exit_price")
+        if ex is None:
+            return None
+        total = sign * (float(ex) - entry) * float(vp.get("initial_units") or 0.0)
+    quote = get_quote_currency(str(vp.get("symbol", "")))
+    rate = get_quote_to_account_rate(quote, "GBP")
+    return round(total * rate, 2)
+
+
+def resolve_closed_ibkr_setups():
+    """Resolve pending setups from the IBKR bridge's virtual-ticket ledger.
+
+    The MT4 resolver can never fire again (MT4 is dead — its history file never
+    grows, so every new daemon trade rotted pending -> expired). On IBKR the
+    exits execute venue-side as the bracket's STP/LMT children; the bridge folds
+    those fills into its ledger (engine/data_store/ibkr_live_book.json). This
+    resolver joins each pending setup to its ledger ticket via
+    setup_features.mt4_ticket (written by open_new_trade's fills handshake;
+    SL+TP signature fallback), and writes the real outcome:
+
+      * classified against the ORIGINAL barriers with the same tolerance the
+        MT4 resolver uses — a trailed/breakeven stop therefore resolves
+        "invalidated" (managed), never a fake tp_hit/sl_hit;
+      * `ticket` = IBKR_TICKET_OFFSET + permId — a separate namespace that can
+        never collide with real MT4 ticket ints, so the Bayesian posterior's
+        ticket->apex_mt4_trades pnl join can't mismatch; the row's own
+        setup_features.profit_pnl (exact, from the ledger fills) is what the
+        posterior falls back to. These ARE executed trades: they feed the
+        posterior, by parity with the old MT4 behavior;
+      * exit_reason "external" (venue flat, bridge saw no fill) is LEFT pending
+        for the price-based path (check_open_trades), as the bridge documents.
+    """
+    book = _load_ibkr_ledger()
+    if not book:
+        return
+
+    url = f"{MEMORY_ENDPOINT}?outcome=eq.pending&verdict=in.(BUY,SELL,LONG,SHORT,SPECULATIVE_BUY,SPECULATIVE_SELL,SPECULATIVE_LONG,SPECULATIVE_SHORT)"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code != 200:
+            return
+        pending = r.json()
+    except Exception as e:
+        print(f"  [WARN] Connection error fetching pending setups: {e}")
+        return
+
+    now_utc = datetime.now(timezone.utc)
+    for s in pending:
+        s_id = s["id"]
+        if s_id in _resolved_setup_ids:
+            continue  # already resolved by this process (5s sync-loop guard)
+        sym = s["symbol"]
+        verdict = s.get("verdict", "BUY").upper()
+        created_at_str = s.get("created_at")
+        try:
+            setup_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            age_seconds = (now_utc - setup_dt).total_seconds()
+        except Exception:
+            age_seconds = 600.0
+        # Give the bridge at least 3 minutes to fill and bind the ticket
+        if age_seconds < 180:
+            continue
+
+        features = s.get("setup_features") or {}
+        if isinstance(features, str):
+            try:
+                features = json.loads(features)
+            except Exception:
+                features = {}
+
+        vpk = features.get("mt4_ticket")
+        vp = None
+        if vpk is not None:
+            try:
+                vp = book.get(int(vpk))
+            except (TypeError, ValueError):
+                vp = None
+        if vp is None:
+            # No linked ticket (ack patch failed or pre-IBKR row): try the
+            # SL+TP signature against the ledger before giving up on it.
+            vp = _match_ibkr_signature(s, book)
+            if vp is not None:
+                print(f"  [IBKR RESOLVE] Adopted ledger ticket {vp['ticket']} for {s_id} via SL+TP signature.")
+                _patch_ibkr_ticket(s_id, int(vp["ticket"]))
+
+        if vp is not None and vp.get("status") == "open":
+            continue  # bracket still working venue-side — leave pending
+
+        patch_url = f"{MEMORY_ENDPOINT}?id=eq.{s_id}"
+        if vp is not None and vp.get("status") == "closed":
+            exit_reason = str(vp.get("exit_reason") or "close")
+            exit_px = vp.get("exit_price")
+            if exit_px is None:
+                # External close: the bridge saw no fill — resolution falls back
+                # to the price path (check_open_trades), per the bridge design.
+                print(f"  [IBKR RESOLVE] Ticket {vp['ticket']} ({sym}) closed externally — "
+                      f"leaving {s_id} to the price-based path.")
+                continue
+            exit_px = float(exit_px)
+
+            # Classify against the ORIGINAL barriers (same tolerance as MT4).
+            tolerance = exit_px * 0.0002
+            is_sell = verdict in ("SELL", "SHORT")
+            tp = float(s.get("target_price") or 0.0)
+            sl = float(s.get("stop_loss") or 0.0)
+            if is_sell:
+                if tp > 0 and exit_px <= (tp + tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and exit_px >= (sl - tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
+            else:
+                if tp > 0 and exit_px >= (tp - tolerance):
+                    outcome = "tp_hit"
+                elif sl > 0 and exit_px <= (sl + tolerance):
+                    outcome = "sl_hit"
+                else:
+                    outcome = "invalidated"
+
+            exit_iso = now_utc.isoformat()
+            for f in reversed(vp.get("fills") or []):
+                if f.get("kind") not in (None, "entry") and f.get("ts"):
+                    exit_iso = str(f["ts"])
+                    break
+
+            pnl = _ibkr_realized_pnl_gbp(vp)
+            pnl_txt = f"Profit: £{pnl:.2f}." if pnl is not None else "P&L unavailable (entry fill unknown)."
+            new_features = {**features, "mt4_ticket": int(vp["ticket"]),
+                            "exit_price": exit_px, "exit_reason": exit_reason}
+            if pnl is not None:
+                new_features["profit_pnl"] = pnl
+            payload = {
+                "outcome": outcome,
+                "outcome_price": exit_px,
+                "outcome_date": exit_iso,
+                "setup_features": new_features,
+                "lesson": f"Resolved automatically: IBKR ticket {int(vp['ticket'])} {exit_reason} exit on {sym}. {pnl_txt}",
+            }
+            # Namespaced ticket linkage: executed trade -> feeds the posterior,
+            # but can never join to a real MT4 row.
+            if _memory_has_ticket_column():
+                payload["ticket"] = IBKR_TICKET_OFFSET + int(vp["ticket"])
+            pr = httpx.patch(patch_url, headers=headers, json=payload)
+            if pr is None or pr.status_code in (200, 204):
+                _resolved_setup_ids.add(s_id)
+            print(f"  [IBKR RESOLVE] Setup {s_id} resolved as {outcome} via IBKR ticket {vp['ticket']} "
+                  f"({exit_reason} @ {exit_px}).")
+        else:
+            # No ledger ticket at all: order was rejected/never filled (or a
+            # research row that was never dispatched) — expire after the grace,
+            # exactly as the MT4 resolver did for unfilled setups.
+            payload = {
+                "outcome": "expired",
+                "outcome_price": float(s.get("price") or 0.0),
+                "outcome_date": now_utc.isoformat() + "Z",
+                "lesson": "Resolved automatically: no fill on IBKR — setup expired "
+                          "(order rejected or no ticket ever bound).",
+            }
+            pr = httpx.patch(patch_url, headers=headers, json=payload)
+            if pr is None or pr.status_code in (200, 204):
+                _resolved_setup_ids.add(s_id)
+            print(f"  [IBKR RESOLVE] Setup {s_id} marked as expired (no IBKR ticket).")
+
+
+def ensure_active_ibkr_setups_pending():
+    """Restore setups that were resolved while their IBKR ticket is still open.
+
+    Mirror of ensure_active_mt4_setups_pending against the bridge ledger: a
+    setup whose setup_features.mt4_ticket names a STILL-OPEN virtual ticket
+    must be pending — anything else (a premature expiry, a manual mis-click on
+    the dashboard) is reverted so the live trade keeps tracking to its real
+    venue-side exit.
+    """
+    book = _load_ibkr_ledger()
+    if not book:
+        return
+    open_tickets = {
+        t for t, vp in book.items()
+        if vp.get("status") == "open" and float(vp.get("remaining_units") or 0.0) > 0
+    }
+    if not open_tickets:
+        return
+
+    url = f"{MEMORY_ENDPOINT}?order=created_at.desc&limit=250"
+    try:
+        r = httpx.get(url, headers=headers)
+        if r.status_code != 200:
+            return
+        scans_list = r.json()
+    except Exception as e:
+        print(f"  [WARN] Connection error fetching recent analyses for IBKR pending check: {e}")
+        return
+
+    for s in scans_list:
+        outcome = s.get("outcome")
+        if outcome in (None, "pending"):
+            continue
+        features = s.get("setup_features") or {}
+        if isinstance(features, str):
+            try:
+                features = json.loads(features)
+            except Exception:
+                features = {}
+        try:
+            vpk = int(features.get("mt4_ticket"))
+        except (TypeError, ValueError):
+            continue
+        if vpk not in open_tickets:
+            continue
+        try:
+            pr = httpx.patch(
+                f"{MEMORY_ENDPOINT}?id=eq.{s['id']}", headers=headers,
+                json={"outcome": "pending", "outcome_price": None, "outcome_date": None})
+            if pr is None or pr.status_code in (200, 204):
+                _resolved_setup_ids.discard(s["id"])
+                print(f"  [RESTORE] Restored setup {s['id']} back to pending "
+                      f"(IBKR ticket {vpk} still open; was {outcome}).")
+        except Exception as e:
+            print(f"  [WARN] Failed to restore IBKR setup {s.get('id')}: {e}")
+
+
 def ensure_active_mt4_setups_pending():
     """Verify that all open positions in MT4 have their corresponding setups marked as pending in Supabase.
     
@@ -2448,14 +2911,18 @@ def run_once():
     except Exception as e:
         print(f"[WARN] Config drift guard failed: {e}")
 
-    # ── Sync MT4 execution stats to Supabase ──
+    # ── Sync execution stats + resolve closed setups (provider-specific) ──
     try:
         sync_mt4_trades()
         with _resolution_lock:
-            resolve_closed_mt4_setups()
-        ensure_active_mt4_setups_pending()
+            if cfg.execution.provider == "ibkr":
+                resolve_closed_ibkr_setups()
+                ensure_active_ibkr_setups_pending()
+            else:
+                resolve_closed_mt4_setups()
+                ensure_active_mt4_setups_pending()
     except Exception as e:
-        print(f"[WARN] Failed to sync MT4 execution stats: {e}")
+        print(f"[WARN] Failed to sync execution stats: {e}")
         
     # ── Bayesian Sizer Setup ──
     try:
@@ -2493,14 +2960,17 @@ _resolution_lock = threading.Lock()
 def start_mt4_sync_daemon():
     """Start a background daemon thread to sync MT4 trades every 5 seconds."""
     def sync_loop():
-        print("[INFO] Background MT4 Sync Daemon started.")
+        print("[INFO] Background execution-sync daemon started.")
         while True:
             try:
                 sync_mt4_trades(silent=True)
                 # Resolve closed setups and update lessons in real-time if lock is available
                 if _resolution_lock.acquire(blocking=False):
                     try:
-                        resolve_closed_mt4_setups()
+                        if cfg.execution.provider == "ibkr":
+                            resolve_closed_ibkr_setups()
+                        else:
+                            resolve_closed_mt4_setups()
                         from scripts.update_lessons import update_lessons
                         update_lessons()
                         # Keep symbol knowledge in sync
