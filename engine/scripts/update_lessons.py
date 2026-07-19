@@ -21,9 +21,14 @@ GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 # 2026-07-19: qwen/qwen3-32b retired by Groq (404) — back to 8b-instant per the note above.
 GROQ_MODEL = "llama-3.1-8b-instant"
 
+# 2026-07-19 (RLS lockdown): lesson PATCHes must use the service key — anon is
+# SELECT-only, so writes were silently 401ing since the lockdown.
+from apex_quant.storage._keys import service_or_anon_key  # noqa: E402
+SUPABASE_KEY = service_or_anon_key()
+
 headers = {
-    "apikey": SUPABASE_ANON,
-    "Authorization": f"Bearer {SUPABASE_ANON}",
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Cache-Control": "no-cache, no-store, must-revalidate",
     "Pragma": "no-cache",
