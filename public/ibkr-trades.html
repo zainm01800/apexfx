@@ -104,15 +104,29 @@
         <p class="hist-subtitle">Live account state from the Interactive Brokers paper account, synced by the engine mirror.</p>
       </div>
 
-      <!-- Overall IBKR Account Statistics -->
-      <div class="hist-summary" id="ibkrSummary" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%;">
-        <div class="hs-stat"><span class="hs-val" id="statNetLiq">—</span><span class="hs-label">Net Liq</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statCash">—</span><span class="hs-label">Cash</span></div>
-        <div class="hs-stat" title="margin ≈ 4× cash (IBKR paper)"><span class="hs-val" id="statBuyingPower">—</span><span class="hs-label">Buying Power</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">margin ≈ 4× cash (IBKR paper)</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statDailyPnl">—</span><span class="hs-label">Daily P&amp;L</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statUnrealizedPnl">—</span><span class="hs-label">Unrealized P&amp;L</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statRealizedPnl">—</span><span class="hs-label">Realized P&amp;L</span></div>
-        <div class="hs-stat"><span class="hs-val accent" id="statOpenCount">—</span><span class="hs-label">Open Positions</span></div>
+      <!-- Overall IBKR Account Statistics — plain-English layout (2026-07-19):
+           hero = the one number that matters; every other card gets a one-line
+           human explanation; "buying power" demoted to a muted credit-line card. -->
+      <div class="hist-summary" id="ibkrSummary" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%;">
+        <div class="hs-stat" style="grid-column: 1 / -1; padding: 18px 22px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;">
+            <div>
+              <span class="hs-label" style="letter-spacing: 1.5px;">ACCOUNT VALUE</span>
+              <span class="hs-val" id="statNetLiq" style="font-size: 34px; display: block;">—</span>
+              <span style="font-size: 12px; color: var(--text3);">what your account is worth right now — cash + open positions</span>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <span id="heroDayChip" style="border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-family: var(--mono); font-size: 13px; background: rgba(255,255,255,0.03);">Today: —</span>
+              <span id="heroSinceChip" style="border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-family: var(--mono); font-size: 13px; background: rgba(255,255,255,0.03);">Since 17 Jul: —</span>
+            </div>
+          </div>
+        </div>
+        <div class="hs-stat"><span class="hs-val" id="statCash">—</span><span class="hs-label">Cash</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">uninvested money</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statDailyPnl">—</span><span class="hs-label">Day P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">profit / loss today</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statUnrealizedPnl">—</span><span class="hs-label">Open P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">live P&amp;L on open trades</span></div>
+        <div class="hs-stat"><span class="hs-val" id="statRealizedPnl">—</span><span class="hs-label">Banked P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">locked in from closed trades</span></div>
+        <div class="hs-stat" style="opacity: 0.6;"><span class="hs-val" id="statBuyingPower" style="font-size: 17px;">—</span><span class="hs-label">Credit Line</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">borrowed margin — NOT yours</span></div>
+        <div class="hs-stat"><span class="hs-val accent" id="statOpenCount">—</span><span class="hs-label">Open Positions</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">across all markets</span></div>
       </div>
     </div>
 
@@ -162,6 +176,7 @@
 
   </main>
 
-  <script src="./ibkr-trades.js?v=2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="./ibkr-trades.js?v=3"></script>
 </body>
 </html>

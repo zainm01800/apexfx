@@ -19865,9 +19865,10 @@ window.addEventListener('load', () => {
   });
   updateSessionCountdown();
   updateTiltDetector();
-  // Fetch accurate prices for all watchlist symbols on startup, then every 30s
+  // Fetch accurate prices for all watchlist symbols on startup, then every 2 min
+  // (2026-07-19: was 30s — daily-bar engine, prices barely move; hidden tabs skip)
   setTimeout(refreshSymPrices, 1500);
-  setInterval(refreshSymPrices, 30000);
+  setInterval(() => { if (!document.hidden) refreshSymPrices(); }, 120000);
 });
 
 
@@ -27763,8 +27764,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }, true); // capture phase runs before existing handlers
 })();
 
-// Update status bar on a slower interval
-setInterval(()=>{ updateStatusBarStats(); }, 30000);
+// Update status bar on a slower interval (2026-07-19: 30s -> 2min, skip hidden tabs)
+setInterval(()=>{ if (!document.hidden) updateStatusBarStats(); }, 120000);
 
 // ������������������������������������������������������������������������������
 // AI CHART OVERLAY

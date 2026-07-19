@@ -31,3 +31,4 @@ engine/data_store/backup_*/
 engine/data_store/paper_portfolio/state.json
 engine/data_store/paper_portfolio/state.json.*
 engine/data_store/ibkr_mirror/
+engine/data_store/*.log

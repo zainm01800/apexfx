@@ -4208,7 +4208,9 @@ async function pollEngineLogs() {
 
 function initEngineLogs() {
   pollEngineLogs();
-  logPollingInterval = setInterval(pollEngineLogs, 3000);
+  // 2026-07-19: was 3s (~29k fn invocations/day/tab) — engine logs only change
+  // on the 15-min scan cycle; 30s + hidden-tab skip keeps it live at ~5% of the cost.
+  logPollingInterval = setInterval(() => { if (!document.hidden) pollEngineLogs(); }, 30000);
 
   const clearBtn = document.getElementById('clearLogsBtn');
   if (clearBtn) {
@@ -4257,9 +4259,16 @@ function initMt4TradesMonitor() {
     renderMt4Trades();
   });
 
-  // Start polling
+  // Start polling — 2026-07-19: was 5s (~17k invocations/day/tab on dead MT4
+  // data); 60s + hidden-tab skip + instant refresh on tab-focus instead.
   loadMt4Trades();
-  setInterval(loadMt4Trades, 5000); // refresh every 5 seconds
+  setInterval(() => { if (!document.hidden) loadMt4Trades(); }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      try { loadMt4Trades(); } catch (e) {}
+      try { pollEngineLogs(); } catch (e) {}
+    }
+  });
 }
 
 async function loadMt4Trades() {

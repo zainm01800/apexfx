@@ -128,6 +128,28 @@ function updateScoreboard() {
   setText('statRealizedPnl', fmtSignedMoney(a.realized_pnl, sym), pnlClass(a.realized_pnl));
   setText('statOpenCount', String(_ibkrPositionsCache.length));
 
+  // Hero chips: today + total since the paper test started (account began at £1m on 17 Jul)
+  const dayV = num(a.daily_pnl);
+  const netV = num(a.net_liquidation);
+  const dayChip = document.getElementById('heroDayChip');
+  if (dayChip) {
+    dayChip.textContent = 'Today: ' + (dayV === null ? '—' : fmtSignedMoney(a.daily_pnl, sym));
+    dayChip.style.color = dayV === null ? 'var(--text3)' : (dayV >= 0 ? 'var(--green)' : 'var(--red)');
+  }
+  const sinceChip = document.getElementById('heroSinceChip');
+  if (sinceChip) {
+    if (netV === null) {
+      sinceChip.textContent = 'Since 17 Jul: —';
+      sinceChip.style.color = 'var(--text3)';
+    } else {
+      const since = netV - 1000000;
+      const pct = (since / 1000000) * 100;
+      const abs = Math.abs(since).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      sinceChip.textContent = `Since 17 Jul: ${since >= 0 ? '+' : '-'}${sym}${abs} (${since >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+      sinceChip.style.color = since >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+  }
+
   const label = document.getElementById('lastUpdatedLabel');
   if (label) {
     if (a.updated_at) {
@@ -398,12 +420,53 @@ function startPolling(ms) {
   }, ms);
 }
 
+// ── Supabase Realtime: push updates, no refresh ──────────────────────────────
+// Subscribes to the live-trading tables; any sync/fill/step that writes a row
+// triggers an instant reload of the terminal. 15-min polling stays as fallback.
+const SUPA_RT_URL  = 'https://dtiuwllodzqpbwohzrgj.supabase.co';
+const SUPA_RT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k';
+const RT_TABLES = ['apex_ibkr_account', 'apex_ibkr_positions', 'apex_ibkr_trades',
+                   'apex_paper_positions', 'apex_paper_daily'];
+let _rtDebounce = null;
+
+function setLivePill(connected) {
+  const pill = document.querySelector('.live-pill');
+  if (!pill) return;
+  pill.style.opacity = connected ? '1' : '0.45';
+  pill.title = connected
+    ? 'Realtime connected — changes push to this page instantly'
+    : 'Realtime disconnected — 15-minute fallback polling active';
+}
+
+function initRealtime() {
+  if (!window.supabase || !window.supabase.createClient) {
+    setLivePill(false);
+    return;
+  }
+  const client = window.supabase.createClient(SUPA_RT_URL, SUPA_RT_ANON);
+  const trigger = () => {
+    if (_rtDebounce) clearTimeout(_rtDebounce);
+    _rtDebounce = setTimeout(() => {
+      try { loadIbkr(); } catch (e) { console.error('Realtime reload err:', e); }
+    }, 400);
+  };
+  const channel = client.channel('ibkr-live');
+  for (const t of RT_TABLES) {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, trigger);
+  }
+  channel.subscribe((status) => {
+    setLivePill(status === 'SUBSCRIBED');
+    if (status === 'SUBSCRIBED') console.log('Realtime live — push updates active');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try { initPulse(); } catch (e) { console.error('Pulse err:', e); }
   try { initIbkrTabs(); } catch (e) { console.error('Tabs err:', e); }
   try { initRefreshButton(); } catch (e) { console.error('Refresh btn err:', e); }
+  try { initRealtime(); } catch (e) { console.error('Realtime err:', e); }
 
-  // Initial load + slow 15-minute background auto-refresh
+  // Initial load + slow 15-minute background fallback (Realtime is primary)
   try { loadIbkr(); } catch (e) { console.error('Initial load err:', e); }
   startPolling(900000);
 });
