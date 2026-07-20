@@ -51,11 +51,26 @@ jobs:
       - name: Restore parquet price cache (history stays stable across runs)
         uses: actions/cache@v4
         with:
-          # parquets only — NOT paper_portfolio/state.json: in CI the Supabase
-          # mirror is the single source of truth for portfolio state.
-          path: engine/data_store/*.parquet
+          # parquets + resolver-local state only — NOT paper_portfolio/state.json:
+          # in CI the Supabase mirror is the single source of truth for portfolio
+          # state. resolved_outcomes.json is the RESOLVER's own memory (processed
+          # keys + entry-barrier snapshots of open positions); without it a close
+          # still resolves, but with "derived" instead of exact barriers.
+          path: |
+            engine/data_store/*.parquet
+            engine/data_store/paper_portfolio/resolved_outcomes.json
           key: paper-portfolio-data-${{ github.run_id }}
           restore-keys: paper-portfolio-data-
       - name: Advance the paper book one closed bar
         working-directory: engine
         run: python scripts/run_paper_portfolio.py
+      - name: Resolve closed paper-book trades into research memory
+        # READ-ONLY toward the book (state.json / apex_paper_*); writes only
+        # apex_research_memory rows (source=paper_book, no ticket column — the
+        # Bayesian sizing posterior must keep excluding them) + its own state
+        # file. Runs AFTER the stepper so it sees today's closes; idempotent
+        # (deterministic row ids + merge-duplicates), so a failed night is
+        # simply re-resolved the next night. Hard-fails the job on error —
+        # silent skips are how the qwen-404 lesson gap happened.
+        working-directory: engine
+        run: python scripts/resolve_paper_book_outcomes.py --apply
