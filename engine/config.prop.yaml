@@ -1,0 +1,345 @@
+# ============================================================================
+# PROP-FIRM PROFILE — config.prop.yaml (2026-07-20, work-order T4)
+# ============================================================================
+# For the FUTURE funded-account runner ONLY. Nothing loads this file today:
+# the running paper test / engine reads config.yaml via get_config().
+# Load explicitly with:  apex_quant.config.load_config("config.prop.yaml")
+#
+# Deltas vs config.yaml (everything else identical on purpose):
+#   risk.max_risk_per_trade      0.01   (same as base — restated as a firm rule)
+#   risk.max_portfolio_risk      0.065 -> 0.040  (firm daily-loss rule is 5%;
+#                                aggregated open risk must sit well under it)
+#   risk.drawdown_reducing_limit 0.10 -> 0.03    (de-risk ramp starts at 3% off peak)
+#   risk.drawdown_breaker        0.20 -> 0.06    (halt NEW positions at 6% off peak.
+#                                From-peak is >= from-cycle-start whenever equity
+#                                touched a new high, so this halts AT OR BEFORE the
+#                                mandated -6%-from-cycle-start stand-down — a 2%
+#                                buffer above the firm's -8% static floor)
+#
+# DECLARED BUT NOT ENFORCED (no engine knob exists as of 2026-07-20):
+#   engine-level DAILY stop at 2.5% (half the firm's 5% daily cap). The risk
+#   engine has no daily-loss circuit breaker — only from-peak drawdown zones.
+#   The future prop runner MUST implement a daily equity check before this
+#   profile is used with real money. Tracked in the T4 report.
+# ============================================================================
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ZQuant Engine — versioned configuration
+# Every tunable parameter lives here. NO magic numbers in code.
+# Bump `version` whenever any value changes — backtests record the version used.
+# ══════════════════════════════════════════════════════════════════════════════
+version: 5
+
+# Global reproducibility seed — applied to numpy, sklearn, hmmlearn, arch.
+seed: 42
+
+# ── Data layer ────────────────────────────────────────────────────────────────
+data:
+  provider: oanda            # adapter id (see data/adapter.py registry)
+  timeframe: "1d"            # base bar size for Phase 1
+  store_dir: "data_store"    # local parquet cache (relative to engine/)
+  # Live scanner trades ONLY these timeframes.
+  # ⚠️ USER DECISION 2026-07-17 (follow-up, supersedes the same-day "keep
+  # 15m/1h ENABLED at any cost" note): 15m/1h are demoted to EXECUTION-ONLY
+  # timeframes — they may time entries into 1d/1w-directed trades, but generate
+  # NO standalone intraday signals live. Reason: the 2026-07-17 baseline showed
+  # realized 15m cross costs (~6.6 pips round trip, measured on 108 live MT4
+  # fills) exceed the average 15m bar range (~5.9 pips) — a standalone 15m
+  # signal cannot earn its costs on the crosses that make up the active book.
+  live_timeframes:
+    - "15m"
+    - "1h"
+    - "1d"
+    - "1w"
+  # Forex universe — mirrors the dashboard quick-picks (public/dashboard.js).
+  instruments:
+    - "EUR/USD"
+    - "GBP/USD"
+    - "USD/JPY"
+    - "USD/CHF"
+    - "AUD/USD"
+    - "USD/CAD"
+    - "NZD/USD"
+    - "GBP/JPY"
+    - "EUR/GBP"
+    - "EUR/JPY"
+    - "GBP/NZD"
+    - "AUD/NZD"
+    - "EUR/AUD"
+    - "EUR/CAD"
+    - "CHF/JPY"
+    - "GBP/CAD"
+    - "GBP/CHF"
+    - "GBP/AUD"
+    - "EUR/CHF"
+    - "EUR/NZD"
+    - "NZD/JPY"
+    - "CAD/JPY"
+  # Equity / ETF universe — Yahoo native tickers, daily bars. Mirrors the
+  # dashboard "trending" + "etfs" quick-picks.
+  equities:
+    - "AAPL"
+    - "MSFT"
+    - "NVDA"
+    - "META"
+    - "AMZN"
+    - "GOOGL"
+    - "TSLA"
+    - "AMD"
+    - "PLTR"
+    - "TSM"
+    - "NFLX"
+    - "UBER"
+    - "SPY"
+    - "QQQ"
+    - "IWM"
+    - "GLD"
+    - "TLT"
+    - "XLK"
+    - "XLE"
+    - "XLF"
+    - "ARKK"
+    - "SMH"
+    - "SOXX"
+    - "XBI"
+  # Crypto universe — "BASE/USD" ids; mapped to Yahoo "BASE-USD" in the adapter.
+  # Mirrors the dashboard "crypto" quick-picks.
+  crypto:
+    - "BTC/USD"
+    - "ETH/USD"
+    - "SOL/USD"
+    - "BNB/USD"
+    - "XRP/USD"
+    - "ADA/USD"
+    - "AVAX/USD"
+    - "DOGE/USD"
+    - "MATIC/USD"
+    - "LINK/USD"
+    - "ARB/USD"
+    - "SUI/USD"
+  # Forex trading week (UTC): opens Sun 22:00, closes Fri 22:00. Used by the
+  # quality checker to distinguish *expected* weekend gaps from data holes.
+  session:
+    week_open_dow: 6         # Sunday (Mon=0 ... Sun=6)
+    week_open_hour_utc: 22
+    week_close_dow: 4        # Friday
+    week_close_hour_utc: 22
+  quality:
+    max_gap_bars: 1          # daily bars: >1 missing business day flagged as a hole
+    duplicate_policy: "keep_last"
+
+# ── Feature / signal layer ──────────────────────────────────────────────────────
+features:
+  momentum_lookbacks: [21, 63, 126, 252]   # ~1m, 3m, 6m, 12m (trading days)
+  vol_windows: [21, 63]                     # realized-vol feature windows
+  trend_ma: 200                             # long MA for trend/structure
+  trend_slope_window: 21                    # slope measured over this window
+  carry_enabled: false                      # rate-differential — pluggable, off by default
+  cot_enabled: false                        # CFTC COT positioning — pluggable, off by default
+
+# ── Volatility model ──────────────────────────────────────────────────────────
+volatility:
+  realized_windows: [21, 63]
+  annualization_factor: 252      # daily → annual (sqrt applied in code)
+  garch:
+    p: 1
+    q: 1
+    mean: "Zero"                 # returns ~ unpredictable; model the variance only
+    dist: "t"                    # fat tails
+    horizon: 5                   # forward vol forecast horizon (bars)
+    min_obs: 250                 # don't fit GARCH on fewer than this many returns
+    rescale_factor: 100.0        # arch prefers returns in %; scale then unscale
+
+# ── Regime detection ──────────────────────────────────────────────────────────
+regime:
+  hmm:
+    n_states: 3
+    covariance_type: "full"
+    n_iter: 200
+    min_obs: 250
+  rule_based:
+    ma_window: 50                 # reduced from 200 so intraday 15m bars can compute trend quickly
+    slope_window: 5               # reduced from 21 for faster regime response on 15m/1h bars
+    vol_percentile_window: 252
+    vol_high_pct: 0.70           # > 70th percentile vol → high-vol regime
+    vol_low_pct: 0.30            # < 30th percentile vol → low-vol regime
+    # |normalised per-bar MA slope| below this -> ranging. Chosen from slope
+    # distribution shape, NOT from returns — not data-snooping.
+    ranging_slope_eps: 0.0005
+
+# ── Risk management (SUPREME — has veto over every signal) ──────────────────────
+risk:
+  target_portfolio_vol: 0.10     # 10% annualised volatility target
+  kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
+  max_risk_per_trade: 0.01       # 1% of equity at risk per trade — set 2026-07-19 from the
+                                 # prop-rules Monte Carlo sweep (engine/scratch/prop_risk_sweep.py,
+                                 # Book H gold trade stats, static-floor two-step rules): 1.0% is the
+                                 # survival-adjusted optimum — ~82-94% pass/attempt, ~97-99.6% with one
+                                 # retry inside 6 months, ~89-97% funded 12-mo survival. Was 0.02.
+  max_total_exposure: 3.0        # gross notional ≤ 3× equity (engine default; re-enabled
+                                 # 2026-07-14 — was 100× "for paper testing" while running on a
+                                 # LIVE account: 28/87 trades breached 3×, peaking at ~19× (18.68
+                                 # lots on 100k). Capping the same trades at 3× cuts the realised
+                                 # loss from -£1,613 to -£920.)
+  max_correlated_exposure: 1.5   # combined notional of correlated cluster ≤ 1.5× equity (engine
+                                 # default; was 50× — a cluster cap of 50× is no cap at all)
+  correlation_threshold: 0.60    # |corr| above this groups instruments into a cluster
+  atr_window: 14
+  atr_stop_mult: 2.5             # stop distance = 2.5× ATR (optimized baseline)
+  drawdown_breaker: 0.06         # halt NEW positions once drawdown from peak ≥ 20%
+  drawdown_reducing_limit: 0.03  # reduce/block NEW positions once drawdown from peak ≥ 10%
+  min_position: 0.0              # positions below this round to zero (no trade)
+  max_concurrent_trades: 12      # hard limit on active open trades on MT4 (protect VPS and margin)
+  max_portfolio_risk: 0.040      # maximum aggregated risk across open trades (protects 5% daily drawdown)
+
+# ── Backtesting (built after the foundation checkpoint) ─────────────────────────
+backtest:
+  initial_equity: 100000
+  spread_pips: 1.0
+  pip_size_default: 0.0001       # JPY pairs override to 0.01 in code
+  commission_per_trade: 0.0
+  slippage_bps: 0.5
+
+# ── Validation (built after the foundation checkpoint) ──────────────────────────
+validation:
+  cpcv:
+    n_groups: 6                  # N: split history into 6 contiguous groups
+    n_test_groups: 2             # k: choose 2 as test → C(6,2)=15 backtest paths
+    embargo_pct: 0.01            # embargo 1% of bars around each test group
+  dsr:
+    benchmark_sharpe: 0.0        # Deflated Sharpe null hypothesis
+  pbo:
+    n_splits: 16                 # combinatorial splits for Prob. of Backtest Overfitting
+
+# ── Per-asset-class trading mechanics ───────────────────────────────────────────
+# The cost model and annualization differ by asset class. Forex quotes spreads in
+# pips and trades ~252 days/yr; equities & crypto quote spreads in basis points of
+# price; crypto trades 365 days/yr. A forex cost model on a $200 stock would
+# manufacture a fake edge — exactly what the validation gauntlet exists to catch.
+asset_classes:
+  forex:
+    annualization: 252
+    cost_model: pips
+    spread_pips: 1.0
+    pip_size: 0.0001
+    slippage_bps: 0.5
+    commission_per_trade: 0.0
+    # ── Per-pair cost overrides (config v5, 2026-07-17) ──────────────────────
+    # Seeded from realized round-trip costs on 108 live MT4 fills, 2026-07-13→16
+    # (scratch/live_trades_enriched_2026-07-17.csv; |fill − Oanda 15m-bar mid|,
+    # adverse-signed, entry+exit). Values are pair means in pips; pair_tf refines
+    # a pair where that pair×timeframe cell had ≥ ~10 trades (n≥8 used). An
+    # override REPLACES spread_pips + slippage_bps for that pair — it already is
+    # the full round-trip cost, applied half per fill. Pairs whose measured mean
+    # was ≤ 0 (EUR/USD −3.5, USD/CAD −1.3 — fill-at-mid noise, not an edge) keep
+    # the class defaults. Unlisted major = class defaults; unlisted cross =
+    # cross_rt_cost_pips (measured cross median was 2.7–2.85, mean 4.68–4.85;
+    # the upper end is used as the conservative default).
+    cross_rt_cost_pips: 4.85
+    pair_rt_cost_pips:
+      "AUD/NZD": 1.9
+      "AUD/USD": 3.3
+      "CAD/JPY": 2.6
+      "CHF/JPY": 9.4
+      "EUR/AUD": 4.9
+      "EUR/CAD": 3.7
+      "EUR/CHF": 2.2
+      "EUR/JPY": 1.6
+      "EUR/NZD": 10.1
+      "GBP/CAD": 3.8
+      "GBP/CHF": 1.8
+      "GBP/NZD": 9.2
+      "GBP/USD": 2.4
+      "NZD/JPY": 2.0
+      "NZD/USD": 1.4
+      "USD/CHF": 0.8
+      "USD/JPY": 1.4
+    pair_tf_rt_cost_pips:
+      "CAD/JPY":
+        "1d": 4.1        # n=9
+      "NZD/USD":
+        "1d": 2.1        # n=8
+      "USD/JPY":
+        "1d": 0.6        # n=11
+  equity:
+    annualization: 252
+    cost_model: bps
+    spread_bps: 2.0          # ~2 bps round-trip half-spread on a liquid large-cap
+    slippage_bps: 1.0
+    commission_per_trade: 0.0
+  crypto:
+    annualization: 365       # crypto trades every calendar day
+    cost_model: bps
+    spread_bps: 1.5          # ~1.5 bps realistic for BTC on Binance (taker fee ~0.075%)
+    slippage_bps: 0.5        # minimal slippage on a highly liquid pair
+    commission_per_trade: 0.0
+
+# -- Sentiment filter (Phase 2) -------------------------------------------------
+# Wired to the existing APEX Groq/Finnhub news pipeline. FILTER/VETO ONLY - it can
+# shrink or cancel a signal that the news strongly contradicts, but it can NEVER
+# create or enlarge a position. Off by default.
+sentiment:
+  enabled: false
+  veto_threshold: 0.60
+  damp_threshold: 0.30
+  app_url: ""                    # e.g. http://localhost:3001 or your Vercel URL
+  news_lookback_days: 5
+  max_age_days: 7
+
+# ── Phase 3 AI Quant layer ──────────────────────────────────────────────────────
+# Proposes hypotheses to validate. Grounded in the Node app's /api/ai proxy.
+# Set enabled to true and configure your local LLM details if running locally.
+ai:
+  enabled: true
+  app_url: "http://localhost:3001"   # Node app base URL exposing /api/ai
+  n_hypotheses: 4
+  max_tokens: 1200
+  temperature: 0.5
+  use_news: true
+  use_local_llm: true               # Set to true to route through DeepSeek
+  local_llm_url: "https://api.deepseek.com/v1/chat/completions"  # DeepSeek completions endpoint
+  local_llm_model: "deepseek-chat"                              # Route to non-thinking mode of DeepSeek V4 (fast, cheap, no truncation)
+  local_llm_key: ""                              # Safe: loads from engine/.env instead
+
+# ── Live execution bridge (Phase 4) ──────────────────────────────────────────────
+# When enabled, the executor writes order signals to the MT4 bridge file.
+# Set enabled: true only when the MT4 terminal is running the apex_mt4_bridge.mq4 EA.
+execution:
+  enabled: true
+  provider: "ibkr"                              # mt4 | zmq | mock | ibkr — flipped to ibkr 2026-07-17 (FX book migrated; rollback: "mt4" + restart)
+  live_min_position: 15000.0
+  # 2026-07-17 (baseline findings): new trades get TradeManager exits
+  # (partials/BE/chandelier/time stops) matching the backtester; pre-existing
+  # open trades keep legacy invalidation-scan management forever.
+  managed_exits: true
+  # 2026-07-17 (user-approved): 15m/1h are EXECUTION-ONLY — entries require a
+  # 1d signal and fire only on a fast-TF pullback; no standalone intraday
+  # directional signals (realized 15m cross costs ~6.6 pips > avg 15m bar).
+  htf_direction_only: true
+  # 2026-07-17 (audit A-C1, research verdict DROP): LLM "lessons" structural
+  # veto. Default OFF — lessons invented thresholds from n=1 and gave backwards
+  # advice. Flip to true only via the forward-validation protocol.
+  llm_structural_veto: false
+  # 2026-07-17 (live-path hardening): EA bridge file freshness tolerance and
+  # order-ack poll budget. Stale bridge files => no dispatch, no TMS.
+  mt4_max_file_age_s: 5.0
+  mt4_ack_timeout_s: 10.0
+  mt4:
+    common_dir: "/Users/zain/Library/Application Support/net.metaquotes.wine.metatrader4/drive_c/users/crossover/AppData/Roaming/MetaQuotes/Terminal/Common/Files"  # macOS Wine shared path
+    default_volume: 0.10
+    suffix: "-g"
+    # Broker SERVER clock vs UTC, in hours. MT4 reports order times on its own server
+    # clock but stores them as unix epochs, so everything comparing them to real UTC
+    # is skewed by this much. Measured on this account 2026-07: +2.99h.
+    # ⚠️ CHANGES AT DST — most FX brokers run UTC+3 in summer and UTC+2 in winter.
+    # If it is wrong, the hindsight scan window shifts and the Bayesian sizer learns
+    # from the wrong price data. The engine warns at startup when it can prove this
+    # value is too low.
+    server_utc_offset_hours: 3.0
+  zmq:
+    enabled: true                              # flip to true when EA is running in MT4
+    host: "127.0.0.1"
+    port: 9091
+    linger_ms: 0
+    send_timeout_ms: 1000
+
