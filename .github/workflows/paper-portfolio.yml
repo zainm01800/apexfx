@@ -64,6 +64,16 @@ jobs:
       - name: Advance the paper book one closed bar
         working-directory: engine
         run: python scripts/run_paper_portfolio.py
+      - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
+        working-directory: engine
+        run: python scripts/nightly_risk_report.py
+      - name: Upload risk pack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-pack-${{ github.run_id }}
+          path: engine/data_store/reports/
+          retention-days: 90
+          if-no-files-found: warn
       - name: Resolve closed paper-book trades into research memory
         # READ-ONLY toward the book (state.json / apex_paper_*); writes only
         # apex_research_memory rows (source=paper_book, no ticket column — the
