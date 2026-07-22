@@ -79,6 +79,24 @@ BOOK_PARAMS = {**COMMON_PARAMS, "momentum_lookback": 252, "carry_filter": False}
 # MATIC data fix cannot silently change the book mid-experiment.
 EXCLUDED = {"MATIC/USD"}
 
+# PINNED UNIVERSE (2026-07-22). These lists were previously read live from
+# config.yaml, which meant ANY edit to cfg.data.equities/crypto silently changed
+# what the frozen forward experiment traded on its next step — the same class of
+# accident the MATIC exclusion above was written to prevent, but across the whole
+# book. They are now pinned in code, byte-identical to the config values the
+# experiment started with on 2026-07-17, so the research/scan universe in
+# config.yaml can grow freely without touching the experiment of record.
+# Changing EITHER list is a new pre-registered experiment, not an edit.
+BOOK_EQUITIES = [
+    "AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR",
+    "TSM", "NFLX", "UBER", "SPY", "QQQ", "IWM", "GLD", "TLT", "XLK", "XLE",
+    "XLF", "ARKK", "SMH", "SOXX", "XBI",
+]
+BOOK_CRYPTO = [
+    "BTC/USD", "ETH/USD", "SOL/USD", "BNB/USD", "XRP/USD", "ADA/USD",
+    "AVAX/USD", "DOGE/USD", "MATIC/USD", "LINK/USD", "ARB/USD", "SUI/USD",
+]
+
 FETCH_START = "2014-01-01"          # same depth as scripts/run_backtests.py
 HALT_DRAWDOWN = 0.15                # pre-registered experiment HALT rule
 START_EQUITY = 100_000.0            # GBP paper equity
@@ -267,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     state_path = Path(args.state)
     cfg = get_config()
     store = ParquetStore(cfg.store_path)
-    instruments = [i for i in (list(cfg.data.equities) + list(cfg.data.crypto) + FX_MAJORS_7)
+    instruments = [i for i in (BOOK_EQUITIES + BOOK_CRYPTO + FX_MAJORS_7)
                    if i not in EXCLUDED]
 
     print("=" * 72, flush=True)

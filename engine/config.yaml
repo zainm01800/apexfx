@@ -77,6 +77,79 @@ data:
     - "SMH"
     - "SOXX"
     - "XBI"
+    # ── Research/scan expansion, 2026-07-22 (59 halal-screened US large caps) ──
+    # SCAN universe only. The frozen forward book pins its own universe in
+    # scripts/run_paper_portfolio.py (BOOK_EQUITIES) precisely so this list can
+    # grow without touching the experiment of record — adding a name here feeds
+    # Deep Analyse and gives future gates a deeper candidate pool; it does NOT
+    # put the name in any traded book. Promoting names into a book is a
+    # pre-registered, gated experiment (see universe_expansion_prereg.md).
+    # Screening + explicit exclusions: data_store/halal_screen_2026-07-22.md
+    # tech / semis / software
+    - "ADBE"
+    - "CRM"
+    - "ORCL"
+    - "CSCO"
+    - "INTC"
+    - "AVGO"
+    - "TXN"
+    - "QCOM"
+    - "MU"
+    - "AMAT"
+    - "LRCX"
+    - "KLAC"
+    - "ADI"
+    - "NXPI"
+    - "ANET"
+    - "NOW"
+    - "INTU"
+    - "ACN"
+    # healthcare
+    - "JNJ"
+    - "MRK"
+    - "PFE"
+    - "ABBV"
+    - "LLY"
+    - "TMO"
+    - "ABT"
+    - "DHR"
+    - "SYK"
+    - "ISRG"
+    - "AMGN"
+    - "VRTX"
+    # consumer staples
+    - "PG"
+    - "KO"
+    - "PEP"
+    - "CL"
+    - "KMB"
+    - "MDLZ"
+    - "MNST"
+    # consumer discretionary
+    - "NKE"
+    - "HD"
+    - "LOW"
+    - "SBUX"
+    - "TJX"
+    - "ORLY"
+    - "LULU"
+    # industrials / materials
+    - "LIN"
+    - "UNP"
+    - "ITW"
+    - "HON"
+    - "EMR"
+    - "ETN"
+    - "PH"
+    - "APD"
+    - "SHW"
+    - "ECL"
+    # energy
+    - "XOM"
+    - "CVX"
+    - "COP"
+    - "EOG"
+    - "SLB"
   # Crypto universe — "BASE/USD" ids; mapped to Yahoo "BASE-USD" in the adapter.
   # Mirrors the dashboard "crypto" quick-picks.
   crypto:
