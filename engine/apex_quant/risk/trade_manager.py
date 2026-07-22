@@ -25,11 +25,19 @@ class TradeManager:
         chandelier_mult: float = 2.0,
         squeeze_mult: float = 1.0,
         time_stop_bars: dict[str, int] | None = None,
+        runner_mode: bool = False,
     ) -> None:
         self.p1_r = p1_r
         self.p1_pct = p1_pct
         self.p2_r = p2_r
         self.p2_pct = p2_pct
+        # RUNNER MODE (pre-registered experiment, default OFF — the certified book
+        # keeps its fixed target). When True: after Partial 1 the remaining half is
+        # NOT capped at the fixed target and NOT trimmed by Partial 2 — it rides the
+        # Chandelier trail uncapped, so a 252-day momentum entry can actually catch a
+        # multi-R trend leg instead of being amputated at 1.5R. See
+        # engine/data_store/runner_exit_prereg.md.
+        self.runner_mode = runner_mode
         # Breakeven-stop buffer in PIPS (multiplied by pip_size at apply time).
         # 3.0 pips matches the legacy live path's intent (0.0003 price on a
         # 5-decimal pair); the old 0.0003 default collapsed to ~3e-8 price once
@@ -124,19 +132,23 @@ class TradeManager:
                 position["units"] = 0.0
                 return pnl, "stop"
 
-        # Check full target hit
-        if is_long:
-            if high >= target:
-                fill_price = fill_fn(target, False)
-                pnl = (fill_price - entry) * units
-                position["units"] = 0.0
-                return pnl, "target"
-        else:
-            if low <= target:
-                fill_price = fill_fn(target, True)
-                pnl = (entry - fill_price) * units
-                position["units"] = 0.0
-                return pnl, "target"
+        # Check full target hit — SKIPPED in runner mode, where the post-P1
+        # remainder rides the Chandelier trail uncapped instead of capping at a
+        # fixed target. (Below 1R the target can't be reached anyway, so this only
+        # bites once the trade is already in profit — exactly where we want to run.)
+        if not self.runner_mode:
+            if is_long:
+                if high >= target:
+                    fill_price = fill_fn(target, False)
+                    pnl = (fill_price - entry) * units
+                    position["units"] = 0.0
+                    return pnl, "target"
+            else:
+                if low <= target:
+                    fill_price = fill_fn(target, True)
+                    pnl = (entry - fill_price) * units
+                    position["units"] = 0.0
+                    return pnl, "target"
 
         # Initialize tracking variables for this step
         realized_pnl = 0.0
@@ -176,7 +188,9 @@ class TradeManager:
         p2_price = (entry + self.p2_r * risk_dist) if is_long else (entry - self.p2_r * risk_dist)
         has_reached_p2 = (high >= p2_price) if is_long else (low <= p2_price)
 
-        if position["tms_p1"] and not position["tms_p2"] and has_reached_p2:
+        # Runner mode skips Partial 2 too: the whole post-P1 remainder rides the
+        # trail, rather than being trimmed to 25% at 1.5R.
+        if position["tms_p1"] and not position["tms_p2"] and has_reached_p2 and not self.runner_mode:
             close_units = initial_units * self.p2_pct
             close_units = min(close_units, units)
             if close_units > 0:

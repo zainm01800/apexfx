@@ -78,6 +78,7 @@ class PortfolioBacktester:
         vol_window: int = 63,
         corr_window: int = 63,
         exit_mode: Literal["managed", "barrier"] = "managed",
+        trade_manager: TradeManager | None = None,
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -89,7 +90,7 @@ class PortfolioBacktester:
         # Engine-level regimes per (timeframe, asset class), built with the SAME
         # slope-eps scaling the strategy gate uses (audit E4) — see engine.py.
         self._regimes: dict[tuple[str, str], RuleBasedRegime] = {}
-        self.trade_manager = TradeManager()
+        self.trade_manager = trade_manager or TradeManager()
         self._mech_cache: dict = {}
 
     def _regime_for(self, instrument: str, timeframe: str) -> RuleBasedRegime:
