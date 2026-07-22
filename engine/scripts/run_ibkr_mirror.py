@@ -150,6 +150,24 @@ def plan_for_day(state: dict) -> dict:
 #: state.json; a corrupted or regenerated state file could otherwise emit an
 #: arbitrarily large batch in one run. The frozen book's normal day is 0-6
 #: orders, so 25 is generous headroom — anything above it is a malformed state
+#: US-DOMICILED ETFs — PRIIPs/KID ineligible for a UK retail account. IBKR rejects
+#: these outright (error 201: "This product does not have a KID in English ... Retail
+#: clients can trade packaged retail products only if an appropriate KID is
+#: available"), confirmed live on IWM/QQQ 2026-07-22. Plain shares and ADRs are NOT
+#: PRIIPs products and trade fine — which is why AAPL/MSFT/TSM et al. filled and every
+#: ETF did not. Skipped up-front so the mirror stops firing orders the venue will
+#: always refuse; the divergence is recorded, not hidden. The tradeable UCITS
+#: equivalents are mapped in data_store/ucits_mapping_2026-07-20.md, and the certified
+#: Book H already uses them. Override with env IBKR_KID_BLOCKED (comma-separated) if
+#: the account's jurisdiction or permissions change.
+KID_BLOCKED = frozenset(
+    s.strip().upper() for s in os.environ.get(
+        "IBKR_KID_BLOCKED",
+        "SPY,QQQ,IWM,DIA,MDY,RSP,VTI,GLD,SLV,USO,GSG,TLT,AGG,LQD,HYG,TIP,"
+        "XLK,XLE,XLF,XLI,XLV,XLP,XLU,XLB,XLY,ARKK,SMH,SOXX,XBI,IBB,ITA,IYR,EEM,EFA"
+    ).split(",") if s.strip()
+)
+
 #: until a human says otherwise (override with --max-orders).
 DEFAULT_MAX_ORDERS = 25
 
@@ -192,7 +210,27 @@ def _divergence_bps(engine_price: float, ibkr_price: float, action: str) -> dict
 
 
 # ── execution ─────────────────────────────────────────────────────────────────
-def _order_record(kind: str, item: dict, action: str, handle, fill) -> dict:
+def is_stale_fill(bar_date: str | None, now: datetime | None = None,
+                  max_lag_days: int = 1) -> bool:
+    """True when this run is too late for its divergence to mean 'execution cost'.
+
+    The engine stamps fills at bar D's open and the mirror normally runs in time
+    for the next session, so divergence ~= real execution cost. Once a run slips
+    beyond that (gateway down, missed window), the price gap is dominated by
+    market DRIFT and must not be averaged into the cost metric.
+    """
+    if not bar_date:
+        return False
+    try:
+        bar = datetime.strptime(str(bar_date)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    now = now or datetime.now(timezone.utc)
+    return (now - bar).days > max_lag_days
+
+
+def _order_record(kind: str, item: dict, action: str, handle, fill,
+                  stale: bool = False) -> dict:
     spec = contract_spec(item["instrument"])
     rec = {
         "kind": kind,                            # "entry" | "exit"
@@ -226,6 +264,7 @@ def _order_record(kind: str, item: dict, action: str, handle, fill) -> dict:
                 (float(handle.quantity) - float(item["units"])) / float(item["units"]) * 100.0, 3)
         else:
             rec["size_delta_pct"] = None
+    rec["stale_fill"] = bool(stale)
     if fill is not None and fill.avg_fill_price is not None:
         rec.update(_divergence_bps(item["engine_fill_price"], fill.avg_fill_price, action))
     else:
@@ -236,13 +275,37 @@ def _order_record(kind: str, item: dict, action: str, handle, fill) -> dict:
 
 
 def _summary(orders: list[dict]) -> dict:
+    """Per-class execution summary.
+
+    STALE FILLS ARE EXCLUDED from the divergence average. The metric answers
+    "what did replicating this book on a real venue cost?" — but when a run is
+    late (gateway down, missed window), the gap between the engine's modelled
+    bar-open price and the fill is dominated by MARKET DRIFT, not execution.
+    Averaging those in silently inflates the cost figure: a day-late IWM entry
+    measured +80 bps against a 2 bps/side model. They are counted and reported
+    separately as drift, never folded into cost.
+    """
     by_class: dict[str, list[dict]] = {}
+    stale_by_class: dict[str, list[dict]] = {}
     for o in orders:
         if o.get("divergence_bps") is None:
             continue
-        by_class.setdefault(o["asset_class"], []).append(o)
+        bucket = stale_by_class if o.get("stale_fill") else by_class
+        bucket.setdefault(o["asset_class"], []).append(o)
     out = {}
-    for cls, rows in sorted(by_class.items()):
+    for cls in sorted(set(by_class) | set(stale_by_class)):
+        rows = by_class.get(cls, [])
+        stale_rows = stale_by_class.get(cls, [])
+        if not rows:                       # only stale fills for this class
+            out[cls] = {
+                "n_filled": 0, "mean_abs_divergence_bps": None,
+                "note": "all fills stale — no valid execution-cost sample",
+                "n_stale_excluded": len(stale_rows),
+                "stale_mean_abs_drift_bps": round(
+                    sum(abs(r["divergence_bps"]) for r in stale_rows) / len(stale_rows), 3),
+                "stale_instruments": sorted({r["instrument"] for r in stale_rows}),
+            }
+            continue
         abs_divs = [abs(r["divergence_bps"]) for r in rows]
         # Commissions must not be summed across currencies (IBKR reports them in
         # the instrument's own currency). Group by currency; the flat
@@ -265,6 +328,11 @@ def _summary(orders: list[dict]) -> dict:
                                  if len(comm_by_ccy) == 1 else None),
             "commission_by_currency": comm_by_ccy or None,
         }
+        if stale_rows:
+            out[cls]["n_stale_excluded"] = len(stale_rows)
+            out[cls]["stale_mean_abs_drift_bps"] = round(
+                sum(abs(r["divergence_bps"]) for r in stale_rows) / len(stale_rows), 3)
+            out[cls]["stale_instruments"] = sorted({r["instrument"] for r in stale_rows})
     return out
 
 
@@ -426,6 +494,11 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
 
     positions = {p["engine_symbol"]: p for p in executor.get_positions()}
     record["brackets_cancelled"] = []
+    stale_run = is_stale_fill(day)
+    record["stale_run"] = stale_run
+    if stale_run:
+        print(f"  NOTE: bar {day} is >1 session old — fills recorded as stale and EXCLUDED "
+              f"from the execution-cost average (drift, not cost).", flush=True)
 
     def _cancel_brackets(instrument: str, why: str) -> int:
         """Tear down resting protective orders for one instrument.
@@ -487,7 +560,7 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
             record["warnings"].append(
                 f"{kind} {item['instrument']}: {type(e).__name__}: {e}")
             print(f"  ERROR {kind} {item['instrument']}: {e}", flush=True)
-        rec = _order_record(kind, item, action, handle, fill)
+        rec = _order_record(kind, item, action, handle, fill, stale=stale_run)
         record["orders"].append(rec)
         print(f"  {kind.upper():5s} {rec['action']:4s} {rec['quantity_sent']} "
               f"{item['instrument']} | engine {rec['engine_fill_price']} "
@@ -516,6 +589,12 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
             record["skipped"].append({**item, "kind": "entry",
                                       "reason": "venue unsupported: IBKR crypto (Paxos) is long-only"})
             print(f"  SKIP  entry {inst} short: IBKR crypto is long-only", flush=True)
+            continue
+        if inst in KID_BLOCKED:
+            record["skipped"].append({**item, "kind": "entry",
+                                      "reason": "venue unsupported: PRIIPs/KID — US-domiciled ETF, "
+                                                "not eligible for a UK retail account"})
+            print(f"  SKIP  entry {inst}: PRIIPs/KID — US ETF, UK retail ineligible", flush=True)
             continue
         held = positions.get(inst)
         want = _signed(item["direction"], 1.0)
@@ -613,9 +692,16 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     print("divergence summary (filled orders, |divergence| bps):", flush=True)
     if record["summary"]:
         for cls, s in record["summary"].items():
-            print(f"  {cls:8s} n={s['n_filled']} mean {s['mean_abs_divergence_bps']:>8} "
-                  f"max {s['max_abs_divergence_bps']:>8} commission {s['total_commission']}",
-                  flush=True)
+            mean = s.get("mean_abs_divergence_bps")
+            mx = s.get("max_abs_divergence_bps")
+            print(f"  {cls:8s} n={s['n_filled']} "
+                  f"mean {('n/a' if mean is None else mean):>8} "
+                  f"max {('n/a' if mx is None else mx):>8} "
+                  f"commission {s.get('total_commission')}", flush=True)
+            if s.get("n_stale_excluded"):
+                print(f"           {s['n_stale_excluded']} STALE fill(s) excluded from cost "
+                      f"(drift {s['stale_mean_abs_drift_bps']} bps): "
+                      f"{', '.join(s['stale_instruments'])}", flush=True)
     else:
         print("  (no filled orders with divergence)", flush=True)
     if check:
@@ -647,6 +733,8 @@ def _dry_run(state_path: Path) -> int:
         venue = ""
         if spec["asset_class"] == "crypto" and item["direction"] == "short":
             venue = " [SKIP: IBKR crypto long-only]"
+        elif item["instrument"] in KID_BLOCKED:
+            venue = " [SKIP: PRIIPs/KID — US ETF, UK retail ineligible]"
         print(f"  ENTRY {item['instrument']:9s} {item['direction']:5s} {qty} "
               f"({spec['asset_class']}) engine fill {item['engine_fill_price']} "
               f"stop {item['stop']} target {item['target']}{venue}")

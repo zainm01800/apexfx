@@ -229,3 +229,63 @@ def test_equity_floor_refuses_after_connect_before_orders(env):
     assert code == 1 and record is None
     assert ex.submits == [] and ex.closes == []                # no orders placed
     assert not (tmp / "mirror" / "2026-07-18.json").exists()
+
+
+# ── stale-fill guard (2026-07-22): late runs measure DRIFT, not execution cost ──
+def test_is_stale_fill_lag_boundary():
+    from datetime import datetime, timezone
+    now = datetime(2026, 7, 22, 15, 0, tzinfo=timezone.utc)
+    assert rim.is_stale_fill("2026-07-21", now) is False   # next session: normal
+    assert rim.is_stale_fill("2026-07-20", now) is True    # >1 day: drift-dominated
+    assert rim.is_stale_fill(None, now) is False
+    assert rim.is_stale_fill("garbage", now) is False
+
+
+def test_summary_excludes_stale_fills_from_cost_average():
+    rows = [
+        {"asset_class": "equity", "instrument": "AAPL", "divergence_bps": 2.0,
+         "size_delta_pct": None, "commission": 1.0, "commission_currency": "USD",
+         "stale_fill": False},
+        {"asset_class": "equity", "instrument": "IWM", "divergence_bps": 80.0,
+         "size_delta_pct": None, "commission": 1.0, "commission_currency": "USD",
+         "stale_fill": True},                       # a day-late fill: 80 bps of drift
+    ]
+    s = rim._summary(rows)["equity"]
+    assert s["mean_abs_divergence_bps"] == 2.0      # the 80 bps must NOT pollute cost
+    assert s["n_filled"] == 1
+    assert s["n_stale_excluded"] == 1
+    assert s["stale_mean_abs_drift_bps"] == 80.0
+    assert s["stale_instruments"] == ["IWM"]
+
+
+def test_summary_reports_nothing_as_cost_when_every_fill_is_stale():
+    rows = [{"asset_class": "equity", "instrument": "QQQ", "divergence_bps": 40.0,
+             "size_delta_pct": None, "commission": None, "commission_currency": None,
+             "stale_fill": True}]
+    s = rim._summary(rows)["equity"]
+    assert s["mean_abs_divergence_bps"] is None     # honest: no valid cost sample
+    assert s["n_stale_excluded"] == 1
+
+
+# ── PRIIPs/KID skip (2026-07-22): IBKR rejected IWM/QQQ live, error 201 ──────────
+def test_us_etfs_are_skipped_before_the_venue_rejects_them(env):
+    run, _ = env
+    ex = FakeExecutor()
+    code, record = run(_state(entries=[
+        {"instrument": "QQQ", "direction": "long", "units": 9},    # US ETF -> KID blocked
+        {"instrument": "AAPL", "direction": "long", "units": 3},   # plain share -> fine
+    ]), ex)
+    assert code == 0
+    assert ex.submits == [("AAPL", "long", 3.0)]                   # only the share is sent
+    reasons = " | ".join(s["reason"] for s in record["skipped"])
+    assert "PRIIPs/KID" in reasons
+
+
+def test_kid_list_covers_the_book_d_etf_sleeve():
+    # These are the instruments the running forward book holds that a UK retail
+    # account can never trade — the reason mirror parity is structurally capped.
+    for sym in ("SPY", "QQQ", "IWM", "GLD", "TLT", "XLK", "XLE", "XLF", "ARKK",
+                "SMH", "SOXX", "XBI"):
+        assert sym in rim.KID_BLOCKED, sym
+    for sym in ("AAPL", "MSFT", "TSM", "NFLX", "PLTR", "AMD"):
+        assert sym not in rim.KID_BLOCKED, f"{sym} is a plain share, not a PRIIPs product"
