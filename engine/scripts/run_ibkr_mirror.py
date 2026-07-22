@@ -367,7 +367,8 @@ def sync_ibkr_state(executor, record: dict | None = None) -> bool:
 
 def run_mirror(state_path: Path, mirror_dir: Path, executor,
                timeout_s: float, max_orders: int = DEFAULT_MAX_ORDERS,
-               min_net_liq: float | None = None) -> tuple[int, dict | None]:
+               min_net_liq: float | None = None,
+               attach_stops: bool = False) -> tuple[int, dict | None]:
     """Mirror the latest processed bar onto IBKR. Returns (exit_code, record)."""
     state = json.loads(state_path.read_text(encoding="utf-8"))
     plan = plan_for_day(state)
@@ -424,16 +425,58 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     }
 
     positions = {p["engine_symbol"]: p for p in executor.get_positions()}
+    record["brackets_cancelled"] = []
+
+    def _cancel_brackets(instrument: str, why: str) -> int:
+        """Tear down resting protective orders for one instrument.
+
+        ORPHAN PREVENTION — the whole reason this exists. A resting STP/LMT that
+        outlives its position does not just sit there harmlessly: if it later
+        triggers it OPENS A NEW POSITION in the opposite direction, unbacked by
+        any engine decision. So brackets are cancelled BEFORE the engine's own
+        close, and any survivor is swept at the end of the run.
+        """
+        n = 0
+        try:
+            for o in executor.get_open_orders():
+                if o.get("symbol") != instrument:
+                    continue
+                trade = o.get("_trade")
+                if trade is None:
+                    continue
+                executor.cancel_order(getattr(trade, "order", trade))
+                record["brackets_cancelled"].append({
+                    "instrument": instrument, "order_id": o.get("order_id"),
+                    "order_type": o.get("order_type"), "why": why})
+                n += 1
+        except Exception as e:  # noqa: BLE001 — never let teardown abort the run
+            record["warnings"].append(
+                f"bracket cancel {instrument}: {type(e).__name__}: {e}")
+        return n
 
     def _place(kind: str, item: dict, action: str, volume: float) -> None:
         handle, fill = None, None
         try:
             if kind == "exit":
+                # Cancel first: closing while a stop child still rests is a race
+                # that can leave the orphan behind to re-open the trade later.
+                if attach_stops:
+                    _cancel_brackets(item["instrument"], "engine exit")
                 handle = executor.close_position(item["instrument"])
             else:
+                stop_px = item.get("stop")
+                bracket = bool(attach_stops and stop_px)
+                if attach_stops and not stop_px:
+                    record["warnings"].append(
+                        f"entry {item['instrument']}: no stop in state — sent WITHOUT a "
+                        f"venue-side bracket (attach_stop requires a stop price)")
+                # Only pass attach_stop when a bracket is actually wanted, so the
+                # default path stays byte-identical to v1 for any executor that
+                # predates the parameter.
+                extra = {"attach_stop": True} if bracket else {}
                 handle = executor.submit_order(
                     item["instrument"], item["direction"], volume=volume,
-                    stop=item.get("stop"), target=item.get("target"),
+                    stop=stop_px, target=item.get("target"), **extra,
                 )
             if handle is None:      # close_position: nothing held (race-safe re-check)
                 record["skipped"].append({**item, "kind": kind,
@@ -506,6 +549,34 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     except Exception as e:  # noqa: BLE001
         ibkr_now = {}
         record["warnings"].append(f"post-run position fetch failed: {e}")
+
+    # 3a. ORPHAN SWEEP: any resting protective order with no position behind it is
+    # cancelled, whichever way it got there (bracket barrier filled and flattened
+    # the trade, an exit closed outside this run, a manual close). Left alone it
+    # would eventually trigger and open an unbacked position. Runs off the freshly
+    # fetched ibkr_now, so it also catches positions the bracket itself just closed.
+    if attach_stops:
+        # Never sweep an instrument this run just entered: the position may not be
+        # visible yet (async fill/position propagation), and cancelling there would
+        # strip the protection we placed seconds earlier — the exact opposite of
+        # the point. Those are reconciled on the NEXT run, when the fill has landed.
+        just_entered = {o["instrument"] for o in record["orders"] if o.get("kind") == "entry"}
+        try:
+            for o in executor.get_open_orders():
+                sym = o.get("symbol")
+                if sym and sym in just_entered:
+                    continue
+                if sym and sym not in ibkr_now:
+                    trade = o.get("_trade")
+                    if trade is None:
+                        continue
+                    executor.cancel_order(getattr(trade, "order", trade))
+                    record["brackets_cancelled"].append({
+                        "instrument": sym, "order_id": o.get("order_id"),
+                        "order_type": o.get("order_type"), "why": "orphan sweep (no position)"})
+                    print(f"  SWEEP cancelled orphan {o.get('order_type')} on {sym}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            record["warnings"].append(f"orphan sweep: {type(e).__name__}: {e}")
     for inst in sorted(set(engine_open) | set(ibkr_now)):
         e = engine_open.get(inst)
         i = ibkr_now.get(inst)
@@ -593,6 +664,14 @@ def main(argv: list[str] | None = None, executor=None) -> int:
                     help="runaway guard: refuse (exit 1, before connecting) if the "
                          f"plan holds more orders than this (default {DEFAULT_MAX_ORDERS}; "
                          "a normal day is 0-6 — bigger plans mean a bad state.json)")
+    ap.add_argument("--attach-stops", action="store_true",
+                    default=os.environ.get("IBKR_ATTACH_STOPS", "").lower() in ("1", "true", "yes"),
+                    help="place REAL GTC stop (and target) orders at IBKR alongside each entry, "
+                         "so positions stay protected even when the engine is not running. "
+                         "Off by default: v1 recorded stops without attaching them, which "
+                         "left positions naked whenever the nightly step failed. Brackets are "
+                         "torn down before engine exits and any orphan is swept post-run. "
+                         "Can also be set via env IBKR_ATTACH_STOPS=1.")
     ap.add_argument("--min-net-liq", type=float,
                     default=(float(os.environ["IBKR_MIN_NET_LIQ"])
                              if os.environ.get("IBKR_MIN_NET_LIQ") else None),
@@ -640,7 +719,8 @@ def main(argv: list[str] | None = None, executor=None) -> int:
         executor = IBKRExecutor()   # env-overridable host/port/client/account
     try:
         code, _ = run_mirror(state_path, Path(args.mirror_dir), executor, args.timeout_s,
-                             max_orders=args.max_orders, min_net_liq=args.min_net_liq)
+                             max_orders=args.max_orders, min_net_liq=args.min_net_liq,
+                             attach_stops=args.attach_stops)
         return code
     except IBKRAccountError as e:
         print(f"ACCOUNT ALLOWLIST REFUSAL: {e}", flush=True)
