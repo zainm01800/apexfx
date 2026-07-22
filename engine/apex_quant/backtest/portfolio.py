@@ -248,6 +248,7 @@ class PortfolioBacktester:
                     realized_pnl, exit_reason = self.trade_manager.update_position(
                         position=posd,
                         high=d["high"][i],
+                        open_=d["open"][i],
                         low=d["low"][i],
                         close=d["close"][i],
                         atr=d["atr"][i],

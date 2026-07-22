@@ -82,3 +82,49 @@ def test_runner_skips_partial_two():
                        bars_history=_bars(115, 108), timeframe="1d", pip_size=0.01, fill_fn=NOCOST)
     assert pos["tms_p2"] is False
     assert pos["units"] == 5.0                           # NOT trimmed to 25%
+
+
+# ── gap-aware stop fills (2026-07-22) ────────────────────────────────────────
+def test_stop_gapped_through_fills_at_the_open_not_the_stop():
+    """A stop does not guarantee the stop PRICE — the tail-loss honesty fix."""
+    tm = TradeManager()
+    pos = _pos()                                   # long, entry 100, stop 90
+    # Bar gaps DOWN to 80 and never trades at 90: the real fill is 80, not 90.
+    pnl, reason = tm.update_position(
+        pos, high=82, low=78, close=81, atr=5.0, is_squeeze=False,
+        bars_history=_bars(82, 78), timeframe="1d", pip_size=0.01,
+        fill_fn=NOCOST, open_=80.0)
+    assert reason == "stop"
+    assert pnl == (80 - 100) * 10                  # -200, NOT the optimistic -100
+    assert pos["tms_log"][-1]["action"] == "gap_through_stop"
+
+
+def test_short_gap_up_through_stop_is_also_worse():
+    tm = TradeManager()
+    pos = _pos(entry=100.0, stop=110.0, target=85.0, direction="short")
+    pnl, reason = tm.update_position(
+        pos, high=122, low=118, close=120, atr=5.0, is_squeeze=False,
+        bars_history=_bars(122, 118), timeframe="1d", pip_size=0.01,
+        fill_fn=NOCOST, open_=120.0)
+    assert reason == "stop"
+    assert pnl == (100 - 120) * 10                 # -200, filled at the open
+
+
+def test_no_gap_still_fills_at_the_stop():
+    tm = TradeManager()
+    pos = _pos()
+    pnl, reason = tm.update_position(
+        pos, high=99, low=88, close=95, atr=5.0, is_squeeze=False,
+        bars_history=_bars(99, 88), timeframe="1d", pip_size=0.01,
+        fill_fn=NOCOST, open_=98.0)                # opened above the stop
+    assert reason == "stop"
+    assert pnl == (90 - 100) * 10                  # normal -1R
+
+
+def test_omitting_open_keeps_the_old_behaviour():
+    tm = TradeManager()
+    pos = _pos()
+    pnl, _ = tm.update_position(
+        pos, high=82, low=78, close=81, atr=5.0, is_squeeze=False,
+        bars_history=_bars(82, 78), timeframe="1d", pip_size=0.01, fill_fn=NOCOST)
+    assert pnl == (90 - 100) * 10                  # callers without open_ unchanged

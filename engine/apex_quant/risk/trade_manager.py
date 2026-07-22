@@ -70,6 +70,7 @@ class TradeManager:
         pip_size: float,
         fill_fn: Callable[[float, bool], float],
         max_bars: int | None = None,
+        open_: float | None = None,
     ) -> Tuple[float, str]:
         """Update position state (stops, partial closes) based on the current bar.
 
@@ -77,6 +78,10 @@ class TradeManager:
             position:     Dict representing the position. Will be mutated in-place.
             high:         Bar high price.
             low:          Bar low price.
+            open_:        Bar OPEN price. When given, a stop that gapped through is
+                          filled at the open (the worse level) instead of at the stop
+                          — see the gap-aware note in the stop-out block. Optional so
+                          existing callers keep their previous behaviour.
             close:        Bar close price.
             atr:          Current ATR value.
             is_squeeze:   True if volatility squeeze is active.
@@ -118,18 +123,35 @@ class TradeManager:
         if risk_dist <= 1e-8:
             risk_dist = 0.01 * entry  # Avoid divide by zero
 
-        # Check full stop-out first (conservative)
+        # Check full stop-out first (conservative).
+        #
+        # GAP-AWARE FILLS: a stop does not guarantee the stop PRICE. If the bar opens
+        # beyond the stop — an earnings gap, a weekend crypto move — the real fill is
+        # at the open, materially worse. Assuming the stop price always fills
+        # understates exactly the losses that matter most (the tail), and this book
+        # holds single stocks ~21 bars, so roughly one trade in four sits through an
+        # earnings announcement. When ``open_`` is supplied the fill is the WORSE of
+        # the stop and the open; without it the old optimistic behaviour is kept so
+        # callers that cannot supply it are not silently changed.
         if is_long:
             if low <= stop:
-                fill_price = fill_fn(stop, False)
+                level = min(stop, open_) if open_ is not None else stop
+                fill_price = fill_fn(level, False)
                 pnl = (fill_price - entry) * units
                 position["units"] = 0.0
+                if open_ is not None and open_ < stop:
+                    position["tms_log"].append(
+                        {"action": "gap_through_stop", "stop": stop, "filled": level})
                 return pnl, "stop"
         else:
             if high >= stop:
-                fill_price = fill_fn(stop, True)
+                level = max(stop, open_) if open_ is not None else stop
+                fill_price = fill_fn(level, True)
                 pnl = (entry - fill_price) * units
                 position["units"] = 0.0
+                if open_ is not None and open_ > stop:
+                    position["tms_log"].append(
+                        {"action": "gap_through_stop", "stop": stop, "filled": level})
                 return pnl, "stop"
 
         # Check full target hit — SKIPPED in runner mode, where the post-P1

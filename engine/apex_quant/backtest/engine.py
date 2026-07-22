@@ -175,6 +175,7 @@ class Backtester:
                     realized_pnl, exit_reason = self.trade_manager.update_position(
                         position=position,
                         high=high[i],
+                        open_=opens[i],
                         low=low[i],
                         close=closes[i],
                         atr=atr[i],
