@@ -35,8 +35,12 @@ jobs:
               "$SUPABASE_URL/rest/v1/$t?select=*&limit=1" \
               -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
             echo "$t REST status: $code"
+            if [ "$code" = "402" ]; then
+              echo "::error::Supabase has RESTRICTED this project (HTTP 402 — egress/quota exceeded). Nothing is broken in the engine or IBKR: the database is refusing to serve. Restore service in the Supabase dashboard (upgrade plan or raise the spend cap), then re-run. The stepper is halted deliberately — advancing the book without its state would corrupt the forward test."
+              exit 1
+            fi
             if [ "$code" != "200" ]; then
-              echo "::error::$t not reachable (HTTP $code). Run supabase/apex_paper_portfolio.sql in the Supabase SQL editor first."
+              echo "::error::$t not reachable (HTTP $code). If the table is genuinely missing, run supabase/apex_paper_portfolio.sql in the Supabase SQL editor first."
               exit 1
             fi
           done

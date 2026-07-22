@@ -86,12 +86,23 @@ async function loadIbkr() {
     const [accountRes, positionsRes, tradesRes, paperRes] = await Promise.all([
       fetch('/api/ibkr?view=account'),
       fetch('/api/ibkr?view=positions'),
-      fetch('/api/ibkr?view=trades&limit=200'),
-      fetch('/api/paper?table=positions&limit=500').catch(() => null),
+      fetch('/api/ibkr?view=trades&limit=50'),
+      fetch('/api/paper?table=positions&limit=100').catch(() => null),
     ]);
 
     if (!accountRes.ok || !positionsRes.ok || !tradesRes.ok) {
-      throw new Error('Failed to load IBKR terminal data');
+      // Name the ACTUAL cause. A 402 is Supabase refusing to serve the project
+      // (free-tier egress/quota restriction) — nothing to do with IB Gateway, and
+      // saying "IBKR bridge" sent us hunting the wrong system for an hour.
+      const status = [accountRes, positionsRes, tradesRes].find(r => !r.ok).status;
+      if (status === 402) {
+        const err = new Error('Database quota exceeded — Supabase has paused this project, '
+          + 'so no data can be read. IBKR itself is fine. Restore service in the Supabase '
+          + 'dashboard (upgrade plan or raise the spend cap), or wait for the quota to reset.');
+        err.kind = 'quota';
+        throw err;
+      }
+      throw new Error(`Failed to load terminal data (HTTP ${status})`);
     }
 
     _ibkrAccountCache = await accountRes.json();
@@ -119,7 +130,11 @@ async function loadIbkr() {
     renderClassTab();
   } catch (e) {
     console.error('Error fetching IBKR data:', e);
-    const msg = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--red); font-size: 14px;">Error syncing with IBKR bridge: ${escHtml(e.message || e)}</div>`;
+    const isQuota = e && e.kind === 'quota';
+    const title = isQuota ? '⏸ Data paused — database quota' : 'Error syncing with IBKR bridge';
+    const colour = isQuota ? 'var(--amber, #E4B23F)' : 'var(--red)';
+    const msg = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: ${colour}; font-size: 14px; line-height: 1.6;">`
+      + `<strong>${escHtml(title)}</strong><br>${escHtml(e.message || e)}</div>`;
     const pw = document.getElementById('ibkrPositionsWrap');
     const tw = document.getElementById('ibkrTradesWrap');
     if (pw) pw.innerHTML = msg;
@@ -481,11 +496,17 @@ function initRealtime() {
     return;
   }
   const client = window.supabase.createClient(SUPA_RT_URL, SUPA_RT_ANON);
+  // Debounce 400ms -> 5s (2026-07-22): every realtime row-change triggered a FULL
+  // four-endpoint reload, so one nightly run — which writes hundreds of rows across
+  // five subscribed tables — fanned out into a reload storm. That was the main
+  // driver of the egress overrun that got the project restricted. A 5s window
+  // collapses a whole write burst into a single refresh; the page still feels live.
   const trigger = () => {
     if (_rtDebounce) clearTimeout(_rtDebounce);
     _rtDebounce = setTimeout(() => {
+      if (document.hidden) return;   // background tabs don't need to re-pull
       try { loadIbkr(); } catch (e) { console.error('Realtime reload err:', e); }
-    }, 400);
+    }, 5000);
   };
   const channel = client.channel('ibkr-live');
   for (const t of RT_TABLES) {

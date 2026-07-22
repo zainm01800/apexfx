@@ -44,6 +44,11 @@ function corsHeaders(origin) {
   };
 }
 
+// Only the columns the terminal actually renders — see the egress note in the
+// positions/trades handlers below.
+const POSITION_COLS = 'select=instrument,direction,units,avg_price,market_value,unrealized_pnl,updated_at';
+const TRADE_COLS    = 'select=instrument,side,qty,price,commission,exec_time';
+
 async function supaGet(table, query, cors) {
   const response = await fetch(`${SUPA_URL}/rest/v1/${table}?${query}`, {
     method: 'GET',
@@ -67,7 +72,10 @@ export default async function handler(req) {
   try {
     const view  = url.searchParams.get('view') || 'account';
     const cls   = url.searchParams.get('class');
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500);
+    // Cap lowered 500 -> 100 (2026-07-22 egress restriction): the terminal only ever
+    // renders a recent-trades table, and an unbounded cap let one page load pull the
+    // whole fill history on every realtime push.
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 100);
 
     if (view === 'account') {
       const r = await supaGet('apex_ibkr_account', 'id=eq.1', cors);
@@ -77,7 +85,11 @@ export default async function handler(req) {
     }
 
     if (view === 'positions') {
-      const r = await supaGet('apex_ibkr_positions', 'order=instrument.asc&limit=500', cors);
+      // Column projection (2026-07-22): the free-tier egress quota was exceeded and
+      // Supabase hard-restricted the project (HTTP 402). PostgREST returns EVERY
+      // column without an explicit select=, so ask only for what the terminal renders.
+      const r = await supaGet('apex_ibkr_positions',
+        `${POSITION_COLS}&order=instrument.asc&limit=200`, cors);
       if (r.error) return new Response(JSON.stringify({ error: r.error }), { status: r.status, headers: cors });
       let rows = (Array.isArray(r.data) ? r.data : []).map(p => ({ ...p, asset_class: deriveClass(p.instrument) }));
       if (cls && CLASSES.has(cls)) rows = rows.filter(p => p.asset_class === cls);
@@ -85,7 +97,8 @@ export default async function handler(req) {
     }
 
     if (view === 'trades') {
-      const r = await supaGet('apex_ibkr_trades', `order=exec_time.desc&limit=${limit}`, cors);
+      const r = await supaGet('apex_ibkr_trades',
+        `${TRADE_COLS}&order=exec_time.desc&limit=${limit}`, cors);
       if (r.error) return new Response(JSON.stringify({ error: r.error }), { status: r.status, headers: cors });
       let rows = (Array.isArray(r.data) ? r.data : []).map(t => ({ ...t, asset_class: deriveClass(t.instrument) }));
       if (cls && CLASSES.has(cls)) rows = rows.filter(t => t.asset_class === cls);
