@@ -166,7 +166,7 @@ class RiskManager:
             return "swing"  # Default fallback
 
         _BUCKET_LIMITS: dict[str, int] = {
-            "swing": 10,      # Swing (1d / 1w) -> max 10 concurrent positions total
+            "swing": getattr(cfg, "max_swing_slots", 10),      # Swing (1d / 1w) -> configurable (default 10)
             "intraday": 8,    # Intraday (1h) -> max 8 concurrent positions
             "scalp": 6,       # Scalp (15m / 5m) -> max 6 concurrent positions
         }

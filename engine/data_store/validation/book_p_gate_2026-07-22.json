@@ -1,0 +1,548 @@
+{
+  "generated_at": "2026-07-22T21:25:33+00:00",
+  "prereg": "engine/data_store/risk_per_trade_prereg.md",
+  "n_trials_before": 221,
+  "n_trials_used": 226,
+  "swept_values_charged": [
+    0.005,
+    0.0075,
+    0.01,
+    0.015,
+    0.02
+  ],
+  "pbo": {
+    "pbo": 0.23575,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "pbo_binding": false,
+  "dd_wall": 0.1,
+  "books": {
+    "book_p_rpt100": {
+      "risk_per_trade": 0.01,
+      "metrics": {
+        "total_return": 0.8554027095217471,
+        "ann_return": 0.04959381436069066,
+        "ann_vol": 0.08949385876258614,
+        "sharpe": 0.5859421310635383,
+        "sortino": 0.6355914017048917,
+        "max_drawdown": 0.1823182061020744,
+        "calmar": 0.2720178934457297,
+        "n_trades": 1694,
+        "win_rate": 0.5466351829988194,
+        "profit_factor": 1.1852346246790824,
+        "avg_trade_return": 0.01197927981109799,
+        "expectancy_pnl": 51.591782762691935,
+        "expectancy_pct": 0.011979279811098004,
+        "final_equity": 185540.2709521747,
+        "net_pnl": 87396.48
+      },
+      "portfolio_cap_hits": 163,
+      "max_gross_leverage": 2.708598427613438,
+      "per_asset_class": {
+        "equity": {
+          "instruments": [
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "META",
+            "AMZN",
+            "GOOGL",
+            "TSLA",
+            "AMD",
+            "PLTR",
+            "TSM",
+            "NFLX",
+            "UBER",
+            "ISWD.L",
+            "ISDU.L",
+            "ISDE.L",
+            "XLK",
+            "XLE",
+            "XBI",
+            "SMH",
+            "SOXX",
+            "SGLD.L"
+          ],
+          "n_trades": 1017,
+          "net_pnl": 74775.18
+        },
+        "crypto": {
+          "instruments": [
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "BNB/USD",
+            "XRP/USD",
+            "ADA/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "LINK/USD",
+            "ARB/USD",
+            "SUI/USD"
+          ],
+          "n_trades": 450,
+          "net_pnl": 20394.44
+        },
+        "forex": {
+          "instruments": [
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD"
+          ],
+          "n_trades": 227,
+          "net_pnl": -7773.2
+        }
+      },
+      "full_window_sharpe_per_period": 0.03691088479688897,
+      "forward_drawdown": {
+        "median_drawdown": 0.07405129934712851,
+        "p95_drawdown": 0.14812220041814325,
+        "prob_breach_10pct": 0.2539
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      }
+    },
+    "book_p_rpt075": {
+      "risk_per_trade": 0.0075,
+      "metrics": {
+        "total_return": 1.385951251045996,
+        "ann_return": 0.07046997817343725,
+        "ann_vol": 0.07986571066226675,
+        "sharpe": 0.892994594451256,
+        "sortino": 1.0570804702787882,
+        "max_drawdown": 0.14282138145672807,
+        "calmar": 0.4934133632840416,
+        "n_trades": 1694,
+        "win_rate": 0.551357733175915,
+        "profit_factor": 1.2955440718753581,
+        "avg_trade_return": 0.012757839433293979,
+        "expectancy_pnl": 82.87176505312868,
+        "expectancy_pct": 0.012757839433293977,
+        "final_equity": 238595.12510459957,
+        "net_pnl": 140384.77
+      },
+      "portfolio_cap_hits": 3,
+      "max_gross_leverage": 2.0461928143354893,
+      "per_asset_class": {
+        "equity": {
+          "instruments": [
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "META",
+            "AMZN",
+            "GOOGL",
+            "TSLA",
+            "AMD",
+            "PLTR",
+            "TSM",
+            "NFLX",
+            "UBER",
+            "ISWD.L",
+            "ISDU.L",
+            "ISDE.L",
+            "XLK",
+            "XLE",
+            "XBI",
+            "SMH",
+            "SOXX",
+            "SGLD.L"
+          ],
+          "n_trades": 1022,
+          "net_pnl": 118901.54
+        },
+        "crypto": {
+          "instruments": [
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "BNB/USD",
+            "XRP/USD",
+            "ADA/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "LINK/USD",
+            "ARB/USD",
+            "SUI/USD"
+          ],
+          "n_trades": 450,
+          "net_pnl": 30510.33
+        },
+        "forex": {
+          "instruments": [
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD"
+          ],
+          "n_trades": 222,
+          "net_pnl": -9026.75
+        }
+      },
+      "full_window_sharpe_per_period": 0.05625337188197625,
+      "forward_drawdown": {
+        "median_drawdown": 0.06046595472102684,
+        "p95_drawdown": 0.11984926795338306,
+        "prob_breach_10pct": 0.1211
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      }
+    },
+    "book_p_rpt050": {
+      "risk_per_trade": 0.005,
+      "metrics": {
+        "total_return": 0.8537260482603746,
+        "ann_return": 0.04951950836875252,
+        "ann_vol": 0.05402310692770756,
+        "sharpe": 0.9220429789910448,
+        "sortino": 1.1040247556717733,
+        "max_drawdown": 0.10344279935977685,
+        "calmar": 0.4787139237843161,
+        "n_trades": 1694,
+        "win_rate": 0.551357733175915,
+        "profit_factor": 1.3156296056724237,
+        "avg_trade_return": 0.012757839433293979,
+        "expectancy_pnl": 50.944114521841755,
+        "expectancy_pct": 0.012757839433293977,
+        "final_equity": 185372.60482603745,
+        "net_pnl": 86299.33
+      },
+      "portfolio_cap_hits": 0,
+      "max_gross_leverage": 1.3641160285523317,
+      "per_asset_class": {
+        "equity": {
+          "instruments": [
+            "AAPL",
+            "MSFT",
+            "NVDA",
+            "META",
+            "AMZN",
+            "GOOGL",
+            "TSLA",
+            "AMD",
+            "PLTR",
+            "TSM",
+            "NFLX",
+            "UBER",
+            "ISWD.L",
+            "ISDU.L",
+            "ISDE.L",
+            "XLK",
+            "XLE",
+            "XBI",
+            "SMH",
+            "SOXX",
+            "SGLD.L"
+          ],
+          "n_trades": 1022,
+          "net_pnl": 74426.8
+        },
+        "crypto": {
+          "instruments": [
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "BNB/USD",
+            "XRP/USD",
+            "ADA/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "LINK/USD",
+            "ARB/USD",
+            "SUI/USD"
+          ],
+          "n_trades": 450,
+          "net_pnl": 17370.02
+        },
+        "forex": {
+          "instruments": [
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD"
+          ],
+          "n_trades": 222,
+          "net_pnl": -5497.35
+        }
+      },
+      "full_window_sharpe_per_period": 0.058083248107701366,
+      "forward_drawdown": {
+        "median_drawdown": 0.04071259116112198,
+        "p95_drawdown": 0.08150324201213713,
+        "prob_breach_10pct": 0.0157
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      }
+    }
+  },
+  "verdicts": {
+    "book_p_rpt100": {
+      "book": "book_p_rpt100",
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.5883331520714076,
+        "observed_sharpe": 0.03691088479688897,
+        "observed_sharpe_ann": 0.5859421310635383,
+        "sr0": 0.03290924269656448,
+        "n_trials": 226,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.8034272086156578,
+        "kurtosis": 11.330436361929474
+      },
+      "pbo": {
+        "pbo": 0.23575,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "reasons": [
+        "DSR 0.588 <= 0.95 (deflated by 226 trials)",
+        "PBO 0.23575 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.048, 100% of 15 paths positive"
+      ],
+      "paired_vs_baseline": null,
+      "dd_wall_ok": false,
+      "adopt_eligible": false
+    },
+    "book_p_rpt075": {
+      "book": "book_p_rpt075",
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9043815594059246,
+        "observed_sharpe": 0.05625337188197625,
+        "observed_sharpe_ann": 0.892994594451256,
+        "sr0": 0.03290924269656448,
+        "n_trials": 226,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.3537806738701972,
+        "kurtosis": 8.769151942172272
+      },
+      "pbo": {
+        "pbo": 0.23575,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "reasons": [
+        "DSR 0.904 <= 0.95 (deflated by 226 trials)",
+        "PBO 0.23575 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.048, 100% of 15 paths positive"
+      ],
+      "paired_vs_baseline": {
+        "sharpe_base": 0.5859421310635383,
+        "sharpe_new": 0.892994594451256,
+        "sharpe_delta": 0.30705246338771763,
+        "p_value_one_sided": 0.0003,
+        "ci_95_lower": 0.12828004890867445,
+        "ci_95_upper": 0.49140876192853283,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dd_wall_ok": false,
+      "adopt_eligible": false
+    },
+    "book_p_rpt050": {
+      "book": "book_p_rpt050",
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9209495332178107,
+        "observed_sharpe": 0.058083248107701366,
+        "observed_sharpe_ann": 0.9220429789910448,
+        "sr0": 0.03290924269656448,
+        "n_trials": 226,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.2843502095446871,
+        "kurtosis": 8.662687221826658
+      },
+      "pbo": {
+        "pbo": 0.23575,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "reasons": [
+        "DSR 0.921 <= 0.95 (deflated by 226 trials)",
+        "PBO 0.23575 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.048, 100% of 15 paths positive"
+      ],
+      "paired_vs_baseline": {
+        "sharpe_base": 0.5859421310635383,
+        "sharpe_new": 0.9220429789910448,
+        "sharpe_delta": 0.3361008479275065,
+        "p_value_one_sided": 0.0003,
+        "ci_95_lower": 0.14092321242915637,
+        "ci_95_upper": 0.541698135689251,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dd_wall_ok": true,
+      "adopt_eligible": false
+    }
+  },
+  "decision": {
+    "winner": null,
+    "eligible": []
+  }
+}

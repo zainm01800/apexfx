@@ -109,6 +109,7 @@ class RiskConfig(BaseModel):
     drawdown_reducing_limit: float = 0.10
     min_position: float = 0.0
     max_concurrent_trades: int = 10
+    max_swing_slots: int = 10
     max_portfolio_risk: float = 0.035
 
 

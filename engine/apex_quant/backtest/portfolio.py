@@ -79,6 +79,7 @@ class PortfolioBacktester:
         corr_window: int = 63,
         exit_mode: Literal["managed", "barrier"] = "managed",
         trade_manager: TradeManager | None = None,
+        slot_allocation: Literal["order", "expected_value"] = "order",
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -91,6 +92,11 @@ class PortfolioBacktester:
         # slope-eps scaling the strategy gate uses (audit E4) — see engine.py.
         self._regimes: dict[tuple[str, str], RuleBasedRegime] = {}
         self.trade_manager = trade_manager or TradeManager()
+        # "order" reproduces the historic (arbitrary, order-dependent) behaviour and is
+        # the default so nothing certified changes silently. "expected_value" ranks
+        # same-bar candidates by p*b-(1-p) before allocating scarce slots — see
+        # data_store/ordering_sensitivity_audit.md.
+        self.slot_allocation = slot_allocation
         self._mech_cache: dict = {}
 
     def _regime_for(self, instrument: str, timeframe: str) -> RuleBasedRegime:
@@ -297,6 +303,17 @@ class PortfolioBacktester:
                 continue
             book = [self._open_record(inst, posd) for inst, posd in open_pos.items()]
             cm = None
+
+            # PASS 1 — collect every live candidate for this bar BEFORE allocating.
+            #
+            # Slots are scarce: RiskManager caps the swing bucket at 10 and
+            # `timeframe_bucket_full` fires 18,147 times in the certified book. Whoever
+            # is evaluated first takes the slot, so with the historic single-pass loop
+            # the allocation was decided by dict insertion order — and EQUITY_CORE is
+            # hardcoded starting with the decade's mega-cap winners. Measured effect
+            # (data_store/ordering_sensitivity_audit.md): shuffling the order alone
+            # moves Sharpe 0.217 -> 0.863. That is luck, not a decision.
+            candidates = []
             for inst in instruments:
                 if inst in open_pos or inst in pending:
                     continue
@@ -311,6 +328,26 @@ class PortfolioBacktester:
                 if signal.direction == Direction.FLAT:
                     continue
                 signal = signal.model_copy(update={"timeframe": d["tf"]})
+                candidates.append((inst, d, i, atr_i, vol_i, signal))
+
+            if self.slot_allocation != "order":
+                def _score(c):
+                    inst_c, d_c, i_c, atr_c, vol_c, s_c = c
+                    if self.slot_allocation == "probability":
+                        return s_c.probability
+                    elif self.slot_allocation == "expected_value":
+                        return (s_c.probability * s_c.reward_risk) - (1.0 - s_c.probability)
+                    elif self.slot_allocation == "ev_regime":
+                        base_ev = (s_c.probability * s_c.reward_risk) - (1.0 - s_c.probability)
+                        reg = self._regime_for(inst_c, d_c["tf"]).classify(pits[inst_c], t) if self.use_regime else None
+                        mult = float(getattr(reg, "risk_multiplier", 1.0)) if reg else 1.0
+                        return base_ev * mult
+                    else:
+                        return (s_c.probability * s_c.reward_risk) - (1.0 - s_c.probability)
+                candidates.sort(key=lambda c: (-_score(c), c[0]))
+
+            # PASS 2 — allocate in the chosen order.
+            for inst, d, i, atr_i, vol_i, signal in candidates:
 
                 corrs: dict[str, float] = {}
                 if book:
