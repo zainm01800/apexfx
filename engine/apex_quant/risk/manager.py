@@ -173,22 +173,37 @@ class RiskManager:
         _GLOBAL_HARD_CAP: int = getattr(cfg, "max_concurrent_trades", 12)
 
         candidate_tf: str = getattr(signal, "timeframe", None) or "1h"
+        candidate_sleeve: str = getattr(signal, "sleeve", None) or "default"
         candidate_bucket = get_style_bucket(candidate_tf)
         bucket_limit = _BUCKET_LIMITS.get(candidate_bucket, 4)
 
-        # Count open positions in the same semantic style bucket
-        open_in_bucket = sum(
-            1 for pos in (account.open_positions or [])
-            if get_style_bucket(getattr(pos, "timeframe", "1d")) == candidate_bucket
-        )
-        total_open = len(account.open_positions or [])
-
-        if open_in_bucket >= bucket_limit:
-            return veto(
-                "timeframe_bucket_full",
-                f"{candidate_bucket.upper()} bucket full ({open_in_bucket}/{bucket_limit} slots used); "
-                f"new {candidate_tf} positions blocked.",
+        # Check per-sleeve slot capacity limit if configured (Option A: no slot starvation)
+        sleeve_limit = getattr(cfg, f"max_{candidate_sleeve}_slots", None) if candidate_sleeve != "default" else None
+        if sleeve_limit is not None:
+            open_in_sleeve = sum(
+                1 for pos in (account.open_positions or [])
+                if getattr(pos, "sleeve", "default") == candidate_sleeve
             )
+            if open_in_sleeve >= sleeve_limit:
+                return veto(
+                    "sleeve_bucket_full",
+                    f"Sleeve '{candidate_sleeve}' full ({open_in_sleeve}/{sleeve_limit} slots used); "
+                    f"new {signal.instrument} position blocked.",
+                )
+        else:
+            # Count open positions in the same semantic style bucket
+            open_in_bucket = sum(
+                1 for pos in (account.open_positions or [])
+                if getattr(pos, "sleeve", "default") == "default" and get_style_bucket(getattr(pos, "timeframe", "1d")) == candidate_bucket
+            )
+            if open_in_bucket >= bucket_limit:
+                return veto(
+                    "timeframe_bucket_full",
+                    f"{candidate_bucket.upper()} bucket full ({open_in_bucket}/{bucket_limit} slots used); "
+                    f"new {candidate_tf} positions blocked.",
+                )
+
+        total_open = len(account.open_positions or [])
         if total_open >= _GLOBAL_HARD_CAP:
             return veto(
                 "global_trade_cap",

@@ -97,9 +97,9 @@ class RegimeConfig(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    target_portfolio_vol: float = 0.10
+    target_portfolio_vol: float = 0.0623
     kelly_fraction: float = 0.0
-    max_risk_per_trade: float = 0.01
+    max_risk_per_trade: float = 0.0085
     max_total_exposure: float = 3.0
     max_correlated_exposure: float = 1.5
     correlation_threshold: float = 0.60
@@ -110,6 +110,9 @@ class RiskConfig(BaseModel):
     min_position: float = 0.0
     max_concurrent_trades: int = 10
     max_swing_slots: int = 10
+    max_trend_slots: int = 10
+    max_tom_slots: int = 5
+    max_crypto_xs_slots: int = 4
     max_portfolio_risk: float = 0.035
 
 
