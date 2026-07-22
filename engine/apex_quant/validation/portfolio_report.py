@@ -80,9 +80,10 @@ def _portfolio_returns(
     end=None,
     periods_per_year: int = 252,
     exit_mode: str = "managed",
+    trade_manager=None,
 ) -> pd.Series:
     """One portfolio backtest -> its per-bar equity returns."""
-    res = PortfolioBacktester(cfg, exit_mode=exit_mode).run(
+    res = PortfolioBacktester(cfg, exit_mode=exit_mode, trade_manager=trade_manager).run(
         pits, strategies, timeframes=timeframes, warmup=warmup,
         start=start, end=end, periods_per_year=periods_per_year,
     )
@@ -101,8 +102,14 @@ def run_portfolio_cpcv(
     horizon: int = 21,
     periods_per_year: int = 252,
     exit_mode: str = "managed",
+    trade_manager=None,
 ) -> dict:
     """CPCV over the shared portfolio timeline.
+
+    ``trade_manager`` must be forwarded to every inner backtest: an exit-variant
+    experiment (e.g. the uncapped runner) that is applied to the full-window run
+    but NOT to CPCV would silently measure the BASELINE exit out-of-sample while
+    reporting it as the challenger's — an invalid gate that looks perfectly normal.
 
     Mirrors ``validation.cpcv.run_cpcv``: for each combination of test groups the
     backtest is run across the span of that block and returns are then filtered to
@@ -132,7 +139,7 @@ def run_portfolio_cpcv(
         rets = _portfolio_returns(
             pits, model.strategies(), cfg=cfg, timeframes=timeframes,
             warmup=0, start=t0, end=t1, periods_per_year=periods_per_year,
-            exit_mode=exit_mode,
+            exit_mode=exit_mode, trade_manager=trade_manager,
         )
         test_dates = timeline[test_idx]
         rets = rets[rets.index.isin(test_dates)]
@@ -164,6 +171,7 @@ def run_portfolio_validation(
     generated_for: str = "",
     n_trials: int | None = None,
     exit_mode: str = "managed",
+    trade_manager=None,
 ) -> PortfolioValidationReport:
     """Run the full three-gate validation for a portfolio strategy.
 
@@ -187,7 +195,7 @@ def run_portfolio_validation(
         rets = _portfolio_returns(
             pits, model.strategies(), cfg=cfg, timeframes=timeframes,
             warmup=warmup, periods_per_year=periods_per_year,
-            exit_mode=exit_mode,
+            exit_mode=exit_mode, trade_manager=trade_manager,
         )
         returns_by_cfg.append(rets)
         trial_sharpes.append(sharpe_ratio(rets, periods_per_year=1))
