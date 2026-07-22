@@ -580,6 +580,13 @@ class IBKRExecutor:
         stop_trade = None
         target_trade = None
         if attach_stop:
+            # Round the barriers onto the contract's tick grid first — an off-tick
+            # child is rejected with error 110 AFTER the parent has already gone to
+            # market, which would leave a live position with no protection.
+            tick = self._min_tick(contract)
+            stop = self._round_to_tick(stop, tick)
+            if target and float(target) > 0:
+                target = self._round_to_tick(target, tick)
             # Bracket: parent MKT DAY (held) + STP/LMT GTC children in one OCA
             # group — the venue-side equivalent of an MT4 order with SL/TP.
             order.transmit = False
@@ -620,6 +627,103 @@ class IBKRExecutor:
             ", attached OCA bracket" if attach_stop else ", recorded not attached",
         )
         return handle
+
+    def _min_tick(self, contract) -> float:
+        """The contract's minimum price increment, from IBKR itself.
+
+        Engine stops carry full float precision (``71.7626041493007``). Venues
+        reject anything off-tick with *error 110 — the price does not conform to
+        the minimum price variation*, and the rejection is asynchronous: the
+        placeOrder call still returns a handle, so an unchecked caller believes it
+        has protection it does not have. Ask the venue rather than guessing.
+        """
+        try:
+            details = self._ib.reqContractDetails(contract)
+            if details:
+                tick = float(getattr(details[0], "minTick", 0.0) or 0.0)
+                if tick > 0:
+                    return tick
+        except Exception as e:  # noqa: BLE001
+            logger.warning("minTick lookup failed for %s: %s", contract, e)
+        return 0.01     # conservative default (US equity penny tick)
+
+    @staticmethod
+    def _round_to_tick(price: float, tick: float) -> float:
+        if not tick or tick <= 0:
+            return float(price)
+        # Round to the tick grid, then trim binary-float dust (0.1+0.2 problems).
+        return round(round(float(price) / tick) * tick, 10)
+
+    def protect_position(self, symbol: str, stop: float,
+                         target: float | None = None) -> OrderHandle | None:
+        """Attach standalone GTC protection to an ALREADY-OPEN position.
+
+        ``submit_order(attach_stop=True)`` can only bracket a NEW entry. This is the
+        retrofit path for positions that were opened unprotected (the v1 mirror
+        recorded stops without attaching them, so an engine outage left them naked).
+
+        Sized to the ACTUAL IBKR position, never to engine units, and direction is
+        derived from the real holding — so a mismatch between engine state and the
+        venue can never produce an oversized or wrong-way protective order. The STP
+        (and optional LMT) go out as a parentless OCA pair: whichever fills cancels
+        the other, and neither can open a new position because both are exit-side and
+        capped at the held quantity.
+
+        Returns None when nothing is held (nothing to protect).
+        """
+        self._require_connection()
+        if not stop or float(stop) <= 0:
+            raise ValueError("protect_position requires a positive stop")
+
+        held = next((p for p in self.get_positions()
+                     if p["engine_symbol"] == symbol and p["quantity"]), None)
+        if held is None:
+            return None
+
+        qty = abs(float(held["quantity"]))
+        is_long = float(held["quantity"]) > 0
+        child_action = "SELL" if is_long else "BUY"
+
+        iba = _load_ib_async()
+        spec = contract_spec(symbol)
+        contract = make_contract(spec)
+        self._qualify(contract)
+
+        # Both legs transmit immediately. This is a PARENTLESS OCA pair, not a
+        # bracket: there is no held parent order waiting on its children, so the
+        # transmit=False/True dance used by submit_order does not apply here — it
+        # would leave the stop sitting untransmitted and the position unprotected
+        # while the call still looked successful.
+        tick = self._min_tick(contract)
+        stop = self._round_to_tick(stop, tick)
+        if target and float(target) > 0:
+            target = self._round_to_tick(target, tick)
+
+        oca_group = f"apex-protect-{symbol.replace('/', '')}-{int(time.time())}"
+        stop_order = iba.StopOrder(child_action, qty, float(stop))
+        stop_order.tif = "GTC"
+        stop_order.ocaGroup = oca_group
+        stop_order.ocaType = 1
+        stop_order.transmit = True
+        target_trade = None
+        if target and float(target) > 0:
+            lmt_order = iba.LimitOrder(child_action, qty, float(target))
+            lmt_order.tif = "GTC"
+            lmt_order.ocaGroup = oca_group
+            lmt_order.ocaType = 1
+            lmt_order.transmit = True
+            target_trade = self._ib.placeOrder(contract, lmt_order)
+        stop_trade = self._ib.placeOrder(contract, stop_order)
+
+        logger.info("IBKR protect: %s %s %s stop=%s target=%s (OCA %s)",
+                    child_action, qty, symbol, stop, target, oca_group)
+        return OrderHandle(
+            symbol=symbol, direction="long" if is_long else "short",
+            action=child_action, quantity=qty, asset_class=spec["asset_class"],
+            stop=stop, target=target, contract=contract, trade=stop_trade,
+            stop_trade=stop_trade, target_trade=target_trade,
+            submitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
 
     def close_position(self, symbol: str) -> OrderHandle | None:
         """Market-close the ENTIRE IBKR position in *symbol* (DAY tif).
