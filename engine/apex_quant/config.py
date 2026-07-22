@@ -427,13 +427,38 @@ def _coerce_like(val: str, like) -> object:
     return val
 
 
+def _deep_merge(base: dict, over: dict) -> dict:
+    """Recursively merge ``over`` onto ``base`` (``over`` wins on scalars/lists)."""
+    out = dict(base)
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
 def load_config(path: str | Path | None = None) -> AppConfig:
-    """Load + validate config from YAML, applying APEX_ env overrides."""
+    """Load + validate config from YAML, applying APEX_ env overrides.
+
+    A profile may declare ``_extends: <file>`` to inherit everything from another
+    config and override only what it changes. Profiles were previously full copies,
+    which silently rotted the moment the base config changed (e.g. growing the scan
+    universe made config.prop.yaml differ in `data` as well as `risk`). Inheriting
+    means a profile states ONLY its deltas and can never drift.
+    """
     cfg_path = Path(path) if path else DEFAULT_CONFIG_PATH
     raw: dict = {}
     if cfg_path.exists():
         with open(cfg_path, "r", encoding="utf-8") as fh:
             raw = yaml.safe_load(fh) or {}
+        parent = raw.pop("_extends", None)
+        if parent:
+            parent_path = Path(parent)
+            if not parent_path.is_absolute():
+                parent_path = cfg_path.parent / parent_path
+            with open(parent_path, "r", encoding="utf-8") as fh:
+                raw = _deep_merge(yaml.safe_load(fh) or {}, raw)
     raw = _apply_env_overrides(raw)
     return AppConfig.model_validate(raw)
 

@@ -26,3 +26,21 @@ def test_prop_profile_diverges_from_base_only_in_risk():
     prop = load_config(ENGINE_DIR / "config.prop.yaml").model_dump()
     base["risk"] = prop["risk"] = None
     assert base == prop, "prop profile must differ from config.yaml ONLY in the risk section"
+
+
+def test_profile_inherits_and_cannot_drift_from_base():
+    """The overlay must track config.yaml automatically.
+
+    Regression guard for 2026-07-22: the profile was a full COPY, so expanding
+    the research universe in config.yaml made it differ in `data` as well as
+    `risk` — a silent rot that only the drift test caught.
+    """
+    base = load_config(ENGINE_DIR / "config.yaml")
+    prop = load_config(ENGINE_DIR / "config.prop.yaml")
+    # Inherited verbatim: the scan universe tracks the base, whatever its size.
+    assert list(prop.data.equities) == list(base.data.equities)
+    assert list(prop.data.crypto) == list(base.data.crypto)
+    assert prop.seed == base.seed
+    # ...while the risk deltas still apply.
+    assert prop.risk.max_portfolio_risk == 0.040
+    assert base.risk.max_portfolio_risk == 0.065
