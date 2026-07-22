@@ -2990,9 +2990,21 @@ def start_mt4_sync_daemon():
 
 def main():
     parser = argparse.ArgumentParser(description="Live Paper Trading Engine")
+    parser.add_argument("--prop", action="store_true",
+                        help="Prop Firm Mode: 1.00%% risk per trade, 7.5%% drawdown cap")
     parser.add_argument("--loop", action="store_true", help="Run the engine continuously in a loop")
-    parser.add_argument("--interval", type=int, default=14400, help="Loop interval in seconds (default: 4 hours)")
+    parser.add_argument("--interval", type=int, default=900, help="Scan interval in seconds (default: 900)")
     args = parser.parse_args()
+
+    # Prop Firm Mode (restored 2026-07-22 — originally added in a Gemini session).
+    # Caps the Bayesian sizer to the prop rules. These three numbers ARE gated /
+    # config-backed; the CAGR and max-DD figures that previously appeared in this
+    # banner were NOT (they came from un-ledgered parameter sweeps that also pruned
+    # the worst instruments after seeing their results), so they are not restored.
+    if args.prop:
+        _BAYESIAN_SIZER.max_risk = 0.010
+        _BAYESIAN_SIZER.min_risk = 0.0050
+        _BAYESIAN_SIZER.max_drawdown = 0.075
 
     # ── Startup Banner ──
     print("=" * 80)
@@ -3003,6 +3015,14 @@ def main():
     print(f"  Effective Min Position:    {cfg.execution.live_min_position}")
     print(f"  Drawdown Breaker / Limit:  {cfg.risk.drawdown_breaker} / {cfg.risk.drawdown_reducing_limit}")
     print(f"  MT4 Server UTC Offset:     {cfg.execution.mt4.server_utc_offset_hours} hours")
+    # Risk is read from config, never hardcoded: the previous banner printed
+    # "STANDARD (2.00% Risk)" while config.yaml said 1.0%. An overstated risk figure
+    # is exactly what preceded the -£1,613 live loss in June, so this line now
+    # reports the value actually in force.
+    print(f"  Prop Mode:                 "
+          f"{'ENABLED — ' if args.prop else 'off — '}"
+          f"risk/trade {cfg.risk.max_risk_per_trade * 100:.2f}%"
+          f"{' (capped 1.00%, DD stop 7.5%)' if args.prop else ''}")
     print("=" * 80)
 
     # Start real-time MT4 background synchronisation

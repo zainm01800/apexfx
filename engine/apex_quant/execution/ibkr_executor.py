@@ -364,10 +364,31 @@ class IBKRExecutor:
             return self._account
         if self._ib is None:
             self._ib = _load_ib_async().IB()
-        self._ib.connect(
-            self._host, self._port,
-            clientId=self._client_id, timeout=self._connect_timeout_s,
-        )
+        # Port fallback (restored 2026-07-22 — originally added in a Gemini session).
+        # Tries the configured port first, then the common gateway/TWS ports, so a
+        # gateway restarted on a different port does not silently halt the mirror.
+        #
+        # SAFETY NOTE, deliberately explicit: 7496/7497 are TWS *live* ports. Trading
+        # a live account is still impossible — connect() below fail-closes unless the
+        # gateway reports exactly the allowlisted paper account — but this widens what
+        # we will *attach* to, so the allowlist is now the ONLY thing standing between
+        # this executor and a live account. Do not weaken it.
+        ports_to_try = list(dict.fromkeys([self._port, 4002, 4001, 7497, 7496]))
+        connected_ok = False
+        last_err = None
+        for p in ports_to_try:
+            try:
+                self._ib.connect(
+                    self._host, p,
+                    clientId=self._client_id, timeout=self._connect_timeout_s,
+                )
+                self._port = p
+                connected_ok = True
+                break
+            except Exception as err:  # noqa: BLE001 — try the next candidate port
+                last_err = err
+        if not connected_ok and last_err:
+            raise last_err
         accounts = list(self._ib.managedAccounts() or [])
         if accounts != [self._account]:
             logger.error(
@@ -403,8 +424,23 @@ class IBKRExecutor:
         self.disconnect()
 
     def _require_connection(self) -> None:
-        if not self._connected or self._ib is None:
-            raise RuntimeError("IBKRExecutor is not connected — call connect() first")
+        """Ensure the executor is connected, auto-reconnecting if the link dropped."""
+        already_up = (
+            self._connected
+            and self._ib is not None
+            and getattr(self._ib, "isConnected", lambda: False)()
+        )
+        if already_up:
+            return
+        logger.warning("IBKRExecutor connection lost — attempting auto-reconnect...")
+        self._connected = False
+        try:
+            self.connect()
+            logger.info("IBKRExecutor auto-reconnect succeeded on port %s", self._port)
+        except Exception as exc:
+            raise RuntimeError(
+                f"IBKRExecutor auto-reconnect failed: {exc}"
+            ) from exc
 
     # -- introspection --------------------------------------------------------
     def get_positions(self) -> list[dict]:
