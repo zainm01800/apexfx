@@ -219,11 +219,16 @@ regime:
 risk:
   target_portfolio_vol: 0.10     # 10% annualised volatility target
   kelly_fraction: 0.20           # re-enabled with optimized edge gate fraction
-  max_risk_per_trade: 0.01       # 1% of equity at risk per trade — set 2026-07-19 from the
-                                 # prop-rules Monte Carlo sweep (engine/scratch/prop_risk_sweep.py,
-                                 # Book H gold trade stats, static-floor two-step rules): 1.0% is the
-                                 # survival-adjusted optimum — ~82-94% pass/attempt, ~97-99.6% with one
-                                 # retry inside 6 months, ~89-97% funded 12-mo survival. Was 0.02.
+  max_risk_per_trade: 0.0075     # 0.75% of equity at risk per trade — set 2026-07-23 at the account
+                                 # owner's explicit 12% drawdown tolerance. Measured (Book P gate +
+                                 # final_cells_12pct_wall.py): £587/mo CAGR 7.05%, Sharpe 0.893, fwd
+                                 # p95 1-yr DD 12.0%, P(>12% in 1yr) 5.0%; beat the old 1.00% with
+                                 # paired p=0.0003 (1.00% loses ~£174/mo to portfolio-cap truncation,
+                                 # 163 hits vs 3). CPCV pass; DSR FAIL at n=244 — adopted un-gated by
+                                 # owner decision, prereg data_store/risk_per_trade_prereg.md.
+                                 # NOTE: raising this HURTS — 1.5% gives £185/mo at 20.5% DD (cap
+                                 # collisions). Do not "add risk for profit" on this book.
+                                 # Was 0.01 (2026-07-19 prop sweep), before that 0.02.
   max_total_exposure: 3.0        # gross notional ≤ 3× equity (engine default; re-enabled
                                  # 2026-07-14 — was 100× "for paper testing" while running on a
                                  # LIVE account: 28/87 trades breached 3×, peaking at ~19× (18.68
