@@ -47,7 +47,7 @@ sys.path.insert(0, str(ENGINE_DIR))
 
 from apex_quant.ai.sentiment_filter import apply_deepseek_sentiment
 from apex_quant.config import get_config, load_config
-from apex_quant.data import supabase_guard
+from apex_quant.data import local_setup_ledger, supabase_guard
 from apex_quant.data import clean, get_adapter
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.execution.mt4_executor import MT4Executor
@@ -1079,9 +1079,41 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
         "outcome": "pending"
     }
 
+    # RECORD, THEN DISPATCH. The invariant is "never place an order you cannot account for" —
+    # NOT "Supabase must be up". Gating dispatch on the cloud INSERT meant a database outage
+    # silently dropped every signal (twelve in one scan during the 402 quota block) even though
+    # IBKR was connected and the setup id is generated locally. Cloud first, durable local
+    # ledger as fallback; dispatch proceeds if EITHER holds the record, and is abandoned only
+    # when BOTH fail.
+    recorded = False
     try:
-        r = httpx.post(MEMORY_ENDPOINT, headers=headers, json=payload)
-        if r.status_code in (200, 201, 204):
+        if supabase_guard.is_blocked():
+            recorded = local_setup_ledger.record_setup(
+                payload, reason="supabase quota breaker open")
+            if recorded:
+                print(f"  [LEDGER] Supabase blocked — setup {trade_id} recorded locally.")
+        else:
+            r = httpx.post(MEMORY_ENDPOINT, headers=headers, json=payload)
+            if r.status_code in (200, 201, 204):
+                recorded = True
+            else:
+                supabase_guard.note_response(r.status_code, cfg.execution.supabase_cooldown_s)
+                recorded = local_setup_ledger.record_setup(
+                    payload, reason=f"supabase HTTP {r.status_code}")
+                print(f"  [LEDGER] Supabase INSERT failed ({r.status_code}) — setup "
+                      f"{trade_id} recorded locally; order proceeds."
+                      if recorded else
+                      f"  [ABORT] Supabase INSERT failed ({r.status_code}) AND local ledger "
+                      f"write failed — NOT dispatching {symbol}.")
+    except Exception as e:                                        # noqa: BLE001
+        recorded = local_setup_ledger.record_setup(payload, reason=f"exception: {e}")
+        print(f"  [LEDGER] Supabase unreachable ({e}) — setup {trade_id} recorded locally."
+              if recorded else
+              f"  [ABORT] Supabase unreachable AND local ledger write failed — "
+              f"NOT dispatching {symbol}.")
+
+    try:
+        if recorded:
             print(f"  [triggered] Logged new {direction} trade on {symbol} at entry {entry_price}")
             # Dispatch to live executor (MT4, ZMQ, IBKR, or mock) when enabled.
             if _EXECUTOR is not None:
@@ -1157,7 +1189,11 @@ def open_new_trade(symbol, direction, entry_price, stop_loss, target_price, time
                 f"Opened {direction} position on {symbol} @ {entry_price:.4f}\nSL: {stop_loss:.4f} | TP: {target_price:.4f}"
             )
             return True
-        print(f"Failed to create new trade for {symbol}: {r.status_code} - {r.text}")
+        # `recorded` is False only when BOTH the cloud INSERT and the local ledger failed —
+        # the one case where refusing to trade is correct. (Do not reference `r` here: on the
+        # breaker path no request was made and it is unbound.)
+        print(f"  [ABORT] No durable record for {symbol} (cloud AND local both failed) — "
+              f"order not dispatched.")
     except Exception as e:
         print(f"Connection error creating new trade: {e}")
     return False
