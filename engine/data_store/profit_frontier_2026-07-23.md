@@ -159,6 +159,29 @@ the highest-expected-value candidates.
 This is the cleanest evidence yet that **the ceiling belongs to the signal, not the plumbing** —
 and it rules out "add more instruments / more positions" as a route to the target.
 
+## 5d. CONCENTRATION — the reverse test, also disproved
+
+If extra slots have negative edge, fewer slots should have *positive* edge. Tested slots
+3/5/8/12 × risk 0.50/1.00/1.50/2.00% (`scratch/frontier_concentration.py`).
+
+| slots | rpt | CAGR | £/month | Sharpe | fwd p95 DD |
+|---|---|---|---|---|---|
+| 3/3 | 2.00% | 6.32% | £527 | 0.845 | 11.5% |
+| 5/5 | 1.50% | 7.01% | £584 | 0.865 | 12.6% |
+| 5/5 | 2.00% | 8.93% | **£744** | 0.901 | 14.9% |
+| 8/8 | 0.50% | 3.44% | £286 | 0.781 | 7.1% |
+| **12/10** | **0.50%** | 4.95% | £413 | **0.922** | **8.2%** |
+
+**The current 12/10 setting at 0.50% risk is the global Sharpe optimum** — 0.922, beaten by
+nothing at any slot count in either direction. Concentration below 12 loses Sharpe just as
+expansion above 12 does. The existing slot configuration is not lucky; it is correct.
+
+Concentration *did* improve the high-return end: **5/5 at 2.00% gives £744/month at 14.9%
+drawdown (Sharpe 0.901)**, better than the previous best of £703 at 16.0% (Sharpe 0.824). But
+it is still short of £800 and far outside an 11% wall.
+
+**Configs hitting £800/month inside an 11% wall, across every sweep run today: zero.**
+
 ## 6b. A like-for-like comparison I initially got wrong
 
 I dismissed the pandas toy's Sharpe as inflated by `rf=0` and zero costs. The `rf=0` half of
