@@ -1738,9 +1738,21 @@ def get_similar_lessons(symbol, verdict, pool, limit=3):
 def apply_deepseek_structural_veto(symbol, direction, df, cfg):
     """Evaluate structural risk flags (counter-trend, chop, volatility, falling knife)
     against past lessons using the best available LLM (Gemini / Groq / DeepSeek)."""
+    # KILL-SWITCH (audit A-C1). config.execution.llm_structural_veto defaults to FALSE
+    # because the research verdict was DROP: these lessons invent thresholds from n=1 and
+    # can flatten any signal. The switch was declared and documented as "the veto function
+    # stays intact but only runs when this is explicitly switched on" — but nothing ever
+    # checked it, so the veto ran unconditionally. On 2026-07-23 it vetoed DOGE, AVAX and
+    # XRP on an is_volatility_spike flag while the flag was set to false.
+    #
+    # It also makes live diverge from the certified book: no gate script or backtester
+    # applies this veto, so every trade it blocks is one the £587/mo result assumes taken.
+    if not bool(getattr(cfg.execution, "llm_structural_veto", False)):
+        return True, "structural veto disabled (execution.llm_structural_veto=false)"
+
     from apex_quant.ai.client import build_llm
     from apex_quant.ml.dataset import compute_feature_frame
-    
+
     # 1. Initialize LLM — uses DeepSeek if key set, else falls back to Gemini → Groq
     llm = build_llm(cfg.ai)
     if not llm or not llm.available:
