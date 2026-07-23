@@ -130,6 +130,11 @@ class RiskConfig(BaseModel):
     # while breaching a daily rule. 0.0 disables. Set to comfortably inside the firm's
     # limit (2.5% against a 3% rule) so a gap cannot carry you through it.
     daily_loss_limit: float = 0.0
+    #: Whether the LIVE loop closes open positions when the daily limit is hit. Blocking new
+    #: entries alone is not a daily stop — open positions carry the loss further — but
+    #: liquidating a live account is irreversible, so this is opt-in. MUST be enabled before
+    #: trading a funded account with a daily-loss rule.
+    daily_loss_flatten: bool = False
 
     portfolio_vol_target: float = 0.0
     portfolio_vol_window: int = 63

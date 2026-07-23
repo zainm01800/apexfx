@@ -37,3 +37,12 @@ risk:
   max_portfolio_risk: 0.040
   drawdown_reducing_limit: 0.03
   drawdown_breaker: 0.06
+  # Daily-loss stop — now IMPLEMENTED (2026-07-23). Declared here since 2026-07-22 with no
+  # engine support; RiskManager step 0.5 + the live loop's persisted session anchor now
+  # enforce it. Set to 2.5% so a 3%-rule firm (e.g. FundedElite) has headroom; a 4%-rule
+  # firm (e.g. Orion) has more. The book's worst day is -3.70%, which breaches a 3% rule —
+  # an 18.4% chance of losing a funded account over 24 months without this.
+  daily_loss_limit: 0.025
+  # Liquidating a live account is irreversible, so flattening is opt-in. It MUST be true for
+  # a real funded account: blocking new entries alone leaves open positions carrying the loss.
+  daily_loss_flatten: true

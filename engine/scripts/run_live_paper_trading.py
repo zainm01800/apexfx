@@ -1189,6 +1189,83 @@ def safe_load_json(file_path: str, retries: int = 3, delay: float = 0.1):
     with open(file_path, "r") as f:
         return json.load(f)
 
+#: Where the day's opening equity is anchored. MUST be persisted: this loop runs every ~900s
+#: and the process can restart mid-session. If the anchor were held in memory, a restart after
+#: a 3% loss would re-anchor at the CURRENT (already-down) equity, reset the measured daily
+#: loss to zero, and re-enable trading — silently defeating the whole stop on exactly the day
+#: it exists for.
+DAILY_ANCHOR_PATH = ENGINE_DIR / "data_store" / "daily_equity_anchor.json"
+
+
+def daily_equity_anchor(live_equity: float, now: "datetime | None" = None) -> float:
+    """Equity at the start of the current UTC session, persisted across restarts.
+
+    Returns ``live_equity`` itself on the first call of a new day (and writes it), otherwise
+    the stored anchor. Any read/write failure degrades to ``live_equity``, which disables the
+    daily check rather than blocking all trading on an I/O error.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    today = (now or _dt.now(_tz.utc)).strftime("%Y-%m-%d")
+    try:
+        if DAILY_ANCHOR_PATH.exists():
+            stored = json.loads(DAILY_ANCHOR_PATH.read_text(encoding="utf-8"))
+            if stored.get("date") == today and float(stored.get("equity", 0)) > 0:
+                return float(stored["equity"])
+    except Exception as e:                                          # noqa: BLE001
+        print(f"  [WARN] daily anchor read failed ({e}); daily stop inactive this cycle")
+        return live_equity
+    try:
+        DAILY_ANCHOR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DAILY_ANCHOR_PATH.write_text(
+            json.dumps({"date": today, "equity": live_equity}), encoding="utf-8")
+        print(f"  [DAILY] session anchor set: £{live_equity:,.2f} ({today})")
+    except Exception as e:                                          # noqa: BLE001
+        print(f"  [WARN] daily anchor write failed ({e})")
+    return live_equity
+
+
+def enforce_daily_loss_stop(live_equity: float, open_trades: list) -> bool:
+    """Check the daily-loss rule and act. Returns True when the session is halted.
+
+    Blocking new entries is NOT sufficient — the positions already open are what carry the
+    loss further. Flattening is therefore the correct behaviour, but it is an irreversible
+    market action, so it is gated behind ``risk.daily_loss_flatten`` and defaults to OFF:
+    without it this alerts loudly and blocks new entries only.
+    """
+    limit = float(getattr(cfg.risk, "daily_loss_limit", 0.0) or 0.0)
+    if limit <= 0.0:
+        return False
+    anchor = daily_equity_anchor(live_equity)
+    if anchor <= 0:
+        return False
+    loss = max(0.0, 1.0 - live_equity / anchor)
+    if loss < limit:
+        return False
+
+    print("=" * 72, flush=True)
+    print(f"  [DAILY LOSS STOP] down {loss:.2%} today (anchor £{anchor:,.2f} -> "
+          f"£{live_equity:,.2f}); limit {limit:.2%}. NO NEW ENTRIES this session.", flush=True)
+
+    if not bool(getattr(cfg.risk, "daily_loss_flatten", False)):
+        print("  [DAILY LOSS STOP] flatten is DISABLED (risk.daily_loss_flatten=false) — "
+              "open positions are LEFT RUNNING and can breach the firm's limit. "
+              "Enable it before trading a funded account.", flush=True)
+        print("=" * 72, flush=True)
+        return True
+
+    for ot in (open_trades or []):
+        sym = ot.get("symbol") or ot.get("instrument")
+        if not sym:
+            continue
+        try:
+            _EXECUTOR.close_position(symbol=sym)
+            print(f"  [DAILY LOSS STOP] flatten -> {sym}", flush=True)
+        except Exception as e:                                      # noqa: BLE001
+            print(f"  [DAILY LOSS STOP] FAILED to close {sym}: {e}", flush=True)
+    print("=" * 72, flush=True)
+    return True
+
+
 def fetch_live_account_state(default_equity=100000.0) -> tuple[float, float, float]:
     """Retrieve actual live account equity, balance, and peak balance/equity from Supabase or local MT4 file."""
     bridge_state = getattr(_EXECUTOR, "get_account_state", None)
@@ -1887,7 +1964,16 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             virtual_equity, peak_equity = calculate_virtual_equity(all_resolved_trades)
 
             open_trades_list = fetch_open_trades()
-            
+
+            # DAILY-LOSS STOP — checked before anything is sized. Halts the session (and
+            # flattens, if risk.daily_loss_flatten is on) rather than relying on the
+            # from-peak breaker, which cannot see a bad day that began at a fresh high.
+            # `return`, not `continue`: this is scan_single_asset(), called per instrument,
+            # not a loop body. Returning skips THIS instrument; the stop fires again for
+            # every other instrument in the cycle, so the whole session is blocked.
+            if enforce_daily_loss_stop(live_equity, open_trades_list):
+                return
+
             # Filter out Forex setups that are not actually open on the venue
             # (MT4 file under provider=mt4, the bridge ledger under provider=ibkr)
             active_mt4_symbols = set()
@@ -1950,7 +2036,10 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
             account_state = AccountState(
                 equity=live_equity,
                 peak_equity=live_peak_equity,
-                open_positions=open_positions
+                open_positions=open_positions,
+                # The prop daily rule is measured from the session's OPENING equity, which
+                # the from-peak breaker cannot see. RiskManager step 0.5 vetoes on this.
+                day_start_equity=daily_equity_anchor(live_equity) or None,
             )
             
             if sig.direction.value.upper() == "LONG":
