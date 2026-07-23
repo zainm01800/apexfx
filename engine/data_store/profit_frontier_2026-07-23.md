@@ -258,6 +258,62 @@ capital moves £/month linearly; raising risk moves drawdown faster than it move
 evidence in this document, capital is the only lever that reaches the target without degrading
 the risk profile.
 
+## 7d. RESIDUAL MOMENTUM — the first thing that beats the engine
+
+Prompted by the question "have you checked everything, including research?", which was fair:
+I had conflated *parameter tweaking* (overfitting bait, correctly excluded) with *theory-driven
+signal changes* (neither). The literature has two well-documented candidates:
+
+- **Residual / idiosyncratic momentum** (Blitz–Huij–Martens; Blitz–Hanauer–Vidojevic): rank on
+  the residual from a factor regression rather than total return. Reported to roughly **double**
+  the momentum Sharpe (gross monthly 0.48 vs 0.25) — not by earning more but by halving vol.
+- **Daniel–Moskowitz dynamic momentum**: crashes are forecastable, clustering in "panic" states
+  (market below trend + high realised vol). Their paper's baseline — the thing they *improve on*
+  — is constant-volatility scaling. **That is exactly what §5's `portfolio_vol_target` overlay
+  did, which is precisely why it failed.** Scaling on variance alone is known to be insufficient.
+
+### Result (`scratch/screen_residual_wide.py`, 73 instruments, 10.0y, costed)
+
+| top N of 73 | total-return momentum | residual momentum |
+|---|---|---|
+| 5 | Sharpe 0.876 | 0.757 |
+| 10 | 0.877 | 0.963 |
+| **15** | 0.868 | **0.998** |
+| 20 | 0.837 | 0.942 |
+| 30 | 0.747 | 0.858 |
+
+**Best: residual top-15 — Sharpe 0.998, £606/month, forward p95 DD 10.5%** (backtest maxDD
+10.4%), versus the engine's 0.922 / £413 / 8.2%.
+
+**The mechanism is confirmed by the shape, not just the level.** Breadth *helps* residual
+momentum (0.757 → 0.963 → 0.998 as N goes 5 → 10 → 15) and *hurts* total momentum
+(0.876 → 0.747). That is the §5c finding explained: extra positions had negative edge because
+every "independent" bet was really the same bet — market beta. Residualising removes the shared
+factor, and breadth starts working. **§5c and §7d are the same finding from two directions.**
+
+At matched drawdown the gain is real but modest: scaling residual top-15 down to the engine's
+8.2% DD gives ~£473/month vs £413 (+15%). Inside the 11% wall it is **£606 vs £413 (+47%)**.
+Not the 2× the papers report — 73 mixed-asset names is still not the hundreds of individual
+stocks those studies use.
+
+### What this is NOT
+
+A **screen**: no stops, no slot caps, no CPCV/DSR/PBO, no ledger charge, in-sample, and the
+top-15 was chosen after seeing five values (outcome selection — all ten cells must be charged
+if gated). The "market" factor is an equal-weight mean across mixed asset classes, which is
+theoretically crude. Many of the 73 names are unreachable under PRIIPs.
+
+**It is the first result all session that beats the engine's Sharpe, and the only lever that
+survived. It earns a proper engine implementation and a pre-registered gate — nothing more yet.**
+
+### A harness bug worth recording
+
+The first run of this screen reported total-return momentum as *pixel-identical* across top
+5/10/15/20/30 — impossible if selection binds. Cause: ragged instrument start dates meant
+**1,494 of 3,798 dates had ≤5 scored names**, so every top_n selected the same set. Fixed by
+restricting to dates with ≥40 live names (2,513 bars). The identical-across-N signature is the
+tell; without it the invalid numbers would have looked like a finding.
+
 ## 8. Caveats
 
 1. In-sample, one snapshot; Yahoo re-bases adjusted prices — quote figures with this date.
