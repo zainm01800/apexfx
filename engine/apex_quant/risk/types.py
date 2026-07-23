@@ -48,11 +48,23 @@ class AccountState(BaseModel):
     equity: float = Field(gt=0.0)
     peak_equity: float = Field(gt=0.0)
     open_positions: list[OpenPosition] = []
+    #: Equity at the START of the current trading day. Prop firms measure their daily-loss
+    #: rule against this, NOT against peak equity — a from-peak breaker cannot see a bad day
+    #: that begins from a fresh high. None means "unknown", and the daily check is skipped.
+    day_start_equity: float | None = Field(default=None, gt=0.0)
 
     @property
     def drawdown(self) -> float:
         """Fractional drawdown from peak equity, in [0, 1)."""
         return max(0.0, 1.0 - self.equity / self.peak_equity)
+
+    @property
+    def daily_loss(self) -> float:
+        """Fractional loss since the day's opening equity, in [0, 1). Zero when up on
+        the day, or when ``day_start_equity`` was not supplied."""
+        if not self.day_start_equity:
+            return 0.0
+        return max(0.0, 1.0 - self.equity / self.day_start_equity)
 
     @property
     def gross_notional(self) -> float:

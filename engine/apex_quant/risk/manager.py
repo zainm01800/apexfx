@@ -105,6 +105,24 @@ class RiskManager:
         if signal.direction == Direction.FLAT:
             return veto("flat_signal", "Signal is flat; no position.")
 
+        # 0.5 DAILY-LOSS STOP — the prop-firm rule the from-peak breaker cannot see.
+        #
+        # Every prop contract has a daily-loss limit measured from the DAY'S OPENING
+        # equity (3% on FundedElite, 4% on Orion). The drawdown breaker measures from
+        # PEAK, so a bad day that starts at a fresh high shows near-zero drawdown while
+        # blowing the daily rule — the account is gone and the breaker never fired.
+        # config.prop.yaml declared this stop on 2026-07-22 and it was never implemented;
+        # the book's worst day is -3.70% against a 3% limit, an 18.4% chance of losing a
+        # funded account over 24 months.
+        daily_limit = float(getattr(cfg, "daily_loss_limit", 0.0) or 0.0)
+        if daily_limit > 0.0 and account.daily_loss >= daily_limit:
+            detail["daily_loss"] = account.daily_loss
+            return veto(
+                "daily_loss_stop",
+                f"Daily loss {account.daily_loss:.2%} >= limit {daily_limit:.2%}; "
+                f"no new positions for the rest of the session.",
+            )
+
         # 1. Drawdown circuit-breaker (Three-state: ACTIVE / REDUCING / HALTED)
         from apex_quant.risk.circuit_breaker import BreakerState, breaker_state, reducing_scale
         reducing_limit = getattr(cfg, "drawdown_reducing_limit", cfg.drawdown_breaker * 0.5)

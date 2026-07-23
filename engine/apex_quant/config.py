@@ -124,6 +124,13 @@ class RiskConfig(BaseModel):
     # therefore cannot see that ten positions have become one correlated bet.
     # Momentum books crash in high-vol regimes, so scaling on realised book vol cuts
     # drawdown by more than it cuts return. 0.0 disables the overlay entirely.
+    # --- Daily-loss stop (prop-firm rule) ------------------------------------------
+    # Measured from the DAY'S OPENING equity, not from peak. `drawdown_breaker` cannot
+    # substitute: a losing day that starts at a fresh high shows ~0 drawdown from peak
+    # while breaching a daily rule. 0.0 disables. Set to comfortably inside the firm's
+    # limit (2.5% against a 3% rule) so a gap cannot carry you through it.
+    daily_loss_limit: float = 0.0
+
     portfolio_vol_target: float = 0.0
     portfolio_vol_window: int = 63
     portfolio_vol_scalar_min: float = 0.25

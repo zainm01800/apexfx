@@ -221,6 +221,12 @@ class PortfolioBacktester:
         eq_hist: list[float] = []
         self.risk.risk_scalar = 1.0
 
+        #: Daily-loss stop. On a daily book each bar IS a session, so the day's opening
+        #: equity is the previous bar's close. Prop firms measure their daily rule against
+        #: exactly this, which is why `drawdown_breaker` (from PEAK) cannot substitute.
+        daily_limit = float(getattr(rcfg, "daily_loss_limit", 0.0) or 0.0)
+        day_start_eq = 0.0
+
         realized = float(self.bt.initial_equity)
         peak = realized
         open_pos: dict[str, dict] = {}
@@ -231,6 +237,8 @@ class PortfolioBacktester:
         eq_points: list[tuple[pd.Timestamp, float]] = []
 
         for t in timeline:
+            # Day's opening equity = last bar's close (daily bars: one bar == one session).
+            day_start_eq = eq_points[-1][1] if eq_points else realized
             # 1. manage exits on open positions via TradeManager or barrier check
             for inst in list(open_pos.keys()):
                 d = data[inst]
@@ -312,6 +320,30 @@ class PortfolioBacktester:
             peak = max(peak, eq)
             eq_points.append((t, eq))
 
+            # 3a. DAILY-LOSS STOP — flatten, don't just stop entering.
+            # Blocking new entries is not a daily stop: the positions already open are
+            # what carry the loss further. A real stop closes the book for the session.
+            if daily_limit > 0.0 and day_start_eq > 0.0 and open_pos:
+                if (1.0 - eq / day_start_eq) >= daily_limit:
+                    for inst in list(open_pos.keys()):
+                        posd = open_pos[inst]
+                        d = data[inst]
+                        i = d["pos"].get(t)
+                        px = float(d["close"][i]) if i is not None else posd["last_px"]
+                        exit_px = self._fill(px, inst, posd["direction"] != Direction.LONG,
+                                             timeframe=posd["tf"])
+                        pnl = self._unrealized(posd, exit_px) - d["commission"]
+                        realized += pnl
+                        posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + pnl
+                        trades.append(self._record(posd, exit_px, t, "daily_loss_stop",
+                                                   posd["realized_pnl_total"], inst))
+                        per_inst[inst]["n_trades"] += 1
+                        per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                        del open_pos[inst]
+                    constraint_log["daily_loss_stop_flattened"] += 1
+                    eq = realized
+                    eq_points[-1] = (t, eq)
+
             # 3b. book-wide vol scalar from the realised equity curve
             if pv_target > 0.0:
                 eq_hist.append(eq)
@@ -388,7 +420,8 @@ class PortfolioBacktester:
                              if inst in cm.index and op.instrument in cm.columns else np.nan)
                         corrs[op.instrument] = float(abs(c)) if np.isfinite(c) else 0.0
 
-                account = AccountState(equity=eq, peak_equity=peak, open_positions=book)
+                account = AccountState(equity=eq, peak_equity=peak, open_positions=book,
+                                      day_start_equity=day_start_eq or None)
                 market = MarketState(
                     instrument=inst, price=float(d["close"][i]), ann_vol=float(vol_i),
                     atr=float(atr_i), correlations=corrs,
