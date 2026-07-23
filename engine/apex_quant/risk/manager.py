@@ -9,6 +9,7 @@ signal proposes; the risk layer disposes. The decision pipeline, in order:
   2. ATR stop distance         -> wider vol => wider stop => smaller size
   3. Fractional Kelly          -> edge gate; non-positive edge => no position
   4. Per-trade risk cap        -> never risk more than max_risk_per_trade
+  4.6 Portfolio vol scalar     -> de-lever the whole book when realised vol runs hot
   5. Regime aggression scale   -> damp in ranging / high-vol regimes (optional)
   6. Vol-target ceiling        -> take the more conservative of risk- vs vol-size
   7. Gross exposure cap        -> book-level gross notional ceiling
@@ -56,6 +57,11 @@ class RiskManager:
     ) -> None:
         self.cfg = cfg or get_config().risk
         self.bayesian_sizer = bayesian_sizer
+        #: Book-wide risk multiplier set by the portfolio vol-target overlay (step 4.6).
+        #: The RiskManager sizes one signal at a time and cannot see the realised
+        #: volatility of the equity curve it is feeding, so whoever owns that curve
+        #: (PortfolioBacktester, or the live loop) sets this each bar. 1.0 = no-op.
+        self.risk_scalar: float = 1.0
         # Initialize or assign the news calendar filter
         if news_filter is not None:
             self.news_filter = news_filter
@@ -271,6 +277,21 @@ class RiskManager:
                     "drawdown_reducing_zero",
                     f"Drawdown {account.drawdown:.1%} scaled size to zero "
                     f"(halt at {cfg.drawdown_breaker:.0%}).",
+                )
+
+        # 4.6. Portfolio vol-target overlay (book-wide de-/re-levering)
+        # NB: `or 1.0` would be a live-money bug here — a deliberate 0.0 (halt the book)
+        # is falsy and would silently become full size. Only None means "unset".
+        scalar = getattr(self, "risk_scalar", None)
+        scalar = 1.0 if scalar is None else float(scalar)
+        if scalar != 1.0:
+            risk_fraction *= scalar
+            detail["portfolio_vol_scalar"] = scalar
+            applied.append(f"portfolio_vol_scalar={scalar:.2f}")
+            if risk_fraction <= 0:
+                return veto(
+                    "portfolio_vol_scalar_zero",
+                    f"Portfolio vol-target scalar {scalar:.2f} scaled size to zero.",
                 )
 
         # 5. Regime aggression scaling (optional)

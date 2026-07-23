@@ -207,6 +207,20 @@ class PortfolioBacktester:
         R = pd.DataFrame(logret_cols).sort_index()
         timeline = R.index
 
+        # Portfolio vol-target overlay. Reads ONLY equity already realised at or before
+        # the decision bar, so it is causal: the scalar applied to bar t's decisions is
+        # built from returns up to and including t, and those trades fill at t+1's open.
+        # MUST read the RiskManager's own config, not self.cfg.risk: callers override risk
+        # settings by passing `risk_manager=RiskManager(modified_cfg)`, leaving the app-level
+        # cfg untouched. Reading self.cfg.risk here silently ignored every override.
+        rcfg = getattr(self.risk, "cfg", None) or self.cfg.risk
+        pv_target = float(getattr(rcfg, "portfolio_vol_target", 0.0) or 0.0)
+        pv_window = int(getattr(rcfg, "portfolio_vol_window", 63) or 63)
+        pv_min = float(getattr(rcfg, "portfolio_vol_scalar_min", 0.25))
+        pv_max = float(getattr(rcfg, "portfolio_vol_scalar_max", 1.50))
+        eq_hist: list[float] = []
+        self.risk.risk_scalar = 1.0
+
         realized = float(self.bt.initial_equity)
         peak = realized
         open_pos: dict[str, dict] = {}
@@ -297,6 +311,22 @@ class PortfolioBacktester:
                 eq += self._unrealized(posd, posd["last_px"])
             peak = max(peak, eq)
             eq_points.append((t, eq))
+
+            # 3b. book-wide vol scalar from the realised equity curve
+            if pv_target > 0.0:
+                eq_hist.append(eq)
+                if len(eq_hist) > pv_window + 1:
+                    eq_hist.pop(0)
+                if len(eq_hist) > pv_window // 2:
+                    a = np.asarray(eq_hist, dtype=float)
+                    rets = np.diff(a) / np.where(a[:-1] == 0.0, np.nan, a[:-1])
+                    rv = float(np.nanstd(rets, ddof=1) * np.sqrt(periods_per_year))
+                    # A book that is mostly flat has near-zero realised vol, which would
+                    # otherwise demand unbounded leverage - hence the hard scalar cap.
+                    self.risk.risk_scalar = (
+                        float(np.clip(pv_target / rv, pv_min, pv_max))
+                        if np.isfinite(rv) and rv > 1e-9 else pv_max
+                    )
 
             # 4. decisions (sequential; provisional book so same-bar caps bind)
             if eq <= 0:

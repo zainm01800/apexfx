@@ -97,9 +97,11 @@ class RegimeConfig(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    target_portfolio_vol: float = 0.0623
+    #: Per-INSTRUMENT vol-target ceiling (step 6 of RiskManager.permit). Not the same
+    #: thing as `portfolio_vol_target` below, which scales the whole book.
+    target_portfolio_vol: float = 0.10
     kelly_fraction: float = 0.0
-    max_risk_per_trade: float = 0.0085
+    max_risk_per_trade: float = 0.01
     max_total_exposure: float = 3.0
     max_correlated_exposure: float = 1.5
     correlation_threshold: float = 0.60
@@ -114,6 +116,18 @@ class RiskConfig(BaseModel):
     max_tom_slots: int = 5
     max_crypto_xs_slots: int = 4
     max_portfolio_risk: float = 0.035
+
+    # --- Portfolio-level volatility targeting (book-wide risk scalar) ---------------
+    # De-levers the ENTIRE book when the realised equity curve is running hotter than
+    # `portfolio_vol_target`, and re-levers (up to `..._scalar_max`) when it is calmer.
+    # Distinct from `target_portfolio_vol`, which caps each position independently and
+    # therefore cannot see that ten positions have become one correlated bet.
+    # Momentum books crash in high-vol regimes, so scaling on realised book vol cuts
+    # drawdown by more than it cuts return. 0.0 disables the overlay entirely.
+    portfolio_vol_target: float = 0.0
+    portfolio_vol_window: int = 63
+    portfolio_vol_scalar_min: float = 0.25
+    portfolio_vol_scalar_max: float = 1.50
 
 
 class BacktestConfig(BaseModel):
