@@ -258,7 +258,19 @@ capital moves £/month linearly; raising risk moves drawdown faster than it move
 evidence in this document, capital is the only lever that reaches the target without degrading
 the risk profile.
 
-## 7d. RESIDUAL MOMENTUM — the first thing that beats the engine
+## 7d. RESIDUAL MOMENTUM — screened well, then **FAILED ITS GATE**
+
+> **SUPERSEDED BY THE GATE — read `book_r_gate.md` first.** Everything in this section is
+> SCREEN evidence. It was built as a real engine strategy and gated the same day, and it
+> **lost**: Sharpe **0.454**, **£197/month**, versus the total-momentum control's 0.697 / £479.
+> Paired bootstrap Δsharpe **−0.243, p=0.867**; DSR 0.460. Ledger 232 → 244.
+>
+> The drawdown half of the claim DID reproduce (backtest DD 11.9% → 8.5%, forward p95
+> 13.8% → 9.6% — the only config all day to pass the 11% wall). The return half did not.
+>
+> The section is kept unedited below because the screen→gate gap is the finding: **three
+> screen-level numbers were quoted today and all three died at the gate** (£887 → £587,
+> Sharpe 1.331 → 0.994, £731 → £197).
 
 Prompted by the question "have you checked everything, including research?", which was fair:
 I had conflated *parameter tweaking* (overfitting bait, correctly excluded) with *theory-driven

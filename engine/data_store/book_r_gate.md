@@ -35,16 +35,42 @@ The *return* half did not come with it. £197/month is less than half the £479 
 under Book H's £413. Lower vol at proportionally lower return is not an edge — it is
 de-levering, which `max_risk_per_trade` already does more cheaply and without a new strategy.
 
-## Why the screen said £731 and the gate says £197
+## Why the screen said £731 and the gate says £197 — tested, and my first answer was WRONG
 
-The screen was a continuous-weight, monthly-rebalanced, long-only book with **no stops**. The
-engine takes discrete trades with ATR stops, a regime filter and EV slot allocation. Running
-the same signal through that machinery cost roughly two thirds of the return.
+I initially blamed the **stops**: a rank book expects to hold to the next rebalance, an ATR stop
+exits early, so the engine realises losses the screen never took. Plausible, and testable —
+widen `atr_stop_mult` until stops barely bind and see if the return recovers.
 
-The most likely culprit is the **stops**: a monthly-rebalanced rank book expects to *hold*
-through drawdowns until the next rebalance, and an ATR stop exits those positions early,
-realising losses the screen never took and then sitting out the recovery. That is a structural
-mismatch between the signal and the execution model, not a flaw in either alone.
+**It does the opposite** (`scratch/diagnose_resid_stops.py`):
+
+| atr_stop_mult | residual CAGR | residual Sharpe | total CAGR | total Sharpe |
+|---|---|---|---|---|
+| 2.0 | 4.04% | 0.633 | 6.20% | 0.646 |
+| 4.0 | 2.23% | 0.606 | 4.35% | 0.750 |
+| 8.0 | 1.22% | 0.619 | 2.34% | 0.762 |
+| 20.0 | 0.36% | 0.415 | 1.11% | 0.767 |
+
+Widening the stop **monotonically reduces** return for both signals. In a risk-budgeted engine
+the stop distance is the *denominator of position size* — a wider stop means a smaller position
+for the same risk, so it is a de-leveraging knob, not a "let winners run" knob. **Stops are not
+the explanation.**
+
+(The gate's £197 vs the diagnostic's £337 at nominally the same setting is `config.yaml`
+setting `atr_stop_mult: 2.5`, not the 2.0 the diagnostic forced. Both lie on the curve above.)
+
+**Residual momentum is worse than total momentum at EVERY stop width tested** — 4.04 vs 6.20,
+2.23 vs 4.35, 1.22 vs 2.34, 0.36 vs 1.11. That is not an execution mismatch; the signal is
+simply weaker inside this engine.
+
+The real source of the £731 is **capital deployment, not exits**. The screen was a *fully
+invested* book: 15 inverse-vol weights summing to 1.0, always. The engine sizes each position
+from a risk budget (`risk_fraction × equity / stop_distance`), caps it, and refuses entries when
+slot buckets are full (`timeframe_bucket_full` fired ~3.3k times). Those two constructions
+deploy very different amounts of capital, so they were never going to agree.
+
+So the £731 is not a lie about residual momentum as a *portfolio* — it is a number that this
+engine's sizing model cannot produce. Believing it would have required swapping the whole
+position-sizing layer, not adding a signal.
 
 This is the same gap that killed the "£887/month" and "Sharpe 1.331" figures earlier today.
 **Three for three: no screen-level number has survived the gate.**
@@ -71,9 +97,13 @@ This is the same gap that killed the "£887/month" and "Sharpe 1.331" figures ea
 **Not worth it:** tuning `top_n`, the lookback, or the beta window. That is parameter search on
 a signal that just lost its paired test, and every cell would need charging.
 
-**Worth it, if anything:** running residual momentum *without ATR stops* — a hold-to-rebalance
-exit mode — to test the stop-mismatch hypothesis directly. That is a change to the execution
-model, not the signal, and it is a single pre-registered comparison rather than a sweep.
+**Already tested and closed:** the stop-mismatch hypothesis. Widening the stop makes it worse,
+and residual loses to total momentum at every width. No follow-up needed on exits.
+
+**The only honest remaining question** is whether a *fully-invested, weight-based* portfolio
+layer — the screen's construction — is worth building as an alternative to risk-budgeted
+position sizing. That is a large change to the sizing engine, not a strategy, and it should be
+judged on its own terms rather than smuggled in as "a residual momentum sleeve".
 
 **Still the honest position:** Book H at 0.50% risk (Sharpe 0.922, £413/month, forward p95
 8.2%) remains the best gated configuration, and £800–1,000/month at ≤11% drawdown is not
