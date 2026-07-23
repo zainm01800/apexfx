@@ -2239,11 +2239,18 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
 def is_asset_in_active_session(symbol: str) -> bool:
     """Determine if a given symbol is currently within its primary liquid trading hours (London time).
     
+    Venue is resolved STRUCTURALLY (".L" suffix, presence of "/"), not by substring-matching
+    a hardcoded ticker list — that approach put 7 of the certified book's 21 equities on the
+    wrong clock, in both directions. See the inline note at the LSE branch.
+
     Session Rules (London Time / Europe/London):
-    1. Cryptos (BTC, ETH, etc.): Active 24/7.
-    2. JPY/AUD/NZD Crosses: Active 24/5, except the 9:00 PM to 10:00 PM rollover dead zone.
-    3. US Equities/ETFs/Gold (AAPL, SPY, GLD, etc.): Active 2:30 PM to 9:30 PM.
-    4. Western Forex (EUR/USD, GBP/USD, etc.): Active 8:00 AM to 10:00 PM, except the 9:00 PM to 10:00 PM rollover dead zone.
+    1. Crypto (BTC, ETH, ...): 24/7.
+    2. JPY/AUD/NZD crosses: 24/5, minus the 22:00–23:00 rollover dead zone.
+    3. LSE-listed ".L" (ISWD.L, SGLD.L, ...): 08:00–16:30.
+    4. US equities/ETFs (AAPL, TSM, NFLX, XLK, ...): 14:30–21:00.
+    5. Western forex (EUR/USD, GBP/USD, ...): 08:00–22:00, minus the rollover hour.
+
+    Friday after 20:00 is closed for everything non-crypto (weekend gap risk).
     """
     now_london = datetime.now(ZoneInfo("Europe/London"))
     h = now_london.hour
@@ -2274,14 +2281,27 @@ def is_asset_in_active_session(symbol: str) -> bool:
     if has_asia_pac:
         return True
         
-    # 3. Category B: US Equities, Commodities, and Index ETFs
-    # Active US Hours: 2:30 PM (14:30) to 9:30 PM (21:30) London Time.
-    equities_etfs = ["AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "SPY", "QQQ", "SMH", "SOXX", "GLD", "XBI", "XLK", "XLE", "XLF"]
-    is_equity_etf = any(eq in sym_upper for eq in equities_etfs)
-    if is_equity_etf:
-        return 14 <= h < 21 or (h == 14 and m >= 30)
-        
-    # 4. Category D: Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
+    # 3. LSE-listed instruments (UCITS ETFs / ETCs, ".L" suffix): 08:00–16:30 London.
+    #
+    # These MUST be tested before the US-equity branch. The old code matched a hardcoded
+    # list by SUBSTRING, which broke both ways on the certified book:
+    #   * "SGLD.L" contains "GLD" -> matched the US rule and was scanned 14:30–21:00, i.e.
+    #     up to 4.5h after the LSE close.
+    #   * TSM, NFLX, UBER, ISWD.L, ISDU.L, ISDE.L matched nothing and fell through to the
+    #     Western-FX rule (08:00–22:00), so the US names were scanned from 08:00 — six and a
+    #     half hours before the US open — and the LSE ETFs until 22:00.
+    # Seven of the book's 21 equities were on the wrong venue clock.
+    if sym_upper.endswith(".L"):
+        if h < 8 or h > 16:
+            return False
+        return h < 16 or m <= 30          # 16:30 close
+
+    # 4. US equities / ETFs — anything left without a "/" is a stock ticker.
+    # Active US Hours: 14:30–21:00 London Time.
+    if "/" not in sym_upper:
+        return (h == 14 and m >= 30) or (15 <= h < 21)
+
+    # 5. Western Forex Pairs (EUR/USD, GBP/USD, USD/CHF, USD/CAD, EUR/GBP, etc.)
     # Active London + NY hours: 8:00 AM (08:00) to 10:00 PM (22:00) London Time.
     return 8 <= h < 22
 
