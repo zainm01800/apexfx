@@ -1204,24 +1204,12 @@ def daily_equity_anchor(live_equity: float, now: "datetime | None" = None) -> fl
     the stored anchor. Any read/write failure degrades to ``live_equity``, which disables the
     daily check rather than blocking all trading on an I/O error.
     """
-    from datetime import datetime as _dt, timezone as _tz
-    today = (now or _dt.now(_tz.utc)).strftime("%Y-%m-%d")
-    try:
-        if DAILY_ANCHOR_PATH.exists():
-            stored = json.loads(DAILY_ANCHOR_PATH.read_text(encoding="utf-8"))
-            if stored.get("date") == today and float(stored.get("equity", 0)) > 0:
-                return float(stored["equity"])
-    except Exception as e:                                          # noqa: BLE001
-        print(f"  [WARN] daily anchor read failed ({e}); daily stop inactive this cycle")
-        return live_equity
-    try:
-        DAILY_ANCHOR_PATH.parent.mkdir(parents=True, exist_ok=True)
-        DAILY_ANCHOR_PATH.write_text(
-            json.dumps({"date": today, "equity": live_equity}), encoding="utf-8")
-        print(f"  [DAILY] session anchor set: £{live_equity:,.2f} ({today})")
-    except Exception as e:                                          # noqa: BLE001
-        print(f"  [WARN] daily anchor write failed ({e})")
-    return live_equity
+    from apex_quant.risk.daily_stop import read_anchor, resolve_anchor
+    existing = read_anchor(DAILY_ANCHOR_PATH, now)
+    anchor = resolve_anchor(DAILY_ANCHOR_PATH, live_equity, now)
+    if existing is None:
+        print(f"  [DAILY] session anchor set: £{anchor:,.2f}")
+    return anchor
 
 
 def enforce_daily_loss_stop(live_equity: float, open_trades: list) -> bool:
@@ -1232,15 +1220,14 @@ def enforce_daily_loss_stop(live_equity: float, open_trades: list) -> bool:
     market action, so it is gated behind ``risk.daily_loss_flatten`` and defaults to OFF:
     without it this alerts loudly and blocks new entries only.
     """
+    from apex_quant.risk.daily_stop import breached, daily_loss as _daily_loss
     limit = float(getattr(cfg.risk, "daily_loss_limit", 0.0) or 0.0)
     if limit <= 0.0:
         return False
     anchor = daily_equity_anchor(live_equity)
-    if anchor <= 0:
+    if not breached(anchor, live_equity, limit):
         return False
-    loss = max(0.0, 1.0 - live_equity / anchor)
-    if loss < limit:
-        return False
+    loss = _daily_loss(anchor, live_equity)
 
     print("=" * 72, flush=True)
     print(f"  [DAILY LOSS STOP] down {loss:.2%} today (anchor £{anchor:,.2f} -> "
@@ -3095,6 +3082,13 @@ def main():
                         help="Prop Firm Mode: 1.00%% risk per trade, 7.5%% drawdown cap")
     parser.add_argument("--loop", action="store_true", help="Run the engine continuously in a loop")
     parser.add_argument("--interval", type=int, default=900, help="Scan interval in seconds (default: 900)")
+    parser.add_argument("--daily-stop", type=float, default=None, metavar="FRAC",
+                        help="Enable the daily-loss stop at this fraction (e.g. 0.025) "
+                             "WITHOUT adopting the rest of the prop profile. Blocks new "
+                             "entries once the session is down that much.")
+    parser.add_argument("--daily-stop-flatten", action="store_true",
+                        help="With --daily-stop, also CLOSE open positions on breach. "
+                             "Irreversible market action; off by default.")
     args = parser.parse_args()
 
     # Prop Firm Mode (restored 2026-07-22 — originally added in a Gemini session).
@@ -3107,10 +3101,26 @@ def main():
         # profile and the running sizer cannot drift apart. Prop mode deliberately keeps 1%
         # per trade even though config.yaml is now 0.75% — that is the firm's contract, not
         # this book's optimum, and it must NOT track config.yaml.
+        #
+        # 2026-07-23 FIX: this used to set ONLY the Bayesian sizer's ceiling, leaving the
+        # RiskManager on config.yaml. So --prop silently ran with the BASE portfolio cap
+        # (6.5% not 4.0%), the BASE breaker (20% not 6%) and NO daily-loss stop, while the
+        # startup banner claimed "PROP MODE ENABLED". The whole risk section is now swapped.
+        global cfg
         _prop = load_config(ENGINE_DIR / "config.prop.yaml")
+        cfg = _prop
         _BAYESIAN_SIZER.max_risk = _prop.risk.max_risk_per_trade
         _BAYESIAN_SIZER.min_risk = min(0.0050, _prop.risk.max_risk_per_trade)
         _BAYESIAN_SIZER.max_drawdown = 0.075
+
+    # --daily-stop enables ONLY the daily-loss rule, without adopting the rest of the prop
+    # profile. That matters for the frozen paper experiment: switching to --prop would also
+    # change risk-per-trade and the caps, breaking the experiment of record mid-flight.
+    if args.daily_stop is not None:
+        cfg = cfg.model_copy(update={"risk": cfg.risk.model_copy(update={
+            "daily_loss_limit": args.daily_stop,
+            "daily_loss_flatten": bool(args.daily_stop_flatten),
+        })})
 
     # ── Startup Banner ──
     print("=" * 80)

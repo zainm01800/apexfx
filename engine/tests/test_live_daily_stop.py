@@ -24,22 +24,23 @@ def _src() -> str:
     return LIVE.read_text(encoding="utf-8")
 
 
-def test_anchor_is_persisted_to_disk_not_held_in_memory():
+def test_live_loop_delegates_to_the_risk_module():
+    """The anchoring logic must live in apex_quant.risk.daily_stop, which is importable and
+    behaviourally tested (see test_daily_stop_module.py). The script only wires it up —
+    duplicating the logic here is how the two drift apart."""
     src = _src()
     assert "DAILY_ANCHOR_PATH" in src
-    assert "def daily_equity_anchor(" in src
-    assert "DAILY_ANCHOR_PATH.write_text" in src, "anchor must survive a process restart"
-    assert "DAILY_ANCHOR_PATH.exists()" in src, "anchor must be read back, not re-derived"
-
-
-def test_anchor_is_keyed_by_date_so_it_rolls_over():
-    src = _src()
+    assert "from apex_quant.risk.daily_stop import read_anchor, resolve_anchor" in src
+    assert "from apex_quant.risk.daily_stop import breached" in src
+    # the script must NOT re-implement the persistence itself
     block = src[src.index("def daily_equity_anchor("):]
     block = block[: block.index("\ndef ")]
-    assert 'strftime("%Y-%m-%d")' in block
-    assert 'stored.get("date") == today' in block, (
-        "a stored anchor from a PREVIOUS day must not be reused"
-    )
+    assert "json.loads" not in block, "persistence belongs to the module, not the script"
+
+
+def test_anchor_path_is_on_disk_under_data_store():
+    src = _src()
+    assert 'DAILY_ANCHOR_PATH = ENGINE_DIR / "data_store" / "daily_equity_anchor.json"' in src
 
 
 def test_enforcement_runs_before_sizing_and_short_circuits_the_cycle():
@@ -86,12 +87,21 @@ def test_flatten_is_opt_in_and_defaults_off():
 
 
 def test_io_failure_degrades_to_no_stop_rather_than_blocking_all_trading():
-    """A corrupt anchor file must not halt the book — it must disable the check."""
-    src = _src()
-    block = src[src.index("def daily_equity_anchor("):]
-    block = block[: block.index("\ndef ")]
-    assert "return live_equity" in block
-    assert "daily stop inactive this cycle" in block
+    """A corrupt anchor file must not halt the book — it must disable the check.
+
+    Behavioural, against the real module: a bad file yields an anchor equal to current
+    equity, so measured loss is zero and nothing is blocked.
+    """
+    import tempfile
+    from pathlib import Path as _P
+    from apex_quant.risk.daily_stop import breached, resolve_anchor
+
+    with tempfile.TemporaryDirectory() as d:
+        bad = _P(d) / "anchor.json"
+        bad.write_text("{corrupt", encoding="utf-8")
+        anchor = resolve_anchor(bad, 97_000.0)
+        assert anchor == 97_000.0
+        assert breached(anchor, 97_000.0, 0.025) is False
 
 
 def test_anchor_roundtrip_logic(tmp_path):
