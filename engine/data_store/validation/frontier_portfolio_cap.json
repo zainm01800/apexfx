@@ -1,0 +1,272 @@
+[
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.04959381436069066,
+    "gbp_per_month": 413.2817863390888,
+    "sharpe": 0.5859421310635383,
+    "backtest_max_dd": 0.1823182061020744,
+    "forward_dd": {
+      "median": 0.07405129934712851,
+      "p95": 0.14812220041814325
+    },
+    "n_trades": 1694,
+    "cap_hits": 163
+  },
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.0634002394567641,
+    "gbp_per_month": 528.3353288063674,
+    "sharpe": 0.8135695310589655,
+    "backtest_max_dd": 0.16431764606983623,
+    "forward_dd": {
+      "median": 0.061523080354228696,
+      "p95": 0.12338134987906889
+    },
+    "n_trades": 1693,
+    "cap_hits": 37
+  },
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.06702436098605347,
+    "gbp_per_month": 558.5363415504456,
+    "sharpe": 0.74254715032291,
+    "backtest_max_dd": 0.181413767742982,
+    "forward_dd": {
+      "median": 0.0734000685147567,
+      "p95": 0.14617562316750268
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.06570048909513648,
+    "gbp_per_month": 547.504075792804,
+    "sharpe": 0.835990183719164,
+    "backtest_max_dd": 0.1521030827246881,
+    "forward_dd": {
+      "median": 0.06145714667017607,
+      "p95": 0.12261278193055894
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.06702436098605347,
+    "gbp_per_month": 558.5363415504456,
+    "sharpe": 0.74254715032291,
+    "backtest_max_dd": 0.181413767742982,
+    "forward_dd": {
+      "median": 0.0734000685147567,
+      "p95": 0.14617562316750268
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.01,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.06570048909513648,
+    "gbp_per_month": 547.504075792804,
+    "sharpe": 0.835990183719164,
+    "backtest_max_dd": 0.1521030827246881,
+    "forward_dd": {
+      "median": 0.06145714667017607,
+      "p95": 0.12261278193055894
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.022254089093155738,
+    "gbp_per_month": 185.4507424429645,
+    "sharpe": 0.3661079302485866,
+    "backtest_max_dd": 0.20499930094537178,
+    "forward_dd": {
+      "median": 0.055174204403667756,
+      "p95": 0.11910830846481908
+    },
+    "n_trades": 1285,
+    "cap_hits": 595
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.07158344356161628,
+    "gbp_per_month": 596.5286963468023,
+    "sharpe": 0.7878313090553725,
+    "backtest_max_dd": 0.17618203196063054,
+    "forward_dd": {
+      "median": 0.07295130650882439,
+      "p95": 0.14506784683559612
+    },
+    "n_trades": 1682,
+    "cap_hits": 275
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.02933006541636174,
+    "gbp_per_month": 244.4172118030145,
+    "sharpe": 0.39686321742121616,
+    "backtest_max_dd": 0.2053772495115277,
+    "forward_dd": {
+      "median": 0.06555255576806875,
+      "p95": 0.1443436408528988
+    },
+    "n_trades": 1289,
+    "cap_hits": 3
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.07301432174366873,
+    "gbp_per_month": 608.4526811972395,
+    "sharpe": 0.7874755847856311,
+    "backtest_max_dd": 0.1739316645897544,
+    "forward_dd": {
+      "median": 0.07417317758930334,
+      "p95": 0.14704784933571163
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.029343592053342693,
+    "gbp_per_month": 244.5299337778558,
+    "sharpe": 0.3957077933859045,
+    "backtest_max_dd": 0.20537724951152403,
+    "forward_dd": {
+      "median": 0.06567041088097417,
+      "p95": 0.14458300888289255
+    },
+    "n_trades": 1289,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.015,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.07301432174366873,
+    "gbp_per_month": 608.4526811972395,
+    "sharpe": 0.7874755847856311,
+    "backtest_max_dd": 0.1739316645897544,
+    "forward_dd": {
+      "median": 0.07417317758930334,
+      "p95": 0.14704784933571163
+    },
+    "n_trades": 1694,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.02135909392412394,
+    "gbp_per_month": 177.9924493676995,
+    "sharpe": 0.3430550946602883,
+    "backtest_max_dd": 0.2097585295417146,
+    "forward_dd": {
+      "median": 0.055756997494430055,
+      "p95": 0.12497862416235833
+    },
+    "n_trades": 458,
+    "cap_hits": 1204
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.065,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.08437084024651087,
+    "gbp_per_month": 703.0903353875906,
+    "sharpe": 0.8240496146572548,
+    "backtest_max_dd": 0.1861558079738448,
+    "forward_dd": {
+      "median": 0.08128097681779786,
+      "p95": 0.16049536207820558
+    },
+    "n_trades": 1691,
+    "cap_hits": 749
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.035622403132882896,
+    "gbp_per_month": 296.8533594406908,
+    "sharpe": 0.47437485736460366,
+    "backtest_max_dd": 0.201932825101255,
+    "forward_dd": {
+      "median": 0.05722576167215848,
+      "p95": 0.14393537373576243
+    },
+    "n_trades": 481,
+    "cap_hits": 23
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.12,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.019047775250115917,
+    "gbp_per_month": 158.73146041763263,
+    "sharpe": 0.3369463200263041,
+    "backtest_max_dd": 0.20140438836067087,
+    "forward_dd": {
+      "median": 0.050827719156781435,
+      "p95": 0.11196872419375752
+    },
+    "n_trades": 638,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.0,
+    "cagr": 0.03409510896921231,
+    "gbp_per_month": 284.12590807676924,
+    "sharpe": 0.45177774681716437,
+    "backtest_max_dd": 0.2016670671906594,
+    "forward_dd": {
+      "median": 0.058179157729784305,
+      "p95": 0.14539302654280337
+    },
+    "n_trades": 482,
+    "cap_hits": 0
+  },
+  {
+    "max_risk_per_trade": 0.02,
+    "max_portfolio_risk": 0.2,
+    "portfolio_vol_target": 0.06,
+    "cagr": 0.019047775250115917,
+    "gbp_per_month": 158.73146041763263,
+    "sharpe": 0.3369463200263041,
+    "backtest_max_dd": 0.20140438836067087,
+    "forward_dd": {
+      "median": 0.050827719156781435,
+      "p95": 0.11196872419375752
+    },
+    "n_trades": 638,
+    "cap_hits": 0
+  }
+]

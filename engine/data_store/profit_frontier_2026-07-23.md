@@ -96,14 +96,37 @@ sharpe_delta  -0.023     p_value       0.5683
 survive EV slot allocation and gap-aware fills. That open question is now closed honestly —
 the runner exit was never an improvement, and PBO rejecting it was accidentally correct.
 
+## 5b. The portfolio risk cap is not the ceiling either
+
+`scratch/frontier_portfolio_cap.py` → `validation/frontier_portfolio_cap.json`
+
+The high-risk cells were being strangled by the 6.5% `max_portfolio_risk` cap (163 hits at
+1.00%, 635 at 1.25%), so the return ceiling might have been the cap rather than the book.
+Tested directly: risk-per-trade 1.00/1.50/2.00% × cap 6.5/12/20% × overlay off/6%.
+
+| rpt | cap | overlay | CAGR | £/month | Sharpe | fwd p95 DD | cap hits |
+|---|---|---|---|---|---|---|---|
+| 1.00% | 6.5% | off | 4.96% | £413 | 0.586 | 14.8% | 163 |
+| 1.00% | 12% | off | 6.70% | £559 | 0.743 | 14.6% | 0 |
+| 1.50% | 12% | 6% | 7.30% | £608 | 0.787 | 14.7% | 0 |
+| 2.00% | 6.5% | 6% | **8.44%** | **£703** | 0.824 | **16.0%** | 749 |
+| 2.00% | 12% | off | 3.56% | £297 | 0.474 | 14.4% | 23 |
+
+Relieving the cap does help the broken cells (1.00% off: 4.96% → 6.70% CAGR), confirming the
+cap *was* truncating. But **Sharpe never recovers to the 0.922 of the plain 0.50% config**, and
+raising the cap past 12% changes nothing at all — it stops binding there.
+
+**Configs reaching £800/month across the entire 18-cell cap grid: zero.** Absolute maximum
+found anywhere in ~40 tested configurations is **£703/month at 16.0% forward drawdown**.
+
 ## 6. What you can actually choose
 
 | you want | config | £/month | forward p95 DD | P(breach 11% in 1yr) |
 |---|---|---|---|---|
-| safest | 0.50%, overlay off | £413 | 8.2% | 0.8% |
+| safest / best Sharpe | 0.50%, overlay off | £413 | 8.2% | 0.8% |
 | **~11% wall** | **1.00% + vt 5%** | **£514** | **11.2%** | ~5% |
-| best raw Sharpe | 0.50%, overlay off | £413 | 8.2% | 0.8% |
-| most money | 1.00% + vt 8% | £642 | 13.6% | ~13% |
+| more money | 1.00% + vt 8% | £642 | 13.6% | ~13% |
+| absolute max found | 2.00% + vt 6%, cap 6.5% | £703 | 16.0% | ~25% |
 
 For a funded account the honest recommendation stays **0.50% with the overlay off**: the
 highest Sharpe (0.922), zero cap truncation, and a 0.8% chance of an 11% breach in a year.
