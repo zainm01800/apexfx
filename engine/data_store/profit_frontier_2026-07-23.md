@@ -199,6 +199,42 @@ Sizing is exhausted. Only these change Sharpe:
 3. **A better primary signal.** This is the actual bottleneck and has been since the
    meta-labeling work. Everything since has been risk plumbing on a Sharpe-0.9 signal.
 
+## 7b. What was NOT tested — stated plainly
+
+The frontier above is exhaustive for **sizing and slot allocation**. It is not exhaustive
+overall. These remain open:
+
+1. **Portfolio construction family.** Continuous inverse-vol weights on rank-selected momentum,
+   rebalanced periodically, with no per-trade stops — versus the engine's discrete
+   entry/ATR-stop/target trades. §6b is direct evidence this matters, and it was never tested
+   in the engine. **This is the largest untested lever.**
+2. **Signal parameters** (`momentum_lookback`, `atr_stop_mult`, holding horizon). Deliberately
+   untouched: this is precisely where overfitting lives, and each sweep needs prereg + ledger
+   charges. Eleven prior experiments here all failed to beat the baseline.
+3. **Rebalance frequency** — coupled to (1).
+4. **Regime-filter thresholds.** `regime_scale=0.50` fired 107 times; never swept.
+5. **Alternative exits** — trailing stops, time-based exits. Only fixed-vs-runner was tested.
+6. **Timeframes other than daily.** The whole book is 1d.
+7. **The 2025+ holdout is untouched.** Therefore **every number in this document is in-sample.**
+   The true out-of-sample figure is unknown and could be materially worse. Spending the holdout
+   gives one honest number and cannot be undone.
+
+## 7c. The target restated as a capital question
+
+Return scales linearly with capital; drawdown *percentage* does not change at all. The same
+config that pays £413/month on £100k pays £825/month on £200k at an identical 8.2% drawdown.
+
+| config | £100k | £150k | £200k | £250k | forward p95 DD |
+|---|---|---|---|---|---|
+| 0.50%, 12 slots (Sharpe 0.922) | £413 | £619 | **£825** | £1,031 | **8.2%** |
+| 1.00% + vt5% | £514 | £771 | **£1,028** | £1,285 | 11.2% |
+| 0.75%, no overlay | £587 | £881 | £1,175 | £1,469 | 12.0% |
+
+**£800–1,000/month at ≤11% drawdown is reachable — on roughly £200k, not £100k.** Raising
+capital moves £/month linearly; raising risk moves drawdown faster than it moves return. On the
+evidence in this document, capital is the only lever that reaches the target without degrading
+the risk profile.
+
 ## 8. Caveats
 
 1. In-sample, one snapshot; Yahoo re-bases adjusted prices — quote figures with this date.
