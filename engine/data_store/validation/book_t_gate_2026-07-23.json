@@ -1,0 +1,200 @@
+{
+  "generated_at": "2026-07-23T09:29:15+00:00",
+  "prereg": "engine/data_store/meta_label_prereg.md",
+  "train_end": "2019-01-01",
+  "test_window": [
+    "2019-01-01",
+    "2025-01-01"
+  ],
+  "n_trials_before": 252,
+  "n_trials_used": 258,
+  "pbo": {
+    "pbo": 0.0075,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 4
+  },
+  "books": {
+    "book_t_baseline": {
+      "metrics": {
+        "total_return": 0.7696559547708084,
+        "ann_return": 0.06952428104995012,
+        "ann_vol": 0.07600696222984148,
+        "sharpe": 0.9228411779599239,
+        "sortino": 1.1286101316107597,
+        "max_drawdown": 0.14282138145672718,
+        "calmar": 0.4867918258514743,
+        "n_trades": 1096,
+        "win_rate": 0.5538321167883211,
+        "profit_factor": 1.313721420327571,
+        "avg_trade_return": 0.015417554744525547,
+        "expectancy_pnl": 71.43529197080287,
+        "expectancy_pct": 0.015417554744525538,
+        "final_equity": 176965.59547708085,
+        "net_pnl": 78293.08
+      },
+      "cagr": 0.06952428104995012,
+      "gbp_per_month": 579.3690087495844,
+      "forward_p95": 0.11342996320982986,
+      "full_window_sharpe_per_period": 0.05813352991647285
+    },
+    "book_t_meta_050": {
+      "metrics": {
+        "total_return": 0.2515235678677872,
+        "ann_return": 0.026772264945841284,
+        "ann_vol": 0.06503920211087955,
+        "sharpe": 0.4389851725549722,
+        "sortino": 0.5017353512141761,
+        "max_drawdown": 0.16097796888527127,
+        "calmar": 0.16631011765915515,
+        "n_trades": 1034,
+        "win_rate": 0.5251450676982592,
+        "profit_factor": 1.141851360701514,
+        "avg_trade_return": 0.010579738878143133,
+        "expectancy_pnl": 25.265841392649918,
+        "expectancy_pct": 0.01057973887814314,
+        "final_equity": 125152.35678677872,
+        "net_pnl": 26124.88
+      },
+      "cagr": 0.026772264945841284,
+      "gbp_per_month": 223.1022078820107,
+      "forward_p95": 0.11564481940614979,
+      "full_window_sharpe_per_period": 0.027653466567267457
+    },
+    "book_t_meta_055": {
+      "metrics": {
+        "total_return": 0.2882421543175224,
+        "ann_return": 0.03027456284636454,
+        "ann_vol": 0.06324731163528394,
+        "sharpe": 0.5034509726923404,
+        "sortino": 0.5949976511596922,
+        "max_drawdown": 0.16315833256902246,
+        "calmar": 0.18555327435426686,
+        "n_trades": 962,
+        "win_rate": 0.5322245322245323,
+        "profit_factor": 1.1737835901732225,
+        "avg_trade_return": 0.012865478170478171,
+        "expectancy_pnl": 30.825935550935526,
+        "expectancy_pct": 0.01286547817047818,
+        "final_equity": 128824.21543175224,
+        "net_pnl": 29654.55
+      },
+      "cagr": 0.03027456284636454,
+      "gbp_per_month": 252.28802371970448,
+      "forward_p95": 0.10973640003920615,
+      "full_window_sharpe_per_period": 0.03171443026327388
+    },
+    "book_t_meta_060": {
+      "metrics": {
+        "total_return": 0.27080532682385505,
+        "ann_return": 0.028622535758241252,
+        "ann_vol": 0.06271964040161167,
+        "sharpe": 0.4815428056766469,
+        "sortino": 0.5699944060397513,
+        "max_drawdown": 0.1605458646035397,
+        "calmar": 0.17828260995026704,
+        "n_trades": 894,
+        "win_rate": 0.5313199105145414,
+        "profit_factor": 1.1752411083468477,
+        "avg_trade_return": 0.014715827740492168,
+        "expectancy_pnl": 31.57233780760626,
+        "expectancy_pct": 0.01471582774049219,
+        "final_equity": 127080.5326823855,
+        "net_pnl": 28225.670000000002
+      },
+      "cagr": 0.028622535758241252,
+      "gbp_per_month": 238.5211313186771,
+      "forward_p95": 0.10944015805694475,
+      "full_window_sharpe_per_period": 0.03033434546315976
+    }
+  },
+  "verdicts": {
+    "book_t_meta_050": {
+      "paired": {
+        "sharpe_base": 0.9228411779599239,
+        "sharpe_new": 0.4389851725549722,
+        "sharpe_delta": -0.4838560054049517,
+        "p_value_one_sided": 0.9946,
+        "ci_95_lower": -0.8607876900289079,
+        "ci_95_upper": -0.11031479966862309,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.2782134312928919,
+        "observed_sharpe": 0.027653466567267457,
+        "observed_sharpe_ann": 0.4389851725549722,
+        "sr0": 0.04048548781247462,
+        "n_trials": 258,
+        "n_trials_observed": 4,
+        "n_obs": 2139,
+        "skew": -0.5858074824754741,
+        "kurtosis": 8.742793513807504
+      },
+      "veto_rate": 0.05656934306569339,
+      "dd_neutral": true,
+      "precision_improved": false,
+      "gate_bites": true,
+      "adopt_eligible": false
+    },
+    "book_t_meta_055": {
+      "paired": {
+        "sharpe_base": 0.9228411779599239,
+        "sharpe_new": 0.5034509726923404,
+        "sharpe_delta": -0.4193902052675835,
+        "p_value_one_sided": 0.9788,
+        "ci_95_lower": -0.809799844984671,
+        "ci_95_upper": -0.017095512095752313,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.34347290960608723,
+        "observed_sharpe": 0.03171443026327388,
+        "observed_sharpe_ann": 0.5034509726923404,
+        "sr0": 0.04048548781247462,
+        "n_trials": 258,
+        "n_trials_observed": 4,
+        "n_obs": 2139,
+        "skew": -0.3454876141307435,
+        "kurtosis": 8.058783840443082
+      },
+      "veto_rate": 0.12226277372262773,
+      "dd_neutral": true,
+      "precision_improved": false,
+      "gate_bites": true,
+      "adopt_eligible": false
+    },
+    "book_t_meta_060": {
+      "paired": {
+        "sharpe_base": 0.9228411779599239,
+        "sharpe_new": 0.4815428056766469,
+        "sharpe_delta": -0.441298372283277,
+        "p_value_one_sided": 0.9834,
+        "ci_95_lower": -0.853640637744476,
+        "ci_95_upper": -0.042352410911749516,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.32005053485073975,
+        "observed_sharpe": 0.03033434546315976,
+        "observed_sharpe_ann": 0.4815428056766469,
+        "sr0": 0.04048548781247462,
+        "n_trials": 258,
+        "n_trials_observed": 4,
+        "n_obs": 2139,
+        "skew": -0.19178911204271962,
+        "kurtosis": 9.547488406877996
+      },
+      "veto_rate": 0.18430656934306566,
+      "dd_neutral": true,
+      "precision_improved": false,
+      "gate_bites": true,
+      "adopt_eligible": false
+    }
+  },
+  "decision": {
+    "winner": null
+  }
+}
