@@ -46,7 +46,7 @@ ENGINE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ENGINE_DIR))
 
 from apex_quant.ai.sentiment_filter import apply_deepseek_sentiment
-from apex_quant.config import get_config
+from apex_quant.config import get_config, load_config
 from apex_quant.data import clean, get_adapter
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.execution.mt4_executor import MT4Executor
@@ -448,10 +448,14 @@ def _is_ibkr_executor() -> bool:
 _resolved_setup_ids: set = set()
 
 # ── Bayesian Sizer Global Setup ──
+#: max_risk tracks config.yaml's `max_risk_per_trade` rather than a literal. RiskManager
+#: step 4 caps the Bayesian output at that value anyway, so a hardcoded ceiling above it was
+#: dead weight that would silently become live if the cap order ever changed. 2026-07-23:
+#: config moved 1.00% -> 0.75% and this did not follow it, which is exactly that hazard.
 _BAYESIAN_SIZER = BayesianRiskSizer(
     frac_kelly=0.25,
-    min_risk=0.005,
-    max_risk=0.02,
+    min_risk=min(0.005, get_config().risk.max_risk_per_trade),
+    max_risk=get_config().risk.max_risk_per_trade,
     max_drawdown=0.15,
     min_trades_for_adaptation=5  # adapt quickly using historical demo data
 )
@@ -466,9 +470,17 @@ def fetch_resolved_trades_for_equity():
         print(f"Error fetching resolved setups: {e}")
     return []
 
-def calculate_virtual_equity(trades, initial_equity=300000.0, risk_pct=0.01):
+def calculate_virtual_equity(trades, initial_equity=300000.0, risk_pct=None):
     """Compute virtual compounded equity from historical trade performance.
-    Defaults to $300k starting capital (three 100k accounts)."""
+    Defaults to $300k starting capital (three 100k accounts).
+
+    ``risk_pct`` defaults to the CURRENT configured ``max_risk_per_trade``. Note this is a
+    uniform-policy reconstruction ("what would this trade history be worth at today's
+    sizing"), NOT a historical replay — real sizing was 2% before 2026-07-19, 1% until
+    2026-07-23, 0.75% after. Pass an explicit value to reconstruct a specific regime.
+    """
+    if risk_pct is None:
+        risk_pct = get_config().risk.max_risk_per_trade
     equity = initial_equity
     peak_equity = initial_equity
     
@@ -1912,7 +1924,7 @@ def scan_single_asset(item, active_trades_map, corr_matrix=None):
                 risk_gbp = 0.0
                 if sl_ot and abs(price_ot - sl_ot) > 1e-6:
                     stop_dist_ot_gbp = abs(price_ot - sl_ot) * rate_ot
-                    risk_cap = 0.01 * live_equity
+                    risk_cap = cfg.risk.max_risk_per_trade * live_equity
                     units = risk_cap / stop_dist_ot_gbp if stop_dist_ot_gbp > 0 else 1000.0
                     if asset_class_ot == "forex":
                         units = min(units, 500000.0)
@@ -3002,8 +3014,13 @@ def main():
     # banner were NOT (they came from un-ledgered parameter sweeps that also pruned
     # the worst instruments after seeing their results), so they are not restored.
     if args.prop:
-        _BAYESIAN_SIZER.max_risk = 0.010
-        _BAYESIAN_SIZER.min_risk = 0.0050
+        # Read the firm rules from config.prop.yaml rather than restating them here, so the
+        # profile and the running sizer cannot drift apart. Prop mode deliberately keeps 1%
+        # per trade even though config.yaml is now 0.75% — that is the firm's contract, not
+        # this book's optimum, and it must NOT track config.yaml.
+        _prop = load_config(ENGINE_DIR / "config.prop.yaml")
+        _BAYESIAN_SIZER.max_risk = _prop.risk.max_risk_per_trade
+        _BAYESIAN_SIZER.min_risk = min(0.0050, _prop.risk.max_risk_per_trade)
         _BAYESIAN_SIZER.max_drawdown = 0.075
 
     # ── Startup Banner ──
