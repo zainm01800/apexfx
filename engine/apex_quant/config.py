@@ -284,6 +284,15 @@ class ZmqConfig(BaseModel):
 class ExecutionConfig(BaseModel):
     """Live execution settings. Off by default — paper/live only when enabled."""
     enabled: bool = False
+    # --- Background sync cadence (Supabase egress control) -------------------------
+    # The sync daemon used a hardcoded 5s loop that ALSO rebuilt lessons and symbol
+    # knowledge every pass — full-table reads 720x/hour. That is what exhausted the
+    # egress quota (HTTP 402), and because the loop retried regardless of the 402 it
+    # kept the project pinned in the restricted state. Fill detection needs to be
+    # timely; lesson/knowledge rebuilds do not.
+    sync_interval_s: int = 60          # trade/fill sync
+    knowledge_interval_s: int = 1800   # lesson + symbol-knowledge rebuild (expensive)
+    supabase_cooldown_s: int = 900     # breaker cooldown after a 402/429 (doubles per trip)
     # 2026-07-17: "ibkr" routes the live FX book to the IBKR paper account
     # (IBKRLiveBridge over IBKRExecutor); rollback = provider "mt4".
     provider: Literal["mt4", "mock", "zmq", "ibkr"] = "mt4"

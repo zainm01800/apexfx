@@ -47,6 +47,7 @@ sys.path.insert(0, str(ENGINE_DIR))
 
 from apex_quant.ai.sentiment_filter import apply_deepseek_sentiment
 from apex_quant.config import get_config, load_config
+from apex_quant.data import supabase_guard
 from apex_quant.data import clean, get_adapter
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.execution.mt4_executor import MT4Executor
@@ -327,6 +328,36 @@ ROBUST_CORE_PORTFOLIO_LEGACY = [
     {"instrument": "EUR/JPY", "style": "swing",    "timeframe": "1d"},
     {"instrument": "BTC/USD", "style": "scalp",    "timeframe": "15m"},
 ]
+
+#: THE CERTIFIED BOOK — "Book H + gold" (book_h_gold_252), 39 instruments, DAILY ONLY.
+#: This is the universe every gated figure in data_store/ describes (£587/mo, Sharpe 0.893,
+#: 12.0% forward p95 drawdown, ~11 trades/month at 0.75% risk). It is pinned in code, not
+#: read from config.yaml, because the research/scan universe there grows freely (95 symbols
+#: x 4 timeframes = 468 systems) and must never silently redefine what the live book trades.
+#: Changing this list is a new pre-registered experiment, not an edit.
+#:
+#: NOTE ON MATIC/USD: the gate scripts' universe list contains 40 names, but MATIC/USD had no
+#: cached 1d data at gate time, so only 39 instruments actually traded and every certified
+#: figure is a 39-instrument result. It is omitted here deliberately — exactly as
+#: run_paper_portfolio.py does via EXCLUDED — so that a future MATIC data fix cannot silently
+#: widen the live book past what was gated.
+BOOK_H_GOLD_39 = [
+    # equities + UCITS ETFs (21)
+    "AAPL", "MSFT", "NVDA", "META", "AMZN", "GOOGL", "TSLA", "AMD", "PLTR", "TSM",
+    "NFLX", "UBER", "ISWD.L", "ISDU.L", "ISDE.L", "XLK", "XLE", "XBI", "SMH", "SOXX",
+    "SGLD.L",
+    # crypto (11)
+    "BTC/USD", "ETH/USD", "SOL/USD", "BNB/USD", "XRP/USD", "ADA/USD", "AVAX/USD",
+    "DOGE/USD", "LINK/USD", "ARB/USD", "SUI/USD",
+    # fx majors (7)
+    "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
+]
+
+
+def build_book_portfolio() -> list[dict]:
+    """The certified book as scan items: 39 instruments, 1d only, swing style."""
+    return [{"instrument": s, "style": "swing", "timeframe": "1d"} for s in BOOK_H_GOLD_39]
+
 
 ROBUST_CORE_PORTFOLIO = _build_portfolio_from_configs()
 print(f"[INFO] Portfolio loaded: {len(ROBUST_CORE_PORTFOLIO)} systems active.")
@@ -2326,6 +2357,7 @@ def sync_mt4_trades(silent=False):
             if positions:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=positions)
                 if r.status_code not in (200, 201, 204):
+                    supabase_guard.note_response(r.status_code, cfg.execution.supabase_cooldown_s)
                     print(f"  [WARN] Failed to sync open positions to Supabase: {r.text}")
                 elif not silent:
                     print(f"  [INFO] Synced {len(positions)} open positions from MT4 to Supabase.")
@@ -2346,6 +2378,7 @@ def sync_mt4_trades(silent=False):
             if closed_trades:
                 r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_trades", headers=headers_upsert, json=closed_trades)
                 if r.status_code not in (200, 201, 204):
+                    supabase_guard.note_response(r.status_code, cfg.execution.supabase_cooldown_s)
                     print(f"  [WARN] Failed to sync closed history to Supabase: {r.text}")
                 elif not silent:
                     print(f"  [INFO] Synced {len(closed_trades)} closed history trades from MT4 to Supabase.")
@@ -2361,6 +2394,7 @@ def sync_mt4_trades(silent=False):
             account_data["updated_at"] = datetime.utcnow().isoformat()
             r = httpx.post(f"{SUPABASE_URL}/rest/v1/apex_mt4_account", headers=headers_upsert, json=[account_data])
             if r.status_code not in (200, 201, 204):
+                supabase_guard.note_response(r.status_code, cfg.execution.supabase_cooldown_s)
                 print(f"  [WARN] Failed to sync account info to Supabase: {r.text}")
             elif not silent:
                 print(f"  [INFO] Synced live MT4 account stats to Supabase.")
@@ -3046,32 +3080,63 @@ def run_once():
 _resolution_lock = threading.Lock()
 
 def start_mt4_sync_daemon():
-    """Start a background daemon thread to sync MT4 trades every 5 seconds."""
+    """Background execution-sync daemon.
+
+    Previously a hardcoded 5-second loop that ALSO rebuilt lessons and symbol knowledge on
+    every pass — full-table Supabase reads 720x/hour. That is what exhausted the egress quota
+    (HTTP 402), and because it retried regardless of the 402 it kept the project pinned in the
+    restricted state it was trying to escape.
+
+    Three changes: cadence is config-driven (default 60s, was 5s), the expensive
+    lesson/knowledge rebuild runs on its own much slower clock (default 30min), and a quota
+    breaker skips Supabase entirely while it is refusing us.
+    """
+    interval = max(5, int(getattr(cfg.execution, "sync_interval_s", 60)))
+    knowledge_every = max(interval, int(getattr(cfg.execution, "knowledge_interval_s", 1800)))
+
     def sync_loop():
-        print("[INFO] Background execution-sync daemon started.")
+        print(f"[INFO] Background execution-sync daemon started "
+              f"(sync {interval}s, knowledge rebuild {knowledge_every}s).")
+        last_knowledge = 0.0
+        was_blocked = False
         while True:
             try:
-                sync_mt4_trades(silent=True)
-                # Resolve closed setups and update lessons in real-time if lock is available
-                if _resolution_lock.acquire(blocking=False):
-                    try:
-                        if cfg.execution.provider == "ibkr":
-                            resolve_closed_ibkr_setups()
-                        else:
-                            resolve_closed_mt4_setups()
-                        from scripts.update_lessons import update_lessons
-                        update_lessons()
-                        # Keep symbol knowledge in sync
+                if supabase_guard.is_blocked():
+                    # Say it once per block, not once per cycle.
+                    if not was_blocked:
+                        print(f"  [SYNC] {supabase_guard.describe()} — pausing Supabase sync.")
+                        was_blocked = True
+                else:
+                    if was_blocked:
+                        print("  [SYNC] Supabase cooldown elapsed; resuming sync.")
+                        was_blocked = False
+
+                    sync_mt4_trades(silent=True)
+
+                    if _resolution_lock.acquire(blocking=False):
                         try:
-                            from scripts.build_symbol_knowledge import run as _refresh_knowledge
-                            _refresh_knowledge()
-                        except Exception:
-                            pass
-                    finally:
-                        _resolution_lock.release()
+                            if cfg.execution.provider == "ibkr":
+                                resolve_closed_ibkr_setups()
+                            else:
+                                resolve_closed_mt4_setups()
+
+                            # Lessons + symbol knowledge are full-table reads. They do not
+                            # need to keep pace with fill detection.
+                            now = time.time()
+                            if now - last_knowledge >= knowledge_every:
+                                last_knowledge = now
+                                from scripts.update_lessons import update_lessons
+                                update_lessons()
+                                try:
+                                    from scripts.build_symbol_knowledge import run as _refresh
+                                    _refresh()
+                                except Exception:
+                                    pass
+                        finally:
+                            _resolution_lock.release()
             except Exception:
                 pass
-            time.sleep(5)
+            time.sleep(interval)
 
     t = threading.Thread(target=sync_loop, daemon=True)
     t.start()
@@ -3082,6 +3147,10 @@ def main():
                         help="Prop Firm Mode: 1.00%% risk per trade, 7.5%% drawdown cap")
     parser.add_argument("--loop", action="store_true", help="Run the engine continuously in a loop")
     parser.add_argument("--interval", type=int, default=900, help="Scan interval in seconds (default: 900)")
+    parser.add_argument("--book", action="store_true",
+                        help="Trade ONLY the certified book (39 instruments, 1d) instead of "
+                             "the full research scan (95 symbols x 4 timeframes = 468 "
+                             "systems). This is the universe every gated figure describes.")
     parser.add_argument("--daily-stop", type=float, default=None, metavar="FRAC",
                         help="Enable the daily-loss stop at this fraction (e.g. 0.025) "
                              "WITHOUT adopting the rest of the prop profile. Blocks new "
@@ -3096,6 +3165,13 @@ def main():
     # config-backed; the CAGR and max-DD figures that previously appeared in this
     # banner were NOT (they came from un-ledgered parameter sweeps that also pruned
     # the worst instruments after seeing their results), so they are not restored.
+    if args.book:
+        # Replace the scan list in place — every consumer reads this module global.
+        global ROBUST_CORE_PORTFOLIO
+        ROBUST_CORE_PORTFOLIO[:] = build_book_portfolio()
+        print(f"[BOOK] Pinned to the certified book: {len(ROBUST_CORE_PORTFOLIO)} "
+              f"instruments, 1d only (was the full research scan).")
+
     if args.prop:
         # Read the firm rules from config.prop.yaml rather than restating them here, so the
         # profile and the running sizer cannot drift apart. Prop mode deliberately keeps 1%
