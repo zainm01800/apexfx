@@ -168,3 +168,27 @@ def test_adapter_delegates_to_the_shared_model():
 def test_invalid_parameters_are_rejected(kwargs):
     with pytest.raises(ValueError):
         ResidualMomentum(_panel(n_names=5), **kwargs)
+
+
+def test_misaligned_calendar_panel_raises_instead_of_scoring_nothing():
+    """Regression: a 7-day instrument mixed with 5-day instruments puts weekends into the
+    union index. Every 5-day name is NaN there, and a rolling window containing any NaN is
+    NaN — which produced all-NaN scores and a gate run with ZERO trades that read as
+    'the signal found nothing'. It must fail loudly instead.
+    """
+    panel = _panel(n_names=40)                       # business-day calendar
+
+    # One instrument trading every calendar day, as crypto does.
+    daily_idx = pd.date_range(IDX[0], IDX[-1], freq="D", tz="UTC")
+    rng = np.random.default_rng(5)
+    close = pd.Series(
+        100.0 * np.cumprod(1.0 + rng.normal(0.0005, 0.02, len(daily_idx))), index=daily_idx
+    )
+    panel["CRYPTO"] = pd.DataFrame(
+        {"open": close, "high": close * 1.01, "low": close * 0.99,
+         "close": close, "volume": 1_000.0},
+        index=daily_idx,
+    )
+
+    with pytest.raises(ValueError, match="misaligned"):
+        ResidualMomentum(panel, min_universe=10)

@@ -111,9 +111,18 @@ def build_panel(cfg, holdout) -> dict[str, pd.DataFrame]:
     live = closes.notna().sum(axis=1) >= MIN_NAMES
     if not live.any():
         raise SystemExit("no dates with a wide enough cross-section")
-    start = live.idxmax()
+
+    # Restrict to the DATES themselves, not merely to everything after the first one.
+    # Crypto trades 7 days a week, so the union index carries weekends on which every
+    # equity is NaN. A 252-bar rolling window containing any NaN evaluates to NaN, so
+    # leaving weekends in silently produced all-NaN scores for 71 of 73 instruments and
+    # a gate run with ZERO trades.
+    valid_idx = closes.index[live]
     keep = set(closes.columns)
-    return {k: v[v.index >= start] for k, v in panel.items() if k in keep}
+    return {
+        k: v.loc[v.index.intersection(valid_idx)]
+        for k, v in panel.items() if k in keep
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

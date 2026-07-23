@@ -125,6 +125,20 @@ class ResidualMomentum:
         # responsible for the volatility reduction — not the residualisation alone.
         self._scores = (pd.DataFrame(resid_cum) / rv.where(rv > 0)).sort_index()
 
+        # Fail LOUDLY on a misaligned panel. Mixing 7-day crypto with 5-day equities puts
+        # weekends in the union index; every equity is NaN there, and a rolling window
+        # containing any NaN evaluates to NaN. That silently produced all-NaN scores for
+        # 71 of 73 instruments and a gate run with ZERO trades, which looks like "the
+        # signal found nothing" rather than "the panel was never aligned".
+        dead = int(self._scores.isna().all().sum())
+        if dead > len(self._scores.columns) // 2:
+            raise ValueError(
+                f"residual momentum: {dead} of {len(self._scores.columns)} instruments have "
+                f"no valid score at any date. The panel is almost certainly misaligned — "
+                f"align all instruments onto a shared trading calendar (drop dates where the "
+                f"cross-section is not live) before constructing this model."
+            )
+
         ann_vol = np.log(close).diff().rolling(vol_window).std(ddof=1) * np.sqrt(252)
         self._ann_vol = ann_vol
         self._cache: dict[pd.Timestamp, dict] = {}
