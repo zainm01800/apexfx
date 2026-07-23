@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-07-22T22:41:48.447839+00:00",
+  "determinism_pass": true,
+  "prereg": "data_store/three_sleeve_portfolio_prereg.md",
+  "family": "three_sleeve_portfolio",
+  "grid_results": {
+    "three_sleeve_rpt050": {
+      "metrics": {
+        "sharpe": 0.8784426130772947,
+        "ann_return": 0.04410933885911764,
+        "ann_vol": 0.0502131137566256,
+        "max_drawdown": 0.07199818833322198,
+        "monthly_profit_gbp_100k": 367.5778238259804,
+        "monthly_ret_pct": 0.0036757782382598036,
+        "corr_trend_tom": 0.20674948165542384,
+        "corr_trend_crypto": 0.19974087025222736
+      },
+      "dsr": {
+        "dsr": 2.9840350501272638e-05,
+        "observed_sharpe": 0.055336683220101365,
+        "observed_sharpe_ann": 0.8784426130772948,
+        "sr0": 0.12662199897449034,
+        "n_trials": 6,
+        "n_trials_observed": 4,
+        "n_obs": 3217,
+        "skew": -0.13739000920873456,
+        "kurtosis": 9.687300142324956
+      },
+      "gate": {
+        "config": "three_sleeve_rpt050",
+        "passed": false,
+        "max_dd_pass": true,
+        "monthly_profit_pass": false,
+        "dsr_pass": false
+      }
+    },
+    "three_sleeve_rpt075": {
+      "metrics": {
+        "sharpe": 0.7262169326212035,
+        "ann_return": 0.044891053844754274,
+        "ann_vol": 0.06181493687116982,
+        "max_drawdown": 0.10810490665509864,
+        "monthly_profit_gbp_100k": 374.0921153729523,
+        "monthly_ret_pct": 0.003740921153729523,
+        "corr_trend_tom": 0.1965694864350723,
+        "corr_trend_crypto": 0.19820893686020288
+      },
+      "dsr": {
+        "dsr": 0.0004710267260660626,
+        "observed_sharpe": 0.04574736670475844,
+        "observed_sharpe_ann": 0.7262169326212035,
+        "sr0": 0.10467962087527778,
+        "n_trials": 6,
+        "n_trials_observed": 4,
+        "n_obs": 3217,
+        "skew": -0.3618211433843998,
+        "kurtosis": 9.740863275564625
+      },
+      "gate": {
+        "config": "three_sleeve_rpt075",
+        "passed": false,
+        "max_dd_pass": false,
+        "monthly_profit_pass": false,
+        "dsr_pass": false
+      }
+    },
+    "three_sleeve_rpt085": {
+      "metrics": {
+        "sharpe": 0.7266595521100798,
+        "ann_return": 0.04722195363992005,
+        "ann_vol": 0.06498497611817881,
+        "max_drawdown": 0.1144109857346681,
+        "monthly_profit_gbp_100k": 393.51628033266707,
+        "monthly_ret_pct": 0.003935162803326671,
+        "corr_trend_tom": 0.19127097222022527,
+        "corr_trend_crypto": 0.20335042668368025
+      },
+      "dsr": {
+        "dsr": 0.0004705011696427104,
+        "observed_sharpe": 0.04577524911173458,
+        "observed_sharpe_ann": 0.72665955211008,
+        "sr0": 0.10474342170145844,
+        "n_trials": 6,
+        "n_trials_observed": 4,
+        "n_obs": 3217,
+        "skew": -0.38775565840560855,
+        "kurtosis": 9.45257897509538
+      },
+      "gate": {
+        "config": "three_sleeve_rpt085",
+        "passed": false,
+        "max_dd_pass": false,
+        "monthly_profit_pass": false,
+        "dsr_pass": false
+      }
+    }
+  }
+}
