@@ -398,18 +398,49 @@ class SmartDataProvider:
         self.yahoo = get_adapter("yahoo")
         self.default_name = cfg.data.provider
 
+    #: A primary-source frame older than this is treated as unusable and Yahoo is tried
+    #: instead. Deliberately below the scan's own 36h "1d" staleness limit, so a stale
+    #: primary is replaced BEFORE the scan rejects the instrument outright.
+    STALE_AFTER_S = 30 * 3600
+
+    @staticmethod
+    def _age_seconds(df) -> float:
+        """Age of the newest bar, or +inf when that cannot be determined."""
+        try:
+            last = df.index[-1]
+            last = last.tz_localize("UTC") if last.tzinfo is None else last.tz_convert("UTC")
+            return (pd.Timestamp.now(tz="UTC") - last).total_seconds()
+        except Exception:                                        # noqa: BLE001
+            return float("inf")
+
     def get_history(self, instrument: str, start, end, timeframe):
         asset_class = cfg.asset_class_of(instrument)
         sym_clean = instrument.replace("_", "/")
-        # Try OANDA first for forex and crypto, fall back to Yahoo if OANDA returns no/stale data
-        if asset_class in ("forex", "crypto") and self.default_name == "oanda" and self.oanda is not None:
+
+        # Try the primary source for forex/crypto, then fall back to Yahoo.
+        #
+        # This used to accept ANY frame with >= 10 rows — checking row count but never
+        # freshness, despite the comment claiming "fall back if OANDA returns no/stale data".
+        # A populated-but-stale primary response was therefore returned intact, and the scan
+        # then rejected the instrument as stale, so the fallback that would have supplied
+        # fresh data never ran. Both conditions are now enforced.
+        if (asset_class in ("forex", "crypto") and self.default_name == "oanda"
+                and self.oanda is not None):
             try:
                 df = self.oanda.get_history(sym_clean, start, end, timeframe)
                 if df is not None and len(df) >= 10:
-                    return df
-                print(f"  [DATA] OANDA returned insufficient data for {instrument} ({timeframe}), falling back to Yahoo...")
+                    age = self._age_seconds(df)
+                    if age <= self.STALE_AFTER_S:
+                        return df
+                    print(f"  [DATA] OANDA data for {instrument} ({timeframe}) is stale "
+                          f"({age/3600:.1f}h) — trying Yahoo...")
+                else:
+                    print(f"  [DATA] OANDA returned insufficient data for {instrument} "
+                          f"({timeframe}), falling back to Yahoo...")
             except Exception as e:
-                print(f"  [DATA] OANDA failed for {instrument} ({timeframe}): {e} — falling back to Yahoo...")
+                print(f"  [DATA] OANDA failed for {instrument} ({timeframe}): {e} "
+                      f"— falling back to Yahoo...")
+
         # Fallback: Yahoo Finance (also primary for equities/ETFs/crypto)
         return self.yahoo.get_history(sym_clean, start, end, timeframe)
 
