@@ -131,6 +131,61 @@ found anywhere in ~40 tested configurations is **£703/month at 16.0% forward dr
 For a funded account the honest recommendation stays **0.50% with the overlay off**: the
 highest Sharpe (0.922), zero cap truncation, and a 0.8% chance of an 11% breach in a year.
 
+## 5c. BREADTH — the gap in the sizing frontier, and the session's most important result
+
+`scratch/frontier_breadth_slots.py` → `validation/frontier_breadth_slots.json`
+
+Every config above ran at `max_concurrent_trades=12`, `max_swing_slots=10`. The constraint log
+shows **`timeframe_bucket_full` firing 16,921 times** — the book is refusing entries it wanted
+to take, constantly. Grinold says IR ≈ IC·√breadth, so more slots should mean more Sharpe.
+
+**The opposite happens.**
+
+| risk/trade | slots | CAGR | Sharpe | fwd p95 DD | trades |
+|---|---|---|---|---|---|
+| 0.50% | **12/10 (today)** | 4.95% | **0.922** | **8.2%** | 1,694 |
+| 0.50% | 20/18 | 5.45% | 0.704 | 12.8% | 2,901 |
+| 0.50% | 30/28 | 3.61% | 0.460 | 14.8% | 3,671 |
+| 0.50% | 39/39 | 3.78% | 0.476 | 14.9% | 3,716 |
+| 0.75% | 12/10 | 7.05% | 0.893 | 12.0% | 1,694 |
+| 0.75% | 39/39 | 1.36% | 0.200 | 16.3% | 3,606 |
+
+**The extra trades unlocked by extra slots have negative edge.** Grinold's formula assumes IC
+is constant across bets; here it is not. The edge is concentrated in the top-ranked candidates
+and is *gone* — worse than gone — below that. The 12-slot cap has been acting as an accidental
+quality filter, and the EV slot allocator is what makes it work: it fills those 12 slots with
+the highest-expected-value candidates.
+
+This is the cleanest evidence yet that **the ceiling belongs to the signal, not the plumbing** —
+and it rules out "add more instruments / more positions" as a route to the target.
+
+## 6b. A like-for-like comparison I initially got wrong
+
+I dismissed the pandas toy's Sharpe as inflated by `rf=0` and zero costs. The `rf=0` half of
+that was **not** a valid criticism of the *comparison*: `compute_metrics` also uses
+`rets.mean()/rets.std()`, i.e. **the engine's Sharpe is an rf=0 number too**. On the same
+convention:
+
+| | Sharpe (rf=0) | costs |
+|---|---|---|
+| pandas toy | **1.269** | 2 bps per unit turnover |
+| engine, best config | 0.922 | real per-asset-class fills |
+
+The engine's cost model is genuinely applied — equity `(0.5×2.0 + 1.0)/1e4` ≈ **2 bps per
+fill, ~4 bps round trip**; crypto ~9 bps RT; forex on the per-pair v5 pips model. And the toy
+trades vastly more (2,218%/yr vs ~132 trades/yr). **So the toy pays far more in costs and
+still shows a higher Sharpe.**
+
+The 1.331 headline was still wrong, and the "£97,044 floor" still inverted. But the *portfolio
+construction* it used — continuous inverse-vol weights on rank-selected momentum, no stops,
+periodic rebalance — appears genuinely better than the engine's discrete entry/ATR-stop/target
+structure. That is a **structural** difference, and it is the one family this frontier never
+tested.
+
+**Mechanism worth noting:** Sharpe scales with √(fraction of time invested). The engine caps
+concurrent positions at 12 out of 39 instruments, so it is idle or partly idle much of the
+time, which depresses Sharpe by construction independently of signal quality.
+
 ## 7. What would actually move the needle
 
 Sizing is exhausted. Only these change Sharpe:
