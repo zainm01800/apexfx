@@ -16,12 +16,11 @@
 #   risk.max_portfolio_risk      0.065 -> 0.040  (firm daily-loss rule is 5%;
 #                                aggregated open risk must sit well under it)
 #   risk.drawdown_reducing_limit 0.10 -> 0.03    (de-risk ramp from 3% off peak)
-#   risk.drawdown_breaker        0.20 -> 0.055   (halt NEW positions at 5.5% off
-#                                peak — tightened from 6% by owner 2026-07-24.
-#                                From-peak is >= from-cycle-start whenever
+#   risk.drawdown_breaker        0.20 -> 0.06    (halt NEW positions at 6% off
+#                                peak. From-peak is >= from-cycle-start whenever
 #                                equity made a new high, so this halts AT OR
-#                                BEFORE the mandated -5.5%-from-cycle-start
-#                                stand-down — a 2.5% buffer over the firm's -8%
+#                                BEFORE the mandated -6%-from-cycle-start
+#                                stand-down — a 2% buffer over the firm's -8%
 #                                static floor)
 #
 # DECLARED BUT NOT ENFORCED (no engine knob exists as of 2026-07-22):
@@ -37,10 +36,10 @@ risk:
   max_risk_per_trade: 0.01
   max_portfolio_risk: 0.040
   drawdown_reducing_limit: 0.03
-  drawdown_breaker: 0.055   # halt NEW positions at 5.5% off peak (owner tightened from 6%
-                            # on 2026-07-24): from-peak >= from-cycle-start at any new high,
-                            # so this halts at or before the -5.5%-from-cycle-start
-                            # stand-down — a 2.5% buffer over the firm's -8% static floor
+  drawdown_breaker: 0.06    # halt NEW positions at 6% off peak: from-peak >=
+                            # from-cycle-start at any new high, so this halts at or before
+                            # the -6%-from-cycle-start stand-down — a 2% buffer over the
+                            # firm's -8% static floor
   # Daily-loss stop — now IMPLEMENTED (2026-07-23). Declared here since 2026-07-22 with no
   # engine support; RiskManager step 0.5 + the live loop's persisted session anchor now
   # enforce it. Set to 2.5% so a 3%-rule firm (e.g. FundedElite) has headroom; a 4%-rule
