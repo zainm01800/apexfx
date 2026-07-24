@@ -14,6 +14,7 @@ signal proposes; the risk layer disposes. The decision pipeline, in order:
   6. Vol-target ceiling        -> take the more conservative of risk- vs vol-size
   7. Gross exposure cap        -> book-level gross notional ceiling
   8. Correlation cluster cap   -> don't let correlated trades become one big bet
+  8.5 Per-position notional cap -> bound single-name gap-tail losses (optional)
   9. Min-position floor        -> round dust to zero
 
 Every binding rule is recorded in ``Position.constraints_applied`` and the maths
@@ -369,6 +370,17 @@ class RiskManager:
         )
         if capped:
             applied.append("max_correlated_exposure")
+
+        # 8.5. Per-position notional cap (2026-07-24, W3 pre-registered gate)
+        # Vol-scaled sizing reaches for large notional on low-vol names (the same
+        # 1% risk on a quiet mega-cap can be ~15% of equity in notional). Capping
+        # here — after every other cap — bounds single-name gap-tail losses; the
+        # final risk_fraction below shrinks with the notional, so a capped trade
+        # simply bets less, it is not re-levered back up.
+        notional_cap_pct = float(getattr(cfg, "max_position_notional_pct", 0.0) or 0.0)
+        if notional_cap_pct > 0.0 and notional > notional_cap_pct * account.equity:
+            notional = notional_cap_pct * account.equity
+            applied.append("max_position_notional")
 
         # 9. Min-position floor
         if notional <= cfg.min_position:
