@@ -235,6 +235,7 @@ class PortfolioBacktester:
         per_inst = {inst: {"n_trades": 0, "net_pnl": 0.0} for inst in instruments}
         constraint_log: dict[str, int] = defaultdict(int)
         eq_points: list[tuple[pd.Timestamp, float]] = []
+        total_borrow = 0.0
 
         for t in timeline:
             # Day's opening equity = last bar's close (daily bars: one bar == one session).
@@ -316,6 +317,21 @@ class PortfolioBacktester:
                 i = data[inst]["pos"].get(t)
                 if i is not None:
                     posd["last_px"] = float(data[inst]["close"][i])
+                    # Short-side financing (v5 cost-model correction, 2026-07-24):
+                    # borrow fee accrues per bar held on the mark-to-market short
+                    # notional. Off when the class's short_borrow_bps_annual is 0
+                    # (default — certified behaviour unchanged). Charged on the
+                    # entry bar, not on the exit bar (the position is gone by step
+                    # 3 on its exit day): a round trip of N bars pays N accruals.
+                    if posd["direction"] == Direction.SHORT:
+                        fee_bps = float(getattr(self._mech(inst), "short_borrow_bps_annual", 0.0) or 0.0)
+                        if fee_bps > 0.0:
+                            accrual = (posd["units"] * posd["last_px"] * (fee_bps / 1e4)
+                                       / self.cfg.bars_per_year(inst, posd["tf"]))
+                            eq -= accrual
+                            realized -= accrual
+                            posd["realized_pnl_total"] -= accrual
+                            total_borrow += accrual
                 eq += self._unrealized(posd, posd["last_px"])
             peak = max(peak, eq)
             eq_points.append((t, eq))
@@ -444,6 +460,7 @@ class PortfolioBacktester:
             index=pd.DatetimeIndex([ts for ts, _ in eq_points], name="timestamp"),
         )
         metrics = compute_metrics(equity_series, trades, periods_per_year)
+        metrics["short_borrow_fees_total"] = round(total_borrow, 2)
         return PortfolioResult(
             instruments=instruments, equity=equity_series, trades=trades, metrics=metrics,
             per_instrument=per_inst, constraint_log=dict(constraint_log),

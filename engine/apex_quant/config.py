@@ -116,6 +116,13 @@ class RiskConfig(BaseModel):
     max_tom_slots: int = 5
     max_crypto_xs_slots: int = 4
     max_portfolio_risk: float = 0.035
+    #: Per-position NOTIONAL cap as a fraction of equity (0.0 = disabled, the
+    #: certified behaviour). Vol-scaled sizing reaches for large notional on
+    #: low-vol names — the same 1% risk on a quiet mega-cap can be ~15%+ of
+    #: equity in notional, which is what a gap-through-stop tail loss eats.
+    #: Capped AFTER the vol-target/gross/correlation caps (step 8.5 of permit);
+    #: the position's risk_fraction shrinks with it (stop distance unchanged).
+    max_position_notional_pct: float = 0.0
 
     # --- Portfolio-level volatility targeting (book-wide risk scalar) ---------------
     # De-levers the ENTIRE book when the realised equity curve is running hotter than
@@ -190,6 +197,13 @@ class AssetClassConfig(BaseModel):
     cross_rt_cost_pips: float | None = None   # pips model: unlisted-cross RT default
     pair_rt_cost_pips: dict[str, float] = Field(default_factory=dict)
     pair_tf_rt_cost_pips: dict[str, dict[str, float]] = Field(default_factory=dict)
+    #: Annualised stock-borrow fee charged on SHORT notional, in basis points per
+    #: year, accrued per bar held (PortfolioBacktester mark-to-market loop). The
+    #: honest short-side financing leg the v5 cost model was missing: without it a
+    #: short costs nothing to carry while a long costs spread+slippage to open.
+    #: 0.0 = off (legacy/certified behaviour). Easy-to-borrow large caps run
+    #: ~25-75 bps/yr (IBKR benchmark + margin); 50 bps is the standard assumption.
+    short_borrow_bps_annual: float = 0.0
 
 
 class AssetClassesConfig(BaseModel):
