@@ -73,7 +73,7 @@ from apex_quant.regime.rule_based import RuleBasedRegime, regime_config_for  # n
 from apex_quant.storage._keys import service_or_anon_key  # noqa: E402
 from apex_quant.storage import paper_store  # noqa: E402
 
-SUPABASE_URL = "https://dtiuwllodzqpbwohzrgj.supabase.co"
+SUPABASE_URL = "https://cuvchjhaojhmxfgczndy.supabase.co"
 MEMORY_ENDPOINT = f"{SUPABASE_URL}/rest/v1/apex_research_memory"
 
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio" / "state.json"

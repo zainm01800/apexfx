@@ -13,7 +13,7 @@ import os
 
 from apex_quant.storage._keys import service_or_anon_key
 
-_SUPA_URL = os.environ.get("SUPABASE_URL", "https://dtiuwllodzqpbwohzrgj.supabase.co").rstrip("/")
+_SUPA_URL = os.environ.get("SUPABASE_URL", "https://cuvchjhaojhmxfgczndy.supabase.co").rstrip("/")
 _TABLE = f"{_SUPA_URL}/rest/v1/apex_backtests"
 
 

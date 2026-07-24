@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Migration: structured setup feature vector for meta-labeling / structural retrieval
--- Run once in Supabase dashboard → SQL Editor (project dtiuwllodzqpbwohzrgj).
+-- Run once in Supabase dashboard → SQL Editor (project cuvchjhaojhmxfgczndy).
 --
 -- Stores a compact normalised vector describing each scan's market structure
 -- (regime, trend, momentum, volatility, confluence, + verdict side/conviction).

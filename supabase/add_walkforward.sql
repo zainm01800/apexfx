@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Migration: walk-forward / out-of-sample backtest columns
--- Run once in Supabase dashboard → SQL Editor (project dtiuwllodzqpbwohzrgj).
+-- Run once in Supabase dashboard → SQL Editor (project cuvchjhaojhmxfgczndy).
 --
 -- Each backtest now also reports how the SAME fixed strategy did on a held-out
 -- recent slice of the data (70/30 split): the in-sample numbers always flatter a

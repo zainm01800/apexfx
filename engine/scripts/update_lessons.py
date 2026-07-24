@@ -13,8 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Load .env file from engine/ directory
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-SUPABASE_URL = "https://dtiuwllodzqpbwohzrgj.supabase.co"
-SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aXV3bGxvZHpxcGJ3b2h6cmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDAwODYsImV4cCI6MjA5NjA3NjA4Nn0.fxOdfqskMpwVYIP2aL1LbeSgOMFfv3223IjzM6ldi5k"
+SUPABASE_URL = "https://cuvchjhaojhmxfgczndy.supabase.co"
+SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM"
 MEMORY_ENDPOINT = f"{SUPABASE_URL}/rest/v1/apex_research_memory"
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 # llama-3.1-8b-instant: 500k TPM, much higher limit than 70b
@@ -449,7 +449,7 @@ _SLTP_TOL_PIPS = 0.1
 
 
 _MT4_TRADES_CACHE = None
-_MT4_TRADES_URL = ("https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades"
+_MT4_TRADES_URL = ("https://cuvchjhaojhmxfgczndy.supabase.co/rest/v1/apex_mt4_trades"
                    "?order=open_time.desc&limit=500")
 # Set to True before each lesson build, False after — forces a fresh MT4 fetch per
 # lesson so that stale cached data from earlier in a long batch run cannot corrupt
@@ -465,7 +465,7 @@ def _mt4_trades(headers: dict) -> list:
         _MT4_CACHE_NEEDS_REFRESH = False
         try:
             from apex_quant.storage.supabase_util import fetch_all_rows
-            url = f"https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades?order=open_time.desc&or=(ticket.neq.{int(time.time())})"
+            url = f"https://cuvchjhaojhmxfgczndy.supabase.co/rest/v1/apex_mt4_trades?order=open_time.desc&or=(ticket.neq.{int(time.time())})"
             _MT4_TRADES_CACHE = fetch_all_rows(url, headers)
         except Exception as e:
             print(f"  [WARN] Failed to fetch MT4 trades: {e}")
@@ -498,7 +498,7 @@ def _match_mt4_trade(setup: dict, headers: dict) -> dict | None:
     except (TypeError, ValueError):
         return None
 
-    url = ("https://dtiuwllodzqpbwohzrgj.supabase.co/rest/v1/apex_mt4_trades"
+    url = ("https://cuvchjhaojhmxfgczndy.supabase.co/rest/v1/apex_mt4_trades"
            "?order=open_time.desc&limit=500")
 
     # Fast path: the setup carries a real ticket (written at resolution time, when the

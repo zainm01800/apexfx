@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Migration: per-trade post-mortem "lesson"
--- Run once in Supabase dashboard → SQL Editor (project dtiuwllodzqpbwohzrgj).
+-- Run once in Supabase dashboard → SQL Editor (project cuvchjhaojhmxfgczndy).
 --
 -- When a scan resolves via the triple-barrier rule (tp_hit / sl_hit / expired) the
 -- app generates a short AI post-mortem: what the thesis got right or wrong and what

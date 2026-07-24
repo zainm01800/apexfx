@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv(ENGINE_DIR / ".env")
-url = os.getenv("SUPABASE_URL", "https://dtiuwllodzqpbwohzrgj.supabase.co")
+url = os.getenv("SUPABASE_URL", "https://cuvchjhaojhmxfgczndy.supabase.co")
 key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY", "")
 
 headers = {

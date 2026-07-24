@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Migration: trade "validity re-checks" (validations)
--- Run once in Supabase dashboard → SQL Editor (project dtiuwllodzqpbwohzrgj).
+-- Run once in Supabase dashboard → SQL Editor (project cuvchjhaojhmxfgczndy).
 --
 -- The History "Update" button re-runs the full analysis on an existing trade WITHOUT
 -- creating a new trade. Each re-check appends a record here describing whether the
