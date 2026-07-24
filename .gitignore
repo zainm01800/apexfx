@@ -34,3 +34,6 @@ engine/data_store/ibkr_mirror/
 engine/data_store/*.log
 engine/data_store/reports/
 engine/data_store/cot/
+
+# Claude agent worktrees (stray gitlink broke Actions checkout)
+.claude/
