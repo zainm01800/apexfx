@@ -125,6 +125,16 @@ DEFAULT_CLIENT_ID = 17
 #: connect() raises unless the gateway reports exactly this account.
 DEFAULT_ACCOUNT = "DUQ278370"
 
+#: Bound (seconds) applied to EVERY blocking ib_async request
+#: (accountSummary/positions/portfolio/order ops). ib_async's default
+#: ``RequestTimeout = 0`` waits forever: on 2026-07-24 the gateway accepted
+#: the API socket but never answered ``accountSummary()``, so all 15 live-scan
+#: workers blocked indefinitely inside ``IB._run`` and the scan never
+#: completed a cycle. With this set, a brain-dead gateway raises
+#: ``asyncio.TimeoutError`` instead, and callers fall back
+#: (``fetch_live_account_state``) rather than hanging the engine.
+REQUEST_TIMEOUT_S = 30.0
+
 #: G10 major currency legs. A BASE/QUOTE engine symbol whose legs are BOTH in
 #: this set maps to CASH/IDEALPRO (forex); any other BASE/QUOTE maps to
 #: CRYPTO/PAXOS. Classifies the frozen universe (7 FX majors + 11 crypto)
@@ -364,6 +374,9 @@ class IBKRExecutor:
             return self._account
         if self._ib is None:
             self._ib = _load_ib_async().IB()
+            # See REQUEST_TIMEOUT_S: bound every blocking request so a gateway
+            # that accepts the socket but never answers cannot hang the engine.
+            self._ib.RequestTimeout = REQUEST_TIMEOUT_S
         # Port fallback (restored 2026-07-22 — originally added in a Gemini session).
         # Tries the configured port first, then the common gateway/TWS ports, so a
         # gateway restarted on a different port does not silently halt the mirror.
