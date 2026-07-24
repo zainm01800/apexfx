@@ -49,8 +49,9 @@ git fetch origin -q
 if [ -n "$(git diff HEAD origin/main --stat)" ]; then
   echo "WARNING: content differs from origin/main after REST push"; git diff HEAD origin/main --stat | tail -5; exit 1
 fi
-# Fast-forward only: identical trees, so the working tree (and any uncommitted
-# tracked files like the trial ledger) is NOT touched. NEVER reset --hard here —
-# it once reverted the working-tree trial ledger to the committed count.
-git merge --ff-only origin/main -q
+# Pointer-only alignment: local and remote commits are siblings with identical
+# trees, so neither reset --hard (destroys uncommitted tracked files — it once
+# reverted the working-tree trial ledger) nor merge --ff-only (refuses sibling
+# branches) can be used. update-ref moves the branch ref and touches nothing else.
+git update-ref refs/heads/main origin/main
 echo "OK: local main now at $(git rev-parse --short HEAD) == origin/main"
