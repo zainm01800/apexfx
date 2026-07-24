@@ -16,8 +16,18 @@ must not kill a mirror run.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from dotenv import load_dotenv
+
 from apex_quant.storage._keys import service_or_anon_key
 from apex_quant.storage.supabase_store import _SUPA_URL
+
+# 2026-07-24: load engine/.env here (library level) so service_or_anon_key()
+# actually sees SUPABASE_SERVICE_KEY for EVERY caller — the mirror cron runs
+# without an exported env, so writes were falling back to anon and 401ing
+# against the new project's lockdown.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 ACCOUNT_TABLE = "apex_ibkr_account"
 POSITIONS_TABLE = "apex_ibkr_positions"
