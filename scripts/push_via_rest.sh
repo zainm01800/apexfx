@@ -11,15 +11,23 @@ REPO="zainm01800/apexfx"
 START="${1:-$(git rev-parse origin/main)}"
 
 api() {  # api METHOD PATH JSON  — retries on empty/non-JSON responses (flaky network)
-  local attempt resp
+  # Payloads go via a FILE (--data-binary @f): inline -d payloads get TLS-corrupted
+  # on this network (same failure class as the git packs above); gh api fails too.
+  local attempt resp payload=""
+  if [ -n "${3:-}" ]; then
+    payload="$(mktemp -t push_via_rest.XXXXXX.json)"
+    printf '%s' "$3" > "$payload"
+  fi
   for attempt in 1 2 3 4 5; do
     resp=$(curl -s -X "$1" -H "Authorization: token $TOKEN" -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/$REPO/$2" ${3:+-d "$3"})
+      "https://api.github.com/repos/$REPO/$2" ${payload:+--data-binary @"$payload"})
     if [ -n "$resp" ] && printf '%s' "$resp" | python3 -c "import sys,json;json.load(sys.stdin)" 2>/dev/null; then
+      [ -n "$payload" ] && rm -f "$payload"
       printf '%s' "$resp"; return 0
     fi
     sleep $((attempt * 2))
   done
+  [ -n "$payload" ] && rm -f "$payload"
   echo "API call failed after retries: $1 $2" >&2; return 1
 }
 
