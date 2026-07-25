@@ -1549,7 +1549,10 @@ function accStat(label, value, sub, cls) {
 // Scoreboard scope: 'all' = every scan (the full data the AI calibrates on),
 // 'mine' = only the user's own calls (auto-scan rows excluded).
 let _scoreScope = 'all';
-let _scoreLimit = 'all';
+// Scoreboard window: DEFAULT is the last 50 resolved calls (the "Last 50" pill is
+// rendered active on load); the user can still switch to All/Last 10/25/100/250/
+// Custom at any time — only the initial value changed.
+let _scoreLimit = '50';
 window.setScoreScope = function(s) { _scoreScope = s; renderGrid(false); };
 window.setScoreLimit = function(l) { _scoreLimit = l; renderGrid(false); };
 window.setScoreHours = function(h) { _filterHours = h; renderGrid(false); };
