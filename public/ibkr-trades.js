@@ -350,7 +350,10 @@ function renderDummyCard(pp, cls, sym) {
           <span class="ibkr-dummy-badge">ENGINE ONLY</span>
           ${dirBadge}
         </div>
-        <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="ibkr-chart-btn" data-chart-inst="${escHtml(inst)}" title="Daily chart with trade levels">CHART</button>
+          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+        </div>
       </div>
 
       <div class="ibkr-dummy-reason">${escHtml(reason)}</div>
@@ -574,7 +577,21 @@ function togglePositionChart(inst, btn) {
   closePositionChart(); // accordion: flip any chart-mode card back to stats
   if (wasChartMode) return; // CARD button on the chart face = swap back to stats
 
-  const p = _ibkrPositionsCache.find(x => String(x.instrument) === inst && x.asset_class === _ibkrClassFilter);
+  // Real account position first; engine-only dummies fall back to their paper
+  // row (entry_price -> avg_price, paper-mark P&L) so their charts work too.
+  let p = _ibkrPositionsCache.find(x => String(x.instrument) === inst && x.asset_class === _ibkrClassFilter);
+  let dummyPaper = null;
+  if (!p && _ibkrPaperMap[inst]) {
+    dummyPaper = _ibkrPaperMap[inst];
+    const e = num(dummyPaper.entry_price), l = num(dummyPaper.last_px), u = num(dummyPaper.units);
+    const lng = String(dummyPaper.direction || '').toLowerCase() !== 'short';
+    p = {
+      instrument: inst,
+      direction: dummyPaper.direction,
+      avg_price: dummyPaper.entry_price,
+      unrealized_pnl: (e !== null && l !== null && u !== null) ? (lng ? l - e : e - l) * u : null,
+    };
+  }
   if (!p) return;
 
   _openChartInst = inst;
@@ -603,17 +620,27 @@ function togglePositionChart(inst, btn) {
   if (target !== null) chips.push({ c: LEVEL_COLORS.target, label: `Target ${fmtPrice(target, cls)}` });
   if (oneR !== null) chips.push({ c: LEVEL_COLORS.oneR, label: `+1R ${fmtPrice(oneR, cls)}`, dashed: true });
 
+  // Dummy cards keep their identity on the chart face: ENGINE ONLY badge in
+  // the header and the block-reason pill under it (ghosted/dashed card chrome
+  // already applies — the face lives inside the same .ibkr-dummy-card).
+  const dummyBadge = dummyPaper ? '<span class="ibkr-dummy-badge">ENGINE ONLY</span>' : '';
+  const dummyNote = dummyPaper
+    ? `<div class="ibkr-dummy-reason" style="align-self: flex-start;">${escHtml(US_ETF_SET.has(inst.toUpperCase()) ? 'US ETF — blocked on IBKR (PRIIPs)' : 'not mirrored to IBKR')}</div>`
+    : '';
+
   const face = document.createElement('div');
   face.className = 'card-face-chart';
   face.innerHTML = `
     <div class="cf-head">
       <div class="cf-id">
         <strong class="cf-sym">${escHtml(inst)}</strong>
+        ${dummyBadge}
         ${dirBadge}
       </div>
       <span class="cf-pnl ${upnlCls}" title="Unrealized P&amp;L">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
       <button class="ibkr-chart-btn" data-chart-inst="${escHtml(inst)}" title="Back to position card">CARD</button>
     </div>
+    ${dummyNote}
     <div class="ibkr-chart-legend">${chips.map(ch => `<span class="ibkr-chart-chip${ch.dashed ? ' dashed' : ''}" style="--chip-color: ${ch.c}">${escHtml(ch.label)}</span>`).join('')}</div>
     <div class="ibkr-chart-box"></div>
     <div class="ibkr-chart-msg">Loading chart…</div>`;
