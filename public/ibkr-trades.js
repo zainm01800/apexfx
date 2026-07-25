@@ -410,9 +410,13 @@ function closePositionChart() {
   destroyChart();
   _openChartInst = null;
   if (!wrap) return;
-  const panel = wrap.querySelector('.ibkr-chart-panel');
-  if (panel) panel.remove();
   for (const b of wrap.querySelectorAll('.ibkr-chart-btn')) b.classList.remove('open');
+  // Collapse every panel (normally just one) via the grid-rows transition, then
+  // remove the element once the animation has finished.
+  for (const panel of wrap.querySelectorAll('.ibkr-chart-panel')) {
+    panel.classList.remove('open');
+    setTimeout(() => { if (panel.isConnected) panel.remove(); }, 360);
+  }
 }
 
 function restoreOpenChart() {
@@ -481,14 +485,17 @@ function togglePositionChart(inst, btn) {
   const panel = document.createElement('div');
   panel.className = 'ibkr-chart-panel';
   panel.innerHTML = `
-    <div class="ibkr-chart-head">
-      <div class="ibkr-chart-title">${escHtml(inst)} <span>· daily · last 90 bars</span></div>
-      <button class="ibkr-chart-close" data-chart-close title="Close chart">&times;</button>
-    </div>
-    <div class="ibkr-chart-legend">${chips.map(ch => `<span class="ibkr-chart-chip${ch.dashed ? ' dashed' : ''}" style="--chip-color: ${ch.c}">${escHtml(ch.label)}</span>`).join('')}</div>
-    <div class="ibkr-chart-box"></div>
-    <div class="ibkr-chart-msg">Loading chart…</div>`;
-  card.insertAdjacentElement('afterend', panel);
+    <div class="ibkr-chart-inner">
+      <div class="ibkr-chart-head">
+        <div class="ibkr-chart-title">${escHtml(inst)} <span>· daily · 90 bars</span></div>
+        <button class="ibkr-chart-close" data-chart-close title="Close chart">&times;</button>
+      </div>
+      <div class="ibkr-chart-legend">${chips.map(ch => `<span class="ibkr-chart-chip${ch.dashed ? ' dashed' : ''}" style="--chip-color: ${ch.c}">${escHtml(ch.label)}</span>`).join('')}</div>
+      <div class="ibkr-chart-box"></div>
+      <div class="ibkr-chart-msg">Loading chart…</div>
+    </div>`;
+  card.appendChild(panel); // chart lives INSIDE the card — card grows downward
+  requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('open')));
 
   const box = panel.querySelector('.ibkr-chart-box');
   const msg = panel.querySelector('.ibkr-chart-msg');
@@ -514,7 +521,7 @@ function togglePositionChart(inst, btn) {
 
     const chart = LightweightCharts.createChart(box, {
       width: box.clientWidth,
-      height: 300,
+      height: 240,
       layout: {
         background: { type: 'solid', color: 'transparent' },
         textColor: '#64748B',
