@@ -270,7 +270,7 @@ function renderClassTab() {
 function renderPositionsCards(positions, cls) {
   const wrap = document.getElementById('ibkrPositionsWrap');
   if (!wrap) return;
-  destroyChart(); // chart instance must die before innerHTML wipes its canvas
+  destroyAllCharts(); // chart instances must die before innerHTML wipes their canvases
 
   const sym = curSymbol();
   // Engine-only dummies: paper-book positions that never mirrored to IBKR
@@ -283,7 +283,7 @@ function renderPositionsCards(positions, cls) {
   setReconNote(positions.length, dummies.length);
 
   if (!positions.length && !dummies.length) {
-    _openChartInst = null; // no cards to restore onto
+    _openChartInsts.clear(); // no cards to restore onto
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
     return;
   }
@@ -293,7 +293,7 @@ function renderPositionsCards(positions, cls) {
   const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
   wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
     + dummies.map(r => renderDummyCard(r, cls, sym)).join('');
-  restoreOpenChart(); // re-expand the open chart (if any) after background refreshes
+  restoreOpenCharts(); // re-open every chart-mode card after background refreshes
 }
 
 // US equity ETFs a UK retail account can't trade at IBKR (PRIIPs KID rule).
@@ -498,51 +498,59 @@ function renderPositionCard(p, cls, sym, gross) {
 // (.card-face-stats) hides and a chart face (.card-face-chart) takes the same
 // footprint — compact header (instrument + direction + live P&L), level chips,
 // and a daily-candle chart filling the rest of the card. The button flips to
-// CARD to swap back. One chart-mode card at a time. Level lines: entry, stop,
-// target, and the +1R partial/breakeven trigger (direction-aware:
-// entry ± |entry − stop|). Chart view survives background refreshes:
-// renderPositionsCards destroys the canvas, then restoreOpenChart rebuilds the
-// face from cached bars with fresh levels — no refetch.
+// CARD to swap back. Any number of cards can be in chart view at once — each
+// toggle affects only its own card. Level lines: entry, stop, target, and the
+// +1R partial/breakeven trigger (direction-aware: entry ± |entry − stop|).
+// Chart views survive background refreshes: renderPositionsCards destroys all
+// canvases, then restoreOpenCharts rebuilds EVERY open card from cached bars
+// with fresh levels — no refetch.
 const CLASS_TO_CANDLE_TYPE = { stocks: 'Stock', forex: 'Forex', crypto: 'Crypto' };
 const LEVEL_COLORS = { entry: '#8EA3C8', stop: '#F87171', target: '#34D399', oneR: '#F5B04C' };
-let _openChartInst = null;  // instrument currently in chart view
-let _chartObj = null;       // live LightweightCharts instance
-let _chartRO = null;        // ResizeObserver tracking the chart box
-let _chartLabelScheduler = null; // window resize listener for label repositioning
-const _chartBarsCache = {}; // `${cls}|${inst}` -> daily bars
+const _openChartInsts = new Set(); // instruments currently in chart view
+const _charts = new Map();         // instrument -> { chart, series, ro, labelScheduler }
+const _chartBarsCache = {};        // `${cls}|${inst}` -> daily bars
 
-function destroyChart() {
-  if (_chartRO) { try { _chartRO.disconnect(); } catch (e) {} _chartRO = null; }
-  if (_chartObj) { try { _chartObj.remove(); } catch (e) {} _chartObj = null; }
-  if (_chartLabelScheduler) { window.removeEventListener('resize', _chartLabelScheduler); _chartLabelScheduler = null; }
-  window._ibkrChart = null;
-  window._ibkrSeries = null;
+function destroyChartFor(inst) {
+  const entry = _charts.get(inst);
+  if (!entry) return;
+  if (entry.ro) { try { entry.ro.disconnect(); } catch (e) {} }
+  if (entry.chart) { try { entry.chart.remove(); } catch (e) {} }
+  if (entry.labelScheduler) { try { window.removeEventListener('resize', entry.labelScheduler); } catch (e) {} }
+  if (window._ibkrChart === entry.chart) { window._ibkrChart = null; window._ibkrSeries = null; }
+  _charts.delete(inst);
 }
 
-function closePositionChart() {
-  const wrap = document.getElementById('ibkrPositionsWrap');
-  destroyChart();
-  _openChartInst = null;
-  if (!wrap) return;
-  // Flip every chart-mode card (normally just one) back to its stats face.
-  for (const card of wrap.querySelectorAll('.ibkr-pos-card.chart-mode')) {
-    card.classList.remove('chart-mode');
-    const face = card.querySelector('.card-face-chart');
-    if (face) face.remove();
-    const stats = card.querySelector('.card-face-stats');
-    if (stats) {
-      stats.classList.add('face-enter'); // quick fade back in
-      setTimeout(() => { if (stats.isConnected) stats.classList.remove('face-enter'); }, 220);
-    }
+function destroyAllCharts() {
+  for (const inst of [..._charts.keys()]) destroyChartFor(inst);
+}
+
+// Flip ONE chart-mode card back to its stats face (and destroy its chart).
+function flipCardToStats(card) {
+  const inst = card.dataset.instrument;
+  destroyChartFor(inst);
+  _openChartInsts.delete(inst);
+  card.classList.remove('chart-mode');
+  const face = card.querySelector('.card-face-chart');
+  if (face) face.remove();
+  const stats = card.querySelector('.card-face-stats');
+  if (stats) {
+    stats.classList.add('face-enter'); // quick fade back in
+    setTimeout(() => { if (stats.isConnected) stats.classList.remove('face-enter'); }, 220);
   }
 }
 
-function restoreOpenChart() {
-  if (!_openChartInst) return;
+// Re-open EVERY instrument in the open-set after a re-render (cached bars,
+// fresh levels). Instruments whose card vanished (closed / tab switch) drop
+// out of the set.
+function restoreOpenCharts() {
+  if (!_openChartInsts.size) return;
   const wrap = document.getElementById('ibkrPositionsWrap');
-  const btn = wrap && wrap.querySelector(`.ibkr-chart-btn[data-chart-inst="${CSS.escape(_openChartInst)}"]`);
-  if (!btn) { _openChartInst = null; return; } // instrument closed or tab switched
-  togglePositionChart(_openChartInst, btn);
+  if (!wrap) { _openChartInsts.clear(); return; }
+  for (const inst of [..._openChartInsts]) {
+    const btn = wrap.querySelector(`.ibkr-chart-btn[data-chart-inst="${CSS.escape(inst)}"]`);
+    if (!btn) { _openChartInsts.delete(inst); continue; }
+    togglePositionChart(inst, btn);
+  }
 }
 
 // Engine store-slug form (GBP_JPY, SOL_USD) -> slash form the candles API maps.
@@ -573,9 +581,9 @@ function togglePositionChart(inst, btn) {
   if (!wrap) return;
   const card = btn.closest('.ibkr-pos-card');
   if (!card) return;
-  const wasChartMode = card.classList.contains('chart-mode');
-  closePositionChart(); // accordion: flip any chart-mode card back to stats
-  if (wasChartMode) return; // CARD button on the chart face = swap back to stats
+  // CARD button on a chart-mode card = flip just this card back to stats.
+  // No accordion — any number of charts can be open at once.
+  if (card.classList.contains('chart-mode')) { flipCardToStats(card); return; }
 
   // Real account position first; engine-only dummies fall back to their paper
   // row (entry_price -> avg_price, paper-mark P&L) so their charts work too.
@@ -594,7 +602,7 @@ function togglePositionChart(inst, btn) {
   }
   if (!p) return;
 
-  _openChartInst = inst;
+  _openChartInsts.add(inst);
 
   const cls = _ibkrClassFilter;
   const isLong = String(p.direction || '').toLowerCase() !== 'short';
@@ -687,7 +695,6 @@ function togglePositionChart(inst, btn) {
       },
       localization: { priceFormatter: v => fmtPrice(v, cls) },
     });
-    _chartObj = chart;
 
     const series = chart.addCandlestickSeries({
       upColor: '#34D399', downColor: '#F87171',
@@ -780,18 +787,24 @@ function togglePositionChart(inst, btn) {
     // by all paths, always deferring two frames — nothing repositions inline.
     const scheduleLabelReposition = () =>
       requestAnimationFrame(() => requestAnimationFrame(positionLevelLabels));
-    _chartLabelScheduler = scheduleLabelReposition; // removed in destroyChart
     scheduleLabelReposition();
     ts.subscribeVisibleLogicalRangeChange(scheduleLabelReposition);
     window.addEventListener('resize', scheduleLabelReposition);
 
-    _chartRO = new ResizeObserver(() => {
-      if (_chartObj && box.isConnected) {
-        _chartObj.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
+    // Register this instance per instrument (destroyed via destroyChartFor on
+    // flip-back or destroyAllCharts on re-render — no canvas/listener leaks).
+    const chartEntry = { chart, series, ro: null, labelScheduler: scheduleLabelReposition };
+    _charts.set(inst, chartEntry);
+    window._ibkrChart = chart; // debug/verification hook — most recent chart
+    window._ibkrSeries = series;
+
+    chartEntry.ro = new ResizeObserver(() => {
+      if (box.isConnected) {
+        chart.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
         scheduleLabelReposition();
       }
     });
-    _chartRO.observe(box);
+    chartEntry.ro.observe(box);
   })();
 }
 

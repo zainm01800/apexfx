@@ -1144,12 +1144,12 @@ button.sc-btn { appearance: none; outline: none; }
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
 .card-face-stats.face-enter,
 .card-face-chart { animation: fadeIn .18s ease; }
-.card-face-chart { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; min-height: 0; }
+.card-face-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; min-height: 0; }
 .cf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; }
 .cf-id { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 .cf-sym { font-family: var(--mono); font-size: 17px; color: var(--text); }
 .cf-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; white-space: nowrap; }
-.ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; line-height: 1; }
+.ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; line-height: 1; align-items: center; }
 .ibkr-chart-chip {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 9px; letter-spacing: -0.02em; color: var(--text2);
@@ -1161,7 +1161,7 @@ button.sc-btn { appearance: none; outline: none; }
 .ibkr-lvl-label {
   position: absolute;
   left: 6px;
-  transform: translateY(-50%);
+  transform: translateY(calc(-100% - 2px));
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 700;
