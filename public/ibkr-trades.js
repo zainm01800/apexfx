@@ -496,7 +496,7 @@ function renderPositionCard(p, cls, sym, gross) {
 // ── Per-position chart face (two-face card) ──────────────────────────────────
 // CHART on a position card swaps the card's content IN PLACE: the stats face
 // (.card-face-stats) hides and a chart face (.card-face-chart) takes the same
-// footprint — compact header (instrument + direction + live P&L), level chips,
+// footprint — compact header (instrument + direction + live P&L), left-edge
 // and a daily-candle chart filling the rest of the card. The button flips to
 // CARD to swap back. Any number of cards can be in chart view at once — each
 // toggle affects only its own card. Level lines: entry, stop, target, and the
@@ -622,12 +622,6 @@ function togglePositionChart(inst, btn) {
     ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
     : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
 
-  const chips = [];
-  if (entry !== null) chips.push({ c: LEVEL_COLORS.entry, label: `Entry ${fmtPrice(entry, cls)}` });
-  if (stop !== null) chips.push({ c: LEVEL_COLORS.stop, label: `Stop ${fmtPrice(stop, cls)}` });
-  if (target !== null) chips.push({ c: LEVEL_COLORS.target, label: `Target ${fmtPrice(target, cls)}` });
-  if (oneR !== null) chips.push({ c: LEVEL_COLORS.oneR, label: `+1R ${fmtPrice(oneR, cls)}`, dashed: true });
-
   // Dummy cards keep their identity on the chart face: ENGINE ONLY badge in
   // the header and the block-reason pill under it (ghosted/dashed card chrome
   // already applies — the face lives inside the same .ibkr-dummy-card).
@@ -649,7 +643,6 @@ function togglePositionChart(inst, btn) {
       <button class="ibkr-chart-btn" data-chart-inst="${escHtml(inst)}" title="Back to position card">CARD</button>
     </div>
     ${dummyNote}
-    <div class="ibkr-chart-legend">${chips.map(ch => `<span class="ibkr-chart-chip${ch.dashed ? ' dashed' : ''}" style="--chip-color: ${ch.c}">${escHtml(ch.label)}</span>`).join('')}</div>
     <div class="ibkr-chart-box"></div>
     <div class="ibkr-chart-msg">Loading chart…</div>`;
   card.classList.add('chart-mode'); // hides .card-face-stats via CSS
@@ -704,11 +697,12 @@ function togglePositionChart(inst, btn) {
     });
     series.setData(bars);
 
-    // Level lines carry NO axis titles — the chips row above the chart already
-    // names + prices each level; the axis keeps only its price pills.
+    // Level lines carry NO axis chrome at all — no titles, no value pills on
+    // the right axis (axisLabelVisible: false). The left-edge overlay labels
+    // name each level; the axis keeps only the candle series' own labels.
     const LS = LightweightCharts.LineStyle;
     const mkLine = (price, color, style) =>
-      series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title: '' });
+      series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: false, title: '' });
     if (entry !== null) mkLine(entry, LEVEL_COLORS.entry, LS.Solid);
     if (stop !== null) mkLine(stop, LEVEL_COLORS.stop, LS.Solid);
     if (target !== null) mkLine(target, LEVEL_COLORS.target, LS.Solid);
@@ -766,7 +760,7 @@ function togglePositionChart(inst, btn) {
     const lvlLabels = lvlDefs.map(d => {
       const el = document.createElement('div');
       el.className = 'ibkr-lvl-label';
-      el.textContent = d.tag; // meaning only — values live in the legend chips
+      el.textContent = d.tag; // meaning only — no values on the chart
       el.style.color = d.color;
       box.appendChild(el);
       return { el, price: d.price };

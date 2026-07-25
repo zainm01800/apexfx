@@ -1149,27 +1149,21 @@ button.sc-btn { appearance: none; outline: none; }
 .cf-id { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 .cf-sym { font-family: var(--mono); font-size: 17px; color: var(--text); }
 .cf-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; white-space: nowrap; }
-.ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; line-height: 1; align-items: center; }
-.ibkr-chart-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--mono); font-size: 9px; letter-spacing: -0.02em; color: var(--text2);
-  white-space: nowrap; flex-shrink: 0;
-}
-.ibkr-chart-chip::before { content: ''; width: 10px; height: 0; border-top: 2px solid var(--chip-color, var(--text3)); }
-.ibkr-chart-chip.dashed::before { border-top-style: dashed; }
 .ibkr-chart-box { width: 100%; flex: 1; min-height: 0; position: relative; }
+/* Left-edge level labels: readable but quiet — solid dark pill, line-coloured
+   text, rides just above its line. Must stay legible over any candle. */
 .ibkr-lvl-label {
   position: absolute;
   left: 6px;
   transform: translateY(calc(-100% - 2px));
   font-family: var(--mono);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(11, 15, 25, 0.45);
-  opacity: 0.6;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(11, 15, 25, 0.85);
+  opacity: 0.92;
   pointer-events: none;
   z-index: 5;
   white-space: nowrap;
