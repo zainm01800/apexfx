@@ -789,6 +789,56 @@ button.sc-btn { appearance: none; outline: none; }
 .wl-btn.on { border-color: var(--orange); color: var(--orange); background: rgba(148, 163, 184, .06); }
 .wl-btn.del:hover { border-color: var(--red); color: var(--red); }
 
+/* ── Last 50 Trades (default view) ── */
+.trd-rec { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; }
+.trd-table-wrap { overflow-x: auto; }
+.trd-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.trd-table thead th {
+  text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .1em;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.02);
+}
+.trd-row { cursor: pointer; transition: background .15s; }
+.trd-row td {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.04);
+  font-size: 13px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.trd-row:last-child td { border-bottom: none; }
+.trd-row:hover td { background: rgba(56, 189, 248, 0.035); }
+.trd-row.win  { background: rgba(13,252,159,.03); }
+.trd-row.loss { background: rgba(255,42,133,.03); }
+.trd-sym { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
+.trd-type {
+  display: block; margin-top: 1px;
+  font-size: 9px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.trd-dir { font-size: 11px; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
+.trd-dir.long  { color: var(--green); }
+.trd-dir.short { color: var(--red); }
+.trd-cell { font-family: var(--mono); font-weight: 600; color: var(--text2); }
+.trd-sub { display: block; margin-top: 1px; font-size: 11px; font-weight: 400; color: var(--text3); }
+.trd-open { font-weight: 800; font-size: 11px; letter-spacing: .06em; color: var(--purple); }
+.trd-badge {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  padding: 3px 8px; border-radius: 5px; white-space: nowrap;
+}
+.trd-badge.win  { background: rgba(13,252,159,.12); color: var(--green); }
+.trd-badge.loss { background: rgba(255,42,133,.12); color: var(--red); }
+.trd-badge.open { background: rgba(56,189,248,.12); color: var(--purple); }
+.trd-badge.flat { background: rgba(148,163,184,.12); color: var(--orange); }
+.trd-pnl { font-family: var(--mono); font-weight: 700; color: var(--text2); }
+.trd-pnl.pos { color: var(--green); }
+.trd-pnl.neg { color: var(--red); }
+.trd-days { font-family: var(--mono); color: var(--text3); }
+
 /* ── Responsive ── */
 @media (max-width: 820px) {
   .acc-grid { grid-template-columns: repeat(3, 1fr); }
