@@ -934,3 +934,93 @@ button.sc-btn { appearance: none; outline: none; }
   /* match the sticky header's negative margins to the mobile body padding */
   .pv-head { margin: -18px -15px 4px; padding: 14px 15px 10px; padding-top: max(14px, env(safe-area-inset-top)); }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UI polish pass (2026-07-25) — stat cards, tabs, tables, IBKR showcase.
+   All rules are additive/overrides at the end of the cascade; no selectors
+   used by JS were renamed or removed.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Stat cards: subtle depth at rest, gentle lift + accent ring on hover ── */
+.hs-stat {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 60%), var(--card);
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.hs-stat:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(56, 189, 248, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Typography hierarchy: crisper values, quieter labels */
+.hs-val { letter-spacing: -0.01em; line-height: 1.15; }
+.hs-label { opacity: 0.8; }
+
+/* ── Tabs: match the nav-pill design language (tinted active, not solid) ── */
+.vt-btn { transition: color .15s, background .15s, box-shadow .15s; }
+.vt-btn:hover { background: rgba(255, 255, 255, 0.05); }
+.vt-btn.active {
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35), 0 2px 10px rgba(56, 189, 248, 0.12);
+}
+
+/* ── Filter pills: active state matches tabs/nav accent ── */
+.hf-pill.active {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+}
+
+/* ── Tables: banded header, row hover for scanability ── */
+.wl-table thead th { background: rgba(255, 255, 255, 0.02); }
+.wl-row { transition: background .15s; }
+.wl-row:hover td { background: rgba(56, 189, 248, 0.035); }
+
+/* ── IBKR Terminal showcase ──
+   The summary rows carry inline grid-template-columns, but .hist-summary sets
+   display:flex (which silently inerted them). Restore grid so the hero card's
+   grid-column span and the auto-fit columns actually work. */
+#ibkrSummary, #ibkrClassSummary, #mt4Summary { display: grid; }
+
+/* Left-aligned terminal stats read better next to their one-line captions */
+#ibkrSummary .hs-stat, #ibkrClassSummary .hs-stat { align-items: flex-start; text-align: left; }
+#ibkrSummary .hs-stat:hover, #ibkrClassSummary .hs-stat:hover { transform: none; }
+
+/* Hero ACCOUNT VALUE: the one number that matters — bigger, tighter, lit */
+#statNetLiq {
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  padding-top: 2px;
+  text-shadow: 0 0 28px rgba(56, 189, 248, 0.22);
+}
+
+/* Hero card: accent hairline along the top edge */
+#ibkrSummary > .hs-stat:first-child {
+  position: relative;
+  border-color: rgba(56, 189, 248, 0.22);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.05), rgba(255, 255, 255, 0) 55%), var(--card);
+}
+#ibkrSummary > .hs-stat:first-child::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 18px; right: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.65), transparent);
+}
+
+/* Position cards: hover lift + accent hairline reveal (class added by JS) */
+.ibkr-pos-card { position: relative; overflow: hidden; }
+.ibkr-pos-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.55), transparent);
+  opacity: 0;
+  transition: opacity .25s;
+}
+.ibkr-pos-card:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important; }
+.ibkr-pos-card:hover::before { opacity: 1; }
