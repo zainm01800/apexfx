@@ -2,7 +2,7 @@
 // Data comes from /api/ibkr (Supabase mirror pushed by engine/scripts/run_ibkr_mirror.py).
 // Asset class is derived server-side; this file stays dumb.
 
-let _ibkrClassFilter = 'forex'; // 'forex' | 'stocks' | 'crypto'
+let _ibkrClassFilter = 'stocks'; // 'forex' | 'stocks' | 'crypto'
 let _ibkrAccountCache = {};
 let _ibkrPositionsCache = [];
 let _ibkrTradesCache = [];
