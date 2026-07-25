@@ -711,20 +711,21 @@ function togglePositionChart(inst, btn) {
     // Autoscale fits candle data only — a stop/target beyond the bars' range
     // would be drawn off-screen. Anchor the price scale to the level extremes
     // with two FLAT transparent lines (one at the padded low, one at the
-    // padded high) so the extremes hold in ANY visible time window — a single
-    // diagonal two-point anchor only touches the extremes at its endpoints
-    // and lets far-away levels clip once the view is narrowed.
+    // padded high). The anchor gets a data point at EVERY bar: autoscale only
+    // counts a series' data points inside the visible window, so a two-point
+    // line silently drops out of autoscale whenever the user scrolls to a
+    // window containing neither endpoint — collapsing the price scale and
+    // detaching the level labels from their (now clipped) lines.
     const lvls = [entry, stop, target, oneR].filter(v => v !== null);
     if (lvls.length) {
       const span = Math.max(...lvls) - Math.min(...lvls);
       const pad = span > 0 ? span * 0.02 : Math.abs(lvls[0]) * 0.005 || 1; // hug the levels — the 330px card needs the vertical room
-      const t0 = bars[0].time, tN = bars[bars.length - 1].time;
       for (const v of [Math.min(...lvls) - pad, Math.max(...lvls) + pad]) {
         const anchor = chart.addLineSeries({
           color: 'rgba(0, 0, 0, 0)', lineWidth: 1,
           crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
         });
-        anchor.setData([{ time: t0, value: v }, { time: tN, value: v }]);
+        anchor.setData(bars.map(b => ({ time: b.time, value: v })));
       }
     }
 
@@ -732,12 +733,13 @@ function togglePositionChart(inst, btn) {
     // compact card — just enough air that no line glues to the frame edge.
     chart.priceScale('right').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
 
-    // Open on the recent ~58 bars so candles read at a comfortable size and
-    // the four levels sit clearly separated; the full 90-bar series stays
-    // scrollable — drag/scroll left for older bars.
+    // Default framing: the recent ~58 bars occupy roughly the LEFT HALF of the
+    // pane and the right half is open future space, so the trade's levels read
+    // against both history and the room price has left to move. The full
+    // 90-bar series stays scrollable — drag/scroll left for older bars.
     const ts = chart.timeScale();
     if (bars.length > 60) {
-      ts.setVisibleLogicalRange({ from: bars.length - 58, to: bars.length + 1 });
+      ts.setVisibleLogicalRange({ from: bars.length - 58, to: bars.length + 58 });
     } else {
       ts.fitContent();
     }
