@@ -403,11 +403,13 @@ const LEVEL_COLORS = { entry: '#8EA3C8', stop: '#F87171', target: '#34D399', one
 let _openChartInst = null;  // instrument currently in chart view
 let _chartObj = null;       // live LightweightCharts instance
 let _chartRO = null;        // ResizeObserver tracking the chart box
+let _chartLabelScheduler = null; // window resize listener for label repositioning
 const _chartBarsCache = {}; // `${cls}|${inst}` -> daily bars
 
 function destroyChart() {
   if (_chartRO) { try { _chartRO.disconnect(); } catch (e) {} _chartRO = null; }
   if (_chartObj) { try { _chartObj.remove(); } catch (e) {} _chartObj = null; }
+  if (_chartLabelScheduler) { window.removeEventListener('resize', _chartLabelScheduler); _chartLabelScheduler = null; }
   window._ibkrChart = null;
   window._ibkrSeries = null;
 }
@@ -643,18 +645,21 @@ function togglePositionChart(inst, btn) {
         el.style.top = `${Math.round(y)}px`;
       }
     };
-    positionLevelLabels();
-    requestAnimationFrame(positionLevelLabels);
-    // The visible-range event fires BEFORE the chart recomputes autoscale, so
-    // reading priceToCoordinate synchronously yields stale coordinates — defer
-    // the reposition two frames (the chart repaints on its own frame first).
-    ts.subscribeVisibleLogicalRangeChange(() =>
-      requestAnimationFrame(() => requestAnimationFrame(positionLevelLabels)));
+    // The chart recomputes its refit/autoscale on its own frame after EVERY
+    // one of these events (visible-range change, box refit, window resize), so
+    // a synchronous priceToCoordinate read would be stale. One scheduler, used
+    // by all paths, always deferring two frames — nothing repositions inline.
+    const scheduleLabelReposition = () =>
+      requestAnimationFrame(() => requestAnimationFrame(positionLevelLabels));
+    _chartLabelScheduler = scheduleLabelReposition; // removed in destroyChart
+    scheduleLabelReposition();
+    ts.subscribeVisibleLogicalRangeChange(scheduleLabelReposition);
+    window.addEventListener('resize', scheduleLabelReposition);
 
     _chartRO = new ResizeObserver(() => {
       if (_chartObj && box.isConnected) {
         _chartObj.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
-        positionLevelLabels();
+        scheduleLabelReposition();
       }
     });
     _chartRO.observe(box);
