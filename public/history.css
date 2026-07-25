@@ -1056,13 +1056,13 @@ button.sc-btn { appearance: none; outline: none; }
 #ibkrPositionsWrap { align-items: start; }
 
 /* Two-face position card: .card-face-stats and .card-face-chart share the
-   card's footprint — .chart-mode hides the stats face. The card height is
-   LOCKED to the stats face's natural height (330px incl. padding, measured at
-   desktop widths — its rows never wrap), so flipping to chart view does not
-   move any other card by a pixel. The chart face is a flex column whose box
-   flexes to fill exactly the remaining space. Entering faces fade in over
-   ~180ms (fadeIn keyframes from dashboard.css). */
+   card's footprint — .chart-mode hides the stats face. Stats mode stays locked
+   at 330px; chart mode grows the card to 480px for readability (the height
+   transition lives in the card's inline style; the chart box flex-fills and
+   the ResizeObserver refits it live during the grow). Entering faces fade in
+   over ~180ms (fadeIn keyframes from dashboard.css). */
 .ibkr-pos-card { height: 330px; }
+.ibkr-pos-card.chart-mode { height: 480px; }
 .card-face-stats { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
 .card-face-stats.face-enter,

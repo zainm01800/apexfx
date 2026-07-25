@@ -332,7 +332,7 @@ function renderPositionCard(p, cls, sym, gross) {
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
-    <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+    <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
       <div class="card-face-stats">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
