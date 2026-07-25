@@ -109,13 +109,25 @@
       </div>
       <div class="hist-summary" id="histSummary">
         <div class="hs-stat" id="hsStat0"><span class="hs-val">—</span><span class="hs-label">Total Scans</span></div>
-        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span><span class="hs-sub">last 50 trades</span></div>
-        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span><span class="hs-sub">last 50 trades</span></div>
-        <div class="hs-stat" id="hsStat5"><span class="hs-val accent">—</span><span class="hs-label">Open</span><span class="hs-sub">last 50 trades</span></div>
-        <div class="hs-stat" id="hsStat6"><span class="hs-val accent">—</span><span class="hs-label">Net P&amp;L</span><span class="hs-sub">last 50 trades</span></div>
-        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Win Rate</span><span class="hs-sub">last 50 trades</span></div>
-        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Average R:R</span><span class="hs-sub">last 50 trades</span></div>
+        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat5"><span class="hs-val accent">—</span><span class="hs-label">Open</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat6"><span class="hs-val accent">—</span><span class="hs-label">Net P&amp;L</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Win Rate</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Average R:R</span><span class="hs-sub">last 50 research calls</span></div>
       </div>
+    </div>
+
+    <!-- Cross-links: real account trades and paper proof live on their own pages -->
+    <div class="xlink-strip">
+      <a class="xlink-card" href="ibkr-trades.html">
+        <span class="xlink-text">Real trades &amp; live account</span>
+        <span class="xlink-dest">IBKR Terminal<span class="xlink-arrow">→</span></span>
+      </a>
+      <a class="xlink-card" href="progress.html">
+        <span class="xlink-text">Paper proof &amp; engine experiments</span>
+        <span class="xlink-dest">Progress<span class="xlink-arrow">→</span></span>
+      </a>
     </div>
 
     <!-- Forward paper test: the engine's frozen book, marked to market daily -->
@@ -173,6 +185,12 @@
         <button class="hf-pill" data-dir="neutral">⏸ Neutral</button>
         <button class="hf-pill hf-pill-toggle" id="hfManualOnly" title="Toggle between all scans and only the ones you ran manually">All scans</button>
       </div>
+    </div>
+
+    <!-- Section header: honest label — these are research calls, not account trades -->
+    <div class="rc-head" id="researchCallsHead">
+      <div class="rc-title">Research calls</div>
+      <div class="rc-sub">Analysis-layer setups graded on outcomes — simulated, not account trades. Your real trades live on the <a href="ibkr-trades.html">IBKR Terminal</a>.</div>
     </div>
 
     <!-- Loading state -->

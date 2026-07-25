@@ -84,6 +84,39 @@
   margin-top: -2px;
 }
 
+/* ── Cross-link strip (real trades / paper proof live on other pages) ── */
+.xlink-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.xlink-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 13px 18px;
+  text-decoration: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+  transition: border-color .2s;
+}
+.xlink-card:hover { border-color: rgba(56, 189, 248, 0.3); }
+.xlink-text { font-size: 12.5px; color: var(--text3); font-weight: 600; }
+.xlink-dest { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; transition: color .2s; }
+.xlink-card:hover .xlink-dest { color: var(--purple); }
+.xlink-arrow { color: var(--purple); margin-left: 5px; }
+
+/* ── "Research calls" section header above the scan grid ── */
+.rc-head { margin: 2px 0 14px; }
+.rc-title {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.rc-sub { font-size: 12.5px; color: var(--text3); margin-top: 3px; line-height: 1.5; }
+.rc-sub a { color: var(--purple); text-decoration: none; }
+.rc-sub a:hover { text-decoration: underline; }
+
 /* ── Filters ── */
 .hist-filters {
   display: flex;
@@ -662,6 +695,7 @@ button.sc-btn { appearance: none; outline: none; }
 .learn-r.neg { color: #f87171; }
 .learn-lesson { margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.05); font-size: 12px; line-height: 1.5; color: var(--text2); }
 .learn-lesson.none { color: var(--text3); font-style: italic; }
+.learn-toggle { background: var(--bg2); border: 1px solid var(--border); }
 @media (max-width: 720px) {
   .learn-main { grid-template-columns: 1fr 60px 52px 60px; }
   .learn-wr { display: none; }

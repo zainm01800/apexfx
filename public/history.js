@@ -1366,17 +1366,32 @@ function computeLearningBySetup(rows) {
   }).sort((a, b) => b.decided - a.decided || b.n - a.n);
 }
 
+// Small-n learning buckets (n < LEARN_MIN_N resolved calls) are noise — hidden by
+// default, revealed via the "show small samples" toggle in the panel header.
+const LEARN_MIN_N = 5;
+let _learnShowSmall = false;
+window.toggleLearnSmall = function() { _learnShowSmall = !_learnShowSmall; renderLearningPanel(); };
+
 function renderLearningPanel() {
   const el = document.getElementById('learnBoard');
   if (!el) return;
   const groups = computeLearningBySetup(getFilteredRowsForSummary());
-  const title = `<div class="acc-header"><div class="acc-title">🧠 Learning by setup</div></div>`;
+  const smallN  = groups.filter(g => g.n < LEARN_MIN_N).length;
+  const toggle  = smallN
+    ? `<button class="acc-scope-btn learn-toggle" onclick="toggleLearnSmall()" title="${_learnShowSmall ? 'Hide' : 'Show'} setup buckets with fewer than ${LEARN_MIN_N} resolved calls — too little data to mean anything">${_learnShowSmall ? 'Hide' : 'Show'} small samples · ${smallN}</button>`
+    : '';
+  const title = `<div class="acc-header"><div class="acc-title">🧠 Learning by setup</div>${toggle}</div>`;
   if (!groups.length) {
     el.innerHTML = `${title}<div class="acc-empty">No resolved calls in this selection yet — as trades hit their target or stop, they group here by asset · style · regime and show what actually works.</div>`;
     return;
   }
+  const visible = _learnShowSmall ? groups : groups.filter(g => g.n >= LEARN_MIN_N);
+  if (!visible.length) {
+    el.innerHTML = `${title}<div class="acc-empty">Only small-sample setups so far (n&lt;${LEARN_MIN_N} resolved calls each — not enough data to read into). ${smallN} bucket${smallN === 1 ? '' : 's'} hidden — hit “Show small samples” to peek anyway.</div>`;
+    return;
+  }
   const MAX_GROUPS = 8;
-  const shown = groups.slice(0, MAX_GROUPS);
+  const shown = visible.slice(0, MAX_GROUPS);
   const rowsHtml = shown.map(g => {
     const wrCls = g.winRate == null ? '' : g.winRate >= 50 ? 'pos' : 'neg';
     const rCls  = g.avgR == null ? '' : g.avgR > 0 ? 'pos' : g.avgR < 0 ? 'neg' : '';
@@ -1396,11 +1411,14 @@ function renderLearningPanel() {
       ${lesson}
     </div>`;
   }).join('');
-  const decidedTotal = groups.reduce((s, g) => s + g.decided, 0);
-  const more = groups.length > shown.length ? ` · +${groups.length - shown.length} smaller-sample group${groups.length - shown.length === 1 ? '' : 's'} hidden` : '';
+  const decidedTotal = visible.reduce((s, g) => s + g.decided, 0);
+  const more = visible.length > shown.length ? ` · +${visible.length - shown.length} more group${visible.length - shown.length === 1 ? '' : 's'} not shown` : '';
+  const smallNote = (!_learnShowSmall && smallN)
+    ? ` ${smallN} small-sample bucket${smallN === 1 ? '' : 's'} (n&lt;${LEARN_MIN_N}) hidden by default — toggle above to reveal.`
+    : '';
   el.innerHTML = `${title}
     <div class="learn-rows">${rowsHtml}</div>
-    <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}. Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
+    <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}.${smallNote} Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
 }
 
 // ── Last-50-trades window (the headline stats' basis) ──────────────────────
@@ -1563,12 +1581,13 @@ function renderScoreboard() {
       <span class="acc-rel-n">n=${s.n}</span>
     </div>`;
   }).join('');
-  const valPanel = `<div class="acc-rel">
+  // Re-check signal panel: only rendered when re-checked trades have actually
+  // resolved — the empty state was noise. data-panel hook kept for re-enabling.
+  const valPanel = vr.total ? `<div class="acc-rel" data-panel="recheck-signal">
     <div class="acc-rel-title">🔁 Re-check signal — does a re-validation predict the outcome?</div>
-    ${vr.total ? `<div class="acc-rel-rows">${vrRows}</div>
-      <div class="acc-rel-foot">Of re-checked trades that have since resolved, how the LAST re-check's read lined up with reality. A high "Weakening → hit stop" rate means the Update button is a real early-warning — and that signal now shows on each re-checked card.</div>`
-      : `<div class="acc-rel-foot">No re-checked trades have resolved yet. Once a trade you hit <strong>Update</strong> on closes (TP or SL), this learns whether "weakening/invalidated" flags actually predict losses — and starts annotating re-checks with that track record.</div>`}
-  </div>`;
+    <div class="acc-rel-rows">${vrRows}</div>
+      <div class="acc-rel-foot">Of re-checked trades that have since resolved, how the LAST re-check's read lined up with reality. A high "Weakening → hit stop" rate means the Update button is a real early-warning — and that signal now shows on each re-checked card.</div>
+  </div>` : '';
 
   let profVal = 'BREAKEVEN';
   let profSub = '0.00 R';
@@ -1639,6 +1658,8 @@ function setView(view) {
   document.querySelector('.hist-filters').style.display = isScans ? '' : 'none';
   document.getElementById('scanGrid').style.display     = isScans ? '' : 'none';
   document.getElementById('accBoard').style.display     = isScans ? '' : 'none';
+  const rcHead = document.getElementById('researchCallsHead');
+  if (rcHead) rcHead.style.display = isScans ? '' : 'none';
   const empty = document.getElementById('histEmpty');
   if (empty && !isScans) empty.style.display = 'none';
   document.getElementById('watchlistView').style.display = isScans ? 'none' : '';
