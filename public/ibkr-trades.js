@@ -507,15 +507,15 @@ function renderPositionCard(p, cls, sym, gross) {
 const CLASS_TO_CANDLE_TYPE = { stocks: 'Stock', forex: 'Forex', crypto: 'Crypto' };
 const LEVEL_COLORS = { entry: '#8EA3C8', stop: '#F87171', target: '#34D399', oneR: '#F5B04C' };
 const _openChartInsts = new Set(); // instruments currently in chart view
-const _charts = new Map();         // instrument -> { chart, series, ro, labelScheduler }
+const _charts = new Map();         // instrument -> { chart, series, ro, rafId }
 const _chartBarsCache = {};        // `${cls}|${inst}` -> daily bars
 
 function destroyChartFor(inst) {
   const entry = _charts.get(inst);
   if (!entry) return;
+  if (entry.rafId) { try { cancelAnimationFrame(entry.rafId); } catch (e) {} }
   if (entry.ro) { try { entry.ro.disconnect(); } catch (e) {} }
   if (entry.chart) { try { entry.chart.remove(); } catch (e) {} }
-  if (entry.labelScheduler) { try { window.removeEventListener('resize', entry.labelScheduler); } catch (e) {} }
   if (window._ibkrChart === entry.chart) { window._ibkrChart = null; window._ibkrSeries = null; }
   _charts.delete(inst);
 }
@@ -777,19 +777,16 @@ function togglePositionChart(inst, btn) {
         el.style.top = `${Math.round(y)}px`;
       }
     };
-    // The chart recomputes its refit/autoscale on its own frame after EVERY
-    // one of these events (visible-range change, box refit, window resize), so
-    // a synchronous priceToCoordinate read would be stale. One scheduler, used
-    // by all paths, always deferring two frames — nothing repositions inline.
-    const scheduleLabelReposition = () =>
-      requestAnimationFrame(() => requestAnimationFrame(positionLevelLabels));
-    scheduleLabelReposition();
-    ts.subscribeVisibleLogicalRangeChange(scheduleLabelReposition);
-    window.addEventListener('resize', scheduleLabelReposition);
-
-    // Register this instance per instrument (destroyed via destroyChartFor on
-    // flip-back or destroyAllCharts on re-render — no canvas/listener leaks).
-    const chartEntry = { chart, series, ro: null, labelScheduler: scheduleLabelReposition };
+    // Frame-perfect tracking: a rAF loop re-reads priceToCoordinate for every
+    // label on EVERY frame the chart lives (4 cheap calls/label), so labels
+    // stay glued to their lines even mid-drag/mid-zoom — no event lag at all.
+    // rAF pauses in hidden tabs; the loop is cancelled in destroyChartFor.
+    const chartEntry = { chart, series, ro: null, rafId: null };
+    const labelLoop = () => {
+      positionLevelLabels();
+      chartEntry.rafId = requestAnimationFrame(labelLoop);
+    };
+    chartEntry.rafId = requestAnimationFrame(labelLoop);
     _charts.set(inst, chartEntry);
     window._ibkrChart = chart; // debug/verification hook — most recent chart
     window._ibkrSeries = series;
@@ -797,7 +794,6 @@ function togglePositionChart(inst, btn) {
     chartEntry.ro = new ResizeObserver(() => {
       if (box.isConnected) {
         chart.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
-        scheduleLabelReposition();
       }
     });
     chartEntry.ro.observe(box);
