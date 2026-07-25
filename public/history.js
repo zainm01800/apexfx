@@ -896,7 +896,6 @@ function renderGrid(resetCount = true) {
   updateSummary(); // keep stats reactive
   renderScoreboard(); // keep scoreboard reactive
   renderLearningPanel(); // keep the learning-by-setup panel reactive
-  renderTradesBoard(); // keep the default Last-50-Trades view reactive
   
   if (resetCount) {
     _visibleCardCount = 40;
@@ -1404,21 +1403,17 @@ function renderLearningPanel() {
     <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}. Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
 }
 
-// ── Last 50 Trades (the page's DEFAULT view) ───────────────────────────────
-// The engine's newest directional setups as flat trade rows: instrument, direction,
-// entry date/price, exit date/price (or OPEN), outcome (win/loss/open), P&L in R,
-// days held. Source: apex_research_memory via the same _allRows feed the rest of
-// the page uses — the executed-fill tables (apex_ibkr_trades / apex_mt4_trades) and
-// the paper book's closed-trade log are all currently EMPTY, so the engine's
-// tracked setups (pending = OPEN, tp_hit/sl_hit = closed) are the closest existing
-// trade record. Only verdictKind==='trade' rows count — WAIT / AVOID / NO_EDGE
-// verdicts are explicitly not trades. Always rendered (both views), never filtered
-// by the scan-history pills below; TRADES_LIMIT is exactly 50, newest first.
+// ── Last-50-trades window (the headline stats' basis) ──────────────────────
+// The headline stat cards compute over the engine's newest 50 directional
+// setups: apex_research_memory rows where verdictKind==='trade' (WAIT / AVOID /
+// NO_EDGE verdicts are explicitly not trades), newest first. Source note: the
+// executed-fill tables (apex_ibkr_trades / apex_mt4_trades) and the paper book's
+// closed-trade log are all currently EMPTY, so the engine's tracked setups
+// (pending = open, tp_hit/sl_hit = closed) are the closest existing trade record.
 const TRADES_LIMIT = 50;
 
-// THE shared last-50-trades window: rows where the verdict is an actual
-// directional trade, newest first, capped at exactly 50. Both the trades board
-// AND the headline stat cards compute over this set, so the two never diverge.
+// THE shared last-50-trades window — the headline stat cards compute over
+// exactly this set, independent of the page's filter state.
 function last50Trades() {
   return _allRows
     .filter(r => verdictKind(r.verdict) === 'trade')
@@ -1451,91 +1446,6 @@ function _trdPnl(row, exit) {
   if (risk > 0) return { r: sign * (exit - entry) / risk };
   if (entry !== 0) return { pct: sign * (exit - entry) / Math.abs(entry) * 100 };
   return null;
-}
-
-function _trdPnlText(pnl, open) {
-  if (!pnl) return { txt: '—', cls: '' };
-  let txt, cls;
-  if (pnl.r != null) {
-    txt = (pnl.r > 0 ? '+' : '') + pnl.r.toFixed(2) + 'R';
-    cls = pnl.r > 0 ? 'pos' : pnl.r < 0 ? 'neg' : '';
-  } else {
-    txt = (pnl.pct > 0 ? '+' : '') + pnl.pct.toFixed(1) + '%';
-    cls = pnl.pct > 0 ? 'pos' : pnl.pct < 0 ? 'neg' : '';
-  }
-  if (open) txt = `(${txt})`;   // parentheses = unrealized, marked to the last close
-  return { txt, cls };
-}
-
-function _trdOutcome(row) {
-  const o = row.outcome || 'pending';
-  if (o === 'pending')     return { cls: 'open', txt: 'OPEN' };
-  if (o === 'tp_hit')      return { cls: 'win',  txt: 'WIN' };
-  if (o === 'sl_hit')      return { cls: 'loss', txt: 'LOSS' };
-  if (o === 'ambiguous')   return { cls: 'flat', txt: '⚖️ AMB' };
-  if (o === 'expired')     return { cls: 'flat', txt: '⏱ EXP' };
-  if (o === 'invalidated') return { cls: 'flat', txt: row.filled_at ? 'CLOSED' : 'CXL' };
-  return { cls: 'flat', txt: String(o).toUpperCase() };
-}
-
-function renderTradesBoard() {
-  const el = document.getElementById('tradesBoard');
-  if (!el) return;
-
-  const trades = last50Trades();
-
-  // Header record line: W/L + net R across the closed trades in the window.
-  let w = 0, l = 0, netR = 0, netKnown = false;
-  for (const r of trades) {
-    if (r.outcome === 'tp_hit') w++;
-    else if (r.outcome === 'sl_hit') l++;
-    if (r.outcome == null || r.outcome === 'pending') continue;
-    const p = _trdPnl(r, _trdExit(r));
-    if (p && p.r != null) { netR += p.r; netKnown = true; }
-  }
-  const nOpen = trades.filter(r => r.outcome == null || r.outcome === 'pending').length;
-  const rec = (w + l) > 0
-    ? `<span class="trd-rec" title="Closed trades in this window: wins · losses · net R (1R = the initial risk from entry to stop)">${w}W · ${l}L${netKnown ? ` · net ${netR > 0 ? '+' : ''}${netR.toFixed(2)}R` : ''}</span>`
-    : '';
-  const head = `<div class="acc-header"><div class="acc-title">🧾 Last 50 Trades <span class="pp-book">engine track record · newest first${nOpen ? ` · ${nOpen} open` : ''}</span></div>${rec}</div>`;
-
-  if (!trades.length) {
-    el.innerHTML = `${head}<div class="acc-empty">No trades yet — when the engine takes a directional setup (a BUY or SHORT call with entry, stop and target) it lands here, newest first. Non-trade verdicts (WAIT / AVOID / NO_EDGE) never count as trades.</div>`;
-    return;
-  }
-
-  const rowsHtml = trades.map(row => {
-    const open = (row.outcome == null || row.outcome === 'pending');
-    const dir  = verdictDir(row.verdict);
-    const oc   = _trdOutcome(row);
-    const exit = open ? (_livePx[row.symbol] ?? null) : _trdExit(row);
-    const pnl  = _trdPnlText(_trdPnl(row, exit), open);
-
-    const entryDate = row.analysis_date || (rowTs(row) ? new Date(rowTs(row)).toISOString().slice(0, 10) : '—');
-    const exitDate  = !open && row.outcome_date ? String(row.outcome_date).slice(0, 10) : '';
-    const endTs     = open ? Date.now() : (Date.parse(row.outcome_date) || rowTs(row));
-    const days      = Math.max(0, (endTs - rowTs(row)) / 86400000);
-    const daysTxt   = days < 1 ? '&lt;1d' : Math.round(days) + 'd';
-
-    return `<tr class="trd-row ${oc.cls}" data-action="preview" data-id="${escHtml(row.id)}" title="Open the full analysis behind this trade">
-      <td><span class="trd-sym">${escHtml(row.symbol)}</span><span class="trd-type">${escHtml(row.asset_type || '')}</span></td>
-      <td><span class="trd-dir ${dir}">${dir === 'short' ? '▼ SHORT' : dir === 'long' ? '▲ LONG' : '—'}</span></td>
-      <td class="trd-cell" title="Scanned ${escHtml(fmtDateTime(row))}">${escHtml(entryDate)}<span class="trd-sub">@ ${fmtPrice(row.price)}</span></td>
-      <td class="trd-cell"${exitDate ? ` title="Resolved ${escHtml(fmtOutcomeDateTime(row.outcome_date))}"` : ''}>${open ? '<span class="trd-open">OPEN</span>' : escHtml(exitDate || '—')}${open ? '' : `<span class="trd-sub">@ ${exit != null ? fmtPrice(exit) : '—'}</span>`}</td>
-      <td><span class="trd-badge ${oc.cls}">${oc.txt}</span></td>
-      <td><span class="trd-pnl ${pnl.cls}"${open ? ' title="Unrealized — marked to the last fetched close"' : ''}>${pnl.txt}</span></td>
-      <td class="trd-days" title="${open ? 'Days since entry (still open)' : 'Days from entry to exit'}">${daysTxt}</td>
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `${head}
-    <div class="trd-table-wrap"><table class="trd-table">
-      <thead><tr>
-        <th>Instrument</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Outcome</th><th>P&amp;L</th><th>Held</th>
-      </tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table></div>
-    <div class="acc-rel-foot">The newest 50 directional setups the engine has taken (apex_research_memory), newest first — the executed-fill tables (IBKR / MT4) and the paper book's closed-trade log are empty, so this is the live trade record. OPEN rows mark P&amp;L to the last close (parentheses = unrealized); 1R = the initial risk from entry to stop. Click a row for the full analysis.</div>`;
 }
 
 function accStat(label, value, sub, cls) {
@@ -2028,10 +1938,10 @@ async function reloadScans() {
     _allRows = await fetchAllScans();
     indexRows();
     _lastScanLoad = Date.now();
-    updateSummary(); renderScoreboard(); renderTradesBoard(); if (_currentView === 'scans') renderGrid();
+    updateSummary(); renderScoreboard(); if (_currentView === 'scans') renderGrid();
     resolveIfPending(_allRows)
       .then(() => generateLessons(_allRows))
-      .then(() => { indexRows(); updateSummary(); renderScoreboard(); renderTradesBoard(); if (_currentView === 'scans') renderGrid(); })
+      .then(() => { indexRows(); updateSummary(); renderScoreboard(); if (_currentView === 'scans') renderGrid(); })
       .catch(() => {});
     loadOpenTradePrices();
   } catch {}
@@ -2401,7 +2311,6 @@ async function init() {
         indexRows();
         updateSummary();
         renderScoreboard();
-        renderTradesBoard();
         if (_currentView === 'scans') renderGrid();
       }).catch(() => {});
 
