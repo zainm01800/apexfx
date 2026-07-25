@@ -108,15 +108,19 @@
         <p class="hist-subtitle">Every AI analysis you've run — with live outcome tracking.</p>
       </div>
       <div class="hist-summary" id="histSummary">
-        <div class="hs-stat" id="hsStat0"><span class="hs-val">—</span><span class="hs-label">Total Scans</span></div>
-        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span><span class="hs-sub">last 50 research calls</span></div>
-        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span><span class="hs-sub">last 50 research calls</span></div>
-        <div class="hs-stat" id="hsStat5"><span class="hs-val accent">—</span><span class="hs-label">Open</span><span class="hs-sub">last 50 research calls</span></div>
-        <div class="hs-stat" id="hsStat6"><span class="hs-val accent">—</span><span class="hs-label">Net P&amp;L</span><span class="hs-sub">last 50 research calls</span></div>
-        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Win Rate</span><span class="hs-sub">last 50 research calls</span></div>
-        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Average R:R</span><span class="hs-sub">last 50 research calls</span></div>
+        <div class="hs-stat" id="hsStat0"><span class="hs-val">—</span><span class="hs-label">Trades</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat5"><span class="hs-val accent">—</span><span class="hs-label">Open</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat6"><span class="hs-val accent">—</span><span class="hs-label">Net P&amp;L</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Win Rate</span><span class="hs-sub">paper book · live</span></div>
+        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Avg R / trade</span><span class="hs-sub">paper book · live</span></div>
       </div>
     </div>
+    <div class="hs-note" id="hsNote" style="display:none">awaiting first closes — the paper book started 2026-07-17; exits resolve at the nightly step and the performance cards switch on.</div>
+
+    <!-- Engine trades: the paper book's real positions + closed trades (the tab's core) -->
+    <div class="acc-board" id="engineTrades"></div>
 
     <!-- Cross-links: real account trades and paper proof live on their own pages -->
     <div class="xlink-strip">
@@ -132,6 +136,14 @@
 
     <!-- Forward paper test: the engine's frozen book, marked to market daily -->
     <div class="acc-board" id="paperCard"></div>
+
+    <!-- Legacy research calls: collapsed by default — simulated, not account trades -->
+    <details class="legacy-details" id="legacyDetails">
+      <summary class="legacy-summary">
+        <span class="legacy-caret">▸</span>
+        <span class="legacy-summary-title">Legacy research calls (simulated)</span>
+        <span class="legacy-summary-sub">scoreboard · learning by setup · scan grid — analysis-layer, not account trades</span>
+      </summary>
 
     <!-- Accuracy scoreboard -->
     <div class="acc-board" id="accBoard"></div>
@@ -234,6 +246,8 @@
         </table>
       </div>
     </div>
+
+    </details>
 
   </main>
 

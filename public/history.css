@@ -117,6 +117,49 @@
 .rc-sub a { color: var(--purple); text-decoration: none; }
 .rc-sub a:hover { text-decoration: underline; }
 
+/* ── Headline subline note (awaiting first closes) ── */
+.hs-note { font-size: 11px; color: var(--text3); margin: -8px 0 14px; }
+
+/* ── Engine trades section (Book D paper book) ── */
+.eng-sec { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin: 14px 0 8px; }
+.eng-sec:first-of-type { margin-top: 2px; }
+.eng-wrap { overflow-x: auto; margin-bottom: 4px; }
+.eng-sub { display: block; margin-top: 1px; font-size: 11px; font-weight: 400; color: var(--text3); }
+.eng-dir { font-size: 11px; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
+.eng-dir.long  { color: var(--green); }
+.eng-dir.short { color: var(--red); }
+.eng-open { font-weight: 800; font-size: 11px; letter-spacing: .06em; color: var(--purple); }
+.eng-badge {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  padding: 3px 8px; border-radius: 5px; white-space: nowrap;
+}
+.eng-badge.win  { background: rgba(13,252,159,.12); color: var(--green); }
+.eng-badge.loss { background: rgba(255,42,133,.12); color: var(--red); }
+.eng-badge.open { background: rgba(56,189,248,.12); color: var(--purple); }
+.eng-badge.flat { background: rgba(148,163,184,.12); color: var(--orange); }
+.eng-pnl { font-family: var(--mono); font-weight: 700; color: var(--text2); white-space: nowrap; }
+.eng-pnl.pos { color: var(--green); }
+.eng-pnl.neg { color: var(--red); }
+.eng-days { font-family: var(--mono); color: var(--text3); white-space: nowrap; }
+.eng-row.win  { background: rgba(13,252,159,.03); }
+.eng-row.loss { background: rgba(255,42,133,.03); }
+
+/* ── Legacy research calls (collapsed <details>) ── */
+.legacy-details { margin-top: 4px; }
+.legacy-summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 12px 2px;
+}
+.legacy-summary::-webkit-details-marker { display: none; }
+.legacy-caret { color: var(--purple); font-size: 12px; display: inline-block; transition: transform .2s; }
+.legacy-details[open] .legacy-caret { transform: rotate(90deg); }
+.legacy-summary-title {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.legacy-summary-sub { font-size: 12px; color: var(--text3); }
+
 /* ── Filters ── */
 .hist-filters {
   display: flex;

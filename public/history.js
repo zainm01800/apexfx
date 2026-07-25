@@ -1078,46 +1078,41 @@ function getFilteredRowsForSummary() {
 }
 
 function updateSummary() {
-  // hsStat0 stays a TOTALS card over the filtered selection — not a performance stat.
-  const summaryRows = getFilteredRowsForSummary();
-  const total    = summaryRows.length;
-  const symbols  = new Set(summaryRows.map(r => r.symbol)).size;
+  // Headline cards: the PAPER BOOK basis — the engine's real trades (open
+  // positions + resolver-recorded exits), never research scans. The last-50 cap
+  // is kept; the universe is engineTradesUniverse(). Until the book records its
+  // first exits, only Open has a value and a quiet note explains the rest.
+  const uni    = engineTradesUniverse();
+  const closed = uni.filter(t => t.kind === 'closed').map(t => t.row);
+  const openN  = _paperPositions.length;
+  const hasCloses = closed.length > 0;
 
-  // Trade-performance cards: ALWAYS the last-50-trades basis (the exact window the
-  // trades board shows), independent of the page's filter state — these are
-  // headline stats, not grid stats. Win rate is closed-only (TP ÷ (TP+SL));
-  // net P&L sums R over closed trades; ambiguous one-bar TP&SL spans are excluded
-  // from the win-rate denominator, matching the rest of the page.
-  const trades  = last50Trades();
-  const closed  = trades.filter(r => r.outcome && r.outcome !== 'pending');
   const tp      = closed.filter(r => r.outcome === 'tp_hit').length;
   const sl      = closed.filter(r => r.outcome === 'sl_hit').length;
-  const open    = trades.length - closed.length;
   const decided = tp + sl;
   const winRate = decided > 0 ? Math.round(tp / decided * 100) : null;
 
-  let netR = 0, netKnown = false;
+  let netR = 0, netKnown = false, rN = 0;
   for (const r of closed) {
-    const p = _trdPnl(r, _trdExit(r));
-    if (p && p.r != null) { netR += p.r; netKnown = true; }
+    const rv = paperRealizedR(r);
+    if (rv != null) { netR += rv; netKnown = true; rN++; }
   }
+  const avgR = rN > 0 ? netR / rN : null;
 
-  // Average stated R:R across the closed trades in the window.
-  let rrSum = 0, rrCount = 0;
-  for (const r of closed) {
-    const val = parseRewardRisk(r.risk_reward);
-    if (val !== null) { rrSum += val; rrCount++; }
-  }
-  const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : null;
+  setText('hsStat0', uni.length,                                `Trades · ${closed.length} closed`);
+  setText('hsStat1', hasCloses ? tp : '—',                      'TP Hit',  'green');
+  setText('hsStat2', hasCloses ? sl : '—',                      'SL Hit',  'red');
+  setText('hsStat5', openN,                                     'Open',    'accent');
+  setText('hsStat6', hasCloses && netKnown ? (netR > 0 ? '+' : '') + netR.toFixed(2) + 'R' : '—',
+                                                                'Net P&L', hasCloses && netKnown ? (netR > 0 ? 'green' : netR < 0 ? 'red' : 'accent') : 'accent');
+  setText('hsStat3', hasCloses && winRate != null ? winRate + '%' : '—%',
+                                                                'Win Rate', 'accent');
+  setText('hsStat4', hasCloses && avgR != null ? (avgR > 0 ? '+' : '') + avgR.toFixed(2) + 'R' : '—',
+                                                                'Avg R / trade', 'accent');
 
-  setText('hsStat0', `${symbols}`,                              `Symbols · ${total} scans`);
-  setText('hsStat1', tp,                                        'TP Hit',  'green');
-  setText('hsStat2', sl,                                        'SL Hit',  'red');
-  setText('hsStat5', open,                                      'Open',    'accent');
-  setText('hsStat6', netKnown ? (netR > 0 ? '+' : '') + netR.toFixed(2) + 'R' : '—',
-                                                                'Net P&L', netKnown ? (netR > 0 ? 'green' : netR < 0 ? 'red' : 'accent') : 'accent');
-  setText('hsStat3', winRate != null ? winRate + '%' : '—%',    'Win Rate', 'accent');
-  setText('hsStat4', avgRR != null ? avgRR + ':1' : '—',        'Average R:R', 'accent');
+  // "awaiting first closes" subline until the book records its first exit.
+  const note = document.getElementById('hsNote');
+  if (note) note.style.display = hasCloses ? 'none' : '';
 }
 
 function setText(id, val, label, cls) {
@@ -1421,22 +1416,176 @@ function renderLearningPanel() {
     <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}.${smallNote} Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
 }
 
-// ── Last-50-trades window (the headline stats' basis) ──────────────────────
-// The headline stat cards compute over the engine's newest 50 directional
-// setups: apex_research_memory rows where verdictKind==='trade' (WAIT / AVOID /
-// NO_EDGE verdicts are explicitly not trades), newest first. Source note: the
-// executed-fill tables (apex_ibkr_trades / apex_mt4_trades) and the paper book's
-// closed-trade log are all currently EMPTY, so the engine's tracked setups
-// (pending = open, tp_hit/sl_hit = closed) are the closest existing trade record.
-const TRADES_LIMIT = 50;
+// ── Engine trades (Book D paper book — the tab's core) ─────────────────────
+// The engine's REAL trades, distinct from the legacy research scans collapsed
+// below: OPEN positions from apex_paper_positions (/api/paper?table=positions),
+// CLOSED trades from the nightly resolver's apex_research_memory rows tagged
+// setup_features.source='paper_book' (engine/scripts/resolve_paper_book_outcomes.py
+// — carries r_multiple / pnl_gbp / exit_reason / units). The same book mirrors
+// to the user's IBKR account. Paper test started 2026-07-17.
+const TRADES_LIMIT = 50;   // headline-stats universe cap (kept from the last-50 basis)
+let _paperPositions = [];  // open Book D positions
+let _paperClosed = [];     // closed Book D trades (resolver rows)
 
-// THE shared last-50-trades window — the headline stat cards compute over
-// exactly this set, independent of the page's filter state.
-function last50Trades() {
-  return _allRows
-    .filter(r => verdictKind(r.verdict) === 'trade')
-    .sort((a, b) => rowTs(b) - rowTs(a))
-    .slice(0, TRADES_LIMIT);
+function paperFeatures(r) {
+  let f = r && r.setup_features;
+  if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+  return f || {};
+}
+
+async function fetchPaperPositions() {
+  try {
+    const res = await fetch(`${API_PAPER}?table=positions&limit=500`);
+    const rows = res.ok ? await res.json() : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch { return []; }
+}
+
+// resolved=true so old exits never fall off the fetch window as scan volume grows.
+async function fetchPaperClosed() {
+  try {
+    const res = await fetch(`${API_MEMORY}?all=true&resolved=true&lean=true&limit=1000`);
+    const rows = res.ok ? await res.json() : [];
+    return (Array.isArray(rows) ? rows : []).filter(r => paperFeatures(r).source === 'paper_book');
+  } catch { return []; }
+}
+
+async function loadEngineTrades() {
+  const [positions, closed] = await Promise.all([fetchPaperPositions(), fetchPaperClosed()]);
+  _paperPositions = positions;
+  _paperClosed = closed;
+  renderEngineTrades();
+  updateSummary();
+}
+
+// The headline cards' universe: open positions + closed trades, newest entry
+// first, capped at TRADES_LIMIT — real engine trades, not research calls.
+function engineTradesUniverse() {
+  const rows = [
+    ..._paperPositions.map(p => ({ kind: 'open', ts: Date.parse(p.entry_time || '') || 0 })),
+    ..._paperClosed.map(r => ({ kind: 'closed', ts: rowTs(r), row: r })),
+  ];
+  rows.sort((a, b) => b.ts - a.ts);
+  return rows.slice(0, TRADES_LIMIT);
+}
+
+// Realized R for a closed paper trade: the resolver's own r_multiple is
+// authoritative; fall back to price math (entry/stop/exit) when it's absent.
+function paperRealizedR(r) {
+  const rm = parseFloat(paperFeatures(r).r_multiple);
+  if (!isNaN(rm)) return rm;
+  const p = _trdPnl(r, _trdExit(r));
+  return p && p.r != null ? p.r : null;
+}
+
+const _engDirOf = d => String(d || '').toLowerCase() === 'short' ? 'short' : 'long';
+
+// Asset class for a position instrument (positions table has no type column) —
+// mirrors the server-side deriveClass in api/ibkr.js.
+function _engAssetClass(inst) {
+  const s = String(inst || '').toUpperCase();
+  if (s.includes('/')) {
+    const [b, q] = s.split('/', 2);
+    const G10 = ['EUR', 'GBP', 'USD', 'JPY', 'CHF', 'AUD', 'CAD', 'NZD'];
+    const CR  = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOGE', 'MATIC', 'LINK', 'ARB', 'SUI'];
+    if (G10.includes(b) && G10.includes(q)) return 'Forex';
+    if (CR.includes(b)) return 'Crypto';
+  }
+  return 'Stock';
+}
+
+function _engDays(fromTs, toTs) {
+  const d = Math.max(0, (toTs - fromTs) / 86400000);
+  return d < 1 ? '&lt;1d' : Math.round(d) + 'd';
+}
+
+function _engGbp(x) {
+  return (x >= 0 ? '+' : '-') + '£' + Math.abs(x).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+// Outcome badge for a closed paper trade: WIN (target) / LOSS (stop) / TIME
+// (time- or halt-based exits — the resolver maps those to invalidated/expired;
+// the raw reason stays in setup_features.exit_reason).
+function _engOutcome(r) {
+  const reason = String(paperFeatures(r).exit_reason || '');
+  if (r.outcome === 'tp_hit') return { cls: 'win',  txt: 'WIN',  tip: reason };
+  if (r.outcome === 'sl_hit') return { cls: 'loss', txt: 'LOSS', tip: reason };
+  return { cls: 'flat', txt: 'TIME', tip: reason || String(r.outcome || '') };
+}
+
+function _engOpenRow(p) {
+  const dir  = _engDirOf(p.direction);
+  const sign = dir === 'short' ? -1 : 1;
+  const entry = parseFloat(p.entry_price), last = parseFloat(p.last_px);
+  const iStop = parseFloat(p.initial_stop), units = parseFloat(p.units);
+  let rMult = null, gbp = null;
+  if (!isNaN(entry) && !isNaN(last) && !isNaN(iStop) && Math.abs(entry - iStop) > 0)
+    rMult = sign * (last - entry) / Math.abs(entry - iStop);
+  if (!isNaN(entry) && !isNaN(last) && !isNaN(units))
+    gbp = sign * (last - entry) * units;
+  const pnlCls = rMult != null ? (rMult > 0 ? 'pos' : rMult < 0 ? 'neg' : '') : '';
+  const entryTs = Date.parse(p.entry_time || '') || 0;
+  return `<tr class="wl-row eng-row open">
+    <td><span class="wl-sym">${escHtml(p.instrument)}</span><span class="wl-type">${escHtml(_engAssetClass(p.instrument))}</span></td>
+    <td><span class="eng-dir ${dir}">${dir === 'short' ? '▼ SHORT' : '▲ LONG'}</span></td>
+    <td class="wl-mono" title="Entered ${escHtml(String(p.entry_time || ''))}">${escHtml(String(p.entry_time || '').slice(0, 10))}<span class="eng-sub">@ ${fmtPrice(entry)}</span></td>
+    <td class="wl-mono stop" title="Live trailing stop — initial ${fmtPrice(iStop)}">${fmtPrice(p.stop)}</td>
+    <td class="wl-mono target">${fmtPrice(p.target)}</td>
+    <td><span class="eng-pnl ${pnlCls}" title="Unrealized — marked to the last daily close, in R vs the initial risk${gbp != null ? ' and £' : ''}">${rMult != null ? `(${rMult > 0 ? '+' : ''}${rMult.toFixed(2)}R)` : '—'}</span>${gbp != null ? `<span class="eng-sub">${_engGbp(gbp)}</span>` : ''}</td>
+    <td class="eng-days"${p.bars_open != null ? ` title="${p.bars_open} daily bars processed"` : ''}>${entryTs ? _engDays(entryTs, Date.now()) : '—'}</td>
+  </tr>`;
+}
+
+function _engClosedRow(r) {
+  const f   = paperFeatures(r);
+  const dir = verdictDir(r.verdict);
+  const oc  = _engOutcome(r);
+  const rv  = paperRealizedR(r);
+  const gbp = parseFloat(f.pnl_gbp);
+  const pnlCls = rv != null ? (rv > 0 ? 'pos' : rv < 0 ? 'neg' : '') : '';
+  const entryTs = Date.parse(r.analysis_date || '') || rowTs(r);
+  const exitTs  = Date.parse(r.outcome_date || '') || 0;
+  return `<tr class="wl-row eng-row ${oc.cls}">
+    <td><span class="wl-sym">${escHtml(r.symbol)}</span><span class="wl-type">${escHtml(r.asset_type || f.asset || '')}</span></td>
+    <td><span class="eng-dir ${dir}">${dir === 'short' ? '▼ SHORT' : '▲ LONG'}</span></td>
+    <td class="wl-mono">${escHtml(r.analysis_date || '—')}<span class="eng-sub">@ ${fmtPrice(r.price)}</span></td>
+    <td class="wl-mono stop">${fmtPrice(r.stop_loss)}</td>
+    <td class="wl-mono target">${fmtPrice(r.target_price)}</td>
+    <td class="wl-mono">${escHtml(String(r.outcome_date || '—').slice(0, 10))}<span class="eng-sub">@ ${fmtPrice(r.outcome_price)}</span></td>
+    <td><span class="eng-badge ${oc.cls}"${oc.tip ? ` title="exit: ${escHtml(oc.tip)}"` : ''}>${oc.txt}</span></td>
+    <td><span class="eng-pnl ${pnlCls}">${rv != null ? `${rv > 0 ? '+' : ''}${rv.toFixed(2)}R` : '—'}</span>${!isNaN(gbp) ? `<span class="eng-sub">${_engGbp(gbp)}</span>` : ''}</td>
+    <td class="eng-days">${exitTs && entryTs ? _engDays(entryTs, exitTs) : '—'}</td>
+  </tr>`;
+}
+
+function renderEngineTrades() {
+  const el = document.getElementById('engineTrades');
+  if (!el) return;
+  const head = `<div class="acc-header"><div class="acc-title">⚙️ Engine trades <span class="pp-book">Book D paper book · mirrors to IBKR</span></div></div>`;
+  if (!_paperPositions.length && !_paperClosed.length) {
+    el.innerHTML = `${head}<div class="acc-empty">No engine trades yet — the paper book steps once per nightly run; its positions and exits land here automatically.</div>`;
+    return;
+  }
+
+  const openRows = _paperPositions.slice()
+    .sort((a, b) => (Date.parse(b.entry_time || '') || 0) - (Date.parse(a.entry_time || '') || 0))
+    .map(_engOpenRow).join('');
+  const openSec = `<div class="eng-sec">Open · ${_paperPositions.length}</div>` + (_paperPositions.length
+    ? `<div class="eng-wrap"><table class="wl-table eng-table">
+        <thead><tr><th>Instrument</th><th>Dir</th><th>Entry</th><th>Stop</th><th>Target</th><th>Unrealized P&amp;L</th><th>Held</th></tr></thead>
+        <tbody>${openRows}</tbody></table></div>`
+    : `<div class="acc-empty">Flat right now — no open positions in the book.</div>`);
+
+  const closedRows = _paperClosed.slice()
+    .sort((a, b) => (Date.parse(b.outcome_date || '') || 0) - (Date.parse(a.outcome_date || '') || 0))
+    .map(_engClosedRow).join('');
+  const closedSec = `<div class="eng-sec">Closed · ${_paperClosed.length}</div>` + (_paperClosed.length
+    ? `<div class="eng-wrap"><table class="wl-table eng-table">
+        <thead><tr><th>Instrument</th><th>Dir</th><th>Entry</th><th>Stop</th><th>Target</th><th>Exit</th><th>Outcome</th><th>P&amp;L</th><th>Held</th></tr></thead>
+        <tbody>${closedRows}</tbody></table></div>`
+    : `<div class="acc-empty">First exits haven't happened yet — trades resolve at the nightly step and land here automatically.</div>`);
+
+  el.innerHTML = head + openSec + closedSec;
 }
 
 // Exit price for a closed trade: the stored outcome_price, else the same fallback
@@ -1956,6 +2105,7 @@ function refreshOnFocus() {
 let _lastScanLoad = Date.now();
 async function reloadScans() {
   try {
+    loadEngineTrades();       // refresh the paper-book section + headline stats too
     _allRows = await fetchAllScans();
     indexRows();
     _lastScanLoad = Date.now();
@@ -2318,6 +2468,7 @@ async function loadPaperCard() {
 async function init() {
   initPulse();
   loadPaperCard();            // forward paper book (one-shot fetch, no polling) — independent of the scan load
+  loadEngineTrades();         // engine trades section + paper-basis headline stats — independent of the scan load
   const loadingEl = document.getElementById('histLoading');
 
   try {
