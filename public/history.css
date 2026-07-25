@@ -1041,7 +1041,7 @@ button.sc-btn { appearance: none; outline: none; }
   border: 1px solid rgba(56, 189, 248, 0.28);
   color: var(--accent);
   border-radius: 6px;
-  padding: 3px 10px;
+  padding: 2px 10px;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
@@ -1056,23 +1056,23 @@ button.sc-btn { appearance: none; outline: none; }
 #ibkrPositionsWrap { align-items: start; }
 
 /* Two-face position card: .card-face-stats and .card-face-chart share the
-   card's footprint — .chart-mode hides the stats face. Stats mode stays locked
-   at 330px; chart mode grows the card to 480px for readability (the height
-   transition lives in the card's inline style; the chart box flex-fills and
-   the ResizeObserver refits it live during the grow). Entering faces fade in
-   over ~180ms (fadeIn keyframes from dashboard.css). */
+   card's footprint — .chart-mode hides the stats face. Height stays locked at
+   330px in BOTH modes (the inline height transition stays, harmless); chart
+   readability comes from the chart's own vertical spread, not card growth.
+   Face chrome is kept slim so the chart box gets ~250px of the 290px content
+   height. Entering faces fade in over ~180ms (fadeIn keyframes from
+   dashboard.css). */
 .ibkr-pos-card { height: 330px; }
-.ibkr-pos-card.chart-mode { height: 480px; }
 .card-face-stats { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
 .card-face-stats.face-enter,
 .card-face-chart { animation: fadeIn .18s ease; }
-.card-face-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; min-height: 0; }
+.card-face-chart { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; min-height: 0; }
 .cf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; }
 .cf-id { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 .cf-sym { font-family: var(--mono); font-size: 17px; color: var(--text); }
 .cf-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; white-space: nowrap; }
-.ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+.ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; line-height: 1; }
 .ibkr-chart-chip {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 9px; letter-spacing: -0.02em; color: var(--text2);

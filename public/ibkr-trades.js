@@ -409,6 +409,7 @@ function destroyChart() {
   if (_chartRO) { try { _chartRO.disconnect(); } catch (e) {} _chartRO = null; }
   if (_chartObj) { try { _chartObj.remove(); } catch (e) {} _chartObj = null; }
   window._ibkrChart = null;
+  window._ibkrSeries = null;
 }
 
 function closePositionChart() {
@@ -584,7 +585,7 @@ function togglePositionChart(inst, btn) {
     const lvls = [entry, stop, target, oneR].filter(v => v !== null);
     if (lvls.length) {
       const span = Math.max(...lvls) - Math.min(...lvls);
-      const pad = span > 0 ? span * 0.04 : Math.abs(lvls[0]) * 0.005 || 1;
+      const pad = span > 0 ? span * 0.02 : Math.abs(lvls[0]) * 0.005 || 1; // hug the levels — the 330px card needs the vertical room
       const t0 = bars[0].time, tN = bars[bars.length - 1].time;
       for (const v of [Math.min(...lvls) - pad, Math.max(...lvls) + pad]) {
         const anchor = chart.addLineSeries({
@@ -595,9 +596,9 @@ function togglePositionChart(inst, btn) {
       }
     }
 
-    // Give the price scale clear air above the highest level and below the
-    // lowest (applies to the autoscale union of candles + anchor series).
-    chart.priceScale('right').applyOptions({ scaleMargins: { top: 0.12, bottom: 0.12 } });
+    // Price scale margins kept small so the content vertically fills the
+    // compact card — just enough air that no line glues to the frame edge.
+    chart.priceScale('right').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
 
     // Open on the recent ~58 bars so candles read at a comfortable size and
     // the four levels sit clearly separated; the full 90-bar series stays
@@ -610,6 +611,7 @@ function togglePositionChart(inst, btn) {
     }
 
     window._ibkrChart = chart; // debug/verification hook (nulled on close)
+    window._ibkrSeries = series;
 
     _chartRO = new ResizeObserver(() => {
       if (_chartObj && box.isConnected) {
