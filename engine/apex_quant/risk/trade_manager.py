@@ -26,9 +26,16 @@ class TradeManager:
         squeeze_mult: float = 1.0,
         time_stop_bars: dict[str, int] | None = None,
         runner_mode: bool = False,
+        p1_r_by_instrument: dict[str, float] | None = None,
     ) -> None:
         self.p1_r = p1_r
         self.p1_pct = p1_pct
+        # VOL-ADAPTIVE FIRST PARTIAL (pre-registered experiment, default OFF — the
+        # certified book uses the flat p1_r for every instrument). When given, maps
+        # instrument symbol -> first-partial trigger; positions whose symbol is not
+        # in the map fall back to the flat p1_r. See
+        # engine/data_store/vol_adaptive_partial_prereg.md.
+        self.p1_r_by_instrument = p1_r_by_instrument
         self.p2_r = p2_r
         self.p2_pct = p2_pct
         # RUNNER MODE (pre-registered experiment, default OFF — the certified book
@@ -46,6 +53,14 @@ class TradeManager:
         self.chandelier_mult = chandelier_mult
         self.squeeze_mult = squeeze_mult
         self.time_stop_bars = time_stop_bars or {"15m": 8, "1h": 10, "1d": 7, "1w": 3}
+
+    def _p1_r_for(self, position: dict) -> float:
+        """First-partial trigger for this position: the per-instrument override when
+        the vol-adaptive map is set and covers the symbol, else the flat ``p1_r``
+        (certified behaviour)."""
+        if self.p1_r_by_instrument:
+            return self.p1_r_by_instrument.get(position.get("symbol"), self.p1_r)
+        return self.p1_r
 
     def init_position_tms(self, position: dict) -> dict:
         """Initialize TMS metadata flags on a new position dictionary."""
@@ -181,7 +196,8 @@ class TradeManager:
         # ----------------------------------------------------------------
         # Technique 1: Partial 1 (50 %) + Move SL to Breakeven at 1R
         # ----------------------------------------------------------------
-        p1_price = (entry + self.p1_r * risk_dist) if is_long else (entry - self.p1_r * risk_dist)
+        p1_r = self._p1_r_for(position)
+        p1_price = (entry + p1_r * risk_dist) if is_long else (entry - p1_r * risk_dist)
         has_reached_p1 = (high >= p1_price) if is_long else (low <= p1_price)
 
         if not position["tms_p1"] and has_reached_p1:
