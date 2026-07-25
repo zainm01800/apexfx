@@ -73,6 +73,16 @@
   white-space: nowrap;
   font-weight: 600;
 }
+.hs-sub {
+  font-size: 8.5px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  white-space: nowrap;
+  font-weight: 600;
+  opacity: .75;
+  margin-top: -2px;
+}
 
 /* ── Filters ── */
 .hist-filters {

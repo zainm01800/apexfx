@@ -1079,35 +1079,45 @@ function getFilteredRowsForSummary() {
 }
 
 function updateSummary() {
+  // hsStat0 stays a TOTALS card over the filtered selection — not a performance stat.
   const summaryRows = getFilteredRowsForSummary();
   const total    = summaryRows.length;
   const symbols  = new Set(summaryRows.map(r => r.symbol)).size;
-  const tp       = summaryRows.filter(r => r.outcome === 'tp_hit').length;
-  const sl       = summaryRows.filter(r => r.outcome === 'sl_hit').length;
-  const closed   = summaryRows.filter(r => r.outcome === 'invalidated').length;
-  const expired  = summaryRows.filter(r => r.outcome === 'expired').length;
-  const resolved = tp + sl;
-  const accuracy = resolved > 0 ? Math.round(tp / resolved * 100) : null;
-  
-  // Calculate average R:R for completed/resolved trades in the filtered selection
-  const completed = summaryRows.filter(r => r.outcome && r.outcome !== 'pending');
-  let rrSum = 0;
-  let rrCount = 0;
-  for (const r of completed) {
+
+  // Trade-performance cards: ALWAYS the last-50-trades basis (the exact window the
+  // trades board shows), independent of the page's filter state — these are
+  // headline stats, not grid stats. Win rate is closed-only (TP ÷ (TP+SL));
+  // net P&L sums R over closed trades; ambiguous one-bar TP&SL spans are excluded
+  // from the win-rate denominator, matching the rest of the page.
+  const trades  = last50Trades();
+  const closed  = trades.filter(r => r.outcome && r.outcome !== 'pending');
+  const tp      = closed.filter(r => r.outcome === 'tp_hit').length;
+  const sl      = closed.filter(r => r.outcome === 'sl_hit').length;
+  const open    = trades.length - closed.length;
+  const decided = tp + sl;
+  const winRate = decided > 0 ? Math.round(tp / decided * 100) : null;
+
+  let netR = 0, netKnown = false;
+  for (const r of closed) {
+    const p = _trdPnl(r, _trdExit(r));
+    if (p && p.r != null) { netR += p.r; netKnown = true; }
+  }
+
+  // Average stated R:R across the closed trades in the window.
+  let rrSum = 0, rrCount = 0;
+  for (const r of closed) {
     const val = parseRewardRisk(r.risk_reward);
-    if (val !== null) {
-      rrSum += val;
-      rrCount++;
-    }
+    if (val !== null) { rrSum += val; rrCount++; }
   }
   const avgRR = rrCount > 0 ? (rrSum / rrCount).toFixed(2) : null;
 
   setText('hsStat0', `${symbols}`,                              `Symbols · ${total} scans`);
   setText('hsStat1', tp,                                        'TP Hit',  'green');
   setText('hsStat2', sl,                                        'SL Hit',  'red');
-  setText('hsStat5', closed,                                    'Closed Early', 'orange');
-  setText('hsStat6', expired,                                   'Expired', 'orange');
-  setText('hsStat3', accuracy != null ? accuracy + '%' : '—%',  'Accuracy', 'accent');
+  setText('hsStat5', open,                                      'Open',    'accent');
+  setText('hsStat6', netKnown ? (netR > 0 ? '+' : '') + netR.toFixed(2) + 'R' : '—',
+                                                                'Net P&L', netKnown ? (netR > 0 ? 'green' : netR < 0 ? 'red' : 'accent') : 'accent');
+  setText('hsStat3', winRate != null ? winRate + '%' : '—%',    'Win Rate', 'accent');
   setText('hsStat4', avgRR != null ? avgRR + ':1' : '—',        'Average R:R', 'accent');
 }
 
@@ -1406,6 +1416,16 @@ function renderLearningPanel() {
 // by the scan-history pills below; TRADES_LIMIT is exactly 50, newest first.
 const TRADES_LIMIT = 50;
 
+// THE shared last-50-trades window: rows where the verdict is an actual
+// directional trade, newest first, capped at exactly 50. Both the trades board
+// AND the headline stat cards compute over this set, so the two never diverge.
+function last50Trades() {
+  return _allRows
+    .filter(r => verdictKind(r.verdict) === 'trade')
+    .sort((a, b) => rowTs(b) - rowTs(a))
+    .slice(0, TRADES_LIMIT);
+}
+
 // Exit price for a closed trade: the stored outcome_price, else the same fallback
 // the grader uses when it PATCHes a resolution (tp→target, sl→stop,
 // invalidated/expired→entry price).
@@ -1462,10 +1482,7 @@ function renderTradesBoard() {
   const el = document.getElementById('tradesBoard');
   if (!el) return;
 
-  const trades = _allRows
-    .filter(r => verdictKind(r.verdict) === 'trade')
-    .sort((a, b) => rowTs(b) - rowTs(a))
-    .slice(0, TRADES_LIMIT);
+  const trades = last50Trades();
 
   // Header record line: W/L + net R across the closed trades in the window.
   let w = 0, l = 0, netR = 0, netKnown = false;
