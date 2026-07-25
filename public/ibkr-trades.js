@@ -613,9 +613,44 @@ function togglePositionChart(inst, btn) {
     window._ibkrChart = chart; // debug/verification hook (nulled on close)
     window._ibkrSeries = series;
 
+    // ── Left-edge level labels ───────────────────────────────────────────────
+    // lightweight-charts has no left-side price-line labels, so overlay one
+    // tiny pill per level inside the box: y from series.priceToCoordinate,
+    // hidden when the line leaves the visible price range (no clamping into a
+    // pile at the edge). Repositioned on scroll/zoom (visible-range
+    // subscription) and on the box ResizeObserver below.
+    const lvlDefs = [
+      { price: entry, color: LEVEL_COLORS.entry, tag: 'ENTRY' },
+      { price: stop, color: LEVEL_COLORS.stop, tag: 'SL' },
+      { price: target, color: LEVEL_COLORS.target, tag: 'TP' },
+      { price: oneR, color: LEVEL_COLORS.oneR, tag: '+1R' },
+    ].filter(d => d.price !== null);
+    const lvlLabels = lvlDefs.map(d => {
+      const el = document.createElement('div');
+      el.className = 'ibkr-lvl-label';
+      el.textContent = `${d.tag} ${fmtPrice(d.price, cls)}`;
+      el.style.color = d.color;
+      box.appendChild(el);
+      return { el, price: d.price };
+    });
+    const positionLevelLabels = () => {
+      if (!box.isConnected) return;
+      const bottomBound = box.clientHeight - 28; // pane bottom ≈ box minus the time-axis strip
+      for (const { el, price } of lvlLabels) {
+        const y = series.priceToCoordinate(price);
+        if (y === null || y < 2 || y > bottomBound) { el.style.display = 'none'; continue; }
+        el.style.display = '';
+        el.style.top = `${Math.round(y)}px`;
+      }
+    };
+    positionLevelLabels();
+    requestAnimationFrame(positionLevelLabels);
+    ts.subscribeVisibleLogicalRangeChange(positionLevelLabels);
+
     _chartRO = new ResizeObserver(() => {
       if (_chartObj && box.isConnected) {
         _chartObj.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
+        positionLevelLabels();
       }
     });
     _chartRO.observe(box);
