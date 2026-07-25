@@ -1072,13 +1072,11 @@ button.sc-btn { appearance: none; outline: none; }
 .cf-id { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 .cf-sym { font-family: var(--mono); font-size: 17px; color: var(--text); }
 .cf-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; white-space: nowrap; }
-.ibkr-chart-legend { display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; }
+.ibkr-chart-legend { display: flex; gap: 10px; flex-wrap: nowrap; overflow: hidden; }
 .ibkr-chart-chip {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 9px; color: var(--text2);
-  border: 1px solid var(--border); border-radius: 999px; padding: 1px 6px;
-  background: rgba(255, 255, 255, 0.02);
-  white-space: nowrap;
+  white-space: nowrap; flex-shrink: 0;
 }
 .ibkr-chart-chip::before { content: ''; width: 10px; height: 0; border-top: 2px solid var(--chip-color, var(--text3)); }
 .ibkr-chart-chip.dashed::before { border-top-style: dashed; }
