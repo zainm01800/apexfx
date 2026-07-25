@@ -1034,3 +1034,56 @@ button.sc-btn { appearance: none; outline: none; }
 }
 .ibkr-pos-card:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important; }
 .ibkr-pos-card:hover::before { opacity: 1; }
+
+/* ── Position chart accordion (IBKR terminal) ── */
+.ibkr-chart-btn {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.ibkr-chart-btn:hover { background: rgba(56, 189, 248, 0.16); border-color: rgba(56, 189, 248, 0.45); }
+.ibkr-chart-btn.open { background: rgba(56, 189, 248, 0.2); }
+
+.ibkr-chart-panel {
+  grid-column: 1 / -1;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.04), rgba(255, 255, 255, 0) 40%), var(--card);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 12px;
+  padding: 14px 16px 12px;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.ibkr-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ibkr-chart-title { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: 0.04em; }
+.ibkr-chart-title span { color: var(--text3); font-weight: 400; }
+.ibkr-chart-close {
+  background: none; border: none; color: var(--text3); font-size: 16px; line-height: 1;
+  cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: color .15s, background .15s;
+}
+.ibkr-chart-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.ibkr-chart-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.ibkr-chart-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--text2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ibkr-chart-chip::before { content: ''; width: 14px; height: 0; border-top: 2px solid var(--chip-color, var(--text3)); }
+.ibkr-chart-chip.dashed::before { border-top-style: dashed; }
+.ibkr-chart-box { width: 100%; height: 300px; }
+.ibkr-chart-msg { padding: 36px 16px; text-align: center; color: var(--text3); font-size: 13px; font-family: var(--mono); }
+.ibkr-chart-msg.err { color: var(--red); }

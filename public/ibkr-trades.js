@@ -270,8 +270,10 @@ function renderClassTab() {
 function renderPositionsCards(positions, cls) {
   const wrap = document.getElementById('ibkrPositionsWrap');
   if (!wrap) return;
+  destroyChart(); // chart instance must die before innerHTML wipes its canvas
 
   if (!positions.length) {
+    _openChartInst = null; // no cards to restore onto
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
     return;
   }
@@ -281,6 +283,7 @@ function renderPositionsCards(positions, cls) {
   // own slice of it so "how much is open right now" reads off the card directly.
   const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
   wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('');
+  restoreOpenChart(); // re-expand the open chart (if any) after background refreshes
 }
 
 function renderPositionCard(p, cls, sym, gross) {
@@ -335,7 +338,10 @@ function renderPositionCard(p, cls, sym, gross) {
           <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(p.instrument)}</strong>
           ${dirBadge}
         </div>
-        <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="ibkr-chart-btn" data-chart-inst="${escHtml(p.instrument || '')}" title="Daily chart with trade levels">CHART</button>
+          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+        </div>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
@@ -378,6 +384,187 @@ function renderPositionCard(p, cls, sym, gross) {
       </div>
     </div>
   `;
+}
+
+// ── Per-position chart accordion ─────────────────────────────────────────────
+// CHART button on a position card expands a full-width daily-candle panel under
+// it (TradingView Lightweight Charts, pinned CDN). One panel at a time. Level
+// lines: entry, stop, target, and the +1R partial/breakeven trigger (direction-
+// aware: entry ± |entry − stop|). The expanded instrument survives background
+// refreshes: renderPositionsCards destroys the canvas, then restoreOpenChart
+// rebuilds it from cached bars — no refetch.
+const CLASS_TO_CANDLE_TYPE = { stocks: 'Stock', forex: 'Forex', crypto: 'Crypto' };
+const LEVEL_COLORS = { entry: '#8EA3C8', stop: '#F87171', target: '#34D399', oneR: '#F5B04C' };
+let _openChartInst = null;  // instrument with the expanded chart panel
+let _chartObj = null;       // live LightweightCharts instance
+let _chartRO = null;        // ResizeObserver tracking the chart box
+const _chartBarsCache = {}; // `${cls}|${inst}` -> daily bars
+
+function destroyChart() {
+  if (_chartRO) { try { _chartRO.disconnect(); } catch (e) {} _chartRO = null; }
+  if (_chartObj) { try { _chartObj.remove(); } catch (e) {} _chartObj = null; }
+}
+
+function closePositionChart() {
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  destroyChart();
+  _openChartInst = null;
+  if (!wrap) return;
+  const panel = wrap.querySelector('.ibkr-chart-panel');
+  if (panel) panel.remove();
+  for (const b of wrap.querySelectorAll('.ibkr-chart-btn')) b.classList.remove('open');
+}
+
+function restoreOpenChart() {
+  if (!_openChartInst) return;
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  const btn = wrap && wrap.querySelector(`.ibkr-chart-btn[data-chart-inst="${CSS.escape(_openChartInst)}"]`);
+  if (!btn) { _openChartInst = null; return; } // instrument closed or tab switched
+  togglePositionChart(_openChartInst, btn);
+}
+
+// Engine store-slug form (GBP_JPY, SOL_USD) -> slash form the candles API maps.
+function normalizeChartSymbol(inst, cls) {
+  if ((cls === 'forex' || cls === 'crypto') && /^[A-Za-z]{2,6}_[A-Za-z]{2,6}$/.test(inst)) {
+    return inst.replace('_', '/');
+  }
+  return inst;
+}
+
+async function fetchDailyBars(inst, cls) {
+  const key = cls + '|' + inst;
+  if (_chartBarsCache[key]) return _chartBarsCache[key];
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 200 * 86400; // 90 trading days need ~130+ calendar days; 200 is safe
+  const type = CLASS_TO_CANDLE_TYPE[cls] || 'Stock';
+  const res = await fetch(`/api/candles?sym=${encodeURIComponent(normalizeChartSymbol(inst, cls))}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const bars = await res.json();
+  if (!Array.isArray(bars) || bars.length < 2) return [];
+  const out = bars.slice(-90).map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close }));
+  _chartBarsCache[key] = out;
+  return out;
+}
+
+function togglePositionChart(inst, btn) {
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  if (!wrap) return;
+  const wasOpen = _openChartInst === inst && !!wrap.querySelector('.ibkr-chart-panel');
+  closePositionChart(); // accordion: collapse whatever is open
+  if (wasOpen) return;  // clicking the open card's button = collapse
+
+  const p = _ibkrPositionsCache.find(x => String(x.instrument) === inst && x.asset_class === _ibkrClassFilter);
+  if (!p) return;
+  const card = btn.closest('.ibkr-pos-card');
+  if (!card) return;
+
+  _openChartInst = inst;
+  btn.classList.add('open');
+
+  const cls = _ibkrClassFilter;
+  const isLong = String(p.direction || '').toLowerCase() !== 'short';
+  const entry = num(p.avg_price);
+  const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
+  const stop = pp ? num(pp.stop) : null;
+  const target = pp ? num(pp.target) : null;
+  // +1R partial/breakeven trigger: one initial-risk unit past entry, direction-aware
+  const oneR = (entry !== null && stop !== null)
+    ? (isLong ? entry + Math.abs(entry - stop) : entry - Math.abs(entry - stop))
+    : null;
+
+  const chips = [];
+  if (entry !== null) chips.push({ c: LEVEL_COLORS.entry, label: `Entry ${fmtPrice(entry, cls)}` });
+  if (stop !== null) chips.push({ c: LEVEL_COLORS.stop, label: `Stop ${fmtPrice(stop, cls)}` });
+  if (target !== null) chips.push({ c: LEVEL_COLORS.target, label: `Target ${fmtPrice(target, cls)}` });
+  if (oneR !== null) chips.push({ c: LEVEL_COLORS.oneR, label: `+1R ${fmtPrice(oneR, cls)}`, dashed: true });
+
+  const panel = document.createElement('div');
+  panel.className = 'ibkr-chart-panel';
+  panel.innerHTML = `
+    <div class="ibkr-chart-head">
+      <div class="ibkr-chart-title">${escHtml(inst)} <span>· daily · last 90 bars</span></div>
+      <button class="ibkr-chart-close" data-chart-close title="Close chart">&times;</button>
+    </div>
+    <div class="ibkr-chart-legend">${chips.map(ch => `<span class="ibkr-chart-chip${ch.dashed ? ' dashed' : ''}" style="--chip-color: ${ch.c}">${escHtml(ch.label)}</span>`).join('')}</div>
+    <div class="ibkr-chart-box"></div>
+    <div class="ibkr-chart-msg">Loading chart…</div>`;
+  card.insertAdjacentElement('afterend', panel);
+
+  const box = panel.querySelector('.ibkr-chart-box');
+  const msg = panel.querySelector('.ibkr-chart-msg');
+  const fail = text => { msg.textContent = text; msg.classList.add('err'); box.remove(); };
+
+  if (typeof LightweightCharts === 'undefined') { fail('Chart library failed to load (CDN unreachable).'); return; }
+
+  (async () => {
+    let bars;
+    try {
+      bars = await fetchDailyBars(inst, cls);
+    } catch (e) {
+      if (panel.isConnected) fail(`Chart data failed for ${inst} (${e.message || e}).`);
+      return;
+    }
+    if (!panel.isConnected) return; // closed or tab switched mid-fetch
+    if (!bars.length) { fail(`No daily chart data available for ${inst}.`); return; }
+    msg.remove();
+
+    const refPx = entry !== null ? entry : bars[bars.length - 1].close;
+    const precision = cls === 'forex' ? 5 : (refPx >= 100 ? 2 : 4);
+    const minMove = cls === 'forex' ? 0.00001 : (refPx >= 100 ? 0.01 : 0.0001);
+
+    const chart = LightweightCharts.createChart(box, {
+      width: box.clientWidth,
+      height: 300,
+      layout: {
+        background: { type: 'solid', color: 'transparent' },
+        textColor: '#64748B',
+        fontSize: 10,
+        fontFamily: "'Space Mono', monospace",
+      },
+      grid: { horzLines: { color: 'rgba(51, 65, 85, 0.28)' }, vertLines: { visible: false } },
+      rightPriceScale: { borderVisible: false },
+      timeScale: { borderVisible: false, rightOffset: 2 },
+      crosshair: {
+        vertLine: { color: 'rgba(56, 189, 248, 0.3)' },
+        horzLine: { color: 'rgba(56, 189, 248, 0.3)' },
+      },
+      localization: { priceFormatter: v => fmtPrice(v, cls) },
+    });
+    _chartObj = chart;
+
+    const series = chart.addCandlestickSeries({
+      upColor: '#34D399', downColor: '#F87171',
+      wickUpColor: 'rgba(52, 211, 153, 0.7)', wickDownColor: 'rgba(248, 113, 113, 0.7)',
+      borderVisible: false,
+      priceFormat: { type: 'price', precision, minMove },
+    });
+    series.setData(bars);
+
+    const LS = LightweightCharts.LineStyle;
+    const mkLine = (price, color, title, style) =>
+      series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
+    if (entry !== null) mkLine(entry, LEVEL_COLORS.entry, 'Entry', LS.Solid);
+    if (stop !== null) mkLine(stop, LEVEL_COLORS.stop, 'Stop', LS.Solid);
+    if (target !== null) mkLine(target, LEVEL_COLORS.target, 'Target', LS.Solid);
+    if (oneR !== null) mkLine(oneR, LEVEL_COLORS.oneR, '+1R', LS.Dashed);
+
+    chart.timeScale().fitContent();
+
+    _chartRO = new ResizeObserver(() => {
+      if (_chartObj && box.isConnected) _chartObj.applyOptions({ width: box.clientWidth });
+    });
+    _chartRO.observe(box);
+  })();
+}
+
+function initChartAccordion() {
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  if (!wrap) return;
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('[data-chart-close]')) { closePositionChart(); return; }
+    const btn = e.target.closest('.ibkr-chart-btn');
+    if (btn && btn.dataset.chartInst) togglePositionChart(btn.dataset.chartInst, btn);
+  });
 }
 
 function renderTradesTable(trades, cls) {
@@ -521,6 +708,7 @@ function initRealtime() {
 document.addEventListener('DOMContentLoaded', () => {
   try { initPulse(); } catch (e) { console.error('Pulse err:', e); }
   try { initIbkrTabs(); } catch (e) { console.error('Tabs err:', e); }
+  try { initChartAccordion(); } catch (e) { console.error('Chart accordion err:', e); }
   try { initRefreshButton(); } catch (e) { console.error('Refresh btn err:', e); }
   try { initRealtime(); } catch (e) { console.error('Realtime err:', e); }
 
