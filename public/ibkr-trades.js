@@ -408,6 +408,7 @@ const _chartBarsCache = {}; // `${cls}|${inst}` -> daily bars
 function destroyChart() {
   if (_chartRO) { try { _chartRO.disconnect(); } catch (e) {} _chartRO = null; }
   if (_chartObj) { try { _chartObj.remove(); } catch (e) {} _chartObj = null; }
+  window._ibkrChart = null;
 }
 
 function closePositionChart() {
@@ -591,7 +592,21 @@ function togglePositionChart(inst, btn) {
       ]);
     }
 
-    chart.timeScale().fitContent();
+    // Give the price scale clear air above the highest level and below the
+    // lowest (applies to the autoscale union of candles + anchor series).
+    chart.priceScale('right').applyOptions({ scaleMargins: { top: 0.12, bottom: 0.12 } });
+
+    // Open on the recent ~58 bars so candles read at a comfortable size and
+    // the four levels sit clearly separated; the full 90-bar series stays
+    // scrollable — drag/scroll left for older bars.
+    const ts = chart.timeScale();
+    if (bars.length > 60) {
+      ts.setVisibleLogicalRange({ from: bars.length - 58, to: bars.length + 1 });
+    } else {
+      ts.fitContent();
+    }
+
+    window._ibkrChart = chart; // debug/verification hook (nulled on close)
 
     _chartRO = new ResizeObserver(() => {
       if (_chartObj && box.isConnected) {
