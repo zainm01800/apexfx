@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Z.FX — Progress</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#09090f" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Z.FX" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./progress.css" />
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <nav class="nav">
+      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+      <a class="nav-link active" id="nav-progress" href="progress.html">Progress</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+    </nav>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <main class="pg-main">
+
+    <!-- Page title -->
+    <div class="pg-header">
+      <div>
+        <h1 class="pg-title">Engine Progress</h1>
+        <p class="pg-subtitle">The self-improvement record — every experiment logged, every deployment gated, one frozen book proving itself forward.</p>
+      </div>
+    </div>
+
+    <!-- Header stats row -->
+    <div class="pg-stats" id="pgStats">
+      <div class="pg-stat"><span class="pg-stat-val accent" id="stBook">Book D</span><span class="pg-stat-label">Certified-config book</span><span class="pg-stat-sub">1% risk/trade · 6.5% portfolio cap</span></div>
+      <div class="pg-stat"><span class="pg-stat-val" id="stLedger">—</span><span class="pg-stat-label">Trial ledger</span><span class="pg-stat-sub" id="stLedgerSub">experiments logged</span></div>
+      <div class="pg-stat"><span class="pg-stat-val green" id="stPass">—</span><span class="pg-stat-label">Gates passed</span><span class="pg-stat-sub" id="stGatesSub">recent verdicts</span></div>
+      <div class="pg-stat"><span class="pg-stat-val red" id="stReject">—</span><span class="pg-stat-label">Gates rejected</span><span class="pg-stat-sub" id="stRejectSub">incl. measurements</span></div>
+      <div class="pg-stat"><span class="pg-stat-val accent" id="stPaperDay">—</span><span class="pg-stat-label">Paper test</span><span class="pg-stat-sub" id="stPaperEq">equity —</span></div>
+    </div>
+
+    <!-- Certified book snapshot (static, from the binding prereg) -->
+    <section class="pg-card" id="pgBookCard">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📖 Certified configuration — <span class="mono">book_d_multiasset_252</span></div>
+      </div>
+      <div class="pg-book-grid">
+        <div class="pg-book-item"><span class="pg-book-k">Signal</span><span class="pg-book-v">Regime-gated momentum, 252d lookback, 1w higher-timeframe filter</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Universe</span><span class="pg-book-v">42 instruments — 24 equities/ETFs · 11 crypto · 7 FX majors</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Sizing</span><span class="pg-book-v">Vol-scaled, fractional-Kelly (0.20), ATR stop 2.5×14</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Risk</span><span class="pg-book-v">1% max per trade <em>(amended from 2% on 2026-07-19)</em> · 6.5% max portfolio risk</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Exits</span><span class="pg-book-v">Managed — partials at 1R/1.5R, ATR-chandelier trail, time stop</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Breakers</span><span class="pg-book-v">Reduce from 10% DD · halt new entries at 20% · proof HALT at 15%</span></div>
+      </div>
+      <div class="pg-card-foot">Frozen by pre-registration 2026-07-17 — any change restarts the experiment clock. Seeded £100,000 paper, no real money.</div>
+    </section>
+
+    <!-- Paper proof panel -->
+    <section class="pg-card" id="pgPaperCard">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📄 Forward paper proof <span class="pg-book mono" id="paperBookName">book_d_multiasset_252</span></div>
+        <div class="pg-day-pill mono" id="paperDayPill">Day —/60</div>
+      </div>
+      <div class="pg-paper-body">
+        <div class="pg-chart-wrap" id="paperChartWrap">
+          <div class="pg-chart" id="paperChart"></div>
+          <div class="pg-chart-empty" id="paperChartEmpty" style="display:none">Waiting for daily equity snapshots…</div>
+        </div>
+        <div class="pg-paper-stats" id="paperStats"></div>
+      </div>
+      <div class="pg-day-track" title="Processed days toward the 60-day pre-registered proof">
+        <span class="pg-day-fill" id="paperDayFill" style="width:0%"></span>
+      </div>
+      <div class="pg-card-foot" id="paperStatus">Forward test running — graduation decides the funded attempt. Graduate needs ≥60 processed days, ≥40 closed trades, realized Sharpe &gt; 0.</div>
+    </section>
+
+    <!-- Experiment feed -->
+    <section class="pg-card" id="pgFeedCard">
+      <div class="pg-card-head">
+        <div class="pg-card-title">🧪 Experiment feed</div>
+        <div class="pg-feed-meta" id="feedMeta"></div>
+      </div>
+      <div class="pg-feed" id="pgFeed">
+        <div class="pg-loading"><div class="pg-spinner"></div><p>Loading experiment record…</p></div>
+      </div>
+      <div class="pg-card-foot" id="feedFoot"></div>
+    </section>
+
+    <!-- Auto-research queue (Part 2 wires real proposals) -->
+    <section class="pg-card" id="pgQueueCard">
+      <div class="pg-card-head">
+        <div class="pg-card-title">🔬 Auto-research queue</div>
+      </div>
+      <div class="pg-queue" id="pgQueue">
+        <div class="pg-queue-empty" id="pgQueueEmpty">Nightly LLM research proposals will appear here for review — nothing trades without passing the gates.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="./app-mode.js"></script>
+  <script src="./progress.js"></script>
+</body>
+</html>
