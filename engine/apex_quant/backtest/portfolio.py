@@ -43,6 +43,27 @@ def _vol_series(close: pd.Series, window: int, ann: int) -> np.ndarray:
     return (logret.rolling(window).std(ddof=1) * np.sqrt(ann)).to_numpy()
 
 
+def _cf_tau_arrays(skew: pd.Series, kurt: pd.Series, z: float,
+                   tau_min: float, tau_max: float) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorised Cornish-Fisher tail multipliers (W2, 2026-07-25; scalar twin:
+    apex_quant.risk.sizing.cornish_fisher_tau). ``skew`` / ``kurt`` are the already
+    windowed, already input-clipped rolling moments. Returns (long_tau, short_tau)
+    arrays clipped to [tau_min, tau_max]; non-finite moments map to 1.0 (no
+    adjustment — certified sizing for bars without a full window)."""
+
+    def _cf(zp: float) -> pd.Series:
+        return (zp + (skew / 6.0) * (zp ** 2 - 1.0)
+                + (kurt / 24.0) * (zp ** 3 - 3.0 * zp)
+                - (skew ** 2 / 36.0) * (2.0 * zp ** 3 - 5.0 * zp))
+
+    zq = abs(z)
+    long = (_cf(-zq).abs() / zq).clip(tau_min, tau_max)
+    short = (_cf(zq).abs() / zq).clip(tau_min, tau_max)
+    long = long.where(long.notna() & np.isfinite(long), 1.0)
+    short = short.where(short.notna() & np.isfinite(short), 1.0)
+    return long.to_numpy(dtype=float), short.to_numpy(dtype=float)
+
+
 @dataclass
 class PortfolioResult:
     instruments: list[str]
@@ -79,7 +100,7 @@ class PortfolioBacktester:
         corr_window: int = 63,
         exit_mode: Literal["managed", "barrier"] = "managed",
         trade_manager: TradeManager | None = None,
-        slot_allocation: Literal["order", "expected_value"] = "order",
+        slot_allocation: Literal["order", "expected_value"] | None = None,
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -95,8 +116,14 @@ class PortfolioBacktester:
         # "order" reproduces the historic (arbitrary, order-dependent) behaviour and is
         # the default so nothing certified changes silently. "expected_value" ranks
         # same-bar candidates by p*b-(1-p) before allocating scarce slots — see
-        # data_store/ordering_sensitivity_audit.md.
-        self.slot_allocation = slot_allocation
+        # data_store/ordering_sensitivity_audit.md. An explicit constructor argument
+        # wins; otherwise the RiskManager's own config decides (risk.slot_allocation,
+        # default "order"), so gate configs flow into CPCV folds unchanged.
+        _rcfg = getattr(self.risk, "cfg", None) or self.cfg.risk
+        self.slot_allocation = (
+            slot_allocation if slot_allocation is not None
+            else str(getattr(_rcfg, "slot_allocation", "order") or "order")
+        )
         self._mech_cache: dict = {}
 
     def _regime_for(self, instrument: str, timeframe: str) -> RuleBasedRegime:
@@ -145,6 +172,25 @@ class PortfolioBacktester:
         instruments = list(pits.keys())
         timeframes = timeframes or {}
 
+        # MUST read the RiskManager's own config, not self.cfg.risk: callers override risk
+        # settings by passing `risk_manager=RiskManager(modified_cfg)`, leaving the app-level
+        # cfg untouched. Reading self.cfg.risk here silently ignored every override.
+        rcfg = getattr(self.risk, "cfg", None) or self.cfg.risk
+
+        # Cornish-Fisher tail sizing (W2, 2026-07-25; prereg
+        # engine/data_store/cf_cvar_prereg.md). Off by default; when enabled the
+        # per-instrument direction-aware tau series is precomputed below from rolling
+        # point-in-time skew / excess kurtosis and consumed by RiskManager step 6a via
+        # MarketState.cf_tail_long / cf_tail_short.
+        cf_enabled = bool(getattr(rcfg, "cf_cvar_enabled", False))
+        cf_window = int(getattr(rcfg, "cf_cvar_window", 60) or 60)
+        cf_z = float(getattr(rcfg, "cf_cvar_z", 2.326))
+        cf_tau_lo = float(getattr(rcfg, "cf_cvar_tau_min", 1.0))
+        cf_tau_hi = float(getattr(rcfg, "cf_cvar_tau_max", 2.0))
+        cf_s_clip = float(getattr(rcfg, "cf_cvar_skew_clip", 2.0))
+        cf_k_lo = float(getattr(rcfg, "cf_cvar_kurt_min", -2.0))
+        cf_k_hi = float(getattr(rcfg, "cf_cvar_kurt_max", 10.0))
+
         # Precompute per-instrument arrays + a union log-return frame for correlation.
         data: dict[str, dict] = {}
         logret_cols: dict[str, pd.Series] = {}
@@ -191,6 +237,15 @@ class PortfolioBacktester:
                 "tf": timeframes.get(inst, "1d"),
                 "hold": max_hold if max_hold is not None else int(getattr(strategies[inst], "holding_horizon", 20)),
             }
+            if cf_enabled:
+                # W2: point-in-time rolling moments on daily log returns -> clipped
+                # direction-aware Cornish-Fisher tau. Insufficient history -> tau 1.0
+                # (certified sizing), so the early bars are never distorted.
+                lr = np.log(close).diff()
+                sw = lr.rolling(cf_window).skew().clip(-cf_s_clip, cf_s_clip)
+                ku = lr.rolling(cf_window).kurt().clip(cf_k_lo, cf_k_hi)
+                data[inst]["cf_long"], data[inst]["cf_short"] = _cf_tau_arrays(
+                    sw, ku, cf_z, cf_tau_lo, cf_tau_hi)
             logret_cols[inst] = np.log(close).diff()
 
         # Instruments with no bars in [start, end] dropped above are excluded everywhere.
@@ -210,16 +265,23 @@ class PortfolioBacktester:
         # Portfolio vol-target overlay. Reads ONLY equity already realised at or before
         # the decision bar, so it is causal: the scalar applied to bar t's decisions is
         # built from returns up to and including t, and those trades fill at t+1's open.
-        # MUST read the RiskManager's own config, not self.cfg.risk: callers override risk
-        # settings by passing `risk_manager=RiskManager(modified_cfg)`, leaving the app-level
-        # cfg untouched. Reading self.cfg.risk here silently ignored every override.
-        rcfg = getattr(self.risk, "cfg", None) or self.cfg.risk
         pv_target = float(getattr(rcfg, "portfolio_vol_target", 0.0) or 0.0)
         pv_window = int(getattr(rcfg, "portfolio_vol_window", 63) or 63)
         pv_min = float(getattr(rcfg, "portfolio_vol_scalar_min", 0.25))
         pv_max = float(getattr(rcfg, "portfolio_vol_scalar_max", 1.50))
         eq_hist: list[float] = []
         self.risk.risk_scalar = 1.0
+
+        #: Order-invariant allocation (W1, 2026-07-25; prereg
+        #: engine/data_store/order_invariant_prereg.md). "simultaneous" defers the
+        #: RiskManager's sequential step-5.5 portfolio-risk clamp to a single end-of-bar
+        #: gamma applied uniformly to every position's open risk (PASS 2 below). The
+        #: defer switch is a runtime attribute on the RiskManager, so the live loop —
+        #: which never sets it — always keeps the sequential cap.
+        self._simultaneous_risk_cap = (
+            str(getattr(rcfg, "portfolio_risk_cap_mode", "sequential")) == "simultaneous"
+        )
+        self.risk.defer_portfolio_risk_cap = self._simultaneous_risk_cap
 
         #: Daily-loss stop. On a daily book each bar IS a session, so the day's opening
         #: equity is the previous bar's close. Prop firms measure their daily rule against
@@ -231,6 +293,7 @@ class PortfolioBacktester:
         peak = realized
         open_pos: dict[str, dict] = {}
         pending: dict[str, dict] = {}
+        pending_trims: dict[str, float] = {}   # instrument -> fraction of units to de-risk (W1 gamma)
         trades: list[Trade] = []
         per_inst = {inst: {"n_trades": 0, "net_pnl": 0.0} for inst in instruments}
         constraint_log: dict[str, int] = defaultdict(int)
@@ -302,6 +365,36 @@ class PortfolioBacktester:
                         del open_pos[inst]
 
             # 2. execute pending entries at THIS bar's open
+            # 2a. gamma trims FIRST (W1 simultaneous mode): de-risk existing positions
+            #     queued at last bar's decision before adding new risk. A trim is a
+            #     partial reduction of a position that stays open — stop/target and
+            #     TradeManager state unchanged, so its open risk scales by exactly the
+            #     trimmed fraction. Accounting mirrors a TradeManager partial (fill
+            #     cost via _fill + per-trade commission; P&L accrues into
+            #     realized_pnl_total, no Trade record — the position has not closed).
+            for inst in list(pending_trims.keys()):
+                frac = pending_trims.pop(inst)
+                posd = open_pos.get(inst)
+                if posd is None:
+                    continue            # exited on this bar's step 1 — nothing to trim
+                d = data[inst]
+                i = d["pos"].get(t)
+                if i is None:
+                    continue
+                trim_units = posd["units"] * frac
+                if trim_units <= 0.0:
+                    continue
+                exit_px = self._fill(float(d["open"][i]), inst,
+                                     buying=posd["direction"] != Direction.LONG,
+                                     timeframe=posd["tf"])
+                pnl = ((exit_px - posd["entry_price"]) * trim_units
+                       if posd["direction"] == Direction.LONG
+                       else (posd["entry_price"] - exit_px) * trim_units)
+                posd["units"] -= trim_units
+                realized += pnl - d["commission"]
+                posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (pnl - d["commission"])
+                constraint_log["portfolio_risk_gamma_trim"] += 1
+
             for inst in list(pending.keys()):
                 if inst in open_pos:
                     continue
@@ -425,6 +518,14 @@ class PortfolioBacktester:
                 candidates.sort(key=lambda c: (-_score(c), c[0]))
 
             # PASS 2 — allocate in the chosen order.
+            # Simultaneous mode (W1): permitted candidates are COLLECTED, not booked;
+            # one end-of-bar gamma is then applied to all of them at once (below), so
+            # the portfolio-risk budget is shared proportionally instead of consumed
+            # first-come-first-served. The provisional book is still extended per
+            # candidate so the hard count caps and correlation cap bind in the ranked
+            # (panel-order-independent) sequence. Sequential mode is byte-identical to
+            # the certified path.
+            permitted_today: list[tuple] = []
             for inst, d, i, atr_i, vol_i, signal in candidates:
 
                 corrs: dict[str, float] = {}
@@ -441,19 +542,69 @@ class PortfolioBacktester:
                 market = MarketState(
                     instrument=inst, price=float(d["close"][i]), ann_vol=float(vol_i),
                     atr=float(atr_i), correlations=corrs,
+                    **({"cf_tail_long": float(d["cf_long"][i]),
+                        "cf_tail_short": float(d["cf_short"][i])} if cf_enabled else {}),
                 )
                 regime = self._regime_for(inst, d["tf"]).classify(pits[inst], t) if self.use_regime else None
                 pos = self.risk.permit(signal, account, market, regime=regime, t=t)
                 for c in pos.constraints_applied:
                     constraint_log[c] += 1
                 if pos.permitted:
-                    pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
-                                     "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
+                    if self._simultaneous_risk_cap:
+                        permitted_today.append((inst, d, i, pos))
+                    else:
+                        pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
+                                         "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
                     # provisionally add so later candidates this bar respect the caps
                     book = book + [OpenPosition(
                         instrument=inst, direction=pos.direction, notional=pos.notional,
                         risk=pos.risk_fraction * eq, timeframe=d["tf"],
                     )]
+
+            # PASS 3 (W1 simultaneous only) — one proportional de-risking for the bar.
+            #
+            # implied_total = open risk + candidate raw risk. If it exceeds the 6.5%
+            # budget, gamma = budget / implied_total scales EVERY position's open risk
+            # uniformly: candidates enter at gamma x their raw weight (stop/target
+            # unchanged), and open positions with positive open risk are queued a
+            # (1-gamma) unit trim filling at the next bar's open (step 2a). Positions
+            # whose stop is at/past the mark carry zero open risk and are not trimmed
+            # (0 x gamma = 0 — uniform in risk space). gamma <= 1 always: the mechanism
+            # only de-risks, never re-levers. Sums are accumulated in instrument-sorted
+            # (open) / ranked (candidate) order so gamma is a pure function of the
+            # candidate SET — the order-invariance property the shuffle test proves.
+            if self._simultaneous_risk_cap and permitted_today:
+                cap = float(getattr(rcfg, "max_portfolio_risk", 0.035))
+                open_risk = sum(
+                    max(0.0, posd["units"] * abs(float(posd["last_px"]) - float(posd["stop"])))
+                    for _k, posd in sorted(open_pos.items())
+                )
+                cand_risk = sum(pos.risk_fraction * eq for _, _, _, pos in permitted_today)
+                implied_total = open_risk + cand_risk
+                budget = cap * eq
+                if implied_total > budget and implied_total > 0.0:
+                    gamma = budget / implied_total
+                    scaled: list[tuple] = []
+                    for inst, d, i, pos in permitted_today:
+                        if pos.notional * gamma <= float(getattr(rcfg, "min_position", 0.0)):
+                            constraint_log["below_min_position"] += 1
+                            continue
+                        pos.units *= gamma
+                        pos.notional *= gamma
+                        pos.risk_fraction *= gamma
+                        label = f"portfolio_risk_gamma={gamma:.2f}"
+                        pos.constraints_applied.append(label)
+                        constraint_log[label] += 1
+                        scaled.append((inst, d, i, pos))
+                    for _k, posd in sorted(open_pos.items()):
+                        open_r = max(0.0, posd["units"]
+                                     * abs(float(posd["last_px"]) - float(posd["stop"])))
+                        if open_r > 0.0:
+                            pending_trims[_k] = 1.0 - gamma
+                    permitted_today = scaled
+                for inst, d, i, pos in permitted_today:
+                    pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
+                                     "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
 
         equity_series = pd.Series(
             [v for _, v in eq_points],

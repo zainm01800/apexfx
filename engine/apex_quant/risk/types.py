@@ -79,6 +79,13 @@ class MarketState(BaseModel):
     quote_to_account_rate: float = Field(default=1.0, description="Exchange rate to convert quote currency to account currency (GBP)")
     # |correlation| of this instrument to each currently-open instrument
     correlations: dict[str, float] = {}
+    #: Optional Cornish-Fisher tail multipliers (W2, 2026-07-25), precomputed by the
+    #: backtester from rolling skew/excess-kurtosis and clipped to [tau_min, tau_max].
+    #: None = "not computed" -> tau 1.0, certified sizing. Only consumed when
+    #: risk.cf_cvar_enabled is true; every other MarketState producer (live loop,
+    #: single-instrument engine) leaves them None, which is a strict no-op.
+    cf_tail_long: float | None = None
+    cf_tail_short: float | None = None
 
 
 class Position(BaseModel):

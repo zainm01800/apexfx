@@ -148,6 +148,38 @@ class RiskConfig(BaseModel):
     portfolio_vol_scalar_min: float = 0.25
     portfolio_vol_scalar_max: float = 1.50
 
+    # --- Order-invariant allocation (W1, 2026-07-25; prereg -------------------------
+    # engine/data_store/order_invariant_prereg.md). Both default to certified behaviour.
+    #: How the PortfolioBacktester orders same-bar candidates for the hard COUNT caps
+    #: (swing bucket / global 12). "order" = certified panel insertion order (the
+    #: ordering-sensitivity artifact); "expected_value" ranks by p*b-(1-p) descending,
+    #: tie-break instrument name. Lives on cfg.risk so CPCV folds see the challenger
+    #: config; an explicit PortfolioBacktester(slot_allocation=...) arg still wins.
+    slot_allocation: str = "order"
+    #: How the 6.5% portfolio-risk budget is enforced. "sequential" = certified step-5.5
+    #: clamp/veto in evaluation order. "simultaneous" = backtest-only single end-of-bar
+    #: gamma = budget/implied_total applied uniformly to every position's open risk
+    #: (candidates scaled, open positions trimmed at the next open). The LIVE loop keeps
+    #: the sequential cap regardless — the skip is a runtime attribute only the
+    #: backtester sets, so flipping this field can never un-cap a live book.
+    portfolio_risk_cap_mode: Literal["sequential", "simultaneous"] = "sequential"
+
+    # --- Cornish-Fisher CVaR tail sizing (W2, 2026-07-25; prereg ---------------------
+    # engine/data_store/cf_cvar_prereg.md). Default OFF = certified ATR/vol sizing.
+    # When ON, the per-unit risk measure (ATR stop distance, and ann_vol in the
+    # vol-target ceiling) is multiplied by a direction-aware Cornish-Fisher tail
+    # multiplier tau >= 1 built from rolling skew/excess-kurtosis — heavy-tailed and
+    # adversely-skewed names get FEWER units for the same risk budget. Stops, targets,
+    # exits and the recorded (raw, planned-loss) risk_fraction are unchanged.
+    cf_cvar_enabled: bool = False
+    cf_cvar_window: int = 60        #: rolling window for skew / excess kurtosis
+    cf_cvar_z: float = 2.326        #: one-sided 99% Gaussian quantile
+    cf_cvar_tau_min: float = 1.0    #: contraction only — tau < 1 (thin tails) is a no-op
+    cf_cvar_tau_max: float = 2.0    #: CF pathology guard — at most halve the position
+    cf_cvar_skew_clip: float = 2.0  #: |S| clip (CF breaks down for extreme moments)
+    cf_cvar_kurt_min: float = -2.0  #: excess-kurtosis clip band
+    cf_cvar_kurt_max: float = 10.0
+
 
 class BacktestConfig(BaseModel):
     initial_equity: float = 100_000

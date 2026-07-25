@@ -49,6 +49,24 @@ def units_from_risk(equity: float, risk_fraction: float, stop_distance: float) -
     return risk_fraction * equity / stop_distance
 
 
+def cornish_fisher_tau(skew: float, kurt_excess: float, z: float,
+                       direction_long: bool) -> float:
+    """Cornish-Fisher tail multiplier on the per-unit risk measure (W2, 2026-07-25;
+    prereg engine/data_store/cf_cvar_prereg.md).
+
+    ``z_CF = z' + (S/6)(z'²-1) + (K/24)(z'³-3z') - (S²/36)(2z'³-5z')`` evaluated at the
+    ADVERSE tail for the trade's direction (``z' = -z`` for longs, ``+z`` for shorts),
+    returned as ``|z_CF| / z``: 1.0 for a Gaussian (S=0, K=0), > 1 when the adverse
+    tail is fatter than Gaussian. Raw, unclipped — the caller clips to the
+    pre-registered [tau_min, tau_max] band and treats insufficient data as 1.0.
+    """
+    zp = -abs(z) if direction_long else abs(z)
+    z_cf = (zp + (skew / 6.0) * (zp ** 2 - 1.0)
+            + (kurt_excess / 24.0) * (zp ** 3 - 3.0 * zp)
+            - (skew ** 2 / 36.0) * (2.0 * zp ** 3 - 5.0 * zp))
+    return abs(z_cf) / abs(z)
+
+
 def round_lot_size(
     volume: float,
     min_lot: float = 0.01,

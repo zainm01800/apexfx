@@ -24,6 +24,7 @@ in ``Position.sizing_detail`` - full decision transparency.
 from __future__ import annotations
 
 import logging
+import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING
 from apex_quant.risk.news_calendar import NewsCalendarFilter
@@ -63,6 +64,13 @@ class RiskManager:
         #: volatility of the equity curve it is feeding, so whoever owns that curve
         #: (PortfolioBacktester, or the live loop) sets this each bar. 1.0 = no-op.
         self.risk_scalar: float = 1.0
+        #: Runtime opt-out of the step-5.5 sequential portfolio-risk clamp, set ONLY by
+        #: PortfolioBacktester when cfg.portfolio_risk_cap_mode == "simultaneous" (the
+        #: backtester then applies one end-of-bar gamma uniformly; prereg
+        #: engine/data_store/order_invariant_prereg.md). Deliberately an attribute, not
+        #: read from config here: the live loop never sets it, so a live book always
+        #: keeps the sequential cap even if the config field is flipped.
+        self.defer_portfolio_risk_cap: bool = False
         # Initialize or assign the news calendar filter
         if news_filter is not None:
             self.news_filter = news_filter
@@ -323,34 +331,53 @@ class RiskManager:
             if risk_fraction <= 0:
                 return veto("regime_zero", f"Regime {detail['regime']} scaled size to zero.")
 
-        # 5.5. Portfolio risk cap (prop firm safety)
-        max_port_risk = getattr(cfg, "max_portfolio_risk", 0.035)
-        total_open_risk = sum(getattr(p, "risk", 0.0) for p in (account.open_positions or []))
-        total_open_risk_pct = total_open_risk / account.equity
-        max_proposed_risk = max_port_risk - total_open_risk_pct
-        
-        detail["total_open_risk_pct"] = total_open_risk_pct
-        detail["max_proposed_risk"] = max_proposed_risk
-        
-        if max_proposed_risk <= 0:
-            return veto(
-                "max_portfolio_risk_exceeded",
-                f"Active portfolio risk {total_open_risk_pct:.2%} >= limit {max_port_risk:.2%}; new trades blocked.",
-            )
-        
-        if risk_fraction > max_proposed_risk:
-            risk_fraction = max_proposed_risk
-            applied.append("portfolio_risk_cap")
+        # 5.5. Portfolio risk cap (prop firm safety) — skipped only when the
+        # backtester defers it to the simultaneous end-of-bar gamma (W1 prereg).
+        if not getattr(self, "defer_portfolio_risk_cap", False):
+            max_port_risk = getattr(cfg, "max_portfolio_risk", 0.035)
+            total_open_risk = sum(getattr(p, "risk", 0.0) for p in (account.open_positions or []))
+            total_open_risk_pct = total_open_risk / account.equity
+            max_proposed_risk = max_port_risk - total_open_risk_pct
+
+            detail["total_open_risk_pct"] = total_open_risk_pct
+            detail["max_proposed_risk"] = max_proposed_risk
+
+            if max_proposed_risk <= 0:
+                return veto(
+                    "max_portfolio_risk_exceeded",
+                    f"Active portfolio risk {total_open_risk_pct:.2%} >= limit {max_port_risk:.2%}; new trades blocked.",
+                )
+
+            if risk_fraction > max_proposed_risk:
+                risk_fraction = max_proposed_risk
+                applied.append("portfolio_risk_cap")
 
         # 6. Risk-based vs vol-target notional -> take the more conservative
         rate = getattr(market, "quote_to_account_rate", 1.0)
         stop_distance_account = stop_distance * rate
         price_account = market.price * rate
 
-        units_risk = units_from_risk(account.equity, risk_fraction, stop_distance_account)
+        # 6a. Cornish-Fisher tail multiplier (W2, 2026-07-25; prereg
+        # engine/data_store/cf_cvar_prereg.md). tau >= 1 contracts units on
+        # heavy-tailed / adversely-skewed names; stops, targets and the recorded
+        # (raw planned-loss) risk_fraction are unchanged — tau only shrinks size.
+        # Off by default and a strict no-op when the caller did not precompute the
+        # multipliers (live loop, single-instrument engine: fields are None).
+        tau = 1.0
+        if getattr(cfg, "cf_cvar_enabled", False):
+            raw_tau = market.cf_tail_long if signal.direction == Direction.LONG else market.cf_tail_short
+            if raw_tau is not None and np.isfinite(raw_tau):
+                tau = float(np.clip(raw_tau,
+                                    getattr(cfg, "cf_cvar_tau_min", 1.0),
+                                    getattr(cfg, "cf_cvar_tau_max", 2.0)))
+            if tau != 1.0:
+                applied.append(f"cf_cvar_tau={tau:.2f}")
+            detail["cf_cvar_tau"] = tau
+
+        units_risk = units_from_risk(account.equity, risk_fraction, stop_distance_account * tau)
         notional_risk = units_risk * price_account
         notional_voltarget = vol_target_notional(
-            account.equity, cfg.target_portfolio_vol, market.ann_vol
+            account.equity, cfg.target_portfolio_vol, market.ann_vol * tau
         )
         detail["notional_risk"] = notional_risk
         detail["notional_voltarget"] = notional_voltarget
