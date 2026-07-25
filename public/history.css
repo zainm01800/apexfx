@@ -1101,3 +1101,23 @@ button.sc-btn { appearance: none; outline: none; }
 .ibkr-chart-box { width: 100%; height: 240px; }
 .ibkr-chart-msg { padding: 28px 12px; text-align: center; color: var(--text3); font-size: 12px; font-family: var(--mono); }
 .ibkr-chart-msg.err { color: var(--red); }
+
+/* ── IBKR summary fit fixes (2026-07-25) ──
+   The hero's grid-column 1/-1 span defeats auto-fit track collapsing, so the
+   inline repeat(auto-fit, minmax(150px, 1fr)) minted 7 x 156px tracks for 6
+   cards and big mono values (£998,319.05 at 22px ≈ 146px) bled past their
+   ~116px inner width. 170px minimum yields exactly 6 tracks at the 1152px
+   content width (~183px cards); the class strip (5 cards, no spanner)
+   collapses its spare track and gets ~222px cards. */
+#ibkrSummary, #ibkrClassSummary {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+}
+/* Money values must never bleed: responsive size, tight tracking, no wrap.
+   (Inline-styled vals — hero 42px, credit-line 17px — are unaffected.) */
+#ibkrSummary .hs-val, #ibkrClassSummary .hs-val {
+  font-size: clamp(16px, 1.6vw, 21px);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+/* Tab buttons + sync pill + filter pills: never wrap or clip their labels */
+.vt-btn, .hf-pill, .acc-scope-btn { white-space: nowrap; }
