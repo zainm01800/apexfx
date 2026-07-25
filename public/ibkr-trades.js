@@ -645,7 +645,11 @@ function togglePositionChart(inst, btn) {
     };
     positionLevelLabels();
     requestAnimationFrame(positionLevelLabels);
-    ts.subscribeVisibleLogicalRangeChange(positionLevelLabels);
+    // The visible-range event fires BEFORE the chart recomputes autoscale, so
+    // reading priceToCoordinate synchronously yields stale coordinates — defer
+    // the reposition two frames (the chart repaints on its own frame first).
+    ts.subscribeVisibleLogicalRangeChange(() =>
+      requestAnimationFrame(() => requestAnimationFrame(positionLevelLabels)));
 
     _chartRO = new ResizeObserver(() => {
       if (_chartObj && box.isConnected) {
