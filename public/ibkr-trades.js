@@ -272,18 +272,120 @@ function renderPositionsCards(positions, cls) {
   if (!wrap) return;
   destroyChart(); // chart instance must die before innerHTML wipes its canvas
 
-  if (!positions.length) {
+  const sym = curSymbol();
+  // Engine-only dummies: paper-book positions that never mirrored to IBKR
+  // (e.g. PRIIPs-blocked US ETFs). Matched by instrument string against the
+  // REAL account positions; shown ghosted so 6 real + 3 dummy reconcile the
+  // 9-line engine book on the terminal.
+  const realInst = new Set(_ibkrPositionsCache.map(x => String(x.instrument)));
+  const dummies = Object.values(_ibkrPaperMap)
+    .filter(r => r && r.instrument && !realInst.has(String(r.instrument)) && paperClassFor(String(r.instrument)) === cls);
+  setReconNote(positions.length, dummies.length);
+
+  if (!positions.length && !dummies.length) {
     _openChartInst = null; // no cards to restore onto
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
     return;
   }
 
-  const sym = curSymbol();
   // Gross book = sum of every position's absolute notional; each card shows its
   // own slice of it so "how much is open right now" reads off the card directly.
   const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
-  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('');
+  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
+    + dummies.map(r => renderDummyCard(r, cls, sym)).join('');
   restoreOpenChart(); // re-expand the open chart (if any) after background refreshes
+}
+
+// US equity ETFs a UK retail account can't trade at IBKR (PRIIPs KID rule).
+const US_ETF_SET = new Set(['SPY', 'QQQ', 'IWM', 'XLK', 'XLE', 'XBI', 'SMH', 'SOXX', 'DIA', 'VOO', 'IVV', 'VTI', 'MDY']);
+
+// Paper rows carry no asset_class — classify loosely: slash pairs are forex or
+// crypto (by base), anything else is a stock. Matches the engine's book shape.
+function paperClassFor(inst) {
+  if (inst.includes('/')) {
+    const base = inst.split('/')[0].toUpperCase();
+    return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'LINK', 'AVAX'].includes(base) ? 'crypto' : 'forex';
+  }
+  return 'stocks';
+}
+
+function setReconNote(realCount, dummyCount) {
+  const el = document.getElementById('posReconNote');
+  if (!el) return;
+  el.textContent = dummyCount > 0
+    ? `${realCount} mirrored on IBKR · ${dummyCount} engine-only (blocked)`
+    : (realCount > 0 ? `${realCount} mirrored on IBKR` : '');
+}
+
+// Dummy card for an engine-only paper position: same footprint/rows as a real
+// card but ghosted + dashed, ENGINE ONLY badge, block reason, no CHART button.
+function renderDummyCard(pp, cls, sym) {
+  const inst = String(pp.instrument || '');
+  const isLong = String(pp.direction || '').toLowerCase() !== 'short';
+  const dirBadge = isLong
+    ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
+    : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
+
+  const units = num(pp.units);
+  const entry = num(pp.entry_price);
+  const stop = num(pp.stop);
+  const target = num(pp.target);
+  const lastPx = num(pp.last_px);
+  // Paper-book P&L from the engine's own mark (last_px); omitted if unavailable.
+  const upnl = (entry !== null && lastPx !== null && units !== null)
+    ? (isLong ? (lastPx - entry) : (entry - lastPx)) * units
+    : null;
+  const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
+  const reason = US_ETF_SET.has(inst.toUpperCase())
+    ? 'US ETF — blocked on IBKR (PRIIPs)'
+    : 'not mirrored to IBKR';
+  const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
+
+  return `
+    <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div class="card-face-stats">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(inst)}</strong>
+          <span class="ibkr-dummy-badge">ENGINE ONLY</span>
+          ${dirBadge}
+        </div>
+        <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
+      </div>
+
+      <div class="ibkr-dummy-reason">${escHtml(reason)}</div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
+        <span style="color: var(--text3)">Avg Entry</span>
+        <span style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(entry, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Last Price</span>
+        <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${lastPx === null ? '—' : escHtml(fmtPrice(lastPx, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Stop Loss</span>
+        <span style="font-family: var(--mono); color: var(--red);">${escHtml(fmtPrice(stop, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--text3)">Take Profit</span>
+        <span style="font-family: var(--mono); color: var(--green);">${escHtml(fmtPrice(target, cls))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
+        <span style="color: var(--text)">Engine P&amp;L</span>
+        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
+      </div>
+
+      <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
+        Engine book · ${escHtml(updated)}
+      </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderPositionCard(p, cls, sym, gross) {

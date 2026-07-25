@@ -1196,3 +1196,19 @@ button.sc-btn { appearance: none; outline: none; }
 }
 /* Tab buttons + sync pill + filter pills: never wrap or clip their labels */
 .vt-btn, .hf-pill, .acc-scope-btn { white-space: nowrap; }
+
+/* ── Engine-only dummy position cards (paper book, not mirrored to IBKR) ── */
+.ibkr-dummy-card { opacity: 0.55; border-style: dashed !important; border-color: rgba(148, 163, 184, 0.45) !important; }
+.ibkr-dummy-card:hover { transform: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important; }
+.ibkr-dummy-card::before { display: none; } /* no accent hairline on ghosts */
+.ibkr-dummy-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  background: rgba(245, 176, 76, 0.12); color: #F5B04C;
+  font-family: var(--mono); letter-spacing: 0.06em;
+  border: 1px solid rgba(245, 176, 76, 0.3);
+}
+.ibkr-dummy-reason {
+  font-size: 10.5px; color: var(--text3); font-family: var(--mono);
+  padding: 4px 8px; border: 1px dashed rgba(148, 163, 184, 0.3); border-radius: 6px;
+  background: rgba(148, 163, 184, 0.05);
+}
