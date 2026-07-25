@@ -538,7 +538,7 @@ function togglePositionChart(inst, btn) {
 
     const chart = LightweightCharts.createChart(box, {
       width: box.clientWidth,
-      height: 240,
+      height: Math.max(box.clientHeight, 160), // box flex-fills the locked card
       layout: {
         background: { type: 'solid', color: 'transparent' },
         textColor: '#64748B',
@@ -564,13 +564,15 @@ function togglePositionChart(inst, btn) {
     });
     series.setData(bars);
 
+    // Level lines carry NO axis titles — the chips row above the chart already
+    // names + prices each level; the axis keeps only its price pills.
     const LS = LightweightCharts.LineStyle;
-    const mkLine = (price, color, title, style) =>
-      series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
-    if (entry !== null) mkLine(entry, LEVEL_COLORS.entry, 'Entry', LS.Solid);
-    if (stop !== null) mkLine(stop, LEVEL_COLORS.stop, 'Stop', LS.Solid);
-    if (target !== null) mkLine(target, LEVEL_COLORS.target, 'Target', LS.Solid);
-    if (oneR !== null) mkLine(oneR, LEVEL_COLORS.oneR, '+1R', LS.Dashed);
+    const mkLine = (price, color, style) =>
+      series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title: '' });
+    if (entry !== null) mkLine(entry, LEVEL_COLORS.entry, LS.Solid);
+    if (stop !== null) mkLine(stop, LEVEL_COLORS.stop, LS.Solid);
+    if (target !== null) mkLine(target, LEVEL_COLORS.target, LS.Solid);
+    if (oneR !== null) mkLine(oneR, LEVEL_COLORS.oneR, LS.Dashed);
 
     // Autoscale fits candle data only — a stop/target beyond the 90-bar range
     // would be drawn off-screen. Anchor the price scale to the level extremes
@@ -592,7 +594,9 @@ function togglePositionChart(inst, btn) {
     chart.timeScale().fitContent();
 
     _chartRO = new ResizeObserver(() => {
-      if (_chartObj && box.isConnected) _chartObj.applyOptions({ width: box.clientWidth });
+      if (_chartObj && box.isConnected) {
+        _chartObj.applyOptions({ width: box.clientWidth, height: Math.max(box.clientHeight, 160) });
+      }
     });
     _chartRO.observe(box);
   })();
