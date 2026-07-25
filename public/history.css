@@ -1052,42 +1052,22 @@ button.sc-btn { appearance: none; outline: none; }
 .ibkr-chart-btn:hover { background: rgba(56, 189, 248, 0.16); border-color: rgba(56, 189, 248, 0.45); }
 .ibkr-chart-btn.open { background: rgba(56, 189, 248, 0.2); }
 
-/* Position cards must not stretch when a row-mate expands its chart */
+/* Position cards must not stretch when a row-mate flips to chart view */
 #ibkrPositionsWrap { align-items: start; }
 
-/* In-card chart panel: lives INSIDE the position card (flex child), expands
-   downward via the grid-rows 0fr -> 1fr trick so the height animates smoothly
-   and only cards below shift. Siblings keep their height (align-items: start). */
-.ibkr-chart-panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  min-width: 0; /* allow shrinking inside the flex card */
-  transition: grid-template-rows .32s cubic-bezier(0.16, 1, 0.3, 1), opacity .25s ease;
-}
-.ibkr-chart-panel.open { grid-template-rows: 1fr; opacity: 1; }
-.ibkr-chart-inner {
-  overflow: hidden;
-  min-height: 0;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-  margin-top: 2px;
-}
-.ibkr-chart-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
-.ibkr-chart-title { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text); letter-spacing: 0.04em; }
-.ibkr-chart-title span { color: var(--text3); font-weight: 400; }
-.ibkr-chart-close {
-  background: none; border: none; color: var(--text3); font-size: 16px; line-height: 1;
-  cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: color .15s, background .15s;
-}
-.ibkr-chart-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+/* Two-face position card: .card-face-stats and .card-face-chart share the
+   card's footprint — .chart-mode hides the stats face. Entering faces fade in
+   over ~180ms (fadeIn keyframes from dashboard.css); no height animation, so
+   no jank — the faces are near-equal height by design. */
+.card-face-stats { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ibkr-pos-card.chart-mode .card-face-stats { display: none; }
+.card-face-stats.face-enter,
+.card-face-chart { animation: fadeIn .18s ease; }
+.card-face-chart { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cf-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cf-id { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cf-sym { font-family: var(--mono); font-size: 17px; color: var(--text); }
+.cf-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; }
 .ibkr-chart-legend { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .ibkr-chart-chip {
   display: inline-flex; align-items: center; gap: 6px;
