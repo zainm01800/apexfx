@@ -575,21 +575,24 @@ function togglePositionChart(inst, btn) {
     if (target !== null) mkLine(target, LEVEL_COLORS.target, LS.Solid);
     if (oneR !== null) mkLine(oneR, LEVEL_COLORS.oneR, LS.Dashed);
 
-    // Autoscale fits candle data only — a stop/target beyond the 90-bar range
+    // Autoscale fits candle data only — a stop/target beyond the bars' range
     // would be drawn off-screen. Anchor the price scale to the level extremes
-    // with a transparent two-point line so every level stays visible.
+    // with two FLAT transparent lines (one at the padded low, one at the
+    // padded high) so the extremes hold in ANY visible time window — a single
+    // diagonal two-point anchor only touches the extremes at its endpoints
+    // and lets far-away levels clip once the view is narrowed.
     const lvls = [entry, stop, target, oneR].filter(v => v !== null);
     if (lvls.length) {
       const span = Math.max(...lvls) - Math.min(...lvls);
       const pad = span > 0 ? span * 0.04 : Math.abs(lvls[0]) * 0.005 || 1;
-      const anchor = chart.addLineSeries({
-        color: 'rgba(0, 0, 0, 0)', lineWidth: 1,
-        crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
-      });
-      anchor.setData([
-        { time: bars[0].time, value: Math.min(...lvls) - pad },
-        { time: bars[bars.length - 1].time, value: Math.max(...lvls) + pad },
-      ]);
+      const t0 = bars[0].time, tN = bars[bars.length - 1].time;
+      for (const v of [Math.min(...lvls) - pad, Math.max(...lvls) + pad]) {
+        const anchor = chart.addLineSeries({
+          color: 'rgba(0, 0, 0, 0)', lineWidth: 1,
+          crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+        });
+        anchor.setData([{ time: t0, value: v }, { time: tN, value: v }]);
+      }
     }
 
     // Give the price scale clear air above the highest level and below the
