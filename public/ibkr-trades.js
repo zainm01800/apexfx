@@ -628,7 +628,7 @@ function togglePositionChart(inst, btn) {
     const lvlLabels = lvlDefs.map(d => {
       const el = document.createElement('div');
       el.className = 'ibkr-lvl-label';
-      el.textContent = `${d.tag} ${fmtPrice(d.price, cls)}`;
+      el.textContent = d.tag; // meaning only — values live in the legend chips
       el.style.color = d.color;
       box.appendChild(el);
       return { el, price: d.price };
