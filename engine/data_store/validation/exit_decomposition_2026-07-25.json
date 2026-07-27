@@ -1,0 +1,199 @@
+{
+  "generated_at": "2026-07-27T14:26:16+00:00",
+  "mode": "iteration",
+  "kind": "exit_decomposition",
+  "informational": true,
+  "gate": null,
+  "note": "Measurement only: counterfactual exits on the certified trade set. No DSR/PBO verdict is computed or implied \u2014 this is not a gate.",
+  "holdout_start": "2025-01-01",
+  "certified_anchor": "engine/data_store/validation/book_h_gapaware_2026-07-22.json",
+  "certified_reproduction": "EXACT",
+  "ledger_n_trials_before": 276,
+  "ledger_n_trials_after": 276,
+  "n_trades": 1637,
+  "n_entries_open_at_window_end": 10,
+  "n_months": 108,
+  "control_parity": {
+    "max_abs_per_trade_diff": 0.0,
+    "replay_total": 197164.45,
+    "recorded_total": 197164.45,
+    "certified_net_pnl": 197164.63
+  },
+  "variant_rules": {
+    "ladder_control": "certified TradeManager replayed per trade (50% @ +1R + BE, 25% @ +1.5R lock, 2xATR chandelier, squeeze tighten, 21-bar time-stop)",
+    "fixed_day_N": "pure time exit at the close of day N (entry bar = day 1); no stop/target",
+    "flat_r_R": "100% close on first touch of +R (stop checked first, gap-aware), else initial stop, else 21-bar cap at close",
+    "stop_only": "initial stop (gap-aware) or 21-bar cap at close; no partials/trail",
+    "trail_only_1R": "no partials, no fixed target; BE stop on +1R touch, then 2xATR chandelier + 1xATR squeeze tighten + manager time-stop"
+  },
+  "variants": {
+    "ladder_control": {
+      "n_trades": 1637,
+      "net_pnl": 197164.45,
+      "win_rate": 0.557728,
+      "expectancy_pnl": 120.44,
+      "expectancy_r": 0.1311,
+      "profit_factor": 1.324524,
+      "avg_hold_days": 12.95,
+      "max_single_trade_loss": -3293.69,
+      "pnl_per_month_100k": 1825.6,
+      "exit_reasons": {
+        "stop": 930,
+        "target": 508,
+        "time": 199
+      }
+    },
+    "fixed_day_1": {
+      "n_trades": 1637,
+      "net_pnl": -10416.39,
+      "win_rate": 0.490531,
+      "expectancy_pnl": -6.36,
+      "expectancy_r": -0.0065,
+      "profit_factor": 0.932901,
+      "avg_hold_days": 1.0,
+      "max_single_trade_loss": -2022.65,
+      "pnl_per_month_100k": -96.45,
+      "exit_reasons": {
+        "fixed_day": 1637
+      }
+    },
+    "fixed_day_2": {
+      "n_trades": 1637,
+      "net_pnl": 19687.34,
+      "win_rate": 0.502138,
+      "expectancy_pnl": 12.03,
+      "expectancy_r": 0.0082,
+      "profit_factor": 1.083975,
+      "avg_hold_days": 2.0,
+      "max_single_trade_loss": -3283.67,
+      "pnl_per_month_100k": 182.29,
+      "exit_reasons": {
+        "fixed_day": 1637
+      }
+    },
+    "fixed_day_3": {
+      "n_trades": 1637,
+      "net_pnl": 52464.31,
+      "win_rate": 0.52413,
+      "expectancy_pnl": 32.05,
+      "expectancy_r": 0.0266,
+      "profit_factor": 1.188301,
+      "avg_hold_days": 3.0,
+      "max_single_trade_loss": -3701.86,
+      "pnl_per_month_100k": 485.78,
+      "exit_reasons": {
+        "fixed_day": 1637
+      }
+    },
+    "fixed_day_5": {
+      "n_trades": 1637,
+      "net_pnl": 111605.64,
+      "win_rate": 0.542456,
+      "expectancy_pnl": 68.18,
+      "expectancy_r": 0.0711,
+      "profit_factor": 1.311124,
+      "avg_hold_days": 5.0,
+      "max_single_trade_loss": -4299.43,
+      "pnl_per_month_100k": 1033.39,
+      "exit_reasons": {
+        "fixed_day": 1637
+      }
+    },
+    "fixed_day_10": {
+      "n_trades": 1637,
+      "net_pnl": 258775.43,
+      "win_rate": 0.544288,
+      "expectancy_pnl": 158.08,
+      "expectancy_r": 0.1545,
+      "profit_factor": 1.523013,
+      "avg_hold_days": 10.0,
+      "max_single_trade_loss": -5617.25,
+      "pnl_per_month_100k": 2396.07,
+      "exit_reasons": {
+        "fixed_day": 1637
+      }
+    },
+    "flat_r_0.50": {
+      "n_trades": 1637,
+      "net_pnl": -2435.85,
+      "win_rate": 0.668907,
+      "expectancy_pnl": -1.49,
+      "expectancy_r": 0.0033,
+      "profit_factor": 0.994945,
+      "avg_hold_days": 7.18,
+      "max_single_trade_loss": -3293.69,
+      "pnl_per_month_100k": -22.55,
+      "exit_reasons": {
+        "r_target": 1075,
+        "stop": 476,
+        "time": 86
+      }
+    },
+    "flat_r_0.75": {
+      "n_trades": 1637,
+      "net_pnl": 81450.89,
+      "win_rate": 0.602932,
+      "expectancy_pnl": 49.76,
+      "expectancy_r": 0.0511,
+      "profit_factor": 1.146328,
+      "avg_hold_days": 9.34,
+      "max_single_trade_loss": -3293.69,
+      "pnl_per_month_100k": 754.17,
+      "exit_reasons": {
+        "r_target": 915,
+        "stop": 548,
+        "time": 174
+      }
+    },
+    "stop_only": {
+      "n_trades": 1637,
+      "net_pnl": 412947.6,
+      "win_rate": 0.484423,
+      "expectancy_pnl": 252.26,
+      "expectancy_r": 0.2407,
+      "profit_factor": 1.598071,
+      "avg_hold_days": 16.83,
+      "max_single_trade_loss": -3293.69,
+      "pnl_per_month_100k": 3823.59,
+      "exit_reasons": {
+        "stop": 665,
+        "time": 970,
+        "window_end": 2
+      }
+    },
+    "trail_only_1R": {
+      "n_trades": 1637,
+      "net_pnl": 277597.33,
+      "win_rate": 0.529016,
+      "expectancy_pnl": 169.58,
+      "expectancy_r": 0.1774,
+      "profit_factor": 1.450525,
+      "avg_hold_days": 15.08,
+      "max_single_trade_loss": -3293.69,
+      "pnl_per_month_100k": 2570.35,
+      "exit_reasons": {
+        "stop": 1435,
+        "time": 201,
+        "window_end": 1
+      }
+    }
+  },
+  "baseline_metrics_certified": {
+    "total_return": 1.9255133668640645,
+    "ann_return": 0.08769731511242296,
+    "ann_vol": 0.10372021267298559,
+    "sharpe": 0.8628380346245177,
+    "sortino": 0.9340963029882317,
+    "max_drawdown": 0.16315348773173277,
+    "calmar": 0.5375141918916279,
+    "n_trades": 1637,
+    "win_rate": 0.5577275503970678,
+    "profit_factor": 1.324524180228228,
+    "avg_trade_return": 0.010216805131337815,
+    "expectancy_pnl": 120.44265729993896,
+    "expectancy_pct": 0.010216805131337811,
+    "final_equity": 292551.33668640646,
+    "net_pnl": 197164.63,
+    "short_borrow_fees_total": 0.0
+  }
+}
