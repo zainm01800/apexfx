@@ -356,8 +356,6 @@ def main(argv: list[str] | None = None) -> int:
             "monthly_tail": _monthly_tail_stats(res, base_cfg.backtest.initial_equity),
             "daily_loss": _daily_loss_stats(res.returns),
             "trade_distribution": dist_summary,
-            "trade_return_pool": [round(float(v), 10) for v in pool],
-            "closures_per_day_pool": [int(v) for v in counts],
             "mc": mc,
         }
         mt = results[name]["monthly_tail"]
@@ -396,7 +394,10 @@ def main(argv: list[str] | None = None) -> int:
     }
     results_path.parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w", encoding="utf-8") as fh:
-        json.dump(out, fh, indent=2, default=str)
+        # compact separators: the full per-config trade pools make this ~385KB compact
+        # vs ~930KB with indent=2 — the repo's network corrupts big pushes/blobs
+        # (see scripts/push_via_rest.sh header). Values are identical either way.
+        json.dump(out, fh, separators=(",", ":"), default=str)
     print(f"results written to {results_path}", flush=True)
     return 0
 
