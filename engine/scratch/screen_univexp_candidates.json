@@ -1,0 +1,240 @@
+{
+  "rule": {
+    "corr_reject": 0.5,
+    "internal_dup": 0.9,
+    "max_additions": 24,
+    "window": "2016-01-01..2024-12-31",
+    "book": "book_h_gold_252 (39)"
+  },
+  "rows": [
+    {
+      "candidate": "SXLV.L",
+      "max_abs_corr": 0.776,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.2,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.776 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SXLI.L",
+      "max_abs_corr": 0.851,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.262,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.851 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SXLB.L",
+      "max_abs_corr": 0.82,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.262,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.820 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SXLP.L",
+      "max_abs_corr": 0.634,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.152,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.634 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SXLY.L",
+      "max_abs_corr": 0.829,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.298,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.829 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "IUHC.L",
+      "max_abs_corr": 0.772,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.205,
+      "n_obs": 1824,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.772 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "RBOT.L",
+      "max_abs_corr": 0.839,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.347,
+      "n_obs": 1659,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.839 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "DGTL.L",
+      "max_abs_corr": 0.826,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.338,
+      "n_obs": 1659,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.826 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SPSK",
+      "max_abs_corr": 0.283,
+      "argmax": "NZD/USD",
+      "mean_abs_corr": 0.135,
+      "n_obs": 987,
+      "verdict": "KEEP",
+      "reason": "passes R0-R3"
+    },
+    {
+      "candidate": "AMGN",
+      "max_abs_corr": 0.476,
+      "argmax": "XBI",
+      "mean_abs_corr": 0.191,
+      "n_obs": 2019,
+      "verdict": "KEEP",
+      "reason": "passes R0-R3"
+    },
+    {
+      "candidate": "VRTX",
+      "max_abs_corr": 0.515,
+      "argmax": "XBI",
+      "mean_abs_corr": 0.184,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.515 vs XBI >= 0.5"
+    },
+    {
+      "candidate": "DHR",
+      "max_abs_corr": 0.585,
+      "argmax": "XLK",
+      "mean_abs_corr": 0.275,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.585 vs XLK >= 0.5"
+    },
+    {
+      "candidate": "SYK",
+      "max_abs_corr": 0.583,
+      "argmax": "XLK",
+      "mean_abs_corr": 0.284,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.583 vs XLK >= 0.5"
+    },
+    {
+      "candidate": "EMR",
+      "max_abs_corr": 0.645,
+      "argmax": "XLE",
+      "mean_abs_corr": 0.301,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.645 vs XLE >= 0.5"
+    },
+    {
+      "candidate": "ETN",
+      "max_abs_corr": 0.613,
+      "argmax": "XLK",
+      "mean_abs_corr": 0.304,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.613 vs XLK >= 0.5"
+    },
+    {
+      "candidate": "PH",
+      "max_abs_corr": 0.619,
+      "argmax": "XLE",
+      "mean_abs_corr": 0.317,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.619 vs XLE >= 0.5"
+    },
+    {
+      "candidate": "SHW",
+      "max_abs_corr": 0.518,
+      "argmax": "XLK",
+      "mean_abs_corr": 0.248,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.518 vs XLK >= 0.5"
+    },
+    {
+      "candidate": "ECL",
+      "max_abs_corr": 0.613,
+      "argmax": "XLK",
+      "mean_abs_corr": 0.298,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.613 vs XLK >= 0.5"
+    },
+    {
+      "candidate": "AMAT",
+      "max_abs_corr": 0.882,
+      "argmax": "SOXX",
+      "mean_abs_corr": 0.363,
+      "n_obs": 1813,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.882 vs SOXX >= 0.5"
+    },
+    {
+      "candidate": "LRCX",
+      "max_abs_corr": 0.869,
+      "argmax": "SOXX",
+      "mean_abs_corr": 0.359,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.869 vs SOXX >= 0.5"
+    },
+    {
+      "candidate": "KLAC",
+      "max_abs_corr": 0.861,
+      "argmax": "SOXX",
+      "mean_abs_corr": 0.353,
+      "n_obs": 2019,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.861 vs SOXX >= 0.5"
+    },
+    {
+      "candidate": "IUIT.L",
+      "max_abs_corr": 0.828,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.32,
+      "n_obs": 1824,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.828 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "SXLE.L",
+      "max_abs_corr": 0.73,
+      "argmax": "XLE",
+      "mean_abs_corr": 0.178,
+      "n_obs": 1920,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.730 vs XLE >= 0.5"
+    },
+    {
+      "candidate": "BTEC.L",
+      "max_abs_corr": 0.661,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.233,
+      "n_obs": 1436,
+      "verdict": "EXCLUDE",
+      "reason": "R2 independence: |corr| 0.661 vs ISDU.L >= 0.5"
+    },
+    {
+      "candidate": "CNDX.L",
+      "max_abs_corr": 0.837,
+      "argmax": "ISDU.L",
+      "mean_abs_corr": 0.328,
+      "n_obs": 2046,
+      "verdict": "EXCLUDE",
+      "reason": "R1 halal bar: Nasdaq-100 applies no activity/debt screens (mapping doc 2026-07-24; same ruling as Book H dropping QQQ)"
+    }
+  ],
+  "survivors_ranked": [
+    "SPSK",
+    "AMGN"
+  ]
+}
