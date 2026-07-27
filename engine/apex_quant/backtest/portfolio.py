@@ -35,6 +35,7 @@ from apex_quant.risk.trade_manager import TradeManager
 from apex_quant.risk.types import AccountState, Direction, MarketState, OpenPosition
 from apex_quant.strategies.base import Strategy
 from apex_quant.strategies.labeling import atr_series
+from apex_quant.backtest.defensive_sleeve import DefensiveSleeveSpec
 from apex_quant.backtest.result import Trade, compute_metrics
 
 
@@ -101,6 +102,7 @@ class PortfolioBacktester:
         exit_mode: Literal["managed", "barrier"] = "managed",
         trade_manager: TradeManager | None = None,
         slot_allocation: Literal["order", "expected_value"] | None = None,
+        defensive_sleeve: "DefensiveSleeveSpec | None" = None,
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -109,6 +111,10 @@ class PortfolioBacktester:
         self.vol_window = vol_window
         self.corr_window = corr_window
         self.exit_mode = exit_mode
+        # Defensive cash-substitute sleeve (U2, 2026-07-27; prereg
+        # engine/data_store/defensive_sleeve_prereg.md). None (default) = certified
+        # zero-yield GBP cash on idle capital — byte-identical certified behaviour.
+        self.defensive_sleeve = defensive_sleeve
         # Engine-level regimes per (timeframe, asset class), built with the SAME
         # slope-eps scaling the strategy gate uses (audit E4) — see engine.py.
         self._regimes: dict[tuple[str, str], RuleBasedRegime] = {}
@@ -262,6 +268,17 @@ class PortfolioBacktester:
         R = pd.DataFrame(logret_cols).sort_index()
         timeline = R.index
 
+        # Defensive sleeve precompute (flagged; None = certified zero-yield cash).
+        # Per-bar leg returns and sleeve mix on the union timeline — see step 3c.
+        sleeve_arrays = (self.defensive_sleeve.align(timeline)
+                         if self.defensive_sleeve is not None else None)
+        sleeve_prev_w: dict[str, float] = {}
+        sleeve_prev_eq = 0.0
+        sleeve_net_total = 0.0
+        sleeve_cost_total = 0.0
+        sleeve_idle_capital_sum = 0.0
+        sleeve_idle_frac_sum = 0.0
+
         # Portfolio vol-target overlay. Reads ONLY equity already realised at or before
         # the decision bar, so it is causal: the scalar applied to bar t's decisions is
         # built from returns up to and including t, and those trades fill at t+1's open.
@@ -300,7 +317,7 @@ class PortfolioBacktester:
         eq_points: list[tuple[pd.Timestamp, float]] = []
         total_borrow = 0.0
 
-        for t in timeline:
+        for t_i, t in enumerate(timeline):
             # Day's opening equity = last bar's close (daily bars: one bar == one session).
             day_start_eq = eq_points[-1][1] if eq_points else realized
             # 1. manage exits on open positions via TradeManager or barrier check
@@ -426,6 +443,32 @@ class PortfolioBacktester:
                             posd["realized_pnl_total"] -= accrual
                             total_borrow += accrual
                 eq += self._unrealized(posd, posd["last_px"])
+            # 3c. Defensive sleeve accrual (flagged; off = certified zero-yield cash).
+            # The cash idle DURING day t — the idle fraction measured at the PREVIOUS
+            # mark — earns the sleeve's day-t return; the sleeve is then rebalanced to
+            # today's target idle weight at the config one-way cost. Causal: every
+            # input is known by the close of t. Accounting mirrors the short-borrow fee.
+            if sleeve_arrays is not None:
+                gross = sum(abs(posd["units"] * float(posd["last_px"]))
+                            for posd in open_pos.values())
+                idle_frac = max(0.0, 1.0 - gross / eq) if eq > 0.0 else 0.0
+                sleeve_ret = sum(sleeve_prev_w.get(leg, 0.0) * sleeve_arrays["ret"][leg][t_i]
+                                 for leg in sleeve_arrays["ret"])
+                accrual = sleeve_prev_eq * sleeve_ret
+                oneway = self.defensive_sleeve.oneway_cost or {}
+                target_w = {leg: sleeve_arrays["mix"][leg][t_i] * idle_frac
+                            for leg in sleeve_arrays["mix"]}
+                cost = sum(abs(target_w[leg] - sleeve_prev_w.get(leg, 0.0)) * eq
+                           * float(oneway.get(leg, 0.0)) for leg in target_w)
+                net = accrual - cost
+                realized += net
+                eq += net
+                sleeve_net_total += net
+                sleeve_cost_total += cost
+                sleeve_idle_capital_sum += idle_frac * eq
+                sleeve_idle_frac_sum += idle_frac
+                sleeve_prev_w = target_w
+                sleeve_prev_eq = eq
             peak = max(peak, eq)
             eq_points.append((t, eq))
 
@@ -612,6 +655,14 @@ class PortfolioBacktester:
         )
         metrics = compute_metrics(equity_series, trades, periods_per_year)
         metrics["short_borrow_fees_total"] = round(total_borrow, 2)
+        if sleeve_arrays is not None:
+            n_bars = len(eq_points)
+            metrics["defensive_sleeve_net_pnl"] = round(sleeve_net_total, 2)
+            metrics["defensive_sleeve_cost_total"] = round(sleeve_cost_total, 2)
+            metrics["defensive_sleeve_mean_idle_frac"] = (
+                sleeve_idle_frac_sum / n_bars if n_bars else 0.0)
+            metrics["defensive_sleeve_mean_idle_capital"] = (
+                sleeve_idle_capital_sum / n_bars if n_bars else 0.0)
         return PortfolioResult(
             instruments=instruments, equity=equity_series, trades=trades, metrics=metrics,
             per_instrument=per_inst, constraint_log=dict(constraint_log),

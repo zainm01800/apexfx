@@ -81,9 +81,11 @@ def _portfolio_returns(
     periods_per_year: int = 252,
     exit_mode: str = "managed",
     trade_manager=None,
+    defensive_sleeve=None,
 ) -> pd.Series:
     """One portfolio backtest -> its per-bar equity returns."""
-    res = PortfolioBacktester(cfg, exit_mode=exit_mode, trade_manager=trade_manager).run(
+    res = PortfolioBacktester(cfg, exit_mode=exit_mode, trade_manager=trade_manager,
+                              defensive_sleeve=defensive_sleeve).run(
         pits, strategies, timeframes=timeframes, warmup=warmup,
         start=start, end=end, periods_per_year=periods_per_year,
     )
@@ -103,6 +105,7 @@ def run_portfolio_cpcv(
     periods_per_year: int = 252,
     exit_mode: str = "managed",
     trade_manager=None,
+    defensive_sleeve=None,
 ) -> dict:
     """CPCV over the shared portfolio timeline.
 
@@ -110,6 +113,9 @@ def run_portfolio_cpcv(
     experiment (e.g. the uncapped runner) that is applied to the full-window run
     but NOT to CPCV would silently measure the BASELINE exit out-of-sample while
     reporting it as the challenger's — an invalid gate that looks perfectly normal.
+    The same holds for ``defensive_sleeve`` (U2, 2026-07-27): an idle-cash overlay
+    must flow into every fold or the OOS paths would measure certified cash while
+    the full-window run measures the sleeve.
 
     Mirrors ``validation.cpcv.run_cpcv``: for each combination of test groups the
     backtest is run across the span of that block and returns are then filtered to
@@ -140,6 +146,7 @@ def run_portfolio_cpcv(
             pits, model.strategies(), cfg=cfg, timeframes=timeframes,
             warmup=0, start=t0, end=t1, periods_per_year=periods_per_year,
             exit_mode=exit_mode, trade_manager=trade_manager,
+            defensive_sleeve=defensive_sleeve,
         )
         test_dates = timeline[test_idx]
         rets = rets[rets.index.isin(test_dates)]
