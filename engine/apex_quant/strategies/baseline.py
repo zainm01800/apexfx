@@ -86,6 +86,7 @@ class RegimeGatedMomentum(Strategy):
         instrument: str | None = None,
         enable_mean_reversion: bool = True,
         atr_stop_mult: float | None = None,
+        momentum_lookbacks: Iterable[int] | None = None,
     ):
         self.bypass_calibration = bypass_calibration
         self.momentum_lookback = momentum_lookback
@@ -95,7 +96,19 @@ class RegimeGatedMomentum(Strategy):
         self.regime_method = regime_method
         self.instrument = instrument or ""
         self.timeframe = timeframe
-        self._mom = VolScaledMomentum(momentum_lookback, vol_window)
+        # Multi-horizon trend ensemble (2026-07-27, prereg
+        # engine/data_store/trend_ensemble_prereg.md): the score is the equal-weight
+        # mean of per-horizon VolScaledMomentum legs, NaN unless EVERY leg is finite.
+        # Default None -> [momentum_lookback] -> the certified single-lookback score
+        # (mean of one leg is the leg). Everything downstream (direction agreement,
+        # probability map, sizing, exits) is the unchanged certified machinery.
+        self.momentum_lookbacks = ([int(lb) for lb in momentum_lookbacks]
+                                   if momentum_lookbacks else [momentum_lookback])
+        if any(lb < 1 for lb in self.momentum_lookbacks):
+            raise ValueError("momentum_lookbacks must all be >= 1")
+        self._mom_legs = [VolScaledMomentum(lb, vol_window) for lb in self.momentum_lookbacks]
+        self._mom = self._mom_legs[0]
+        self._mom_min_obs = max(leg.min_obs for leg in self._mom_legs)
 
         # Determine asset class for per-class tuning
         self._asset_class = "equity"
@@ -131,16 +144,21 @@ class RegimeGatedMomentum(Strategy):
             return
 
         df = pit.as_of(stamps[-1])
-        if len(df) < self._mom.min_obs + self.holding_horizon + 5:
+        if len(df) < self._mom_min_obs + self.holding_horizon + 5:
             self._cal.fit(np.array([]), np.array([]))
             self._fitted = True
             return
 
         close = df["close"]
         logc = np.log(close)
-        ret = (close / close.shift(self.momentum_lookback) - 1.0)
         vol = logc.diff().rolling(self.vol_window).std(ddof=1)
-        score = (ret / vol).to_numpy()
+        # Equal-weight multi-horizon blend; NaN propagates from any leg (pre-registered:
+        # no partial blends). One leg reproduces the certified series exactly (x / 1).
+        blended = None
+        for lb in self.momentum_lookbacks:
+            leg = (close / close.shift(lb) - 1.0) / vol
+            blended = leg if blended is None else blended + leg
+        score = (blended / len(self.momentum_lookbacks)).to_numpy()
         
         # Store score cache for fast O(1) evaluation during backtesting/loops
         self._score_cache = {ts: val for ts, val in zip(df.index, score)}
@@ -193,12 +211,18 @@ class RegimeGatedMomentum(Strategy):
     # -- inference -------------------------------------------------------------
     def _evaluate(self, pit: PointInTimeAccessor, t) -> dict:
         regime = self._regime.classify(pit, t)
-        
+
         # O(1) cache lookup if available
         if hasattr(self, "_score_cache") and t in self._score_cache:
             score = self._score_cache[t]
-        else:
+        elif len(self._mom_legs) == 1:
             score = self._mom.compute(pit, t)
+        else:
+            # Multi-horizon blend: equal-weight mean, NaN unless EVERY leg is finite
+            # (identical rule to the fit() cache path).
+            vals = [leg.compute(pit, t) for leg in self._mom_legs]
+            score = (float(np.mean(vals)) if all(np.isfinite(v) for v in vals)
+                     else float("nan"))
             
         out = {"regime": regime, "score": score, "direction": Direction.FLAT, "prob": None,
                "reason": "", "mode": "momentum"}

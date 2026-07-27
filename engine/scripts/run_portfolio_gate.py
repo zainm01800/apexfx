@@ -138,6 +138,9 @@ class TrendBook:
                     regime_method=params["regime_method"],
                     timeframe=params["timeframe"],
                     instrument=inst,
+                    # Multi-horizon ensemble (2026-07-27 prereg); absent from params
+                    # -> None -> [momentum_lookback] -> certified single-lookback score.
+                    momentum_lookbacks=params.get("momentum_lookbacks"),
                 )
             self._strategies[inst] = MultiTimeframeMomentum(
                 base_strategy=base,
