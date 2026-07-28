@@ -1,0 +1,46 @@
+name: auto-researcher
+
+# Part 2 of the research loop: weekly, reads the engine's experiment history
+# (trial ledger + newest gate verdicts) and drafts 1-2 NEW experiment proposals
+# (mechanism + pre-registered kill criterion) into the apex_research_proposals
+# review queue shown on the site's Progress tab. Proposals are DRAFTS for human
+# review — nothing auto-runs, nothing trades.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"     # Mondays 06:17 UTC
+  workflow_dispatch: {}        # run on demand from the Actions tab
+
+jobs:
+  researcher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM
+      # Writers prefer the service-role key (2026-07-17 RLS lockdown: anon is SELECT-only)
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      # Groq key must come from secrets — add GROQ_API_KEY under
+      # repo Settings → Secrets and variables → Actions if missing.
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify proposals table exists (fail fast if not)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_research_proposals?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "apex_research_proposals REST status: $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::apex_research_proposals not reachable (HTTP $code). Run supabase/apex_research_proposals.sql in the Supabase SQL editor first."
+            exit 1
+          fi
+          echo "Table OK — proceeding."
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python deps
+        run: pip install httpx python-dotenv
+      - name: Draft experiment proposals -> Supabase review queue
+        working-directory: engine
+        run: python scripts/run_auto_researcher.py
