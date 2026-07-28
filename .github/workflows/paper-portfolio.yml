@@ -84,7 +84,12 @@ jobs:
         # Bayesian sizing posterior must keep excluding them) + its own state
         # file. Runs AFTER the stepper so it sees today's closes; idempotent
         # (deterministic row ids + merge-duplicates), so a failed night is
-        # simply re-resolved the next night. Hard-fails the job on error —
-        # silent skips are how the qwen-404 lesson gap happened.
+        # simply re-resolved the next night.
+        # NON-BLOCKING (owner instruction 2026-07-28, superseding the original
+        # hard-fail choice): the stepper's state is already safely mirrored by
+        # the step above, so a resolver error must not fail the nightly run.
+        # continue-on-error still marks the step failed with an error
+        # annotation on the run summary — visible, not a silent skip.
+        continue-on-error: true
         working-directory: engine
         run: python scripts/resolve_paper_book_outcomes.py --apply

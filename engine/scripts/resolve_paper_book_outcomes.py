@@ -358,12 +358,21 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"ERROR: memory upsert failed: HTTP {r.status_code}: {r.text[:300]}")
             return 1
+
+    # Persist resolver state whenever --apply learned anything this run: newly
+    # processed trades AND/OR freshly snapshotted entry barriers. Gating the
+    # save on new_rows alone (pre-2026-07-28) silently dropped the snapshots on
+    # every night that had opens but no closes — so the first close after a
+    # cold cache resolved "derived" instead of exact, which is the whole reason
+    # this runs nightly.
+    if args.apply and (new_rows or snapped):
         rst["processed"] = sorted(processed)
         rst["entry_context"] = ctx_map
         _save_resolver_state(rst)
-        print(f"resolver state saved ({len(processed)} processed trades)")
+        print(f"resolver state saved ({len(processed)} processed trades, "
+              f"{len(ctx_map)} entry contexts)")
 
-        if args.with_lessons:
+        if args.with_lessons and new_rows:
             try:
                 from scripts.update_lessons import update_lessons
                 print("running update_lessons() for the new rows...")
