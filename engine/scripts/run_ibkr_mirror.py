@@ -15,6 +15,19 @@ supabase/apex_ibkr.sql) so the serverless website's IBKR Terminal can read
 them — the site can never reach the local Gateway. The Supabase push is
 best-effort: it never changes the mirror's exit code.
 
+PRIIPs/UCITS venue mapping (2026-07-28)
+---------------------------------------
+US-domiciled ETFs are KID-ineligible for a UK retail account (KID_BLOCKED
+below). Entries/exits in a blocked name are resolved through
+apex_quant/execution/ucits_map.py and the verified UCITS equivalent is
+mirrored instead (QQQ->CNDX, IWM->XRSU, XLK->IUIT, XLE->SXLE, XBI->BTEC),
+logged as "US-ETF X → UCITS Y (PRIIPs mapping)". Blocked names with NO
+equivalent (SPY/SMH/SOXX) stay engine-only, exactly as before. This changes
+only WHAT THE MIRROR PLACES on IBKR — the engine book's own holdings are
+untouched. Price divergence is not computed across the mapping (different
+instruments, different price levels): mapped fills record divergence None
+and stay out of the execution-cost average.
+
 What it mirrors (from engine/data_store/paper_portfolio/state.json)
 -------------------------------------------------------------------
 Let D = state["last_processed_date"] (the bar the daily step just processed):
@@ -88,6 +101,7 @@ from apex_quant.execution.ibkr_executor import (  # noqa: E402
     contract_spec,
     round_quantity,
 )
+from apex_quant.execution.ucits_map import resolve_for_venue  # noqa: E402
 
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio" / "state.json"
 MIRROR_DIR = ENGINE_DIR / "data_store" / "ibkr_mirror"
@@ -155,11 +169,13 @@ def plan_for_day(state: dict) -> dict:
 #: clients can trade packaged retail products only if an appropriate KID is
 #: available"), confirmed live on IWM/QQQ 2026-07-22. Plain shares and ADRs are NOT
 #: PRIIPs products and trade fine — which is why AAPL/MSFT/TSM et al. filled and every
-#: ETF did not. Skipped up-front so the mirror stops firing orders the venue will
-#: always refuse; the divergence is recorded, not hidden. The tradeable UCITS
-#: equivalents are mapped in data_store/ucits_mapping_2026-07-20.md, and the certified
-#: Book H already uses them. Override with env IBKR_KID_BLOCKED (comma-separated) if
-#: the account's jurisdiction or permissions change.
+#: ETF did not. Since 2026-07-28 the mirror no longer skips these wholesale: blocked
+#: names are resolved through apex_quant/execution/ucits_map.py (deployed from
+#: data_store/ucits_mapping_2026-07-24.md) and the verified UCITS equivalent is
+#: mirrored instead (QQQ->CNDX, IWM->XRSU, XLK->IUIT, XLE->SXLE, XBI->BTEC). Only
+#: names with NO clean equivalent (SPY/SMH/SOXX, and the rest of this list) still
+#: skip, recorded as engine-only. Override with env IBKR_KID_BLOCKED (comma-separated)
+#: if the account's jurisdiction or permissions change.
 KID_BLOCKED = frozenset(
     s.strip().upper() for s in os.environ.get(
         "IBKR_KID_BLOCKED",
@@ -170,6 +186,26 @@ KID_BLOCKED = frozenset(
 
 #: until a human says otherwise (override with --max-orders).
 DEFAULT_MAX_ORDERS = 25
+
+
+def _venue_instrument(instrument: str) -> tuple[str | None, dict | None]:
+    """Resolve an engine instrument to what the mirror actually trades on IBKR.
+
+    Returns ``(venue_symbol, ucits_line)``:
+
+    * a venue-eligible instrument -> ``(instrument, None)`` — trade it directly;
+    * a PRIIPs-blocked US ETF with a mapped UCITS equivalent ->
+      ``(ucits ibkr_symbol, line)`` — mirror the UCITS line (callers log the
+      "US-ETF X → UCITS Y (PRIIPs mapping)" line);
+    * a blocked US ETF with NO equivalent -> ``(None, None)`` — engine-only,
+      nothing is placed and nothing was ever held on IBKR for it.
+    """
+    if str(instrument).strip().upper() not in KID_BLOCKED:
+        return instrument, None
+    line = resolve_for_venue(instrument)
+    if line is None:
+        return None, None
+    return line["ibkr_symbol"], line
 
 
 def runaway_guard(plan: dict, max_orders: int) -> str | None:
@@ -230,8 +266,9 @@ def is_stale_fill(bar_date: str | None, now: datetime | None = None,
 
 
 def _order_record(kind: str, item: dict, action: str, handle, fill,
-                  stale: bool = False) -> dict:
-    spec = contract_spec(item["instrument"])
+                  stale: bool = False, venue_inst: str | None = None,
+                  ucits_line: dict | None = None) -> dict:
+    spec = contract_spec(venue_inst or item["instrument"])
     rec = {
         "kind": kind,                            # "entry" | "exit"
         "instrument": item["instrument"],
@@ -251,6 +288,10 @@ def _order_record(kind: str, item: dict, action: str, handle, fill,
         "commission_currency": fill.commission_currency if fill else None,
         "submitted_at": handle.submitted_at if handle else None,
     }
+    if ucits_line is not None:
+        rec["venue_instrument"] = venue_inst
+        rec["priips_mapping"] = (f"US-ETF {item['instrument']} → "
+                                 f"UCITS {ucits_line['ucits_ticker']}")
     if kind == "entry":
         rec["stop_recorded"] = item.get("stop")
         rec["target_recorded"] = item.get("target")
@@ -265,10 +306,18 @@ def _order_record(kind: str, item: dict, action: str, handle, fill,
         else:
             rec["size_delta_pct"] = None
     rec["stale_fill"] = bool(stale)
-    if fill is not None and fill.avg_fill_price is not None:
+    if fill is not None and fill.avg_fill_price is not None and ucits_line is None:
         rec.update(_divergence_bps(item["engine_fill_price"], fill.avg_fill_price, action))
     else:
         rec.update({"divergence_bps": None, "cost_bps": None})
+    if ucits_line is not None:
+        # The UCITS line trades at a DIFFERENT PRICE LEVEL than the US ETF, so
+        # engine-fill vs IBKR-fill bps is meaningless across the mapping — it
+        # would poison the execution-cost average with a currency/share-class
+        # artifact. Both prices are recorded above; the bps metric stays out.
+        rec["divergence_note"] = ("PRIIPs-mapped UCITS line — price level differs from "
+                                  "the US ETF, so price divergence is not comparable and "
+                                  "is excluded from the execution-cost metric")
     if item.get("exit_reason"):
         rec["exit_reason"] = item["exit_reason"]
     return rec
@@ -416,7 +465,9 @@ def sync_ibkr_state(executor, record: dict | None = None) -> bool:
                 f"{record.get('date')}-{o['instrument']}-{o['action']}")
             trade_rows.append({
                 "exec_id": exec_id,
-                "instrument": o["instrument"],
+                # the venue instrument: for PRIIPs-mapped fills this is the UCITS
+                # line that actually traded on the account, not the US ETF
+                "instrument": o.get("venue_instrument") or o["instrument"],
                 "asset_class": _web_asset_class(str(o.get("asset_class", ""))),
                 "side": o["action"],
                 "qty": o.get("filled_quantity") or o.get("quantity_sent"),
@@ -527,15 +578,17 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
                 f"bracket cancel {instrument}: {type(e).__name__}: {e}")
         return n
 
-    def _place(kind: str, item: dict, action: str, volume: float) -> None:
+    def _place(kind: str, item: dict, action: str, volume: float,
+               venue_inst: str | None = None, ucits_line: dict | None = None) -> None:
+        trade_inst = venue_inst or item["instrument"]
         handle, fill = None, None
         try:
             if kind == "exit":
                 # Cancel first: closing while a stop child still rests is a race
                 # that can leave the orphan behind to re-open the trade later.
                 if attach_stops:
-                    _cancel_brackets(item["instrument"], "engine exit")
-                handle = executor.close_position(item["instrument"])
+                    _cancel_brackets(trade_inst, "engine exit")
+                handle = executor.close_position(trade_inst)
             else:
                 stop_px = item.get("stop")
                 bracket = bool(attach_stops and stop_px)
@@ -548,7 +601,7 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
                 # predates the parameter.
                 extra = {"attach_stop": True} if bracket else {}
                 handle = executor.submit_order(
-                    item["instrument"], item["direction"], volume=volume,
+                    trade_inst, item["direction"], volume=volume,
                     stop=stop_px, target=item.get("target"), **extra,
                 )
             if handle is None:      # close_position: nothing held (race-safe re-check)
@@ -560,10 +613,13 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
             record["warnings"].append(
                 f"{kind} {item['instrument']}: {type(e).__name__}: {e}")
             print(f"  ERROR {kind} {item['instrument']}: {e}", flush=True)
-        rec = _order_record(kind, item, action, handle, fill, stale=stale_run)
+        rec = _order_record(kind, item, action, handle, fill, stale=stale_run,
+                            venue_inst=trade_inst if ucits_line else None,
+                            ucits_line=ucits_line)
         record["orders"].append(rec)
+        disp = f"{item['instrument']}→{trade_inst}" if ucits_line else item["instrument"]
         print(f"  {kind.upper():5s} {rec['action']:4s} {rec['quantity_sent']} "
-              f"{item['instrument']} | engine {rec['engine_fill_price']} "
+              f"{disp} | engine {rec['engine_fill_price']} "
               f"-> ibkr {rec['ibkr_avg_fill_price']} "
               f"({rec['status']}, div {rec['divergence_bps']} bps, "
               f"comm {rec['commission']})", flush=True)
@@ -571,15 +627,26 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
     # 1. exits first (the engine's intra-step order), sized to actual IBKR holding
     for item in plan["exits"]:
         inst = item["instrument"]
-        held = positions.get(inst)
+        venue_inst, ucits_line = _venue_instrument(inst)
+        if venue_inst is None:
+            record["skipped"].append({**item, "kind": "exit",
+                                      "reason": "venue unsupported: PRIIPs/KID — US-domiciled ETF "
+                                                "with no UCITS equivalent (ucits_map); engine-only, "
+                                                "nothing was ever held on IBKR"})
+            print(f"  SKIP  exit {inst}: PRIIPs/KID — no UCITS equivalent, engine-only", flush=True)
+            continue
+        if ucits_line is not None:
+            print(f"  MAP   US-ETF {inst} → UCITS {ucits_line['ucits_ticker']} "
+                  f"(PRIIPs mapping)", flush=True)
+        held = positions.get(venue_inst)
         if held is None or held["quantity"] == 0:
             record["skipped"].append({**item, "kind": "exit",
                                       "reason": "no IBKR position — nothing to close"})
             print(f"  SKIP  exit {inst}: no IBKR position", flush=True)
             continue
         action = "SELL" if held["quantity"] > 0 else "BUY"
-        _place("exit", item, action, abs(held["quantity"]))
-        positions.pop(inst, None)
+        _place("exit", item, action, abs(held["quantity"]), venue_inst, ucits_line)
+        positions.pop(venue_inst, None)
 
     # 2. entries, deduped against current IBKR positions
     for item in plan["entries"]:
@@ -590,13 +657,18 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
                                       "reason": "venue unsupported: IBKR crypto (Paxos) is long-only"})
             print(f"  SKIP  entry {inst} short: IBKR crypto is long-only", flush=True)
             continue
-        if inst in KID_BLOCKED:
+        venue_inst, ucits_line = _venue_instrument(inst)
+        if venue_inst is None:
             record["skipped"].append({**item, "kind": "entry",
-                                      "reason": "venue unsupported: PRIIPs/KID — US-domiciled ETF, "
-                                                "not eligible for a UK retail account"})
-            print(f"  SKIP  entry {inst}: PRIIPs/KID — US ETF, UK retail ineligible", flush=True)
+                                      "reason": "venue unsupported: PRIIPs/KID — US-domiciled ETF "
+                                                "with no UCITS equivalent (ucits_map); stays engine-only"})
+            print(f"  SKIP  entry {inst}: PRIIPs/KID — no UCITS equivalent, engine-only", flush=True)
             continue
-        held = positions.get(inst)
+        if ucits_line is not None:
+            print(f"  MAP   US-ETF {inst} → UCITS {ucits_line['ucits_ticker']} "
+                  f"(PRIIPs mapping)", flush=True)
+            spec = contract_spec(venue_inst)
+        held = positions.get(venue_inst)
         want = _signed(item["direction"], 1.0)
         if held is not None and held["quantity"] != 0:
             have = 1.0 if held["quantity"] > 0 else -1.0
@@ -618,11 +690,23 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
             print(f"  SKIP  entry {inst}: rounds to zero", flush=True)
             continue
         action = "BUY" if item["direction"] == "long" else "SELL"
-        _place("entry", item, action, qty)
+        _place("entry", item, action, qty, venue_inst, ucits_line)
 
     # 3. post-run reconciliation report (informational; v1 never trades it)
     check = []
     engine_open = state.get("open_positions") or {}
+    # Venue-keyed view of the engine book: a PRIIPs-blocked US ETF is held on
+    # IBKR under its UCITS replacement symbol, so compare like with like.
+    # Blocked names with NO equivalent are engine-only BY DESIGN — reported as
+    # such, never as drift.
+    engine_open_venue: dict = {}
+    engine_only: dict = {}
+    for _inst, _e in engine_open.items():
+        _v, _line = _venue_instrument(_inst)
+        if _v is None:
+            engine_only[_inst] = _e
+        else:
+            engine_open_venue[_v] = (_inst, _line is not None, _e)
     try:
         ibkr_now = {p["engine_symbol"]: p for p in executor.get_positions() if p["quantity"] != 0}
     except Exception as e:  # noqa: BLE001
@@ -639,7 +723,8 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
         # visible yet (async fill/position propagation), and cancelling there would
         # strip the protection we placed seconds earlier — the exact opposite of
         # the point. Those are reconciled on the NEXT run, when the fill has landed.
-        just_entered = {o["instrument"] for o in record["orders"] if o.get("kind") == "entry"}
+        just_entered = {(o.get("venue_instrument") or o["instrument"])
+                        for o in record["orders"] if o.get("kind") == "entry"}
         try:
             for o in executor.get_open_orders():
                 sym = o.get("symbol")
@@ -656,22 +741,31 @@ def run_mirror(state_path: Path, mirror_dir: Path, executor,
                     print(f"  SWEEP cancelled orphan {o.get('order_type')} on {sym}", flush=True)
         except Exception as e:  # noqa: BLE001
             record["warnings"].append(f"orphan sweep: {type(e).__name__}: {e}")
-    for inst in sorted(set(engine_open) | set(ibkr_now)):
-        e = engine_open.get(inst)
-        i = ibkr_now.get(inst)
+    for vsym in sorted(set(engine_open_venue) | set(ibkr_now)):
+        entry = engine_open_venue.get(vsym)
+        e_inst, mapped, e = entry if entry is not None else (None, False, None)
+        i = ibkr_now.get(vsym)
         e_qty = _signed(str(e["direction"]), float(e["units"])) if e else 0.0
         i_qty = float(i["quantity"]) if i else 0.0
         tol = max(1e-6, 0.005 * abs(e_qty))
+        row = {"instrument": e_inst or vsym}
+        if mapped:
+            row["venue_instrument"] = vsym
         if e is None:
-            check.append({"instrument": inst, "issue": "IBKR holds, engine flat",
+            check.append({**row, "issue": "IBKR holds, engine flat",
                           "engine_units": 0.0, "ibkr_quantity": i_qty})
         elif i is None:
-            check.append({"instrument": inst, "issue": "engine holds, IBKR flat",
+            check.append({**row, "issue": "engine holds, IBKR flat",
                           "engine_units": e_qty, "ibkr_quantity": 0.0})
         elif abs(e_qty - i_qty) > tol:
-            check.append({"instrument": inst, "issue": "size drift (engine partial "
+            check.append({**row, "issue": "size drift (engine partial "
                           "exits are not traded by the v1 mirror)",
                           "engine_units": e_qty, "ibkr_quantity": i_qty})
+    for inst, e in sorted(engine_only.items()):
+        check.append({"instrument": inst,
+                      "issue": "engine-only by design (PRIIPs/KID — no UCITS equivalent)",
+                      "engine_units": _signed(str(e["direction"]), float(e["units"])),
+                      "ibkr_quantity": 0.0})
     record["post_run_position_check"] = check
 
     record["summary"] = _summary(record["orders"])
@@ -724,9 +818,14 @@ def _dry_run(state_path: Path) -> int:
     print(f"DRY RUN — bar {plan['date']} (no connection, no orders, no record)")
     for item in plan["exits"]:
         spec = contract_spec(item["instrument"])
+        venue = ""
+        if item["instrument"] in KID_BLOCKED:
+            line = resolve_for_venue(item["instrument"])
+            venue = (f" [MAP: closes UCITS {line['ibkr_symbol']} (PRIIPs mapping)]" if line
+                     else " [SKIP: PRIIPs/KID — no UCITS equivalent, engine-only]")
         print(f"  EXIT  {item['instrument']:9s} was {item['direction']:5s} "
               f"({spec['asset_class']}) engine exit {item['engine_fill_price']} "
-              f"reason {item['exit_reason']}")
+              f"reason {item['exit_reason']}{venue}")
     for item in plan["entries"]:
         spec = contract_spec(item["instrument"])
         qty = round_quantity(spec["asset_class"], item["units"])
@@ -734,7 +833,11 @@ def _dry_run(state_path: Path) -> int:
         if spec["asset_class"] == "crypto" and item["direction"] == "short":
             venue = " [SKIP: IBKR crypto long-only]"
         elif item["instrument"] in KID_BLOCKED:
-            venue = " [SKIP: PRIIPs/KID — US ETF, UK retail ineligible]"
+            line = resolve_for_venue(item["instrument"])
+            venue = (f" [MAP: US-ETF {item['instrument']} → UCITS {line['ucits_ticker']} "
+                     f"(PRIIPs mapping) — trades as {line['ibkr_symbol']} {line['currency']} "
+                     f"{line['exchange']}]" if line
+                     else " [SKIP: PRIIPs/KID — no UCITS equivalent, engine-only]")
         print(f"  ENTRY {item['instrument']:9s} {item['direction']:5s} {qty} "
               f"({spec['asset_class']}) engine fill {item['engine_fill_price']} "
               f"stop {item['stop']} target {item['target']}{venue}")

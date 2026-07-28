@@ -268,17 +268,20 @@ def test_summary_reports_nothing_as_cost_when_every_fill_is_stale():
 
 
 # ── PRIIPs/KID skip (2026-07-22): IBKR rejected IWM/QQQ live, error 201 ──────────
-def test_us_etfs_are_skipped_before_the_venue_rejects_them(env):
+# 2026-07-28: blocked names WITH a verified UCITS equivalent now mirror that line
+# instead of skipping (see test_ucits_map.py); only names with NO equivalent
+# (SPY/SMH/SOXX and the rest of KID_BLOCKED) still skip, as tested here.
+def test_us_etfs_without_ucits_equivalent_are_skipped_before_the_venue_rejects_them(env):
     run, _ = env
     ex = FakeExecutor()
     code, record = run(_state(entries=[
-        {"instrument": "QQQ", "direction": "long", "units": 9},    # US ETF -> KID blocked
+        {"instrument": "SMH", "direction": "long", "units": 9},    # US ETF, no UCITS equivalent
         {"instrument": "AAPL", "direction": "long", "units": 3},   # plain share -> fine
     ]), ex)
     assert code == 0
     assert ex.submits == [("AAPL", "long", 3.0)]                   # only the share is sent
     reasons = " | ".join(s["reason"] for s in record["skipped"])
-    assert "PRIIPs/KID" in reasons
+    assert "PRIIPs/KID" in reasons and "no UCITS equivalent" in reasons
 
 
 def test_kid_list_covers_the_book_d_etf_sleeve():
