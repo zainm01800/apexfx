@@ -111,9 +111,20 @@ class TrendBook:
     unused (see validation/portfolio_report.py's note on rule-based sleeves).
     """
 
-    def __init__(self, panel: dict, *, carry_filter: bool = False, **params) -> None:
+    def __init__(self, panel: dict, *, carry_filter: bool = False,
+                 entry_gate: dict | None = None, **params) -> None:
         self.instruments = list(panel.keys())
-        self.params = {"carry_filter": carry_filter, **params}
+        self.params = {"carry_filter": carry_filter, "entry_gate": entry_gate, **params}
+        # Signal-conditioning entry gates (2026-07-28; prerags data_store/fip_prereg.md,
+        # factor_confirmation_prereg.md, comomentum_prereg.md). None (default, certified)
+        # wraps NOTHING — byte-identical certified behaviour. A spec wraps each
+        # per-instrument strategy in DirectionalEntryGate with precomputed,
+        # point-in-time blocked-timestamp sets (see strategies/entry_gates.py).
+        gate_masks = None
+        if entry_gate is not None:
+            from apex_quant.config import get_config as _gc
+            from apex_quant.strategies.entry_gates import build_gate_masks
+            gate_masks = build_gate_masks(panel, entry_gate, _gc().asset_class_of)
         self._strategies = {}
         for inst in self.instruments:
             if carry_filter:
@@ -148,6 +159,13 @@ class TrendBook:
                 htf_ma_window=params["htf_ma_window"],
                 instrument=inst,
             )
+            if gate_masks is not None:
+                from apex_quant.strategies.entry_gates import DirectionalEntryGate
+                bl, bs = gate_masks.get(inst, (frozenset(), frozenset()))
+                self._strategies[inst] = DirectionalEntryGate(
+                    self._strategies[inst], blocked_long=bl, blocked_short=bs,
+                    label=str(entry_gate["kind"]),
+                )
 
     def strategies(self) -> dict:
         return dict(self._strategies)

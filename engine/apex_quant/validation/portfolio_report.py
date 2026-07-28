@@ -163,6 +163,89 @@ def run_portfolio_cpcv(
     }
 
 
+def _entry_ts(entry_time) -> pd.Timestamp:
+    """Trades record ``entry_time`` as a date string (``str(ts.date())`` — tz-naive);
+    the CPCV timeline is tz-aware UTC. Normalise before comparing, or the membership
+    test silently matches nothing."""
+    t = pd.Timestamp(entry_time)
+    return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
+
+
+def run_portfolio_cpcv_trades(
+    panel: dict[str, pd.DataFrame],
+    pits: dict[str, PointInTimeAccessor],
+    model_factory,
+    params: dict,
+    *,
+    cfg: AppConfig | None = None,
+    timeframes: dict[str, str] | None = None,
+    warmup: int = 250,
+    horizon: int = 21,
+    periods_per_year: int = 252,
+    exit_mode: str = "managed",
+    trade_manager=None,
+) -> dict:
+    """``run_portfolio_cpcv`` plus the trades ENTERED inside each path's test window.
+
+    Identical folds, identical per-path Sharpe computation (same folds, same warmup=0
+    fold backtests, same test-date filtering). The per-path trade list (compact dicts:
+    instrument, direction, entry_time, pnl) enables paired per-path EXPECTANCY
+    comparisons — the adoption metric of the 2026-07-28 entry-conditioning gates
+    (fip / factor_confirmation / comomentum preregis), which judge a challenger on
+    per-trade edge, not just path Sharpe. Trade lists are for in-run aggregation;
+    gate scripts persist only the aggregates, not the raw lists.
+    """
+    cfg = cfg or get_config()
+    c = cfg.validation.cpcv
+
+    timeline = pd.DatetimeIndex(sorted(set().union(*[set(df.index) for df in panel.values()])))
+    n = len(timeline)
+    splits = cpcv_splits(n, c.n_groups, c.n_test_groups, c.embargo_pct, purge=horizon)
+
+    oos: list[float] = []
+    paths: list[dict] = []
+    for train_idx, test_idx in splits:
+        if len(train_idx) < 60 or len(test_idx) < 30:
+            continue
+        model = model_factory(panel, **params)
+        # Rule-based conditioning gates have nothing to fit (same argument as
+        # run_portfolio_cpcv's note); fit stays a no-op for TrendBook.
+        fit = getattr(model, "fit", None)
+        if callable(fit):
+            fit(pits, timeline[train_idx])
+
+        t0, t1 = timeline[int(test_idx[0])], timeline[int(test_idx[-1])]
+        res = PortfolioBacktester(cfg, exit_mode=exit_mode, trade_manager=trade_manager).run(
+            pits, model.strategies(), timeframes=timeframes, warmup=0,
+            start=t0, end=t1, periods_per_year=periods_per_year,
+        )
+        rets = res.returns
+        test_dates = timeline[test_idx]
+        rets = rets[rets.index.isin(test_dates)]
+        sr = sharpe_ratio(rets, periods_per_year=1)
+        oos.append(sr)
+        test_set = set(test_dates)
+        entered = [
+            {"instrument": tr.instrument, "direction": tr.direction,
+             "entry_time": str(tr.entry_time), "pnl": float(tr.pnl)}
+            for tr in res.trades
+            if _entry_ts(tr.entry_time) in test_set
+        ]
+        paths.append({"sharpe": float(sr), "test_start": str(t0), "test_end": str(t1),
+                      "trades": entered})
+
+    arr = np.array(oos) if oos else np.array([0.0])
+    return {
+        "n_paths": len(oos),
+        "oos_sharpe_mean": float(arr.mean()),
+        "oos_sharpe_std": float(arr.std(ddof=1)) if len(arr) > 1 else 0.0,
+        "oos_sharpe_median": float(np.median(arr)),
+        "frac_positive": float(np.mean(arr > 0)),
+        "oos_sharpe_paths": [round(float(x), 4) for x in arr],
+        "paths": paths,
+    }
+
+
 def run_portfolio_validation(
     panel: dict[str, pd.DataFrame],
     pits: dict[str, PointInTimeAccessor],
