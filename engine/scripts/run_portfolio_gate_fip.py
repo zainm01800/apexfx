@@ -293,8 +293,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] CPCV {name}: "
               f"{time.time() - t_start:.0f}s | paths={cpcv['oos_sharpe_paths']}", flush=True)
         path_stats[name] = _path_expectancies(cpcv)
-        verdicts[name] = _gate(name, returns_by_book[name], trial_sharpes, pbo, cpcv, used_trials)
-        results[name]["cpcv"] = {k: v for k, v in cpcv.items() if k != "paths"}
+        # _gate embeds the cpcv dict it receives — pass the SLIM version (no raw
+        # per-path trade lists) so the persisted verdict stays a compact record.
+        cpcv_slim = {k: v for k, v in cpcv.items() if k != "paths"}
+        verdicts[name] = _gate(name, returns_by_book[name], trial_sharpes, pbo, cpcv_slim, used_trials)
+        results[name]["cpcv"] = cpcv_slim
         results[name]["cpcv_paths"] = path_stats[name]
         results[name]["gate"] = {k: v for k, v in verdicts[name].items() if k != "reasons"}
 
