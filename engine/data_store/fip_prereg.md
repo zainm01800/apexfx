@@ -111,6 +111,12 @@ campaign evaluates exactly 2 configs, so exactly **2 new trials** (`fip_control_
 deflates every DSR in this gate. No other formation windows, quantile splits, or ID variants
 will be evaluated; any follow-up is a new pre-registration.
 
+**Amendment (bookkeeping only, recorded before the first run):** a concurrent
+commission-measurement trial (`book_h_gold_252_commission109`, unrelated campaign) landed
+296 → 297 before this gate's recording executed, so the actual recording was **297 → 299**
+and every DSR in this gate deflates by **299** — stricter than the 298 stated above. No
+rule, config, or criterion changed.
+
 ## 7. Known limitations
 
 - **The formation window and the median split are literature defaults, not optimised** —
