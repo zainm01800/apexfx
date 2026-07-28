@@ -29,6 +29,13 @@ Contract mapping (engine symbol -> IB contract)
 * equities/ETFs  ``"AAPL"``    -> ``STK  AAPL  SMART     USD``
 * crypto         ``"BTC/USD"`` -> ``CRYPTO BTC  PAXOS     USD``
 * forex          ``"EUR/USD"`` -> ``CASH  EUR.USD IDEALPRO``
+* UCITS (LSE)    ``"CNDX"``    -> ``STK  CNDX  SMART     USD`` (LSE line)
+
+The UCITS lines are the PRIIPs replacements for the book's KID-blocked US ETFs;
+their symbol/exchange/currency are owned by
+``apex_quant/execution/ucits_map.py`` (single source of truth, deployed from
+``data_store/ucits_mapping_2026-07-24.md``) and consulted by
+:func:`contract_spec` below.
 
 Forex vs crypto disambiguation: a ``BASE/QUOTE`` pair is forex iff BOTH legs
 are G10 major currencies (:data:`FX_MAJOR_BASES`), crypto otherwise. This
@@ -112,6 +119,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
+
+from apex_quant.execution.ucits_map import line_for_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +207,15 @@ def contract_spec(symbol: str) -> dict:
     ``"AAPL"``    -> STK AAPL SMART USD          (asset_class "equity")
     ``"BTC/USD"`` -> CRYPTO BTC PAXOS USD        (asset_class "crypto")
     ``"EUR/USD"`` -> CASH EUR.USD IDEALPRO       (asset_class "forex")
+    ``"CNDX"``    -> STK CNDX SMART USD          (UCITS LSE line — ucits_map)
+
+    UCITS venue symbols (IBKR local form, or the Yahoo ``.L`` form) resolve
+    through :mod:`apex_quant.execution.ucits_map` so the map's own
+    exchange/currency metadata is what orders use. Everything else falls
+    through to the default US-equity spec untouched — in particular the
+    KID-blocked US tickers themselves ("QQQ") are NOT rewritten here; the
+    PRIIPs mapping is applied by the mirror's venue resolution, never by
+    silently changing what an engine symbol means.
     """
     if "/" in symbol:
         base, quote = symbol.split("/", 1)
@@ -210,6 +228,13 @@ def contract_spec(symbol: str) -> dict:
         return {
             "asset_class": "crypto", "secType": "CRYPTO",
             "symbol": base, "currency": quote, "exchange": "PAXOS",
+        }
+    ucits = line_for_symbol(symbol)
+    if ucits is not None:
+        return {
+            "asset_class": "equity", "secType": "STK",
+            "symbol": ucits["ibkr_symbol"], "currency": ucits["currency"],
+            "exchange": ucits["exchange"],
         }
     return {
         "asset_class": "equity", "secType": "STK",
