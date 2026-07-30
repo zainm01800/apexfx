@@ -1787,25 +1787,25 @@ function renderEngineTrades() {
           <tbody>${closedRows}</tbody></table></div>`
       : `<div class="acc-empty">No closed trades recorded yet.</div>`);
 
-    const todayNetPnl = _ibkrRoundTrips.reduce((sum, rt) => sum + rt.realizedPnl, 0);
-    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : todayNetPnl;
-    const priorRealizedPnl = totalRealizedPnl - todayNetPnl;
+    const winsSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const lossSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const totalRealizedPnl = winsSum + lossSum;
     const totalPnlCls = totalRealizedPnl >= 0 ? '#34D399' : '#F87171';
 
     const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
       <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Profit Breakdown (${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Total Net Profit)</div>
-      Your IBKR account is <strong style="color: ${totalPnlCls};">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (+0.05%) in net profit overall</strong> since inception (£1,000,000 → £1,000,529.23).
+      Your IBKR account is <strong style="color: ${totalPnlCls};">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (+0.05%) in net profit overall</strong> across all ${_ibkrRoundTrips.length} closed trades.
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
         <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Prior Banked Profits (Jul 17–29)</span>
-          <strong style="color: #34D399; font-size: 16px; font-family: var(--mono);">${priorRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(priorRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Winning Trades (${_ibkrRoundTrips.filter(rt => rt.realizedPnl > 0).length})</span>
+          <strong style="color: #34D399; font-size: 16px; font-family: var(--mono);">+${sym}${Math.abs(winsSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
         <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Today's 3 Fills (Jul 30)</span>
-          <strong style="color: #F87171; font-size: 16px; font-family: var(--mono);">${todayNetPnl >= 0 ? '+' : '-'}${sym}${Math.abs(todayNetPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Losing Trades (${_ibkrRoundTrips.filter(rt => rt.realizedPnl < 0).length})</span>
+          <strong style="color: #F87171; font-size: 16px; font-family: var(--mono);">${lossSum >= 0 ? '+' : '-'}${sym}${Math.abs(lossSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
         <div style="background: rgba(0,240,255,0.08); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.25);">
-          <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Account Net Realized</span>
+          <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Net Profit</span>
           <strong style="color: ${totalPnlCls}; font-size: 16px; font-family: var(--mono);">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
       </div>
