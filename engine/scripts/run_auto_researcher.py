@@ -290,6 +290,26 @@ No markdown, no prose outside the JSON."""
 
 # ── Groq ──────────────────────────────────────────────────────────────────────
 def groq_propose(prompt: str, system: str, retries: int = 3) -> str | None:
+    ds_key = os.environ.get("APEX_AI__DEEPSEEK_API_KEY")
+    if ds_key:
+        try:
+            from apex_quant.config import AiConfig
+            from apex_quant.ai.client import DeepSeekLLM
+            cfg = AiConfig(deepseek_api_key=ds_key)
+            client = DeepSeekLLM(cfg)
+            if client.available:
+                print("  [LLM] Using DeepSeek direct API for proposals...")
+                res = client.complete(prompt, system=system, max_tokens=2000, temperature=0.4)
+                if res:
+                    if "<think>" in res:
+                        res = re.sub(r"<think>.*?</think>", "", res, flags=re.DOTALL).strip()
+                    return res
+        except Exception as e:
+            print(f"  [DeepSeek Error] {e}")
+
+    if not GROQ_KEY:
+        return None
+
     payload = {
         "model": GROQ_MODEL,
         "messages": [
