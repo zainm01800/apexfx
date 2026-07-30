@@ -12,22 +12,22 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
   flex-wrap: wrap;
 }
 .hist-title {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 800;
   font-family: var(--sans);
-  background: linear-gradient(125deg, var(--text) 0%, var(--purple) 55%, var(--green) 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #00F0FF 45%, #A855F7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 4px;
-  letter-spacing: -.02em;
+  margin-bottom: 6px;
+  letter-spacing: -.03em;
 }
 .hist-subtitle {
-  font-size: 14px;
+  font-size: 14.5px;
   color: var(--text2);
   line-height: 1.65;
 }
@@ -35,71 +35,81 @@
 /* ── Summary stats ── */
 .hist-summary {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 .hs-stat {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 20px;
+  background: linear-gradient(145deg, rgba(20, 24, 36, 0.85) 0%, rgba(12, 15, 23, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 22px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 80px;
+  gap: 6px;
+  min-width: 95px;
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
-  transition: border-color .2s;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: all .25s ease;
 }
-.hs-stat:hover { border-color: rgba(56, 189, 248, 0.2); }
+.hs-stat:hover {
+  border-color: rgba(0, 240, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 35px rgba(0,0,0,0.6), 0 0 20px rgba(0, 240, 255, 0.12);
+}
 .hs-val {
   font-family: var(--mono);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.02em;
 }
-.hs-val.green  { color: var(--green);  }
-.hs-val.red    { color: var(--red); }
-.hs-val.accent { color: var(--purple); text-shadow: 0 0 10px rgba(56, 189, 248, 0.3); }
-.hs-val.orange { color: var(--orange); }
+.hs-val.green  { color: #34D399; text-shadow: 0 0 12px rgba(52, 211, 153, 0.35); }
+.hs-val.red    { color: #F87171; text-shadow: 0 0 12px rgba(248, 113, 113, 0.35); }
+.hs-val.accent { color: #00F0FF; text-shadow: 0 0 14px rgba(0, 240, 255, 0.4); }
+.hs-val.orange { color: #F59E0B; }
 .hs-label {
   font-size: 10px;
   color: var(--text3);
   text-transform: uppercase;
-  letter-spacing: .1em;
+  letter-spacing: .12em;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
 }
 .hs-sub {
-  font-size: 8.5px;
+  font-size: 9px;
   color: var(--text3);
   text-transform: uppercase;
   letter-spacing: .08em;
   white-space: nowrap;
   font-weight: 600;
-  opacity: .75;
+  opacity: .8;
   margin-top: -2px;
 }
 
-/* ── Cross-link strip (real trades / paper proof live on other pages) ── */
+/* ── Cross-link strip ── */
 .xlink-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
 }
 .xlink-card {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 13px 18px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: linear-gradient(145deg, rgba(20, 24, 36, 0.8) 0%, rgba(13, 16, 25, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 22px;
   text-decoration: none;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
-  transition: border-color .2s;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: all .25s ease;
+}
+.xlink-card:hover {
+  border-color: rgba(0, 240, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 35px rgba(0,0,0,0.5), 0 0 20px rgba(0, 240, 255, 0.12);
 }
 .xlink-card:hover { border-color: rgba(56, 189, 248, 0.3); }
 .xlink-text { font-size: 12.5px; color: var(--text3); font-weight: 600; }

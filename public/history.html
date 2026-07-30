@@ -137,25 +137,24 @@
     <!-- Forward paper test: the engine's frozen book, marked to market daily -->
     <div class="acc-board" id="paperCard"></div>
 
-    <!-- Legacy research calls: collapsed by default — simulated, not account trades -->
-    <details class="legacy-details" id="legacyDetails">
-      <summary class="legacy-summary">
-        <span class="legacy-caret">▸</span>
-        <span class="legacy-summary-title">Legacy research calls (simulated)</span>
-        <span class="legacy-summary-sub">scoreboard · learning by setup · scan grid — analysis-layer, not account trades</span>
-      </summary>
+    <!-- Main Scan History & Research Calls Section -->
+    <div style="margin-top: 32px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <h2 style="font-size: 22px; font-weight: 700; color: var(--text); font-family: var(--sans); letter-spacing: -0.01em;">Trade Scans &amp; AI Analysis History</h2>
+        <p style="font-size: 13.5px; color: var(--text3); margin-top: 3px;">Full log of AI scans, target resolutions, and live venue position tracking.</p>
+      </div>
+      <!-- View toggle: Scan History vs Watchlist -->
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button class="vt-btn active" data-view="scans">📜 Scan History</button>
+        <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
+      </div>
+    </div>
 
     <!-- Accuracy scoreboard -->
     <div class="acc-board" id="accBoard"></div>
 
     <!-- Learning by setup: deterministic per-setup stats (n / win rate / avg R) + latest lesson -->
     <div class="acc-board" id="learnBoard"></div>
-
-    <!-- View toggle: Scan History vs Watchlist -->
-    <div class="view-toggle">
-      <button class="vt-btn active" data-view="scans">📜 Scan History</button>
-      <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
-    </div>
 
     <!-- Filters / search -->
     <div class="hist-filters">
@@ -199,12 +198,6 @@
       </div>
     </div>
 
-    <!-- Section header: honest label — these are research calls, not account trades -->
-    <div class="rc-head" id="researchCallsHead">
-      <div class="rc-title">Research calls</div>
-      <div class="rc-sub">Analysis-layer setups graded on outcomes — simulated, not account trades. Your real trades live on the <a href="ibkr-trades.html">IBKR Terminal</a>.</div>
-    </div>
-
     <!-- Loading state -->
     <div class="hist-loading" id="histLoading">
       <div class="hist-spinner"></div>
@@ -246,8 +239,6 @@
         </table>
       </div>
     </div>
-
-    </details>
 
   </main>
 
