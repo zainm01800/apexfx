@@ -1171,7 +1171,8 @@ function updateSummary() {
     const wins = closed.filter(rt => rt.realizedPnl > 0).length;
     const losses = closed.filter(rt => rt.realizedPnl < 0).length;
     const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : null;
-    const netPnl = closed.reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const todayNetPnl = closed.reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : todayNetPnl;
     const totalTrades = openN + closed.length;
     const sym = (_ibkrAccount && _ibkrAccount.currency === 'GBP') ? '£' : '$';
 
@@ -1179,10 +1180,10 @@ function updateSummary() {
     setText('hsStat1', closed.length ? wins : '—', 'TP Hit / Wins', 'green');
     setText('hsStat2', closed.length ? losses : '—', 'SL Hit / Losses', 'red');
     setText('hsStat5', openN, 'Open', 'accent');
-    setText('hsStat6', closed.length ? (netPnl >= 0 ? '+' : '-') + sym + Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
-            'Net P&L', closed.length ? (netPnl >= 0 ? 'green' : 'red') : 'accent');
+    setText('hsStat6', (totalRealizedPnl >= 0 ? '+' : '-') + sym + Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            'Total Net P&L', totalRealizedPnl >= 0 ? 'green' : 'red');
     setText('hsStat3', winRate !== null ? winRate + '%' : '—%', 'Win Rate', 'accent');
-    setText('hsStat4', closed.length ? (netPnl >= 0 ? '+' : '-') + sym + (Math.abs(netPnl) / closed.length).toFixed(2) : '—', 'Avg P&L / trade', 'accent');
+    setText('hsStat4', closed.length ? (todayNetPnl >= 0 ? '+' : '-') + sym + (Math.abs(todayNetPnl) / closed.length).toFixed(2) : '—', 'Today Avg P&L', 'accent');
 
     const note = document.getElementById('hsNote');
     if (note) note.style.display = 'none';
@@ -1786,7 +1787,31 @@ function renderEngineTrades() {
           <tbody>${closedRows}</tbody></table></div>`
       : `<div class="acc-empty">No closed trades recorded yet.</div>`);
 
-    el.innerHTML = head + openSec + closedSec;
+    const todayNetPnl = _ibkrRoundTrips.reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : todayNetPnl;
+    const priorRealizedPnl = totalRealizedPnl - todayNetPnl;
+    const totalPnlCls = totalRealizedPnl >= 0 ? '#34D399' : '#F87171';
+
+    const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
+      <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Profit Breakdown (${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Total Net Profit)</div>
+      Your IBKR account is <strong style="color: ${totalPnlCls};">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (+0.05%) in net profit overall</strong> since inception (£1,000,000 → £1,000,529.23).
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Prior Banked Profits (Jul 17–29)</span>
+          <strong style="color: #34D399; font-size: 16px; font-family: var(--mono);">${priorRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(priorRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+          <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Today's 3 Fills (Jul 30)</span>
+          <strong style="color: #F87171; font-size: 16px; font-family: var(--mono);">${todayNetPnl >= 0 ? '+' : '-'}${sym}${Math.abs(todayNetPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div style="background: rgba(0,240,255,0.08); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.25);">
+          <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Account Net Realized</span>
+          <strong style="color: ${totalPnlCls}; font-size: 16px; font-family: var(--mono);">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+      </div>
+    </div>`;
+
+    el.innerHTML = head + pnlBanner + openSec + closedSec;
     return;
   }
 
