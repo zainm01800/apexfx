@@ -1162,10 +1162,34 @@ function getFilteredRowsForSummary() {
 }
 
 function updateSummary() {
-  // Headline cards: the PAPER BOOK basis — the engine's real trades (open
-  // positions + resolver-recorded exits), never research scans. The last-50 cap
-  // is kept; the universe is engineTradesUniverse(). Until the book records its
-  // first exits, only Open has a value and a quiet note explains the rest.
+  // If IBKR trades exist, use IBKR live account data as primary for headline cards
+  const hasIbkr = _ibkrRoundTrips.length > 0 || _ibkrPositions.length > 0;
+  
+  if (hasIbkr) {
+    const openN = _ibkrPositions.length;
+    const closed = _ibkrRoundTrips;
+    const wins = closed.filter(rt => rt.realizedPnl > 0).length;
+    const losses = closed.filter(rt => rt.realizedPnl < 0).length;
+    const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : null;
+    const netPnl = closed.reduce((sum, rt) => sum + rt.realizedPnl, 0);
+    const totalTrades = openN + closed.length;
+    const sym = (_ibkrAccount && _ibkrAccount.currency === 'GBP') ? '£' : '$';
+
+    setText('hsStat0', totalTrades, `Trades · ${closed.length} closed`);
+    setText('hsStat1', closed.length ? wins : '—', 'TP Hit / Wins', 'green');
+    setText('hsStat2', closed.length ? losses : '—', 'SL Hit / Losses', 'red');
+    setText('hsStat5', openN, 'Open', 'accent');
+    setText('hsStat6', closed.length ? (netPnl >= 0 ? '+' : '-') + sym + Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+            'Net P&L', closed.length ? (netPnl >= 0 ? 'green' : 'red') : 'accent');
+    setText('hsStat3', winRate !== null ? winRate + '%' : '—%', 'Win Rate', 'accent');
+    setText('hsStat4', closed.length ? (netPnl >= 0 ? '+' : '-') + sym + (Math.abs(netPnl) / closed.length).toFixed(2) : '—', 'Avg P&L / trade', 'accent');
+
+    const note = document.getElementById('hsNote');
+    if (note) note.style.display = 'none';
+    return;
+  }
+
+  // Fallback to paper book if IBKR data is not available
   const uni    = engineTradesUniverse();
   const closed = uni.filter(t => t.kind === 'closed').map(t => t.row);
   const openN  = _paperPositions.length;
@@ -1194,7 +1218,6 @@ function updateSummary() {
   setText('hsStat4', hasCloses && avgR != null ? (avgR > 0 ? '+' : '') + avgR.toFixed(2) + 'R' : '—',
                                                                 'Avg R / trade', 'accent');
 
-  // "awaiting first closes" subline until the book records its first exit.
   const note = document.getElementById('hsNote');
   if (note) note.style.display = hasCloses ? 'none' : '';
 }
@@ -1470,7 +1493,7 @@ function renderLearningPanel() {
     return;
   }
   const MAX_GROUPS = 8;
-  const shown = visible.slice(0, MAX_GROUPS);
+const shown = visible.slice(0, MAX_GROUPS);
   const rowsHtml = shown.map(g => {
     const wrCls = g.winRate == null ? '' : g.winRate >= 50 ? 'pos' : 'neg';
     const rCls  = g.avgR == null ? '' : g.avgR > 0 ? 'pos' : g.avgR < 0 ? 'neg' : '';
@@ -1500,16 +1523,65 @@ function renderLearningPanel() {
     <div class="acc-rel-foot">Resolved calls grouped by asset · style · regime (the scan's persisted setup vector) — ${decidedTotal} decided calls${more}.${smallNote} Win rate = TP ÷ (TP+SL); ⚖️ ambiguous one-bar TP&amp;SL spans count in n but not in the rate or avg R. Avg R books a win at its stated R:R (2.0 when unstated) and a loss at −1R. Stats first — the 📓 line is only the newest anecdote for that setup.</div>`;
 }
 
-// ── Engine trades (Book D paper book — the tab's core) ─────────────────────
-// The engine's REAL trades, distinct from the legacy research scans collapsed
-// below: OPEN positions from apex_paper_positions (/api/paper?table=positions),
-// CLOSED trades from the nightly resolver's apex_research_memory rows tagged
-// setup_features.source='paper_book' (engine/scripts/resolve_paper_book_outcomes.py
-// — carries r_multiple / pnl_gbp / exit_reason / units). The same book mirrors
-// to the user's IBKR account. Paper test started 2026-07-17.
-const TRADES_LIMIT = 50;   // headline-stats universe cap (kept from the last-50 basis)
+// ── IBKR & Engine trades (Live Account DUQ278370 + Paper Book) ────────────────
+const TRADES_LIMIT = 50;
 let _paperPositions = [];  // open Book D positions
-let _paperClosed = [];     // closed Book D trades (resolver rows)
+let _paperClosed = [];     // closed Book D trades
+let _ibkrPositions = [];   // live IBKR positions
+let _ibkrTrades = [];      // live IBKR trades
+let _ibkrRoundTrips = [];   // matched IBKR round trips
+let _ibkrAccount = {};     // IBKR account snapshot
+
+function computeIbkrRoundTrips(trades) {
+  const sorted = [...trades].sort((a, b) => new Date(a.exec_time) - new Date(b.exec_time));
+  const openLots = {};
+  const roundTrips = [];
+
+  for (const t of sorted) {
+    const inst = t.instrument;
+    const price = parseFloat(t.price);
+    const qty = parseFloat(t.qty);
+    const comm = parseFloat(t.commission) || 0;
+    if (!inst || isNaN(price) || isNaN(qty) || qty <= 0) continue;
+
+    const side = String(t.side).toUpperCase();
+    let remaining = (side === 'SELL' ? -1 : 1) * qty;
+    const lots = openLots[inst] || (openLots[inst] = []);
+
+    while (remaining !== 0 && lots.length > 0 && Math.sign(lots[0].qty) !== Math.sign(remaining)) {
+      const lot = lots[0];
+      const closeQty = Math.min(Math.abs(remaining), Math.abs(lot.qty));
+      const entryPrice = lot.price;
+      const isLong = lot.qty > 0;
+      const pnl = (price - entryPrice) * closeQty * (isLong ? 1 : -1) - comm;
+      const pnlPct = entryPrice ? ((price - entryPrice) / entryPrice * (isLong ? 1 : -1) * 100) : 0;
+
+      roundTrips.push({
+        instrument: inst,
+        assetClass: t.asset_class || _engAssetClass(inst),
+        direction: isLong ? 'LONG' : 'SHORT',
+        qty: closeQty,
+        entryPrice: entryPrice,
+        exitPrice: price,
+        realizedPnl: pnl,
+        pnlPct: pnlPct,
+        commission: comm,
+        openTime: lot.exec_time,
+        closeTime: t.exec_time,
+        status: 'CLOSED'
+      });
+
+      lot.qty -= Math.sign(lot.qty) * closeQty;
+      remaining -= Math.sign(remaining) * closeQty;
+      if (Math.abs(lot.qty) < 1e-12) lots.shift();
+    }
+    if (remaining !== 0) {
+      lots.push({ qty: remaining, price, exec_time: t.exec_time, side });
+    }
+  }
+
+  return roundTrips.reverse();
+}
 
 function paperFeatures(r) {
   let f = r && r.setup_features;
@@ -1525,7 +1597,6 @@ async function fetchPaperPositions() {
   } catch { return []; }
 }
 
-// resolved=true so old exits never fall off the fetch window as scan volume grows.
 async function fetchPaperClosed() {
   try {
     const res = await fetch(`${API_MEMORY}?all=true&resolved=true&lean=true&limit=1000`);
@@ -1535,15 +1606,26 @@ async function fetchPaperClosed() {
 }
 
 async function loadEngineTrades() {
-  const [positions, closed] = await Promise.all([fetchPaperPositions(), fetchPaperClosed()]);
+  const [positions, closed, ibkrPosRes, ibkrTrdRes, ibkrAccRes] = await Promise.all([
+    fetchPaperPositions(),
+    fetchPaperClosed(),
+    fetch('/api/ibkr?view=positions').catch(() => null),
+    fetch('/api/ibkr?view=trades&limit=100').catch(() => null),
+    fetch('/api/ibkr?view=account').catch(() => null),
+  ]);
   _paperPositions = positions;
   _paperClosed = closed;
+
+  if (ibkrPosRes && ibkrPosRes.ok) _ibkrPositions = await ibkrPosRes.json().catch(() => []);
+  if (ibkrTrdRes && ibkrTrdRes.ok) _ibkrTrades = await ibkrTrdRes.json().catch(() => []);
+  if (ibkrAccRes && ibkrAccRes.ok) _ibkrAccount = await ibkrAccRes.json().catch(() => ({}));
+
+  _ibkrRoundTrips = computeIbkrRoundTrips(_ibkrTrades);
+
   renderEngineTrades();
   updateSummary();
 }
 
-// The headline cards' universe: open positions + closed trades, newest entry
-// first, capped at TRADES_LIMIT — real engine trades, not research calls.
 function engineTradesUniverse() {
   const rows = [
     ..._paperPositions.map(p => ({ kind: 'open', ts: Date.parse(p.entry_time || '') || 0 })),
@@ -1553,8 +1635,6 @@ function engineTradesUniverse() {
   return rows.slice(0, TRADES_LIMIT);
 }
 
-// Realized R for a closed paper trade: the resolver's own r_multiple is
-// authoritative; fall back to price math (entry/stop/exit) when it's absent.
 function paperRealizedR(r) {
   const rm = parseFloat(paperFeatures(r).r_multiple);
   if (!isNaN(rm)) return rm;
@@ -1564,8 +1644,6 @@ function paperRealizedR(r) {
 
 const _engDirOf = d => String(d || '').toLowerCase() === 'short' ? 'short' : 'long';
 
-// Asset class for a position instrument (positions table has no type column) —
-// mirrors the server-side deriveClass in api/ibkr.js.
 function _engAssetClass(inst) {
   const s = String(inst || '').toUpperCase();
   if (s.includes('/')) {
@@ -1580,16 +1658,13 @@ function _engAssetClass(inst) {
 
 function _engDays(fromTs, toTs) {
   const d = Math.max(0, (toTs - fromTs) / 86400000);
-  return d < 1 ? '&lt;1d' : Math.round(d) + 'd';
+  return d < 1 ? '<1d' : Math.round(d) + 'd';
 }
 
 function _engGbp(x) {
   return (x >= 0 ? '+' : '-') + '£' + Math.abs(x).toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
-// Outcome badge for a closed paper trade: WIN (target) / LOSS (stop) / TIME
-// (time- or halt-based exits — the resolver maps those to invalidated/expired;
-// the raw reason stays in setup_features.exit_reason).
 function _engOutcome(r) {
   const reason = String(paperFeatures(r).exit_reason || '');
   if (r.outcome === 'tp_hit') return { cls: 'win',  txt: 'WIN',  tip: reason };
@@ -1615,7 +1690,7 @@ function _engOpenRow(p) {
     <td class="wl-mono" title="Entered ${escHtml(String(p.entry_time || ''))}">${escHtml(String(p.entry_time || '').slice(0, 10))}<span class="eng-sub">@ ${fmtPrice(entry)}</span></td>
     <td class="wl-mono stop" title="Live trailing stop — initial ${fmtPrice(iStop)}">${fmtPrice(p.stop)}</td>
     <td class="wl-mono target">${fmtPrice(p.target)}</td>
-    <td><span class="eng-pnl ${pnlCls}" title="Unrealized — marked to the last daily close, in R vs the initial risk${gbp != null ? ' and £' : ''}">${rMult != null ? `(${rMult > 0 ? '+' : ''}${rMult.toFixed(2)}R)` : '—'}</span>${gbp != null ? `<span class="eng-sub">${_engGbp(gbp)}</span>` : ''}</td>
+    <td><span class="eng-pnl ${pnlCls}">${rMult != null ? `(${rMult > 0 ? '+' : ''}${rMult.toFixed(2)}R)` : '—'}</span>${gbp != null ? `<span class="eng-sub">${_engGbp(gbp)}</span>` : ''}</td>
     <td class="eng-days"${p.bars_open != null ? ` title="${p.bars_open} daily bars processed"` : ''}>${entryTs ? _engDays(entryTs, Date.now()) : '—'}</td>
   </tr>`;
 }
@@ -1645,9 +1720,78 @@ function _engClosedRow(r) {
 function renderEngineTrades() {
   const el = document.getElementById('engineTrades');
   if (!el) return;
-  const head = `<div class="acc-header"><div class="acc-title">⚙️ Engine trades <span class="pp-book">Book D paper book · mirrors to IBKR</span></div></div>`;
+
+  const hasIbkr = _ibkrRoundTrips.length > 0 || _ibkrPositions.length > 0;
+  const head = `<div class="acc-header"><div class="acc-title">⚙️ IBKR Account Trades <span class="pp-book">Interactive Brokers Paper Account DUQ278370</span></div></div>`;
+
+  if (hasIbkr) {
+    const sym = (_ibkrAccount && _ibkrAccount.currency === 'GBP') ? '£' : '$';
+    
+    // Open positions rows
+    const openRows = _ibkrPositions.map(p => {
+      const dir = String(p.direction || '').toLowerCase() === 'short' ? 'short' : 'long';
+      const dirBadge = dir === 'short' ? '<span class="eng-dir short">▼ SHORT</span>' : '<span class="eng-dir long">▲ LONG</span>';
+      const mv = parseFloat(p.market_value);
+      const units = parseFloat(p.units);
+      const entryPx = parseFloat(p.avg_price);
+      const curPx = (mv && units) ? Math.abs(mv) / Math.abs(units) : entryPx;
+      const upnl = parseFloat(p.unrealized_pnl);
+      const pnlCls = !isNaN(upnl) ? (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : '')) : '';
+      const pnlTxt = !isNaN(upnl) ? (upnl >= 0 ? '+' : '-') + sym + Math.abs(upnl).toFixed(2) : '—';
+
+      return `<tr class="wl-row eng-row open">
+        <td><span class="wl-sym">${escHtml(p.instrument)}</span><span class="wl-type">${escHtml(_engAssetClass(p.instrument))}</span></td>
+        <td>${dirBadge}</td>
+        <td class="wl-mono">${escHtml(p.units)} units</td>
+        <td class="wl-mono">@ ${fmtPrice(entryPx)}</td>
+        <td class="wl-mono">${fmtPrice(curPx)}</td>
+        <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
+        <td class="eng-days">Live Open</td>
+      </tr>`;
+    }).join('');
+
+    const openSec = `<div class="eng-sec">Open Positions · ${_ibkrPositions.length}</div>` + (_ibkrPositions.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Units</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
+          <tbody>${openRows}</tbody></table></div>`
+      : `<div class="acc-empty">Flat right now — no open positions on IBKR account.</div>`);
+
+    // Closed round-trips rows
+    const closedRows = _ibkrRoundTrips.map(rt => {
+      const isLong = rt.direction === 'LONG';
+      const dirBadge = isLong ? '<span class="eng-dir long">▲ LONG</span>' : '<span class="eng-dir short">▼ SHORT</span>';
+      const isWin = rt.realizedPnl > 0;
+      const isLoss = rt.realizedPnl < 0;
+      const ocCls = isWin ? 'win' : (isLoss ? 'loss' : 'flat');
+      const ocTxt = isWin ? 'WIN' : (isLoss ? 'LOSS' : 'FLAT');
+      const pnlCls = isWin ? 'pos' : (isLoss ? 'neg' : '');
+      const pnlTxt = (rt.realizedPnl >= 0 ? '+' : '-') + sym + Math.abs(rt.realizedPnl).toFixed(2) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
+      const closeTimeStr = rt.closeTime ? fmtValTs(rt.closeTime) : '—';
+
+      return `<tr class="wl-row eng-row ${ocCls}">
+        <td><span class="wl-sym">${escHtml(rt.instrument)}</span><span class="wl-type">${escHtml(rt.assetClass)}</span></td>
+        <td>${dirBadge}</td>
+        <td class="wl-mono">@ ${fmtPrice(rt.entryPrice)}</td>
+        <td class="wl-mono">@ ${fmtPrice(rt.exitPrice)}</td>
+        <td class="wl-mono">${escHtml(closeTimeStr)}</td>
+        <td><span class="eng-badge ${ocCls}">${ocTxt}</span></td>
+        <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
+        <td class="eng-days">Closed</td>
+      </tr>`;
+    }).join('');
+
+    const closedSec = `<div class="eng-sec">Closed Trades &amp; Realized Round-Trips · ${_ibkrRoundTrips.length}</div>` + (_ibkrRoundTrips.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
+          <tbody>${closedRows}</tbody></table></div>`
+      : `<div class="acc-empty">No closed trades recorded yet.</div>`);
+
+    el.innerHTML = head + openSec + closedSec;
+    return;
+  }
+
   if (!_paperPositions.length && !_paperClosed.length) {
-    el.innerHTML = `${head}<div class="acc-empty">No engine trades yet — the paper book steps once per nightly run; its positions and exits land here automatically.</div>`;
+    el.innerHTML = `${head}<div class="acc-empty">No engine trades yet — trades land here automatically.</div>`;
     return;
   }
 
