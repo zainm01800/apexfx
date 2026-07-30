@@ -265,15 +265,99 @@ function gradeRow(row, res, candles) {
 
 async function resolveIfPending(rows) {
   // Resolve PENDING rows, and SELF-HEAL already-resolved tp/sl rows: revert any
-  // "phantom" whose entry never filled / that no longer holds under the current rules
-  // (a stale resolution the grader can't otherwise reach). Only reverts resolved →
-  // pending/expired; NEVER flips tp↔sl (intrabar ambiguity), so it can't flip-flop.
-  const relevant = rows.filter(r => r.target_price && r.stop_loss && r.price && r.outcome === 'pending');
+  // "phantom" whose entry never filled / that no longer holds under the current rules.
+  const relevant = rows.filter(r => r.target_price && r.stop_loss && r.price && (r.outcome === 'pending' || !r.outcome));
+  
+  // Fetch IBKR live account positions and fill executions to resolve venue-closed trades (e.g. Palantir)
+  let ibkrPositions = [];
+  let ibkrTrades = [];
+  let paperPositions = [];
+  try {
+    const [posRes, trdRes, papRes] = await Promise.all([
+      fetch('/api/ibkr?view=positions').catch(() => null),
+      fetch('/api/ibkr?view=trades&limit=100').catch(() => null),
+      fetch('/api/paper?table=positions&limit=100').catch(() => null),
+    ]);
+    if (posRes && posRes.ok) ibkrPositions = await posRes.json().catch(() => []);
+    if (trdRes && trdRes.ok) ibkrTrades = await trdRes.json().catch(() => []);
+    if (papRes && papRes.ok) paperPositions = await papRes.json().catch(() => []);
+  } catch (e) {
+    console.warn('IBKR execution resolution fetch error:', e);
+  }
+
+  const openInstSet = new Set([
+    ...(Array.isArray(ibkrPositions) ? ibkrPositions.map(p => String(p.instrument).toUpperCase()) : []),
+    ...(Array.isArray(paperPositions) ? paperPositions.map(p => String(p.instrument).toUpperCase()) : [])
+  ]);
+
+  const ibkrFillsMap = {};
+  if (Array.isArray(ibkrTrades)) {
+    for (const t of ibkrTrades) {
+      if (!t || !t.instrument) continue;
+      const inst = String(t.instrument).toUpperCase();
+      (ibkrFillsMap[inst] ||= []).push(t);
+    }
+  }
+
+  // Cross-reference pending rows against IBKR venue trades first
+  for (const r of rows) {
+    const inst = String(r.symbol || '').toUpperCase();
+    const isPending = (r.outcome === 'pending' || !r.outcome);
+    const fills = ibkrFillsMap[inst] || [];
+
+    // If position is NOT open on IBKR/paper execution, but IBKR fill executions exist for this instrument
+    if (isPending && !openInstSet.has(inst) && fills.length > 0) {
+      // Find latest closing fill executed near or after scan timestamp
+      const scanTs = rowTs(r);
+      const recentFill = fills.find(f => {
+        const fillTime = new Date(f.exec_time).getTime();
+        return isNaN(fillTime) || fillTime >= (scanTs - 86400000); // within 24h of scan or later
+      }) || fills[0];
+
+      if (recentFill) {
+        const exitPx = parseFloat(recentFill.price) || parseFloat(r.price);
+        const exitTime = recentFill.exec_time ? new Date(recentFill.exec_time).toISOString() : new Date().toISOString();
+        const dir = verdictDir(r.verdict);
+        const tp = parseFloat(r.target_price);
+        const sl = parseFloat(r.stop_loss);
+
+        let resolvedOutcome = 'closed_ibkr';
+        if (!isNaN(tp) && !isNaN(sl)) {
+          if (dir === 'short') {
+            if (exitPx <= tp) resolvedOutcome = 'tp_hit';
+            else if (exitPx >= sl) resolvedOutcome = 'sl_hit';
+          } else {
+            if (exitPx >= tp) resolvedOutcome = 'tp_hit';
+            else if (exitPx <= sl) resolvedOutcome = 'sl_hit';
+          }
+        }
+
+        r.outcome = resolvedOutcome;
+        r.outcome_date = exitTime;
+        r.outcome_price = exitPx;
+        r.position_status = 'closed_ibkr';
+
+        fetch(API_MEMORY, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: r.id, outcome: resolvedOutcome, outcome_date: exitTime, outcome_price: exitPx }),
+        }).catch(() => {});
+      }
+    } else if (openInstSet.has(inst)) {
+      if (r.outcome && r.outcome !== 'pending') {
+        r.position_status = 'reopened';
+      } else {
+        r.position_status = 'open';
+      }
+    }
+  }
+
   if (!relevant.length) return;
 
   // Group by symbol + resolution timeframe, fetching the right-granularity candles once.
   const groups = {};
   for (const r of relevant) {
+    if (r.outcome && r.outcome !== 'pending') continue; // already resolved by IBKR check
     const res = resolutionFor(r);
     const key = r.symbol + '|' + res.tf;
     (groups[key] ||= { sym: r.symbol, type: r.asset_type || 'Stock', tf: res.tf, rows: [] }).rows.push({ row: r, res });
@@ -301,7 +385,7 @@ async function resolveIfPending(rows) {
           const validations = parseValidations(row.validations);
           const closedEarlyVal = validations.find(v => v.verdict === 'CLOSE_TRADE' || v.assessment === 'invalidated');
 
-          if (row.outcome === 'pending') {
+          if (row.outcome === 'pending' || !row.outcome) {
             const resolved = closedEarlyVal ? 'invalidated' : (graded || (ageDays > res.expiryDays ? 'expired' : null));
             if (resolved) {
               row.outcome = resolved;

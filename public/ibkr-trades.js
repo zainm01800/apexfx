@@ -192,44 +192,85 @@ function updateScoreboard() {
 }
 
 // ── Closed-trade stats: FIFO round-trip matching per instrument ──────────────
-// The trades table stores raw fills (no per-fill P&L), so closed win rate is
-// computed by matching each fill against the instrument's open lots (FIFO).
-// A fill that closes one or more lots counts as one closed trade.
-function computeClosedStats(trades) {
+// ── Closed-trade stats & round-trips: FIFO matching per instrument ──────────
+// Matches each execution fill against open lots (FIFO) to build complete
+// realized round-trip trade objects with entry/exit price, realized P&L, hold
+// duration, and explicit status badges (CLOSED, RE-OPENED, RESTORED).
+function computeClosedRoundTrips(trades) {
   const sorted = [...trades].sort((a, b) => new Date(a.exec_time) - new Date(b.exec_time));
-  const openLots = {}; // instrument -> [{ qty (signed), price }]
-  let closedCount = 0;
-  let wins = 0;
+  const openLots = {}; // instrument -> [{ qty, price, exec_time, side }]
+  const roundTrips = [];
 
   for (const t of sorted) {
     const inst = t.instrument;
     const price = num(t.price);
     const qty = num(t.qty);
+    const comm = num(t.commission) || 0;
     if (!inst || price === null || qty === null || qty <= 0) continue;
 
-    let remaining = (String(t.side).toUpperCase() === 'SELL' ? -1 : 1) * qty;
+    const side = String(t.side).toUpperCase();
+    let remaining = (side === 'SELL' ? -1 : 1) * qty;
     const lots = openLots[inst] || (openLots[inst] = []);
-    let realized = 0;
-    let matched = false;
 
     while (remaining !== 0 && lots.length > 0 && Math.sign(lots[0].qty) !== Math.sign(remaining)) {
       const lot = lots[0];
       const closeQty = Math.min(Math.abs(remaining), Math.abs(lot.qty));
-      realized += (price - lot.price) * closeQty * (lot.qty > 0 ? 1 : -1);
-      matched = true;
+      const entryPrice = lot.price;
+      const isLongLot = lot.qty > 0;
+      // Realized P&L = (exit - entry) * qty * direction_sign - commission
+      const pnlRaw = (price - entryPrice) * closeQty * (isLongLot ? 1 : -1) - comm;
+      const pnlPct = entryPrice ? ((price - entryPrice) / entryPrice * (isLongLot ? 1 : -1) * 100) : 0;
+      
+      const openTime = lot.exec_time;
+      const closeTime = t.exec_time;
+
+      // Detect if this instrument has been re-opened or restored later in the timeline
+      roundTrips.push({
+        instrument: inst,
+        assetClass: t.asset_class,
+        direction: isLongLot ? 'LONG' : 'SHORT',
+        qty: closeQty,
+        entryPrice: entryPrice,
+        exitPrice: price,
+        realizedPnl: pnlRaw,
+        pnlPct: pnlPct,
+        commission: comm,
+        openTime: openTime,
+        closeTime: closeTime,
+        status: 'CLOSED'
+      });
+
       lot.qty -= Math.sign(lot.qty) * closeQty;
       remaining -= Math.sign(remaining) * closeQty;
       if (Math.abs(lot.qty) < 1e-12) lots.shift();
     }
-    if (remaining !== 0) lots.push({ qty: remaining, price });
 
-    if (matched) {
-      closedCount++;
-      if (realized > 0) wins++;
+    if (remaining !== 0) {
+      lots.push({ qty: remaining, price, exec_time: t.exec_time, side });
     }
   }
 
-  return { closedCount, wins, winRate: closedCount > 0 ? (wins / closedCount) * 100 : null };
+  // Post-process to flag re-opened or restored trades
+  const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
+  for (const rt of roundTrips) {
+    if (symbolOpenNow.has(rt.instrument)) {
+      rt.status = 'RE-OPENED';
+    }
+  }
+
+  return roundTrips.reverse(); // newest closed trade first
+}
+
+function computeClosedStats(trades) {
+  const roundTrips = computeClosedRoundTrips(trades);
+  const closedCount = roundTrips.length;
+  const wins = roundTrips.filter(rt => rt.realizedPnl > 0).length;
+  return {
+    closedCount,
+    wins,
+    winRate: closedCount > 0 ? (wins / closedCount) * 100 : null,
+    roundTrips
+  };
 }
 
 // ── Per-class tab rendering ──────────────────────────────────────────────────
@@ -263,7 +304,66 @@ function renderClassTab() {
   if (ccEl) ccEl.textContent = `${closed.closedCount} closed`;
 
   renderPositionsCards(positions, cls);
+  renderClosedTrades(closed.roundTrips, cls);
   renderTradesTable(trades, cls);
+}
+
+// ── Closed Trades & Realized Round-Trips rendering ───────────────────────────
+function renderClosedTrades(roundTrips, cls) {
+  const wrap = document.getElementById('ibkrClosedWrap');
+  if (!wrap) return;
+
+  const filtered = roundTrips.filter(rt => rt.assetClass === cls);
+  const noteEl = document.getElementById('closedReconNote');
+  if (noteEl) {
+    noteEl.textContent = filtered.length > 0 ? `${filtered.length} matched round-trips` : '';
+  }
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed ${escHtml(CLASS_LABELS[cls] || cls)} trades matched yet.</div>`;
+    return;
+  }
+
+  const sym = curSymbol();
+  const rows = filtered.map(rt => {
+    const isLong = rt.direction === 'LONG';
+    const dirBadge = isLong
+      ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
+      : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
+
+    const isWin = rt.realizedPnl > 0;
+    const isLoss = rt.realizedPnl < 0;
+    const pnlCls = isWin ? 'green' : (isLoss ? 'red' : '');
+    const pnlTxt = fmtSignedMoney(rt.realizedPnl, sym) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
+
+    let statusBadge = '<span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text2);font-family:var(--mono);border:1px solid var(--border);">CLOSED 🛑</span>';
+    if (rt.status === 'RE-OPENED') {
+      statusBadge = '<span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,240,255,0.15);color:var(--accent);font-family:var(--mono);border:1px solid rgba(0,240,255,0.3);" title="This position was closed and subsequently re-opened on IBKR">RE-OPENED 🔄</span>';
+    } else if (rt.status === 'RESTORED') {
+      statusBadge = '<span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(180,100,255,0.15);color:#C084FC;font-family:var(--mono);border:1px solid rgba(180,100,255,0.3);" title="Position restored in active tracking">RESTORED ⚡</span>';
+    }
+
+    const openStr = rt.openTime ? fmtUK(rt.openTime) : '—';
+    const closeStr = rt.closeTime ? fmtUK(rt.closeTime) : '—';
+
+    return `<tr class="wl-row">
+      <td style="color: var(--text3); font-size: 12px; white-space: nowrap;">${escHtml(closeStr)}</td>
+      <td><strong class="wl-sym">${escHtml(rt.instrument)}</strong></td>
+      <td>${dirBadge}</td>
+      <td style="font-family: var(--mono);">${escHtml(fmtQty(rt.qty))}</td>
+      <td style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(rt.entryPrice, cls))}</td>
+      <td style="font-family: var(--mono); color: var(--text); font-weight: 600;">${escHtml(fmtPrice(rt.exitPrice, cls))}</td>
+      <td style="font-family: var(--mono); font-weight: 700;" class="${pnlCls}">${escHtml(pnlTxt)}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<div class="wl-table-wrap"><table class="wl-table">
+    <thead><tr>
+      <th>Closed Time</th><th>Instrument</th><th>Direction</th><th>Qty</th><th>Avg Entry</th><th>Exit Price</th><th>Realized P&amp;L</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 
 // ── Open positions: MT4-style per-position cards ─────────────────────────────

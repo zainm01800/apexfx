@@ -165,8 +165,19 @@
       </div>
     </div>
 
-    <!-- Recent Trades -->
-    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Recent Trades</h2>
+    <!-- Closed Trades / Realized Round-Trips -->
+    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between;">
+      <span>Closed Trades &amp; Realized Round-Trips</span>
+      <span id="closedReconNote" style="font-size: 11px; font-weight: 500; color: var(--text3); text-transform: none; letter-spacing: 0.02em; font-family: var(--mono);"></span>
+    </h2>
+    <div id="ibkrClosedWrap" style="margin-bottom: 32px;">
+      <div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">
+        No closed trades matched for this asset class yet.
+      </div>
+    </div>
+
+    <!-- Recent Fills & Executions -->
+    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Fill Execution History</h2>
     <div id="ibkrTradesWrap">
       <div style="text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
         Connecting to IBKR bridge data...
