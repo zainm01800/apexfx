@@ -47,51 +47,22 @@
     <!-- Page title + stats -->
     <div class="hist-header">
       <div>
-        <h1 class="hist-title">Scan History</h1>
-        <p class="hist-subtitle">Every AI analysis you've run — with live outcome tracking.</p>
+        <h1 class="hist-title">📜 Scan History &amp; AI Intelligence</h1>
+        <p class="hist-subtitle">Full log of AI scans, target resolutions, setup learnings, and watchlist tracking.</p>
       </div>
-      <div class="hist-summary" id="histSummary">
-        <div class="hs-stat" id="hsStat0"><span class="hs-val">—</span><span class="hs-label">Trades</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat1"><span class="hs-val green">—</span><span class="hs-label">TP Hit</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat2"><span class="hs-val red">—</span><span class="hs-label">SL Hit</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat5"><span class="hs-val accent">—</span><span class="hs-label">Open</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat6"><span class="hs-val accent">—</span><span class="hs-label">Net P&amp;L</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat3"><span class="hs-val accent">—%</span><span class="hs-label">Win Rate</span><span class="hs-sub">IBKR Terminal · Live</span></div>
-        <div class="hs-stat" id="hsStat4"><span class="hs-val accent">—</span><span class="hs-label">Avg P&amp;L</span><span class="hs-sub">IBKR Terminal · Live</span></div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="view-toggle" style="margin-bottom: 0;">
+          <button class="vt-btn active" data-view="scans">📜 Scan History</button>
+          <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
+        </div>
       </div>
     </div>
-    <div class="hs-note" id="hsNote" style="display:none">awaiting first closes — the paper book started 2026-07-17; exits resolve at the nightly step and the performance cards switch on.</div>
 
-    <!-- Engine trades: the paper book's real positions + closed trades (the tab's core) -->
-    <div class="acc-board" id="engineTrades"></div>
+    <!-- Accuracy scoreboard -->
+    <div class="acc-board" id="accBoard"></div>
 
-    <!-- Cross-links: real account trades and paper proof live on their own pages -->
-    <div class="xlink-strip">
-      <a class="xlink-card" href="ibkr-trades.html">
-        <span class="xlink-text">Real trades &amp; live account</span>
-        <span class="xlink-dest">IBKR Terminal<span class="xlink-arrow">→</span></span>
-      </a>
-      <a class="xlink-card" href="progress.html">
-        <span class="xlink-text">Paper proof &amp; engine experiments</span>
-        <span class="xlink-dest">Progress<span class="xlink-arrow">→</span></span>
-      </a>
-    </div>
-
-    <!-- Forward paper test: the engine's frozen book, marked to market daily -->
-    <div class="acc-board" id="paperCard"></div>
-
-    <!-- Main Scan History & Research Calls Section -->
-    <div style="margin-top: 32px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-      <div>
-        <h2 style="font-size: 22px; font-weight: 700; color: var(--text); font-family: var(--sans); letter-spacing: -0.01em;">Trade Scans &amp; AI Analysis History</h2>
-        <p style="font-size: 13.5px; color: var(--text3); margin-top: 3px;">Full log of AI scans, target resolutions, and live venue position tracking.</p>
-      </div>
-      <!-- View toggle: Scan History vs Watchlist -->
-      <div class="view-toggle" style="margin-bottom: 0;">
-        <button class="vt-btn active" data-view="scans">📜 Scan History</button>
-        <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
-      </div>
-    </div>
+    <!-- Learning by setup: deterministic per-setup stats (n / win rate / avg R) + latest lesson -->
+    <div class="acc-board" id="learnBoard"></div>
 
     <!-- Accuracy scoreboard -->
     <div class="acc-board" id="accBoard"></div>
