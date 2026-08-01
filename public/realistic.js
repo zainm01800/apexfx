@@ -154,7 +154,7 @@
     const container = document.getElementById('realisticTrades');
     if (!container) return;
 
-    const head = `<div class="acc-header"><div class="acc-title">⚙️ Clean MT4 Account Trades <span class="pp-book">Pure Execution · Zero Commission &amp; Interest</span></div></div>`;
+    const head = `<div class="acc-header"><div class="acc-title">⚙️ MT5 Funded Account Trades <span class="pp-book">MetaTrader 5 Swap-Free · Zero Commission &amp; Interest</span></div></div>`;
 
     // Open Positions section
     const openRows = _positions.map(p => {
@@ -167,11 +167,12 @@
       const upnl = parseFloat(p.unrealized_pnl);
       const pnlCls = !isNaN(upnl) ? (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : '')) : '';
       const pnlTxt = !isNaN(upnl) ? (upnl >= 0 ? '+' : '-') + '$' + Math.abs(upnl).toFixed(2) : '—';
+      const mt5Ticker = p.instrument + '.US';
 
       return `<tr class="wl-row eng-row open">
-        <td><span class="wl-sym">${escHtml(p.instrument)}</span><span class="wl-type">STOCK</span></td>
+        <td><span class="wl-sym">${escHtml(mt5Ticker)}</span><span class="wl-type">US CFD</span></td>
         <td>${dirBadge}</td>
-        <td class="wl-mono">${escHtml(p.units)} units</td>
+        <td class="wl-mono">${escHtml(p.units)} lots</td>
         <td class="wl-mono">@ $${fmtPrice(entryPx)}</td>
         <td class="wl-mono">$${fmtPrice(curPx)}</td>
         <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
@@ -181,7 +182,7 @@
 
     const openSec = `<div class="eng-sec">Open Positions · ${_positions.length}</div>` + (_positions.length
       ? `<div class="eng-wrap"><table class="wl-table eng-table">
-          <thead><tr><th>Instrument</th><th>Direction</th><th>Units</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
+          <thead><tr><th>Instrument (MT5)</th><th>Direction</th><th>Lots / Units</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
           <tbody>${openRows}</tbody></table></div>`
       : `<div class="acc-empty">No open positions right now.</div>`);
 
@@ -195,9 +196,10 @@
       const pnlCls = isWin ? 'pos' : 'neg';
       const pnlTxt = (rt.realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(rt.realizedPnl).toFixed(2) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
       const closeTimeStr = rt.closeTime ? new Date(rt.closeTime).toISOString().slice(0, 16).replace('T', ' ') : '—';
+      const mt5Ticker = rt.instrument + '.US';
 
       return `<tr class="wl-row eng-row ${ocCls}">
-        <td><span class="wl-sym">${escHtml(rt.instrument)}</span><span class="wl-type">STOCKS</span></td>
+        <td><span class="wl-sym">${escHtml(mt5Ticker)}</span><span class="wl-type">US CFD</span></td>
         <td>${dirBadge}</td>
         <td class="wl-mono">@ $${fmtPrice(rt.entryPrice)}</td>
         <td class="wl-mono">@ $${fmtPrice(rt.exitPrice)}</td>
@@ -210,7 +212,7 @@
 
     const closedSec = `<div class="eng-sec">Closed Trades &amp; Realized Round-Trips · ${_roundTrips.length}</div>` + (_roundTrips.length
       ? `<div class="eng-wrap"><table class="wl-table eng-table">
-          <thead><tr><th>Instrument</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
+          <thead><tr><th>Instrument (MT5)</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
           <tbody>${closedRows}</tbody></table></div>`
       : `<div class="acc-empty">No closed trades recorded yet.</div>`);
 
