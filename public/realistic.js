@@ -172,6 +172,19 @@
     const bEq = document.getElementById('bannerEquityVal');
     if (bEq) bEq.textContent = '$' + cleanEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' (' + (cleanReturnPct >= 0 ? '+' : '') + cleanReturnPct.toFixed(2) + '%)';
 
+    const container = document.getElementById('realisticTrades');
+    if (!container) return;
+
+    const tickerSuffix = isIbkr ? '' : '.US';
+    const tickerType = isIbkr ? 'STOCK' : 'US CFD';
+    const headTitle = isIbkr ? '🏛️ IBKR Raw Feed Trades' : '⚙️ MT5 Funded Account Trades';
+    const headSub = isIbkr ? 'Interactive Brokers Paper Feed · Retail Margins & Fees' : 'MetaTrader 5 Swap-Free · Zero Commission & Interest';
+
+    const pTitle = document.getElementById('pageTitle');
+    if (pTitle) pTitle.textContent = isIbkr ? '🏛️ IBKR Raw Feed Results' : '✨ Realistic Funded Account Results';
+    const pSub = document.getElementById('pageSub');
+    if (pSub) pSub.textContent = isIbkr ? 'Interactive Brokers Paper Account DUQ278370 · Retail Fees & Margin Feed' : 'MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest';
+
     if (_tradeDisplayMode === 'cards') {
       renderCardsView(container, isIbkr, tickerSuffix, tickerType);
     } else {
@@ -369,13 +382,30 @@
       </tr>`;
     }).join('');
 
-    const closedSec = `<div class="eng-sec">Closed Trades &amp; Realized Round-Trips · ${_roundTrips.length}</div>` + (_roundTrips.length
-      ? `<div class="eng-wrap"><table class="wl-table eng-table">
-          <thead><tr><th>Instrument</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
-          <tbody>${closedRows}</tbody></table></div>`
-      : `<div class="acc-empty">No closed trades recorded yet.</div>`);
+    // Fill Executions section
+    const fillRows = _trades.map(t => {
+      const isBuy = String(t.side || '').toUpperCase() === 'BUY';
+      const sideBadge = isBuy ? '<span class="eng-dir long">▲ BUY</span>' : '<span class="eng-dir short">▼ SELL</span>';
+      const execTimeStr = t.exec_time ? new Date(t.exec_time).toISOString().slice(0, 16).replace('T', ' ') : '—';
+      const displaySym = t.instrument + tickerSuffix;
 
-    container.innerHTML = head + openSec + closedSec;
+      return `<tr class="wl-row eng-row">
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
+        <td>${sideBadge}</td>
+        <td class="wl-mono">${escHtml(t.qty)} ${isIbkr ? 'units' : 'lots'}</td>
+        <td class="wl-mono">@ $${fmtPrice(t.price)}</td>
+        <td class="wl-mono">${escHtml(execTimeStr)}</td>
+        <td class="eng-days">Executed Fill</td>
+      </tr>`;
+    }).join('');
+
+    const fillSec = `<div class="eng-sec">Fill Execution History · ${_trades.length}</div>` + (_trades.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Side</th><th>Quantity</th><th>Fill Price</th><th>Execution Time</th><th>Status</th></tr></thead>
+          <tbody>${fillRows}</tbody></table></div>`
+      : `<div class="acc-empty">No execution fills recorded yet.</div>`);
+
+    container.innerHTML = head + openSec + closedSec + fillSec;
   }
 
   document.addEventListener('DOMContentLoaded', loadData);
