@@ -120,30 +120,39 @@
     </div>
 
     <!-- Synced Trades Section -->
+    <div style="margin-top: 24px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <h2 style="font-size: 20px; font-weight: 700; color: var(--text); font-family: 'Space Grotesk', var(--sans);">Trade Executions &amp; Setup Cards</h2>
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button id="btnViewCards" class="vt-btn active" onclick="setTradeDisplayMode('cards')">🎴 Card View (with Charts)</button>
+        <button id="btnViewTable" class="vt-btn" onclick="setTradeDisplayMode('table')">📊 Table View</button>
+      </div>
+    </div>
+
     <div id="realisticTrades">
       <!-- Dynamically populated by realistic.js -->
     </div>
     <!-- Cross-link strip -->
     <div class="xlink-strip" style="margin-top: 36px;">
-      <a class="xlink-card" href="ibkr-trades.html">
-        <div>
-          <div class="xlink-title">Real trades &amp; live account</div>
-          <div class="xlink-desc">Interactive Brokers live portfolio mirror</div>
-        </div>
-        <span class="xlink-arrow">IBKR Terminal &rarr;</span>
-      </a>
       <a class="xlink-card" href="history.html">
         <div>
-          <div class="xlink-title">Paper proof &amp; engine experiments</div>
-          <div class="xlink-desc">Full trade history and setup learnings</div>
+          <div class="xlink-title">Quant Scans &amp; AI Intelligence</div>
+          <div class="xlink-desc">Full setup learnings and watchlist tracking</div>
         </div>
         <span class="xlink-arrow">History &rarr;</span>
+      </a>
+      <a class="xlink-card" href="progress.html">
+        <div>
+          <div class="xlink-title">Paper proof &amp; engine experiments</div>
+          <div class="xlink-desc">Research queue and certified config book</div>
+        </div>
+        <span class="xlink-arrow">Progress &rarr;</span>
       </a>
     </div>
   </main>
 
   <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
   <script src="./realistic.js"></script>
 </body>

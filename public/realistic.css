@@ -222,22 +222,138 @@ a, a:link, a:visited {
 .metric-val.green { color: var(--green); }
 .metric-val.red   { color: var(--red); }
 
+/* Trade Cards Grid View */
+.trade-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.trade-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.trade-card:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  transform: translateY(-2px);
+}
+
+.tc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tc-sym {
+  font-family: 'Space Grotesk', var(--sans);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 6px;
+}
+
+.tc-type {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text3);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.tc-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tc-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.tc-badge.win {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.tc-badge.loss {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.tc-badge.open {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.tc-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(11, 15, 25, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.tc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tc-k {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tc-v {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.tc-v.pos { color: var(--green); }
+.tc-v.neg { color: var(--red); }
+
+.tc-chart-box {
+  width: 100%;
+  height: 160px;
+  background: rgba(11, 15, 25, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tc-foot {
+  font-size: 11px;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 @media (max-width: 768px) {
-  .hs-head {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .hs-title {
-    font-size: 22px;
-  }
-  .hs-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
-  }
-  .realistic-banner {
-    padding: 14px 16px;
-  }
-  .realistic-banner .banner-metrics {
-    grid-template-columns: 1fr 1fr;
+  .trade-card-grid {
+    grid-template-columns: 1fr;
   }
 }
