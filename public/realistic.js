@@ -3,9 +3,16 @@
 (function () {
   'use strict';
 
-  let _positions = [];
-  let _trades = [];
-  let _roundTrips = [];
+  let _terminalMode = 'mt5';
+
+  window.setTerminalMode = function(mode) {
+    _terminalMode = mode;
+    const btnMt5 = document.getElementById('btnModeMt5');
+    const btnIbkr = document.getElementById('btnModeIbkr');
+    if (btnMt5) btnMt5.classList.toggle('active', mode === 'mt5');
+    if (btnIbkr) btnIbkr.classList.toggle('active', mode === 'ibkr');
+    renderUI();
+  };
 
   function escHtml(str) {
     if (str == null) return '';
@@ -132,7 +139,18 @@
     const container = document.getElementById('realisticTrades');
     if (!container) return;
 
-    const head = `<div class="acc-header"><div class="acc-title">⚙️ MT5 Funded Account Trades <span class="pp-book">MetaTrader 5 Swap-Free · Zero Commission &amp; Interest</span></div></div>`;
+    const isIbkr = _terminalMode === 'ibkr';
+    const tickerSuffix = isIbkr ? '' : '.US';
+    const tickerType = isIbkr ? 'STOCK' : 'US CFD';
+    const headTitle = isIbkr ? '🏛️ IBKR Raw Feed Trades' : '⚙️ MT5 Funded Account Trades';
+    const headSub = isIbkr ? 'Interactive Brokers Paper Feed · Retail Margins & Fees' : 'MetaTrader 5 Swap-Free · Zero Commission & Interest';
+
+    const pTitle = document.getElementById('pageTitle');
+    if (pTitle) pTitle.textContent = isIbkr ? '🏛️ IBKR Raw Feed Results' : '✨ Realistic Funded Account Results';
+    const pSub = document.getElementById('pageSub');
+    if (pSub) pSub.textContent = isIbkr ? 'Interactive Brokers Paper Account DUQ278370 · Retail Fees & Margin Feed' : 'MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest';
+
+    const head = `<div class="acc-header"><div class="acc-title">${headTitle} <span class="pp-book">${headSub}</span></div></div>`;
 
     // Open Positions section
     const openRows = _positions.map(p => {
@@ -145,12 +163,12 @@
       const upnl = parseFloat(p.unrealized_pnl);
       const pnlCls = !isNaN(upnl) ? (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : '')) : '';
       const pnlTxt = !isNaN(upnl) ? (upnl >= 0 ? '+' : '-') + '$' + Math.abs(upnl).toFixed(2) : '—';
-      const mt5Ticker = p.instrument + '.US';
+      const displaySym = p.instrument + tickerSuffix;
 
       return `<tr class="wl-row eng-row open">
-        <td><span class="wl-sym">${escHtml(mt5Ticker)}</span><span class="wl-type">US CFD</span></td>
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
         <td>${dirBadge}</td>
-        <td class="wl-mono">${escHtml(p.units)} lots</td>
+        <td class="wl-mono">${escHtml(p.units)} ${isIbkr ? 'units' : 'lots'}</td>
         <td class="wl-mono">@ $${fmtPrice(entryPx)}</td>
         <td class="wl-mono">$${fmtPrice(curPx)}</td>
         <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
@@ -160,7 +178,7 @@
 
     const openSec = `<div class="eng-sec">Open Positions · ${_positions.length}</div>` + (_positions.length
       ? `<div class="eng-wrap"><table class="wl-table eng-table">
-          <thead><tr><th>Instrument (MT5)</th><th>Direction</th><th>Lots / Units</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Units / Lots</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
           <tbody>${openRows}</tbody></table></div>`
       : `<div class="acc-empty">No open positions right now.</div>`);
 
@@ -174,10 +192,10 @@
       const pnlCls = isWin ? 'pos' : 'neg';
       const pnlTxt = (rt.realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(rt.realizedPnl).toFixed(2) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
       const closeTimeStr = rt.closeTime ? new Date(rt.closeTime).toISOString().slice(0, 16).replace('T', ' ') : '—';
-      const mt5Ticker = rt.instrument + '.US';
+      const displaySym = rt.instrument + tickerSuffix;
 
       return `<tr class="wl-row eng-row ${ocCls}">
-        <td><span class="wl-sym">${escHtml(mt5Ticker)}</span><span class="wl-type">US CFD</span></td>
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
         <td>${dirBadge}</td>
         <td class="wl-mono">@ $${fmtPrice(rt.entryPrice)}</td>
         <td class="wl-mono">@ $${fmtPrice(rt.exitPrice)}</td>
@@ -190,7 +208,7 @@
 
     const closedSec = `<div class="eng-sec">Closed Trades &amp; Realized Round-Trips · ${_roundTrips.length}</div>` + (_roundTrips.length
       ? `<div class="eng-wrap"><table class="wl-table eng-table">
-          <thead><tr><th>Instrument (MT5)</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
           <tbody>${closedRows}</tbody></table></div>`
       : `<div class="acc-empty">No closed trades recorded yet.</div>`);
 

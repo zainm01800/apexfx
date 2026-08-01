@@ -31,10 +31,9 @@
   <header class="header">
     <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
     <nav class="nav">
-      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+      <a class="nav-link active" id="nav-realistic" href="realistic.html">Realistic Results</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
-      <a class="nav-link active" id="nav-realistic" href="realistic.html">Realistic Results</a>
     </nav>
     <div class="header-right" id="headerRight">
       <div class="live-pill"><span class="live-dot"></span>LIVE</div>
@@ -99,12 +98,16 @@
   <main class="history-main">
     <div class="hs-head">
       <div>
-        <h1 class="hs-title">✨ Realistic Funded Account Results</h1>
-        <p class="hs-sub">MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest</p>
+        <h1 class="hs-title" id="pageTitle">✨ Realistic Funded Account Results</h1>
+        <p class="hs-sub" id="pageSub">MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest</p>
       </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="badge-mt4">MT5 Funded Account</span>
-        <span class="badge-halal">Swap-Free / Zero Interest</span>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div class="view-mode-toggle">
+          <button id="btnModeMt5" class="mode-btn active" onclick="setTerminalMode('mt5')">✨ MT5 Swap-Free</button>
+          <button id="btnModeIbkr" class="mode-btn" onclick="setTerminalMode('ibkr')">🏛️ IBKR Raw Feed</button>
+        </div>
+        <span class="badge-mt4" id="badgeAccount">MT5 Funded Account</span>
+        <span class="badge-halal" id="badgeHalal">Swap-Free / Zero Interest</span>
       </div>
     </div>
 
