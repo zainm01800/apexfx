@@ -127,7 +127,7 @@
     const eqEl = document.getElementById('realEquity');
     if (eqEl) {
       eqEl.textContent = '$' + cleanEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      eqEl.className = 'hs-card-val ' + (cleanReturn >= 0 ? 'green' : 'red');
+      eqEl.className = 'hs-val ' + (cleanReturn >= 0 ? 'green' : 'red');
     }
     const eqSub = document.getElementById('realEquitySub');
     if (eqSub) {
@@ -137,7 +137,7 @@
     const rPnlEl = document.getElementById('realizedPnl');
     if (rPnlEl) {
       rPnlEl.textContent = (realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(realizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      rPnlEl.className = 'hs-card-val ' + (realizedPnl >= 0 ? 'green' : 'red');
+      rPnlEl.className = 'hs-val ' + (realizedPnl >= 0 ? 'green' : 'red');
     }
     const rSub = document.getElementById('realizedSub');
     if (rSub) {
@@ -147,7 +147,7 @@
     const uPnlEl = document.getElementById('unrealizedPnl');
     if (uPnlEl) {
       uPnlEl.textContent = (unrealizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(unrealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      uPnlEl.className = 'hs-card-val ' + (unrealizedPnl >= 0 ? 'green' : 'red');
+      uPnlEl.className = 'hs-val ' + (unrealizedPnl >= 0 ? 'green' : 'red');
     }
 
     // Render Tables
