@@ -1172,7 +1172,7 @@ function updateSummary() {
     const losses = closed.filter(rt => rt.realizedPnl < 0).length;
     const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : null;
     const todayNetPnl = closed.reduce((sum, rt) => sum + rt.realizedPnl, 0);
-    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : todayNetPnl;
+    const totalRealizedPnl = todayNetPnl;
     const totalTrades = openN + closed.length;
     const sym = (_ibkrAccount && _ibkrAccount.currency === 'GBP') ? '£' : '$';
 
@@ -1789,11 +1789,11 @@ function renderEngineTrades() {
 
     const winsSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
     const lossSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
-    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : (winsSum + lossSum);
+    const totalRealizedPnl = winsSum + lossSum;
     const netLiq = (_ibkrAccount && _ibkrAccount.net_liquidation != null) ? _ibkrAccount.net_liquidation : 1000000;
     const totalAccountPnl = netLiq - 1000000;
     const accountPct = (totalAccountPnl / 1000000) * 100;
-    const totalPnlCls = totalAccountPnl >= 0 ? '#34D399' : '#F87171';
+    const totalPnlCls = totalRealizedPnl >= 0 ? '#34D399' : '#F87171';
 
     const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
       <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Balance (${sym}${netLiq.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>

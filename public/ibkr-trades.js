@@ -325,10 +325,9 @@ function renderClosedTrades(roundTrips, cls) {
   }
 
   const sym = curSymbol();
-  const a = _ibkrAccountCache || {};
   const winsSum = filtered.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
   const lossSum = filtered.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
-  const totalRealizedPnl = (a.realized_pnl != null) ? a.realized_pnl : (winsSum + lossSum);
+  const totalRealizedPnl = winsSum + lossSum;
   const netLiq = (a.net_liquidation != null) ? a.net_liquidation : 1000000;
   const totalAccountPnl = netLiq - 1000000;
   const accountPct = (totalAccountPnl / 1000000) * 100;
