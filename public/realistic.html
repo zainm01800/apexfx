@@ -170,20 +170,28 @@
     <div id="realisticTrades">
       <!-- Dynamically populated by realistic.js -->
     </div>
+    <!-- Cross-link strip -->
+    <div class="xlink-strip" style="margin-top: 36px;">
+      <a class="xlink-card" href="ibkr-trades.html">
+        <div>
+          <div class="xlink-title">Real trades &amp; live account</div>
+          <div class="xlink-desc">Interactive Brokers live portfolio mirror</div>
+        </div>
+        <span class="xlink-arrow">IBKR Terminal &rarr;</span>
+      </a>
+      <a class="xlink-card" href="history.html">
+        <div>
+          <div class="xlink-title">Paper proof &amp; engine experiments</div>
+          <div class="xlink-desc">Full trade history and setup learnings</div>
+        </div>
+        <span class="xlink-arrow">History &rarr;</span>
+      </a>
+    </div>
   </main>
 
-  <footer class="footer">
-    <div class="footer-inner">
-      <span>Z.FX Quant Platform · Realistic MT4 Clean Model</span>
-      <div class="footer-links">
-        <a href="ibkr-trades.html">IBKR Terminal</a>
-        <a href="progress.html">Progress</a>
-        <a href="history.html">History</a>
-        <a href="realistic.html">Realistic Results</a>
-      </div>
-    </div>
-  </footer>
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
 
+  <script src="./app-mode.js"></script>
   <script src="./realistic.js"></script>
 </body>
 </html>
