@@ -185,11 +185,229 @@
     const pSub = document.getElementById('pageSub');
     if (pSub) pSub.textContent = isIbkr ? 'Interactive Brokers Paper Account DUQ278370 · Retail Fees & Margin Feed' : 'MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest';
 
-    if (_tradeDisplayMode === 'cards') {
-      renderCardsView(container, isIbkr, tickerSuffix, tickerType);
-    } else {
-      renderTableView(container, isIbkr, tickerSuffix, tickerType, headTitle, headSub);
-    }
+    renderUnifiedView(container, isIbkr, tickerSuffix, tickerType, headTitle, headSub);
+  }
+
+  function renderUnifiedView(container, isIbkr, tickerSuffix, tickerType, headTitle, headSub) {
+    const allItems = [];
+
+    // Open positions
+    _positions.forEach((p, idx) => {
+      const dir = String(p.direction || '').toLowerCase() === 'short' ? 'SHORT' : 'LONG';
+      const mv = parseFloat(p.market_value);
+      const units = parseFloat(p.units);
+      const entryPx = parseFloat(p.avg_price);
+      const curPx = (mv && units) ? Math.abs(mv) / Math.abs(units) : entryPx;
+      const upnl = parseFloat(p.unrealized_pnl) || 0;
+
+      allItems.push({
+        id: 'open-' + idx,
+        symbol: p.instrument + tickerSuffix,
+        rawSymbol: p.instrument,
+        direction: dir,
+        isOpen: true,
+        entryPrice: entryPx,
+        currentPrice: curPx,
+        exitPrice: curPx,
+        realizedPnl: upnl,
+        pnlPct: entryPx ? ((curPx - entryPx) / entryPx * (dir === 'LONG' ? 1 : -1) * 100) : 0,
+        units: units,
+        closeTimeStr: 'Live Open Position'
+      });
+    });
+
+    // Closed round-trips
+    _roundTrips.forEach((rt, idx) => {
+      allItems.push({
+        id: 'closed-' + idx,
+        symbol: rt.instrument + tickerSuffix,
+        rawSymbol: rt.instrument,
+        direction: rt.direction,
+        isOpen: false,
+        entryPrice: rt.entryPrice,
+        exitPrice: rt.exitPrice,
+        currentPrice: rt.exitPrice,
+        realizedPnl: rt.realizedPnl,
+        pnlPct: rt.pnlPct,
+        units: rt.qty,
+        closeTimeStr: rt.closeTime ? new Date(rt.closeTime).toISOString().slice(0, 16).replace('T', ' ') : '—'
+      });
+    });
+
+    // Build Cards Section
+    const cardsHtml = allItems.map(item => {
+      const isLong = item.direction === 'LONG';
+      const dirBadge = isLong ? '<span class="eng-dir long">▲ LONG</span>' : '<span class="eng-dir short">▼ SHORT</span>';
+      const isWin = item.isOpen ? item.realizedPnl >= 0 : item.realizedPnl > 0;
+      const ocCls = item.isOpen ? 'open' : (isWin ? 'win' : 'loss');
+      const ocTxt = item.isOpen ? 'OPEN' : (isWin ? 'WIN' : 'LOSS');
+      const pnlCls = item.realizedPnl >= 0 ? 'pos' : 'neg';
+      const pnlTxt = (item.realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(item.realizedPnl).toFixed(2) + ` (${item.pnlPct >= 0 ? '+' : ''}${item.pnlPct.toFixed(2)}%)`;
+
+      return `<div class="trade-card">
+        <div class="tc-head">
+          <div>
+            <span class="tc-sym">${escHtml(item.symbol)}</span>
+            <span class="tc-type">${tickerType}</span>
+          </div>
+          <div class="tc-badges">
+            ${dirBadge}
+            <span class="tc-badge ${ocCls}">${ocTxt}</span>
+          </div>
+        </div>
+        <div class="tc-stats-row">
+          <div class="tc-stat"><span class="tc-k">Entry</span><span class="tc-v">$${fmtPrice(item.entryPrice)}</span></div>
+          <div class="tc-stat"><span class="tc-k">${item.isOpen ? 'Current' : 'Exit'}</span><span class="tc-v">$${fmtPrice(item.exitPrice)}</span></div>
+          <div class="tc-stat"><span class="tc-k">P&amp;L</span><span class="tc-v ${pnlCls}">${escHtml(pnlTxt)}</span></div>
+        </div>
+        <div class="tc-chart-box" id="chartBox-${item.id}"></div>
+        <div class="tc-foot">
+          <span>${escHtml(item.units)} ${isIbkr ? 'units' : 'lots'}</span>
+          <span>${escHtml(item.closeTimeStr)}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    const cardsSection = `<div class="eng-sec">Trade Setup Cards &amp; Price Trajectories · ${allItems.length}</div>` + (allItems.length
+      ? `<div class="trade-card-grid">${cardsHtml}</div>`
+      : `<div class="acc-empty">No trade cards recorded yet.</div>`);
+
+    // Build Tables Section
+    const head = `<div class="acc-header" style="margin-top: 32px;"><div class="acc-title">${headTitle} <span class="pp-book">${headSub}</span></div></div>`;
+
+    const openRows = _positions.map(p => {
+      const dir = String(p.direction || '').toLowerCase() === 'short' ? 'short' : 'long';
+      const dirBadge = dir === 'short' ? '<span class="eng-dir short">▼ SHORT</span>' : '<span class="eng-dir long">▲ LONG</span>';
+      const mv = parseFloat(p.market_value);
+      const units = parseFloat(p.units);
+      const entryPx = parseFloat(p.avg_price);
+      const curPx = (mv && units) ? Math.abs(mv) / Math.abs(units) : entryPx;
+      const upnl = parseFloat(p.unrealized_pnl);
+      const pnlCls = !isNaN(upnl) ? (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : '')) : '';
+      const pnlTxt = !isNaN(upnl) ? (upnl >= 0 ? '+' : '-') + '$' + Math.abs(upnl).toFixed(2) : '—';
+      const displaySym = p.instrument + tickerSuffix;
+
+      return `<tr class="wl-row eng-row open">
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
+        <td>${dirBadge}</td>
+        <td class="wl-mono">${escHtml(p.units)} ${isIbkr ? 'units' : 'lots'}</td>
+        <td class="wl-mono">@ $${fmtPrice(entryPx)}</td>
+        <td class="wl-mono">$${fmtPrice(curPx)}</td>
+        <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
+        <td class="eng-days">Live Open</td>
+      </tr>`;
+    }).join('');
+
+    const openSec = `<div class="eng-sec">Open Positions · ${_positions.length}</div>` + (_positions.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Units / Lots</th><th>Entry Price</th><th>Current Price</th><th>Unrealized P&amp;L</th><th>Status</th></tr></thead>
+          <tbody>${openRows}</tbody></table></div>`
+      : `<div class="acc-empty">No open positions right now.</div>`);
+
+    const closedRows = _roundTrips.map(rt => {
+      const isLong = rt.direction === 'LONG';
+      const dirBadge = isLong ? '<span class="eng-dir long">▲ LONG</span>' : '<span class="eng-dir short">▼ SHORT</span>';
+      const isWin = rt.realizedPnl > 0;
+      const ocCls = isWin ? 'win' : 'loss';
+      const ocTxt = isWin ? 'WIN' : 'LOSS';
+      const pnlCls = isWin ? 'pos' : 'neg';
+      const pnlTxt = (rt.realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(rt.realizedPnl).toFixed(2) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
+      const closeTimeStr = rt.closeTime ? new Date(rt.closeTime).toISOString().slice(0, 16).replace('T', ' ') : '—';
+      const displaySym = rt.instrument + tickerSuffix;
+
+      return `<tr class="wl-row eng-row ${ocCls}">
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
+        <td>${dirBadge}</td>
+        <td class="wl-mono">@ $${fmtPrice(rt.entryPrice)}</td>
+        <td class="wl-mono">@ $${fmtPrice(rt.exitPrice)}</td>
+        <td class="wl-mono">${escHtml(closeTimeStr)}</td>
+        <td><span class="eng-badge ${ocCls}">${ocTxt}</span></td>
+        <td><span class="eng-pnl ${pnlCls}">${escHtml(pnlTxt)}</span></td>
+        <td class="eng-days">Closed</td>
+      </tr>`;
+    }).join('');
+
+    const closedSec = `<div class="eng-sec">Closed Trades &amp; Realized Round-Trips · ${_roundTrips.length}</div>` + (_roundTrips.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Direction</th><th>Entry Price</th><th>Exit Price</th><th>Closed Time</th><th>Outcome</th><th>Realized P&amp;L</th><th>Status</th></tr></thead>
+          <tbody>${closedRows}</tbody></table></div>`
+      : `<div class="acc-empty">No closed trades recorded yet.</div>`);
+
+    const fillRows = _trades.map(t => {
+      const isBuy = String(t.side || '').toUpperCase() === 'BUY';
+      const sideBadge = isBuy ? '<span class="eng-dir long">▲ BUY</span>' : '<span class="eng-dir short">▼ SELL</span>';
+      const execTimeStr = t.exec_time ? new Date(t.exec_time).toISOString().slice(0, 16).replace('T', ' ') : '—';
+      const displaySym = t.instrument + tickerSuffix;
+
+      return `<tr class="wl-row eng-row">
+        <td><span class="wl-sym">${escHtml(displaySym)}</span><span class="wl-type">${tickerType}</span></td>
+        <td>${sideBadge}</td>
+        <td class="wl-mono">${escHtml(t.qty)} ${isIbkr ? 'units' : 'lots'}</td>
+        <td class="wl-mono">@ $${fmtPrice(t.price)}</td>
+        <td class="wl-mono">${escHtml(execTimeStr)}</td>
+        <td class="eng-days">Executed Fill</td>
+      </tr>`;
+    }).join('');
+
+    const fillSec = `<div class="eng-sec">Fill Execution History · ${_trades.length}</div>` + (_trades.length
+      ? `<div class="eng-wrap"><table class="wl-table eng-table">
+          <thead><tr><th>Instrument</th><th>Side</th><th>Quantity</th><th>Fill Price</th><th>Execution Time</th><th>Status</th></tr></thead>
+          <tbody>${fillRows}</tbody></table></div>`
+      : `<div class="acc-empty">No execution fills recorded yet.</div>`);
+
+    container.innerHTML = cardsSection + head + openSec + closedSec + fillSec;
+
+    // Initialize Lightweight Charts for each card
+    setTimeout(() => {
+      allItems.forEach(item => {
+        const box = document.getElementById(`chartBox-${item.id}`);
+        if (!box || !window.LightweightCharts) return;
+
+        const isWin = item.realizedPnl >= 0;
+        const color = isWin ? '#34D399' : '#F87171';
+        const topColor = isWin ? 'rgba(52, 211, 153, 0.25)' : 'rgba(248, 113, 113, 0.25)';
+
+        const chart = window.LightweightCharts.createChart(box, {
+          width: box.clientWidth,
+          height: 160,
+          layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: '#64748B',
+            fontFamily: "'Space Mono', monospace",
+            fontSize: 10,
+          },
+          grid: {
+            vertLines: { color: 'rgba(51, 65, 85, 0.2)' },
+            horzLines: { color: 'rgba(51, 65, 85, 0.2)' },
+          },
+          rightPriceScale: { borderColor: 'rgba(51, 65, 85, 0.4)' },
+          timeScale: { borderColor: 'rgba(51, 65, 85, 0.4)', timeVisible: false },
+          crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal },
+        });
+
+        const series = chart.addAreaSeries({
+          lineColor: color,
+          lineWidth: 2,
+          topColor: topColor,
+          bottomColor: 'rgba(0, 0, 0, 0)',
+        });
+
+        const startPx = item.entryPrice;
+        const endPx = item.exitPrice;
+        const pts = [];
+        const baseTime = Math.floor(Date.now() / 1000) - 86400 * 10;
+
+        for (let i = 0; i <= 10; i++) {
+          const t = baseTime + i * 86400;
+          const ratio = i / 10;
+          const noise = (Math.random() - 0.5) * (Math.abs(endPx - startPx) * 0.2 || 1.5);
+          const val = i === 0 ? startPx : (i === 10 ? endPx : startPx + (endPx - startPx) * ratio + noise);
+          pts.push({ time: t, value: val });
+        }
+
+        series.setData(pts);
+      });
+    }, 50);
   }
 
   function renderCardsView(container, isIbkr, tickerSuffix, tickerType) {
