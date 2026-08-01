@@ -1,7 +1,8 @@
 {
   "version": 2,
   "redirects": [
-    { "source": "/", "destination": "/dashboard.html", "permanent": false }
+    { "source": "/", "destination": "/realistic.html", "permanent": false },
+    { "source": "/dashboard.html", "destination": "/realistic.html", "permanent": false }
   ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/public/$1" }
