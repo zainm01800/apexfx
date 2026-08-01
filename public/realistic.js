@@ -96,15 +96,21 @@
   }
 
   function renderUI() {
+    const isIbkr = _terminalMode === 'ibkr';
+    const totalSharesTraded = _roundTrips.reduce((sum, rt) => sum + (parseFloat(rt.qty) || 0), 0) + _positions.reduce((sum, p) => sum + (parseFloat(p.units) || 0), 0);
+    // MT5 Prop Firm Equity CFD Bid-Ask Spread overhead (~$0.02 / share)
+    const spreadOverhead = isIbkr ? 0 : totalSharesTraded * 0.02;
+
     const wins = _roundTrips.filter(rt => rt.realizedPnl > 0);
     const losses = _roundTrips.filter(rt => rt.realizedPnl < 0);
     const winsSum = wins.reduce((sum, rt) => sum + rt.realizedPnl, 0);
     const lossSum = losses.reduce((sum, rt) => sum + rt.realizedPnl, 0);
-    const realizedPnl = winsSum + lossSum;
+    const grossRealizedPnl = winsSum + lossSum;
+    const netRealizedPnl = grossRealizedPnl - spreadOverhead;
 
     const unrealizedPnl = _positions.reduce((sum, p) => sum + (parseFloat(p.unrealized_pnl) || 0), 0);
-    const cleanEquity = 1000000 + realizedPnl + unrealizedPnl;
-    const cleanReturn = realizedPnl + unrealizedPnl;
+    const cleanEquity = 1000000 + netRealizedPnl + unrealizedPnl;
+    const cleanReturn = netRealizedPnl + unrealizedPnl;
     const cleanReturnPct = (cleanReturn / 1000000) * 100;
     const winRate = _roundTrips.length > 0 ? Math.round((wins.length / _roundTrips.length) * 100) : 0;
 
@@ -121,8 +127,8 @@
 
     const rPnlEl = document.getElementById('realizedPnl');
     if (rPnlEl) {
-      rPnlEl.textContent = (realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(realizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      rPnlEl.className = 'hs-val ' + (realizedPnl >= 0 ? 'green' : 'red');
+      rPnlEl.textContent = (netRealizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(netRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      rPnlEl.className = 'hs-val ' + (netRealizedPnl >= 0 ? 'green' : 'red');
     }
     const rSub = document.getElementById('realizedSub');
     if (rSub) {
@@ -135,11 +141,24 @@
       uPnlEl.className = 'hs-val ' + (unrealizedPnl >= 0 ? 'green' : 'red');
     }
 
+    const spreadEl = document.getElementById('spreadVal');
+    if (spreadEl) {
+      spreadEl.textContent = (spreadOverhead > 0 ? '-' : '') + '$' + Math.abs(spreadOverhead).toFixed(2);
+    }
+
+    const bClosed = document.getElementById('bannerClosedVal');
+    if (bClosed) bClosed.textContent = (netRealizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(netRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    const bSpread = document.getElementById('bannerSpreadVal');
+    if (bSpread) bSpread.textContent = (spreadOverhead > 0 ? '-' : '') + '$' + Math.abs(spreadOverhead).toFixed(2);
+
+    const bEq = document.getElementById('bannerEquityVal');
+    if (bEq) bEq.textContent = '$' + cleanEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' (' + (cleanReturnPct >= 0 ? '+' : '') + cleanReturnPct.toFixed(2) + '%)';
+
     // Render Tables
     const container = document.getElementById('realisticTrades');
     if (!container) return;
 
-    const isIbkr = _terminalMode === 'ibkr';
     const tickerSuffix = isIbkr ? '' : '.US';
     const tickerType = isIbkr ? 'STOCK' : 'US CFD';
     const headTitle = isIbkr ? '🏛️ IBKR Raw Feed Trades' : '⚙️ MT5 Funded Account Trades';

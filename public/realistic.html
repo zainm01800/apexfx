@@ -114,19 +114,24 @@
     <!-- Realistic Headline Stat Cards -->
     <div class="hs-grid">
       <div class="hs-card">
-        <div class="hs-val green" id="realEquity">$1,000,514.82</div>
+        <div class="hs-val green" id="realEquity">$1,000,514.38</div>
         <div class="hs-label">MT5 Funded Account Equity</div>
         <div class="hs-sub green" id="realEquitySub">+0.05% Net Profit</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val green" id="realizedPnl">+$529.20</div>
-        <div class="hs-label">Realized Closed P&amp;L</div>
+        <div class="hs-val green" id="realizedPnl">+$528.76</div>
+        <div class="hs-label">Realized Closed P&amp;L (Net)</div>
         <div class="hs-sub" id="realizedSub">3 Wins · 1 Loss (75% Win Rate)</div>
       </div>
       <div class="hs-card">
         <div class="hs-val red" id="unrealizedPnl">-$14.38</div>
         <div class="hs-label">Open Positions P&amp;L</div>
         <div class="hs-sub">2 Live Open Positions</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-val accent" id="spreadVal">-$4.92</div>
+        <div class="hs-label">Bid-Ask Spread Overhead</div>
+        <div class="hs-sub">~0.015% MT5 CFD Spread</div>
       </div>
       <div class="hs-card">
         <div class="hs-val accent" id="commissionsVal">$0.00</div>
@@ -147,7 +152,7 @@
         <span class="banner-title">MT5 Swap-Free Funded Account — Ultra-Realistic Execution Model</span>
       </div>
       <p class="banner-text">
-        This page calculates your <strong>exact realistic performance</strong> if traded on a <strong>Swap-Free MetaTrader 5 (MT5) Prop Firm / Funded Account</strong> trading UK/Global US Equity CFDs (e.g. <code>PLTR.US</code>, <code>TSM.US</code>, <code>MSFT.US</code>, <code>NFLX.US</code>, <code>AAPL.US</code>, <code>AMD.US</code>):
+        This page calculates your <strong>exact realistic performance</strong> if traded on a <strong>Swap-Free MetaTrader 5 (MT5) Prop Firm / Funded Account</strong>, including <strong>real-world bid-ask spread overhead (~$0.015/share)</strong> on US Equity CFDs:
       </p>
       <div class="banner-metrics">
         <div class="metric-box">
@@ -155,16 +160,16 @@
           <span class="metric-val">$1,000,000.00</span>
         </div>
         <div class="metric-box">
-          <span class="metric-label">All Closed US Stock Trades</span>
-          <span class="metric-val green">+$529.20</span>
+          <span class="metric-label">Closed Trades (Net of Spread)</span>
+          <span class="metric-val green" id="bannerClosedVal">+$528.76</span>
         </div>
         <div class="metric-box">
-          <span class="metric-label">Live Open US Stock CFDs</span>
-          <span class="metric-val red">-$14.38</span>
+          <span class="metric-label">Spread Cost Overhead</span>
+          <span class="metric-val accent" id="bannerSpreadVal">-$4.92</span>
         </div>
         <div class="metric-box highlight">
           <span class="metric-label">Realistic MT5 Net Equity</span>
-          <span class="metric-val green">$1,000,514.82 (+0.05%)</span>
+          <span class="metric-val green" id="bannerEquityVal">$1,000,514.38 (+0.05%)</span>
         </div>
       </div>
     </div>
