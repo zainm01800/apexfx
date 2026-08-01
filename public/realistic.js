@@ -26,69 +26,47 @@
   }
 
   function computeRoundTrips(trades) {
-    const sorted = trades.slice().sort((a, b) => new Date(a.exec_time) - new Date(b.exec_time));
-    const openInventory = {};
+    const sorted = [...trades].sort((a, b) => new Date(a.exec_time) - new Date(b.exec_time));
+    const openLots = {};
     const roundTrips = [];
 
     for (const t of sorted) {
-      const sym = t.instrument;
-      const qty = parseFloat(t.qty) || 0;
-      const price = parseFloat(t.price) || 0;
-      const side = String(t.side || '').toUpperCase();
-      const isBuy = side === 'BUY';
+      const inst = t.instrument;
+      const price = parseFloat(t.price);
+      const qty = parseFloat(t.qty);
+      if (!inst || isNaN(price) || isNaN(qty) || qty <= 0) continue;
 
-      if (!openInventory[sym]) {
-        openInventory[sym] = [];
-      }
+      const side = String(t.side).toUpperCase();
+      let remaining = (side === 'SELL' ? -1 : 1) * qty;
+      const lots = openLots[inst] || (openLots[inst] = []);
 
-      const inv = openInventory[sym];
-      let remainingQty = qty;
-
-      while (remainingQty > 0 && inv.length > 0) {
-        const head = inv[0];
-        const canMatch = Math.min(remainingQty, head.qty);
-
-        if ((isBuy && head.isBuy) || (!isBuy && !head.isBuy)) {
-          break;
-        }
-
-        const buyPrice = head.isBuy ? head.price : price;
-        const sellPrice = head.isBuy ? price : buyPrice;
-        const direction = head.isBuy ? 'LONG' : 'SHORT';
-        const pnl = direction === 'LONG'
-          ? (sellPrice - buyPrice) * canMatch
-          : (buyPrice - sellPrice) * canMatch;
-
-        const costBasis = buyPrice * canMatch;
-        const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+      while (remaining !== 0 && lots.length > 0 && Math.sign(lots[0].qty) !== Math.sign(remaining)) {
+        const lot = lots[0];
+        const closeQty = Math.min(Math.abs(remaining), Math.abs(lot.qty));
+        const entryPrice = lot.price;
+        const isLong = lot.qty > 0;
+        const pnl = (price - entryPrice) * closeQty * (isLong ? 1 : -1);
+        const pnlPct = entryPrice ? ((price - entryPrice) / entryPrice * (isLong ? 1 : -1) * 100) : 0;
 
         roundTrips.push({
-          instrument: sym,
+          instrument: inst,
           assetClass: t.asset_class || 'stocks',
-          direction: direction,
-          qty: canMatch,
-          entryPrice: head.price,
+          direction: isLong ? 'LONG' : 'SHORT',
+          qty: closeQty,
+          entryPrice: entryPrice,
           exitPrice: price,
-          openTime: head.exec_time,
-          closeTime: t.exec_time,
           realizedPnl: pnl,
-          pnlPct: pnlPct
+          pnlPct: pnlPct,
+          openTime: lot.exec_time,
+          closeTime: t.exec_time
         });
 
-        remainingQty -= canMatch;
-        head.qty -= canMatch;
-        if (head.qty <= 0.00001) {
-          inv.shift();
-        }
+        lot.qty -= Math.sign(lot.qty) * closeQty;
+        remaining -= Math.sign(remaining) * closeQty;
+        if (Math.abs(lot.qty) < 1e-12) lots.shift();
       }
-
-      if (remainingQty > 0) {
-        inv.push({
-          qty: remainingQty,
-          price: price,
-          isBuy: isBuy,
-          exec_time: t.exec_time
-        });
+      if (remaining !== 0) {
+        lots.push({ qty: remaining, price, exec_time: t.exec_time, side });
       }
     }
 
