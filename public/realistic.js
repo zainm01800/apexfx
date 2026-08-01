@@ -5,6 +5,9 @@
 
   let _terminalMode = 'mt5';
   let _tradeDisplayMode = 'cards';
+  let _positions = [];
+  let _trades = [];
+  let _roundTrips = [];
 
   window.setTerminalMode = function(mode) {
     _terminalMode = mode;
@@ -109,20 +112,25 @@
   ];
 
   function loadData() {
+    // Render defaults synchronously immediately on script execution
+    _positions = DEFAULT_POSITIONS;
+    _trades = DEFAULT_TRADES;
+    _roundTrips = computeRoundTrips(_trades);
+    renderUI();
+
+    // Fetch live API data and update if available
     Promise.all([
       fetch('/api/ibkr?view=positions').then(r => r.ok ? r.json() : []).catch(() => []),
       fetch('/api/ibkr?view=trades').then(r => r.ok ? r.json() : []).catch(() => [])
     ]).then(([pos, tr]) => {
-      _positions = (Array.isArray(pos) && pos.length > 0) ? pos : DEFAULT_POSITIONS;
-      _trades = (Array.isArray(tr) && tr.length > 0) ? tr : DEFAULT_TRADES;
-      _roundTrips = computeRoundTrips(_trades);
+      if (Array.isArray(pos) && pos.length > 0) _positions = pos;
+      if (Array.isArray(tr) && tr.length > 0) {
+        _trades = tr;
+        _roundTrips = computeRoundTrips(_trades);
+      }
       renderUI();
     }).catch(err => {
       console.warn('[Realistic Results] Data load fallback:', err);
-      _positions = DEFAULT_POSITIONS;
-      _trades = DEFAULT_TRADES;
-      _roundTrips = computeRoundTrips(_trades);
-      renderUI();
     });
   }
 
