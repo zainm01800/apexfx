@@ -44,6 +44,29 @@ button, input, select, textarea {
   font-family: inherit;
 }
 
+/* Global Link Visited Override (prevents browser default purple links) */
+a, a:link, a:visited {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-link, .nav-link:visited {
+  color: var(--text2);
+}
+
+.nav-link:hover, .nav-link.active, .nav-link.active:visited {
+  color: #00F0FF !important;
+}
+
+.app-footer a, .app-footer a:visited {
+  color: var(--text2) !important;
+  text-decoration: underline;
+}
+
+.xlink-card, .xlink-card:visited {
+  color: var(--text) !important;
+}
+
 /* Global Content Container Grid Alignment */
 .results-section,
 .history-main,
