@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Realistic Results · Clean MT4 Execution · Z.FX</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#09090f" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Z.FX" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./realistic.css" />
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <nav class="nav">
+      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+      <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+      <a class="nav-link active" id="nav-realistic" href="realistic.html">Realistic Results</a>
+    </nav>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <div class="pulse-bar">
+    <div class="pulse-track">
+      <div class="pulse-item pulse-SPY">
+        <span class="pulse-label">S&amp;P 500</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-QQQ">
+        <span class="pulse-label">NASDAQ 100</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-BTC">
+        <span class="pulse-label">Bitcoin</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-EUR">
+        <span class="pulse-label">EUR/USD</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-GOLD">
+        <span class="pulse-label">Gold</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-SPY">
+        <span class="pulse-label">S&amp;P 500</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-QQQ">
+        <span class="pulse-label">NASDAQ 100</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-BTC">
+        <span class="pulse-label">Bitcoin</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-EUR">
+        <span class="pulse-label">EUR/USD</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+      <div class="pulse-item pulse-GOLD">
+        <span class="pulse-label">Gold</span>
+        <span class="pulse-price">—</span>
+        <span class="pulse-change">—</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="history-main">
+    <div class="hs-head">
+      <div>
+        <h1 class="hs-title">✨ Realistic Results</h1>
+        <p class="hs-sub">Pure Execution · Zero Commissions · Zero Interest / Swap · Clean MT4 Account Model</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="badge-mt4">MT4 Clean Execution</span>
+        <span class="badge-halal">Interest-Free / Zero Fee</span>
+      </div>
+    </div>
+
+    <!-- Realistic Headline Stat Cards -->
+    <div class="hs-grid">
+      <div class="hs-card">
+        <div class="hs-card-val green" id="realEquity">$1,000,514.82</div>
+        <div class="hs-card-label">Clean Account Equity</div>
+        <div class="hs-card-sub" id="realEquitySub">+0.05% Net Profit</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-card-val green" id="realizedPnl">+$529.20</div>
+        <div class="hs-card-label">Realized Closed P&amp;L</div>
+        <div class="hs-card-sub" id="realizedSub">3 Wins · 1 Loss (75% Win Rate)</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-card-val red" id="unrealizedPnl">-$14.38</div>
+        <div class="hs-card-label">Open Positions P&amp;L</div>
+        <div class="hs-card-sub">2 Live Open Positions</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-card-val accent" id="commissionsVal">$0.00</div>
+        <div class="hs-card-label">Broker Commissions</div>
+        <div class="hs-card-sub">Zero Fee Execution</div>
+      </div>
+      <div class="hs-card">
+        <div class="hs-card-val accent" id="interestVal">$0.00</div>
+        <div class="hs-card-label">Interest &amp; Swap Fees</div>
+        <div class="hs-card-sub">100% Interest-Free</div>
+      </div>
+    </div>
+
+    <!-- Realistic Banner Callout -->
+    <div class="realistic-banner">
+      <div class="banner-header">
+        <span class="banner-icon">🛡️</span>
+        <span class="banner-title">Clean MT4 Model — Zero Commission &amp; Interest-Free Trading</span>
+      </div>
+      <p class="banner-text">
+        This section reflects your <strong>actual, realistic strategy performance</strong> without retail IBKR broker overheads. 
+        It models a clean MT4 execution account with <strong>$0.00 broker commissions</strong> and <strong>$0.00 interest or overnight swap fees</strong>.
+      </p>
+      <div class="banner-metrics">
+        <div class="metric-box">
+          <span class="metric-label">Initial Capital</span>
+          <span class="metric-val">$1,000,000.00</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">Realized Closed P&amp;L</span>
+          <span class="metric-val green">+$529.20</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">Open Positions P&amp;L</span>
+          <span class="metric-val red">-$14.38</span>
+        </div>
+        <div class="metric-box highlight">
+          <span class="metric-label">Realistic Net Account Equity</span>
+          <span class="metric-val green">$1,000,514.82 (+0.05%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Synced Trades Section -->
+    <div id="realisticTrades">
+      <!-- Dynamically populated by realistic.js -->
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>Z.FX Quant Platform · Realistic MT4 Clean Model</span>
+      <div class="footer-links">
+        <a href="ibkr-trades.html">IBKR Terminal</a>
+        <a href="progress.html">Progress</a>
+        <a href="history.html">History</a>
+        <a href="realistic.html">Realistic Results</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./realistic.js"></script>
+</body>
+</html>
