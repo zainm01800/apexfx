@@ -1789,12 +1789,15 @@ function renderEngineTrades() {
 
     const winsSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
     const lossSum = _ibkrRoundTrips.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
-    const totalRealizedPnl = winsSum + lossSum;
-    const totalPnlCls = totalRealizedPnl >= 0 ? '#34D399' : '#F87171';
+    const totalRealizedPnl = (_ibkrAccount && _ibkrAccount.realized_pnl != null) ? _ibkrAccount.realized_pnl : (winsSum + lossSum);
+    const netLiq = (_ibkrAccount && _ibkrAccount.net_liquidation != null) ? _ibkrAccount.net_liquidation : 1000000;
+    const totalAccountPnl = netLiq - 1000000;
+    const accountPct = (totalAccountPnl / 1000000) * 100;
+    const totalPnlCls = totalAccountPnl >= 0 ? '#34D399' : '#F87171';
 
     const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
-      <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Profit Breakdown (${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Total Net Profit)</div>
-      Your IBKR account is <strong style="color: ${totalPnlCls};">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (+0.05%) in net profit overall</strong> across all ${_ibkrRoundTrips.length} closed trades.
+      <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Balance (${sym}${netLiq.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+      Your IBKR live account balance is <strong style="color: ${totalPnlCls};">${sym}${netLiq.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${totalAccountPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalAccountPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${accountPct >= 0 ? '+' : ''}${accountPct.toFixed(2)}%)</strong> across all trades.
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
         <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
           <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Winning Trades (${_ibkrRoundTrips.filter(rt => rt.realizedPnl > 0).length})</span>
@@ -1805,8 +1808,8 @@ function renderEngineTrades() {
           <strong style="color: #F87171; font-size: 16px; font-family: var(--mono);">${lossSum >= 0 ? '+' : '-'}${sym}${Math.abs(lossSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
         <div style="background: rgba(0,240,255,0.08); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.25);">
-          <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Net Profit</span>
-          <strong style="color: ${totalPnlCls}; font-size: 16px; font-family: var(--mono);">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Realized P&L</span>
+          <strong style="color: ${totalRealizedPnl >= 0 ? '#34D399' : '#F87171'}; font-size: 16px; font-family: var(--mono);">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
       </div>
     </div>`;
