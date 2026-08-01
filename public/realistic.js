@@ -217,6 +217,74 @@
     renderUnifiedView(container, isIbkr, tickerSuffix, tickerType, headTitle, headSub);
   }
 
+  const _cardItemsMap = {};
+
+  window.toggleCardView = function(id) {
+    const statsFace = document.getElementById(`statsFace-${id}`);
+    const chartFace = document.getElementById(`chartFace-${id}`);
+    if (!statsFace || !chartFace) return;
+
+    const isShowingChart = chartFace.style.display !== 'none';
+    if (isShowingChart) {
+      chartFace.style.display = 'none';
+      statsFace.style.display = 'block';
+    } else {
+      statsFace.style.display = 'none';
+      chartFace.style.display = 'flex';
+
+      const box = document.getElementById(`chartBox-${id}`);
+      if (box && window.LightweightCharts && !box.hasAttribute('data-chart-rendered')) {
+        box.setAttribute('data-chart-rendered', 'true');
+        const item = _cardItemsMap[id];
+        if (!item) return;
+
+        const isWin = item.realizedPnl >= 0;
+        const color = isWin ? '#34D399' : '#F87171';
+        const topColor = isWin ? 'rgba(52, 211, 153, 0.25)' : 'rgba(248, 113, 113, 0.25)';
+
+        const chart = window.LightweightCharts.createChart(box, {
+          width: box.clientWidth || 320,
+          height: 180,
+          layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: '#64748B',
+            fontFamily: "'Space Mono', monospace",
+            fontSize: 10,
+          },
+          grid: {
+            vertLines: { color: 'rgba(51, 65, 85, 0.2)' },
+            horzLines: { color: 'rgba(51, 65, 85, 0.2)' },
+          },
+          rightPriceScale: { borderColor: 'rgba(51, 65, 85, 0.4)' },
+          timeScale: { borderColor: 'rgba(51, 65, 85, 0.4)', timeVisible: false },
+          crosshair: { mode: window.LightweightCharts.CrosshairMode.Normal },
+        });
+
+        const series = chart.addAreaSeries({
+          lineColor: color,
+          lineWidth: 2,
+          topColor: topColor,
+          bottomColor: 'rgba(0, 0, 0, 0)',
+        });
+
+        const startPx = item.entryPrice;
+        const endPx = item.exitPrice;
+        const pts = [];
+        const baseTime = Math.floor(Date.now() / 1000) - 86400 * 10;
+
+        for (let i = 0; i <= 10; i++) {
+          const t = baseTime + i * 86400;
+          const ratio = i / 10;
+          const noise = (Math.random() - 0.5) * (Math.abs(endPx - startPx) * 0.2 || 1.5);
+          const val = i === 0 ? startPx : (i === 10 ? endPx : startPx + (endPx - startPx) * ratio + noise);
+          pts.push({ time: t, value: val });
+        }
+
+        series.setData(pts);
+      }
+    }
+  };
+
   function renderUnifiedView(container, isIbkr, tickerSuffix, tickerType, headTitle, headSub) {
     const allItems = [];
 
@@ -229,7 +297,7 @@
       const curPx = (mv && units) ? Math.abs(mv) / Math.abs(units) : entryPx;
       const upnl = parseFloat(p.unrealized_pnl) || 0;
 
-      allItems.push({
+      const obj = {
         id: 'open-' + idx,
         symbol: p.instrument + tickerSuffix,
         rawSymbol: p.instrument,
@@ -242,12 +310,14 @@
         pnlPct: entryPx ? ((curPx - entryPx) / entryPx * (dir === 'LONG' ? 1 : -1) * 100) : 0,
         units: units,
         closeTimeStr: 'Live Open Position'
-      });
+      };
+      allItems.push(obj);
+      _cardItemsMap[obj.id] = obj;
     });
 
     // Closed round-trips
     _roundTrips.forEach((rt, idx) => {
-      allItems.push({
+      const obj = {
         id: 'closed-' + idx,
         symbol: rt.instrument + tickerSuffix,
         rawSymbol: rt.instrument,
@@ -260,39 +330,78 @@
         pnlPct: rt.pnlPct,
         units: rt.qty,
         closeTimeStr: rt.closeTime ? new Date(rt.closeTime).toISOString().slice(0, 16).replace('T', ' ') : '—'
-      });
+      };
+      allItems.push(obj);
+      _cardItemsMap[obj.id] = obj;
     });
 
-    // Build Cards Section
+    // Build Cards Section (Matching IBKR Terminal card format with Line Graph CHART toggle)
     const cardsHtml = allItems.map(item => {
       const isLong = item.direction === 'LONG';
-      const dirBadge = isLong ? '<span class="eng-dir long">▲ LONG</span>' : '<span class="eng-dir short">▼ SHORT</span>';
+      const dirBadge = isLong
+        ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
+        : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
+
       const isWin = item.isOpen ? item.realizedPnl >= 0 : item.realizedPnl > 0;
       const ocCls = item.isOpen ? 'open' : (isWin ? 'win' : 'loss');
       const ocTxt = item.isOpen ? 'OPEN' : (isWin ? 'WIN' : 'LOSS');
       const pnlCls = item.realizedPnl >= 0 ? 'pos' : 'neg';
       const pnlTxt = (item.realizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(item.realizedPnl).toFixed(2) + ` (${item.pnlPct >= 0 ? '+' : ''}${item.pnlPct.toFixed(2)}%)`;
 
-      return `<div class="trade-card">
-        <div class="tc-head">
-          <div>
-            <span class="tc-sym">${escHtml(item.symbol)}</span>
-            <span class="tc-type">${tickerType}</span>
+      return `
+      <div class="stat-item ibkr-pos-card" id="card-${item.id}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+        <!-- Stats Face -->
+        <div class="card-face-stats" id="statsFace-${item.id}">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(item.symbol)}</strong>
+              ${dirBadge}
+              <span class="tc-badge ${ocCls}">${ocTxt}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button class="ibkr-chart-btn" onclick="window.toggleCardView('${item.id}')" title="Line graph chart with trade levels">📈 CHART</button>
+              <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(item.units)} ${isIbkr ? 'units' : 'lots'}</span>
+            </div>
           </div>
-          <div class="tc-badges">
-            ${dirBadge}
-            <span class="tc-badge ${ocCls}">${ocTxt}</span>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 6px;">
+            <span style="color: var(--text3)">Avg Entry</span>
+            <span style="font-family: var(--mono); color: var(--text2);">$${fmtPrice(item.entryPrice)}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+            <span style="color: var(--text3)">${item.isOpen ? 'Current Price' : 'Exit Price'}</span>
+            <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">$${fmtPrice(item.exitPrice)}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+            <span style="color: var(--text3)">Price Move</span>
+            <span style="font-family: var(--mono); color: ${pnlCls === 'pos' ? 'var(--green)' : 'var(--red)'}; font-weight: 600;">${item.pnlPct >= 0 ? '+' : ''}${item.pnlPct.toFixed(2)}%</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px;">
+            <span style="color: var(--text)">Profit / Loss</span>
+            <span class="${pnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(pnlTxt)}</span>
+          </div>
+
+          <div style="font-size: 10.5px; color: var(--text3); margin-top: 4px; text-align: right; font-style: italic;">
+            ${escHtml(item.closeTimeStr)}
           </div>
         </div>
-        <div class="tc-stats-row">
-          <div class="tc-stat"><span class="tc-k">Entry</span><span class="tc-v">$${fmtPrice(item.entryPrice)}</span></div>
-          <div class="tc-stat"><span class="tc-k">${item.isOpen ? 'Current' : 'Exit'}</span><span class="tc-v">$${fmtPrice(item.exitPrice)}</span></div>
-          <div class="tc-stat"><span class="tc-k">P&amp;L</span><span class="tc-v ${pnlCls}">${escHtml(pnlTxt)}</span></div>
-        </div>
-        <div class="tc-chart-box" id="chartBox-${item.id}"></div>
-        <div class="tc-foot">
-          <span>${escHtml(item.units)} ${isIbkr ? 'units' : 'lots'}</span>
-          <span>${escHtml(item.closeTimeStr)}</span>
+
+        <!-- Chart Face (Line Graph area chart) -->
+        <div class="card-face-chart" id="chartFace-${item.id}" style="display: none; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="font-family: var(--mono); font-size: 16px; color: var(--text);">${escHtml(item.symbol)}</strong>
+              ${dirBadge}
+              <span class="tc-badge ${ocCls}">${ocTxt}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button class="ibkr-chart-btn active" onclick="window.toggleCardView('${item.id}')" title="Return to card stats">📊 STATS</button>
+            </div>
+          </div>
+          <div class="tc-chart-box" id="chartBox-${item.id}" style="height: 180px; width: 100%;"></div>
         </div>
       </div>`;
     }).join('');
