@@ -325,6 +325,7 @@ function renderClosedTrades(roundTrips, cls) {
   }
 
   const sym = curSymbol();
+  const a = _ibkrAccountCache || {};
   const winsSum = filtered.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
   const lossSum = filtered.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
   const totalRealizedPnl = winsSum + lossSum;
