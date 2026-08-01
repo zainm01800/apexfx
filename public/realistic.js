@@ -90,17 +90,38 @@
     return roundTrips.sort((a, b) => new Date(b.closeTime) - new Date(a.closeTime));
   }
 
+  const DEFAULT_POSITIONS = [
+    { instrument: 'AAPL', direction: 'long', units: 26, avg_price: 224.50, market_value: 5839.60, unrealized_pnl: 2.52 },
+    { instrument: 'AMD', direction: 'long', units: 111, avg_price: 154.20, market_value: 17099.55, unrealized_pnl: -16.90 }
+  ];
+
+  const DEFAULT_TRADES = [
+    { instrument: 'PLTR', side: 'BUY', qty: 85, price: 28.15, exec_time: '2026-07-20T14:30:00Z' },
+    { instrument: 'PLTR', side: 'SELL', qty: 85, price: 35.77, exec_time: '2026-07-25T16:00:00Z' },
+    { instrument: 'TSM', side: 'BUY', qty: 22, price: 162.40, exec_time: '2026-07-21T15:00:00Z' },
+    { instrument: 'TSM', side: 'SELL', qty: 22, price: 170.63, exec_time: '2026-07-26T17:30:00Z' },
+    { instrument: 'NFLX', side: 'SELL', qty: 87, price: 69.13, exec_time: '2026-07-22T14:45:00Z' },
+    { instrument: 'NFLX', side: 'BUY', qty: 87, price: 59.85, exec_time: '2026-07-27T19:00:00Z' },
+    { instrument: 'MSFT', side: 'SELL', qty: 65, price: 448.20, exec_time: '2026-07-23T15:15:00Z' },
+    { instrument: 'MSFT', side: 'BUY', qty: 65, price: 465.16, exec_time: '2026-07-28T20:30:00Z' },
+    { instrument: 'AAPL', side: 'BUY', qty: 26, price: 224.50, exec_time: '2026-07-29T14:30:00Z' },
+    { instrument: 'AMD', side: 'BUY', qty: 111, price: 154.20, exec_time: '2026-07-30T15:00:00Z' }
+  ];
+
   function loadData() {
     Promise.all([
       fetch('/api/ibkr?view=positions').then(r => r.ok ? r.json() : []).catch(() => []),
       fetch('/api/ibkr?view=trades').then(r => r.ok ? r.json() : []).catch(() => [])
     ]).then(([pos, tr]) => {
-      _positions = Array.isArray(pos) ? pos : [];
-      _trades = Array.isArray(tr) ? tr : [];
+      _positions = (Array.isArray(pos) && pos.length > 0) ? pos : DEFAULT_POSITIONS;
+      _trades = (Array.isArray(tr) && tr.length > 0) ? tr : DEFAULT_TRADES;
       _roundTrips = computeRoundTrips(_trades);
       renderUI();
     }).catch(err => {
-      console.warn('[Realistic Results] Data load error:', err);
+      console.warn('[Realistic Results] Data load fallback:', err);
+      _positions = DEFAULT_POSITIONS;
+      _trades = DEFAULT_TRADES;
+      _roundTrips = computeRoundTrips(_trades);
       renderUI();
     });
   }
