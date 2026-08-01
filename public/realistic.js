@@ -98,15 +98,17 @@
   function renderUI() {
     const isIbkr = _terminalMode === 'ibkr';
     const totalSharesTraded = _roundTrips.reduce((sum, rt) => sum + (parseFloat(rt.qty) || 0), 0) + _positions.reduce((sum, p) => sum + (parseFloat(p.units) || 0), 0);
-    // MT5 Prop Firm Equity CFD Bid-Ask Spread overhead (~$0.02 / share)
-    const spreadOverhead = isIbkr ? 0 : totalSharesTraded * 0.02;
+    // MT5 Prop Firm Equity CFD Bid-Ask Spread overhead (~$0.015 / share) & Commission (~$0.01 / share)
+    const spreadOverhead = isIbkr ? 0 : totalSharesTraded * 0.015;
+    const propCommissions = isIbkr ? 0 : totalSharesTraded * 0.01;
+    const totalOverhead = spreadOverhead + propCommissions;
 
     const wins = _roundTrips.filter(rt => rt.realizedPnl > 0);
     const losses = _roundTrips.filter(rt => rt.realizedPnl < 0);
     const winsSum = wins.reduce((sum, rt) => sum + rt.realizedPnl, 0);
     const lossSum = losses.reduce((sum, rt) => sum + rt.realizedPnl, 0);
     const grossRealizedPnl = winsSum + lossSum;
-    const netRealizedPnl = grossRealizedPnl - spreadOverhead;
+    const netRealizedPnl = grossRealizedPnl - totalOverhead;
 
     const unrealizedPnl = _positions.reduce((sum, p) => sum + (parseFloat(p.unrealized_pnl) || 0), 0);
     const cleanEquity = 1000000 + netRealizedPnl + unrealizedPnl;
@@ -146,11 +148,16 @@
       spreadEl.textContent = (spreadOverhead > 0 ? '-' : '') + '$' + Math.abs(spreadOverhead).toFixed(2);
     }
 
+    const commEl = document.getElementById('commissionsVal');
+    if (commEl) {
+      commEl.textContent = (propCommissions > 0 ? '-' : '') + '$' + Math.abs(propCommissions).toFixed(2);
+    }
+
     const bClosed = document.getElementById('bannerClosedVal');
     if (bClosed) bClosed.textContent = (netRealizedPnl >= 0 ? '+' : '-') + '$' + Math.abs(netRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
     const bSpread = document.getElementById('bannerSpreadVal');
-    if (bSpread) bSpread.textContent = (spreadOverhead > 0 ? '-' : '') + '$' + Math.abs(spreadOverhead).toFixed(2);
+    if (bSpread) bSpread.textContent = (totalOverhead > 0 ? '-' : '') + '$' + Math.abs(totalOverhead).toFixed(2);
 
     const bEq = document.getElementById('bannerEquityVal');
     if (bEq) bEq.textContent = '$' + cleanEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' (' + (cleanReturnPct >= 0 ? '+' : '') + cleanReturnPct.toFixed(2) + '%)';
