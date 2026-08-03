@@ -1,0 +1,615 @@
+{
+  "generated_at": "2026-08-03T12:31:56+00:00",
+  "mode": "iteration",
+  "note": "owner-requested measurement; NOT an adoption gate (no DSR/PBO adoption verdict by design)",
+  "ledger_recorded": true,
+  "n_trials_before": 305,
+  "result_sha256": "0e22a9751ed8742f989b14daa71cf48a8ff515b9707153e240570e10a339e0d7",
+  "seed": 42,
+  "holdout_start": "2025-01-01",
+  "universe": [
+    "NVDA",
+    "MSFT",
+    "AAPL",
+    "PLTR",
+    "TSM",
+    "NFLX",
+    "AMD",
+    "META",
+    "AMZN",
+    "GME",
+    "SPY",
+    "QQQ"
+  ],
+  "risk_overrides": {
+    "kelly_fraction": 0.0,
+    "max_risk_per_trade": 0.2,
+    "atr_stop_mult": 2.5,
+    "atr_window": 14,
+    "target_portfolio_vol": 10.0,
+    "max_position_notional_pct": 0.065,
+    "drawdown_breaker": 0.15,
+    "drawdown_reducing_limit": 0.15
+  },
+  "commission_per_side": 1.09,
+  "screening": {
+    "NVDA": {
+      "pe_pts": 18,
+      "margin_pts": 25,
+      "growth_pts": 25,
+      "solvency_pts": 25,
+      "score": 93,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 30.789877,
+        "gross_margins": 0.74144995,
+        "revenue_growth_yoy": 0.852,
+        "debt_to_equity_pct": 6.555,
+        "free_cash_flow": 46335873024
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "MSFT": {
+      "pe_pts": 25,
+      "margin_pts": 25,
+      "growth_pts": 18,
+      "solvency_pts": 25,
+      "score": 93,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 25.904123,
+        "gross_margins": 0.67944,
+        "revenue_growth_yoy": 0.177,
+        "debt_to_equity_pct": 29.118,
+        "free_cash_flow": 16363499520
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "AAPL": {
+      "pe_pts": 18,
+      "margin_pts": 18,
+      "growth_pts": 18,
+      "solvency_pts": 25,
+      "score": 79,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 35.46613,
+        "gross_margins": 0.48653,
+        "revenue_growth_yoy": 0.164,
+        "debt_to_equity_pct": 78.445,
+        "free_cash_flow": 107721875456
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "PLTR": {
+      "pe_pts": 0,
+      "margin_pts": 25,
+      "growth_pts": 25,
+      "solvency_pts": 25,
+      "score": 75,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 138.26967,
+        "gross_margins": 0.84073997,
+        "revenue_growth_yoy": 0.847,
+        "debt_to_equity_pct": 2.477,
+        "free_cash_flow": 1752997120
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "TSM": {
+      "pe_pts": 18,
+      "margin_pts": 25,
+      "growth_pts": 25,
+      "solvency_pts": 25,
+      "score": 93,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 35.58539,
+        "gross_margins": 0.6423,
+        "revenue_growth_yoy": 0.36,
+        "debt_to_equity_pct": 15.174,
+        "free_cash_flow": 739057991680
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "NFLX": {
+      "pe_pts": 25,
+      "margin_pts": 18,
+      "growth_pts": 18,
+      "solvency_pts": 25,
+      "score": 86,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 22.550314,
+        "gross_margins": 0.49118,
+        "revenue_growth_yoy": 0.134,
+        "debt_to_equity_pct": 55.236,
+        "free_cash_flow": 25387552768
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "AMD": {
+      "pe_pts": 0,
+      "margin_pts": 18,
+      "growth_pts": 25,
+      "solvency_pts": 25,
+      "score": 68,
+      "pass_70": false,
+      "raw": {
+        "trailing_pe": 158.71666,
+        "gross_margins": 0.5306,
+        "revenue_growth_yoy": 0.378,
+        "debt_to_equity_pct": 6.005,
+        "free_cash_flow": 7173374976
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "META": {
+      "pe_pts": 25,
+      "margin_pts": 25,
+      "growth_pts": 25,
+      "solvency_pts": 25,
+      "score": 100,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 20.960468,
+        "gross_margins": 0.81747,
+        "revenue_growth_yoy": 0.28,
+        "debt_to_equity_pct": 42.997,
+        "free_cash_flow": 21553625088
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "AMZN": {
+      "pe_pts": 25,
+      "margin_pts": 18,
+      "growth_pts": 18,
+      "solvency_pts": 25,
+      "score": 86,
+      "pass_70": true,
+      "raw": {
+        "trailing_pe": 21.83119,
+        "gross_margins": 0.5077,
+        "revenue_growth_yoy": 0.196,
+        "debt_to_equity_pct": 45.617,
+        "free_cash_flow": 3219124992
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    },
+    "GME": {
+      "pe_pts": 25,
+      "margin_pts": 5,
+      "growth_pts": 18,
+      "solvency_pts": 10,
+      "score": 58,
+      "pass_70": false,
+      "raw": {
+        "trailing_pe": 16.208954,
+        "gross_margins": 0.34387,
+        "revenue_growth_yoy": 0.141,
+        "debt_to_equity_pct": 74.273,
+        "free_cash_flow": -1261250048
+      },
+      "as_of": "2026-08-03",
+      "source": "yahoo_quoteSummary_v10"
+    }
+  },
+  "books": {
+    "A_pure_technical": {
+      "spec": {
+        "fundamental_gate": false
+      },
+      "gate_blocked": [],
+      "metrics": {
+        "total_return": 0.6470602127019511,
+        "ann_return": 0.05711290054383311,
+        "ann_vol": 0.07678743018833946,
+        "sharpe": 0.7621971853009913,
+        "sortino": 0.7880641821892375,
+        "max_drawdown": 0.11143903631659546,
+        "calmar": 0.5125035394381625,
+        "n_trades": 629,
+        "win_rate": 0.5961844197138315,
+        "profit_factor": 1.4123091907811103,
+        "avg_trade_return": 0.013892178060413355,
+        "expectancy_pnl": 101.32569157392686,
+        "expectancy_pct": 0.01389217806041336,
+        "final_equity": 164706.0212701951,
+        "net_pnl": 63733.86,
+        "short_borrow_fees_total": 0.0
+      },
+      "constraint_log": {
+        "regime_scale=0.93": 8,
+        "portfolio_risk_cap": 624,
+        "max_correlated_exposure": 150,
+        "max_position_notional": 634,
+        "regime_scale=0.98": 4,
+        "regime_scale=0.47": 14,
+        "max_total_exposure": 21,
+        "regime_scale=0.80": 8,
+        "regime_scale=0.89": 10,
+        "regime_scale=0.64": 11,
+        "regime_scale=1.00": 3,
+        "regime_scale=0.86": 3,
+        "regime_scale=0.59": 15,
+        "regime_scale=0.85": 5,
+        "regime_scale=0.67": 7,
+        "regime_scale=0.60": 13,
+        "regime_scale=0.52": 9,
+        "regime_scale=0.58": 10,
+        "regime_scale=0.78": 9,
+        "regime_scale=0.72": 11,
+        "regime_scale=0.54": 6,
+        "regime_scale=0.43": 31,
+        "regime_scale=0.57": 9,
+        "regime_scale=0.44": 13,
+        "regime_scale=0.50": 35,
+        "regime_scale=0.32": 10,
+        "regime_scale=0.40": 9,
+        "regime_scale=0.61": 7,
+        "regime_scale=0.69": 6,
+        "regime_scale=0.37": 9,
+        "regime_scale=0.15": 1,
+        "regime_scale=0.31": 8,
+        "regime_scale=0.53": 7,
+        "regime_scale=0.73": 8,
+        "regime_scale=0.36": 15,
+        "regime_scale=0.23": 1,
+        "regime_scale=0.41": 13,
+        "regime_scale=0.68": 7,
+        "regime_scale=0.56": 11,
+        "regime_scale=0.49": 12,
+        "regime_scale=0.70": 16,
+        "regime_scale=0.77": 4,
+        "regime_scale=0.65": 11,
+        "regime_scale=0.45": 7,
+        "regime_scale=0.76": 7,
+        "regime_scale=0.99": 9,
+        "regime_scale=0.92": 6,
+        "regime_scale=0.82": 4,
+        "regime_scale=0.42": 4,
+        "regime_scale=0.74": 12,
+        "regime_scale=0.46": 6,
+        "regime_scale=0.35": 8,
+        "regime_scale=0.75": 8,
+        "regime_scale=0.51": 12,
+        "regime_scale=0.81": 6,
+        "regime_scale=0.34": 11,
+        "regime_scale=0.29": 5,
+        "regime_scale=0.33": 4,
+        "regime_scale=0.27": 6,
+        "regime_scale=0.66": 13,
+        "regime_scale=0.63": 13,
+        "regime_scale=0.96": 5,
+        "regime_scale=0.88": 5,
+        "regime_scale=0.62": 5,
+        "regime_scale=0.16": 1,
+        "regime_scale=0.91": 3,
+        "regime_scale=0.83": 3,
+        "regime_scale=0.95": 6,
+        "regime_scale=0.55": 9,
+        "regime_scale=0.39": 6,
+        "regime_scale=0.79": 12,
+        "regime_scale=0.97": 6,
+        "regime_scale=0.71": 8,
+        "regime_scale=0.28": 5,
+        "regime_scale=0.94": 1,
+        "regime_scale=0.48": 8,
+        "regime_scale=0.25": 2,
+        "regime_scale=0.30": 3,
+        "regime_scale=0.38": 1,
+        "regime_scale=0.26": 9,
+        "timeframe_bucket_full": 13,
+        "max_portfolio_risk_exceeded": 1,
+        "regime_scale=0.84": 3,
+        "regime_scale=0.90": 2,
+        "regime_scale=0.87": 5,
+        "dd_step_scale=0.50": 2
+      },
+      "per_instrument": {
+        "NVDA": {
+          "n_trades": 68,
+          "net_pnl": 10668.973602160508
+        },
+        "MSFT": {
+          "n_trades": 62,
+          "net_pnl": 5728.512765596417
+        },
+        "AAPL": {
+          "n_trades": 64,
+          "net_pnl": 8860.10798262616
+        },
+        "PLTR": {
+          "n_trades": 16,
+          "net_pnl": 10101.101525058692
+        },
+        "TSM": {
+          "n_trades": 50,
+          "net_pnl": 2731.429058460183
+        },
+        "NFLX": {
+          "n_trades": 52,
+          "net_pnl": 8348.019319586358
+        },
+        "AMD": {
+          "n_trades": 55,
+          "net_pnl": -2818.785745434597
+        },
+        "META": {
+          "n_trades": 52,
+          "net_pnl": 6143.541318586509
+        },
+        "AMZN": {
+          "n_trades": 60,
+          "net_pnl": -135.01689440621362
+        },
+        "GME": {
+          "n_trades": 21,
+          "net_pnl": 8250.272182487754
+        },
+        "SPY": {
+          "n_trades": 60,
+          "net_pnl": 1759.3961860870636
+        },
+        "QQQ": {
+          "n_trades": 69,
+          "net_pnl": 4096.278919229426
+        }
+      },
+      "trades": "omitted from compact digest \u2014 629 trades; see .full.json (deterministic rerun)",
+      "equity": "omitted from compact digest \u2014 see .full.json (deterministic rerun)"
+    },
+    "B_quantamental_70": {
+      "spec": {
+        "fundamental_gate": true
+      },
+      "gate_blocked": [
+        "AMD",
+        "GME"
+      ],
+      "metrics": {
+        "total_return": 0.5297088573375444,
+        "ann_return": 0.048451456264322124,
+        "ann_vol": 0.05666955094098757,
+        "sharpe": 0.8637131403474759,
+        "sortino": 0.9320822043447843,
+        "max_drawdown": 0.07126342695468668,
+        "calmar": 0.6798923141196999,
+        "n_trades": 554,
+        "win_rate": 0.6064981949458483,
+        "profit_factor": 1.5667592664676082,
+        "avg_trade_return": 0.012400415162454872,
+        "expectancy_pnl": 96.84936823104692,
+        "expectancy_pct": 0.01230268445657056,
+        "final_equity": 152970.88573375443,
+        "net_pnl": 53654.55,
+        "short_borrow_fees_total": 0.0
+      },
+      "constraint_log": {
+        "regime_scale=0.93": 8,
+        "portfolio_risk_cap": 550,
+        "max_correlated_exposure": 169,
+        "max_position_notional": 562,
+        "regime_scale=0.98": 4,
+        "regime_scale=0.47": 9,
+        "max_total_exposure": 33,
+        "regime_scale=0.80": 7,
+        "regime_scale=0.89": 8,
+        "regime_scale=1.00": 1,
+        "regime_scale=0.86": 3,
+        "regime_scale=0.64": 8,
+        "regime_scale=0.59": 14,
+        "regime_scale=0.85": 5,
+        "regime_scale=0.67": 6,
+        "regime_scale=0.60": 11,
+        "regime_scale=0.52": 9,
+        "regime_scale=0.58": 10,
+        "regime_scale=0.78": 7,
+        "regime_scale=0.72": 10,
+        "regime_scale=0.54": 6,
+        "regime_scale=0.43": 27,
+        "regime_scale=0.57": 9,
+        "regime_scale=0.44": 11,
+        "regime_scale=0.50": 30,
+        "regime_scale=0.32": 9,
+        "regime_scale=0.40": 8,
+        "regime_scale=0.61": 6,
+        "regime_scale=0.69": 5,
+        "regime_scale=0.37": 8,
+        "regime_scale=0.15": 1,
+        "regime_scale=0.31": 8,
+        "regime_scale=0.53": 6,
+        "regime_scale=0.73": 8,
+        "regime_scale=0.36": 12,
+        "regime_scale=0.23": 1,
+        "regime_scale=0.41": 12,
+        "regime_scale=0.68": 6,
+        "regime_scale=0.56": 11,
+        "regime_scale=0.49": 9,
+        "regime_scale=0.70": 14,
+        "regime_scale=0.77": 3,
+        "regime_scale=0.65": 8,
+        "regime_scale=0.45": 7,
+        "regime_scale=0.76": 6,
+        "regime_scale=0.99": 8,
+        "regime_scale=0.92": 5,
+        "regime_scale=0.82": 4,
+        "regime_scale=0.42": 3,
+        "regime_scale=0.74": 10,
+        "regime_scale=0.46": 4,
+        "regime_scale=0.35": 8,
+        "regime_scale=0.75": 6,
+        "regime_scale=0.51": 12,
+        "regime_scale=0.81": 5,
+        "regime_scale=0.34": 11,
+        "regime_scale=0.29": 5,
+        "regime_scale=0.33": 4,
+        "regime_scale=0.27": 4,
+        "regime_scale=0.66": 11,
+        "regime_scale=0.63": 13,
+        "regime_scale=0.96": 5,
+        "regime_scale=0.88": 5,
+        "regime_scale=0.62": 4,
+        "regime_scale=0.16": 1,
+        "regime_scale=0.91": 2,
+        "regime_scale=0.83": 3,
+        "regime_scale=0.95": 6,
+        "regime_scale=0.55": 9,
+        "regime_scale=0.39": 5,
+        "regime_scale=0.97": 6,
+        "regime_scale=0.71": 8,
+        "regime_scale=0.28": 6,
+        "regime_scale=0.94": 1,
+        "regime_scale=0.79": 10,
+        "regime_scale=0.48": 6,
+        "regime_scale=0.25": 2,
+        "regime_scale=0.30": 3,
+        "regime_scale=0.26": 8,
+        "regime_scale=0.84": 2,
+        "regime_scale=0.90": 2,
+        "regime_scale=0.87": 4
+      },
+      "per_instrument": {
+        "NVDA": {
+          "n_trades": 68,
+          "net_pnl": 10569.866789837328
+        },
+        "MSFT": {
+          "n_trades": 62,
+          "net_pnl": 5399.157462892709
+        },
+        "AAPL": {
+          "n_trades": 64,
+          "net_pnl": 8998.908899770835
+        },
+        "PLTR": {
+          "n_trades": 16,
+          "net_pnl": 8459.503509209357
+        },
+        "TSM": {
+          "n_trades": 50,
+          "net_pnl": 2297.9543379262277
+        },
+        "NFLX": {
+          "n_trades": 52,
+          "net_pnl": 7811.739402528428
+        },
+        "AMD": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "META": {
+          "n_trades": 52,
+          "net_pnl": 5609.798377512299
+        },
+        "AMZN": {
+          "n_trades": 61,
+          "net_pnl": -458.89262641462085
+        },
+        "GME": {
+          "n_trades": 0,
+          "net_pnl": 0.0
+        },
+        "SPY": {
+          "n_trades": 61,
+          "net_pnl": 1213.3893430142534
+        },
+        "QQQ": {
+          "n_trades": 68,
+          "net_pnl": 3753.0509250151517
+        }
+      },
+      "trades": "omitted from compact digest \u2014 554 trades; see .full.json (deterministic rerun)",
+      "equity": "omitted from compact digest \u2014 see .full.json (deterministic rerun)"
+    }
+  },
+  "drawdown_windows": {
+    "2018_Q4": {
+      "A_pure_technical": {
+        "max_dd_pct": 4.036558349243158,
+        "entries": 6,
+        "false_breakouts": 5,
+        "win_rate": 0.16666666666666666,
+        "pnl": -1992.56
+      },
+      "B_quantamental_70": {
+        "max_dd_pct": 2.6181754514726263,
+        "entries": 5,
+        "false_breakouts": 5,
+        "win_rate": 0.0,
+        "pnl": -2323.62
+      }
+    },
+    "2020_COVID": {
+      "A_pure_technical": {
+        "max_dd_pct": 6.9078115442490535,
+        "entries": 26,
+        "false_breakouts": 16,
+        "win_rate": 0.38461538461538464,
+        "pnl": -5371.6
+      },
+      "B_quantamental_70": {
+        "max_dd_pct": 6.622357100418707,
+        "entries": 23,
+        "false_breakouts": 14,
+        "win_rate": 0.391304347826087,
+        "pnl": -4059.61
+      }
+    },
+    "2022_bear": {
+      "A_pure_technical": {
+        "max_dd_pct": 7.6294014082853305,
+        "entries": 12,
+        "false_breakouts": 9,
+        "win_rate": 0.25,
+        "pnl": -5842.79
+      },
+      "B_quantamental_70": {
+        "max_dd_pct": 4.818321621085553,
+        "entries": 10,
+        "false_breakouts": 7,
+        "win_rate": 0.3,
+        "pnl": -2496.69
+      }
+    }
+  },
+  "perf_rows": {
+    "A_pure_technical": {
+      "n_trades": 629,
+      "win_rate": 0.5961844197138315,
+      "total_net_return_pct": 64.70602127019511,
+      "ann_return_pct": 5.711290054383311,
+      "sharpe": 0.7621971853009913,
+      "max_dd_pct": 11.143903631659546,
+      "profit_factor": 1.4123091907811103,
+      "expectancy_per_trade": 101.32569157392686,
+      "net_pnl": 63733.86,
+      "gbp_per_month_100k": 590.7123519336175,
+      "final_equity": 164706.0212701951
+    },
+    "B_quantamental_70": {
+      "n_trades": 554,
+      "win_rate": 0.6064981949458483,
+      "total_net_return_pct": 52.970885733754436,
+      "ann_return_pct": 4.845145626432212,
+      "sharpe": 0.8637131403474759,
+      "max_dd_pct": 7.126342695468669,
+      "profit_factor": 1.5667592664676082,
+      "expectancy_per_trade": 96.84936823104692,
+      "net_pnl": 53654.55,
+      "gbp_per_month_100k": 497.2930467798417,
+      "final_equity": 152970.88573375443
+    }
+  },
+  "months": 107.89322381930185
+}

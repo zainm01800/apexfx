@@ -543,13 +543,26 @@ def main(argv: list[str] | None = None) -> int:
 
     out = {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
            "mode": "iteration", "note": "owner-requested measurement; NOT an adoption "
-                                        "gate (no DSR/PBO verdict by design)",
+                                        "gate (no DSR/PBO adoption verdict by design)",
            "ledger_recorded": not args.no_ledger, "n_trials_before": n_before,
            "result_sha256": digest, **canonical}
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(out, indent=2, default=str))
-    print(f"\nresults written to {out_path}")
+    # Two artifacts: the FULL local audit file (every trade + bar of equity) and the
+    # COMPACT committed digest (repo convention: validation JSONs are <= ~100KB —
+    # the full file is 7x that and this network drops >100KB blobs). The sha256 is
+    # computed over the FULL canonical payload, so the compact digest certifies the
+    # omitted sections; both are regenerated deterministically by rerun (seed 42).
+    full_path = out_path.with_suffix(".full.json")
+    full_path.write_text(json.dumps(out, indent=2, default=str))
+    compact = json.loads(json.dumps(out, default=str))          # deep copy
+    for b in compact["books"].values():
+        b["trades"] = f"omitted from compact digest — {len(b['trades'])} trades; " \
+                      "see .full.json (deterministic rerun)"
+        b["equity"] = "omitted from compact digest — see .full.json (deterministic rerun)"
+    out_path.write_text(json.dumps(compact, indent=2, default=str))
+    print(f"\nfull audit artifact written to {full_path}")
+    print(f"compact digest written to {out_path}")
     print(f"RESULT_SHA256: {digest}")
     return 0
 
