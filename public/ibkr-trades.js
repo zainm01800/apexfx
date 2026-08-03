@@ -339,9 +339,9 @@ function renderClosedTrades(roundTrips, cls) {
   const winsSum = filtered.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
   const lossSum = filtered.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
   const totalRealizedPnl = winsSum + lossSum;
-  const netLiq = (a.net_liquidation != null) ? a.net_liquidation : 1000000;
-  const totalAccountPnl = netLiq - 1000000;
-  const accountPct = (totalAccountPnl / 1000000) * 100;
+  const netLiq = (a.net_liquidation != null) ? a.net_liquidation : 999000;
+  const totalAccountPnl = netLiq - 999000;
+  const accountPct = (totalAccountPnl / 999000) * 100;
   const totalPnlCls = totalAccountPnl >= 0 ? 'var(--green)' : 'var(--red)';
 
   const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
