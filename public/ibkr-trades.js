@@ -179,10 +179,10 @@ function updateScoreboard() {
       sinceChip.textContent = 'Since 17 Jul: —';
       sinceChip.style.color = 'var(--text3)';
     } else {
-      const since = netV - 1000000;
-      const pct = (since / 1000000) * 100;
+      const since = netV - 999000;
+      const pct = (since / 999000) * 100;
       const abs = Math.abs(since).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      sinceChip.textContent = `Since 17 Jul: ${since >= 0 ? '+' : '-'}${sym}${abs} (${since >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+      sinceChip.textContent = `Net Return: ${since >= 0 ? '+' : '-'}${sym}${abs} (${since >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       sinceChip.style.color = since >= 0 ? 'var(--green)' : 'var(--red)';
     }
   }
