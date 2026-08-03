@@ -1,0 +1,11 @@
+{
+  "ticker": "NVDA",
+  "source": "yahoo_quoteSummary_v10",
+  "as_of": "2026-08-03",
+  "trailing_pe": 30.789877,
+  "gross_margins": 0.74144995,
+  "revenue_growth_yoy": 0.852,
+  "debt_to_equity_pct": 6.555,
+  "free_cash_flow": 46335873024,
+  "long_name": null
+}

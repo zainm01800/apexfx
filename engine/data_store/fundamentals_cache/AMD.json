@@ -1,0 +1,11 @@
+{
+  "ticker": "AMD",
+  "source": "yahoo_quoteSummary_v10",
+  "as_of": "2026-08-03",
+  "trailing_pe": 158.71666,
+  "gross_margins": 0.5306,
+  "revenue_growth_yoy": 0.378,
+  "debt_to_equity_pct": 6.005,
+  "free_cash_flow": 7173374976,
+  "long_name": null
+}

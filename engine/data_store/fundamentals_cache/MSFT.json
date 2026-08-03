@@ -1,0 +1,11 @@
+{
+  "ticker": "MSFT",
+  "source": "yahoo_quoteSummary_v10",
+  "as_of": "2026-08-03",
+  "trailing_pe": 25.904123,
+  "gross_margins": 0.67944,
+  "revenue_growth_yoy": 0.177,
+  "debt_to_equity_pct": 29.118,
+  "free_cash_flow": 16363499520,
+  "long_name": null
+}

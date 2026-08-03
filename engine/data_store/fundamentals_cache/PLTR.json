@@ -1,0 +1,11 @@
+{
+  "ticker": "PLTR",
+  "source": "yahoo_quoteSummary_v10",
+  "as_of": "2026-08-03",
+  "trailing_pe": 138.26967,
+  "gross_margins": 0.84073997,
+  "revenue_growth_yoy": 0.847,
+  "debt_to_equity_pct": 2.477,
+  "free_cash_flow": 1752997120,
+  "long_name": null
+}
