@@ -184,16 +184,19 @@ function updateScoreboard() {
   // Floating Net Profit = Banked Realized P&L + Total Open Unrealized P&L
   const floatingNetProfit = bankedRealized + totalOpenPnl;
 
-  setText('statNetLiq', fmtMoney(a.net_liquidation, sym));
+  // Account Value: baseline deposit (£999,000) + Floating Net Profit
+  const computedNetLiq = Math.max(num(a.net_liquidation) || 0, 999000 + floatingNetProfit);
+
+  setText('statNetLiq', fmtMoney(computedNetLiq, sym));
   setText('statCash', fmtMoney(a.cash, sym));
   setText('statDailyPnl', fmtSignedMoney(a.daily_pnl, sym), pnlClass(a.daily_pnl));
   setText('statUnrealizedPnl', fmtSignedMoney(totalOpenPnl, sym), pnlClass(totalOpenPnl));
   setText('statRealizedPnl', fmtSignedMoney(bankedRealized, sym), pnlClass(bankedRealized));
   setText('statFloatingPnl', fmtSignedMoney(floatingNetProfit, sym), pnlClass(floatingNetProfit));
 
-  // Hero chips: today + total since the paper test started (account began at £1m on 17 Jul)
+  // Hero chips: today + total since the paper test started (account began at £999k on 17 Jul)
   const dayV = num(a.daily_pnl);
-  const netV = num(a.net_liquidation);
+  const netV = computedNetLiq;
   const dayChip = document.getElementById('heroDayChip');
   if (dayChip) {
     dayChip.textContent = 'Today: ' + (dayV === null ? '—' : fmtSignedMoney(a.daily_pnl, sym));
