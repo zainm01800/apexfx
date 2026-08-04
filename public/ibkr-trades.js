@@ -200,6 +200,7 @@ function updateScoreboard() {
   }
 
   const bankedRealized = matchedPnl + paperRealizedPnl;
+  _bankedRealized = bankedRealized; // live layer adds live open P&L on top
 
   // Total Open Unrealized P&L & Gross Exposure across live broker positions + ALL engine book positions (Stocks + Crypto + Forex)
   let totalOpenPnl = 0;
@@ -872,9 +873,10 @@ function renderPositionCard(p, cls, sym, gross) {
 // every 60s, ONLY while the tab is visible (egress-conscious), cached per
 // instrument. The official nightly P&L stays the record; the Live row under it
 // is the subdued estimate. Quote failures keep the last/official mark.
-const _liveMarks = {};   // instrument -> { px, at }
+const _liveMarks = {};   // instrument -> { px, prevClose, at }
 const LIVE_MARK_TTL = 55000;
 let _liveTimer = null;
+let _bankedRealized = 0; // official banked P&L, captured each updateScoreboard
 
 async function fetchLiveMark(inst, cls) {
   const to = Math.floor(Date.now() / 1000);
@@ -884,22 +886,41 @@ async function fetchLiveMark(inst, cls) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const bars = await res.json();
   if (!Array.isArray(bars) || !bars.length) return null;
-  return num(bars[bars.length - 1].close);
+  const px = num(bars[bars.length - 1].close);
+  if (px === null) return null;
+  // Prior close = previous daily bar — enables a live Day P&L estimate.
+  const prevClose = bars.length > 1 ? num(bars[bars.length - 2].close) : null;
+  return { px, prevClose };
+}
+
+// Every instrument that should carry a live mark: venue positions + unmirrored
+// engine paper rows (all classes), so account-wide live sums are complete.
+function liveInstrumentList() {
+  const out = [];
+  const seen = new Set();
+  for (const p of _ibkrPositionsCache) {
+    const inst = String(p.instrument || '');
+    if (!inst || seen.has(inst)) continue;
+    seen.add(inst);
+    out.push({ inst, cls: p.asset_class || 'stocks' });
+  }
+  for (const inst in _ibkrPaperMap) {
+    if (!inst || seen.has(inst)) continue;
+    seen.add(inst);
+    out.push({ inst, cls: paperClassFor(inst) });
+  }
+  return out;
 }
 
 async function refreshLiveMarks() {
   if (document.hidden) return;
-  const wrap = document.getElementById('ibkrPositionsWrap');
-  if (!wrap) return;
-  const cls = _ibkrClassFilter;
-  const stale = [...wrap.querySelectorAll('.ibkr-pos-card')]
-    .map(c => c.dataset.instrument).filter(Boolean)
-    .filter(i => !_liveMarks[i] || (Date.now() - _liveMarks[i].at) > LIVE_MARK_TTL);
+  const stale = liveInstrumentList()
+    .filter(({ inst }) => !_liveMarks[inst] || (Date.now() - _liveMarks[inst].at) > LIVE_MARK_TTL);
   if (!stale.length) return;
-  await Promise.allSettled(stale.map(async inst => {
+  await Promise.allSettled(stale.map(async ({ inst, cls }) => {
     try {
-      const px = await fetchLiveMark(inst, cls);
-      if (px !== null) _liveMarks[inst] = { px, at: Date.now() };
+      const mark = await fetchLiveMark(inst, cls);
+      if (mark) _liveMarks[inst] = { px: mark.px, prevClose: mark.prevClose, at: Date.now() };
     } catch (e) { /* keep last cached / official mark */ }
   }));
   applyLiveMarks();
@@ -921,6 +942,79 @@ function applyLiveMarks() {
     const pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
     const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : 'var(--text3)');
     row.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnl, sym))}</span> est.`;
+  }
+  applyLiveSummary();
+}
+
+// Stat value with the subdued " est." suffix — live estimate, not the record.
+function setLiveStat(id, text, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'hs-val' + (cls ? ' ' + cls : '');
+  el.innerHTML = `${escHtml(text)} <span style="font-size: 11px; font-weight: 500; color: var(--text3);">est.</span>`;
+}
+
+// Roll the live marks up into the summary cards. Class row sums the cards
+// actually displayed (reconciles 1:1 with their Live rows); account cards sum
+// the whole book across classes. Net liq / Cash stay venue-official — never
+// faked; the hero gets a one-line live positions readout instead.
+function applyLiveSummary() {
+  const sym = curSymbol();
+
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  if (wrap) {
+    let pnl = 0, gross = 0, day = 0, n = 0, dayN = 0;
+    for (const card of wrap.querySelectorAll('.ibkr-pos-card')) {
+      const m = _liveMarks[card.dataset.instrument];
+      if (!m) continue;
+      const entry = num(card.dataset.liveEntry), units = num(card.dataset.liveUnits);
+      if (entry === null || units === null) continue;
+      const isLong = card.dataset.liveDir !== 'short';
+      pnl += (isLong ? (m.px - entry) : (entry - m.px)) * units;
+      gross += Math.abs(m.px * units);
+      n++;
+      if (m.prevClose !== null) { day += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
+    }
+    if (n) {
+      setLiveStat('clsUnrealizedPnl', fmtSignedMoney(pnl, sym), pnlClass(pnl));
+      setLiveStat('clsGrossExposure', fmtMoney(gross, sym), '');
+      if (dayN) setLiveStat('clsDailyPnl', fmtSignedMoney(day, sym), pnlClass(day));
+    }
+  }
+
+  let openPnl = 0, dayPnl = 0, n = 0, dayN = 0;
+  for (const p of _ibkrPositionsCache) {
+    const m = _liveMarks[String(p.instrument)];
+    if (!m) continue;
+    const entry = num(p.avg_price), units = num(p.units);
+    if (entry === null || units === null) continue;
+    const isLong = String(p.direction || '').toLowerCase() !== 'short';
+    openPnl += (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    n++;
+    if (m.prevClose !== null) { dayPnl += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
+  }
+  const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
+  for (const inst in _ibkrPaperMap) {
+    const pp = _ibkrPaperMap[inst];
+    if (!pp || !pp.instrument || symbolOpenNow.has(inst)) continue;
+    if (!(num(pp.units) > 0) || String(pp.status || '').toLowerCase() === 'closed') continue;
+    const m = _liveMarks[inst];
+    if (!m) continue;
+    const entry = num(pp.entry_price), units = num(pp.units);
+    if (entry === null || units === null) continue;
+    const isLong = String(pp.direction || '').toLowerCase() !== 'short';
+    openPnl += (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    n++;
+    if (m.prevClose !== null) { dayPnl += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
+  }
+  if (!n) return;
+  setLiveStat('statUnrealizedPnl', fmtSignedMoney(openPnl, sym), pnlClass(openPnl));
+  setLiveStat('statFloatingPnl', fmtSignedMoney(_bankedRealized + openPnl, sym), pnlClass(_bankedRealized + openPnl));
+  if (dayN) setLiveStat('statDailyPnl', fmtSignedMoney(dayPnl, sym), pnlClass(dayPnl));
+  const heroLine = document.getElementById('heroLiveLine');
+  if (heroLine) {
+    heroLine.textContent = `Live positions: ${fmtSignedMoney(openPnl, sym)} est.`;
+    heroLine.style.color = openPnl >= 0 ? 'var(--green)' : 'var(--red)';
   }
 }
 
