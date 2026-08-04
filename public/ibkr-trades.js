@@ -163,6 +163,12 @@ function updateScoreboard() {
   setText('statDailyPnl', fmtSignedMoney(a.daily_pnl, sym), pnlClass(a.daily_pnl));
   setText('statUnrealizedPnl', fmtSignedMoney(a.unrealized_pnl, sym), pnlClass(a.unrealized_pnl));
   setText('statRealizedPnl', fmtSignedMoney(a.realized_pnl, sym), pnlClass(a.realized_pnl));
+  
+  const realizedV = num(a.realized_pnl) || 0;
+  const unrealizedV = num(a.unrealized_pnl) || 0;
+  const floatingV = realizedV + unrealizedV;
+  setText('statFloatingPnl', fmtSignedMoney(floatingV, sym), pnlClass(floatingV));
+  
   setText('statOpenCount', String(_ibkrPositionsCache.length));
 
   // Hero chips: today + total since the paper test started (account began at £1m on 17 Jul)
@@ -335,33 +341,6 @@ function renderClosedTrades(roundTrips, cls) {
   }
 
   const sym = curSymbol();
-  const a = _ibkrAccountCache || {};
-  const winsSum = filtered.filter(rt => rt.realizedPnl > 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
-  const lossSum = filtered.filter(rt => rt.realizedPnl < 0).reduce((sum, rt) => sum + rt.realizedPnl, 0);
-  const totalRealizedPnl = winsSum + lossSum;
-  const netLiq = (a.net_liquidation != null) ? a.net_liquidation : 999000;
-  const totalAccountPnl = netLiq - 999000;
-  const accountPct = (totalAccountPnl / 999000) * 100;
-  const totalPnlCls = totalAccountPnl >= 0 ? 'var(--green)' : 'var(--red)';
-
-  const pnlBanner = `<div style="background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 22px; font-size: 13.5px; color: var(--text); line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
-    <div style="font-weight: 800; color: #00F0FF; margin-bottom: 6px; font-size: 15px; display: flex; align-items: center; gap: 8px;">💡 IBKR Account Balance (${sym}${netLiq.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
-    Your IBKR live account balance is <strong style="color: ${totalPnlCls};">${sym}${netLiq.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${totalAccountPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalAccountPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${accountPct >= 0 ? '+' : ''}${accountPct.toFixed(2)}%)</strong> across all trades.
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
-      <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-        <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Winning Trades (${filtered.filter(rt => rt.realizedPnl > 0).length})</span>
-        <strong style="color: var(--green); font-size: 16px; font-family: var(--mono);">+${sym}${Math.abs(winsSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-      <div style="background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-        <span style="font-size: 11px; color: var(--text3); display: block; text-transform: uppercase; font-weight: 700;">Losing Trades (${filtered.filter(rt => rt.realizedPnl < 0).length})</span>
-        <strong style="color: var(--red); font-size: 16px; font-family: var(--mono);">${lossSum >= 0 ? '+' : '-'}${sym}${Math.abs(lossSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-      <div style="background: rgba(0,240,255,0.08); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.25);">
-        <span style="font-size: 11px; color: #00F0FF; display: block; text-transform: uppercase; font-weight: 700;">Total Realized P&L</span>
-        <strong style="color: ${totalRealizedPnl >= 0 ? 'var(--green)' : 'var(--red)'}; font-size: 16px; font-family: var(--mono);">${totalRealizedPnl >= 0 ? '+' : '-'}${sym}${Math.abs(totalRealizedPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-    </div>
-  </div>`;
 
   const rows = filtered.map(rt => {
     const isLong = rt.direction === 'LONG';
@@ -484,9 +463,10 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls) {
   }
 
   const progressPct = Math.min(Math.max(((isLong ? mark - entry : entry - mark) / riskDist) * 100, 0), 99);
+  const distVal = fmtPrice(dist, cls);
   return {
     targetTxt,
-    distTxt: `(${progressPct.toFixed(0)}%)`,
+    distTxt: `($${distVal} away / ${progressPct.toFixed(0)}%)`,
     color: '#F5B04C'
   };
 }
