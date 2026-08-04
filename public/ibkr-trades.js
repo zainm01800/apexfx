@@ -689,6 +689,7 @@ function renderPaperCard(pp, cls, sym) {
     ? 'US ETF — blocked on IBKR (PRIIPs)'
     : 'not mirrored to IBKR';
   const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
+  const enteredTxt = fmtUK(pp.entry_time || pp.updated_at); // paper row carries entry_time
 
   const isPartialsHit = (inst.toUpperCase() === 'SPY' || pp.tms_p1 === true || pp.tms_be === true);
   const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, isPartialsHit, pp.initial_stop, inst);
@@ -709,6 +710,8 @@ function renderPaperCard(pp, cls, sym) {
       </div>
 
       <div class="ibkr-dummy-reason">${escHtml(reason)}</div>
+
+      <div style="font-size: 10.5px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">Entered: ${escHtml(enteredTxt)}</div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
         <span style="color: var(--text3)">Avg Entry</span>
@@ -798,6 +801,10 @@ function renderPositionCard(p, cls, sym, gross) {
 
   const pInfo = computePartialsInfo(entryPx, curPx, levels.stop, isLong, cls, pp ? pp.tms_p1 === true : false);
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
+  // Entry timestamp: the paper-book join carries entry_time; fall back to the
+  // position's updated_at when the engine row has none.
+  const enteredAt = (pp && pp.entry_time) || p.updated_at || null;
+  const enteredTxt = enteredAt ? fmtUK(enteredAt) : '—';
 
   return `
     <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" data-live-entry="${entryPx !== null ? entryPx : ''}" data-live-units="${units !== null ? units : ''}" data-live-dir="${escHtml(dir)}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
@@ -812,6 +819,8 @@ function renderPositionCard(p, cls, sym, gross) {
           <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
         </div>
       </div>
+
+      <div style="font-size: 10.5px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">Entered: ${escHtml(enteredTxt)}</div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
         <span style="color: var(--text3)">Avg Entry</span>

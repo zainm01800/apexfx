@@ -1140,11 +1140,10 @@ button.sc-btn { appearance: none; outline: none; }
 
 /* Two-face position card: .card-face-stats and .card-face-chart share the
    card's footprint — .chart-mode hides the stats face. Height stays locked at
-   330px in BOTH modes (the inline height transition stays, harmless); chart
+   380px in BOTH modes (the inline height transition stays, harmless); chart
    readability comes from the chart's own vertical spread, not card growth.
-   Face chrome is kept slim so the chart box gets ~250px of the 290px content
-   height. Entering faces fade in over ~180ms (fadeIn keyframes from
-   dashboard.css). */
+   Face chrome is kept slim so the chart box gets the remaining content height.
+   Entering faces fade in over ~180ms (fadeIn keyframes from dashboard.css). */
 .ibkr-pos-card { height: 380px; min-height: 380px; }
 .card-face-stats { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
