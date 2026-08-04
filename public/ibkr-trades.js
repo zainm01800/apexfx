@@ -184,21 +184,33 @@ function updateScoreboard() {
 
   const bankedRealized = matchedPnl + paperRealizedPnl;
 
-  // Total Open Unrealized P&L across live broker positions + engine book positions (e.g. SPY +£827)
+  // Total Open Unrealized P&L & Gross Exposure across live broker positions + ALL engine book positions (Stocks + Crypto + Forex)
   let totalOpenPnl = 0;
+  let totalGrossExp = 0;
+  let totalOpenCount = 0;
+
   const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
   for (const p of _ibkrPositionsCache) {
     totalOpenPnl += (num(p.unrealized_pnl) || 0);
+    totalGrossExp += Math.abs(num(p.market_value) || 0);
+    totalOpenCount++;
   }
+
+  const seenPaperInst = new Set();
   for (const inst in _ibkrPaperMap) {
     const pp = _ibkrPaperMap[inst];
-    if (pp && !symbolOpenNow.has(inst)) {
+    if (pp && pp.instrument && num(pp.units) > 0 && String(pp.status || '').toLowerCase() !== 'closed' && !symbolOpenNow.has(inst)) {
+      if (seenPaperInst.has(inst)) continue;
+      seenPaperInst.add(inst);
+
       const entry = num(pp.entry_price);
       const lastPx = num(pp.last_px);
       const units = num(pp.units);
       const isLong = String(pp.direction || '').toLowerCase() !== 'short';
       if (entry !== null && lastPx !== null && units !== null) {
+        totalGrossExp += Math.abs(lastPx * units);
         totalOpenPnl += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
+        totalOpenCount++;
       }
     }
   }
@@ -215,6 +227,8 @@ function updateScoreboard() {
   // Account Value: baseline deposit (£999,000) + Floating Net Profit
   const computedNetLiq = Math.max(num(a.net_liquidation) || 0, 999000 + floatingNetProfit);
 
+  setText('statPosCount', String(totalOpenCount));
+  setText('statGrossExp', fmtMoney(totalGrossExp, sym));
   setText('statNetLiq', fmtMoney(computedNetLiq, sym));
   setText('statCash', fmtMoney(a.cash, sym));
   setText('statDailyPnl', fmtSignedMoney(computedDailyPnl, sym), pnlClass(computedDailyPnl));
@@ -362,17 +376,23 @@ function renderClassTab() {
 
   const symbolOpenNow = new Set(positions.map(p => String(p.instrument)));
 
+  const seenClassPaperInst = new Set();
   for (const inst in _ibkrPaperMap) {
     const pp = _ibkrPaperMap[inst];
-    if (pp && !symbolOpenNow.has(inst)) {
-      const entry = num(pp.entry_price);
-      const lastPx = num(pp.last_px);
-      const units = num(pp.units);
-      const isLong = String(pp.direction || '').toLowerCase() !== 'short';
-      if (entry !== null && lastPx !== null && units !== null) {
-        totalGross += Math.abs(lastPx * units);
-        totalUnrealized += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
-        totalOpenPositionsCount++;
+    if (pp && pp.instrument && num(pp.units) > 0 && String(pp.status || '').toLowerCase() !== 'closed' && !symbolOpenNow.has(inst)) {
+      if (paperClassFor(inst) === cls) {
+        if (seenClassPaperInst.has(inst)) continue;
+        seenClassPaperInst.add(inst);
+
+        const entry = num(pp.entry_price);
+        const lastPx = num(pp.last_px);
+        const units = num(pp.units);
+        const isLong = String(pp.direction || '').toLowerCase() !== 'short';
+        if (entry !== null && lastPx !== null && units !== null) {
+          totalGross += Math.abs(lastPx * units);
+          totalUnrealized += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
+          totalOpenPositionsCount++;
+        }
       }
     }
   }
