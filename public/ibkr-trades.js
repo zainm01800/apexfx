@@ -530,11 +530,16 @@ function renderPositionsCards(positions, cls) {
     if (!p || num(p.units) <= 0) return false;
     const curPx = (num(p.market_value) !== null && num(p.units)) ? Math.abs(p.market_value) / Math.abs(p.units) : null;
     const isLong = String(p.direction || '').toLowerCase() !== 'short';
-    const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
-    const levels = getDirectionalLevels(p.avg_price, isLong, pp);
-    if (curPx !== null && levels.target !== null) {
-      if (isLong && curPx >= levels.target) return false; // Hit TP -> closed!
-      if (!isLong && curPx <= levels.target) return false; // Hit TP -> closed!
+    // Direction-aware paper join: a paper row on the OTHER side of the market
+    // (engine flipped since the venue fill) must not judge this position.
+    // No matching paper row -> no real target known -> keep the position.
+    const pp = getPaperRowForPosition(p);
+    if (pp) {
+      const levels = getDirectionalLevels(p.avg_price, isLong, pp);
+      if (curPx !== null && levels.target !== null) {
+        if (isLong && curPx >= levels.target) return false; // Hit TP -> closed!
+        if (!isLong && curPx <= levels.target) return false; // Hit TP -> closed!
+      }
     }
     return true;
   });
