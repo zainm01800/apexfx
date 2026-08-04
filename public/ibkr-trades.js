@@ -543,6 +543,30 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1) {
   };
 }
 
+function getDirectionalLevels(entryPx, isLong, pp) {
+  const entry = num(entryPx);
+  if (entry === null) return { stop: null, target: null };
+
+  let rawStop = pp ? num(pp.stop) : null;
+  let rawTarget = pp ? num(pp.target) : null;
+
+  let riskDist = (rawStop !== null) ? Math.abs(entry - rawStop) : (entry * 0.02);
+  if (riskDist <= 0) riskDist = entry * 0.02;
+
+  let stop = rawStop;
+  let target = rawTarget;
+
+  if (isLong) {
+    if (stop === null || stop >= entry) stop = entry - riskDist;
+    if (target === null || target <= entry) target = entry + (1.5 * riskDist);
+  } else {
+    if (stop === null || stop <= entry) stop = entry + riskDist;
+    if (target === null || target >= entry) target = entry - (1.5 * riskDist);
+  }
+
+  return { stop, target };
+}
+
 function renderPaperCard(pp, cls, sym) {
   const inst = String(pp.instrument || '');
   const isLong = String(pp.direction || '').toLowerCase() !== 'short';
@@ -552,8 +576,9 @@ function renderPaperCard(pp, cls, sym) {
 
   const units = num(pp.units);
   const entry = num(pp.entry_price);
-  const stop = num(pp.stop);
-  const target = num(pp.target);
+  const levels = getDirectionalLevels(entry, isLong, pp);
+  const stop = levels.stop;
+  const target = levels.target;
   const lastPx = num(pp.last_px);
   const upnl = (entry !== null && lastPx !== null && units !== null)
     ? (isLong ? (lastPx - entry) : (entry - lastPx)) * units
@@ -595,7 +620,7 @@ function renderPaperCard(pp, cls, sym) {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
         <span style="color: var(--text3)">Stop Loss</span>
-        <span style="font-family: var(--mono); color: var(--red);">${escHtml(fmtPrice(stop, cls))}</span>
+        <span style="font-family: var(--mono); color: var(--red);">${escHtml(stop !== null ? fmtPrice(stop, cls) : '—')}</span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
@@ -605,7 +630,7 @@ function renderPaperCard(pp, cls, sym) {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
         <span style="color: var(--text3)">Take Profit</span>
-        <span style="font-family: var(--mono); color: var(--green);">${escHtml(fmtPrice(target, cls))}</span>
+        <span style="font-family: var(--mono); color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
@@ -650,10 +675,11 @@ function renderPositionCard(p, cls, sym, gross) {
       + (priceDeltaPct === null ? '' : ` (${priceDeltaPct >= 0 ? '+' : '-'}${Math.abs(priceDeltaPct).toFixed(2)}%)`);
 
   const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
-  const stopTxt = pp && num(pp.stop) !== null ? fmtPrice(pp.stop, cls) : '—';
-  const targetTxt = pp && num(pp.target) !== null ? fmtPrice(pp.target, cls) : '—';
+  const levels = getDirectionalLevels(entryPx, isLong, pp);
+  const stopTxt = levels.stop !== null ? fmtPrice(levels.stop, cls) : '—';
+  const targetTxt = levels.target !== null ? fmtPrice(levels.target, cls) : '—';
 
-  const pInfo = computePartialsInfo(entryPx, curPx, pp ? pp.stop : null, isLong, cls, pp ? pp.tms_p1 === true : false);
+  const pInfo = computePartialsInfo(entryPx, curPx, levels.stop, isLong, cls, pp ? pp.tms_p1 === true : false);
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
