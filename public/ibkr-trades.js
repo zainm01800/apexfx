@@ -455,8 +455,43 @@ function setReconNote(realCount, dummyCount) {
 }
 
 // Dummy card for an engine-only paper position: same footprint/rows as a real
-// card but ghosted + dashed, ENGINE ONLY badge, block reason, no CHART button.
 function renderDummyCard(pp, cls, sym) {
+  return renderPaperCard(pp, cls, sym);
+}
+
+function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls) {
+  const entry = num(entryPx);
+  const mark = num(lastPx);
+  const stop = num(stopPx);
+
+  if (entry === null || stop === null) {
+    return { targetTxt: '—', distTxt: '', color: 'var(--text3)' };
+  }
+
+  const riskDist = Math.abs(entry - stop);
+  if (riskDist <= 0) return { targetTxt: '—', distTxt: '', color: 'var(--text3)' };
+
+  const partialTarget = isLong ? entry + riskDist : entry - riskDist;
+  const targetTxt = fmtPrice(partialTarget, cls);
+
+  if (mark === null) {
+    return { targetTxt, distTxt: '', color: '#F5B04C' };
+  }
+
+  const dist = isLong ? partialTarget - mark : mark - partialTarget;
+  if (dist <= 0) {
+    return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
+  }
+
+  const progressPct = Math.min(Math.max(((isLong ? mark - entry : entry - mark) / riskDist) * 100, 0), 99);
+  return {
+    targetTxt,
+    distTxt: `(${progressPct.toFixed(0)}%)`,
+    color: '#F5B04C'
+  };
+}
+
+function renderPaperCard(pp, cls, sym) {
   const inst = String(pp.instrument || '');
   const isLong = String(pp.direction || '').toLowerCase() !== 'short';
   const dirBadge = isLong
@@ -468,7 +503,6 @@ function renderDummyCard(pp, cls, sym) {
   const stop = num(pp.stop);
   const target = num(pp.target);
   const lastPx = num(pp.last_px);
-  // Paper-book P&L from the engine's own mark (last_px); omitted if unavailable.
   const upnl = (entry !== null && lastPx !== null && units !== null)
     ? (isLong ? (lastPx - entry) : (entry - lastPx)) * units
     : null;
@@ -477,6 +511,8 @@ function renderDummyCard(pp, cls, sym) {
     ? 'US ETF — blocked on IBKR (PRIIPs)'
     : 'not mirrored to IBKR';
   const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
+
+  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls);
 
   return `
     <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
@@ -510,6 +546,11 @@ function renderDummyCard(pp, cls, sym) {
         <span style="font-family: var(--mono); color: var(--red);">${escHtml(fmtPrice(stop, cls))}</span>
       </div>
 
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
+        <span style="color: var(--text3)">Partials (+1.0R)</span>
+        <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
+      </div>
+
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
         <span style="color: var(--text3)">Take Profit</span>
         <span style="font-family: var(--mono); color: var(--green);">${escHtml(fmtPrice(target, cls))}</span>
@@ -537,60 +578,30 @@ function renderPositionCard(p, cls, sym, gross) {
 
   const units = num(p.units);
   const mv = num(p.market_value);
-  // Shorts carry a NEGATIVE market_value at IBKR — always display the absolute
-  // notional, and derive the current mark as |market_value| / |units|.
   const absMv = mv === null ? null : Math.abs(mv);
   const curPx = (mv !== null && units) ? Math.abs(mv) / Math.abs(units) : null;
 
-  // Share of the class book this position accounts for, so the card answers
-  // "how much of my open exposure is this one trade?" at a glance.
   const sharePct = (absMv !== null && gross > 0)
     ? ` <span style="font-size:11px;color:var(--text3);font-weight:400;">(${((absMv / gross) * 100).toFixed(0)}% of book)</span>`
     : '';
 
-  // Two distinct readouts on the card:
-  //   • Profit / Loss Now — the actual money you're up/down right now. The data's
-  //     sign is already direction-correct for longs and shorts, so show as-is.
-  //   • Price Move — how far the PRICE itself has travelled from your avg entry,
-  //     coloured by whether that move helps (green) or hurts (red) the position,
-  //     so a short that profits on a falling price still reads green.
   const upnl = num(p.unrealized_pnl);
   const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
 
   const entryPx = num(p.avg_price);
   const priceDelta = (curPx !== null && entryPx !== null) ? curPx - entryPx : null;
   const priceDeltaPct = (priceDelta !== null && entryPx) ? (priceDelta / entryPx) * 100 : null;
-  const moveAgainst = priceDelta === null ? 0 : (isLong ? priceDelta : -priceDelta); // >0 helps, <0 hurts
+  const moveAgainst = priceDelta === null ? 0 : (isLong ? priceDelta : -priceDelta);
   const moveColor = moveAgainst > 0 ? 'var(--green)' : (moveAgainst < 0 ? 'var(--red)' : 'var(--text2)');
   const priceMoveTxt = priceDelta === null ? '—'
     : (priceDelta >= 0 ? '+' : '-') + fmtPrice(Math.abs(priceDelta), cls)
       + (priceDeltaPct === null ? '' : ` (${priceDeltaPct >= 0 ? '+' : '-'}${Math.abs(priceDeltaPct).toFixed(2)}%)`);
 
-  // Stop/target join: apex_paper_positions keyed by instrument, when present.
   const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
   const stopTxt = pp && num(pp.stop) !== null ? fmtPrice(pp.stop, cls) : '—';
   const targetTxt = pp && num(pp.target) !== null ? fmtPrice(pp.target, cls) : '—';
 
-  // Partials (+1.0R) calculations
-  const stopPx = pp ? num(pp.stop) : null;
-  const riskDist = (entryPx !== null && stopPx !== null) ? Math.abs(entryPx - stopPx) : null;
-  const partialPx = (entryPx !== null && riskDist !== null) ? (isLong ? entryPx + riskDist : entryPx - riskDist) : null;
-  const partialTxt = partialPx !== null ? fmtPrice(partialPx, cls) : '—';
-
-  let partialDistTxt = '—';
-  let partialDistColor = 'var(--text2)';
-  if (curPx !== null && partialPx !== null && entryPx !== null && riskDist > 0) {
-    const dist = isLong ? partialPx - curPx : curPx - partialPx;
-    if (dist <= 0) {
-      partialDistTxt = 'Partials Hit ✅';
-      partialDistColor = 'var(--green)';
-    } else {
-      const progressPct = Math.min(Math.max(((isLong ? curPx - entryPx : entryPx - curPx) / riskDist) * 100, 0), 99);
-      partialDistTxt = `$${fmtPrice(dist, cls)} away (${progressPct.toFixed(0)}% progress)`;
-      partialDistColor = '#F5B04C';
-    }
-  }
-
+  const pInfo = computePartialsInfo(entryPx, curPx, pp ? pp.stop : null, isLong, cls);
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
@@ -632,9 +643,9 @@ function renderPositionCard(p, cls, sym, gross) {
         <span style="font-family: var(--mono); color: var(--red);">${escHtml(stopTxt)}</span>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
         <span style="color: var(--text3)">Partials (+1.0R)</span>
-        <span style="font-family: var(--mono); color: #F5B04C; font-weight: 600;">${escHtml(partialTxt)} <span style="font-size:11px;color:${partialDistColor};">(${escHtml(partialDistTxt)})</span></span>
+        <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
