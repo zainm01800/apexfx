@@ -375,7 +375,7 @@ function renderClosedTrades(roundTrips, cls) {
     </tr>`;
   }).join('');
 
-  wrap.innerHTML = pnlBanner + `<div class="wl-table-wrap"><table class="wl-table">
+  wrap.innerHTML = `<div class="wl-table-wrap"><table class="wl-table">
     <thead><tr>
       <th>Closed Time</th><th>Instrument</th><th>Direction</th><th>Qty</th><th>Avg Entry</th><th>Exit Price</th><th>Realized P&amp;L</th><th>Status</th>
     </tr></thead>
