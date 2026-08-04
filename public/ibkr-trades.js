@@ -452,14 +452,28 @@ function renderClosedTrades(roundTrips, cls) {
   </table></div>`;
 }
 
-// ── Open positions: MT4-style per-position cards ─────────────────────────────
 function renderPositionsCards(positions, cls) {
   const wrap = document.getElementById('ibkrPositionsWrap');
   if (!wrap) return;
   destroyAllCharts(); // chart instances must die before innerHTML wipes their canvases
 
   const sym = curSymbol();
-  const realInst = new Set(_ibkrPositionsCache.map(x => String(x.instrument)));
+
+  // Filter out any positions that have reached their Take Profit target or have 0 units
+  const activePositions = positions.filter(p => {
+    if (!p || num(p.units) <= 0) return false;
+    const curPx = (num(p.market_value) !== null && num(p.units)) ? Math.abs(p.market_value) / Math.abs(p.units) : null;
+    const isLong = String(p.direction || '').toLowerCase() !== 'short';
+    const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
+    const levels = getDirectionalLevels(p.avg_price, isLong, pp);
+    if (curPx !== null && levels.target !== null) {
+      if (isLong && curPx >= levels.target) return false; // Hit TP -> closed!
+      if (!isLong && curPx <= levels.target) return false; // Hit TP -> closed!
+    }
+    return true;
+  });
+
+  const realInst = new Set(activePositions.map(x => String(x.instrument)));
   const tradedInst = new Set(_ibkrTradesCache.map(x => String(x.instrument)));
   const seenInst = new Set();
   const dummies = Object.values(_ibkrPaperMap)
@@ -470,18 +484,16 @@ function renderPositionsCards(positions, cls) {
       seenInst.add(inst);
       return num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(inst) && !tradedInst.has(inst) && paperClassFor(inst) === cls;
     });
-  setReconNote(positions.length, dummies.length);
+  setReconNote(activePositions.length, dummies.length);
 
-  if (!positions.length && !dummies.length) {
+  if (!activePositions.length && !dummies.length) {
     _openChartInsts.clear(); // no cards to restore onto
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
     return;
   }
 
-  // Gross book = sum of every position's absolute notional; each card shows its
-  // own slice of it so "how much is open right now" reads off the card directly.
-  const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
-  wrap.innerHTML = positions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
+  const gross = activePositions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
+  wrap.innerHTML = activePositions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
     + dummies.map(r => renderDummyCard(r, cls, sym)).join('');
   restoreOpenCharts(); // re-open every chart-mode card after background refreshes
 }
