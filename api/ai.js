@@ -16,12 +16,9 @@ export const maxDuration = 60;
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GROQ_KEY   = process.env.GROQ_API_KEY;
+const XAI_KEY    = process.env.XAI_API_KEY || process.env.GROK_API_KEY;
 
 // Gemini model fallback chain (OpenAI-compatible endpoint)
-// Tries each in order; on 429/503 waits briefly then tries the next model before falling back to Groq.
-// flash-lite (a NON-thinking model) is first on purpose: the "thinking" preview model spends part of
-// its token budget on hidden reasoning, which truncated the large committee JSON → parse failures.
-// flash-lite returns the full strict JSON reliably; the preview model stays as a later fallback.
 const GEMINI_MODELS = [
   'gemini-3.1-flash-lite',
   'gemini-flash-lite-latest',
@@ -33,6 +30,10 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat
 // Groq fallback model
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+
+// xAI / Grok model
+const XAI_MODEL = process.env.XAI_MODEL || 'grok-2-latest';
+const XAI_URL   = 'https://api.x.ai/v1/chat/completions';
 
 function isAllowedOrigin(origin, host) {
   if (!origin) return true;
@@ -170,6 +171,14 @@ async function handler(req) {
     throw Object.assign(new Error(`Gemini unavailable: ${err}`), { status: 503 });
   }
 
+  // ── xAI Grok ─────────────────────────────────────────────────────────────────
+  async function runXai() {
+    if (!XAI_KEY) throw Object.assign(new Error('xAI Grok not configured'), { status: 503 });
+    const model = (reqProvider === 'grok' || reqProvider === 'xai' && reqModel) ? reqModel : XAI_MODEL;
+    const text = await callProvider({ apiUrl: XAI_URL, apiKey: XAI_KEY, model, messages, maxTokens: safeMaxTokens, temperature: safeTemp, timeoutMs: safeTimeoutMs });
+    return { text, provider: 'grok', model };
+  }
+
   // ── Groq (honours a requested model, else the default Llama). ─────────────────
   async function runGroq() {
     if (!GROQ_KEY) throw Object.assign(new Error('Groq not configured'), { status: 503 });
@@ -178,9 +187,10 @@ async function handler(req) {
     return { text, provider: 'groq', model };
   }
 
-  // Provider order: honour the explicit request first, then fall back to the other
-  // so the scan never breaks if the requested provider is unavailable.
-  const order = reqProvider === 'groq' ? [runGroq, runGemini] : [runGemini, runGroq];
+  // Provider order: xAI Grok > Gemini > Groq (honours explicit provider if requested)
+  let order = [runXai, runGemini, runGroq];
+  if (reqProvider === 'groq') order = [runGroq, runXai, runGemini];
+  if (reqProvider === 'gemini') order = [runGemini, runXai, runGroq];
 
   let lastErr = null;
   for (const run of order) {

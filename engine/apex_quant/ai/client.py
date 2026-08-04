@@ -338,28 +338,85 @@ class FallbackLLM(LLMClient):
         return None
 
 
+class XaiGrokLLM(LLMClient):
+    """xAI / Grok API client using the OpenAI-compatible endpoint at https://api.x.ai/v1."""
+
+    def __init__(self, cfg: AiConfig | None = None, timeout: float = 60.0) -> None:
+        self.cfg = cfg or get_config().ai
+        self.timeout = timeout
+
+    @property
+    def available(self) -> bool:
+        return bool(os.environ.get("XAI_API_KEY", "") or os.environ.get("GROK_API_KEY", ""))
+
+    def complete(self, prompt: str, system: str = "", max_tokens: int = 1200,
+                  temperature: float = 0.5) -> str | None:
+        api_key = os.environ.get("XAI_API_KEY", "") or os.environ.get("GROK_API_KEY", "")
+        if not api_key:
+            return None
+        try:
+            import httpx
+
+            messages = []
+            if system:
+                messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": prompt})
+
+            model = os.environ.get("GROK_MODEL", "grok-2-latest")
+
+            payload = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            url = "https://api.x.ai/v1/chat/completions"
+
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.post(url, json=payload, headers=headers)
+                if res.status_code != 200:
+                    print(f"  [xAI Grok Error] HTTP {res.status_code}: {res.text[:300]}")
+                    return None
+                data = res.json()
+                return data["choices"][0]["message"]["content"]
+
+        except Exception as exc:
+            print(f"  [xAI Grok Exception] {type(exc).__name__}: {exc}")
+            return None
+
+
 def build_llm(cfg: AiConfig | None = None) -> LLMClient | None:
     """Factory: returns the best available LLM client for the given config.
 
-    Priority: DeepSeek (direct) > Gemini > Groq > AppProxy > None.
+    Priority: xAI Grok > DeepSeek > Gemini > Groq > AppProxy > None.
     If multiple keys are available, chains them into FallbackLLMs dynamically.
     """
     cfg = cfg or get_config().ai
     
     clients: list[LLMClient] = []
     
-    # 1. DeepSeek (primary)
+    # 0. xAI / Grok (primary when key is present)
+    grok_client = XaiGrokLLM(cfg)
+    if grok_client.available:
+        clients.append(grok_client)
+
+    # 1. DeepSeek
     if cfg.deepseek_api_key:
         ds_client = DeepSeekLLM(cfg)
         if ds_client.available:
             clients.append(ds_client)
             
-    # 2. Gemini (first fallback)
+    # 2. Gemini
     gem_client = GeminiLLM(cfg)
     if gem_client.available:
         clients.append(gem_client)
         
-    # 3. Groq (second fallback)
+    # 3. Groq
     groq_client = GroqLLM(cfg)
     if groq_client.available:
         clients.append(groq_client)
