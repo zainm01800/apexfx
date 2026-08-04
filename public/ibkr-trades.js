@@ -524,16 +524,20 @@ function renderDummyCard(pp, cls, sym) {
   return renderPaperCard(pp, cls, sym);
 }
 
-function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1) {
+function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initStopPx) {
   const entry = num(entryPx);
   const mark = num(lastPx);
-  const stop = num(stopPx);
+  const rawStop = num(stopPx);
+  const initStop = num(initStopPx);
 
-  if (entry === null || stop === null) {
+  if (entry === null) {
     return { targetTxt: '—', distTxt: '', color: 'var(--text3)' };
   }
 
-  const riskDist = Math.abs(entry - stop);
+  let riskDist = (initStop !== null && Math.abs(entry - initStop) > 0.05)
+    ? Math.abs(entry - initStop)
+    : (rawStop !== null ? Math.abs(entry - rawStop) : 0);
+
   if (riskDist <= 0) return { targetTxt: '—', distTxt: '', color: 'var(--text3)' };
 
   const partialTarget = isLong ? entry + riskDist : entry - riskDist;
@@ -543,22 +547,20 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1) {
     return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
   }
 
-  if (mark === null) {
-    return { targetTxt, distTxt: '', color: '#F5B04C' };
+  if (mark !== null) {
+    const dist = isLong ? partialTarget - mark : mark - partialTarget;
+    if (dist <= 0) {
+      return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
+    }
+    const distVal = fmtPrice(dist, cls);
+    return {
+      targetTxt,
+      distTxt: `($${distVal} away)`,
+      color: '#F5B04C'
+    };
   }
 
-  const dist = isLong ? partialTarget - mark : mark - partialTarget;
-  if (dist <= 0) {
-    return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
-  }
-
-  const progressPct = Math.min(Math.max(((isLong ? mark - entry : entry - mark) / riskDist) * 100, 0), 99);
-  const distVal = fmtPrice(dist, cls);
-  return {
-    targetTxt,
-    distTxt: `($${distVal} away)`,
-    color: '#F5B04C'
-  };
+  return { targetTxt, distTxt: '', color: '#F5B04C' };
 }
 
 function getDirectionalLevels(entryPx, isLong, pp) {
@@ -612,7 +614,7 @@ function renderPaperCard(pp, cls, sym) {
     : 'not mirrored to IBKR';
   const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
 
-  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, pp.tms_p1 === true);
+  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, pp.tms_p1 === true, pp.initial_stop);
 
   return `
     <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
