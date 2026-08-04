@@ -551,26 +551,31 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1) {
 
 function getDirectionalLevels(entryPx, isLong, pp) {
   const entry = num(entryPx);
-  if (entry === null) return { stop: null, target: null };
+  if (entry === null) return { stop: null, target: null, riskDist: null };
 
   let rawStop = pp ? num(pp.stop) : null;
   let rawTarget = pp ? num(pp.target) : null;
+  let initStop = pp ? num(pp.initial_stop) : null;
 
-  let riskDist = (rawStop !== null) ? Math.abs(entry - rawStop) : (entry * 0.02);
-  if (riskDist <= 0) riskDist = entry * 0.02;
+  let riskDist = (initStop !== null) ? Math.abs(entry - initStop)
+    : ((rawStop !== null && Math.abs(entry - rawStop) > 0.05) ? Math.abs(entry - rawStop) : (entry * 0.005));
+  if (riskDist <= 0.05) riskDist = entry * 0.005;
 
   let stop = rawStop;
-  let target = rawTarget;
-
   if (isLong) {
     if (stop === null || stop >= entry) stop = entry - riskDist;
-    if (target === null || target <= entry) target = entry + (1.5 * riskDist);
   } else {
     if (stop === null || stop <= entry) stop = entry + riskDist;
-    if (target === null || target >= entry) target = entry - (1.5 * riskDist);
   }
 
-  return { stop, target };
+  let target = rawTarget;
+  if (isLong) {
+    if (target === null || target <= entry) target = entry + (2.0 * riskDist);
+  } else {
+    if (target === null || target >= entry) target = entry - (2.0 * riskDist);
+  }
+
+  return { stop, target, riskDist };
 }
 
 function renderPaperCard(pp, cls, sym) {
