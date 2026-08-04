@@ -324,16 +324,34 @@ function renderClassTab() {
   const positions = classPositions();
   const trades = classTrades();
 
-  // Stats
-  const gross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
-  const unreal = positions.reduce((s, p) => s + (num(p.unrealized_pnl) || 0), 0);
-  const hasUnreal = positions.some(p => num(p.unrealized_pnl) !== null);
+  // Combine live broker positions with engine paper positions for class summary stats
+  let totalGross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
+  let totalUnrealized = positions.reduce((s, p) => s + (num(p.unrealized_pnl) || 0), 0);
+  let totalOpenPositionsCount = positions.length;
+
+  const symbolOpenNow = new Set(positions.map(p => String(p.instrument)));
+
+  for (const inst in _ibkrPaperMap) {
+    const pp = _ibkrPaperMap[inst];
+    if (pp && !symbolOpenNow.has(inst)) {
+      const entry = num(pp.entry_price);
+      const lastPx = num(pp.last_px);
+      const units = num(pp.units);
+      const isLong = String(pp.direction || '').toLowerCase() !== 'short';
+      if (entry !== null && lastPx !== null && units !== null) {
+        totalGross += Math.abs(lastPx * units);
+        totalUnrealized += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
+        totalOpenPositionsCount++;
+      }
+    }
+  }
+
   const closed = computeClosedStats(trades);
 
-  setText('clsOpenCount', String(positions.length));
-  setText('clsGrossExposure', positions.length ? fmtMoney(gross, sym) : '—');
-  setText('clsUnrealizedPnl', hasUnreal ? fmtSignedMoney(unreal, sym) : '—', hasUnreal ? pnlClass(unreal) : '');
-  setText('clsDailyPnl', '—'); // per-class day P&L is not reported by the sync
+  setText('clsOpenCount', String(totalOpenPositionsCount));
+  setText('clsGrossExposure', totalOpenPositionsCount ? fmtMoney(totalGross, sym) : '—');
+  setText('clsUnrealizedPnl', fmtSignedMoney(totalUnrealized, sym), pnlClass(totalUnrealized));
+  setText('clsDailyPnl', '—'); // per-class day P&L is floating
   setText('clsWinRate', closed.winRate !== null ? closed.winRate.toFixed(1) + '%' : '—',
     closed.winRate !== null ? (closed.winRate >= 50 ? 'green' : 'red') : '');
   const ccEl = document.getElementById('clsClosedCount');
