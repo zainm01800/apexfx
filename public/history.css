@@ -1164,15 +1164,18 @@ button.sc-btn { appearance: none; outline: none; }
   transform: translateY(calc(-100% - 2px));
   font-family: var(--mono);
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.05em;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(11, 15, 25, 0.4);
-  opacity: 0.5;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  opacity: 0.95;
   pointer-events: none;
   z-index: 5;
   white-space: nowrap;
+  transition: left 0.15s ease;
 }
 .ibkr-chart-msg { padding: 24px 12px; text-align: center; color: var(--text3); font-size: 12px; font-family: var(--mono); }
 .ibkr-chart-msg.err { color: var(--red); }

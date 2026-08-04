@@ -942,6 +942,8 @@ function togglePositionChart(inst, btn) {
     const mkLine = (price, color, style) =>
       series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: false, title: '' });
 
+    const isPartialsHit = (pp && (pp.tms_p1 === true || pp.tms_be === true));
+
     const lvlDefs = [];
     if (entry !== null) {
       lvlDefs.push({ price: entry, color: LEVEL_COLORS.entry, tag: isAtBreakeven ? 'ENTRY / BE SL' : 'ENTRY', style: LS.Solid });
@@ -951,8 +953,9 @@ function togglePositionChart(inst, btn) {
     } else if (!isAtBreakeven && stop !== null) {
       lvlDefs.push({ price: stop, color: LEVEL_COLORS.stop, tag: 'SL', style: LS.Solid });
     }
-    if (oneR !== null && Math.abs(oneR - entry) > 0.05) {
-      lvlDefs.push({ price: oneR, color: LEVEL_COLORS.oneR, tag: (pp && pp.tms_p1) ? '+1R (Hit ✅)' : '+1R', style: LS.Dashed });
+    // Hide past +1R line once partials are hit to keep chart clean and un-cluttered
+    if (!isPartialsHit && oneR !== null && Math.abs(oneR - entry) > 0.05) {
+      lvlDefs.push({ price: oneR, color: LEVEL_COLORS.oneR, tag: '+1R PARTIALS', style: LS.Dashed });
     }
     if (target !== null) {
       lvlDefs.push({ price: target, color: LEVEL_COLORS.target, tag: 'TP', style: LS.Solid });
@@ -960,18 +963,10 @@ function togglePositionChart(inst, btn) {
 
     lvlDefs.forEach(d => mkLine(d.price, d.color, d.style));
 
-    // Autoscale fits candle data only — a stop/target beyond the bars' range
-    // would be drawn off-screen. Anchor the price scale to the level extremes
-    // with two FLAT transparent lines (one at the padded low, one at the
-    // padded high). The anchor gets a data point at EVERY bar: autoscale only
-    // counts a series' data points inside the visible window, so a two-point
-    // line silently drops out of autoscale whenever the user scrolls to a
-    // window containing neither endpoint — collapsing the price scale and
-    // detaching the level labels from their (now clipped) lines.
     const lvls = lvlDefs.map(d => d.price);
     if (lvls.length) {
       const span = Math.max(...lvls) - Math.min(...lvls);
-      const pad = span > 0 ? span * 0.02 : Math.abs(lvls[0]) * 0.005 || 1; // hug the levels — the 330px card needs the vertical room
+      const pad = span > 0 ? span * 0.02 : Math.abs(lvls[0]) * 0.005 || 1;
       for (const v of [Math.min(...lvls) - pad, Math.max(...lvls) + pad]) {
         const anchor = chart.addLineSeries({
           color: 'rgba(0, 0, 0, 0)', lineWidth: 1,
@@ -981,14 +976,8 @@ function togglePositionChart(inst, btn) {
       }
     }
 
-    // Price scale margins kept small so the content vertically fills the
-    // compact card — just enough air that no line glues to the frame edge.
     chart.priceScale('right').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
 
-    // Default framing: the recent ~58 bars occupy roughly the LEFT HALF of the
-    // pane and the right half is open future space, so the trade's levels read
-    // against both history and the room price has left to move. The full
-    // 90-bar series stays scrollable — drag/scroll left for older bars.
     const ts = chart.timeScale();
     if (bars.length > 60) {
       ts.setVisibleLogicalRange({ from: bars.length - 58, to: bars.length + 58 });
@@ -996,10 +985,10 @@ function togglePositionChart(inst, btn) {
       ts.fitContent();
     }
 
-    window._ibkrChart = chart; // debug/verification hook (nulled on close)
+    window._ibkrChart = chart;
     window._ibkrSeries = series;
 
-    // ── Left-edge level labels ───────────────────────────────────────────────
+    // ── Left-edge level labels with smart horizontal staggering de-overlapping ─
     const lvlLabels = lvlDefs.map(d => {
       const el = document.createElement('div');
       el.className = 'ibkr-lvl-label';
@@ -1008,14 +997,38 @@ function togglePositionChart(inst, btn) {
       box.appendChild(el);
       return { el, price: d.price };
     });
+
     const positionLevelLabels = () => {
       if (!box.isConnected) return;
-      const bottomBound = box.clientHeight - 28; // pane bottom ≈ box minus the time-axis strip
-      for (const { el, price } of lvlLabels) {
-        const y = series.priceToCoordinate(price);
-        if (y === null || y < 2 || y > bottomBound) { el.style.display = 'none'; continue; }
-        el.style.display = '';
-        el.style.top = `${Math.round(y)}px`;
+      const bottomBound = box.clientHeight - 26;
+
+      const active = [];
+      for (const item of lvlLabels) {
+        const y = series.priceToCoordinate(item.price);
+        if (y === null || y < 2 || y > bottomBound) {
+          item.el.style.display = 'none';
+        } else {
+          item.el.style.display = 'block';
+          active.push({ el: item.el, y: Math.round(y) });
+        }
+      }
+
+      active.sort((a, b) => a.y - b.y);
+
+      let lastY = -999;
+      let currentLeft = 6;
+
+      for (let i = 0; i < active.length; i++) {
+        const item = active[i];
+        if (item.y - lastY < 18) {
+          currentLeft += 56;
+          if (currentLeft > 180) currentLeft = 6;
+        } else {
+          currentLeft = 6;
+        }
+        item.el.style.top = `${item.y}px`;
+        item.el.style.left = `${currentLeft}px`;
+        lastY = item.y;
       }
     };
     // Frame-perfect tracking: a rAF loop re-reads priceToCoordinate for every
