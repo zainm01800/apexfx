@@ -119,10 +119,7 @@ async function loadIbkr() {
         if (Array.isArray(rows)) {
           for (const r of rows) {
             if (r && r.instrument) {
-              const instKey = String(r.instrument);
-              const dir = String(r.direction || '').toLowerCase();
-              _ibkrPaperMap[`${instKey}_${dir}`] = r;
-              if (!_ibkrPaperMap[instKey]) _ibkrPaperMap[instKey] = r;
+              _ibkrPaperMap[String(r.instrument)] = r;
             }
           }
         }
@@ -464,11 +461,15 @@ function renderPositionsCards(positions, cls) {
   const sym = curSymbol();
   const realInst = new Set(_ibkrPositionsCache.map(x => String(x.instrument)));
   const tradedInst = new Set(_ibkrTradesCache.map(x => String(x.instrument)));
-  // Engine-only paper positions: only active open positions (units > 0, status !== 'closed')
-  // that were NEVER traded on IBKR (e.g. PRIIPs-blocked US ETFs). Any instrument with IBKR fill history
-  // is an IBKR trade (open or closed), not an unmirrored dummy.
+  const seenInst = new Set();
   const dummies = Object.values(_ibkrPaperMap)
-    .filter(r => r && r.instrument && num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(String(r.instrument)) && !tradedInst.has(String(r.instrument)) && paperClassFor(String(r.instrument)) === cls);
+    .filter(r => {
+      if (!r || !r.instrument) return false;
+      const inst = String(r.instrument);
+      if (seenInst.has(inst)) return false;
+      seenInst.add(inst);
+      return num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(inst) && !tradedInst.has(inst) && paperClassFor(inst) === cls;
+    });
   setReconNote(positions.length, dummies.length);
 
   if (!positions.length && !dummies.length) {
