@@ -157,10 +157,30 @@ function updateScoreboard() {
   const a = _ibkrAccountCache || {};
   const sym = curSymbol();
 
-  // Banked Realized P&L: compute from FIFO matched round-trips (defaults to +£529.20)
+  // Banked Realized P&L: compute from IBKR FIFO matched round-trips + engine paper partial/closed profits
   const closedStats = computeClosedStats(_ibkrTradesCache);
-  const matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
-  const bankedRealized = matchedPnl !== 0 ? matchedPnl : (num(a.realized_pnl) || 529.20);
+  let matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
+  if (matchedPnl === 0) matchedPnl = (num(a.realized_pnl) || 529.20);
+
+  let paperRealizedPnl = 0;
+  for (const inst in _ibkrPaperMap) {
+    const pp = _ibkrPaperMap[inst];
+    if (pp) {
+      if (num(pp.realized_pnl_total) !== null && num(pp.realized_pnl_total) > 0) {
+        paperRealizedPnl += num(pp.realized_pnl_total);
+      } else if (pp.tms_p1 === true) {
+        const entry = num(pp.entry_price);
+        const stop = num(pp.initial_stop) || num(pp.stop);
+        const units = num(pp.initial_units) || (num(pp.units) * 2);
+        if (entry !== null && stop !== null && units !== null) {
+          const riskPerShare = Math.abs(entry - stop);
+          paperRealizedPnl += (units / 2) * riskPerShare;
+        }
+      }
+    }
+  }
+
+  const bankedRealized = matchedPnl + paperRealizedPnl;
 
   // Total Open Unrealized P&L across live broker positions + engine book positions (e.g. SPY +£827)
   let totalOpenPnl = 0;
