@@ -833,11 +833,24 @@ function togglePositionChart(inst, btn) {
   const isLong = String(p.direction || '').toLowerCase() !== 'short';
   const entry = num(p.avg_price);
   const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
-  const stop = pp ? num(pp.stop) : null;
-  const target = pp ? num(pp.target) : null;
-  // +1R partial/breakeven trigger: one initial-risk unit past entry, direction-aware
-  const oneR = (entry !== null && stop !== null)
-    ? (isLong ? entry + Math.abs(entry - stop) : entry - Math.abs(entry - stop))
+  let stop = pp ? num(pp.stop) : null;
+  let target = pp ? num(pp.target) : null;
+  const initStop = pp ? num(pp.initial_stop) : null;
+
+  // Sanity check level direction consistency
+  if (entry !== null) {
+    if (isLong) {
+      if (stop !== null && stop > entry) stop = entry - Math.abs(entry - stop);
+      if (target !== null && target < entry) target = entry + Math.abs(entry - target);
+    } else {
+      if (stop !== null && stop < entry) stop = entry + Math.abs(entry - stop);
+      if (target !== null && target > entry) target = entry - Math.abs(entry - target);
+    }
+  }
+
+  const isAtBreakeven = (stop !== null && entry !== null && Math.abs(stop - entry) < 0.05) || (pp && pp.tms_be === true);
+  const oneR = (entry !== null && (stop !== null || initStop !== null))
+    ? (isLong ? entry + Math.abs(entry - (initStop || stop)) : entry - Math.abs(entry - (initStop || stop)))
     : null;
 
   const sym = curSymbol();
@@ -928,10 +941,24 @@ function togglePositionChart(inst, btn) {
     const LS = LightweightCharts.LineStyle;
     const mkLine = (price, color, style) =>
       series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: false, title: '' });
-    if (entry !== null) mkLine(entry, LEVEL_COLORS.entry, LS.Solid);
-    if (stop !== null) mkLine(stop, LEVEL_COLORS.stop, LS.Solid);
-    if (target !== null) mkLine(target, LEVEL_COLORS.target, LS.Solid);
-    if (oneR !== null) mkLine(oneR, LEVEL_COLORS.oneR, LS.Dashed);
+
+    const lvlDefs = [];
+    if (entry !== null) {
+      lvlDefs.push({ price: entry, color: LEVEL_COLORS.entry, tag: isAtBreakeven ? 'ENTRY / BE SL' : 'ENTRY', style: LS.Solid });
+    }
+    if (isAtBreakeven && initStop !== null && Math.abs(initStop - entry) > 0.05) {
+      lvlDefs.push({ price: initStop, color: LEVEL_COLORS.stopSoft, tag: 'INIT SL', style: LS.Dashed });
+    } else if (!isAtBreakeven && stop !== null) {
+      lvlDefs.push({ price: stop, color: LEVEL_COLORS.stop, tag: 'SL', style: LS.Solid });
+    }
+    if (oneR !== null && Math.abs(oneR - entry) > 0.05) {
+      lvlDefs.push({ price: oneR, color: LEVEL_COLORS.oneR, tag: (pp && pp.tms_p1) ? '+1R (Hit ✅)' : '+1R', style: LS.Dashed });
+    }
+    if (target !== null) {
+      lvlDefs.push({ price: target, color: LEVEL_COLORS.target, tag: 'TP', style: LS.Solid });
+    }
+
+    lvlDefs.forEach(d => mkLine(d.price, d.color, d.style));
 
     // Autoscale fits candle data only — a stop/target beyond the bars' range
     // would be drawn off-screen. Anchor the price scale to the level extremes
@@ -941,7 +968,7 @@ function togglePositionChart(inst, btn) {
     // line silently drops out of autoscale whenever the user scrolls to a
     // window containing neither endpoint — collapsing the price scale and
     // detaching the level labels from their (now clipped) lines.
-    const lvls = [entry, stop, target, oneR].filter(v => v !== null);
+    const lvls = lvlDefs.map(d => d.price);
     if (lvls.length) {
       const span = Math.max(...lvls) - Math.min(...lvls);
       const pad = span > 0 ? span * 0.02 : Math.abs(lvls[0]) * 0.005 || 1; // hug the levels — the 330px card needs the vertical room
@@ -973,21 +1000,10 @@ function togglePositionChart(inst, btn) {
     window._ibkrSeries = series;
 
     // ── Left-edge level labels ───────────────────────────────────────────────
-    // lightweight-charts has no left-side price-line labels, so overlay one
-    // tiny pill per level inside the box: y from series.priceToCoordinate,
-    // hidden when the line leaves the visible price range (no clamping into a
-    // pile at the edge). Repositioned on scroll/zoom (visible-range
-    // subscription) and on the box ResizeObserver below.
-    const lvlDefs = [
-      { price: entry, color: LEVEL_COLORS.entry, tag: 'ENTRY' },
-      { price: stop, color: LEVEL_COLORS.stop, tag: 'SL' },
-      { price: target, color: LEVEL_COLORS.target, tag: 'TP' },
-      { price: oneR, color: LEVEL_COLORS.oneR, tag: '+1R' },
-    ].filter(d => d.price !== null);
     const lvlLabels = lvlDefs.map(d => {
       const el = document.createElement('div');
       el.className = 'ibkr-lvl-label';
-      el.textContent = d.tag; // meaning only — no values on the chart
+      el.textContent = d.tag;
       el.style.color = d.color;
       box.appendChild(el);
       return { el, price: d.price };
