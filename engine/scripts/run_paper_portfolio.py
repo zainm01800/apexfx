@@ -58,7 +58,9 @@ import pandas as pd  # noqa: E402
 
 from apex_quant.backtest.paper import PaperPortfolio  # noqa: E402
 from apex_quant.config import get_config  # noqa: E402
-from apex_quant.data import ParquetStore, clean, get_adapter, normalize_day_bars  # noqa: E402
+from apex_quant.data import (  # noqa: E402
+    ParquetStore, clean, get_adapter, normalize_day_bars, trim_forming_tail,
+)
 from apex_quant.storage import paper_store  # noqa: E402
 
 from run_portfolio_gate import COMMON_PARAMS, MIN_BARS, WARMUP, TrendBook  # noqa: E402
@@ -134,6 +136,12 @@ def _top_up(store: ParquetStore, adapter, inst: str, cutoff: pd.Timestamp,
     combined = pd.concat([cached, fetched])
     combined = normalize_day_bars(combined, "1d")
     combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+    # D-H2: a still-forming terminal bar must never enter the cache. `save`
+    # does NOT trim (only get_or_fetch does), and this fetch ends at `now`,
+    # so a mid-day run would otherwise persist the partial bar (observed
+    # 2026-07-30: PLTR cached close 121.20 / vol 9.06M vs settled 122.26 /
+    # 27.8M — stale partial reads until the next run self-healed it).
+    combined = trim_forming_tail(combined, inst, "1d", now=now)
     store.save(inst, combined, "1d")
     return combined
 
