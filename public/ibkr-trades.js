@@ -118,7 +118,12 @@ async function loadIbkr() {
         const rows = await paperRes.json();
         if (Array.isArray(rows)) {
           for (const r of rows) {
-            if (r && r.instrument) _ibkrPaperMap[String(r.instrument)] = r;
+            if (r && r.instrument) {
+              const instKey = String(r.instrument);
+              const dir = String(r.direction || '').toLowerCase();
+              _ibkrPaperMap[`${instKey}_${dir}`] = r;
+              if (!_ibkrPaperMap[instKey]) _ibkrPaperMap[instKey] = r;
+            }
           }
         }
       } catch (e) {
@@ -646,6 +651,16 @@ function renderPaperCard(pp, cls, sym) {
   `;
 }
 
+function getPaperRowForPosition(p) {
+  if (!p || !p.instrument) return null;
+  const inst = String(p.instrument);
+  const dir = String(p.direction || '').toLowerCase();
+  if (_ibkrPaperMap[`${inst}_${dir}`]) return _ibkrPaperMap[`${inst}_${dir}`];
+  const fallback = _ibkrPaperMap[inst];
+  if (fallback && String(fallback.direction || '').toLowerCase() === dir) return fallback;
+  return null;
+}
+
 function renderPositionCard(p, cls, sym, gross) {
   const dir = String(p.direction || '').toLowerCase();
   const isLong = dir !== 'short';
@@ -674,7 +689,7 @@ function renderPositionCard(p, cls, sym, gross) {
     : (priceDelta >= 0 ? '+' : '-') + fmtPrice(Math.abs(priceDelta), cls)
       + (priceDeltaPct === null ? '' : ` (${priceDeltaPct >= 0 ? '+' : '-'}${Math.abs(priceDeltaPct).toFixed(2)}%)`);
 
-  const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
+  const pp = getPaperRowForPosition(p);
   const levels = getDirectionalLevels(entryPx, isLong, pp);
   const stopTxt = levels.stop !== null ? fmtPrice(levels.stop, cls) : '—';
   const targetTxt = levels.target !== null ? fmtPrice(levels.target, cls) : '—';
@@ -858,7 +873,7 @@ function togglePositionChart(inst, btn) {
   const cls = _ibkrClassFilter;
   const isLong = String(p.direction || '').toLowerCase() !== 'short';
   const entry = num(p.avg_price);
-  const pp = (p.instrument && _ibkrPaperMap[String(p.instrument)]) || null;
+  const pp = getPaperRowForPosition(p);
   let stop = pp ? num(pp.stop) : null;
   let target = pp ? num(pp.target) : null;
   const initStop = pp ? num(pp.initial_stop) : null;
