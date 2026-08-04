@@ -7,3 +7,12 @@ scripts/
 node_modules/
 .git/
 render.yaml
+venv/
+scratch/
+docs/
+test/
+.pytest_cache/
+.playwright-mcp/
+.aider.tags.cache.v4/
+.aider.chat.history.md
+.aider.input.history

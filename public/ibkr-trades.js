@@ -172,78 +172,41 @@ async function loadIbkr() {
 }
 
 // ── Overall account scoreboard ───────────────────────────────────────────────
+// Broker view only: every number here comes from the IBKR account mirror
+// (/api/ibkr) — engine paper positions live on the Engine Book tab and are
+// NOT blended into this account's figures.
 function updateScoreboard() {
   const a = _ibkrAccountCache || {};
   const sym = curSymbol();
 
-  // Banked Realized P&L: compute from IBKR FIFO matched round-trips + engine paper partial/closed profits
+  // Banked Realized P&L: IBKR FIFO matched round-trips; fall back to the
+  // account row's realized_pnl when no fills are synced.
   const closedStats = computeClosedStats(_ibkrTradesCache);
-  let matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
-  if (matchedPnl === 0) matchedPnl = (num(a.realized_pnl) || 529.20);
-
-  let paperRealizedPnl = 0;
-  for (const inst in _ibkrPaperMap) {
-    const pp = _ibkrPaperMap[inst];
-    if (pp) {
-      if (num(pp.realized_pnl_total) !== null && num(pp.realized_pnl_total) > 0) {
-        paperRealizedPnl += num(pp.realized_pnl_total);
-      } else if (pp.tms_p1 === true) {
-        const entry = num(pp.entry_price);
-        const stop = num(pp.initial_stop) || num(pp.stop);
-        const units = num(pp.initial_units) || (num(pp.units) * 2);
-        if (entry !== null && stop !== null && units !== null) {
-          const riskPerShare = Math.abs(entry - stop);
-          paperRealizedPnl += (units / 2) * riskPerShare;
-        }
-      }
-    }
-  }
-
-  const bankedRealized = matchedPnl + paperRealizedPnl;
+  const matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
+  const bankedRealized = closedStats.roundTrips.length ? matchedPnl : (num(a.realized_pnl) || 0);
   _bankedRealized = bankedRealized; // live layer adds live open P&L on top
 
-  // Total Open Unrealized P&L & Gross Exposure across live broker positions + ALL engine book positions (Stocks + Crypto + Forex)
+  // Open Unrealized P&L & Gross Exposure across broker-mirrored positions only
   let totalOpenPnl = 0;
   let totalGrossExp = 0;
   let totalOpenCount = 0;
 
-  const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
   for (const p of _ibkrPositionsCache) {
     totalOpenPnl += (num(p.unrealized_pnl) || 0);
     totalGrossExp += Math.abs(num(p.market_value) || 0);
     totalOpenCount++;
   }
 
-  const seenPaperInst = new Set();
-  for (const inst in _ibkrPaperMap) {
-    const pp = _ibkrPaperMap[inst];
-    if (pp && pp.instrument && num(pp.units) > 0 && String(pp.status || '').toLowerCase() !== 'closed' && !symbolOpenNow.has(inst)) {
-      if (seenPaperInst.has(inst)) continue;
-      seenPaperInst.add(inst);
+  // Day P&L straight from the broker account mirror
+  const computedDailyPnl = num(a.daily_pnl) || 0;
 
-      const entry = num(pp.entry_price);
-      const lastPx = num(pp.last_px);
-      const units = num(pp.units);
-      const isLong = String(pp.direction || '').toLowerCase() !== 'short';
-      if (entry !== null && lastPx !== null && units !== null) {
-        totalGrossExp += Math.abs(lastPx * units);
-        totalOpenPnl += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
-        totalOpenCount++;
-      }
-    }
-  }
-
-  // Day P&L: IBKR account daily_pnl + today's engine paper partial/closed profits (e.g. SPY +£440.00)
-  const rawDaily = num(a.daily_pnl) || 0;
-  const computedDailyPnl = (rawDaily !== 0 || paperRealizedPnl > 0)
-    ? (rawDaily + paperRealizedPnl)
-    : (paperRealizedPnl > 0 ? paperRealizedPnl : 795.65);
-
-  // Floating Net Profit = Banked Realized P&L + Total Open Unrealized P&L
+  // Floating Net Profit = Banked Realized P&L + Open Unrealized P&L
   const floatingNetProfit = bankedRealized + totalOpenPnl;
 
-  // Account Value: baseline deposit (£999,000) + Floating Net Profit
-  const computedNetLiq = Math.max(num(a.net_liquidation) || 0, 999000 + floatingNetProfit);
+  // Account Value: the broker's official net liquidation. The baseline-deposit
+  // reconstruction (£999k + P&L) only kicks in if the account row is missing.
+  const officialNetLiq = num(a.net_liquidation);
+  const computedNetLiq = officialNetLiq !== null ? officialNetLiq : 999000 + floatingNetProfit;
 
   setText('statPosCount', String(totalOpenCount));
   setText('statGrossExp', fmtMoney(totalGrossExp, sym));
@@ -387,63 +350,19 @@ function renderClassTab() {
   const positions = classPositions();
   const trades = classTrades();
 
-  // Combine live broker positions with engine paper positions for class summary stats
-  let totalGross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
-  let totalUnrealized = positions.reduce((s, p) => s + (num(p.unrealized_pnl) || 0), 0);
-  let totalOpenPositionsCount = positions.length;
+  // Broker-only class stats: positions mirrored on the IBKR account.
+  const totalGross = positions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
+  const totalUnrealized = positions.reduce((s, p) => s + (num(p.unrealized_pnl) || 0), 0);
+  const totalOpenPositionsCount = positions.length;
 
-  const symbolOpenNow = new Set(positions.map(p => String(p.instrument)));
-
-  const seenClassPaperInst = new Set();
-  for (const inst in _ibkrPaperMap) {
-    const pp = _ibkrPaperMap[inst];
-    if (pp && pp.instrument && num(pp.units) > 0 && String(pp.status || '').toLowerCase() !== 'closed' && !symbolOpenNow.has(inst)) {
-      if (paperClassFor(inst) === cls) {
-        if (seenClassPaperInst.has(inst)) continue;
-        seenClassPaperInst.add(inst);
-
-        const entry = num(pp.entry_price);
-        const lastPx = num(pp.last_px);
-        const units = num(pp.units);
-        const isLong = String(pp.direction || '').toLowerCase() !== 'short';
-        if (entry !== null && lastPx !== null && units !== null) {
-          totalGross += Math.abs(lastPx * units);
-          totalUnrealized += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
-          totalOpenPositionsCount++;
-        }
-      }
-    }
-  }
-
-  let paperRealizedPnl = 0;
-  for (const inst in _ibkrPaperMap) {
-    const pp = _ibkrPaperMap[inst];
-    if (pp && paperClassFor(inst) === cls) {
-      if (num(pp.realized_pnl_total) !== null && num(pp.realized_pnl_total) > 0) {
-        paperRealizedPnl += num(pp.realized_pnl_total);
-      } else if (pp.tms_p1 === true || inst.toUpperCase() === 'SPY') {
-        const entry = num(pp.entry_price);
-        const stop = num(pp.initial_stop) || num(pp.stop);
-        const units = num(pp.initial_units) || (num(pp.units) * 2);
-        if (entry !== null && stop !== null && units !== null) {
-          const riskPerShare = Math.abs(entry - stop);
-          paperRealizedPnl += (units / 2) * riskPerShare;
-        }
-      }
-    }
-  }
-
-  const a = _ibkrAccountCache || {};
-  const rawDaily = num(a.daily_pnl) || 0;
-  const dayPnlVal = (rawDaily !== 0 || paperRealizedPnl > 0)
-    ? (rawDaily + paperRealizedPnl)
-    : (paperRealizedPnl > 0 ? paperRealizedPnl : 520.22);
   const closed = computeClosedStats(trades);
 
   setText('clsOpenCount', String(totalOpenPositionsCount));
   setText('clsGrossExposure', totalOpenPositionsCount ? fmtMoney(totalGross, sym) : '—');
   setText('clsUnrealizedPnl', fmtSignedMoney(totalUnrealized, sym), pnlClass(totalUnrealized));
-  setText('clsDailyPnl', fmtSignedMoney(dayPnlVal, sym), pnlClass(dayPnlVal));
+  // The broker mirror doesn't break day P&L out per asset class — the
+  // live-mark layer replaces this with a per-class estimate once quotes load.
+  setText('clsDailyPnl', '—', '');
   setText('clsWinRate', closed.winRate !== null ? closed.winRate.toFixed(1) + '%' : '—',
     closed.winRate !== null ? (closed.winRate >= 50 ? 'green' : 'red') : '');
   const ccEl = document.getElementById('clsClosedCount');
@@ -526,7 +445,9 @@ function renderPositionsCards(positions, cls) {
 
   const sym = curSymbol();
 
-  // Filter out any positions that have reached their Take Profit target or have 0 units
+  // Broker-mirrored positions only — the engine paper book has its own tab now.
+  // Still filter out positions that have reached their Take Profit target or
+  // have 0 units (stale mirror rows awaiting the next sync).
   const activePositions = positions.filter(p => {
     if (!p || num(p.units) <= 0) return false;
     const curPx = (num(p.market_value) !== null && num(p.units)) ? Math.abs(p.market_value) / Math.abs(p.units) : null;
@@ -545,57 +466,25 @@ function renderPositionsCards(positions, cls) {
     return true;
   });
 
-  const realInst = new Set(activePositions.map(x => String(x.instrument)));
-  const tradedInst = new Set(_ibkrTradesCache.map(x => String(x.instrument)));
-  const seenInst = new Set();
-  const dummies = Object.values(_ibkrPaperMap)
-    .filter(r => {
-      if (!r || !r.instrument) return false;
-      const inst = String(r.instrument);
-      if (seenInst.has(inst)) return false;
-      seenInst.add(inst);
-      return num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(inst) && paperClassFor(inst) === cls;
-    });
-  setReconNote(activePositions.length, dummies.length);
+  setReconNote(activePositions.length);
 
-  if (!activePositions.length && !dummies.length) {
+  if (!activePositions.length) {
     _openChartInsts.clear(); // no cards to restore onto
-    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions yet.</div>`;
+    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No ${escHtml(CLASS_LABELS[cls] || cls)} positions mirrored on IBKR yet.</div>`;
     return;
   }
 
   const gross = activePositions.reduce((s, p) => s + Math.abs(num(p.market_value) || 0), 0);
-  wrap.innerHTML = activePositions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
-    + dummies.map(r => renderDummyCard(r, cls, sym)).join('');
+  wrap.innerHTML = activePositions.map(p => renderPositionCard(p, cls, sym, gross)).join('');
   restoreOpenCharts(); // re-open every chart-mode card after background refreshes
   applyLiveMarks();   // fill Live rows from cache instantly...
   refreshLiveMarks(); // ...and refresh any stale ones (TTL-guarded)
 }
 
-// US equity ETFs a UK retail account can't trade at IBKR (PRIIPs KID rule).
-const US_ETF_SET = new Set(['SPY', 'QQQ', 'IWM', 'XLK', 'XLE', 'XBI', 'SMH', 'SOXX', 'DIA', 'VOO', 'IVV', 'VTI', 'MDY']);
-
-// Paper rows carry no asset_class — classify loosely: slash pairs are forex or
-// crypto (by base), anything else is a stock. Matches the engine's book shape.
-function paperClassFor(inst) {
-  if (inst.includes('/')) {
-    const base = inst.split('/')[0].toUpperCase();
-    return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'LINK', 'AVAX'].includes(base) ? 'crypto' : 'forex';
-  }
-  return 'stocks';
-}
-
-function setReconNote(realCount, dummyCount) {
+function setReconNote(realCount) {
   const el = document.getElementById('posReconNote');
   if (!el) return;
-  el.textContent = dummyCount > 0
-    ? `${realCount} mirrored on IBKR · ${dummyCount} engine-only (blocked)`
-    : (realCount > 0 ? `${realCount} mirrored on IBKR` : '');
-}
-
-// Dummy card for an engine-only paper position: same footprint/rows as a real
-function renderDummyCard(pp, cls, sym) {
-  return renderPaperCard(pp, cls, sym);
+  el.textContent = realCount > 0 ? `${realCount} mirrored on IBKR` : '';
 }
 
 function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initStopPx, inst) {
@@ -666,94 +555,6 @@ function getDirectionalLevels(entryPx, isLong, pp) {
   }
 
   return { stop, target, riskDist };
-}
-
-function renderPaperCard(pp, cls, sym) {
-  const inst = String(pp.instrument || '');
-  const isLong = String(pp.direction || '').toLowerCase() !== 'short';
-  const dirBadge = isLong
-    ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
-    : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
-
-  const units = num(pp.units);
-  const entry = num(pp.entry_price);
-  const levels = getDirectionalLevels(entry, isLong, pp);
-  const stop = levels.stop;
-  const target = levels.target;
-  const lastPx = num(pp.last_px);
-  const upnl = (entry !== null && lastPx !== null && units !== null)
-    ? (isLong ? (lastPx - entry) : (entry - lastPx)) * units
-    : null;
-  const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
-  const reason = US_ETF_SET.has(inst.toUpperCase())
-    ? 'US ETF — blocked on IBKR (PRIIPs)'
-    : 'not mirrored to IBKR';
-  const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
-  const enteredTxt = fmtUK(pp.entry_time || pp.updated_at); // paper row carries entry_time
-
-  const isPartialsHit = (inst.toUpperCase() === 'SPY' || pp.tms_p1 === true || pp.tms_be === true);
-  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, isPartialsHit, pp.initial_stop, inst);
-
-  return `
-    <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" data-live-entry="${entry !== null ? entry : ''}" data-live-units="${units !== null ? units : ''}" data-live-dir="${escHtml(String(pp.direction || '').toLowerCase())}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
-      <div class="card-face-stats">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(inst)}</strong>
-          <span class="ibkr-dummy-badge">ENGINE ONLY</span>
-          ${dirBadge}
-        </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <button class="ibkr-chart-btn" data-chart-inst="${escHtml(inst)}" title="Daily chart with trade levels">CHART</button>
-          <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
-        </div>
-      </div>
-
-      <div class="ibkr-dummy-reason">${escHtml(reason)}</div>
-
-      <div style="font-size: 10.5px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">Entered: ${escHtml(enteredTxt)}</div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;">
-        <span style="color: var(--text3)">Avg Entry</span>
-        <span style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(entry, cls))}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-        <span style="color: var(--text3)">Last Price</span>
-        <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${lastPx === null ? '—' : escHtml(fmtPrice(lastPx, cls))}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-        <span style="color: var(--text3)">Stop Loss</span>
-        <span style="font-family: var(--mono); color: var(--red);">${escHtml(stop !== null ? fmtPrice(stop, cls) : '—')}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
-        <span style="color: var(--text3)">Partials (+1.0R)</span>
-        <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-        <span style="color: var(--text3)">Take Profit</span>
-        <span style="font-family: var(--mono); color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
-        <span style="color: var(--text)">Engine P&amp;L</span>
-        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 2px;">
-        <span style="color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Live</span>
-        <span class="live-mark-val" style="font-family: var(--mono); font-size: 11.5px; color: var(--text3);">—</span>
-      </div>
-
-      <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
-        Engine book · ${escHtml(updated)}
-      </div>
-      </div>
-    </div>
-  `;
 }
 
 function getPaperRowForPosition(p) {
@@ -902,8 +703,8 @@ async function fetchLiveMark(inst, cls) {
   return { px, prevClose };
 }
 
-// Every instrument that should carry a live mark: venue positions + unmirrored
-// engine paper rows (all classes), so account-wide live sums are complete.
+// Every instrument that should carry a live mark: broker-mirrored venue
+// positions only (the engine paper book is marked on the Engine Book tab).
 function liveInstrumentList() {
   const out = [];
   const seen = new Set();
@@ -912,11 +713,6 @@ function liveInstrumentList() {
     if (!inst || seen.has(inst)) continue;
     seen.add(inst);
     out.push({ inst, cls: p.asset_class || 'stocks' });
-  }
-  for (const inst in _ibkrPaperMap) {
-    if (!inst || seen.has(inst)) continue;
-    seen.add(inst);
-    out.push({ inst, cls: paperClassFor(inst) });
   }
   return out;
 }
@@ -1001,20 +797,6 @@ function applyLiveSummary() {
     const pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
     openPnl += pnl;
     venueLive += pnl; venueN++;
-    n++;
-    if (m.prevClose !== null) { dayPnl += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
-  }
-  const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
-  for (const inst in _ibkrPaperMap) {
-    const pp = _ibkrPaperMap[inst];
-    if (!pp || !pp.instrument || symbolOpenNow.has(inst)) continue;
-    if (!(num(pp.units) > 0) || String(pp.status || '').toLowerCase() === 'closed') continue;
-    const m = _liveMarks[inst];
-    if (!m) continue;
-    const entry = num(pp.entry_price), units = num(pp.units);
-    if (entry === null || units === null) continue;
-    const isLong = String(pp.direction || '').toLowerCase() !== 'short';
-    openPnl += (isLong ? (m.px - entry) : (entry - m.px)) * units;
     n++;
     if (m.prevClose !== null) { dayPnl += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
   }
@@ -1148,21 +930,9 @@ function togglePositionChart(inst, btn) {
   // No accordion — any number of charts can be open at once.
   if (card.classList.contains('chart-mode')) { flipCardToStats(card); return; }
 
-  // Real account position first; engine-only dummies fall back to their paper
-  // row (entry_price -> avg_price, paper-mark P&L) so their charts work too.
-  let p = _ibkrPositionsCache.find(x => String(x.instrument) === inst && x.asset_class === _ibkrClassFilter);
-  let dummyPaper = null;
-  if (!p && _ibkrPaperMap[inst]) {
-    dummyPaper = _ibkrPaperMap[inst];
-    const e = num(dummyPaper.entry_price), l = num(dummyPaper.last_px), u = num(dummyPaper.units);
-    const lng = String(dummyPaper.direction || '').toLowerCase() !== 'short';
-    p = {
-      instrument: inst,
-      direction: dummyPaper.direction,
-      avg_price: dummyPaper.entry_price,
-      unrealized_pnl: (e !== null && l !== null && u !== null) ? (lng ? l - e : e - l) * u : null,
-    };
-  }
+  // Broker-mirrored positions only — engine paper rows chart on the Engine
+  // Book tab now. The paper join below still supplies stop/target levels.
+  const p = _ibkrPositionsCache.find(x => String(x.instrument) === inst && x.asset_class === _ibkrClassFilter);
   if (!p) return;
 
   _openChartInsts.add(inst);
@@ -1198,27 +968,17 @@ function togglePositionChart(inst, btn) {
     ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(0,200,100,0.15);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.2);">LONG</span>'
     : '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,70,70,0.15);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.2);">SHORT</span>';
 
-  // Dummy cards keep their identity on the chart face: ENGINE ONLY badge in
-  // the header and the block-reason pill under it (ghosted/dashed card chrome
-  // already applies — the face lives inside the same .ibkr-dummy-card).
-  const dummyBadge = dummyPaper ? '<span class="ibkr-dummy-badge">ENGINE ONLY</span>' : '';
-  const dummyNote = dummyPaper
-    ? `<div class="ibkr-dummy-reason" style="align-self: flex-start;">${escHtml(US_ETF_SET.has(inst.toUpperCase()) ? 'US ETF — blocked on IBKR (PRIIPs)' : 'not mirrored to IBKR')}</div>`
-    : '';
-
   const face = document.createElement('div');
   face.className = 'card-face-chart';
   face.innerHTML = `
     <div class="cf-head">
       <div class="cf-id">
         <strong class="cf-sym">${escHtml(inst)}</strong>
-        ${dummyBadge}
         ${dirBadge}
       </div>
       <span class="cf-pnl ${upnlCls}" title="Unrealized P&amp;L">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
       <button class="ibkr-chart-btn" data-chart-inst="${escHtml(inst)}" title="Back to position card">CARD</button>
     </div>
-    ${dummyNote}
     <div class="ibkr-chart-box"></div>
     <div class="ibkr-chart-msg">Loading chart…</div>`;
   card.classList.add('chart-mode'); // hides .card-face-stats via CSS
