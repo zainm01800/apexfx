@@ -370,8 +370,14 @@ function renderClosedTrades(roundTrips, cls) {
 
     const isWin = rt.realizedPnl > 0;
     const isLoss = rt.realizedPnl < 0;
-    const pnlCls = isWin ? 'green' : (isLoss ? 'red' : '');
     const pnlTxt = fmtSignedMoney(rt.realizedPnl, sym) + ` (${rt.pnlPct >= 0 ? '+' : ''}${rt.pnlPct.toFixed(2)}%)`;
+
+    const pnlBadge = isWin
+      ? `<span style="display:inline-block; font-size:12px; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(0,200,100,0.18); color:var(--green); font-family:var(--mono); border:1px solid rgba(0,200,100,0.35); box-shadow: 0 0 10px rgba(0,200,100,0.15);">${escHtml(pnlTxt)}</span>`
+      : (isLoss
+          ? `<span style="display:inline-block; font-size:12px; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(255,70,70,0.18); color:var(--red); font-family:var(--mono); border:1px solid rgba(255,70,70,0.35); box-shadow: 0 0 10px rgba(255,70,70,0.15);">${escHtml(pnlTxt)}</span>`
+          : `<span style="display:inline-block; font-size:12px; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(255,255,255,0.06); color:var(--text2); font-family:var(--mono); border:1px solid var(--border);">${escHtml(pnlTxt)}</span>`
+        );
 
     let statusBadge = '<span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text2);font-family:var(--mono);border:1px solid var(--border);">CLOSED 🛑</span>';
     if (rt.status === 'RE-OPENED') {
@@ -390,7 +396,7 @@ function renderClosedTrades(roundTrips, cls) {
       <td style="font-family: var(--mono);">${escHtml(fmtQty(rt.qty))}</td>
       <td style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(rt.entryPrice, cls))}</td>
       <td style="font-family: var(--mono); color: var(--text); font-weight: 600;">${escHtml(fmtPrice(rt.exitPrice, cls))}</td>
-      <td style="font-family: var(--mono); font-weight: 700;" class="${pnlCls}">${escHtml(pnlTxt)}</td>
+      <td>${pnlBadge}</td>
       <td>${statusBadge}</td>
     </tr>`;
   }).join('');
