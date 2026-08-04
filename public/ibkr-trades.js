@@ -567,6 +567,8 @@ function renderPositionsCards(positions, cls) {
   wrap.innerHTML = activePositions.map(p => renderPositionCard(p, cls, sym, gross)).join('')
     + dummies.map(r => renderDummyCard(r, cls, sym)).join('');
   restoreOpenCharts(); // re-open every chart-mode card after background refreshes
+  applyLiveMarks();   // fill Live rows from cache instantly...
+  refreshLiveMarks(); // ...and refresh any stale ones (TTL-guarded)
 }
 
 // US equity ETFs a UK retail account can't trade at IBKR (PRIIPs KID rule).
@@ -691,7 +693,7 @@ function renderPaperCard(pp, cls, sym) {
   const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, isPartialsHit, pp.initial_stop, inst);
 
   return `
-    <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+    <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" data-live-entry="${entry !== null ? entry : ''}" data-live-units="${units !== null ? units : ''}" data-live-dir="${escHtml(String(pp.direction || '').toLowerCase())}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
       <div class="card-face-stats">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -735,6 +737,11 @@ function renderPaperCard(pp, cls, sym) {
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
         <span style="color: var(--text)">Engine P&amp;L</span>
         <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 2px;">
+        <span style="color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Live</span>
+        <span class="live-mark-val" style="font-family: var(--mono); font-size: 11.5px; color: var(--text3);">—</span>
       </div>
 
       <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
@@ -792,7 +799,7 @@ function renderPositionCard(p, cls, sym, gross) {
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
-    <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+    <div class="stat-item ibkr-pos-card" data-instrument="${escHtml(p.instrument || '')}" data-live-entry="${entryPx !== null ? entryPx : ''}" data-live-units="${units !== null ? units : ''}" data-live-dir="${escHtml(dir)}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
       <div class="card-face-stats">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -845,12 +852,82 @@ function renderPositionCard(p, cls, sym, gross) {
         <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl, sym))}</span>
       </div>
 
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 2px;">
+        <span style="color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Live</span>
+        <span class="live-mark-val" style="font-family: var(--mono); font-size: 11.5px; color: var(--text3);">—</span>
+      </div>
+
       <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
         Updated: ${escHtml(updated)}
       </div>
       </div>
     </div>
   `;
+}
+
+// ── Live marks ───────────────────────────────────────────────────────────────
+// The paper book steps nightly (00:30 UK), so official card figures are marked
+// to the last closed daily bar. This layer overlays a near-live estimate: the
+// latest daily-bar close from /api/candles per displayed instrument, refreshed
+// every 60s, ONLY while the tab is visible (egress-conscious), cached per
+// instrument. The official nightly P&L stays the record; the Live row under it
+// is the subdued estimate. Quote failures keep the last/official mark.
+const _liveMarks = {};   // instrument -> { px, at }
+const LIVE_MARK_TTL = 55000;
+let _liveTimer = null;
+
+async function fetchLiveMark(inst, cls) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 7 * 86400; // a week of dailies always yields bars
+  const type = CLASS_TO_CANDLE_TYPE[cls] || 'Stock';
+  const res = await fetch(`/api/candles?sym=${encodeURIComponent(normalizeChartSymbol(inst, cls))}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const bars = await res.json();
+  if (!Array.isArray(bars) || !bars.length) return null;
+  return num(bars[bars.length - 1].close);
+}
+
+async function refreshLiveMarks() {
+  if (document.hidden) return;
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  if (!wrap) return;
+  const cls = _ibkrClassFilter;
+  const stale = [...wrap.querySelectorAll('.ibkr-pos-card')]
+    .map(c => c.dataset.instrument).filter(Boolean)
+    .filter(i => !_liveMarks[i] || (Date.now() - _liveMarks[i].at) > LIVE_MARK_TTL);
+  if (!stale.length) return;
+  await Promise.allSettled(stale.map(async inst => {
+    try {
+      const px = await fetchLiveMark(inst, cls);
+      if (px !== null) _liveMarks[inst] = { px, at: Date.now() };
+    } catch (e) { /* keep last cached / official mark */ }
+  }));
+  applyLiveMarks();
+}
+
+function applyLiveMarks() {
+  const wrap = document.getElementById('ibkrPositionsWrap');
+  if (!wrap) return;
+  const sym = curSymbol();
+  const cls = _ibkrClassFilter;
+  for (const card of wrap.querySelectorAll('.ibkr-pos-card')) {
+    const row = card.querySelector('.live-mark-val');
+    if (!row) continue;
+    const m = _liveMarks[card.dataset.instrument];
+    if (!m) continue;
+    const entry = num(card.dataset.liveEntry), units = num(card.dataset.liveUnits);
+    if (entry === null || units === null) continue;
+    const isLong = card.dataset.liveDir !== 'short';
+    const pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : 'var(--text3)');
+    row.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnl, sym))}</span> est.`;
+  }
+}
+
+function startLiveMarks() {
+  if (_liveTimer) clearInterval(_liveTimer);
+  _liveTimer = setInterval(refreshLiveMarks, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLiveMarks(); });
 }
 
 // ── Per-position chart face (two-face card) ──────────────────────────────────
@@ -1343,6 +1420,7 @@ function bootTerminal() {
   try { initChartAccordion(); } catch (e) { console.error('Chart accordion err:', e); }
   try { initRefreshButton(); } catch (e) { console.error('Refresh btn err:', e); }
   try { initRealtime(); } catch (e) { console.error('Realtime err:', e); }
+  try { startLiveMarks(); } catch (e) { console.error('Live marks err:', e); }
 
   // Initial load + slow 15-minute background fallback (Realtime is primary)
   try { loadIbkr(); } catch (e) { console.error('Initial load err:', e); }
