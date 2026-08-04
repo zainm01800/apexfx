@@ -974,13 +974,14 @@ function togglePositionChart(inst, btn) {
       localization: { priceFormatter: v => fmtPrice(v, cls) },
     });
 
-    const series = chart.addCandlestickSeries({
-      upColor: '#34D399', downColor: '#F87171',
-      wickUpColor: 'rgba(52, 211, 153, 0.7)', wickDownColor: 'rgba(248, 113, 113, 0.7)',
-      borderVisible: false,
+    const series = chart.addAreaSeries({
+      topColor: 'rgba(56, 189, 248, 0.25)',
+      bottomColor: 'rgba(56, 189, 248, 0.00)',
+      lineColor: '#38BDF8',
+      lineWidth: 2,
       priceFormat: { type: 'price', precision, minMove },
     });
-    series.setData(bars);
+    series.setData(bars.map(b => ({ time: b.time, value: b.close })));
 
     // Level lines carry NO axis chrome at all — no titles, no value pills on
     // the right axis (axisLabelVisible: false). The left-edge overlay labels
