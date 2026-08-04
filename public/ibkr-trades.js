@@ -547,7 +547,7 @@ function renderPositionsCards(positions, cls) {
       const inst = String(r.instrument);
       if (seenInst.has(inst)) return false;
       seenInst.add(inst);
-      return num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(inst) && !tradedInst.has(inst) && paperClassFor(inst) === cls;
+      return num(r.units) > 0 && String(r.status || '').toLowerCase() !== 'closed' && !realInst.has(inst) && paperClassFor(inst) === cls;
     });
   setReconNote(activePositions.length, dummies.length);
 
