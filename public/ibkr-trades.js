@@ -571,6 +571,26 @@ function renderPositionCard(p, cls, sym, gross) {
   const stopTxt = pp && num(pp.stop) !== null ? fmtPrice(pp.stop, cls) : '—';
   const targetTxt = pp && num(pp.target) !== null ? fmtPrice(pp.target, cls) : '—';
 
+  // Partials (+1.0R) calculations
+  const stopPx = pp ? num(pp.stop) : null;
+  const riskDist = (entryPx !== null && stopPx !== null) ? Math.abs(entryPx - stopPx) : null;
+  const partialPx = (entryPx !== null && riskDist !== null) ? (isLong ? entryPx + riskDist : entryPx - riskDist) : null;
+  const partialTxt = partialPx !== null ? fmtPrice(partialPx, cls) : '—';
+
+  let partialDistTxt = '—';
+  let partialDistColor = 'var(--text2)';
+  if (curPx !== null && partialPx !== null && entryPx !== null && riskDist > 0) {
+    const dist = isLong ? partialPx - curPx : curPx - partialPx;
+    if (dist <= 0) {
+      partialDistTxt = 'Partials Hit ✅';
+      partialDistColor = 'var(--green)';
+    } else {
+      const progressPct = Math.min(Math.max(((isLong ? curPx - entryPx : entryPx - curPx) / riskDist) * 100, 0), 99);
+      partialDistTxt = `$${fmtPrice(dist, cls)} away (${progressPct.toFixed(0)}% progress)`;
+      partialDistColor = '#F5B04C';
+    }
+  }
+
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
 
   return `
@@ -610,6 +630,11 @@ function renderPositionCard(p, cls, sym, gross) {
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
         <span style="color: var(--text3)">Stop Loss</span>
         <span style="font-family: var(--mono); color: var(--red);">${escHtml(stopTxt)}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Partials (+1.0R)</span>
+        <span style="font-family: var(--mono); color: #F5B04C; font-weight: 600;">${escHtml(partialTxt)} <span style="font-size:11px;color:${partialDistColor};">(${escHtml(partialDistTxt)})</span></span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
