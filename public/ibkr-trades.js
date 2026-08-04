@@ -567,9 +567,8 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initSt
   if (riskDist <= 0) return { targetTxt: '—', distTxt: '', color: 'var(--text3)' };
 
   const partialTarget = isLong ? entry + riskDist : entry - riskDist;
-  const targetTxt = fmtPrice(partialTarget, cls);
-
-  const isHit = (tmsP1 === true) || (inst && inst.toUpperCase() === 'SPY');
+  const isHitByPrice = (mark !== null) && (isLong ? mark >= partialTarget : mark <= partialTarget);
+  const isHit = (tmsP1 === true) || isHitByPrice;
 
   if (isHit) {
     return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
