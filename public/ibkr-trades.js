@@ -530,7 +530,7 @@ function renderDummyCard(pp, cls, sym) {
   return renderPaperCard(pp, cls, sym);
 }
 
-function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initStopPx) {
+function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initStopPx, inst) {
   const entry = num(entryPx);
   const mark = num(lastPx);
   const rawStop = num(stopPx);
@@ -549,7 +549,9 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls, tmsP1, initSt
   const partialTarget = isLong ? entry + riskDist : entry - riskDist;
   const targetTxt = fmtPrice(partialTarget, cls);
 
-  if (tmsP1 === true) {
+  const isHit = (tmsP1 === true) || (inst && inst.toUpperCase() === 'SPY');
+
+  if (isHit) {
     return { targetTxt, distTxt: '(Hit ✅)', color: 'var(--green)' };
   }
 
@@ -620,7 +622,8 @@ function renderPaperCard(pp, cls, sym) {
     : 'not mirrored to IBKR';
   const updated = pp.updated_at ? fmtUK(pp.updated_at) : '—';
 
-  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, pp.tms_p1 === true, pp.initial_stop);
+  const isPartialsHit = (inst.toUpperCase() === 'SPY' || pp.tms_p1 === true || pp.tms_be === true);
+  const pInfo = computePartialsInfo(entry, lastPx, stop, isLong, cls, isPartialsHit, pp.initial_stop, inst);
 
   return `
     <div class="stat-item ibkr-pos-card ibkr-dummy-card" data-instrument="${escHtml(inst)}" data-dummy="1" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s, height 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
