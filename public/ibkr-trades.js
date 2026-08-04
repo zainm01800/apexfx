@@ -982,14 +982,16 @@ function applyLiveSummary() {
     }
   }
 
-  let openPnl = 0, dayPnl = 0, n = 0, dayN = 0;
+  let openPnl = 0, dayPnl = 0, n = 0, dayN = 0, venueLive = 0, venueN = 0;
   for (const p of _ibkrPositionsCache) {
     const m = _liveMarks[String(p.instrument)];
     if (!m) continue;
     const entry = num(p.avg_price), units = num(p.units);
     if (entry === null || units === null) continue;
     const isLong = String(p.direction || '').toLowerCase() !== 'short';
-    openPnl += (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    const pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    openPnl += pnl;
+    venueLive += pnl; venueN++;
     n++;
     if (m.prevClose !== null) { dayPnl += (isLong ? (m.px - m.prevClose) : (m.prevClose - m.px)) * units; dayN++; }
   }
@@ -1011,6 +1013,27 @@ function applyLiveSummary() {
   setLiveStat('statUnrealizedPnl', fmtSignedMoney(openPnl, sym), pnlClass(openPnl));
   setLiveStat('statFloatingPnl', fmtSignedMoney(_bankedRealized + openPnl, sym), pnlClass(_bankedRealized + openPnl));
   if (dayN) setLiveStat('statDailyPnl', fmtSignedMoney(dayPnl, sym), pnlClass(dayPnl));
+
+  // Hero: live-adjusted account value. Anchored to the venue's last sync —
+  // official net liq + (live venue open P&L − unrealized P&L recorded at that
+  // sync). Venue-only delta: engine-only positions aren't in the account.
+  const officialNetLiq = num(_ibkrAccountCache.net_liquidation);
+  const syncedUnreal = num(_ibkrAccountCache.unrealized_pnl);
+  if (venueN && officialNetLiq !== null && syncedUnreal !== null) {
+    const liveNetLiq = officialNetLiq + (venueLive - syncedUnreal);
+    const hero = document.getElementById('statNetLiq');
+    if (hero) hero.innerHTML = `${escHtml(fmtMoney(liveNetLiq, sym))} <span style="font-size: 12px; font-weight: 500; color: var(--text3);">est.</span>`;
+    const cap = document.getElementById('heroOfficialLine');
+    if (cap) {
+      let syncStr = '';
+      const d = new Date(_ibkrAccountCache.updated_at || '');
+      if (!isNaN(d.getTime())) {
+        syncStr = ' · synced ' + d.toLocaleTimeString('en-GB', { timeZone: UK_TZ, hour: '2-digit', minute: '2-digit', hour12: false }) + ' UK';
+      }
+      cap.textContent = `official: ${fmtMoney(officialNetLiq, sym)}${syncStr}`;
+    }
+  }
+
   const heroLine = document.getElementById('heroLiveLine');
   if (heroLine) {
     heroLine.textContent = `Live positions: ${fmtSignedMoney(openPnl, sym)} est.`;
