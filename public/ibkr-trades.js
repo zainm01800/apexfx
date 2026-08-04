@@ -1330,7 +1330,7 @@ function initRealtime() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function bootTerminal() {
   try { initPulse(); } catch (e) { console.error('Pulse err:', e); }
   try { initIbkrTabs(); } catch (e) { console.error('Tabs err:', e); }
   try { initChartAccordion(); } catch (e) { console.error('Chart accordion err:', e); }
@@ -1340,7 +1340,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial load + slow 15-minute background fallback (Realtime is primary)
   try { loadIbkr(); } catch (e) { console.error('Initial load err:', e); }
   startPolling(900000);
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootTerminal);
+} else {
+  bootTerminal();
+}
 
 // ── Market Pulse Header ──────────────────────────────────────────────────────
 async function loadPulse(sym, type, elId) {
