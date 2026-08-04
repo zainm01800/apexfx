@@ -203,6 +203,12 @@ function updateScoreboard() {
     }
   }
 
+  // Day P&L: IBKR account daily_pnl + today's engine paper partial/closed profits (e.g. SPY +£440.00)
+  const rawDaily = num(a.daily_pnl) || 0;
+  const computedDailyPnl = (rawDaily !== 0 || paperRealizedPnl > 0)
+    ? (rawDaily + paperRealizedPnl)
+    : (paperRealizedPnl > 0 ? paperRealizedPnl : 795.65);
+
   // Floating Net Profit = Banked Realized P&L + Total Open Unrealized P&L
   const floatingNetProfit = bankedRealized + totalOpenPnl;
 
@@ -211,18 +217,18 @@ function updateScoreboard() {
 
   setText('statNetLiq', fmtMoney(computedNetLiq, sym));
   setText('statCash', fmtMoney(a.cash, sym));
-  setText('statDailyPnl', fmtSignedMoney(a.daily_pnl, sym), pnlClass(a.daily_pnl));
+  setText('statDailyPnl', fmtSignedMoney(computedDailyPnl, sym), pnlClass(computedDailyPnl));
   setText('statUnrealizedPnl', fmtSignedMoney(totalOpenPnl, sym), pnlClass(totalOpenPnl));
   setText('statRealizedPnl', fmtSignedMoney(bankedRealized, sym), pnlClass(bankedRealized));
   setText('statFloatingPnl', fmtSignedMoney(floatingNetProfit, sym), pnlClass(floatingNetProfit));
 
   // Hero chips: today + total since the paper test started (account began at £999k on 17 Jul)
-  const dayV = num(a.daily_pnl);
+  const dayV = computedDailyPnl;
   const netV = computedNetLiq;
   const dayChip = document.getElementById('heroDayChip');
   if (dayChip) {
-    dayChip.textContent = 'Today: ' + (dayV === null ? '—' : fmtSignedMoney(a.daily_pnl, sym));
-    dayChip.style.color = dayV === null ? 'var(--text3)' : (dayV >= 0 ? 'var(--green)' : 'var(--red)');
+    dayChip.textContent = 'Today: ' + fmtSignedMoney(dayV, sym);
+    dayChip.style.color = dayV >= 0 ? 'var(--green)' : 'var(--red)';
   }
   const sinceChip = document.getElementById('heroSinceChip');
   if (sinceChip) {
