@@ -23,6 +23,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./progress.css" />
 </head>
 <body>
 
@@ -38,37 +39,37 @@
     </div>
   </header>
 
-  <main class="history-main">
+  <main class="pg-main">
 
-    <div class="hist-header">
+    <div class="pg-header">
       <div>
-        <h1 class="hist-title">🏛️ IBKR Terminal &amp; Execution Feed</h1>
-        <p class="hist-subtitle">Live account state, open positions, closed trades, and fill history synced directly from Interactive Brokers.</p>
+        <h1 class="pg-title">🏛️ IBKR Terminal &amp; Execution Feed</h1>
+        <p class="pg-subtitle">Live account state, open positions, closed trades, and fill history synced directly from Interactive Brokers.</p>
       </div>
+    </div>
 
-      <!-- Overall IBKR Account Statistics -->
-      <div class="hist-summary" id="ibkrSummary" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%;">
-        <div class="hs-stat" style="grid-column: 1 / -1; padding: 18px 22px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;">
-            <div>
-              <span class="hs-label" style="letter-spacing: 1.5px;">ACCOUNT VALUE</span>
-              <span class="hs-val" id="statNetLiq" style="font-size: 38px; display: block; font-family: 'Space Grotesk', var(--sans);">£999,636.51</span>
-              <span style="font-size: 12px; color: var(--text3);">Live Net Liquidation Value — cash + unrealized P&amp;L</span>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <span id="heroDayChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--green);">Today: +$2.52</span>
-              <span id="heroSinceChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--green);">Net Return: +$528.76 (+0.05%)</span>
-            </div>
+    <!-- Overall IBKR Account Statistics -->
+    <div class="hist-summary" id="ibkrSummary" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; margin-bottom: 24px;">
+      <div class="hs-stat" style="grid-column: 1 / -1; padding: 18px 22px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;">
+          <div>
+            <span class="hs-label" style="letter-spacing: 1.5px;">ACCOUNT VALUE</span>
+            <span class="hs-val" id="statNetLiq" style="font-size: 38px; display: block; font-family: 'Space Grotesk', var(--sans);">£999,636.51</span>
+            <span style="font-size: 12px; color: var(--text3);">Live Net Liquidation Value — cash + unrealized P&amp;L</span>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <span id="heroDayChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--green);">Today: +$2.52</span>
+            <span id="heroSinceChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--green);">Net Return: +$528.76 (+0.05%)</span>
           </div>
         </div>
-        <div class="hs-stat"><span class="hs-val" id="statCash">£985,514.58</span><span class="hs-label">Cash</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">uninvested money</span></div>
-        <div class="hs-stat"><span class="hs-val green" id="statDailyPnl">+£2.52</span><span class="hs-label">Day P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">profit / loss today</span></div>
-        <div class="hs-stat"><span class="hs-val red" id="statUnrealizedPnl">-£95.79</span><span class="hs-label">Open P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">live P&amp;L on open trades</span></div>
-        <div class="hs-stat"><span class="hs-val green" id="statFloatingPnl">+£433.41</span><span class="hs-label">Floating Net Profit</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">banked + open P&amp;L</span></div>
-        <div class="hs-stat"><span class="hs-val green" id="statRealizedPnl">+£529.20</span><span class="hs-label">Banked P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">locked in from closed trades</span></div>
-        <div class="hs-stat" style="opacity: 0.6;"><span class="hs-val" id="statBuyingPower" style="font-size: 17px;">£3.94M</span><span class="hs-label">Credit Line</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">borrowed margin — NOT yours</span></div>
-        <div class="hs-stat"><span class="hs-val accent" id="statOpenCount">2</span><span class="hs-label">Open Positions</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">across all markets</span></div>
       </div>
+      <div class="hs-stat"><span class="hs-val" id="statCash">£985,514.58</span><span class="hs-label">Cash</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">uninvested money</span></div>
+      <div class="hs-stat"><span class="hs-val green" id="statDailyPnl">+£2.52</span><span class="hs-label">Day P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">profit / loss today</span></div>
+      <div class="hs-stat"><span class="hs-val red" id="statUnrealizedPnl">-£95.79</span><span class="hs-label">Open P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">live P&amp;L on open trades</span></div>
+      <div class="hs-stat"><span class="hs-val green" id="statFloatingPnl">+£433.41</span><span class="hs-label">Floating Net Profit</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">banked + open P&amp;L</span></div>
+      <div class="hs-stat"><span class="hs-val green" id="statRealizedPnl">+£529.20</span><span class="hs-label">Banked P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">locked in from closed trades</span></div>
+      <div class="hs-stat" style="opacity: 0.6;"><span class="hs-val" id="statBuyingPower" style="font-size: 17px;">£3.94M</span><span class="hs-label">Credit Line</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">borrowed margin — NOT yours</span></div>
+      <div class="hs-stat"><span class="hs-val accent" id="statOpenCount">2</span><span class="hs-label">Open Positions</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">across all markets</span></div>
     </div>
 
     <!-- Asset-class Tabs & Controls -->
@@ -99,32 +100,41 @@
       <div class="hs-stat"><span class="hs-val accent" id="clsWinRate">—</span><span class="hs-label">Closed Win Rate</span><span id="clsClosedCount" style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">— closed</span></div>
     </div>
 
-    <!-- Open Positions -->
-    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Open Positions<span id="posReconNote" style="font-size: 11px; font-weight: 500; color: var(--text3); text-transform: none; letter-spacing: 0.02em; font-family: var(--mono); margin-left: 10px;"></span></h2>
-    <div id="ibkrPositionsWrap" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; margin-bottom: 32px;">
-      <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
-        Connecting to IBKR bridge data...
+    <!-- Open Positions Section -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📈 Open Positions <span id="posReconNote" style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;"></span></div>
       </div>
-    </div>
+      <div id="ibkrPositionsWrap" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
+          Connecting to IBKR bridge data...
+        </div>
+      </div>
+    </section>
 
-    <!-- Closed Trades / Realized Round-Trips -->
-    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between;">
-      <span>Closed Trades &amp; Realized Round-Trips</span>
-      <span id="closedReconNote" style="font-size: 11px; font-weight: 500; color: var(--text3); text-transform: none; letter-spacing: 0.02em; font-family: var(--mono);"></span>
-    </h2>
-    <div id="ibkrClosedWrap" style="margin-bottom: 32px;">
-      <div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">
-        No closed trades matched for this asset class yet.
+    <!-- Closed Trades / Realized Round-Trips Section -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📜 Closed Trades &amp; Realized Round-Trips <span id="closedReconNote" style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;"></span></div>
       </div>
-    </div>
+      <div id="ibkrClosedWrap">
+        <div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">
+          No closed trades matched for this asset class yet.
+        </div>
+      </div>
+    </section>
 
-    <!-- Recent Fills & Executions -->
-    <h2 style="font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">Fill Execution History</h2>
-    <div id="ibkrTradesWrap">
-      <div style="text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
-        Connecting to IBKR bridge data...
+    <!-- Fill Execution History Section -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">⚡ Fill Execution History</div>
       </div>
-    </div>
+      <div id="ibkrTradesWrap">
+        <div style="text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
+          Connecting to IBKR bridge data...
+        </div>
+      </div>
+    </section>
 
   </main>
 

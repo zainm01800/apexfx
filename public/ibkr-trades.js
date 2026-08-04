@@ -466,7 +466,7 @@ function computePartialsInfo(entryPx, lastPx, stopPx, isLong, cls) {
   const distVal = fmtPrice(dist, cls);
   return {
     targetTxt,
-    distTxt: `($${distVal} away / ${progressPct.toFixed(0)}%)`,
+    distTxt: `($${distVal} away)`,
     color: '#F5B04C'
   };
 }
