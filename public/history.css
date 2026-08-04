@@ -1145,8 +1145,8 @@ button.sc-btn { appearance: none; outline: none; }
    Face chrome is kept slim so the chart box gets ~250px of the 290px content
    height. Entering faces fade in over ~180ms (fadeIn keyframes from
    dashboard.css). */
-.ibkr-pos-card { height: 330px; }
-.card-face-stats { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ibkr-pos-card { height: 380px; min-height: 380px; }
+.card-face-stats { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
 .card-face-stats.face-enter,
 .card-face-chart { animation: fadeIn .18s ease; }
