@@ -437,6 +437,7 @@ function renderClassTab() {
   const dayPnlVal = (rawDaily !== 0 || paperRealizedPnl > 0)
     ? (rawDaily + paperRealizedPnl)
     : (paperRealizedPnl > 0 ? paperRealizedPnl : 520.22);
+  const closed = computeClosedStats(trades);
 
   setText('clsOpenCount', String(totalOpenPositionsCount));
   setText('clsGrossExposure', totalOpenPositionsCount ? fmtMoney(totalGross, sym) : '—');
