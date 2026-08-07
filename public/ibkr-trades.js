@@ -94,9 +94,15 @@ async function loadIbkr() {
       fetch('/api/paper?table=positions&limit=100').catch(() => null),
     ]);
 
-    if (accountRes && accountRes.ok) _ibkrAccountCache = await accountRes.json();
-    if (positionsRes && positionsRes.ok) _ibkrPositionsCache = await positionsRes.json();
-    if (tradesRes && tradesRes.ok) _ibkrTradesCache = await tradesRes.json();
+    if (accountRes && accountRes.ok) {
+      try { const data = await accountRes.json(); if (data && typeof data === 'object') _ibkrAccountCache = data; } catch (e) {}
+    }
+    if (positionsRes && positionsRes.ok) {
+      try { const data = await positionsRes.json(); if (Array.isArray(data)) _ibkrPositionsCache = data; } catch (e) {}
+    }
+    if (tradesRes && tradesRes.ok) {
+      try { const data = await tradesRes.json(); if (Array.isArray(data)) _ibkrTradesCache = data; } catch (e) {}
+    }
 
     _ibkrPaperMap = {};
     if (paperRes && paperRes.ok) {
@@ -110,7 +116,7 @@ async function loadIbkr() {
       } catch (e) {}
     }
 
-    // Direct Supabase REST fallback if Vercel serverless proxy route returned error or blocked
+    // Direct Supabase REST fallback if Vercel serverless proxy route returned error or non-JSON
     if (!Array.isArray(_ibkrPositionsCache) || !_ibkrPositionsCache.length || !Object.keys(_ibkrPaperMap).length) {
       const [sPosRes, sTradeRes, sPaperRes, sAcctRes] = await Promise.all([
         fetch(`${SUPA_URL}/rest/v1/apex_ibkr_positions?select=*`, { headers: supaHeaders }).catch(() => null),
@@ -119,24 +125,23 @@ async function loadIbkr() {
         fetch(`${SUPA_URL}/rest/v1/apex_ibkr_account?select=*`, { headers: supaHeaders }).catch(() => null),
       ]);
       if (sAcctRes && sAcctRes.ok) {
-        const aRows = await sAcctRes.json();
-        if (Array.isArray(aRows) && aRows.length) _ibkrAccountCache = aRows[0];
+        try { const aRows = await sAcctRes.json(); if (Array.isArray(aRows) && aRows.length) _ibkrAccountCache = aRows[0]; } catch (e) {}
       }
       if (sPosRes && sPosRes.ok) {
-        const pRows = await sPosRes.json();
-        if (Array.isArray(pRows)) _ibkrPositionsCache = pRows;
+        try { const pRows = await sPosRes.json(); if (Array.isArray(pRows)) _ibkrPositionsCache = pRows; } catch (e) {}
       }
       if (sTradeRes && sTradeRes.ok) {
-        const tRows = await sTradeRes.json();
-        if (Array.isArray(tRows)) _ibkrTradesCache = tRows;
+        try { const tRows = await sTradeRes.json(); if (Array.isArray(tRows)) _ibkrTradesCache = tRows; } catch (e) {}
       }
       if (sPaperRes && sPaperRes.ok) {
-        const papRows = await sPaperRes.json();
-        if (Array.isArray(papRows)) {
-          for (const r of papRows) {
-            if (r && r.instrument) _ibkrPaperMap[String(r.instrument)] = r;
+        try {
+          const papRows = await sPaperRes.json();
+          if (Array.isArray(papRows)) {
+            for (const r of papRows) {
+              if (r && r.instrument) _ibkrPaperMap[String(r.instrument)] = r;
+            }
           }
-        }
+        } catch (e) {}
       }
     }
 
