@@ -255,9 +255,9 @@ function updateScoreboard() {
   // Floating Net Profit = Banked Realized P&L + Open Unrealized P&L
   const floatingNetProfit = bankedRealized + totalOpenPnl;
 
-  // Account Value: baseline deposit (£999,000) + Floating Net Profit (or broker net_liquidation if larger)
+  // Account Value: baseline deposit (£1,000,000) + Floating Net Profit (or broker net_liquidation if larger)
   const officialNetLiq = num(a.net_liquidation);
-  const computedNetLiq = Math.max(officialNetLiq || 0, 999000 + floatingNetProfit);
+  const computedNetLiq = Math.max(officialNetLiq || 0, 1000000 + floatingNetProfit);
 
   setText('statPosCount', String(totalOpenCount));
   setText('statGrossExp', fmtMoney(totalGrossExp, sym));
@@ -268,7 +268,7 @@ function updateScoreboard() {
   setText('statRealizedPnl', fmtSignedMoney(bankedRealized, sym), pnlClass(bankedRealized));
   setText('statFloatingPnl', fmtSignedMoney(floatingNetProfit, sym), pnlClass(floatingNetProfit));
 
-  // Hero chips: today + total return since start on 17 Jul (£999k deposit baseline)
+  // Hero chips: today + total return since start on 17 Jul (£1,000,000 deposit baseline)
   const dayV = computedDailyPnl;
   const netV = computedNetLiq;
   const dayChip = document.getElementById('heroDayChip');
@@ -282,8 +282,8 @@ function updateScoreboard() {
       sinceChip.textContent = 'Net Return: —';
       sinceChip.style.color = 'var(--text3)';
     } else {
-      const since = netV - 999000;
-      const pct = (since / 999000) * 100;
+      const since = netV - 1000000;
+      const pct = (since / 1000000) * 100;
       const abs = Math.abs(since).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       sinceChip.textContent = `Net Return: ${since >= 0 ? '+' : '-'}${sym}${abs} (${since >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       sinceChip.style.color = since >= 0 ? 'var(--green)' : 'var(--red)';
