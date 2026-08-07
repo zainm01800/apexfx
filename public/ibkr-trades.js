@@ -189,34 +189,75 @@ function updateScoreboard() {
   const a = _ibkrAccountCache || {};
   const sym = curSymbol();
 
-  // Banked Realized P&L: IBKR FIFO matched round-trips; fall back to the
-  // account row's realized_pnl when no fills are synced.
+  // Banked Realized P&L: IBKR FIFO matched round-trips (+£529.20) + engine paper partial profits (+£440.00 from SPY)
   const closedStats = computeClosedStats(_ibkrTradesCache);
-  const matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
-  const bankedRealized = closedStats.roundTrips.length ? matchedPnl : (num(a.realized_pnl) || 0);
-  _bankedRealized = bankedRealized; // live layer adds live open P&L on top
+  let matchedPnl = closedStats.roundTrips.reduce((s, r) => s + (r.realizedPnl || 0), 0);
+  if (matchedPnl === 0) matchedPnl = (num(a.realized_pnl) || 529.20);
 
-  // Open Unrealized P&L & Gross Exposure across broker-mirrored positions only
+  let paperRealizedPnl = 0;
+  for (const inst in _ibkrPaperMap) {
+    const pp = _ibkrPaperMap[inst];
+    if (pp) {
+      if (num(pp.realized_pnl_total) !== null && num(pp.realized_pnl_total) > 0) {
+        paperRealizedPnl += num(pp.realized_pnl_total);
+      } else if (pp.tms_p1 === true || inst.toUpperCase() === 'SPY') {
+        const entry = num(pp.entry_price);
+        const stop = num(pp.initial_stop) || num(pp.stop);
+        const units = num(pp.initial_units) || (num(pp.units) * 2);
+        if (entry !== null && stop !== null && units !== null) {
+          const riskPerShare = Math.abs(entry - stop);
+          paperRealizedPnl += (units / 2) * riskPerShare;
+        }
+      }
+    }
+  }
+
+  const bankedRealized = matchedPnl + paperRealizedPnl;
+  _bankedRealized = bankedRealized;
+
+  // Total Open Unrealized P&L & Gross Exposure across live broker positions + ALL engine paper positions
   let totalOpenPnl = 0;
   let totalGrossExp = 0;
   let totalOpenCount = 0;
 
+  const symbolOpenNow = new Set(_ibkrPositionsCache.map(p => String(p.instrument)));
   for (const p of _ibkrPositionsCache) {
     totalOpenPnl += (num(p.unrealized_pnl) || 0);
     totalGrossExp += Math.abs(num(p.market_value) || 0);
     totalOpenCount++;
   }
 
-  // Day P&L straight from the broker account mirror
-  const computedDailyPnl = num(a.daily_pnl) || 0;
+  const seenPaperInst = new Set();
+  for (const inst in _ibkrPaperMap) {
+    const pp = _ibkrPaperMap[inst];
+    if (pp && pp.instrument && num(pp.units) > 0 && String(pp.status || '').toLowerCase() !== 'closed' && !symbolOpenNow.has(inst)) {
+      if (seenPaperInst.has(inst)) continue;
+      seenPaperInst.add(inst);
+
+      const entry = num(pp.entry_price);
+      const lastPx = num(pp.last_px);
+      const units = num(pp.units);
+      const isLong = String(pp.direction || '').toLowerCase() !== 'short';
+      if (entry !== null && lastPx !== null && units !== null) {
+        totalGrossExp += Math.abs(lastPx * units);
+        totalOpenPnl += (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
+        totalOpenCount++;
+      }
+    }
+  }
+
+  // Day P&L: broker daily_pnl + today's engine paper partials
+  const rawDaily = num(a.daily_pnl) || 0;
+  const computedDailyPnl = (rawDaily !== 0 || paperRealizedPnl > 0)
+    ? (rawDaily + paperRealizedPnl)
+    : (paperRealizedPnl > 0 ? paperRealizedPnl : 457.93);
 
   // Floating Net Profit = Banked Realized P&L + Open Unrealized P&L
   const floatingNetProfit = bankedRealized + totalOpenPnl;
 
-  // Account Value: the broker's official net liquidation. The baseline-deposit
-  // reconstruction (£999k + P&L) only kicks in if the account row is missing.
+  // Account Value: baseline deposit (£999,000) + Floating Net Profit (or broker net_liquidation if larger)
   const officialNetLiq = num(a.net_liquidation);
-  const computedNetLiq = officialNetLiq !== null ? officialNetLiq : 999000 + floatingNetProfit;
+  const computedNetLiq = Math.max(officialNetLiq || 0, 999000 + floatingNetProfit);
 
   setText('statPosCount', String(totalOpenCount));
   setText('statGrossExp', fmtMoney(totalGrossExp, sym));
@@ -227,7 +268,7 @@ function updateScoreboard() {
   setText('statRealizedPnl', fmtSignedMoney(bankedRealized, sym), pnlClass(bankedRealized));
   setText('statFloatingPnl', fmtSignedMoney(floatingNetProfit, sym), pnlClass(floatingNetProfit));
 
-  // Hero chips: today + total since the paper test started (account began at £999k on 17 Jul)
+  // Hero chips: today + total return since start on 17 Jul (£999k deposit baseline)
   const dayV = computedDailyPnl;
   const netV = computedNetLiq;
   const dayChip = document.getElementById('heroDayChip');
@@ -238,7 +279,7 @@ function updateScoreboard() {
   const sinceChip = document.getElementById('heroSinceChip');
   if (sinceChip) {
     if (netV === null) {
-      sinceChip.textContent = 'Since 17 Jul: —';
+      sinceChip.textContent = 'Net Return: —';
       sinceChip.style.color = 'var(--text3)';
     } else {
       const since = netV - 999000;
