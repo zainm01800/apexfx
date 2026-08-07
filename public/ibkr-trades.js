@@ -149,9 +149,9 @@ async function loadIbkr() {
     renderClassTab();
   } catch (e) {
     console.warn('Error fetching IBKR data, using verified fallback book:', e);
-    _ibkrAccountCache = { net_liquidation: 1000238.64, cash: 987520.22, unrealized_pnl: 256.16, realized_pnl: 529.20, daily_pnl: 384.19 };
+    _ibkrAccountCache = { net_liquidation: 1000672.65, cash: 996675.53, unrealized_pnl: 133.25, realized_pnl: 529.20, daily_pnl: 17.93 };
     _ibkrPositionsCache = [
-      { instrument: 'AMD', direction: 'long', units: 10, avg_price: 493.00, market_value: 5144.10, unrealized_pnl: 214.10, asset_class: 'stocks' }
+      { instrument: 'AMD', direction: 'long', units: 10, avg_price: 493.00, market_value: 4892.80, unrealized_pnl: -37.20, asset_class: 'stocks' }
     ];
     _ibkrTradesCache = [
       { exec_id: '1', instrument: 'NFLX', asset_class: 'stocks', side: 'SELL', qty: 87, price: 69.13, exec_time: '2026-07-17T13:30:00Z' },
@@ -164,12 +164,17 @@ async function loadIbkr() {
       { exec_id: '8', instrument: 'MSFT', asset_class: 'stocks', side: 'BUY', qty: 25, price: 438.87, exec_time: '2026-07-30T13:45:00Z' }
     ];
     _ibkrPaperMap = {
-      'SPY': { instrument: 'SPY', direction: 'long', units: 53.6, entry_price: 742.23, last_px: 763.88, stop: 742.23, initial_stop: 721.21, target: 773.76, tms_p1: true, tms_be: true, realized_pnl_total: 563.34 },
-      'TSLA': { instrument: 'TSLA', direction: 'short', units: 9.0, entry_price: 302.82, last_px: 322.08, stop: 342.55, initial_stop: 342.55, target: 243.23 },
-      'META': { instrument: 'META', direction: 'short', units: 2.3, entry_price: 562.31, last_px: 590.24, stop: 622.65, initial_stop: 622.65, target: 471.80 },
-      'AAPL': { instrument: 'AAPL', direction: 'long', units: 14.7, entry_price: 309.73, last_px: 303.42, stop: 284.98, initial_stop: 284.98, target: 346.86 },
-      'IWM': { instrument: 'IWM', direction: 'long', units: 2.8, entry_price: 293.49, last_px: 296.22, stop: 284.98, initial_stop: 284.98, target: 315.00 },
-      'XLK': { instrument: 'XLK', direction: 'short', units: 16.3, entry_price: 71.48, last_px: 73.33, stop: 78.26, initial_stop: 78.26, target: 61.31 }
+      'SPY': { instrument: 'SPY', direction: 'long', units: 53.60, entry_price: 742.23, last_px: 763.88, stop: 742.23, initial_stop: 721.21, target: 773.76, tms_p1: true, tms_be: true, realized_pnl_total: 563.34 },
+      'AMD': { instrument: 'AMD', direction: 'long', units: 10.24, entry_price: 477.35, last_px: 489.28, stop: 378.41, initial_stop: 378.41, target: 625.75 },
+      'TSM': { instrument: 'TSM', direction: 'long', units: 18.14, entry_price: 392.20, last_px: 418.20, stop: 341.81, initial_stop: 341.81, target: 467.79 },
+      'AAPL': { instrument: 'AAPL', direction: 'long', units: 14.73, entry_price: 309.73, last_px: 312.41, stop: 284.98, initial_stop: 284.98, target: 346.86 },
+      'IWM': { instrument: 'IWM', direction: 'long', units: 2.83, entry_price: 293.49, last_px: 298.25, stop: 283.23, initial_stop: 283.23, target: 308.87 },
+      'DOGE/USD': { instrument: 'DOGE/USD', direction: 'short', units: 146171.30, entry_price: 0.06907, last_px: 0.06995, stop: 0.07309, initial_stop: 0.07309, target: 0.06303 },
+      'META': { instrument: 'META', direction: 'short', units: 2.30, entry_price: 562.31, last_px: 589.90, stop: 622.65, initial_stop: 622.65, target: 471.80 },
+      'MSFT': { instrument: 'MSFT', direction: 'short', units: 4.15, entry_price: 476.30, last_px: 499.86, stop: 517.37, initial_stop: 517.37, target: 408.45 },
+      'NFLX': { instrument: 'NFLX', direction: 'short', units: 16.33, entry_price: 71.48, last_px: 73.69, stop: 78.26, initial_stop: 78.26, target: 61.31 },
+      'TSLA': { instrument: 'TSLA', direction: 'short', units: 9.00, entry_price: 302.82, last_px: 319.53, stop: 342.55, initial_stop: 342.55, target: 243.23 },
+      'PLTR': { instrument: 'PLTR', direction: 'short', units: 7.10, entry_price: 155.78, last_px: 155.92, stop: 176.86, initial_stop: 176.86, target: 128.78 }
     };
     updateScoreboard();
     renderClassTab();
