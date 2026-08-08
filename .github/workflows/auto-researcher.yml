@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install Python deps
-        run: pip install httpx python-dotenv
+        run: pip install httpx python-dotenv numpy pyyaml pydantic
       - name: Draft experiment proposals -> Supabase review queue
         working-directory: engine
         run: python scripts/run_auto_researcher.py
