@@ -770,7 +770,7 @@ function liveInstrumentList() {
 
 async function refreshLiveMarks() {
   if (document.hidden) return;
-  const stale = liveInstrumentList()
+  const stale = [{ inst: 'GBP/USD', cls: 'forex' }, ...liveInstrumentList()]
     .filter(({ inst }) => !_liveMarks[inst] || (Date.now() - _liveMarks[inst].at) > LIVE_MARK_TTL);
   if (!stale.length) return;
   await Promise.allSettled(stale.map(async ({ inst, cls }) => {
@@ -856,15 +856,15 @@ function applyLiveSummary() {
   setLiveStat('statFloatingPnl', fmtSignedMoney(_bankedRealized + openPnl, sym), pnlClass(_bankedRealized + openPnl));
   if (dayN) setLiveStat('statDailyPnl', fmtSignedMoney(dayPnl, sym), pnlClass(dayPnl));
 
-  // Hero: live-adjusted account value. Anchored to the venue's last sync —
-  // official net liq + (live venue open P&L − unrealized P&L recorded at that
-  // sync). Venue-only delta: engine-only positions aren't in the account.
+  // Hero: the broker's official net liquidation is the primary number — never
+  // adjusted. The live estimate goes in the caption, with the venue's USD
+  // position P&L converted to the account's GBP via the GBP/USD mark (mixing
+  // USD position P&L with GBP account fields previously distorted the hero).
   const officialNetLiq = num(_ibkrAccountCache.net_liquidation);
   const syncedUnreal = num(_ibkrAccountCache.unrealized_pnl);
-  if (venueN && officialNetLiq !== null && syncedUnreal !== null) {
-    const liveNetLiq = officialNetLiq + (venueLive - syncedUnreal);
+  if (officialNetLiq !== null) {
     const hero = document.getElementById('statNetLiq');
-    if (hero) hero.innerHTML = `${escHtml(fmtMoney(liveNetLiq, sym))} <span style="font-size: 12px; font-weight: 500; color: var(--text3);">est.</span>`;
+    if (hero) hero.textContent = fmtMoney(officialNetLiq, sym);
     const cap = document.getElementById('heroOfficialLine');
     if (cap) {
       let syncStr = '';
@@ -872,7 +872,13 @@ function applyLiveSummary() {
       if (!isNaN(d.getTime())) {
         syncStr = ' · synced ' + d.toLocaleTimeString('en-GB', { timeZone: UK_TZ, hour: '2-digit', minute: '2-digit', hour12: false }) + ' UK';
       }
-      cap.textContent = `official: ${fmtMoney(officialNetLiq, sym)}${syncStr}`;
+      let estStr = '';
+      const gbpusd = _liveMarks['GBP/USD'] ? num(_liveMarks['GBP/USD'].px) : null;
+      if (venueN && syncedUnreal !== null && gbpusd && gbpusd > 0) {
+        const liveNetLiq = officialNetLiq + (venueLive / gbpusd - syncedUnreal);
+        estStr = ` · live est: ${fmtMoney(liveNetLiq, sym)}`;
+      }
+      cap.textContent = `official broker figure${syncStr}${estStr}`;
     }
   }
 
