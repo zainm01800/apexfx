@@ -1,0 +1,748 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Z.FX — "Obsidian Terminal" design system (theme.css)
+   Single source of truth for the visual system. Loaded LAST on every page so
+   its tokens and shared components win over the legacy page sheets at equal
+   specificity. Legacy page CSS keeps working because every old token name is
+   aliased onto the new palette here.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1 · Design tokens ─────────────────────────────────────────────────────── */
+:root {
+  /* Canonical palette */
+  --obs-bg:        #07090D;  /* page background — near-black, cool ink tint */
+  --obs-s1:        #0C1016;  /* surface-1: inset wells, table heads */
+  --obs-s2:        #11161F;  /* surface-2: cards */
+  --obs-s3:        #161D29;  /* surface-3: raised controls, hover states */
+  --obs-line:      rgba(255,255,255,.055); /* hairline border */
+  --obs-line-2:    rgba(255,255,255,.09);  /* hover/focus border */
+  --obs-line-3:    rgba(255,255,255,.14);  /* strong border */
+
+  --mint:          #2FD6A3;  /* brand accent · profit · primary actions */
+  --mint-hover:    #5FE3BC;
+  --mint-deep:     #1FA37C;
+  --mint-ink:      #04110C;  /* text on mint buttons */
+  --mint-dim:      rgba(47,214,163,.10);
+  --mint-line:     rgba(47,214,163,.28);
+  --gold:          #D8B36A;  /* champagne — eyebrow labels / section kickers */
+  --loss:          #FF5C74;
+  --loss-dim:      rgba(255,92,116,.10);
+  --loss-line:     rgba(255,92,116,.30);
+  --warn:          #F0B45C;
+  --warn-dim:      rgba(240,180,92,.09);
+  --warn-line:     rgba(240,180,92,.28);
+  --info:          #5EA2FF;  /* sparing */
+  --info-dim:      rgba(94,162,255,.10);
+  --info-line:     rgba(94,162,255,.28);
+
+  --ink:           #E9EDF4;  /* primary text */
+  --ink-2:         #9BA7B8;  /* secondary text */
+  --ink-3:         #5D6B80;  /* muted / captions */
+
+  --shadow-card:   0 10px 30px rgba(0,0,0,.35);
+  --shadow-pop:    0 24px 60px rgba(0,0,0,.55);
+  --top-light:     inset 0 1px 0 rgba(255,255,255,.04);
+
+  --r-card:        14px;
+  --r-ctl:         8px;
+  --r-pill:        999px;
+
+  --font-body:     'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display:  'Space Grotesk', 'DM Sans', system-ui, sans-serif;
+  --font-mono:     'IBM Plex Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+
+  --ease:          cubic-bezier(.22,.68,.32,1);
+  --dur:           .18s;
+
+  /* ── Legacy aliases (consumed by dashboard/history/progress/backtest/realistic) ── */
+  --bg:            var(--obs-bg);
+  --bg2:           var(--obs-s1);
+  --card:          var(--obs-s2);
+  --card-solid:    var(--obs-s2);
+  --card2:         var(--obs-s3);
+  --border:        var(--obs-line);
+  --border2:       var(--obs-line-2);
+  --text:          var(--ink);
+  --text1:         var(--ink);
+  --text2:         var(--ink-2);
+  --text3:         var(--ink-3);
+  --green:         var(--mint);
+  --red:           var(--loss);
+  --orange:        #8B98AB;  /* neutral slate — "neutral" semantic stays quiet */
+  --yellow:        var(--warn);
+  --amber:         var(--warn);
+  --blue:          var(--info);
+  --purple:        var(--mint);        /* legacy primary accent → mint */
+  --purple-hover:  var(--mint-hover);
+  --purple-glow:   rgba(47,214,163,.08);
+  --accent:        var(--mint);
+  --accent-glow:   rgba(47,214,163,.22);
+  --mono:          var(--font-mono);
+  --sans:          var(--font-body);
+  --r:             var(--r-card);
+}
+
+/* ── 2 · Base ──────────────────────────────────────────────────────────────── */
+html { scrollbar-color: #242E3D var(--obs-bg); }
+body {
+  background: var(--obs-bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-rendering: optimizeLegibility;
+}
+::selection { background: rgba(47,214,163,.28); color: #fff; }
+
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--obs-bg); }
+::-webkit-scrollbar-thumb { background: #20293A; border: 2px solid var(--obs-bg); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #2C3849; }
+
+/* Tabular figures everywhere numbers are read/compared */
+.hs-val, .pg-stat-val, .pg-pstat-v, .stat-value, .vc-price, .vc-chg, .conf-pct,
+.pulse-price, .pulse-change, .ob-hero-val, .ob-chip, .cf-pnl, .eng-pnl,
+.nav-winrate, .metric-val, .dd-sym, .ibkr-chart-btn {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 3 · Header / unified top nav ──────────────────────────────────────────── */
+.header {
+  position: sticky; top: 0; z-index: 200;
+  height: 56px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 24px;
+  background: rgba(7,9,13,.82);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid var(--obs-line);
+  box-shadow: 0 1px 0 rgba(255,255,255,.02), 0 12px 32px rgba(0,0,0,.25);
+}
+
+/* Wordmark: Z·FX with a mint dot */
+.logo {
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--ink);
+  justify-self: start;
+  text-decoration: none;
+  transition: color var(--dur) var(--ease);
+}
+.logo span { color: var(--ink); }
+.logo .logo-dot { color: var(--mint); }
+.logo:hover { color: #fff; }
+
+.nav { display: flex; gap: 4px; justify-self: center; }
+.nav-link, .nav-link:visited {
+  position: relative;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px; font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: .01em;
+  border: 1px solid transparent;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.nav-link:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.nav-link.active, .nav-link.active:visited {
+  color: var(--mint);
+  background: var(--mint-dim);
+  border-color: var(--mint-line);
+  box-shadow: none;
+}
+
+.header-right { display: flex; align-items: center; gap: 10px; justify-self: end; }
+
+/* Settings button injected by app-mode.js — same visual weight as nav links */
+.header .nav-settings-btn {
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px; font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  letter-spacing: .01em;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.header .nav-settings-btn:hover { color: var(--ink); background: rgba(255,255,255,.04); border-color: transparent; }
+
+.live-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  color: var(--mint);
+  background: rgba(47,214,163,.06);
+  border: 1px solid rgba(47,214,163,.22);
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); animation: blink 2.2s ease-in-out infinite; }
+
+.nav-winrate {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--ink-2);
+  border: 1px solid var(--obs-line);
+  background: var(--obs-s1);
+  border-radius: var(--r-pill);
+  padding: 5px 11px;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.nav-winrate:hover { color: var(--ink); border-color: var(--obs-line-2); }
+.nav-winrate.good { color: var(--mint); border-color: var(--mint-line); }
+.nav-winrate.bad  { color: var(--loss); border-color: var(--loss-line); }
+
+/* Backtest run-status pill shares the header on that page */
+.bt-status-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  color: var(--ink-2);
+  border: 1px solid var(--obs-line);
+  background: var(--obs-s1);
+  padding: 5px 12px; border-radius: var(--r-pill);
+}
+
+/* ── 4 · Pulse bar (market ticker strip) ───────────────────────────────────── */
+.pulse-bar { background: var(--obs-s1); border-bottom: 1px solid var(--obs-line); }
+.pulse-item { border-right: 1px solid var(--obs-line); }
+.pulse-item:hover { background: rgba(255,255,255,.025); }
+.pulse-label { color: var(--ink-3); }
+.pulse-price { font-family: var(--font-mono); }
+.pulse-change.up   { color: var(--mint); }
+.pulse-change.down { color: var(--loss); }
+
+/* ── 5 · Cards & stat blocks ───────────────────────────────────────────────── */
+.a-card, .stat-item, .verdict-card, .loader-card, .error-card,
+.hs-stat, .pg-card, .pg-stat, .scan-card, .wl-heat, .xlink-card,
+.bt-card, .hs-card, .tr-profit-card, .tr-empty, .metric-box {
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card), var(--top-light);
+}
+.a-card:hover, .stat-item:hover, .verdict-card:hover, .hs-stat:hover,
+.pg-stat:hover, .scan-card:hover, .xlink-card:hover, .hs-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--obs-line-2);
+  box-shadow: 0 14px 36px rgba(0,0,0,.42), var(--top-light);
+}
+
+/* Stat hierarchy: eyebrow label over tabular value */
+.hs-stat { gap: 5px; }
+.hs-val {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -.01em;
+  text-shadow: none;
+}
+.hs-val.green, .pg-stat-val.green, .pg-pstat-v.pos, .stat-value.up   { color: var(--mint); }
+.hs-val.red,   .pg-stat-val.red,   .pg-pstat-v.neg, .stat-value.down { color: var(--loss); }
+.hs-val.accent, .pg-stat-val.accent { color: var(--mint); }
+.hs-val.orange { color: var(--warn); }
+.hs-label {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 1.2px;
+  color: var(--ink-3);
+}
+
+/* Terminal stat strips: calm, left-aligned, no hover lift on data cards */
+#ibkrSummary .hs-stat, #ibkrClassSummary .hs-stat,
+#engineSummary .hs-stat, #engineStats .hs-stat, #mt4Summary .hs-stat {
+  padding: 14px 18px;
+  box-shadow: var(--top-light);
+}
+#ibkrSummary .hs-stat:hover, #ibkrClassSummary .hs-stat:hover,
+#engineSummary .hs-stat:hover, #engineStats .hs-stat:hover, #mt4Summary .hs-stat:hover {
+  transform: none;
+  border-color: var(--obs-line);
+  box-shadow: var(--top-light);
+}
+
+/* Hero stat (account value / engine equity) — the one number that matters */
+#ibkrSummary > .hs-stat:first-child, #engineSummary > .hs-stat:first-child {
+  background: var(--obs-s2);
+  border-color: var(--obs-line);
+  padding: 22px 24px;
+}
+#ibkrSummary > .hs-stat:first-child::before, #engineSummary > .hs-stat:first-child::before { content: none; }
+#statNetLiq, #engEquity {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+  color: var(--ink);
+  text-shadow: none;
+  padding-top: 2px;
+}
+
+/* Position cards: no glow — quiet top light, mint edge on hover only */
+.ibkr-pos-card::before { content: none; }
+.ibkr-pos-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--obs-line-2);
+  box-shadow: 0 14px 36px rgba(0,0,0,.42), var(--top-light) !important;
+}
+.ibkr-pos-card:hover::before { opacity: 0; }
+
+.ibkr-chart-btn {
+  background: var(--mint-dim);
+  border: 1px solid var(--mint-line);
+  color: var(--mint);
+  border-radius: var(--r-pill);
+  padding: 3px 11px;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.ibkr-chart-btn:hover { background: rgba(47,214,163,.16); border-color: rgba(47,214,163,.45); }
+.ibkr-chart-btn.open  { background: rgba(47,214,163,.18); }
+.ibkr-lvl-label { background: rgba(12,16,22,.94); border: 1px solid var(--obs-line-2); }
+
+/* ── 6 · Buttons ───────────────────────────────────────────────────────────── */
+.analyse-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--mint);
+  color: var(--mint-ink);
+  border: none;
+  border-radius: var(--r-ctl);
+  padding: 0 26px;
+  font-family: var(--font-body);
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(47,214,163,.18);
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.analyse-btn:hover { background: var(--mint-hover); transform: translateY(-1px); box-shadow: 0 10px 24px rgba(47,214,163,.24); }
+.analyse-btn:active { transform: translateY(0); }
+.analyse-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.new-search-btn, .error-card button, .btn-secondary {
+  background: var(--obs-s3);
+  border: 1px solid var(--obs-line);
+  color: var(--ink-2);
+  border-radius: var(--r-ctl);
+  font-family: var(--font-body);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.new-search-btn { padding: 11px 26px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.new-search-btn:hover, .error-card button:hover, .btn-secondary:hover {
+  color: var(--mint); border-color: var(--mint-line); background: var(--mint-dim);
+}
+
+.apex-btn-primary {
+  background: var(--mint) !important;
+  color: var(--mint-ink) !important;
+  border: none;
+  border-radius: var(--r-ctl);
+  font-weight: 700;
+  box-shadow: none;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.apex-btn-primary:hover { background: var(--mint-hover) !important; transform: translateY(-1px); box-shadow: none; }
+.apex-btn-secondary {
+  background: var(--obs-s3);
+  border: 1px solid var(--obs-line);
+  color: var(--ink-2);
+  border-radius: var(--r-ctl);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.apex-btn-secondary:hover { color: var(--ink); border-color: var(--obs-line-2); }
+
+/* ── 7 · Tabs, pills, toggles ──────────────────────────────────────────────── */
+.view-toggle {
+  background: var(--obs-s1);
+  border: 1px solid var(--obs-line);
+  border-radius: 10px;
+  padding: 3px;
+}
+.vt-btn {
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12.5px; font-weight: 600;
+  padding: 7px 15px;
+  border-radius: var(--r-ctl);
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.vt-btn:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.vt-btn.active {
+  background: var(--mint-dim);
+  color: var(--mint);
+  box-shadow: inset 0 0 0 1px var(--mint-line);
+}
+
+.hf-pill, .qp-tab, .tr-tab {
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line);
+  color: var(--ink-3);
+  border-radius: var(--r-pill);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.hf-pill:hover, .qp-tab:hover, .tr-tab:hover { color: var(--ink); border-color: var(--obs-line-2); }
+.hf-pill.active, .qp-tab.active, .tr-tab.active {
+  background: var(--mint-dim);
+  border-color: var(--mint-line);
+  color: var(--mint);
+}
+
+.qp-btn {
+  background: var(--obs-s1);
+  border: 1px solid var(--obs-line);
+  border-radius: 10px;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.qp-btn:hover { border-color: var(--mint-line); background: var(--mint-dim); transform: translateY(-1px); }
+
+.trade-style-pills { background: var(--obs-s1); border: 1px solid var(--obs-line); border-radius: 10px; }
+.ts-pill { border-radius: var(--r-ctl); transition: color var(--dur) var(--ease), background var(--dur) var(--ease); }
+.ts-pill.active { background: var(--mint-dim); border: 1px solid var(--mint-line); color: var(--mint); }
+.ts-pill.active .ts-dur { color: rgba(47,214,163,.65); }
+
+/* ── 8 · Inputs & dropdowns ────────────────────────────────────────────────── */
+.search-field {
+  background: var(--obs-s1);
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-ctl);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.35);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.search-field:focus-within {
+  border-color: var(--mint-line);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.35), 0 0 0 3px rgba(47,214,163,.10);
+}
+.search-field input { font-family: var(--font-mono); }
+
+.sym-dropdown {
+  background: rgba(12,16,22,.97);
+  border: 1px solid var(--obs-line-2);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+}
+.dd-item { border-bottom: 1px solid var(--obs-line); }
+.dd-item:hover, .dd-item.focused { background: rgba(47,214,163,.06); }
+
+.hf-search {
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-ctl);
+  color: var(--ink);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.hf-search:focus { border-color: var(--mint-line); box-shadow: 0 0 0 3px rgba(47,214,163,.10); }
+
+select, .hf-sort, .apex-input {
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-ctl);
+  color: var(--ink);
+}
+select option { background: var(--obs-s2); color: var(--ink); }
+
+/* ── 9 · Type treatments ───────────────────────────────────────────────────── */
+.hero-text h1, .tr-hero h1, .hiw-main h1, .bt-title {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: var(--ink);
+  background-clip: initial;
+  color: var(--ink);
+  font-family: var(--font-display);
+}
+.a-card-header h2, .hist-title, .pg-title, .bt-title, .hs-title {
+  font-family: var(--font-display);
+}
+.pg-card-title { font-family: var(--font-display); letter-spacing: -.01em; }
+
+/* Gold eyebrow kicker — section labels across the terminal pages */
+.ob-eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* ── 10 · Obsidian building blocks (deep-redesigned pages) ─────────────────── */
+/* Hero block inside the stat grid */
+.ob-hero-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; width: 100%; }
+.ob-hero-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ob-hero-sub { font-size: 12px; color: var(--ink-3); }
+.ob-hero-line { font-size: 11px; font-family: var(--font-mono); color: var(--ink-3); display: block; margin-top: 2px; }
+.ob-hero-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Data chip (Today / Net Return) — JS sets its text color inline */
+.ob-chip {
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-pill);
+  padding: 7px 14px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--obs-s1);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* Small mono caption under a stat value */
+.ob-stat-sub { font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 2px; }
+
+/* Toolbar row (tabs left, sync + refresh right) */
+.ob-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.ob-toolbar-end { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ob-sync {
+  font-size: 12px; color: var(--ink-3); font-family: var(--font-mono);
+  white-space: nowrap;
+  border: 1px solid var(--obs-line);
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  background: var(--obs-s1);
+}
+.ob-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line);
+  color: var(--ink);
+  padding: 8px 16px;
+  border-radius: var(--r-ctl);
+  font-family: var(--font-body);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.ob-btn:hover { border-color: var(--mint-line); color: var(--mint); background: var(--mint-dim); }
+
+/* Quiet section note under card titles */
+.ob-note { font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); margin: -6px 0 12px; }
+
+/* Card header link */
+.ob-card-link { font-size: 12px; font-weight: 600; color: var(--mint); text-decoration: none; white-space: nowrap; transition: color var(--dur) var(--ease); }
+.ob-card-link:hover { color: var(--mint-hover); }
+
+/* Page-header block on terminal pages */
+.ob-pagehead { margin: 6px 0 22px; }
+.ob-pagehead .pg-title, .ob-pagehead .hist-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ob-pagehead .pg-subtitle, .ob-pagehead .hist-subtitle { max-width: 640px; }
+
+/* ── 11 · Footer ───────────────────────────────────────────────────────────── */
+.app-footer {
+  color: var(--ink-3);
+  border-top: 1px solid var(--obs-line);
+}
+.app-footer a, .app-footer a:visited { color: var(--ink-2) !important; }
+.app-footer a:hover { color: var(--mint) !important; }
+
+/* ── 12 · Settings modal ───────────────────────────────────────────────────── */
+.apex-modal {
+  background: var(--obs-s2);
+  border: 1px solid var(--obs-line-2);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-pop);
+}
+.apex-modal-header { border-bottom: 1px solid var(--obs-line); }
+.apex-modal-footer { border-top: 1px solid var(--obs-line); background: transparent; }
+.apex-modal-title { font-family: var(--font-display); }
+.apex-toggle-slider { background: var(--obs-s3); border: 1px solid var(--obs-line-2); }
+.apex-toggle-input:checked + .apex-toggle-slider { background: var(--mint); border-color: var(--mint); }
+
+/* ── 13 · Feedback bits ────────────────────────────────────────────────────── */
+.loader-ring { border-color: var(--obs-line-2); border-top-color: var(--mint); box-shadow: none; }
+.loader-sym { color: var(--mint); text-shadow: none; }
+.hist-spinner { border-color: var(--obs-line-2); border-top-color: var(--mint); box-shadow: none; }
+.pg-spinner { border-color: var(--obs-line-2); border-top-color: var(--mint); }
+
+.memory-badge { background: var(--mint-dim); border-color: var(--mint-line); }
+.compare-banner { background: var(--info-dim); border-color: var(--info-line); }
+.cb-title { color: var(--info); }
+
+/* ── 14 · layout-app (macOS side-nav mode, toggled from Settings) ──────────── */
+@media (min-width: 768px) {
+  body.layout-app .header {
+    background: rgba(12,16,22,.9);
+    border-right: 1px solid var(--obs-line);
+  }
+  body.layout-app .header .nav-link[href="ibkr-trades.html"]::before { content: '🏛️'; }
+  body.layout-app .header .nav-link[href="engine-book.html"]::before { content: '🧪'; }
+  body.layout-app .header .nav-link[href="progress.html"]::before    { content: '📈'; }
+  body.layout-app .header .nav-link[href="history.html"]::before     { content: '📜'; }
+  body.layout-app .header .nav-link.active { background: var(--mint-dim); border-color: transparent; color: var(--mint); }
+  body.layout-app .header .nav-settings-btn:hover { background: var(--obs-s3); }
+}
+
+/* ── 15 · Mobile (iPhone-first, ≤768px) ────────────────────────────────────── */
+@media (max-width: 768px) {
+  .header {
+    display: flex; flex-wrap: wrap;
+    height: auto; min-height: 52px;
+    padding: 8px 14px 0;
+    row-gap: 0;
+  }
+  .logo { order: 0; padding: 6px 0; }
+  .header-right { order: 1; margin-left: auto; gap: 8px; }
+  .nav {
+    order: 2;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 0 8px;
+    gap: 4px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link { font-size: 12.5px; padding: 6px 12px; flex-shrink: 0; }
+  .live-pill { padding: 4px 10px; }
+
+  #statNetLiq, #engEquity { font-size: 30px; }
+  .ob-hero-inner { gap: 14px; }
+  #ibkrSummary > .hs-stat:first-child, #engineSummary > .hs-stat:first-child { padding: 18px; }
+
+  .ob-toolbar { flex-direction: column; align-items: stretch; }
+  .ob-toolbar .view-toggle { align-self: flex-start; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .ob-toolbar .view-toggle::-webkit-scrollbar { display: none; }
+  .ob-toolbar-end { justify-content: space-between; }
+
+  .hero { padding: 40px 18px 36px; }
+  .hero-text h1 { font-size: 32px; }
+  .search-box { flex-direction: column; }
+  .analyse-btn { justify-content: center; padding: 13px 20px; }
+}
+
+/* ── 16 · Reduced motion ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .pulse-track { animation: none; }
+  main, .history-main, .bt-main, .tr-main, .hiw-main { animation: none; }
+}
+
+/* ── 17 · Deep-page structural rules (moved out of inline styles) ──────────── */
+/* Hero stat spans the full grid width */
+#ibkrSummary > .hs-stat:first-child, #engineSummary > .hs-stat:first-child { grid-column: 1 / -1; }
+
+/* Terminal summary strips share one rhythm */
+#ibkrSummary, #ibkrClassSummary, #engineSummary, #engineStats, #mt4Summary {
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+/* #mt4Summary has no grid-template rule in history.css (the other four have an
+   !important one there) — give it the same tracks here. */
+#mt4Summary { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+#mt4Summary .hs-stat { align-items: flex-start; text-align: left; }
+
+/* Position-card grids */
+#ibkrPositionsWrap, #engPositionsWrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+#mt4TradesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 14px;
+}
+
+/* "Load older scans" pagination row (history) */
+.ob-loadolder { text-align: center; margin: 8px 0 34px; }
+#liveTradesContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+/* Empty / loading placeholder inside a grid */
+.ob-empty { grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: var(--ink-3); font-size: 14px; }
+.ob-empty-sm { text-align: center; padding: 30px 20px; color: var(--ink-3); font-size: 14px; font-style: italic; }
+
+/* Small mono note sitting inside a card title */
+.ob-inline-note { font-size: 12px; font-weight: 400; color: var(--ink-3); font-family: var(--font-mono); margin-left: 10px; }
+
+/* Live engine log console */
+.ob-terminal {
+  background: var(--obs-bg);
+  border: 1px solid var(--obs-line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  height: 280px;
+  overflow-y: auto;
+  color: #A9B4C4;
+  text-align: left;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,.4);
+}
+
+/* Ghost console-clear / small text button */
+.ob-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--obs-line);
+  border-radius: var(--r-ctl);
+  color: var(--ink-3);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.ob-btn-ghost:hover { color: var(--ink); border-color: var(--obs-line-2); }
+
+/* Left accent stripe used on dashboard monitor cards — quieter, mint */
+.a-card.ob-accent { border-left: 2px solid var(--mint-line); }
+
+/* Refresh icon spin transition */
+.ob-spin { display: inline-block; transition: transform .6s ease; }
+
+@media (max-width: 768px) {
+  #ibkrPositionsWrap, #engPositionsWrap { grid-template-columns: 1fr; }
+}
+
+/* ── 18 · Hierarchy refinements (post-screenshot pass) ─────────────────────── */
+/* Stat values are display numbers: Space Grotesk, ~20px, tabular */
+.stat-value { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.pg-stat-val { font-family: var(--font-display); text-shadow: none; }
+
+/* All small uppercase labels share the mono treatment */
+.stat-label, .pg-stat-label, .pg-pstat-k {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 1.2px;
+  color: var(--ink-3);
+}
+
+/* Card section kickers: champagne gold, mono, tracked out */
+.a-card-header h2 {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+}
+.ts-label {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* Dashboard hero stats: back to the auto-fit four-across strip */
+.ob-stats-hero { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 10px; }
+
+/* Tighten the portal hero a touch */
+.hero { padding-top: 48px; }

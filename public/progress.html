@@ -13,22 +13,23 @@
   </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./progress.css" />
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
@@ -43,8 +44,9 @@
   <main class="pg-main">
 
     <!-- Page title -->
-    <div class="pg-header">
+    <div class="pg-header ob-pagehead">
       <div>
+        <span class="ob-eyebrow">Self-Improvement Record</span>
         <h1 class="pg-title">Engine Progress</h1>
         <p class="pg-subtitle">The self-improvement record — every experiment logged, every deployment gated, one frozen book proving itself forward.</p>
       </div>
@@ -52,11 +54,11 @@
 
     <!-- Header stats row -->
     <div class="pg-stats" id="pgStats">
-      <div class="pg-stat"><span class="pg-stat-val accent" id="stBook">Book D</span><span class="pg-stat-label">Certified-config book</span><span class="pg-stat-sub">1% risk/trade · 6.5% portfolio cap</span></div>
-      <div class="pg-stat"><span class="pg-stat-val" id="stLedger">—</span><span class="pg-stat-label">Trial ledger</span><span class="pg-stat-sub" id="stLedgerSub">experiments logged</span></div>
-      <div class="pg-stat"><span class="pg-stat-val green" id="stPass">—</span><span class="pg-stat-label">Gates passed</span><span class="pg-stat-sub" id="stGatesSub">recent verdicts</span></div>
-      <div class="pg-stat"><span class="pg-stat-val red" id="stReject">—</span><span class="pg-stat-label">Gates rejected</span><span class="pg-stat-sub" id="stRejectSub">incl. measurements</span></div>
-      <div class="pg-stat"><span class="pg-stat-val accent" id="stPaperDay">—</span><span class="pg-stat-label">Paper test</span><span class="pg-stat-sub" id="stPaperEq">equity —</span></div>
+      <div class="pg-stat"><span class="pg-stat-label">Certified-config book</span><span class="pg-stat-val accent" id="stBook">Book D</span><span class="pg-stat-sub">1% risk/trade · 6.5% portfolio cap</span></div>
+      <div class="pg-stat"><span class="pg-stat-label">Trial ledger</span><span class="pg-stat-val" id="stLedger">—</span><span class="pg-stat-sub" id="stLedgerSub">experiments logged</span></div>
+      <div class="pg-stat"><span class="pg-stat-label">Gates passed</span><span class="pg-stat-val green" id="stPass">—</span><span class="pg-stat-sub" id="stGatesSub">recent verdicts</span></div>
+      <div class="pg-stat"><span class="pg-stat-label">Gates rejected</span><span class="pg-stat-val red" id="stReject">—</span><span class="pg-stat-sub" id="stRejectSub">incl. measurements</span></div>
+      <div class="pg-stat"><span class="pg-stat-label">Paper test</span><span class="pg-stat-val accent" id="stPaperDay">—</span><span class="pg-stat-sub" id="stPaperEq">equity —</span></div>
     </div>
 
     <!-- Certified book snapshot (static, from the binding prereg) -->
@@ -118,7 +120,7 @@
 
   </main>
 
-  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html">How it works</a></footer>
 
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>

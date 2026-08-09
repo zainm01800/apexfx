@@ -10,7 +10,7 @@ a, a:link, a:visited {
 }
 
 .nav-link:hover, .nav-link.active, .nav-link.active:visited {
-  color: #38BDF8 !important;
+  color: #2FD6A3 !important;
 }
 
 .app-footer a, .app-footer a:visited {
@@ -53,9 +53,9 @@ a, a:link, a:visited {
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 4px;
-  background: rgba(56, 189, 248, 0.1);
-  color: #38BDF8;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: rgba(47,214,163, 0.1);
+  color: #2FD6A3;
+  border: 1px solid rgba(47,214,163, 0.2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -65,9 +65,9 @@ a, a:link, a:visited {
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 4px;
-  background: rgba(52, 211, 153, 0.1);
+  background: rgba(47,214,163, 0.1);
   color: var(--green);
-  border: 1px solid rgba(52, 211, 153, 0.2);
+  border: 1px solid rgba(47,214,163, 0.2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -96,8 +96,8 @@ a, a:link, a:visited {
 
 .mode-btn.active {
   background: var(--card);
-  color: #38BDF8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #2FD6A3;
+  border: 1px solid rgba(47,214,163, 0.3);
 }
 
 /* Flat Slate Stat Cards Grid */
@@ -120,7 +120,7 @@ a, a:link, a:visited {
 }
 
 .hs-card:hover {
-  border-color: rgba(56, 189, 248, 0.3);
+  border-color: rgba(47,214,163, 0.3);
 }
 
 .hs-val {
@@ -133,7 +133,7 @@ a, a:link, a:visited {
 
 .hs-val.green  { color: var(--green); }
 .hs-val.red    { color: var(--red); }
-.hs-val.accent { color: #38BDF8; }
+.hs-val.accent { color: #2FD6A3; }
 
 .hs-label {
   font-size: 11px;
@@ -200,8 +200,8 @@ a, a:link, a:visited {
 }
 
 .metric-box.highlight {
-  border-color: rgba(56, 189, 248, 0.3);
-  background: rgba(56, 189, 248, 0.05);
+  border-color: rgba(47,214,163, 0.3);
+  background: rgba(47,214,163, 0.05);
 }
 
 .metric-label {
@@ -242,7 +242,7 @@ a, a:link, a:visited {
 }
 
 .trade-card:hover {
-  border-color: rgba(56, 189, 248, 0.35);
+  border-color: rgba(47,214,163, 0.35);
   transform: translateY(-2px);
 }
 
@@ -285,21 +285,21 @@ a, a:link, a:visited {
 }
 
 .tc-badge.win {
-  background: rgba(52, 211, 153, 0.15);
+  background: rgba(47,214,163, 0.15);
   color: var(--green);
-  border: 1px solid rgba(52, 211, 153, 0.3);
+  border: 1px solid rgba(47,214,163, 0.3);
 }
 
 .tc-badge.loss {
-  background: rgba(248, 113, 113, 0.15);
+  background: rgba(255,92,116, 0.15);
   color: var(--red);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(255,92,116, 0.3);
 }
 
 .tc-badge.open {
-  background: rgba(56, 189, 248, 0.15);
-  color: #38BDF8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(47,214,163, 0.15);
+  color: #2FD6A3;
+  border: 1px solid rgba(47,214,163, 0.3);
 }
 
 .tc-stats-row {
@@ -356,4 +356,22 @@ a, a:link, a:visited {
   .trade-card-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Obsidian Terminal reskin additions ── */
+.rl-section-head { margin-top: 24px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.rl-section-title { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--font-display, 'Space Grotesk', var(--sans)); letter-spacing: -.01em; }
+
+/* HS stat cards: value hierarchy after label-first reorder */
+.hs-card .hs-label { order: 0; }
+.hs-card .hs-val { order: 1; }
+.hs-card .hs-sub { order: 2; }
+
+/* Mobile: the title block must claim its own flex line and wrap within the
+   viewport — flex items otherwise size to max-content and clip the h1/sub. */
+@media (max-width: 768px) {
+  .hs-head > div:first-child { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+  .hs-head .hs-title { font-size: 22px; overflow-wrap: break-word; }
+  .hs-head .hs-sub { overflow-wrap: break-word; white-space: normal; }
+  .hs-head .ob-toolbar-end { max-width: 100%; }
 }

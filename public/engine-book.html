@@ -12,23 +12,24 @@
     }
   </script>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
   <link rel="stylesheet" href="./progress.css" />
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link active" id="nav-engine" href="engine-book.html">Engine Book</a>
@@ -42,42 +43,43 @@
 
   <main class="pg-main">
 
-    <div class="pg-header">
+    <div class="pg-header ob-pagehead">
       <div>
-        <h1 class="pg-title">🧪 Engine Book — £100k Strategy Experiment</h1>
+        <span class="ob-eyebrow">Paper Proof · £100k Experiment</span>
+        <h1 class="pg-title">Engine Book</h1>
         <p class="pg-subtitle">The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.</p>
       </div>
     </div>
 
     <!-- Engine book hero + daily-snapshot stats -->
-    <div class="hist-summary" id="engineSummary" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; margin-bottom: 24px;">
-      <div class="hs-stat" style="grid-column: 1 / -1; padding: 18px 22px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;">
-          <div>
-            <span class="hs-label" style="letter-spacing: 1.5px;">ENGINE PROOF BOOK — £100K EXPERIMENT (PAPER)</span>
-            <span class="hs-val" id="engEquity" style="font-size: 38px; display: block; font-family: 'Space Grotesk', var(--sans);">—</span>
-            <span style="font-size: 12px; color: var(--text3);">latest daily equity snapshot — engine paper book only</span>
-            <span id="engHeroLine" style="display: block; font-size: 11px; font-family: var(--mono); color: var(--text3); margin-top: 4px;"></span>
+    <div class="hist-summary" id="engineSummary">
+      <div class="hs-stat">
+        <div class="ob-hero-inner">
+          <div class="ob-hero-left">
+            <span class="ob-eyebrow">Engine Proof Book — Paper</span>
+            <span class="hs-val" id="engEquity">—</span>
+            <span class="ob-hero-sub">latest daily equity snapshot — engine paper book only</span>
+            <span class="ob-hero-line" id="engHeroLine"></span>
           </div>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <span id="engDayChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--text2);">Today: —</span>
-            <span id="engSinceChip" style="border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12.5px; background: var(--card); color: var(--text2);">Net Return: —</span>
+          <div class="ob-hero-chips">
+            <span class="ob-chip" id="engDayChip">Today: —</span>
+            <span class="ob-chip" id="engSinceChip">Net Return: —</span>
           </div>
         </div>
       </div>
-      <div class="hs-stat"><span class="hs-val" id="engCash">—</span><span class="hs-label">Cash</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">uninvested (paper)</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engDayPnl">—</span><span class="hs-label">Day P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">last daily step</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engCumPnl">—</span><span class="hs-label">Cum P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">since 16 Jul 2026</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engCurDD">—</span><span class="hs-label">Drawdown</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">below peak equity</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engMaxDD">—</span><span class="hs-label">Max Drawdown</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">worst peak-to-date</span></div>
+      <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested (paper)</span></div>
+      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
+      <div class="hs-stat"><span class="hs-label">Cum P&amp;L</span><span class="hs-val" id="engCumPnl">—</span><span class="ob-stat-sub">since 16 Jul 2026</span></div>
+      <div class="hs-stat"><span class="hs-label">Drawdown</span><span class="hs-val" id="engCurDD">—</span><span class="ob-stat-sub">below peak equity</span></div>
+      <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">worst peak-to-date</span></div>
     </div>
 
     <!-- Controls -->
-    <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <span id="lastUpdatedLabel" style="font-size: 12.5px; color: var(--text3); font-family: var(--mono); white-space: nowrap; border: 1px solid var(--border); padding: 7px 12px; border-radius: 6px; background: var(--card);">Last Sync: —</span>
-        <button id="btnRefresh" class="vt-btn" style="background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 7px 14px; border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;">
-          <span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease;">🔄</span> <span id="refreshText">Refresh Book</span>
+    <div class="ob-toolbar" style="justify-content: flex-end;">
+      <div class="ob-toolbar-end">
+        <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
+        <button id="btnRefresh" class="ob-btn">
+          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Book</span>
         </button>
       </div>
     </div>
@@ -85,7 +87,7 @@
     <!-- Equity curve -->
     <section class="pg-card" style="margin-bottom: 24px;">
       <div class="pg-card-head">
-        <div class="pg-card-title">📉 Equity Curve <span style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;">daily close-of-book snapshots since seed</span></div>
+        <div class="pg-card-title">📉 Equity Curve <span class="ob-inline-note">daily close-of-book snapshots since seed</span></div>
       </div>
       <div style="position: relative;">
         <div id="equityChart" style="width: 100%; height: 300px;"></div>
@@ -94,23 +96,21 @@
     </section>
 
     <!-- Book stats -->
-    <div class="hist-summary" id="engineStats" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; width: 100%; margin-bottom: 24px;">
-      <div class="hs-stat"><span class="hs-val" id="engOpenCount">—</span><span class="hs-label">Open Positions</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engGross">—</span><span class="hs-label">Gross Exposure</span><span id="engGrossX" style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">—</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engUnreal">—</span><span class="hs-label">Open P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">vs last engine marks</span></div>
-      <div class="hs-stat"><span class="hs-val accent" id="engWinRate">—</span><span class="hs-label">Closed Win Rate</span><span id="engClosedCount" style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">— closed</span></div>
-      <div class="hs-stat"><span class="hs-val" id="engRealized">—</span><span class="hs-label">Closed P&amp;L</span><span style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">banked from closed trades</span></div>
+    <div class="hist-summary" id="engineStats">
+      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="engOpenCount">—</span></div>
+      <div class="hs-stat"><span class="hs-label">Gross Exposure</span><span class="hs-val" id="engGross">—</span><span class="ob-stat-sub" id="engGrossX">—</span></div>
+      <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val" id="engUnreal">—</span><span class="ob-stat-sub">vs last engine marks</span></div>
+      <div class="hs-stat"><span class="hs-label">Closed Win Rate</span><span class="hs-val accent" id="engWinRate">—</span><span class="ob-stat-sub" id="engClosedCount">— closed</span></div>
+      <div class="hs-stat"><span class="hs-label">Closed P&amp;L</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub">banked from closed trades</span></div>
     </div>
 
     <!-- Open Positions -->
     <section class="pg-card" style="margin-bottom: 24px;">
       <div class="pg-card-head">
-        <div class="pg-card-title">📈 Open Positions <span id="engPosNote" style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;"></span></div>
+        <div class="pg-card-title">📈 Open Positions <span id="engPosNote" class="ob-inline-note"></span></div>
       </div>
-      <div id="engPositionsWrap" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
-          Loading engine book…
-        </div>
+      <div id="engPositionsWrap">
+        <div class="ob-empty">Loading engine book…</div>
       </div>
       <div class="pg-card-foot">Engine paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
     </section>
@@ -118,12 +118,10 @@
     <!-- Closed Trades -->
     <section class="pg-card" style="margin-bottom: 24px;">
       <div class="pg-card-head">
-        <div class="pg-card-title">📜 Closed Trades <span id="engClosedNote" style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;"></span></div>
+        <div class="pg-card-title">📜 Closed Trades <span id="engClosedNote" class="ob-inline-note"></span></div>
       </div>
       <div id="engClosedWrap">
-        <div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">
-          No closed engine trades yet.
-        </div>
+        <div class="ob-empty-sm">No closed engine trades yet.</div>
       </div>
       <div class="pg-card-foot">Closed round-trips as recorded in the latest daily engine snapshot (state trade log).</div>
     </section>
@@ -133,6 +131,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=1"></script>
+  <script src="./engine-book.js?v=2"></script>
 </body>
 </html>

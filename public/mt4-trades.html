@@ -12,22 +12,23 @@
     }
   </script>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
@@ -43,7 +44,7 @@
     <div class="pulse-track">
       <!-- Set 1 -->
       <div class="pulse-item pulse-SPY">
-        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-label">S&amp;P 500</span>
         <span class="pulse-price">—</span>
         <span class="pulse-change">—</span>
       </div>
@@ -69,7 +70,7 @@
       </div>
       <!-- Set 2 -->
       <div class="pulse-item pulse-SPY">
-        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-label">S&amp;P 500</span>
         <span class="pulse-price">—</span>
         <span class="pulse-change">—</span>
       </div>
@@ -98,51 +99,50 @@
 
   <main class="history-main">
 
-    <div class="hist-header">
+    <div class="hist-header ob-pagehead">
       <div>
+        <span class="ob-eyebrow">Legacy Bridge Feed</span>
         <h1 class="hist-title">MT4 Live Execution</h1>
         <p class="hist-subtitle">Real-time trade synchronisation directly from your MetaTrader 4 terminal.</p>
       </div>
-      
-      <!-- Live MT4 Summary Statistics -->
-      <div class="hist-summary" id="mt4Summary" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%;">
-        <div class="hs-stat"><span class="hs-val" id="statStartBalance">—</span><span class="hs-label">Start Balance</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statCurrentBalance">—</span><span class="hs-label">Current Balance</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statEquity">—</span><span class="hs-label">Equity</span></div>
-        <div class="hs-stat"><span class="hs-val" id="statTotalProfit">—</span><span class="hs-label">Total P&L</span></div>
-        <div class="hs-stat"><span class="hs-val accent" id="statWinRate">—%</span><span class="hs-label">MT4 Win Rate</span><span id="statProjectedWinRate" style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px;">Proj: —%</span></div>
-        <div class="hs-stat"><span class="hs-val accent" id="statAverageRR">—</span><span class="hs-label">Average R:R</span></div>
-      </div>
+    </div>
+
+    <!-- Live MT4 Summary Statistics -->
+    <div class="hist-summary" id="mt4Summary">
+      <div class="hs-stat"><span class="hs-label">Start Balance</span><span class="hs-val" id="statStartBalance">—</span></div>
+      <div class="hs-stat"><span class="hs-label">Current Balance</span><span class="hs-val" id="statCurrentBalance">—</span></div>
+      <div class="hs-stat"><span class="hs-label">Equity</span><span class="hs-val" id="statEquity">—</span></div>
+      <div class="hs-stat"><span class="hs-label">Total P&amp;L</span><span class="hs-val" id="statTotalProfit">—</span></div>
+      <div class="hs-stat"><span class="hs-label">MT4 Win Rate</span><span class="hs-val accent" id="statWinRate">—%</span><span class="ob-stat-sub" id="statProjectedWinRate">Proj: —%</span></div>
+      <div class="hs-stat"><span class="hs-label">Average R:R</span><span class="hs-val accent" id="statAverageRR">—</span></div>
     </div>
 
     <!-- Toggle View & Controls -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div class="ob-toolbar">
       <div class="view-toggle" style="margin-bottom: 0;">
         <button id="btnOpen" class="vt-btn active" data-view="open">📂 Open Positions</button>
         <button id="btnClosed" class="vt-btn" data-view="closed">📜 Closed History</button>
         <button id="btnLessons" class="vt-btn" data-view="lessons">🧠 Engine Lessons</button>
       </div>
-      
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <!-- Last Updated Time -->
-        <span id="lastUpdatedLabel" style="font-size: 13px; color: var(--text3); font-family: var(--mono); white-space: nowrap; border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.02);">Last Sync: —</span>
-        
-        <!-- Refresh button -->
-        <button id="btnRefresh" class="vt-btn" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); color: var(--accent); padding: 8px 16px; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;">
-          <span id="refreshIcon" style="display: inline-block; transition: transform 0.6s ease;">🔄</span> <span id="refreshText">Refresh Terminal</span>
+
+      <div class="ob-toolbar-end">
+        <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
+        <button id="btnRefresh" class="ob-btn">
+          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Terminal</span>
         </button>
       </div>
     </div>
 
     <!-- Grid Container for MT4 Trades -->
-    <div id="mt4TradesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; margin-top: 14px;">
-      <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px;">
-        Connecting to MT4 Bridge data...
-      </div>
+    <div id="mt4TradesGrid">
+      <div class="ob-empty">Connecting to MT4 Bridge data...</div>
     </div>
 
   </main>
 
-  <script src="./mt4-trades.js?v=2"></script>
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html">How it works</a></footer>
+
+  <script src="./app-mode.js"></script>
+  <script src="./mt4-trades.js?v=3"></script>
 </body>
 </html>

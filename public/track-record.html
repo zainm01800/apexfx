@@ -11,91 +11,25 @@
       });
     }
   </script>
-  <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
-  <style>
-    .tr-main { max-width: 1000px; margin: 0 auto; padding: 36px 24px 80px; }
-    .tr-hero { margin-bottom: 6px; }
-    .tr-hero h1 {
-      font-size: 32px; font-weight: 700; letter-spacing: -.025em;
-      font-family: var(--sans);
-      background: linear-gradient(125deg, var(--text) 0%, var(--purple) 55%, var(--green) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .tr-hero p { color: var(--text2); margin-top: 10px; max-width: 680px; line-height: 1.7; font-size: 14px; }
-    .tr-asof { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 10px; letter-spacing: .06em; }
-    .tr-section-title {
-      font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text3); font-weight: 700; margin: 28px 0 12px;
-    }
-    .tr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .tr-table th {
-      text-align: left; color: var(--text3); font-weight: 700; font-size: 10px; text-transform: uppercase;
-      letter-spacing: .1em; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
-    }
-    .tr-table td {
-      padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.03);
-      font-family: var(--mono); white-space: nowrap;
-    }
-    .tr-win { color: var(--green);  }
-    .tr-loss { color: var(--red); }
-    .tr-empty {
-      color: var(--text2); padding: 40px; text-align: center; line-height: 1.7;
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 16px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    }
-    .tr-note { font-size: 12px; color: var(--text3); margin-top: 10px; line-height: 1.55; }
-    .tr-honesty {
-      margin-top: 30px; padding: 18px 20px; border-radius: 16px;
-      background: rgba(56, 189, 248, 0.04); border: 1px solid var(--border);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    }
-    .tr-honesty ul { margin: 8px 0 0; padding-left: 18px; }
-    .tr-honesty li { color: var(--text2); font-size: 13px; line-height: 1.7; margin: 6px 0; }
-    .tr-honesty strong { color: var(--text); }
-
-    /* Profitability card */
-    .tr-profit-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
-      padding: 20px 20px 22px; margin-top: 24px;
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      box-shadow: 0 10px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-    .tr-profit-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-    .tr-tabs { display: flex; gap: 6px; }
-    .tr-tab {
-      background: var(--card); border: 1px solid var(--border); color: var(--text3);
-      border-radius: 20px; padding: 6px 15px; font-size: 12px; cursor: pointer;
-      font-family: var(--sans); transition: all .2s;
-    }
-    .tr-tab:hover { border-color: rgba(56, 189, 248, 0.3); color: var(--text); }
-    .tr-tab.active { background: var(--border); border-color: rgba(56, 189, 248, 0.3); color: var(--purple); }
-    .tr-profit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; padding: 14px 16px; border-radius: 12px; }
-    .tr-profit-banner.pos { background: rgba(13,252,159,.06); border: 1px solid rgba(13,252,159,.2); }
-    .tr-profit-banner.neg { background: rgba(255,42,133,.06); border: 1px solid rgba(255,42,133,.2); }
-    .tr-profit-badge { font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
-    .tr-profit-badge.pos { background: rgba(13,252,159,.12); color: var(--green); border: 1px solid rgba(13,252,159,.25); }
-    .tr-profit-badge.neg { background: rgba(255,42,133,.12); color: var(--red); border: 1px solid rgba(255,42,133,.25); }
-    .tr-profit-sub { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
-  </style>
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
-      <a class="nav-link" id="nav-backtest" href="backtest.html">Backtest</a>
-      <a class="nav-link active" id="nav-track" href="track-record.html">Track Record</a>
     </nav>
     <div class="header-right" id="headerRight">
       <div class="live-pill"><span class="live-dot"></span>LIVE</div>
@@ -106,7 +40,7 @@
     <div class="pulse-track">
       <!-- Set 1 -->
       <div class="pulse-item pulse-SPY">
-        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-label">S&amp;P 500</span>
         <span class="pulse-price">—</span>
         <span class="pulse-change">—</span>
       </div>
@@ -132,7 +66,7 @@
       </div>
       <!-- Set 2 (Duplicated for seamless looping) -->
       <div class="pulse-item pulse-SPY">
-        <span class="pulse-label">S&P 500</span>
+        <span class="pulse-label">S&amp;P 500</span>
         <span class="pulse-price">—</span>
         <span class="pulse-change">—</span>
       </div>
@@ -160,7 +94,8 @@
   </div>
 
   <main class="tr-main">
-    <div class="tr-hero">
+    <div class="tr-hero ob-pagehead">
+      <span class="ob-eyebrow">Wins &amp; Losses · Nothing Hidden</span>
       <h1>Public Track Record</h1>
       <p>Every AI verdict the engine has made that has since resolved — <strong>wins and losses, timestamped, nothing hidden.</strong> Most trading tools show you only their winners. We show all of it, because the only honest measure of an analysis is whether its stated confidence actually holds up over time.</p>
       <div class="tr-asof" id="trAsOf"></div>
@@ -178,7 +113,7 @@
         <li><strong>Coming next:</strong> each call cryptographically timestamped to the Bitcoin blockchain, so anyone can prove it was committed before the move.</li>
       </ul>
     </div>
-    <footer class="app-footer" style="margin-top:40px">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+    <footer class="app-footer" style="margin-top:40px">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html">How it works</a></footer>
   </main>
 
   <script src="./app-mode.js"></script>

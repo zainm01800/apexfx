@@ -14,25 +14,25 @@
   </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
   <link rel="stylesheet" href="./realistic.css" />
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
-      <a class="nav-link active" id="nav-realistic" href="realistic.html">Realistic Results</a>
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
@@ -44,12 +44,13 @@
   </header>
 
   <main class="history-main">
-    <div class="hs-head">
+    <div class="hs-head ob-pagehead">
       <div>
-        <h1 class="hs-title" id="pageTitle">✨ Realistic Funded Account Results</h1>
+        <span class="ob-eyebrow">Clean Execution Model</span>
+        <h1 class="hs-title" id="pageTitle">Realistic Funded Account Results</h1>
         <p class="hs-sub" id="pageSub">MT5 Swap-Free Funded Account · US Equity CFDs · Zero Commissions · Zero Overnight Interest</p>
       </div>
-      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div class="ob-toolbar-end">
         <div class="view-mode-toggle">
           <button id="btnModeMt5" class="mode-btn active" onclick="setTerminalMode('mt5')">✨ MT5 Swap-Free</button>
           <button id="btnModeIbkr" class="mode-btn" onclick="setTerminalMode('ibkr')">🏛️ IBKR Raw Feed</button>
@@ -62,33 +63,33 @@
     <!-- Realistic Headline Stat Cards -->
     <div class="hs-grid">
       <div class="hs-card">
-        <div class="hs-val green" id="realEquity">$1,000,514.38</div>
         <div class="hs-label">MT5 Funded Account Equity</div>
+        <div class="hs-val green" id="realEquity">$1,000,514.38</div>
         <div class="hs-sub green" id="realEquitySub">+0.05% Net Profit</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val green" id="realizedPnl">+$528.76</div>
         <div class="hs-label">Realized Closed P&amp;L (Net)</div>
+        <div class="hs-val green" id="realizedPnl">+$528.76</div>
         <div class="hs-sub" id="realizedSub">3 Wins · 1 Loss (75% Win Rate)</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val red" id="unrealizedPnl">-$14.38</div>
         <div class="hs-label">Open Positions P&amp;L</div>
+        <div class="hs-val red" id="unrealizedPnl">-$14.38</div>
         <div class="hs-sub">2 Live Open Positions</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val accent" id="spreadVal">-$4.92</div>
         <div class="hs-label">Bid-Ask Spread Overhead</div>
+        <div class="hs-val accent" id="spreadVal">-$4.92</div>
         <div class="hs-sub">~0.015% MT5 CFD Spread</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val accent" id="commissionsVal">-$2.23</div>
         <div class="hs-label">MT5 Prop Commissions</div>
+        <div class="hs-val accent" id="commissionsVal">-$2.23</div>
         <div class="hs-sub">~$0.01/share Prop Fee</div>
       </div>
       <div class="hs-card">
-        <div class="hs-val accent" id="interestVal">$0.00</div>
         <div class="hs-label">Interest &amp; Swap Fees</div>
+        <div class="hs-val accent" id="interestVal">$0.00</div>
         <div class="hs-sub">100% Swap-Free (Halal)</div>
       </div>
     </div>
@@ -123,8 +124,8 @@
     </div>
 
     <!-- Synced Trades Section -->
-    <div style="margin-top: 24px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-      <h2 style="font-size: 20px; font-weight: 700; color: var(--text); font-family: 'Space Grotesk', var(--sans);">Trade Executions &amp; Setup Cards</h2>
+    <div class="rl-section-head">
+      <h2 class="rl-section-title">Trade Executions &amp; Setup Cards</h2>
       <div class="view-toggle" style="margin-bottom: 0;">
         <button id="btnViewCards" class="vt-btn active" onclick="setTradeDisplayMode('cards')">🎴 Card View (with Charts)</button>
         <button id="btnViewTable" class="vt-btn" onclick="setTradeDisplayMode('table')">📊 Table View</button>
@@ -153,7 +154,7 @@
     </div>
   </main>
 
-  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html">How it works</a></footer>
 
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>

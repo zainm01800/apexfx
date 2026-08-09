@@ -13,22 +13,23 @@
   </script>
   <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#09090f" />
+  <meta name="theme-color" content="#07090D" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d0d14'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%2300f0ff'>AX</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
   <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
 
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z.<span>FX</span></a>
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
@@ -46,24 +47,19 @@
     <div class="alert-banner-wrap" id="alertBanner"></div>
 
     <!-- Page title + stats -->
-    <div class="hist-header">
+    <div class="hist-header ob-pagehead">
       <div>
-        <h1 class="hist-title">📜 Scan History &amp; AI Intelligence</h1>
+        <span class="ob-eyebrow">AI Intelligence Log</span>
+        <h1 class="hist-title">Scan History &amp; AI Intelligence</h1>
         <p class="hist-subtitle">Full log of AI scans, target resolutions, setup learnings, and watchlist tracking.</p>
       </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
+      <div class="ob-toolbar-end">
         <div class="view-toggle" style="margin-bottom: 0;">
           <button class="vt-btn active" data-view="scans">📜 Scan History</button>
           <button class="vt-btn" data-view="watchlist">⭐ Watchlist</button>
         </div>
       </div>
     </div>
-
-    <!-- Accuracy scoreboard -->
-    <div class="acc-board" id="accBoard"></div>
-
-    <!-- Learning by setup: deterministic per-setup stats (n / win rate / avg R) + latest lesson -->
-    <div class="acc-board" id="learnBoard"></div>
 
     <!-- Accuracy scoreboard -->
     <div class="acc-board" id="accBoard"></div>
@@ -129,9 +125,9 @@
     <div class="scan-grid" id="scanGrid"></div>
 
     <!-- Fetch-level pagination: older scans load on demand (window bounded at 300 newest) -->
-    <div id="loadOlderWrap" style="display:none; text-align:center; margin: 8px 0 34px;">
-      <button id="loadOlderBtn" class="acc-scope-btn" onclick="loadOlderScans()" style="padding: 10px 24px; font-size: 13px; font-weight: 600; border-radius: 8px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); cursor: pointer; transition: all 0.2s;">Load older scans</button>
-      <div id="loadOlderNote" style="margin-top: 8px; font-size: 11px; color: var(--text3);"></div>
+    <div id="loadOlderWrap" class="ob-loadolder" style="display:none;">
+      <button id="loadOlderBtn" class="acc-scope-btn ob-btn" onclick="loadOlderScans()">Load older scans</button>
+      <div id="loadOlderNote" class="ob-note" style="margin: 8px 0 0;"></div>
     </div>
 
     <!-- Watchlist view -->
@@ -157,7 +153,7 @@
 
   </main>
 
-  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html" style="color:var(--text2)">How it works</a></footer>
+  <footer class="app-footer">Z.FX provides AI-generated analysis for research and educational purposes only. <strong>Not financial advice.</strong> Markets are risky; do your own research. · <a href="how-it-works.html">How it works</a></footer>
 
   <!-- Preview modal: full saved analysis (read-only) -->
   <div class="pv-modal" id="previewModal" style="display:none">
