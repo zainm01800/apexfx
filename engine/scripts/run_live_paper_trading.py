@@ -519,7 +519,7 @@ _BAYESIAN_SIZER = BayesianRiskSizer(
     min_risk=min(0.005, get_config().risk.max_risk_per_trade),
     max_risk=get_config().risk.max_risk_per_trade,
     max_drawdown=0.15,
-    min_trades_for_adaptation=5  # adapt quickly using historical demo data
+    min_trades_for_adaptation=20  # Kimi Code quant recommendation: require n >= 20 resolved trades before per-ticker adaptation
 )
 
 def fetch_resolved_trades_for_equity():
