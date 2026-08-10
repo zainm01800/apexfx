@@ -132,15 +132,6 @@ class RiskManager:
                 f"no new positions for the rest of the session.",
             )
 
-        # 0.7 EARNINGS BLACKOUT VETO — prevent entering new positions within 72h of earnings reports
-        from apex_quant.risk.earnings_filter import is_earnings_blackout
-        if is_earnings_blackout(signal.instrument):
-            return veto(
-                "earnings_blackout",
-                f"Earnings announcement for {signal.instrument} within 72h blackout window; "
-                f"new signal vetoed to prevent overnight gap risk.",
-            )
-
         # 1. Drawdown circuit-breaker (Three-state: ACTIVE / REDUCING / HALTED)
         from apex_quant.risk.circuit_breaker import BreakerState, breaker_state, reducing_scale
         reducing_limit = getattr(cfg, "drawdown_reducing_limit", cfg.drawdown_breaker * 0.5)
