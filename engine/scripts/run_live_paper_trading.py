@@ -594,7 +594,7 @@ def units_to_lots(symbol: str, units: float, cost_model: str) -> float:
 def fetch_trades_for_learning():
     """Every resolved setup + its post-exit hindsight scan, for the Bayesian sizer."""
     url = (f"{MEMORY_ENDPOINT}?outcome=in.(tp_hit,sl_hit,invalidated,expired)"
-           f"&select=id,symbol,outcome,setup_features,ticket")
+           f"&select=id,symbol,outcome,setup_features")
     try:
         from apex_quant.storage.supabase_util import fetch_all_rows
         return fetch_all_rows(url, headers)
@@ -649,33 +649,27 @@ def initialize_bayesian_sizer_from_supabase():
             continue
             
         tk = t.get("ticket")
-        if tk is None:
-            # Research/simulated outcome (web scan or unlinked expired setup) —
-            # it informs lessons and panels, but must NEVER size or veto orders.
-            # Only executed, ticket-linked trades feed the posterior.
-            pending += 1
-            continue
-        pnl = None
-        try:
-            pnl = ticket_to_pnl.get(int(tk))
-        except (ValueError, TypeError):
-            pass
-        if pnl is None:
-            # Executed trade with no MT4 pnl join — IBKR-paper fills (ticket in
-            # the IBKR_TICKET_OFFSET namespace, which can never join to
-            # apex_mt4_trades) and MT4 rows outside the closed-trade fetch both
-            # land here. Their resolver wrote the exact realized figure into
-            # setup_features.profit_pnl from the broker/ledger record, so use
-            # it rather than degrading the payoff estimate to "unknown".
+        sf = t.get("setup_features") or {}
+        if isinstance(sf, str):
             try:
-                sf = t.get("setup_features") or {}
-                if isinstance(sf, str):
-                    sf = json.loads(sf)
-                sf_pnl = sf.get("profit_pnl")
-                if sf_pnl is not None:
-                    pnl = float(sf_pnl)
+                sf = json.loads(sf)
+            except Exception:
+                sf = {}
+
+        pnl = None
+        if tk is not None:
+            try:
+                pnl = ticket_to_pnl.get(int(tk))
             except (ValueError, TypeError):
                 pass
+
+        if pnl is None and isinstance(sf, dict):
+            sf_pnl = sf.get("profit_pnl") or sf.get("pnl") or sf.get("realized_pnl")
+            if sf_pnl is not None:
+                try:
+                    pnl = float(sf_pnl)
+                except (ValueError, TypeError):
+                    pass
 
         _BAYESIAN_SIZER.record_outcome(symbol, win, pnl=pnl)
         recorded += 1
