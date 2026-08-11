@@ -1,0 +1,575 @@
+{
+  "generated_at": "2026-08-11T12:34:55+00:00",
+  "mode": "iteration",
+  "holdout_start": "2025-01-01",
+  "prereg": "engine/data_store/momentum_spillover_gate_prereg.md",
+  "proposal": "momentum-spillover-effect-2026-08-08",
+  "universe": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "META",
+    "AMZN",
+    "GOOGL",
+    "TSLA",
+    "AMD",
+    "PLTR",
+    "TSM",
+    "NFLX",
+    "UBER",
+    "ISWD.L",
+    "ISDU.L",
+    "ISDE.L",
+    "XLK",
+    "XLE",
+    "XBI",
+    "SMH",
+    "SOXX",
+    "SGLD.L",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "BNB/USD",
+    "XRP/USD",
+    "ADA/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "LINK/USD",
+    "ARB/USD",
+    "SUI/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "NZD/USD"
+  ],
+  "gated": [
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "BNB/USD",
+    "XRP/USD",
+    "ADA/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "LINK/USD",
+    "ARB/USD",
+    "SUI/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "NZD/USD"
+  ],
+  "n_trials_before": 340,
+  "n_trials_used": 343,
+  "ledger_recorded": true,
+  "pbo": {
+    "pbo": 0.48525,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 3
+  },
+  "best_challenger": "book_h_gold_252_spill50",
+  "legs": {
+    "l1_sharpe": true,
+    "l2_dsr": true,
+    "l3_pbo": true,
+    "l4_cpcv": true
+  },
+  "verdict_rule": "CONFIRMED",
+  "books": {
+    "book_h_gold_252": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50,
+        "spill_L": 0
+      },
+      "metrics": {
+        "total_return": 1.9255133668640645,
+        "ann_return": 0.08769731511242296,
+        "ann_vol": 0.10372021267298559,
+        "sharpe": 0.8628380346245177,
+        "sortino": 0.9340963029882317,
+        "max_drawdown": 0.16315348773173277,
+        "calmar": 0.5375141918916279,
+        "n_trades": 1637,
+        "win_rate": 0.5577275503970678,
+        "profit_factor": 1.324524180228228,
+        "avg_trade_return": 0.010216805131337815,
+        "expectancy_pnl": 120.44265729993896,
+        "expectancy_pct": 0.010216805131337811,
+        "final_equity": 292551.33668640646,
+        "net_pnl": 197164.63,
+        "short_borrow_fees_total": 0.0
+      },
+      "tail": {
+        "worst_daily_return": -0.050921,
+        "max_drawdown": 0.163153
+      },
+      "full_window_sharpe_per_period": 0.05435368717486219,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "gate": {
+        "book": "book_h_gold_252",
+        "passed": true,
+        "dsr_pass": true,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9919294134187974,
+          "observed_sharpe": 0.05435368717486219,
+          "observed_sharpe_ann": 0.8628380346245177,
+          "sr0": 0.0110971279878589,
+          "n_trials": 343,
+          "n_trials_observed": 3,
+          "n_obs": 3217,
+          "skew": -0.6060605269477396,
+          "kurtosis": 10.235469709720979
+        },
+        "pbo": {
+          "pbo": 0.48525,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 3
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.05169300366276471,
+          "oos_sharpe_std": 0.023363420254281963,
+          "oos_sharpe_median": 0.04757908846539509,
+          "frac_positive": 1.0,
+          "oos_sharpe_paths": [
+            0.0437,
+            0.0671,
+            0.0811,
+            0.0368,
+            0.0751,
+            0.0326,
+            0.0476,
+            0.0009,
+            0.0398,
+            0.0684,
+            0.0267,
+            0.0683,
+            0.0648,
+            0.0844,
+            0.0381
+          ]
+        }
+      }
+    },
+    "book_h_gold_252_spill20": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50,
+        "spill_L": 20
+      },
+      "metrics": {
+        "total_return": 1.722266678177776,
+        "ann_return": 0.08158139233693462,
+        "ann_vol": 0.10203705201063437,
+        "sharpe": 0.8200997670587662,
+        "sortino": 0.8538750940537756,
+        "max_drawdown": 0.16670407648564978,
+        "calmar": 0.4893785086530701,
+        "n_trades": 1603,
+        "win_rate": 0.5483468496568933,
+        "profit_factor": 1.325899133457267,
+        "avg_trade_return": 0.008408677479725514,
+        "expectancy_pnl": 111.329107922645,
+        "expectancy_pct": 0.00840867747972552,
+        "final_equity": 272226.6678177776,
+        "net_pnl": 178460.56,
+        "short_borrow_fees_total": 0.0
+      },
+      "tail": {
+        "worst_daily_return": -0.050921,
+        "max_drawdown": 0.166704
+      },
+      "full_window_sharpe_per_period": 0.05166142937855943,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.047657609344313054,
+        "oos_sharpe_std": 0.021804574002998654,
+        "oos_sharpe_median": 0.05119602820059742,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0408,
+          0.071,
+          0.0691,
+          0.0512,
+          0.0697,
+          0.0216,
+          0.0274,
+          0.0023,
+          0.0253,
+          0.0584,
+          0.0393,
+          0.0579,
+          0.0661,
+          0.0752,
+          0.0392
+        ]
+      },
+      "gate": {
+        "book": "book_h_gold_252_spill20",
+        "passed": true,
+        "dsr_pass": true,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9878109517405932,
+          "observed_sharpe": 0.05166142937855943,
+          "observed_sharpe_ann": 0.8200997670587662,
+          "sr0": 0.0110971279878589,
+          "n_trials": 343,
+          "n_trials_observed": 3,
+          "n_obs": 3217,
+          "skew": -0.7247075530436031,
+          "kurtosis": 11.218939469186024
+        },
+        "pbo": {
+          "pbo": 0.48525,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 3
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.047657609344313054,
+          "oos_sharpe_std": 0.021804574002998654,
+          "oos_sharpe_median": 0.05119602820059742,
+          "frac_positive": 1.0,
+          "oos_sharpe_paths": [
+            0.0408,
+            0.071,
+            0.0691,
+            0.0512,
+            0.0697,
+            0.0216,
+            0.0274,
+            0.0023,
+            0.0253,
+            0.0584,
+            0.0393,
+            0.0579,
+            0.0661,
+            0.0752,
+            0.0392
+          ]
+        }
+      }
+    },
+    "book_h_gold_252_spill50": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50,
+        "spill_L": 50
+      },
+      "metrics": {
+        "total_return": 2.2723318254596694,
+        "ann_return": 0.09728192467628616,
+        "ann_vol": 0.1048358317915267,
+        "sharpe": 0.9385266204408126,
+        "sortino": 0.9841625698485165,
+        "max_drawdown": 0.17022518326402758,
+        "calmar": 0.5714896163477594,
+        "n_trades": 1598,
+        "win_rate": 0.5613266583229036,
+        "profit_factor": 1.4044963212180326,
+        "avg_trade_return": 0.011347252816020025,
+        "expectancy_pnl": 146.10757196495632,
+        "expectancy_pct": 0.011347252816020021,
+        "final_equity": 327233.18254596693,
+        "net_pnl": 233479.9,
+        "short_borrow_fees_total": 0.0
+      },
+      "tail": {
+        "worst_daily_return": -0.050921,
+        "max_drawdown": 0.170225
+      },
+      "full_window_sharpe_per_period": 0.05912161991667379,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.054511209988474876,
+        "oos_sharpe_std": 0.02087310575240003,
+        "oos_sharpe_median": 0.060450365865036396,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0429,
+          0.0642,
+          0.0813,
+          0.0728,
+          0.0666,
+          0.0158,
+          0.0404,
+          0.0261,
+          0.0256,
+          0.0706,
+          0.0605,
+          0.057,
+          0.0744,
+          0.0768,
+          0.0427
+        ]
+      },
+      "gate": {
+        "book": "book_h_gold_252_spill50",
+        "passed": true,
+        "dsr_pass": true,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9960907153099559,
+          "observed_sharpe": 0.05912161991667379,
+          "observed_sharpe_ann": 0.9385266204408126,
+          "sr0": 0.0110971279878589,
+          "n_trials": 343,
+          "n_trials_observed": 3,
+          "n_obs": 3217,
+          "skew": -0.6827403029074329,
+          "kurtosis": 10.235954446981681
+        },
+        "pbo": {
+          "pbo": 0.48525,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 3
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.054511209988474876,
+          "oos_sharpe_std": 0.02087310575240003,
+          "oos_sharpe_median": 0.060450365865036396,
+          "frac_positive": 1.0,
+          "oos_sharpe_paths": [
+            0.0429,
+            0.0642,
+            0.0813,
+            0.0728,
+            0.0666,
+            0.0158,
+            0.0404,
+            0.0261,
+            0.0256,
+            0.0706,
+            0.0605,
+            0.057,
+            0.0744,
+            0.0768,
+            0.0427
+          ]
+        }
+      }
+    }
+  },
+  "verdicts": {
+    "book_h_gold_252": {
+      "book": "book_h_gold_252",
+      "passed": true,
+      "dsr_pass": true,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9919294134187974,
+        "observed_sharpe": 0.05435368717486219,
+        "observed_sharpe_ann": 0.8628380346245177,
+        "sr0": 0.0110971279878589,
+        "n_trials": 343,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.6060605269477396,
+        "kurtosis": 10.235469709720979
+      },
+      "pbo": {
+        "pbo": 0.48525,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "reasons": [
+        "DSR 0.992 > 0.95 (deflated by 343 trials)",
+        "PBO 0.48525 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.048, 100% of 15 paths positive"
+      ]
+    },
+    "book_h_gold_252_spill20": {
+      "book": "book_h_gold_252_spill20",
+      "passed": true,
+      "dsr_pass": true,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9878109517405932,
+        "observed_sharpe": 0.05166142937855943,
+        "observed_sharpe_ann": 0.8200997670587662,
+        "sr0": 0.0110971279878589,
+        "n_trials": 343,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.7247075530436031,
+        "kurtosis": 11.218939469186024
+      },
+      "pbo": {
+        "pbo": 0.48525,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.047657609344313054,
+        "oos_sharpe_std": 0.021804574002998654,
+        "oos_sharpe_median": 0.05119602820059742,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0408,
+          0.071,
+          0.0691,
+          0.0512,
+          0.0697,
+          0.0216,
+          0.0274,
+          0.0023,
+          0.0253,
+          0.0584,
+          0.0393,
+          0.0579,
+          0.0661,
+          0.0752,
+          0.0392
+        ]
+      },
+      "reasons": [
+        "DSR 0.988 > 0.95 (deflated by 343 trials)",
+        "PBO 0.48525 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.051, 100% of 15 paths positive"
+      ]
+    },
+    "book_h_gold_252_spill50": {
+      "book": "book_h_gold_252_spill50",
+      "passed": true,
+      "dsr_pass": true,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9960907153099559,
+        "observed_sharpe": 0.05912161991667379,
+        "observed_sharpe_ann": 0.9385266204408126,
+        "sr0": 0.0110971279878589,
+        "n_trials": 343,
+        "n_trials_observed": 3,
+        "n_obs": 3217,
+        "skew": -0.6827403029074329,
+        "kurtosis": 10.235954446981681
+      },
+      "pbo": {
+        "pbo": 0.48525,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 3
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.054511209988474876,
+        "oos_sharpe_std": 0.02087310575240003,
+        "oos_sharpe_median": 0.060450365865036396,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0429,
+          0.0642,
+          0.0813,
+          0.0728,
+          0.0666,
+          0.0158,
+          0.0404,
+          0.0261,
+          0.0256,
+          0.0706,
+          0.0605,
+          0.057,
+          0.0744,
+          0.0768,
+          0.0427
+        ]
+      },
+      "reasons": [
+        "DSR 0.996 > 0.95 (deflated by 343 trials)",
+        "PBO 0.48525 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.060, 100% of 15 paths positive"
+      ]
+    }
+  }
+}

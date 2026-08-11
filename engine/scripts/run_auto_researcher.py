@@ -71,6 +71,10 @@ DEAD_ENDS = [
     "CF-CVaR sizing", "order-invariant allocation (owner holds)",
     "Books I/J/K/L/R/S/T", "FOMC drift", "BTC dominance rotation",
     "low-vol anomaly", "sector rotation",
+    # 2026-08-08 campaign/hunt kills (gated, pre-registered, artifacts in validation/):
+    "SPY>200dma short veto (failed crash-preservation + PBO)",
+    "MOC close-fill entries (full-book run −£44.8k vs control)",
+    "earnings de-risk of open positions (tail savings < edge cost)",
 ]
 
 # Mechanical match phrases derived from the dead-end list (parentheticals and

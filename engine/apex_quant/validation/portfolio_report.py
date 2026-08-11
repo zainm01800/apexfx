@@ -82,10 +82,16 @@ def _portfolio_returns(
     exit_mode: str = "managed",
     trade_manager=None,
     defensive_sleeve=None,
+    entry_fill: str = "open",
+    earnings_derisk=None,
+    earnings_derisk_frac: float = 1.0,
 ) -> pd.Series:
     """One portfolio backtest -> its per-bar equity returns."""
     res = PortfolioBacktester(cfg, exit_mode=exit_mode, trade_manager=trade_manager,
-                              defensive_sleeve=defensive_sleeve).run(
+                              defensive_sleeve=defensive_sleeve,
+                              entry_fill=entry_fill,
+                              earnings_derisk=earnings_derisk,
+                              earnings_derisk_frac=earnings_derisk_frac).run(
         pits, strategies, timeframes=timeframes, warmup=warmup,
         start=start, end=end, periods_per_year=periods_per_year,
     )
@@ -106,6 +112,9 @@ def run_portfolio_cpcv(
     exit_mode: str = "managed",
     trade_manager=None,
     defensive_sleeve=None,
+    entry_fill: str = "open",
+    earnings_derisk=None,
+    earnings_derisk_frac: float = 1.0,
 ) -> dict:
     """CPCV over the shared portfolio timeline.
 
@@ -146,7 +155,9 @@ def run_portfolio_cpcv(
             pits, model.strategies(), cfg=cfg, timeframes=timeframes,
             warmup=0, start=t0, end=t1, periods_per_year=periods_per_year,
             exit_mode=exit_mode, trade_manager=trade_manager,
-            defensive_sleeve=defensive_sleeve,
+            defensive_sleeve=defensive_sleeve, entry_fill=entry_fill,
+            earnings_derisk=earnings_derisk,
+            earnings_derisk_frac=earnings_derisk_frac,
         )
         test_dates = timeline[test_idx]
         rets = rets[rets.index.isin(test_dates)]

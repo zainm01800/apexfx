@@ -1,0 +1,404 @@
+{
+  "generated_at": "2026-08-11T12:19:53+00:00",
+  "mode": "iteration",
+  "holdout_start": "2025-01-01",
+  "prereg": "engine/data_store/moc_entry_gate_prereg.md",
+  "certified_anchor_max_risk_per_trade": 0.01,
+  "universe": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "META",
+    "AMZN",
+    "GOOGL",
+    "TSLA",
+    "AMD",
+    "PLTR",
+    "TSM",
+    "NFLX",
+    "UBER",
+    "ISWD.L",
+    "ISDU.L",
+    "ISDE.L",
+    "XLK",
+    "XLE",
+    "XBI",
+    "SMH",
+    "SOXX",
+    "SGLD.L",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "BNB/USD",
+    "XRP/USD",
+    "ADA/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "LINK/USD",
+    "ARB/USD",
+    "SUI/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "NZD/USD"
+  ],
+  "n_trials_before": 335,
+  "n_trials_used": 337,
+  "ledger_recorded": true,
+  "pbo": {
+    "pbo": 0.19275,
+    "n_combos": 4000,
+    "n_splits": 16,
+    "n_configs": 2
+  },
+  "legs": {
+    "l1_sharpe_no_worse": false,
+    "l2_dsr": false,
+    "l3_pbo": true,
+    "l4_cpcv_paths": false,
+    "l5_net_improvement_10k": false
+  },
+  "verdict_rule": "REJECTED",
+  "deltas_challenger_minus_control": {
+    "sharpe": -0.149547,
+    "profit_factor": -0.054351,
+    "expectancy_pnl": -28.107021,
+    "win_rate": -0.005663,
+    "max_drawdown": 0.011548,
+    "total_return": -0.448493,
+    "n_trades": -14,
+    "worst_daily_return": 0.003398,
+    "net_pnl": -44849.33
+  },
+  "books": {
+    "book_h_gold_252_open": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50,
+        "entry_fill": "open"
+      },
+      "metrics": {
+        "total_return": 1.9255133668640645,
+        "ann_return": 0.08769731511242296,
+        "ann_vol": 0.10372021267298559,
+        "sharpe": 0.8628380346245177,
+        "sortino": 0.9340963029882317,
+        "max_drawdown": 0.16315348773173277,
+        "calmar": 0.5375141918916279,
+        "n_trades": 1637,
+        "win_rate": 0.5577275503970678,
+        "profit_factor": 1.324524180228228,
+        "avg_trade_return": 0.010216805131337815,
+        "expectancy_pnl": 120.44265729993896,
+        "expectancy_pct": 0.010216805131337811,
+        "final_equity": 292551.33668640646,
+        "net_pnl": 197164.63,
+        "short_borrow_fees_total": 0.0
+      },
+      "tail": {
+        "worst_daily_return": -0.050921,
+        "max_drawdown": 0.163153
+      },
+      "full_window_sharpe_per_period": 0.05435368717486219,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "gate": {
+        "book": "book_h_gold_252_open",
+        "passed": true,
+        "dsr_pass": true,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9736090612615125,
+          "observed_sharpe": 0.05435368717486219,
+          "observed_sharpe_ann": 0.8628380346245177,
+          "sr0": 0.019530241996329453,
+          "n_trials": 337,
+          "n_trials_observed": 2,
+          "n_obs": 3217,
+          "skew": -0.6060605269477396,
+          "kurtosis": 10.235469709720979
+        },
+        "pbo": {
+          "pbo": 0.19275,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 2
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.05169300366276471,
+          "oos_sharpe_std": 0.023363420254281963,
+          "oos_sharpe_median": 0.04757908846539509,
+          "frac_positive": 1.0,
+          "oos_sharpe_paths": [
+            0.0437,
+            0.0671,
+            0.0811,
+            0.0368,
+            0.0751,
+            0.0326,
+            0.0476,
+            0.0009,
+            0.0398,
+            0.0684,
+            0.0267,
+            0.0683,
+            0.0648,
+            0.0844,
+            0.0381
+          ]
+        }
+      }
+    },
+    "book_h_gold_252_moc": {
+      "params": {
+        "carry_filter": false,
+        "momentum_lookback": 252,
+        "vol_window": 63,
+        "holding_horizon": 21,
+        "reward_risk": 1.5,
+        "regime_method": "rule_based",
+        "timeframe": "1d",
+        "htf_rule": "1w",
+        "htf_ma_window": 50,
+        "entry_fill": "close"
+      },
+      "metrics": {
+        "total_return": 1.4770200655147225,
+        "ann_return": 0.07361464662653505,
+        "ann_vol": 0.10779537296611875,
+        "sharpe": 0.7132914363773257,
+        "sortino": 0.7295748866459386,
+        "max_drawdown": 0.17470123774820556,
+        "calmar": 0.4213744995478212,
+        "n_trades": 1623,
+        "win_rate": 0.5520640788662969,
+        "profit_factor": 1.2701730532491484,
+        "avg_trade_return": 0.0075373629081947014,
+        "expectancy_pnl": 92.33563582387467,
+        "expectancy_pct": 0.007537362908194695,
+        "final_equity": 247702.00655147227,
+        "net_pnl": 150628.68,
+        "short_borrow_fees_total": 0.0
+      },
+      "tail": {
+        "worst_daily_return": -0.047523,
+        "max_drawdown": 0.174701
+      },
+      "full_window_sharpe_per_period": 0.04493313697539177,
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.04368378060311023,
+        "oos_sharpe_std": 0.02274069461180374,
+        "oos_sharpe_median": 0.03962269905291656,
+        "frac_positive": 0.9333333333333333,
+        "oos_sharpe_paths": [
+          0.0349,
+          0.0729,
+          0.0688,
+          0.0276,
+          0.0564,
+          0.037,
+          0.0369,
+          -0.0062,
+          0.0247,
+          0.0743,
+          0.0396,
+          0.0634,
+          0.0415,
+          0.0636,
+          0.0198
+        ]
+      },
+      "gate": {
+        "book": "book_h_gold_252_moc",
+        "passed": false,
+        "dsr_pass": false,
+        "pbo_pass": true,
+        "cpcv_pass": true,
+        "dsr": {
+          "dsr": 0.9214739956433227,
+          "observed_sharpe": 0.04493313697539177,
+          "observed_sharpe_ann": 0.7132914363773257,
+          "sr0": 0.019530241996329453,
+          "n_trials": 337,
+          "n_trials_observed": 2,
+          "n_obs": 3217,
+          "skew": -0.7106685592035744,
+          "kurtosis": 9.887069720873802
+        },
+        "pbo": {
+          "pbo": 0.19275,
+          "n_combos": 4000,
+          "n_splits": 16,
+          "n_configs": 2
+        },
+        "cpcv": {
+          "n_paths": 15,
+          "oos_sharpe_mean": 0.04368378060311023,
+          "oos_sharpe_std": 0.02274069461180374,
+          "oos_sharpe_median": 0.03962269905291656,
+          "frac_positive": 0.9333333333333333,
+          "oos_sharpe_paths": [
+            0.0349,
+            0.0729,
+            0.0688,
+            0.0276,
+            0.0564,
+            0.037,
+            0.0369,
+            -0.0062,
+            0.0247,
+            0.0743,
+            0.0396,
+            0.0634,
+            0.0415,
+            0.0636,
+            0.0198
+          ]
+        }
+      }
+    }
+  },
+  "verdicts": {
+    "book_h_gold_252_open": {
+      "book": "book_h_gold_252_open",
+      "passed": true,
+      "dsr_pass": true,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9736090612615125,
+        "observed_sharpe": 0.05435368717486219,
+        "observed_sharpe_ann": 0.8628380346245177,
+        "sr0": 0.019530241996329453,
+        "n_trials": 337,
+        "n_trials_observed": 2,
+        "n_obs": 3217,
+        "skew": -0.6060605269477396,
+        "kurtosis": 10.235469709720979
+      },
+      "pbo": {
+        "pbo": 0.19275,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 2
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.05169300366276471,
+        "oos_sharpe_std": 0.023363420254281963,
+        "oos_sharpe_median": 0.04757908846539509,
+        "frac_positive": 1.0,
+        "oos_sharpe_paths": [
+          0.0437,
+          0.0671,
+          0.0811,
+          0.0368,
+          0.0751,
+          0.0326,
+          0.0476,
+          0.0009,
+          0.0398,
+          0.0684,
+          0.0267,
+          0.0683,
+          0.0648,
+          0.0844,
+          0.0381
+        ]
+      },
+      "reasons": [
+        "DSR 0.974 > 0.95 (deflated by 337 trials)",
+        "PBO 0.19275 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.048, 100% of 15 paths positive"
+      ]
+    },
+    "book_h_gold_252_moc": {
+      "book": "book_h_gold_252_moc",
+      "passed": false,
+      "dsr_pass": false,
+      "pbo_pass": true,
+      "cpcv_pass": true,
+      "dsr": {
+        "dsr": 0.9214739956433227,
+        "observed_sharpe": 0.04493313697539177,
+        "observed_sharpe_ann": 0.7132914363773257,
+        "sr0": 0.019530241996329453,
+        "n_trials": 337,
+        "n_trials_observed": 2,
+        "n_obs": 3217,
+        "skew": -0.7106685592035744,
+        "kurtosis": 9.887069720873802
+      },
+      "pbo": {
+        "pbo": 0.19275,
+        "n_combos": 4000,
+        "n_splits": 16,
+        "n_configs": 2
+      },
+      "cpcv": {
+        "n_paths": 15,
+        "oos_sharpe_mean": 0.04368378060311023,
+        "oos_sharpe_std": 0.02274069461180374,
+        "oos_sharpe_median": 0.03962269905291656,
+        "frac_positive": 0.9333333333333333,
+        "oos_sharpe_paths": [
+          0.0349,
+          0.0729,
+          0.0688,
+          0.0276,
+          0.0564,
+          0.037,
+          0.0369,
+          -0.0062,
+          0.0247,
+          0.0743,
+          0.0396,
+          0.0634,
+          0.0415,
+          0.0636,
+          0.0198
+        ]
+      },
+      "reasons": [
+        "DSR 0.921 <= 0.95 (deflated by 337 trials)",
+        "PBO 0.19275 < 0.5 (book-selection overfit probability)",
+        "CPCV median OOS Sharpe 0.040, 93% of 15 paths positive"
+      ]
+    }
+  }
+}

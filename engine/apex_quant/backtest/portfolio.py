@@ -103,6 +103,9 @@ class PortfolioBacktester:
         trade_manager: TradeManager | None = None,
         slot_allocation: Literal["order", "expected_value"] | None = None,
         defensive_sleeve: "DefensiveSleeveSpec | None" = None,
+        entry_fill: Literal["open", "close"] = "open",
+        earnings_derisk: "dict[str, set[int]] | None" = None,
+        earnings_derisk_frac: float = 1.0,
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -111,6 +114,16 @@ class PortfolioBacktester:
         self.vol_window = vol_window
         self.corr_window = corr_window
         self.exit_mode = exit_mode
+        # Entry fill convention. "open" (default) = certified: signals on bar t's close
+        # fill at bar t+1's open. "close" (MOC gate, 2026-08-08, prereg
+        # data_store/moc_entry_gate_prereg.md): fill at the decision bar's close.
+        self.entry_fill = entry_fill
+        # Earnings de-risk (exit-side gate, 2026-08-08, prereg
+        # data_store/earnings_derisk_gate_prereg.md). None/empty = certified behaviour.
+        # {instrument: set(bar_indices)} — on a listed bar, exit derisk_frac of the open
+        # position at that bar's close, BEFORE TradeManager management.
+        self._earnings_derisk = earnings_derisk or {}
+        self._earnings_derisk_frac = earnings_derisk_frac
         # Defensive cash-substitute sleeve (U2, 2026-07-27; prereg
         # engine/data_store/defensive_sleeve_prereg.md). None (default) = certified
         # zero-yield GBP cash on idle capital — byte-identical certified behaviour.
@@ -342,6 +355,30 @@ class PortfolioBacktester:
                         per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
                         del open_pos[inst]
                 else:
+                    # Earnings de-risk (exit-side gate, 2026-08-08): fires BEFORE
+                    # TradeManager management; full flat skips this bar's management.
+                    derisk_bars = self._earnings_derisk.get(inst)
+                    if derisk_bars and i in derisk_bars:
+                        _frac = self._earnings_derisk_frac
+                        _exit_px = self._fill(float(d["close"][i]), inst,
+                                              buying=posd["direction"] != Direction.LONG,
+                                              timeframe=posd["tf"])
+                        _u = posd["units"] * _frac
+                        _pnl = ((_exit_px - posd["entry_price"]) * _u
+                                if posd["direction"] == Direction.LONG
+                                else (posd["entry_price"] - _exit_px) * _u)
+                        realized += _pnl - d["commission"]
+                        posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (_pnl - d["commission"])
+                        constraint_log["earnings_derisk"] += 1
+                        if _frac >= 1.0 - 1e-12:
+                            trades.append(self._record(posd, _exit_px, t, "earnings_derisk",
+                                                       posd["realized_pnl_total"], inst))
+                            per_inst[inst]["n_trades"] += 1
+                            per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                            del open_pos[inst]
+                            continue
+                        posd["units"] -= _u
+
                     # Prepare past 22 bars high/low window for Chandelier trail
                     high_window = d["high"][max(0, i-21):i+1]
                     low_window = d["low"][max(0, i-21):i+1]
@@ -595,6 +632,13 @@ class PortfolioBacktester:
                 if pos.permitted:
                     if self._simultaneous_risk_cap:
                         permitted_today.append((inst, d, i, pos))
+                    elif self.entry_fill == "close":
+                        # MOC gate (2026-08-08): fill at the decision bar's close.
+                        if inst not in open_pos:
+                            open_pos[inst] = self._enter(
+                                {"pos": pos, "dec": float(d["close"][i]),
+                                 "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]},
+                                d["close"][i], t, i, inst)
                     else:
                         pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
                                          "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
@@ -646,8 +690,15 @@ class PortfolioBacktester:
                             pending_trims[_k] = 1.0 - gamma
                     permitted_today = scaled
                 for inst, d, i, pos in permitted_today:
-                    pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
-                                     "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
+                    if self.entry_fill == "close":
+                        if inst not in open_pos:
+                            open_pos[inst] = self._enter(
+                                {"pos": pos, "dec": float(d["close"][i]),
+                                 "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]},
+                                d["close"][i], t, i, inst)
+                    else:
+                        pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
+                                         "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
 
         equity_series = pd.Series(
             [v for _, v in eq_points],
