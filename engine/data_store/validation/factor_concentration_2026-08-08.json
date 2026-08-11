@@ -1,0 +1,810 @@
+{
+  "kind": "factor_concentration_measurement",
+  "informational": true,
+  "anchor": {
+    "sharpe": 0.8628380346245177,
+    "profit_factor": 1.324524180228228,
+    "win_rate": 0.5577275503970678,
+    "max_drawdown": 0.16315348773173277,
+    "n_trades": 1637,
+    "total_return": 1.9255133668640645,
+    "expectancy_pnl": 120.44265729993896,
+    "final_equity": 292551.33668640646
+  },
+  "n_trades": 1637,
+  "n_positions_open_at_window_edge": 10,
+  "closed_trade_pnl_total": 197164.45,
+  "pnl_vs_equity_note": "sum of the 1,637 closed trades is \u00a3197,164; final-equity gain is \u00a3192,551 \u2014 the difference is unrealized P&L / entry commissions of positions still open at the 2025-01-01 window edge (not in the certified pool).",
+  "trajectory_check": {
+    "ok": 1637,
+    "n_bars_mismatch": 0,
+    "price_mismatch": 0
+  },
+  "trajectory_mismatch_examples": [],
+  "daily_pnl_tieout_max_abs_diff": 0.0,
+  "notes": [
+    "crypto X/USD pairs: classified as USD-PRICED RISK ASSETS (long crypto = long risk asset, P&L currency USD) \u2014 NOT counted as long-USD FX exposure.",
+    "FX USD-direction: long USD/JPY|USD/CHF|USD/CAD = long-USD; long EUR/GBP/AUD/NZD-USD = short-USD.",
+    "exposures are end-of-day, exact units via _unrealized spy (post TradeManager partials / gamma trims).",
+    "daily P&L per instrument sums EXACTLY to recorded trade P&L (commissions/borrow/intraday-partial timing booked as exit-day residual)."
+  ],
+  "instrument_attribution": {
+    "total_net_pnl": 197164.45,
+    "per_instrument": [
+      {
+        "n": 102,
+        "net": 24890.03,
+        "expectancy": 244.02,
+        "win_rate": 0.6176,
+        "pf": 1.728,
+        "instrument": "TSLA",
+        "bucket": "tech_broad",
+        "share_of_net": 0.1262,
+        "share_of_abs": 0.0877
+      },
+      {
+        "n": 88,
+        "net": 22831.47,
+        "expectancy": 259.45,
+        "win_rate": 0.5909,
+        "pf": 1.919,
+        "instrument": "TSM",
+        "bucket": "tech_broad",
+        "share_of_net": 0.1158,
+        "share_of_abs": 0.0805
+      },
+      {
+        "n": 108,
+        "net": 21949.83,
+        "expectancy": 203.24,
+        "win_rate": 0.6019,
+        "pf": 1.636,
+        "instrument": "MSFT",
+        "bucket": "tech_broad",
+        "share_of_net": 0.1113,
+        "share_of_abs": 0.0774
+      },
+      {
+        "n": 115,
+        "net": 21900.99,
+        "expectancy": 190.44,
+        "win_rate": 0.5826,
+        "pf": 1.513,
+        "instrument": "META",
+        "bucket": "tech_broad",
+        "share_of_net": 0.1111,
+        "share_of_abs": 0.0772
+      },
+      {
+        "n": 127,
+        "net": 18233.22,
+        "expectancy": 143.57,
+        "win_rate": 0.5827,
+        "pf": 1.372,
+        "instrument": "NVDA",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0925,
+        "share_of_abs": 0.0643
+      },
+      {
+        "n": 114,
+        "net": 15574.89,
+        "expectancy": 136.62,
+        "win_rate": 0.5965,
+        "pf": 1.363,
+        "instrument": "AMZN",
+        "bucket": "tech_broad",
+        "share_of_net": 0.079,
+        "share_of_abs": 0.0549
+      },
+      {
+        "n": 71,
+        "net": 13993.01,
+        "expectancy": 197.08,
+        "win_rate": 0.5915,
+        "pf": 1.75,
+        "instrument": "BTC/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.071,
+        "share_of_abs": 0.0493
+      },
+      {
+        "n": 80,
+        "net": 13962.06,
+        "expectancy": 174.53,
+        "win_rate": 0.575,
+        "pf": 1.624,
+        "instrument": "NFLX",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0708,
+        "share_of_abs": 0.0492
+      },
+      {
+        "n": 108,
+        "net": 12638.96,
+        "expectancy": 117.03,
+        "win_rate": 0.4907,
+        "pf": 1.304,
+        "instrument": "GOOGL",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0641,
+        "share_of_abs": 0.0445
+      },
+      {
+        "n": 39,
+        "net": 11031.2,
+        "expectancy": 282.85,
+        "win_rate": 0.6154,
+        "pf": 1.574,
+        "instrument": "PLTR",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0559,
+        "share_of_abs": 0.0389
+      },
+      {
+        "n": 52,
+        "net": 9378.29,
+        "expectancy": 180.35,
+        "win_rate": 0.6346,
+        "pf": 1.788,
+        "instrument": "ISDE.L",
+        "bucket": "global_equity_ucits",
+        "share_of_net": 0.0476,
+        "share_of_abs": 0.0331
+      },
+      {
+        "n": 16,
+        "net": 8794.2,
+        "expectancy": 549.64,
+        "win_rate": 0.625,
+        "pf": 3.859,
+        "instrument": "XRP/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0446,
+        "share_of_abs": 0.031
+      },
+      {
+        "n": 26,
+        "net": 7493.09,
+        "expectancy": 288.2,
+        "win_rate": 0.6154,
+        "pf": 1.92,
+        "instrument": "XBI",
+        "bucket": "sector_etf_other",
+        "share_of_net": 0.038,
+        "share_of_abs": 0.0264
+      },
+      {
+        "n": 27,
+        "net": 6226.38,
+        "expectancy": 230.61,
+        "win_rate": 0.6296,
+        "pf": 1.964,
+        "instrument": "XLK",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0316,
+        "share_of_abs": 0.0219
+      },
+      {
+        "n": 11,
+        "net": 5371.76,
+        "expectancy": 488.34,
+        "win_rate": 0.8182,
+        "pf": 4.593,
+        "instrument": "SMH",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0272,
+        "share_of_abs": 0.0189
+      },
+      {
+        "n": 11,
+        "net": 4313.96,
+        "expectancy": 392.18,
+        "win_rate": 0.6364,
+        "pf": 1.867,
+        "instrument": "LINK/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0219,
+        "share_of_abs": 0.0152
+      },
+      {
+        "n": 20,
+        "net": 3864.76,
+        "expectancy": 193.24,
+        "win_rate": 0.5,
+        "pf": 1.397,
+        "instrument": "SOL/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0196,
+        "share_of_abs": 0.0136
+      },
+      {
+        "n": 94,
+        "net": 3845.06,
+        "expectancy": 40.9,
+        "win_rate": 0.5319,
+        "pf": 1.099,
+        "instrument": "AMD",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0195,
+        "share_of_abs": 0.0136
+      },
+      {
+        "n": 4,
+        "net": 3697.88,
+        "expectancy": 924.47,
+        "win_rate": 1.0,
+        "pf": null,
+        "instrument": "SUI/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0188,
+        "share_of_abs": 0.013
+      },
+      {
+        "n": 7,
+        "net": 3252.34,
+        "expectancy": 464.62,
+        "win_rate": 0.7143,
+        "pf": 3.418,
+        "instrument": "SOXX",
+        "bucket": "tech_broad",
+        "share_of_net": 0.0165,
+        "share_of_abs": 0.0115
+      },
+      {
+        "n": 7,
+        "net": 2161.82,
+        "expectancy": 308.83,
+        "win_rate": 0.4286,
+        "pf": 1.963,
+        "instrument": "USD/JPY",
+        "bucket": "fx",
+        "share_of_net": 0.011,
+        "share_of_abs": 0.0076
+      },
+      {
+        "n": 10,
+        "net": 1983.7,
+        "expectancy": 198.37,
+        "win_rate": 0.5,
+        "pf": 1.431,
+        "instrument": "AVAX/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0101,
+        "share_of_abs": 0.007
+      },
+      {
+        "n": 5,
+        "net": 1710.07,
+        "expectancy": 342.01,
+        "win_rate": 0.6,
+        "pf": 1.488,
+        "instrument": "ARB/USD",
+        "bucket": "crypto",
+        "share_of_net": 0.0087,
+        "share_of_abs": 0.006
+      },
+      {
+        "n": 8,
+        "net": 878.12,
+        "expectancy": 109.76,
+        "win_rate": 0.625,
+        "pf": 1.395,
+        "instrument": "GBP/USD",
+        "bucket": "fx",
+        "share_of_net": 0.0045,
+        "share_of_abs": 0.0031
+      },
+      {
+        "n": 20,
+        "net": 466.62,
+        "expectancy": 23.33,
+        "win_rate": 0.5,
+        "pf": 1.067,
+        "instrument": "SGLD.L",
+        "bucket": "gold",
+        "share_of_net": 0.0024,
+        "share_of_abs": 0.0016
+      },
+      {
+        "n": 2,
+        "net": -261.31,
+        "expectancy": -130.66,
+        "win_rate": 0.5,
+        "pf": 0.402,
+        "instrument": "USD/CAD",
+        "bucket": "fx",
+        "share_of_net": -0.0013,
+        "share_of_abs": 0.0009
+      },
+      {
+        "n": 4,
+        "net": -504.94,
+        "expectancy": -126.23,
+        "win_rate": 0.25,
+        "pf": 0.49,
+        "instrument": "EUR/USD",
+        "bucket": "fx",
+        "share_of_net": -0.0026,
+        "share_of_abs": 0.0018
+      },
+      {
+        "n": 46,
+        "net": -1915.84,
+        "expectancy": -41.65,
+        "win_rate": 0.4783,
+        "pf": 0.885,
+        "instrument": "ISDU.L",
+        "bucket": "global_equity_ucits",
+        "share_of_net": -0.0097,
+        "share_of_abs": 0.0068
+      },
+      {
+        "n": 17,
+        "net": -1939.38,
+        "expectancy": -114.08,
+        "win_rate": 0.4706,
+        "pf": 0.816,
+        "instrument": "BNB/USD",
+        "bucket": "crypto",
+        "share_of_net": -0.0098,
+        "share_of_abs": 0.0068
+      },
+      {
+        "n": 3,
+        "net": -2361.61,
+        "expectancy": -787.2,
+        "win_rate": 0.0,
+        "pf": 0.0,
+        "instrument": "NZD/USD",
+        "bucket": "fx",
+        "share_of_net": -0.012,
+        "share_of_abs": 0.0083
+      },
+      {
+        "n": 32,
+        "net": -2438.0,
+        "expectancy": -76.19,
+        "win_rate": 0.4688,
+        "pf": 0.849,
+        "instrument": "XLE",
+        "bucket": "sector_etf_other",
+        "share_of_net": -0.0124,
+        "share_of_abs": 0.0086
+      },
+      {
+        "n": 3,
+        "net": -2493.05,
+        "expectancy": -831.02,
+        "win_rate": 0.0,
+        "pf": 0.0,
+        "instrument": "USD/CHF",
+        "bucket": "fx",
+        "share_of_net": -0.0126,
+        "share_of_abs": 0.0088
+      },
+      {
+        "n": 121,
+        "net": -2518.23,
+        "expectancy": -20.81,
+        "win_rate": 0.4959,
+        "pf": 0.953,
+        "instrument": "AAPL",
+        "bucket": "tech_broad",
+        "share_of_net": -0.0128,
+        "share_of_abs": 0.0089
+      },
+      {
+        "n": 22,
+        "net": -2899.08,
+        "expectancy": -131.78,
+        "win_rate": 0.4091,
+        "pf": 0.742,
+        "instrument": "ETH/USD",
+        "bucket": "crypto",
+        "share_of_net": -0.0147,
+        "share_of_abs": 0.0102
+      },
+      {
+        "n": 57,
+        "net": -3616.74,
+        "expectancy": -63.45,
+        "win_rate": 0.5614,
+        "pf": 0.8,
+        "instrument": "ISWD.L",
+        "bucket": "global_equity_ucits",
+        "share_of_net": -0.0183,
+        "share_of_abs": 0.0127
+      },
+      {
+        "n": 6,
+        "net": -3873.03,
+        "expectancy": -645.5,
+        "win_rate": 0.1667,
+        "pf": 0.007,
+        "instrument": "AUD/USD",
+        "bucket": "fx",
+        "share_of_net": -0.0196,
+        "share_of_abs": 0.0137
+      },
+      {
+        "n": 10,
+        "net": -4881.68,
+        "expectancy": -488.17,
+        "win_rate": 0.4,
+        "pf": 0.396,
+        "instrument": "ADA/USD",
+        "bucket": "crypto",
+        "share_of_net": -0.0248,
+        "share_of_abs": 0.0172
+      },
+      {
+        "n": 8,
+        "net": -5637.51,
+        "expectancy": -704.69,
+        "win_rate": 0.125,
+        "pf": 0.062,
+        "instrument": "DOGE/USD",
+        "bucket": "crypto",
+        "share_of_net": -0.0286,
+        "share_of_abs": 0.0199
+      },
+      {
+        "n": 36,
+        "net": -7938.86,
+        "expectancy": -220.52,
+        "win_rate": 0.5,
+        "pf": 0.627,
+        "instrument": "UBER",
+        "bucket": "tech_broad",
+        "share_of_net": -0.0403,
+        "share_of_abs": 0.028
+      }
+    ],
+    "top5": {
+      "instruments": [
+        "TSLA",
+        "TSM",
+        "MSFT",
+        "META",
+        "NVDA"
+      ],
+      "net": 109805.54,
+      "share_of_total_net": 0.5569
+    },
+    "bottom5": {
+      "instruments": [
+        "ISWD.L",
+        "AUD/USD",
+        "ADA/USD",
+        "DOGE/USD",
+        "UBER"
+      ],
+      "net": -25947.82,
+      "share_of_total_net": -0.1316
+    },
+    "herfindahl_abs_pnl": 0.0486,
+    "effective_n_instruments": 20.6,
+    "top1_abs_share": 0.0877,
+    "n_instruments_traded": 39
+  },
+  "return_stream_correlation": {
+    "n_instruments_in_matrix": 38,
+    "excluded_lt3_trades": [
+      "USD/CAD"
+    ],
+    "excluded_zero_variance": [],
+    "avg_pairwise_abs_corr": 0.0142,
+    "median_pairwise_abs_corr": 0.0028,
+    "max_pairwise_abs_corr": 0.6682,
+    "pca_explained_variance_top3": [
+      0.044,
+      0.0363,
+      0.0359
+    ],
+    "pc1_top_loadings": [
+      [
+        "SMH",
+        0.7053
+      ],
+      [
+        "SOXX",
+        0.703
+      ],
+      [
+        "ISDE.L",
+        0.0516
+      ],
+      [
+        "ISDU.L",
+        -0.0308
+      ],
+      [
+        "SOL/USD",
+        0.0307
+      ],
+      [
+        "BTC/USD",
+        -0.0303
+      ],
+      [
+        "NZD/USD",
+        -0.0275
+      ],
+      [
+        "NVDA",
+        -0.0253
+      ],
+      [
+        "NFLX",
+        0.0195
+      ],
+      [
+        "AMD",
+        0.0133
+      ]
+    ],
+    "pc1_bottom_loadings": [
+      [
+        "GBP/USD",
+        0.0007
+      ],
+      [
+        "GOOGL",
+        -0.0004
+      ],
+      [
+        "XRP/USD",
+        -0.0004
+      ],
+      [
+        "EUR/USD",
+        0.0002
+      ],
+      [
+        "AVAX/USD",
+        0.0
+      ]
+    ],
+    "clusters_abs_corr_0.3": [
+      {
+        "members": [
+          "AUD/USD",
+          "USD/CHF"
+        ],
+        "size": 2,
+        "mean_intra_abs_corr": 0.301
+      },
+      {
+        "members": [
+          "SMH",
+          "SOXX"
+        ],
+        "size": 2,
+        "mean_intra_abs_corr": 0.668
+      }
+    ],
+    "n_singletons": 34
+  },
+  "exposure_over_time": {
+    "net_risk_asset": {
+      "max_long_pct_equity": 238.38,
+      "max_short_pct_equity": 59.8,
+      "mean_abs_pct_equity": 51.94,
+      "frac_days_net_gt_50pct": 0.4211,
+      "frac_days_net_lt_minus50pct": 0.0084,
+      "frac_days_abs_net_gt_50pct": 0.4295,
+      "date_max_net_long": "2017-10-24"
+    },
+    "gross_risk_asset": {
+      "max_pct_equity": 259.32,
+      "mean_pct_equity": 60.69
+    },
+    "fx_usd_factor": {
+      "max_net_long_usd_pct_equity": 83.74,
+      "max_net_short_usd_pct_equity": 46.91,
+      "mean_abs_pct_equity": 3.1,
+      "frac_days_net_long_usd": 0.1122,
+      "max_simultaneous_long_usd_positions": 3,
+      "max_simultaneous_short_usd_positions": 2
+    },
+    "reading_guide": "risk assets = single stocks + equity/sector/UCITS ETFs + crypto; gold reported separately; FX USD-factor from the 7 majors only."
+  },
+  "theme_concentration": {
+    "pnl_by_bucket": {
+      "crypto": {
+        "n": 194,
+        "net": 22999.92,
+        "expectancy": 118.56,
+        "win_rate": 0.5309,
+        "pf": 1.286,
+        "share_of_net": 0.1167
+      },
+      "fx": {
+        "n": 33,
+        "net": -6454.0,
+        "expectancy": -195.58,
+        "win_rate": 0.3333,
+        "pf": 0.559,
+        "share_of_net": -0.0327
+      },
+      "global_equity_ucits": {
+        "n": 155,
+        "net": 3845.71,
+        "expectancy": 24.81,
+        "win_rate": 0.5613,
+        "pf": 1.082,
+        "share_of_net": 0.0195
+      },
+      "gold": {
+        "n": 20,
+        "net": 466.62,
+        "expectancy": 23.33,
+        "win_rate": 0.5,
+        "pf": 1.067,
+        "share_of_net": 0.0024
+      },
+      "sector_etf_other": {
+        "n": 58,
+        "net": 5055.08,
+        "expectancy": 87.16,
+        "win_rate": 0.5345,
+        "pf": 1.208,
+        "share_of_net": 0.0256
+      },
+      "tech_broad": {
+        "n": 1177,
+        "net": 171251.12,
+        "expectancy": 145.5,
+        "win_rate": 0.5701,
+        "pf": 1.394,
+        "share_of_net": 0.8686
+      },
+      "tech_broad_long_only": {
+        "n": 939,
+        "net": 178438.7,
+        "expectancy": 190.03,
+        "win_rate": 0.5985,
+        "pf": 1.518,
+        "share_of_net": 0.905
+      },
+      "tech_broad_short_only": {
+        "n": 238,
+        "net": -7187.58,
+        "expectancy": -30.2,
+        "win_rate": 0.458,
+        "pf": 0.92,
+        "share_of_net": -0.0365
+      }
+    },
+    "tech_net_exposure": {
+      "max_long_pct_equity": 168.04,
+      "max_short_pct_equity": 48.03,
+      "mean_abs_pct_equity": 39.24,
+      "frac_days_abs_net_gt_40pct": 0.4145,
+      "date_max_net_long": "2021-07-20"
+    },
+    "semis_net_exposure": {
+      "max_long_pct_equity": 53.72,
+      "mean_abs_pct_equity": 9.26
+    }
+  },
+  "live_book_echo": {
+    "AMD": {
+      "n": 94,
+      "net": 3845.06,
+      "expectancy": 40.9,
+      "win_rate": 0.5319,
+      "pf": 1.099,
+      "share_of_net": 0.0195
+    },
+    "TSM": {
+      "n": 88,
+      "net": 22831.47,
+      "expectancy": 259.45,
+      "win_rate": 0.5909,
+      "pf": 1.919,
+      "share_of_net": 0.1158
+    },
+    "AAPL": {
+      "n": 121,
+      "net": -2518.23,
+      "expectancy": -20.81,
+      "win_rate": 0.4959,
+      "pf": 0.953,
+      "share_of_net": -0.0128
+    },
+    "IWM": {
+      "n": 0,
+      "note": "not in certified universe"
+    },
+    "META": {
+      "n": 115,
+      "net": 21900.99,
+      "expectancy": 190.44,
+      "win_rate": 0.5826,
+      "pf": 1.513,
+      "share_of_net": 0.1111
+    },
+    "MSFT": {
+      "n": 108,
+      "net": 21949.83,
+      "expectancy": 203.24,
+      "win_rate": 0.6019,
+      "pf": 1.636,
+      "share_of_net": 0.1113
+    },
+    "NFLX": {
+      "n": 80,
+      "net": 13962.06,
+      "expectancy": 174.53,
+      "win_rate": 0.575,
+      "pf": 1.624,
+      "share_of_net": 0.0708
+    },
+    "TSLA": {
+      "n": 102,
+      "net": 24890.03,
+      "expectancy": 244.02,
+      "win_rate": 0.6176,
+      "pf": 1.728,
+      "share_of_net": 0.1262
+    },
+    "PLTR": {
+      "n": 39,
+      "net": 11031.2,
+      "expectancy": 282.85,
+      "win_rate": 0.6154,
+      "pf": 1.574,
+      "share_of_net": 0.0559
+    },
+    "USD/JPY": {
+      "n": 7,
+      "net": 2161.82,
+      "expectancy": 308.83,
+      "win_rate": 0.4286,
+      "pf": 1.963,
+      "share_of_net": 0.011
+    },
+    "USD/CAD": {
+      "n": 2,
+      "net": -261.31,
+      "expectancy": -130.66,
+      "win_rate": 0.5,
+      "pf": 0.402,
+      "share_of_net": -0.0013
+    }
+  },
+  "theme_reversal_stress": {
+    "S1_ai_tech_correction": {
+      "worst_day": "2017-10-24",
+      "worst_hit_pct_equity": -43.29,
+      "p05_daily_hit_pct": -29.91,
+      "median_daily_hit_pct": -8.89,
+      "shocks": {
+        "tech_broad": -0.25,
+        "global_equity_ucits": -0.12,
+        "sector_etf_other": -0.08,
+        "crypto": -0.2,
+        "gold": 0.03,
+        "fx": 0.0
+      }
+    },
+    "S2_broad_risk_off": {
+      "worst_day": "2017-10-24",
+      "worst_hit_pct_equity": -47.68,
+      "p05_daily_hit_pct": -27.96,
+      "median_daily_hit_pct": -7.93,
+      "shocks": {
+        "tech_broad": -0.2,
+        "global_equity_ucits": -0.2,
+        "sector_etf_other": -0.2,
+        "crypto": -0.3,
+        "gold": 0.05,
+        "fx": 0.0
+      }
+    },
+    "certified_max_drawdown_pct": 16.32,
+    "caveat": "instantaneous gap on EOD exposures; realised loss would be smaller (stops, gap-aware fills) unless the gap jumps stops \u2014 treat as the overnight-gap upper bound, not the expected DD contribution."
+  }
+}
