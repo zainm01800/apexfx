@@ -47,7 +47,7 @@
       <div>
         <span class="ob-eyebrow">Paper Proof · £100k Experiment</span>
         <h1 class="pg-title">Engine Book</h1>
-        <p class="pg-subtitle">The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.</p>
+        <p class="pg-subtitle" id="engBookBlurb">The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.</p>
       </div>
     </div>
 
@@ -69,13 +69,17 @@
       </div>
       <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested (paper)</span></div>
       <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
-      <div class="hs-stat"><span class="hs-label">Cum P&amp;L</span><span class="hs-val" id="engCumPnl">—</span><span class="ob-stat-sub">since 16 Jul 2026</span></div>
+      <div class="hs-stat"><span class="hs-label">Cum P&amp;L</span><span class="hs-val" id="engCumPnl">—</span><span class="ob-stat-sub" id="engSinceSub">since 16 Jul 2026</span></div>
       <div class="hs-stat"><span class="hs-label">Drawdown</span><span class="hs-val" id="engCurDD">—</span><span class="ob-stat-sub">below peak equity</span></div>
       <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">worst peak-to-date</span></div>
     </div>
 
     <!-- Controls -->
-    <div class="ob-toolbar" style="justify-content: flex-end;">
+    <div class="ob-toolbar">
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button id="btnBookA" class="vt-btn active" data-book="a">Book A · Certified 252</button>
+        <button id="btnBookB" class="vt-btn" data-book="b">Book B · Challenger 252+spill50</button>
+      </div>
       <div class="ob-toolbar-end">
         <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
         <button id="btnRefresh" class="ob-btn">
@@ -131,6 +135,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=2"></script>
+  <script src="./engine-book.js?v=3"></script>
 </body>
 </html>

@@ -2,11 +2,19 @@
 // GET /api/paper                    — daily equity snapshots (apex_paper_daily, chronological)
 // GET /api/paper?table=daily&limit=N — same, explicit (limit cap 500)
 // GET /api/paper?table=positions    — open paper positions (apex_paper_positions)
+// GET /api/paper?book=b             — challenger book (252+spill50, apex_paper_b_* tables); default = A
 
 export const config = { runtime: 'edge' };
 
 const SUPA_URL  = 'https://cuvchjhaojhmxfgczndy.supabase.co';
 const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
+
+// Book A = frozen proof (Book D); Book B = challenger (Book H gold 252 + spill50).
+// Same schema/RLS on both pairs; only the table names differ.
+const TABLES = {
+  a: { daily: 'apex_paper_daily', positions: 'apex_paper_positions' },
+  b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
+};
 
 function supaHeaders() {
   return {
@@ -37,13 +45,14 @@ export default async function handler(req) {
   try {
     const table = url.searchParams.get('table') || 'daily';
     const limit = Math.min(500, parseInt(url.searchParams.get('limit') || '120', 10));
+    const book  = TABLES[url.searchParams.get('book')] ? url.searchParams.get('book') : 'a';
 
     let queryUrl;
     if (table === 'positions') {
-      queryUrl = `${SUPA_URL}/rest/v1/apex_paper_positions?order=instrument.asc&limit=${limit}`;
+      queryUrl = `${SUPA_URL}/rest/v1/${TABLES[book].positions}?order=instrument.asc&limit=${limit}`;
     } else {
       // Daily snapshots oldest→newest so the client can draw the curve as-is.
-      queryUrl = `${SUPA_URL}/rest/v1/apex_paper_daily?order=date.asc&limit=${limit}`;
+      queryUrl = `${SUPA_URL}/rest/v1/${TABLES[book].daily}?order=date.asc&limit=${limit}`;
     }
 
     const response = await fetch(queryUrl, {

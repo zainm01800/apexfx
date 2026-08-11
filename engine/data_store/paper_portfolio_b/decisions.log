@@ -1,0 +1,5 @@
+2026-08-10 | eq 100000.00 cash 100000.00 open 0 gross 0.00x dd 0.0% cost_day 0.00
+  PERMIT META short notional 6080 risk 0.58% caps [max_risk_per_trade, regime_scale=0.58]
+  PERMIT NFLX short notional 8507 risk 0.62% caps [max_risk_per_trade, regime_scale=0.62]
+  PERMIT UBER short notional 2051 risk 0.18% caps [max_risk_per_trade, regime_scale=0.18]
+  PERMIT XBI long notional 7906 risk 0.51% caps [max_risk_per_trade, regime_scale=0.51]

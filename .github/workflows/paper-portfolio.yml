@@ -11,6 +11,12 @@ name: paper-portfolio
 # runs advance the crypto sleeve (the only class with weekend bars); equity/FX
 # bars from Friday are processed by the Saturday run. No separate catch-up
 # logic is needed — the stepper processes whatever new closed bars exist.
+#
+# A second, non-blocking step advances the CHALLENGER book (Book B,
+# 252+spill50 vs Book D A/B — prereg
+# engine/data_store/pre_registration_paper_challenger_2026-08-11.md) after the
+# proof step; it has its own state dir and apex_paper_b_* tables, and
+# continue-on-error ensures it can never fail the frozen proof.
 
 on:
   schedule:
@@ -68,6 +74,17 @@ jobs:
       - name: Advance the paper book one closed bar
         working-directory: engine
         run: python scripts/run_paper_portfolio.py
+      - name: Advance the CHALLENGER paper book one closed bar (252+spill50 vs Book D)
+        # Second forward book (Book B) — pre-registered A/B challenger in
+        # engine/data_store/pre_registration_paper_challenger_2026-08-11.md:
+        # certified Book H gold 252 + SPY 50-day spillover gate on crypto/FX
+        # entries, own state dir + apex_paper_b_* tables. Runs AFTER the frozen
+        # proof step above. NON-BLOCKING: a challenger failure must never fail
+        # the proof — continue-on-error still surfaces the failure as an error
+        # annotation on the run summary (visible, not a silent skip).
+        continue-on-error: true
+        working-directory: engine
+        run: python scripts/run_paper_portfolio_challenger.py
       - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
         working-directory: engine
         run: python scripts/nightly_risk_report.py

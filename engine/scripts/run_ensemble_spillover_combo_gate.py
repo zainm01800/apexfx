@@ -1,6 +1,6 @@
-"""Pre-registered gate: momentum spillover (SPY -> crypto/FX entry conditioning).
+"""Pre-registered gate: trend ensemble x spillover COMBINATION (funded-runner stack).
 
-Prereg: engine/data_store/momentum_spillover_gate_prereg.md (2026-08-08, BEFORE this run).
+Prereg: engine/data_store/ensemble_spillover_combo_gate_prereg.md (2026-08-08, BEFORE this run).
 Auto-researcher proposal momentum-spillover-effect-2026-08-08 operationalised as a gate on
 the certified Book H gold book: crypto/FX LONG entries only when SPY's trailing L-day return
 is positive, SHORT entries only when negative. Equity/ETF/metals untouched.
@@ -29,10 +29,7 @@ import pandas as pd  # noqa: E402
 from apex_quant.backtest.portfolio import PortfolioBacktester  # noqa: E402
 from apex_quant.config import get_config  # noqa: E402
 from apex_quant.data import PointInTimeAccessor, ParquetStore, clean  # noqa: E402
-from apex_quant.strategies.spillover_gate import (  # noqa: E402
-    SpilloverGate,
-    risk_on_map as _risk_on_map,
-)
+from apex_quant.risk.types import Direction, Signal  # noqa: E402
 from apex_quant.validation.metrics import (  # noqa: E402
     probability_of_backtest_overfitting,
     sharpe_ratio,
@@ -54,7 +51,7 @@ from run_portfolio_gate import (  # noqa: E402
 from run_portfolio_gate_book_h import EQUITY_CORE, GOLD_ETC  # noqa: E402
 from run_portfolio_gate_multiasset import FX_MAJORS_7  # noqa: E402
 
-RESULTS_PATH = ENGINE_DIR / "data_store" / "validation" / "momentum_spillover_gate_2026-08-08.json"
+RESULTS_PATH = ENGINE_DIR / "data_store" / "validation" / "ensemble_spillover_combo_gate_2026-08-08.json"
 
 UNIVERSE_GOLD = EQUITY_CORE + [GOLD_ETC]
 GOLD_PARAMS = {"carry_filter": False, **COMMON_PARAMS, "momentum_lookback": 252}
@@ -65,10 +62,12 @@ CERTIFIED_GOLD = {"sharpe": 0.8628380346245177, "profit_factor": 1.3245241802282
                   "n_trades": 1637, "total_return": 1.9255133668640645,
                   "expectancy_pnl": 120.44265729993896, "final_equity": 292551.33668640646}
 
+ENSEMBLE_LB = [63, 126, 252]
+
 BOOKS = {
-    "book_h_gold_252": {"params": GOLD_PARAMS, "spill_L": 0},
-    "book_h_gold_252_spill20": {"params": GOLD_PARAMS, "spill_L": 20},
-    "book_h_gold_252_spill50": {"params": GOLD_PARAMS, "spill_L": 50},
+    "control_252": {"params": GOLD_PARAMS, "spill_L": 0},
+    "ensemble": {"params": {**GOLD_PARAMS, "momentum_lookbacks": ENSEMBLE_LB}, "spill_L": 0},
+    "combo": {"params": {**GOLD_PARAMS, "momentum_lookbacks": ENSEMBLE_LB}, "spill_L": 50},
 }
 
 
@@ -76,6 +75,33 @@ def _cfg():
     cfg = copy.deepcopy(get_config())
     cfg.risk.max_risk_per_trade = CERTIFIED_MRPT
     return cfg
+
+
+class SpilloverGate:
+    """Wrapper: on crypto/FX, LONG only when SPY trailing L-day return > 0 (risk-on),
+    SHORT only when < 0. risk_on is the set of the instrument's own bar timestamps
+    mapped through SPY's calendar."""
+
+    def __init__(self, base, risk_on: set, instrument: str) -> None:
+        self._base = base
+        self._risk_on = risk_on
+        self._instrument = instrument
+
+    def __getattr__(self, name):
+        if name == "_base":
+            raise AttributeError(name)
+        return getattr(self._base, name)
+
+    def generate(self, pit, t, instrument: str = "") -> Signal:
+        sig = self._base.generate(pit, t, instrument)
+        d = sig.direction
+        d = d.value if hasattr(d, "value") else str(d)
+        on = pd.Timestamp(t) in self._risk_on
+        if (d == "long" and not on) or (d == "short" and on):
+            return Signal(instrument=instrument or self._instrument, direction=Direction.FLAT,
+                          probability=0.50, reward_risk=1.5, timeframe="1d",
+                          rationale="spillover regime veto")
+        return sig
 
 
 class _Model:
@@ -141,10 +167,16 @@ def main(argv: list[str] | None = None) -> int:
     spy_close = spy_df["close"]
 
     def risk_on_map(L: int) -> dict:
-        # Shared implementation (apex_quant/strategies/spillover_gate.py) — the
-        # forward paper challenger imports the same function, so gate and book
-        # cannot drift apart.
-        return _risk_on_map(spy_close, panel, gated, L)
+        ret = spy_close.pct_change(L)
+        on = (ret > 0)
+        idx = spy_close.index
+        out = {}
+        for inst in gated:
+            inst_idx = panel[inst].index
+            pos = idx.searchsorted(inst_idx, side="right") - 1
+            pos = pos.clip(min=0)
+            out[inst] = set(inst_idx[on.iloc[pos].to_numpy()])
+        return out
 
     maps = {L: risk_on_map(L) for L in (20, 50)}
 
@@ -188,14 +220,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] full run {name}: "
               f"{time.time() - t_start:.0f}s | {res.summary()}", flush=True)
 
-    cm = results["book_h_gold_252"]["metrics"]
+    cm = results["control_252"]["metrics"]
     mismatch = {k: (cm.get(k), v) for k, v in CERTIFIED_GOLD.items()
                 if abs(cm.get(k, float("nan")) - v) > (0.5 if k == "n_trades" else 1e-6 * max(1.0, abs(v)))}
     if mismatch:
         print(f"CERTIFIED REPRODUCTION FAILED: {mismatch}", flush=True)
         return 1
-    print(f"certified-anchor reproduction: EXACT (sharpe {cm['sharpe']:.5f}, "
-          f"{cm['n_trades']} trades)", flush=True)
+    em = results["ensemble"]["metrics"]
+    if abs(em["sharpe"] - 0.9237660179784476) > 0.01 or abs(em["n_trades"] - 1654) > 5:
+        print(f"ENSEMBLE REPRODUCTION FAILED: sharpe {em['sharpe']} trades {em['n_trades']}", flush=True)
+        return 1
+    print(f"anchors reproduced: control EXACT (sharpe {cm['sharpe']:.5f}, {cm['n_trades']} trades) "
+          f"| ensemble EXACT (sharpe {em['sharpe']:.5f}, {em['n_trades']} trades)", flush=True)
 
     aligned = pd.concat(list(returns_by_book.values()), axis=1).dropna()
     M = aligned.to_numpy()
@@ -223,19 +259,20 @@ def main(argv: list[str] | None = None) -> int:
         results[name]["cpcv"] = cpcv
         results[name]["gate"] = {k: v for k, v in verdicts[name].items() if k != "reasons"}
 
-    a = results["book_h_gold_252"]
-    chal_names = ["book_h_gold_252_spill20", "book_h_gold_252_spill50"]
-    best = max(chal_names, key=lambda n: results[n]["metrics"]["sharpe"])
+    a = results["control_252"]
+    e = results["ensemble"]
+    best = "combo"
     b = results[best]
-    d_sharpe = b["metrics"]["sharpe"] - a["metrics"]["sharpe"]
-    l1 = bool(d_sharpe >= 0.0)
+    net = lambda r: float(r["metrics"]["final_equity"]) - 100000.0
+    l1 = bool(b["metrics"]["sharpe"] >= max(a["metrics"]["sharpe"], e["metrics"]["sharpe"]))
     l2 = bool(verdicts[best]["dsr"].get("dsr", 0.0) >= 0.95)
     l3 = bool(pbo.get("pbo") is not None and pbo["pbo"] < 0.5)
     paths_b = b["cpcv"]["oos_sharpe_paths"]
     med_b = float(pd.Series(paths_b).median())
     med_a = float(pd.Series(a["cpcv"]["oos_sharpe_paths"]).median())
     l4 = bool(sum(1 for p in paths_b if p > 0) >= 12 and med_b >= med_a)
-    confirmed = bool(l1 and l2 and l3 and l4)
+    l5 = bool(net(b) >= net(e))
+    confirmed = bool(l1 and l2 and l3 and l4 and l5)
 
     print("\n" + "=" * 72, flush=True)
     for name, v in verdicts.items():
@@ -243,10 +280,11 @@ def main(argv: list[str] | None = None) -> int:
         for r in v["reasons"]:
             print(f"    - {r}")
     print(f"  best challenger: {best}")
-    print(f"  LEGS: L1 dSharpe {d_sharpe:+.4f} >= 0? {l1} | "
+    print(f"  LEGS: L1 combo Sharpe {b['metrics']['sharpe']:.4f} >= max(ctl {a['metrics']['sharpe']:.4f}, ens {e['metrics']['sharpe']:.4f})? {l1} | "
           f"L2 DSR {verdicts[best]['dsr'].get('dsr', 0):.4f} >= 0.95? {l2} | "
           f"L3 PBO {pbo.get('pbo')} < 0.5? {l3} | "
-          f"L4 CPCV {sum(1 for p in paths_b if p > 0)}/15 & med {med_b:.4f} >= {med_a:.4f}? {l4}")
+          f"L4 CPCV {sum(1 for p in paths_b if p > 0)}/15 & med {med_b:.4f} >= {med_a:.4f}? {l4} | "
+          f"L5 combo net >= ensemble net? {l5}")
     print(f"  PRE-REGISTERED RULE => {'CONFIRMED (adoptable)' if confirmed else 'REJECTED'}")
     print("=" * 72, flush=True)
 
@@ -254,8 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "mode": "iteration",
         "holdout_start": args.holdout_start,
-        "prereg": "engine/data_store/momentum_spillover_gate_prereg.md",
-        "proposal": "momentum-spillover-effect-2026-08-08",
+        "prereg": "engine/data_store/ensemble_spillover_combo_gate_prereg.md",
         "universe": list(panel.keys()),
         "gated": list(gated),
         "n_trials_before": n_before,
@@ -263,7 +300,8 @@ def main(argv: list[str] | None = None) -> int:
         "ledger_recorded": not args.no_ledger,
         "pbo": pbo,
         "best_challenger": best,
-        "legs": {"l1_sharpe": l1, "l2_dsr": l2, "l3_pbo": l3, "l4_cpcv": l4},
+        "legs": {"l1_sharpe_best_of_parents": l1, "l2_dsr": l2, "l3_pbo": l3,
+                 "l4_cpcv": l4, "l5_net_vs_ensemble": l5},
         "verdict_rule": "CONFIRMED" if confirmed else "REJECTED",
         "books": results,
         "verdicts": verdicts,

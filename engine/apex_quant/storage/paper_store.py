@@ -1,9 +1,14 @@
 """Persistence for the forward paper portfolio.
 
 Tables live in ``supabase/apex_paper_portfolio.sql`` (``apex_paper_positions``,
-``apex_paper_daily``). Auth prefers SUPABASE_SERVICE_KEY (the 2026-07-17 RLS
-lockdown makes the public anon key SELECT-only) and falls back to the public
-anon key — see ``apex_quant.storage._keys``.
+``apex_paper_daily``). The challenger book (Book B, spill50 — prereg
+engine/data_store/pre_registration_paper_challenger_2026-08-11.md) writes to its
+own mirror pair, ``apex_paper_b_positions`` / ``apex_paper_b_daily``; every
+function takes an optional ``table`` override and defaults to the A tables, so
+the frozen proof's behavior is unchanged byte-for-byte. Auth prefers
+SUPABASE_SERVICE_KEY (the 2026-07-17 RLS lockdown makes the public anon key
+SELECT-only) and falls back to the public anon key — see
+``apex_quant.storage._keys``.
 
 Every function degrades to ``False`` / ``None`` on ANY error (table missing,
 offline, 4xx) and never raises: the local JSON state is the primary store, and
@@ -18,6 +23,10 @@ from apex_quant.storage.supabase_store import _SUPA_URL
 
 POSITIONS_TABLE = "apex_paper_positions"
 DAILY_TABLE = "apex_paper_daily"
+
+# Challenger book (Book B) mirror tables — same schema/RLS as the A pair.
+POSITIONS_TABLE_B = "apex_paper_b_positions"
+DAILY_TABLE_B = "apex_paper_b_daily"
 
 
 def _url(table: str) -> str:
@@ -66,12 +75,12 @@ def _get(table: str, params: dict) -> list | None:
         return None
 
 
-def upsert_positions(rows: list[dict]) -> bool:
+def upsert_positions(rows: list[dict], table: str = POSITIONS_TABLE) -> bool:
     """Insert/refresh the currently-open position rows (primary key: instrument)."""
-    return _post_upsert(POSITIONS_TABLE, rows)
+    return _post_upsert(table, rows)
 
 
-def delete_positions_not_open(open_instruments: list[str]) -> bool:
+def delete_positions_not_open(open_instruments: list[str], table: str = POSITIONS_TABLE) -> bool:
     """Remove rows for positions that are no longer open (state is updated in place)."""
     quoted = ",".join(f'"{i}"' for i in open_instruments) or '""'
     try:
@@ -79,7 +88,7 @@ def delete_positions_not_open(open_instruments: list[str]) -> bool:
 
         with httpx.Client(timeout=20) as c:
             r = c.delete(
-                _url(POSITIONS_TABLE),
+                _url(table),
                 headers=_headers(prefer="return=minimal"),
                 params={"instrument": f"not.in.({quoted})"},
             )
@@ -88,22 +97,22 @@ def delete_positions_not_open(open_instruments: list[str]) -> bool:
         return False
 
 
-def upsert_daily(rows: list[dict]) -> bool:
+def upsert_daily(rows: list[dict], table: str = DAILY_TABLE) -> bool:
     """Append the daily snapshot(s). Primary key is ``date``, so re-running a
     day merges rather than duplicating (the local stepper is already idempotent,
     this is belt-and-braces)."""
-    return _post_upsert(DAILY_TABLE, rows)
+    return _post_upsert(table, rows)
 
 
-def fetch_latest_daily() -> dict | None:
-    rows = _get(DAILY_TABLE, {"order": "date.desc", "limit": "1"})
+def fetch_latest_daily(table: str = DAILY_TABLE) -> dict | None:
+    rows = _get(table, {"order": "date.desc", "limit": "1"})
     return rows[0] if rows else None
 
 
-def fetch_daily_curve() -> list | None:
+def fetch_daily_curve(table: str = DAILY_TABLE) -> list | None:
     """All daily rows (date, equity) ascending - used to rebuild the equity curve."""
-    return _get(DAILY_TABLE, {"select": "date,equity", "order": "date.asc"})
+    return _get(table, {"select": "date,equity", "order": "date.asc"})
 
 
-def fetch_open_positions() -> list | None:
-    return _get(POSITIONS_TABLE, {"select": "*"})
+def fetch_open_positions(table: str = POSITIONS_TABLE) -> list | None:
+    return _get(table, {"select": "*"})

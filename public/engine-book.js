@@ -3,12 +3,32 @@
 // Data comes from /api/paper (Supabase mirror of the engine's nightly step):
 //   ?table=daily&limit=500  — ascending daily equity snapshots (apex_paper_daily)
 //   ?table=positions        — open engine paper positions (apex_paper_positions)
+//   &book=b                 — challenger book (apex_paper_b_* tables); default = A
 // Closed trades are read from the latest daily row's state_extra.trades log —
 // there is no separate closed-trades endpoint.
 
-const BOOK_START_EQUITY = 100000; // seeded £100,000 on 2026-07-16
-const BOOK_START_LABEL = '16 Jul 2026';
+const BOOK_START_EQUITY = 100000; // both books seeded £100,000
 const BOOK_CCY = '£'; // the experiment is a £100k virtual book
+
+// Book A = the frozen proof (Book D, seeded 16 Jul 2026); Book B = the
+// challenger (certified Book H gold 252 + SPY 50d spillover gate on crypto/FX,
+// seeded 10 Aug 2026 — prereg engine/data_store/pre_registration_paper_challenger_2026-08-11.md).
+const BOOKS = {
+  a: {
+    startLabel: '16 Jul 2026',
+    dailyTable: 'apex_paper_daily',
+    positionsTable: 'apex_paper_positions',
+    blurb: "The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.",
+  },
+  b: {
+    startLabel: '10 Aug 2026',
+    dailyTable: 'apex_paper_b_daily',
+    positionsTable: 'apex_paper_b_positions',
+    blurb: 'Challenger book — certified Book H gold 252 + SPY 50-day spillover gate on crypto/FX entries, virtual £100,000 seeded 10 Aug 2026, stepped nightly in sync with Book A as a live A/B. Paper only; nothing here is real money.',
+  },
+};
+let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
+if (!BOOKS[_book]) _book = 'a';
 
 let _dailyRows = [];    // ascending daily snapshots
 let _positions = [];    // open engine positions
@@ -119,14 +139,15 @@ async function loadEngineBook() {
   const SUPA_URL = 'https://cuvchjhaojhmxfgczndy.supabase.co';
   const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
   const supaHeaders = { 'apikey': SUPA_ANON, 'Authorization': `Bearer ${SUPA_ANON}` };
+  const tables = BOOKS[_book];
 
   let daily = null;
   let positions = null;
 
   try {
     const [dRes, pRes] = await Promise.all([
-      fetch('/api/paper?table=daily&limit=500').catch(() => null),
-      fetch('/api/paper?table=positions&limit=100').catch(() => null),
+      fetch(`/api/paper?table=daily&limit=500&book=${_book}`).catch(() => null),
+      fetch(`/api/paper?table=positions&limit=100&book=${_book}`).catch(() => null),
     ]);
     if (dRes && dRes.ok) daily = await dRes.json().catch(() => null);
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
@@ -136,8 +157,8 @@ async function loadEngineBook() {
   // an error or is unreachable (e.g. static local dev server without /api).
   if (!Array.isArray(daily) || !Array.isArray(positions)) {
     const [sdRes, spRes] = await Promise.all([
-      fetch(`${SUPA_URL}/rest/v1/apex_paper_daily?order=date.asc&limit=500`, { headers: supaHeaders }).catch(() => null),
-      fetch(`${SUPA_URL}/rest/v1/apex_paper_positions?order=instrument.asc&limit=100`, { headers: supaHeaders }).catch(() => null),
+      fetch(`${SUPA_URL}/rest/v1/${tables.dailyTable}?order=date.asc&limit=500`, { headers: supaHeaders }).catch(() => null),
+      fetch(`${SUPA_URL}/rest/v1/${tables.positionsTable}?order=instrument.asc&limit=100`, { headers: supaHeaders }).catch(() => null),
     ]);
     if (sdRes && sdRes.ok) daily = await sdRes.json().catch(() => daily);
     if (spRes && spRes.ok) positions = await spRes.json().catch(() => positions);
@@ -219,7 +240,7 @@ function renderHero() {
     const bits = [];
     if (latest && latest.date) bits.push('snapshot ' + latest.date);
     if (num(se.peak) !== null) bits.push('peak ' + fmtMoney(se.peak));
-    bits.push(_dailyRows.length + ' daily snapshots since ' + BOOK_START_LABEL);
+    bits.push(_dailyRows.length + ' daily snapshots since ' + BOOKS[_book].startLabel);
     if (se.halted) bits.push('HALTED — drawdown rule hit');
     heroLine.textContent = bits.join(' · ');
     heroLine.style.color = se.halted ? 'var(--red)' : 'var(--text3)';
@@ -504,6 +525,37 @@ function renderAll() {
   renderClosedTrades();
 }
 
+// ── Book toggle (A = frozen proof / B = challenger) ──────────────────────────
+function applyBookChrome() {
+  const meta = BOOKS[_book];
+  for (const btn of document.querySelectorAll('.vt-btn[data-book]')) {
+    btn.classList.toggle('active', btn.dataset.book === _book);
+  }
+  const blurb = document.getElementById('engBookBlurb');
+  if (blurb) blurb.textContent = meta.blurb;
+  const since = document.getElementById('engSinceSub');
+  if (since) since.textContent = 'since ' + meta.startLabel;
+}
+
+function setBook(book) {
+  if (!BOOKS[book] || book === _book) return;
+  _book = book;
+  const url = new URL(window.location.href);
+  url.searchParams.set('book', book);
+  window.history.replaceState(null, '', url);
+  _dailyRows = [];
+  _positions = [];
+  applyBookChrome();
+  loadEngineBook().catch(e => console.error('Book switch load err:', e));
+}
+
+function initBookToggle() {
+  for (const btn of document.querySelectorAll('.vt-btn[data-book]')) {
+    btn.addEventListener('click', () => setBook(btn.dataset.book));
+  }
+  applyBookChrome();
+}
+
 // ── Refresh / polling / realtime ─────────────────────────────────────────────
 function initRefreshButton() {
   const btnRefresh = document.getElementById('btnRefresh');
@@ -542,12 +594,13 @@ function startPolling(ms) {
 }
 
 // ── Supabase Realtime: push updates, no refresh ──────────────────────────────
-// Subscribes to the engine paper tables; the nightly step's writes trigger a
-// reload. 15-min polling stays as fallback. 5s debounce collapses the nightly
-// write burst into one refresh (egress-conscious — same pattern as terminal).
+// Subscribes to both books' tables (a write to either reloads the currently
+// shown book); the nightly step's writes trigger a reload. 15-min polling
+// stays as fallback. 5s debounce collapses the nightly write burst into one
+// refresh (egress-conscious — same pattern as terminal).
 const SUPA_RT_URL  = 'https://cuvchjhaojhmxfgczndy.supabase.co';
 const SUPA_RT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
-const RT_TABLES = ['apex_paper_positions', 'apex_paper_daily'];
+const RT_TABLES = ['apex_paper_positions', 'apex_paper_daily', 'apex_paper_b_positions', 'apex_paper_b_daily'];
 let _rtDebounce = null;
 
 function setLivePill(connected) {
@@ -583,6 +636,7 @@ function initRealtime() {
 }
 
 function bootEngineBook() {
+  try { initBookToggle(); } catch (e) { console.error('Book toggle err:', e); }
   try { initRefreshButton(); } catch (e) { console.error('Refresh btn err:', e); }
   try { initRealtime(); } catch (e) { console.error('Realtime err:', e); }
 
