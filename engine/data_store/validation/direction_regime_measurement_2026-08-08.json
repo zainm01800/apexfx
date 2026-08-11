@@ -1,0 +1,214 @@
+{
+  "kind": "direction_regime_measurement",
+  "informational": true,
+  "anchor": {
+    "sharpe": 0.8628380346245177,
+    "profit_factor": 1.324524180228228,
+    "win_rate": 0.5577275503970678,
+    "max_drawdown": 0.16315348773173277,
+    "n_trades": 1637,
+    "total_return": 1.9255133668640645,
+    "expectancy_pnl": 120.44265729993896,
+    "final_equity": 292551.33668640646
+  },
+  "n_trades": 1637,
+  "direction_overall": {
+    "long": {
+      "n": 1236,
+      "net": 218251.6,
+      "expectancy": 176.58,
+      "win_rate": 0.5939,
+      "pf": 1.487
+    },
+    "short": {
+      "n": 401,
+      "net": -21087.15,
+      "expectancy": -52.59,
+      "win_rate": 0.4464,
+      "pf": 0.868
+    }
+  },
+  "direction_by_class": {
+    "crypto|long": {
+      "n": 125,
+      "net": 30321.83,
+      "expectancy": 242.57,
+      "win_rate": 0.592,
+      "pf": 1.72
+    },
+    "crypto|short": {
+      "n": 69,
+      "net": -7321.91,
+      "expectancy": -106.11,
+      "win_rate": 0.4203,
+      "pf": 0.809
+    },
+    "equity_single|long": {
+      "n": 1007,
+      "net": 169495.41,
+      "expectancy": 168.32,
+      "win_rate": 0.5948,
+      "pf": 1.457
+    },
+    "equity_single|short": {
+      "n": 280,
+      "net": -9249.06,
+      "expectancy": -33.03,
+      "win_rate": 0.4571,
+      "pf": 0.908
+    },
+    "etf|long": {
+      "n": 73,
+      "net": 17589.33,
+      "expectancy": 240.95,
+      "win_rate": 0.6301,
+      "pf": 1.737
+    },
+    "etf|short": {
+      "n": 30,
+      "net": 2316.23,
+      "expectancy": 77.21,
+      "win_rate": 0.5333,
+      "pf": 1.238
+    },
+    "fx|long": {
+      "n": 14,
+      "net": -2371.66,
+      "expectancy": -169.4,
+      "win_rate": 0.3571,
+      "pf": 0.672
+    },
+    "fx|short": {
+      "n": 19,
+      "net": -4082.34,
+      "expectancy": -214.86,
+      "win_rate": 0.3158,
+      "pf": 0.449
+    },
+    "metals|long": {
+      "n": 17,
+      "net": 3216.69,
+      "expectancy": 189.22,
+      "win_rate": 0.5882,
+      "pf": 1.756
+    },
+    "metals|short": {
+      "n": 3,
+      "net": -2750.08,
+      "expectancy": -916.69,
+      "win_rate": 0.0,
+      "pf": 0.0
+    }
+  },
+  "equity_dir_x_spy200": {
+    "long|spy_above": {
+      "n": 924,
+      "net": 160801.85,
+      "expectancy": 174.03,
+      "win_rate": 0.5942,
+      "pf": 1.461
+    },
+    "long|spy_below": {
+      "n": 83,
+      "net": 8693.56,
+      "expectancy": 104.74,
+      "win_rate": 0.6024,
+      "pf": 1.397
+    },
+    "short|spy_above": {
+      "n": 128,
+      "net": -8534.16,
+      "expectancy": -66.67,
+      "win_rate": 0.4297,
+      "pf": 0.789
+    },
+    "short|spy_below": {
+      "n": 152,
+      "net": -714.9,
+      "expectancy": -4.7,
+      "win_rate": 0.4803,
+      "pf": 0.988
+    }
+  },
+  "all_dir_x_spy200": {
+    "long|spy_above": {
+      "n": 1137,
+      "net": 203428.31,
+      "expectancy": 178.92,
+      "win_rate": 0.591,
+      "pf": 1.482
+    },
+    "long|spy_below": {
+      "n": 99,
+      "net": 14823.29,
+      "expectancy": 149.73,
+      "win_rate": 0.6263,
+      "pf": 1.563
+    },
+    "short|spy_above": {
+      "n": 194,
+      "net": -12989.17,
+      "expectancy": -66.95,
+      "win_rate": 0.4381,
+      "pf": 0.822
+    },
+    "short|spy_below": {
+      "n": 207,
+      "net": -8097.98,
+      "expectancy": -39.12,
+      "win_rate": 0.4541,
+      "pf": 0.906
+    }
+  },
+  "short_streaks": {
+    "n_windows": 261,
+    "frac_negative": 0.5517,
+    "p05": -10753.03,
+    "median": -1164.16,
+    "worst": -14921.81
+  },
+  "live_streak_context": {
+    "live_4_stop_sum": -3009,
+    "note": "live streak is 4 stopped shorts (~-\u00a33,009 incl. open marks); compare to rolling windows of the SAME length, not the 20-trade ones",
+    "hist_4trade_short_windows_p05": -3853.09,
+    "hist_4trade_short_windows_worst": -5345.63
+  },
+  "counterfactual_net": {
+    "certified": 197164.45,
+    "no_equity_shorts": 206413.51,
+    "no_equity_shorts_when_spy_above_200": 205698.61,
+    "y2022": {
+      "certified": 8335.94,
+      "no_equity_shorts": -12006.72,
+      "no_eq_shorts_spy_above": 1330.46
+    }
+  },
+  "short_sleeve_by_year": {
+    "2017": -2062.79,
+    "2018": -1272.44,
+    "2019": -10679.42,
+    "2020": 3074.8,
+    "2021": -1032.66,
+    "2022": 20342.66,
+    "2023": -15224.97,
+    "2024": -2394.24
+  },
+  "entry_timing_delta": {
+    "total_gbp": 23422.65,
+    "mean_per_trade": 14.31,
+    "median_per_trade": 6.59,
+    "n": 1637,
+    "by_dir": {
+      "long": 23716.65,
+      "short": -293.99
+    },
+    "by_class": {
+      "crypto": -122.95,
+      "equity_single": 24972.99,
+      "etf": -303.91,
+      "fx": 19.58,
+      "metals": -1143.05
+    },
+    "reading_guide": "|mean| < ~\u00a35/trade vs \u00a3120.44 expectancy => fill timing immaterial"
+  }
+}
