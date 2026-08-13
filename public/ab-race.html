@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Z.FX — The Race · A/B Proof</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#07090D" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./progress.css" />
+  <link rel="stylesheet" href="./theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    .race-hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch; }
+    @media (max-width: 768px) { .race-hero { grid-template-columns: 1fr; } .race-vs { display: none; } }
+    .race-book { text-align: left; }
+    .race-book .hs-val { font-size: 32px; display: block; font-family: 'Space Grotesk', var(--sans); }
+    .race-vs { display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', var(--mono); color: var(--gold, #D8B36A); font-weight: 700; font-size: 15px; letter-spacing: 2px; }
+    .race-leader { font-family: 'IBM Plex Mono', var(--mono); font-size: 12.5px; margin-top: 6px; }
+    .race-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .race-table th, .race-table td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line, rgba(255,255,255,.055)); font-family: 'IBM Plex Mono', var(--mono); }
+    .race-table th:first-child, .race-table td:first-child { text-align: left; font-family: inherit; color: var(--tx2, #a8bbd0); }
+    .race-table thead th { color: var(--tx3, #6b8099); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .race-bar-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+    .race-bar-fill { height: 100%; border-radius: 999px; }
+    .race-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 768px) { .race-rules { grid-template-columns: 1fr; } }
+    .race-dot-a { color: #2FD6A3; } .race-dot-b { color: #D8B36A; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
+    <nav class="nav">
+      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+      <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
+      <a class="nav-link active" id="nav-race" href="ab-race.html">A/B Race</a>
+      <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+    </nav>
+    <div class="header-right" id="headerRight">
+      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <main class="pg-main">
+
+    <div class="pg-header ob-pagehead">
+      <div>
+        <span class="ob-eyebrow">Forward A/B · 60-Day Proof</span>
+        <h1 class="pg-title">The Race</h1>
+        <p class="pg-subtitle">Two frozen rule-sets stepped nightly off the same daily bars. Book A is the certified multi-asset trend book; Book B adds the spill50 rule — crypto/FX entries only with SPY's 50-day momentum regime. Paper money only.</p>
+      </div>
+    </div>
+
+    <!-- Head-to-head hero -->
+    <div class="hist-summary race-hero" style="margin-bottom: 24px;">
+      <div class="hs-stat race-book">
+        <span class="hs-label race-dot-a">Book A — Certified 252</span>
+        <span class="hs-val" id="raceEquityA">—</span>
+        <span class="ob-stat-sub" id="raceSubA">since 10 Aug: —</span>
+      </div>
+      <div class="race-vs">VS</div>
+      <div class="hs-stat race-book">
+        <span class="hs-label race-dot-b">Book B — Challenger 252+spill50</span>
+        <span class="hs-val" id="raceEquityB">—</span>
+        <span class="ob-stat-sub" id="raceSubB">since 10 Aug: —</span>
+      </div>
+    </div>
+
+    <div class="hs-stat" style="margin-bottom: 24px; padding: 14px 22px;">
+      <span class="race-leader" id="raceLeader">—</span>
+    </div>
+
+    <!-- Overlaid chart -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">Equity Curves <span style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;">re-based to £100,000 on 10 Aug — the shared window</span></div>
+        <div style="font-size: 11.5px; font-family: var(--mono); color: var(--text3);"><span class="race-dot-a">— A certified</span>&nbsp;&nbsp;<span class="race-dot-b">— B spill50</span></div>
+      </div>
+      <div id="raceChart" style="height: 340px; position: relative;"></div>
+    </section>
+
+    <!-- Stat table -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head"><div class="pg-card-title">Head to Head</div></div>
+      <div style="overflow-x: auto;">
+        <table class="race-table">
+          <thead><tr><th></th><th class="race-dot-a">Book A</th><th class="race-dot-b">Book B</th><th>Δ (B−A)</th></tr></thead>
+          <tbody id="raceTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Day counters -->
+    <div class="hist-summary" style="margin-bottom: 24px;">
+      <div class="hs-stat">
+        <span class="hs-label race-dot-a">Book A — day count</span>
+        <span class="hs-val" id="raceDayA" style="font-size: 22px;">—</span>
+        <div class="race-bar-track"><div class="race-bar-fill" id="raceBarA" style="width: 0%; background: #2FD6A3;"></div></div>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-label race-dot-b">Book B — day count</span>
+        <span class="hs-val" id="raceDayB" style="font-size: 22px;">—</span>
+        <div class="race-bar-track"><div class="race-bar-fill" id="raceBarB" style="width: 0%; background: #D8B36A;"></div></div>
+      </div>
+    </div>
+
+    <!-- Rules -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head"><div class="pg-card-title">The Two Rule-Sets</div></div>
+      <div class="race-rules" style="padding-top: 4px;">
+        <div>
+          <span class="ob-eyebrow race-dot-a">Book A — Certified 252</span>
+          <p style="font-size: 13.5px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">The certified multi-asset trend book: 252-day regime-gated momentum across 39 instruments, 1% risk per trade, ladder exits (+1R partial, breakeven trail, chandelier), stepped nightly off daily bars. Seeded 16 Jul 2026. This is the book the 60-day proof belongs to.</p>
+        </div>
+        <div>
+          <span class="ob-eyebrow race-dot-b">Book B — + spill50</span>
+          <p style="font-size: 13.5px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">Everything in Book A, plus the gate-confirmed spill50 rule: crypto &amp; FX longs are only taken when SPY's trailing 50-day return is positive, shorts only when negative. Sharpe 0.8628 → 0.9385 in the pre-registered backtest gate. Seeded 10 Aug 2026.</p>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 32px; line-height: 1.6;">
+      Honesty note: Book B's first run filled its state from bars through 10 Aug 2026; its true forward clock started that week. Book A's curve includes its 16 Jul – 10 Aug head start only in the "since seed" row — every headline comparison on this page is re-based to the shared 10 Aug window. Both books are paper; nothing here is real money. <span id="raceLastSync"></span>
+    </p>
+
+  </main>
+
+  <script src="./app-mode.js"></script>
+  <script src="./ab-race.js?v=1"></script>
+</body>
+</html>
