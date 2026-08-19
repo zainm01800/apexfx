@@ -746,3 +746,182 @@ select option { background: var(--obs-s2); color: var(--ink); }
 
 /* Tighten the portal hero a touch */
 .hero { padding-top: 48px; }
+
+/* ── 19 · Comprehensive Mobile & iPhone UI Optimization (≤768px & ≤480px) ──── */
+@media (max-width: 768px) {
+  /* Global container padding */
+  .results-section,
+  .history-main,
+  .bt-main,
+  .tr-main,
+  .pg-main,
+  .hiw-main {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-top: 12px !important;
+  }
+
+  /* Header & Navigation */
+  .header {
+    padding: 6px 12px 0;
+  }
+  .nav {
+    display: flex;
+    gap: 6px;
+    padding: 6px 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    font-size: 12px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Page title & Eyebrow */
+  .pg-title { font-size: 24px !important; }
+  .pg-subtitle { font-size: 12.5px !important; line-height: 1.5; }
+
+  /* Hero stats & Account value */
+  #statNetLiq, #engEquity, #raceEquityA, #raceEquityB {
+    font-size: clamp(24px, 6.5vw, 34px) !important;
+    word-break: break-word;
+  }
+  .ob-hero-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .ob-hero-chips {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ob-hero-chips .ob-chip, #heroDayChip, #heroSinceChip {
+    font-size: 11.5px !important;
+    padding: 5px 10px !important;
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  /* Summary strips on mobile: 2-column clean grid */
+  #ibkrSummary, #ibkrClassSummary, #engineSummary, #engineStats, #mt4Summary {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  #ibkrSummary > .hs-stat:first-child,
+  #engineSummary > .hs-stat:first-child {
+    grid-column: 1 / -1 !important;
+    padding: 14px 16px !important;
+  }
+  .hs-stat {
+    padding: 12px 14px !important;
+  }
+  .hs-val {
+    font-size: 17px !important;
+  }
+  .hs-label {
+    font-size: 10px !important;
+  }
+
+  /* Toolbars and View toggles */
+  .ob-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 14px;
+  }
+  .view-toggle {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+    padding-bottom: 2px;
+  }
+  .view-toggle::-webkit-scrollbar { display: none; }
+  .vt-btn {
+    flex: 0 0 auto;
+    font-size: 11.5px !important;
+    padding: 7px 12px !important;
+    white-space: nowrap;
+  }
+  .ob-toolbar-end {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* Position Cards Grid on Mobile */
+  #ibkrPositionsWrap, #engPositionsWrap, #mt4TradesGrid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .ibkr-pos-card, .eng-pos-card {
+    padding: 15px 16px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Tables horizontal scrolling */
+  .wl-table-wrap, .race-table, .ob-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+  .wl-table, .race-table {
+    min-width: 600px;
+    font-size: 12px;
+  }
+  .wl-table th, .wl-table td,
+  .race-table th, .race-table td {
+    padding: 8px 10px;
+  }
+
+  /* Head-to-Head Race Hero */
+  .race-hero {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .race-vs {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra compact spacing for smaller phones */
+  .results-section,
+  .history-main,
+  .bt-main,
+  .tr-main,
+  .pg-main,
+  .hiw-main {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .header {
+    padding: 4px 10px 0;
+  }
+  .logo {
+    font-size: 14px;
+  }
+  .nav-link {
+    font-size: 11px;
+    padding: 5px 9px;
+  }
+  #statNetLiq, #engEquity, #raceEquityA, #raceEquityB {
+    font-size: 24px !important;
+  }
+  .hs-stat {
+    padding: 10px 12px !important;
+  }
+  .hs-val {
+    font-size: 15px !important;
+  }
+}
