@@ -35,6 +35,15 @@ let _positions = [];    // open engine positions
 let _eqChart = null;    // equity curve chart instance (destroyed before re-render)
 let _eqSeries = null;   // equity area series instance
 let _eqResize = null;   // resize handler for the equity chart (replaced, not stacked)
+let _lastSyncTime = null; // latest live sync/refresh timestamp
+
+function setLastSyncLabel(ts = new Date()) {
+  _lastSyncTime = ts;
+  const label = document.getElementById('lastUpdatedLabel');
+  if (label) {
+    label.textContent = 'Last Sync: ' + fmtUK(ts, true);
+  }
+}
 
 // ── Formatting helpers (same conventions as ibkr-trades.js) ──────────────────
 function escHtml(str) {
@@ -269,8 +278,8 @@ function renderHero() {
 
   const label = document.getElementById('lastUpdatedLabel');
   if (label) {
-    const ts = (_positions[0] && _positions[0].updated_at) || (latest && latest.inserted_at) || null;
-    label.textContent = 'Last Sync: ' + (ts ? fmtUK(ts, true) : '—');
+    const ts = _lastSyncTime || (_positions[0] && _positions[0].updated_at) || (latest && latest.inserted_at) || new Date();
+    label.textContent = 'Last Sync: ' + fmtUK(ts, true);
   }
 }
 
@@ -626,6 +635,7 @@ async function refreshLiveMarks() {
   }));
 
   applyLiveMarks();
+  setLastSyncLabel(new Date());
 }
 
 function applyLiveMarks() {
@@ -810,6 +820,7 @@ function initRefreshButton() {
     try {
       await loadEngineBook();
       await refreshLiveMarks();
+      setLastSyncLabel(new Date());
     } catch (e) {
       console.error('Refresh fetch error:', e);
     } finally {
