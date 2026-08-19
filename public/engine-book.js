@@ -33,6 +33,7 @@ if (!BOOKS[_book]) _book = 'a';
 let _dailyRows = [];    // ascending daily snapshots
 let _positions = [];    // open engine positions
 let _eqChart = null;    // equity curve chart instance (destroyed before re-render)
+let _eqSeries = null;   // equity area series instance
 let _eqResize = null;   // resize handler for the equity chart (replaced, not stacked)
 
 // ── Formatting helpers (same conventions as ibkr-trades.js) ──────────────────
@@ -318,7 +319,7 @@ function renderEquityChart() {
   const emptyEl = document.getElementById('equityChartEmpty');
   if (!chartEl) return;
 
-  if (_eqChart) { try { _eqChart.remove(); } catch (e) {} _eqChart = null; }
+  if (_eqChart) { try { _eqChart.remove(); } catch (e) {} _eqChart = null; _eqSeries = null; }
 
   const pts = [];
   const seen = new Set();
@@ -374,6 +375,7 @@ function renderEquityChart() {
   };
   window.addEventListener('resize', _eqResize);
   _eqChart = chart;
+  _eqSeries = area;
 }
 
 // ── Open positions grid ──────────────────────────────────────────────────────
@@ -695,10 +697,10 @@ function applyLiveMarks() {
     }
 
     // 5. Update hero equity and net return with live floating P&L
-    const latest = latestDaily();
-    const realizedBanked = (latest && num(latest.cum_pnl) !== null) ? num(latest.cum_pnl) : 0;
-    const liveTotalEquity = BOOK_START_EQUITY + realizedBanked + liveTotalOpenPnl;
+    const closed = closedTrades();
+    const realizedBanked = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
     const liveTotalNetReturn = realizedBanked + liveTotalOpenPnl;
+    const liveTotalEquity = BOOK_START_EQUITY + liveTotalNetReturn;
 
     setText('engEquity', fmtMoney(liveTotalEquity));
     setText('engCumPnl', fmtSignedMoney(liveTotalNetReturn), pnlClass(liveTotalNetReturn));
@@ -711,12 +713,44 @@ function applyLiveMarks() {
     }
 
     const dayChip = document.getElementById('engDayChip');
-    if (dayChip && latest) {
-      const priorEquity = _dailyRows.length > 1 ? num(_dailyRows[_dailyRows.length - 2].equity) : BOOK_START_EQUITY;
-      const liveDayPnl = liveTotalEquity - (priorEquity || BOOK_START_EQUITY);
+    const latest = latestDaily();
+    if (dayChip) {
+      const priorEquity = latest ? num(latest.equity) : BOOK_START_EQUITY;
+      const liveDayPnl = liveTotalEquity - priorEquity;
       dayChip.textContent = `Today: ${fmtSignedMoney(liveDayPnl)}`;
       dayChip.style.color = liveDayPnl >= 0 ? 'var(--green)' : 'var(--red)';
       setText('engDayPnl', fmtSignedMoney(liveDayPnl), pnlClass(liveDayPnl));
+    }
+
+    // 6. Update current drawdown live
+    let peakEquity = BOOK_START_EQUITY;
+    for (const r of _dailyRows) {
+      const eq = num(r.equity);
+      if (eq !== null && eq > peakEquity) peakEquity = eq;
+    }
+    if (liveTotalEquity > peakEquity) peakEquity = liveTotalEquity;
+    const liveCurDD = peakEquity > 0 ? Math.max(0, (peakEquity - liveTotalEquity) / peakEquity) : 0;
+    setText('engCurDD', liveCurDD > 0 ? '-' + (liveCurDD * 100).toFixed(2) + '%' : '0.00%', liveCurDD > 0 ? 'red' : '');
+
+    // 7. Update Equity Curve chart series with live point
+    if (_eqSeries) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const pts = [];
+      const seen = new Set();
+      for (const r of _dailyRows) {
+        const eq = num(r.equity);
+        if (!r.date || eq === null || seen.has(r.date)) continue;
+        seen.add(r.date);
+        pts.push({ time: r.date, value: eq });
+      }
+      if (pts.length) {
+        if (pts[pts.length - 1].time === todayStr) {
+          pts[pts.length - 1].value = liveTotalEquity;
+        } else {
+          pts.push({ time: todayStr, value: liveTotalEquity });
+        }
+        _eqSeries.setData(pts);
+      }
     }
 
     const heroLine = document.getElementById('engHeroLine');
