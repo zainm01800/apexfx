@@ -233,42 +233,37 @@ function positionUpnl(p) {
 function renderHero() {
   const latest = latestDaily();
 
-  const equity = latest ? num(latest.equity) : null;
-  const dayPnl = latest ? num(latest.day_pnl) : null;
+  const equity = latest ? num(latest.equity) : BOOK_START_EQUITY;
+  const dayPnl = latest ? num(latest.day_pnl) : 0;
   const cumPnl = latest && num(latest.cum_pnl) !== null
     ? num(latest.cum_pnl)
-    : (equity !== null ? equity - BOOK_START_EQUITY : null);
-  const cash = latest ? num(latest.cash) : null;
+    : (equity !== null ? equity - BOOK_START_EQUITY : 0);
+  const cash = latest ? num(latest.cash) : BOOK_START_EQUITY;
 
-  let maxDD = null;
+  let maxDD = 0;
   for (const r of _dailyRows) {
     const dd = num(r.drawdown_from_peak);
     if (dd !== null && (maxDD === null || dd > maxDD)) maxDD = dd;
   }
-  const curDD = latest ? num(latest.drawdown_from_peak) : null;
+  const curDD = latest ? (num(latest.drawdown_from_peak) || 0) : 0;
 
   setText('engEquity', fmtMoney(equity));
   setText('engCash', fmtMoney(cash));
   setText('engDayPnl', fmtSignedMoney(dayPnl), pnlClass(dayPnl));
   setText('engCumPnl', fmtSignedMoney(cumPnl), pnlClass(cumPnl));
-  setText('engCurDD', curDD === null ? '—' : '-' + (curDD * 100).toFixed(2) + '%', curDD > 0 ? 'red' : '');
-  setText('engMaxDD', maxDD === null ? '—' : '-' + (maxDD * 100).toFixed(2) + '%', maxDD > 0 ? 'red' : '');
+  setText('engCurDD', curDD > 0 ? '-' + (curDD * 100).toFixed(2) + '%' : '0.00%', curDD > 0 ? 'red' : '');
+  setText('engMaxDD', maxDD > 0 ? '-' + (maxDD * 100).toFixed(2) + '%' : '0.00%', maxDD > 0 ? 'red' : '');
 
   const dayChip = document.getElementById('engDayChip');
   if (dayChip) {
     dayChip.textContent = 'Today: ' + fmtSignedMoney(dayPnl);
-    dayChip.style.color = dayPnl === null ? 'var(--text2)' : (dayPnl >= 0 ? 'var(--green)' : 'var(--red)');
+    dayChip.style.color = (dayPnl >= 0 ? 'var(--green)' : 'var(--red)');
   }
   const sinceChip = document.getElementById('engSinceChip');
   if (sinceChip) {
-    if (cumPnl === null) {
-      sinceChip.textContent = 'Net Return: —';
-      sinceChip.style.color = 'var(--text2)';
-    } else {
-      const pct = (cumPnl / BOOK_START_EQUITY) * 100;
-      sinceChip.textContent = `Net Return: ${fmtSignedMoney(cumPnl)} (${cumPnl >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
-      sinceChip.style.color = cumPnl >= 0 ? 'var(--green)' : 'var(--red)';
-    }
+    const pct = (cumPnl / BOOK_START_EQUITY) * 100;
+    sinceChip.textContent = `Net Return: ${fmtSignedMoney(cumPnl)} (${cumPnl >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+    sinceChip.style.color = cumPnl >= 0 ? 'var(--green)' : 'var(--red)';
   }
 
   const heroLine = document.getElementById('engHeroLine');
@@ -277,7 +272,7 @@ function renderHero() {
     const bits = [];
     if (latest && latest.date) bits.push('snapshot ' + latest.date);
     if (num(se.peak) !== null) bits.push('peak ' + fmtMoney(se.peak));
-    bits.push(_dailyRows.length + ' daily snapshots since ' + BOOKS[_book].startLabel);
+    bits.push((_dailyRows.length || 0) + ' daily snapshots since ' + BOOKS[_book].startLabel);
     if (se.halted) bits.push('HALTED — drawdown rule hit');
     heroLine.textContent = bits.join(' · ');
     heroLine.style.color = se.halted ? 'var(--red)' : 'var(--text3)';
@@ -293,7 +288,7 @@ function renderHero() {
 function renderBookStats() {
   const latest = latestDaily();
 
-  const openCount = _positions.length || (latest ? num(latest.n_open) : null);
+  const openCount = _positions.length || (latest ? num(latest.n_open) : 0) || 0;
 
   let gross = 0;
   let unreal = 0;
@@ -308,25 +303,24 @@ function renderBookStats() {
   if (!_positions.length && latest && num(latest.gross_exposure_x) !== null && num(latest.equity) !== null) {
     gross = num(latest.gross_exposure_x) * num(latest.equity);
   }
-  const equity = latest ? num(latest.equity) : null;
-  const grossX = (equity !== null && equity > 0) ? gross / equity : null;
+  const equity = latest ? num(latest.equity) : BOOK_START_EQUITY;
+  const grossX = (equity !== null && equity > 0) ? gross / equity : 0;
 
-  setText('engOpenCount', openCount === null ? '—' : String(openCount));
-  setText('engGross', gross > 0 ? fmtMoney(gross) : '—');
+  setText('engOpenCount', String(openCount));
+  setText('engGross', gross > 0 ? fmtMoney(gross) : '£0.00');
   const gxEl = document.getElementById('engGrossX');
-  if (gxEl) gxEl.textContent = grossX === null ? 'of book equity' : grossX.toFixed(2) + 'x of book equity';
-  setText('engUnreal', unrealKnown ? fmtSignedMoney(unreal) : '—', unrealKnown ? pnlClass(unreal) : '');
+  if (gxEl) gxEl.textContent = grossX === 0 ? '0.00x of book equity' : grossX.toFixed(2) + 'x of book equity';
+  setText('engUnreal', unrealKnown ? fmtSignedMoney(unreal) : '£0.00', unrealKnown ? pnlClass(unreal) : '');
 
   const closed = closedTrades();
-  const wins = closed.filter(t => num(t.pnl) > 0).length;
-  const winRate = closed.length ? (wins / closed.length) * 100 : null;
-  const realized = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
+  const wins = closed.filter(t => (num(t.pnl) || 0) > 0);
+  const winRate = closed.length ? (wins.length / closed.length) * 100 : null;
+  const realized = closed.reduce((acc, t) => acc + (num(t.pnl) || 0), 0);
 
-  setText('engWinRate', winRate === null ? '—' : winRate.toFixed(1) + '%',
-    winRate === null ? '' : (winRate >= 50 ? 'green' : 'red'));
+  setText('engWinRate', winRate === null ? '—' : winRate.toFixed(1) + '%');
   const ccEl = document.getElementById('engClosedCount');
   if (ccEl) ccEl.textContent = `${closed.length} closed`;
-  setText('engRealized', closed.length ? fmtSignedMoney(realized) : '—', closed.length ? pnlClass(realized) : '');
+  setText('engRealized', closed.length ? fmtSignedMoney(realized) : '£0.00', closed.length ? pnlClass(realized) : '');
 }
 
 // ── Equity curve ─────────────────────────────────────────────────────────────
@@ -357,7 +351,12 @@ function renderEquityChart() {
 
   if (pts.length < 2 || typeof LightweightCharts === 'undefined') {
     chartEl.style.display = 'none';
-    if (emptyEl) emptyEl.style.display = 'flex';
+    if (emptyEl) {
+      emptyEl.style.display = 'flex';
+      emptyEl.textContent = _book === 'c'
+        ? 'Book C seeded at £100,000.00 on 19 Aug 2026. 9 pending orders queued — first daily equity step takes place tonight at 23:30 UTC.'
+        : 'Waiting for daily equity snapshots…';
+    }
     return;
   }
   chartEl.style.display = '';
@@ -539,9 +538,18 @@ function renderPositions() {
   }
 
   if (!open.length) {
-    const bookLabel = _book === 'b' ? 'Book B' : 'Book A';
+    const bookLabel = _book === 'c' ? 'Book C' : (_book === 'b' ? 'Book B' : 'Book A');
     const classLabel = _activeClass === 'all' ? '' : _activeClass + ' ';
-    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No open ${classLabel}positions for ${bookLabel}.</div>`;
+    const pendingMsg = _book === 'c'
+      ? `<div style="margin-top:14px; padding: 12px 18px; border-radius: 8px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); display: inline-block; font-style: normal; color: #38BDF8; font-size: 13px; font-family: 'Space Mono', monospace;">
+          ⚡ <strong>9 Pending Entry Orders Queued for Tonight's Market Close</strong><br/>
+          <span style="color: var(--text2); font-size: 11.5px; display: block; margin-top: 4px;">MSFT (Long), PLTR (Long), XBI (Long), META (Short), TSLA (Short), NFLX (Short), UBER (Short), DOGE/USD (Short), ARB/USD (Short)</span>
+        </div>`
+      : '';
+    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">
+      No open ${classLabel}positions for ${bookLabel}.
+      ${pendingMsg}
+    </div>`;
     return;
   }
 
