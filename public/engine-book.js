@@ -694,15 +694,29 @@ function applyLiveMarks() {
       setText('engGross', fmtMoney(liveTotalGross));
     }
 
-    // 5. Update hero chips with live floating P&L
+    // 5. Update hero equity and net return with live floating P&L
     const latest = latestDaily();
     const realizedBanked = (latest && num(latest.cum_pnl) !== null) ? num(latest.cum_pnl) : 0;
+    const liveTotalEquity = BOOK_START_EQUITY + realizedBanked + liveTotalOpenPnl;
     const liveTotalNetReturn = realizedBanked + liveTotalOpenPnl;
+
+    setText('engEquity', fmtMoney(liveTotalEquity));
+    setText('engCumPnl', fmtSignedMoney(liveTotalNetReturn), pnlClass(liveTotalNetReturn));
+
     const sinceChip = document.getElementById('engSinceChip');
     if (sinceChip) {
       const pct = (liveTotalNetReturn / BOOK_START_EQUITY) * 100;
       sinceChip.textContent = `Net Return: ${fmtSignedMoney(liveTotalNetReturn)} (${liveTotalNetReturn >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       sinceChip.style.color = liveTotalNetReturn >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+
+    const dayChip = document.getElementById('engDayChip');
+    if (dayChip && latest) {
+      const priorEquity = _dailyRows.length > 1 ? num(_dailyRows[_dailyRows.length - 2].equity) : BOOK_START_EQUITY;
+      const liveDayPnl = liveTotalEquity - (priorEquity || BOOK_START_EQUITY);
+      dayChip.textContent = `Today: ${fmtSignedMoney(liveDayPnl)}`;
+      dayChip.style.color = liveDayPnl >= 0 ? 'var(--green)' : 'var(--red)';
+      setText('engDayPnl', fmtSignedMoney(liveDayPnl), pnlClass(liveDayPnl));
     }
 
     const heroLine = document.getElementById('engHeroLine');

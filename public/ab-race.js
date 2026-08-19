@@ -26,6 +26,45 @@
     return r2.ok ? await r2.json() : [];
   }
 
+  let _gbpUsd = 1.285;
+  const _liveMarks = {};
+
+  function paperClassFor(inst) {
+    if (inst.includes('/')) {
+      const base = inst.split('/')[0].toUpperCase();
+      return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'LINK', 'AVAX'].includes(base) ? 'crypto' : 'forex';
+    }
+    return 'stocks';
+  }
+
+  function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsd || 1.285)) {
+    if (!entry || !currentPx || !units || entry <= 0 || currentPx <= 0) return 0;
+    const rawDiff = (isLong ? (currentPx - entry) : (entry - currentPx)) * units;
+    const cls = paperClassFor(inst);
+
+    let pnlUsd = rawDiff;
+    if (cls === 'forex' && inst.includes('/')) {
+      if (inst.startsWith('USD/')) {
+        pnlUsd = rawDiff / currentPx;
+      } else if (inst.endsWith('/USD')) {
+        pnlUsd = rawDiff;
+      }
+    }
+    return pnlUsd / (gbpusd || 1.285);
+  }
+
+  async function fetchLiveMark(inst, cls) {
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - 7 * 86400;
+    const type = cls === 'forex' ? 'Forex' : (cls === 'crypto' ? 'Crypto' : 'Stock');
+    const res = await fetch(`/api/candles?sym=${encodeURIComponent(inst)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+    if (!res.ok) return null;
+    const bars = await res.json();
+    if (!Array.isArray(bars) || !bars.length) return null;
+    const px = parseFloat(bars[bars.length - 1].close);
+    return Number.isFinite(px) ? px : null;
+  }
+
   async function fetchPositions(book) {
     const q = book === 'b' ? '?book=b&table=positions' : '?table=positions';
     try {
@@ -33,35 +72,43 @@
       if (r.ok) { const j = await r.json(); if (Array.isArray(j)) return j; }
     } catch (e) { /* fall through */ }
     const table = book === 'b' ? 'apex_paper_b_positions' : 'apex_paper_positions';
-    const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?select=instrument`,
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?select=*`,
       { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` } });
     return r2.ok ? await r2.json() : [];
   }
 
   // Re-base an equity series to SEED on the shared start date (last row <= start).
-  function rebase(rows) {
+  function rebase(rows, liveEquity = null) {
     const prior = rows.filter(r => r.date <= SHARED_START);
     if (!prior.length) return { base: null, pts: [] };
     const base = prior[prior.length - 1].equity;
     const pts = rows.filter(r => r.date >= SHARED_START)
       .map(r => ({ time: r.date, value: r.equity / base * SEED }));
+    if (liveEquity !== null && pts.length) {
+      pts[pts.length - 1].value = (liveEquity / base) * SEED;
+    }
     return { base, pts };
   }
 
-  function bookStats(rows, positionsCount) {
+  function bookStats(rows, positions, liveOpenPnl = 0) {
     if (!rows.length) return null;
     const last = rows[rows.length - 1];
-    const rb = rebase(rows);
+    const initialSeed = rows[0]?.equity || SEED;
+    const realizedBanked = Number(last.cum_pnl) || 0;
+    const liveEquity = Number(last.equity) + liveOpenPnl;
+    const liveCum = realizedBanked + liveOpenPnl;
+
+    const rb = rebase(rows, liveEquity);
     const rbLast = rb.pts.length ? rb.pts[rb.pts.length - 1].value : null;
     const maxDD = Math.min(...rows.map(r => Number(r.drawdown_from_peak) || 0));
     return {
-      equity: last.equity,
-      cum: last.cum_pnl,
+      equity: liveEquity,
+      cum: liveCum,
       sinceShared: rbLast !== null ? rbLast - SEED : null,
       curDD: Number(last.drawdown_from_peak) || 0,
       maxDD,
       days: rows.length,
-      open: positionsCount,
+      open: positions.length,
       updated: last.inserted_at,
     };
   }
@@ -158,8 +205,51 @@
       const [rowsA, rowsB, posA, posB] = await Promise.all([
         fetchDaily('a'), fetchDaily('b'), fetchPositions('a'), fetchPositions('b'),
       ]);
-      const a = bookStats(rowsA, posA.length);
-      const b = bookStats(rowsB, posB.length);
+
+      // Collect all instruments from both books to fetch live marks
+      const instruments = new Set();
+      for (const p of (posA || [])) if (p && p.instrument) instruments.add(p.instrument);
+      for (const p of (posB || [])) if (p && p.instrument) instruments.add(p.instrument);
+
+      const stale = [{ inst: 'GBP/USD', cls: 'forex' }];
+      for (const inst of instruments) {
+        stale.push({ inst, cls: paperClassFor(inst) });
+      }
+
+      await Promise.allSettled(stale.map(async ({ inst, cls }) => {
+        try {
+          const px = await fetchLiveMark(inst, cls);
+          if (px !== null) {
+            _liveMarks[inst] = px;
+            if (inst === 'GBP/USD') _gbpUsd = px;
+          }
+        } catch (e) {}
+      }));
+
+      // Compute live open PnL for Book A
+      let livePnlA = 0;
+      for (const p of (posA || [])) {
+        const inst = String(p.instrument || '');
+        const livePx = _liveMarks[inst] || parseFloat(p.last_px);
+        const entry = parseFloat(p.entry_price);
+        const units = parseFloat(p.units);
+        const isLong = String(p.direction || '').toLowerCase() !== 'short';
+        livePnlA += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+      }
+
+      // Compute live open PnL for Book B
+      let livePnlB = 0;
+      for (const p of (posB || [])) {
+        const inst = String(p.instrument || '');
+        const livePx = _liveMarks[inst] || parseFloat(p.last_px);
+        const entry = parseFloat(p.entry_price);
+        const units = parseFloat(p.units);
+        const isLong = String(p.direction || '').toLowerCase() !== 'short';
+        livePnlB += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+      }
+
+      const a = bookStats(rowsA, posA || [], livePnlA);
+      const b = bookStats(rowsB, posB || [], livePnlB);
       renderHero(a, b);
       renderChart(rowsA, rowsB);
       renderTable(a, b);
@@ -167,7 +257,7 @@
       const upd = (b && b.updated) || (a && a.updated);
       if (upd) {
         $('raceLastSync').textContent = 'Last nightly step: ' +
-          new Date(upd).toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' UK.';
+          new Date(upd).toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' UK · Live marks active.';
       }
     } catch (e) {
       console.warn('race load failed', e);
@@ -175,5 +265,5 @@
   }
 
   load();
-  setInterval(() => { if (!document.hidden) load(); }, 15 * 60 * 1000);
+  setInterval(() => { if (!document.hidden) load(); }, 60 * 1000);
 })();
