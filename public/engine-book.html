@@ -109,6 +109,16 @@
       <div class="hs-stat"><span class="hs-label">Closed P&amp;L</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub">banked from closed trades</span></div>
     </div>
 
+    <!-- Asset-class Tabs -->
+    <div class="ob-toolbar" style="margin-top: 12px; margin-bottom: 14px;">
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button id="btnClassAll" class="vt-btn active" data-class="all">🌐 All Assets</button>
+        <button id="btnClassStocks" class="vt-btn" data-class="stocks">📈 Stocks</button>
+        <button id="btnClassForex" class="vt-btn" data-class="forex">💱 Forex</button>
+        <button id="btnClassCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
+      </div>
+    </div>
+
     <!-- Open Positions -->
     <section class="pg-card" style="margin-bottom: 24px;">
       <div class="pg-card-head">
@@ -136,6 +146,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=3"></script>
+  <script src="./engine-book.js?v=4"></script>
 </body>
 </html>

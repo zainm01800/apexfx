@@ -455,6 +455,22 @@ function renderPositionCard(p) {
   `;
 }
 
+let _activeClass = 'all';
+
+function setClass(cls) {
+  _activeClass = cls || 'all';
+  for (const btn of document.querySelectorAll('.vt-btn[data-class]')) {
+    btn.classList.toggle('active', btn.dataset.class === _activeClass);
+  }
+  renderPositions();
+}
+
+function initClassToggle() {
+  for (const btn of document.querySelectorAll('.vt-btn[data-class]')) {
+    btn.addEventListener('click', () => setClass(btn.dataset.class));
+  }
+}
+
 function renderPositions() {
   const wrap = document.getElementById('engPositionsWrap');
   if (!wrap) return;
@@ -465,10 +481,15 @@ function renderPositions() {
     noteEl.textContent = latest && latest.notes ? `last step: ${latest.notes}` : '';
   }
 
-  const open = _positions.filter(p => p && p.instrument && num(p.units) > 0 && String(p.status || '').toLowerCase() !== 'closed');
+  let open = _positions.filter(p => p && p.instrument && num(p.units) > 0 && String(p.status || '').toLowerCase() !== 'closed');
+  if (_activeClass !== 'all') {
+    open = open.filter(p => paperClassFor(String(p.instrument || '')) === _activeClass);
+  }
 
   if (!open.length) {
-    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No open engine positions.</div>`;
+    const bookLabel = _book === 'b' ? 'Book B' : 'Book A';
+    const classLabel = _activeClass === 'all' ? '' : _activeClass + ' ';
+    wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">No open ${classLabel}positions for ${bookLabel}.</div>`;
     return;
   }
 
@@ -485,7 +506,7 @@ function renderClosedTrades() {
   if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips` : '';
 
   if (!closed.length) {
-    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet.</div>`;
+    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet for ${_book === 'b' ? 'Book B' : 'Book A'}.</div>`;
     return;
   }
 
@@ -553,6 +574,7 @@ function initBookToggle() {
   for (const btn of document.querySelectorAll('.vt-btn[data-book]')) {
     btn.addEventListener('click', () => setBook(btn.dataset.book));
   }
+  initClassToggle();
   applyBookChrome();
 }
 
