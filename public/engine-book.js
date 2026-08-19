@@ -36,6 +36,7 @@ let _eqChart = null;    // equity curve chart instance (destroyed before re-rend
 let _eqSeries = null;   // equity area series instance
 let _eqResize = null;   // resize handler for the equity chart (replaced, not stacked)
 let _lastSyncTime = null; // latest live sync/refresh timestamp
+let _latestLiveEquity = null; // latest live equity value
 
 function setLastSyncLabel(ts = new Date()) {
   _lastSyncTime = ts;
@@ -337,6 +338,15 @@ function renderEquityChart() {
     if (!r.date || eq === null || seen.has(r.date)) continue;
     seen.add(r.date);
     pts.push({ time: r.date, value: eq });
+  }
+
+  if (_latestLiveEquity !== null && pts.length) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (pts[pts.length - 1].time === todayStr) {
+      pts[pts.length - 1].value = _latestLiveEquity;
+    } else {
+      pts.push({ time: todayStr, value: _latestLiveEquity });
+    }
   }
 
   if (pts.length < 2 || typeof LightweightCharts === 'undefined') {
@@ -742,8 +752,10 @@ function applyLiveMarks() {
     const liveCurDD = peakEquity > 0 ? Math.max(0, (peakEquity - liveTotalEquity) / peakEquity) : 0;
     setText('engCurDD', liveCurDD > 0 ? '-' + (liveCurDD * 100).toFixed(2) + '%' : '0.00%', liveCurDD > 0 ? 'red' : '');
 
+    _latestLiveEquity = liveTotalEquity;
+
     // 7. Update Equity Curve chart series with live point
-    if (_eqSeries) {
+    if (_eqSeries && _eqChart) {
       const todayStr = new Date().toISOString().slice(0, 10);
       const pts = [];
       const seen = new Set();
@@ -759,7 +771,13 @@ function applyLiveMarks() {
         } else {
           pts.push({ time: todayStr, value: liveTotalEquity });
         }
+        const isUp = liveTotalEquity >= (pts[0] ? pts[0].value : BOOK_START_EQUITY);
+        _eqSeries.applyOptions({
+          lineColor: isUp ? '#34D399' : '#F87171',
+          topColor: isUp ? 'rgba(52, 211, 153, 0.22)' : 'rgba(248, 113, 113, 0.22)',
+        });
         _eqSeries.setData(pts);
+        _eqChart.timeScale().fitContent();
       }
     }
 
