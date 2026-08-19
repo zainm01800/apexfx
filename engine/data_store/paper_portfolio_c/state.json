@@ -1,0 +1,564 @@
+{
+  "schema_version": 1,
+  "book": "book_c_champion_ensemble_63_126_252",
+  "params": {
+    "carry_filter": false,
+    "momentum_lookback": 126,
+    "vol_window": 63,
+    "holding_horizon": 21,
+    "reward_risk": 1.5,
+    "regime_method": "rule_based",
+    "timeframe": "1d",
+    "htf_rule": "1w",
+    "htf_ma_window": 50,
+    "momentum_lookbacks": [
+      63,
+      126,
+      252
+    ]
+  },
+  "universe": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "META",
+    "AMZN",
+    "GOOGL",
+    "TSLA",
+    "AMD",
+    "PLTR",
+    "TSM",
+    "NFLX",
+    "UBER",
+    "ISWD.L",
+    "ISDU.L",
+    "ISDE.L",
+    "XLK",
+    "XLE",
+    "XBI",
+    "SMH",
+    "SOXX",
+    "SGLD.L",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "BNB/USD",
+    "XRP/USD",
+    "ADA/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "LINK/USD",
+    "ARB/USD",
+    "SUI/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CHF",
+    "AUD/USD",
+    "USD/CAD",
+    "NZD/USD"
+  ],
+  "initial_equity": 100000.0,
+  "realized": 100000.0,
+  "peak": 100000.0,
+  "halted": false,
+  "cost_total": 0.0,
+  "open_positions": {},
+  "pending": {
+    "MSFT": {
+      "pos": {
+        "instrument": "MSFT",
+        "direction": "long",
+        "units": 10.638532991300298,
+        "notional": 5383.735979604448,
+        "risk_fraction": 0.0048015873015873015,
+        "stop_price": 460.9260744367327,
+        "stop_distance": 45.13392312186105,
+        "target_price": 573.7608822413854,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.48"
+        ],
+        "rationale": "LONG MSFT: p=0.82, b=1.50 -> risk 0.48% of equity, notional 5,384. Constraints: max_risk_per_trade, regime_scale=0.48.",
+        "sizing_detail": {
+          "probability": 0.82,
+          "reward_risk": 1.5,
+          "ann_vol": 0.4469105805369973,
+          "atr": 18.05356924874442,
+          "stop_distance": 45.13392312186105,
+          "kelly_risk_fraction": 0.13999999999999999,
+          "regime": "up/high-vol",
+          "regime_scale": 0.4801587301587301,
+          "total_open_risk_pct": 0.0,
+          "max_proposed_risk": 0.065,
+          "notional_risk": 5383.735979604448,
+          "notional_voltarget": 22375.840795678265
+        }
+      },
+      "dec": 506.05999755859375,
+      "risk_abs": 480.1587301587302,
+      "tf": "1d"
+    },
+    "META": {
+      "pos": {
+        "instrument": "META",
+        "direction": "short",
+        "units": 10.219488627114458,
+        "notional": 6079.77799939347,
+        "risk_fraction": 0.005759775583646309,
+        "stop_price": 651.2806854248047,
+        "stop_distance": 56.36070251464844,
+        "target_price": 510.3789291381836,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.58"
+        ],
+        "rationale": "SHORT META: p=0.76, b=1.50 -> risk 0.58% of equity, notional 6,080. Constraints: max_risk_per_trade, regime_scale=0.58.",
+        "sizing_detail": {
+          "probability": 0.7569483447458815,
+          "reward_risk": 1.5,
+          "ann_vol": 0.4606835760305225,
+          "atr": 22.544281005859375,
+          "stop_distance": 56.36070251464844,
+          "kelly_risk_fraction": 0.1189827815819605,
+          "regime": "down/normal-vol",
+          "regime_scale": 0.5759775583646309,
+          "total_open_risk_pct": 0.0048015873015873015,
+          "max_proposed_risk": 0.0601984126984127,
+          "notional_risk": 6079.77799939347,
+          "notional_voltarget": 21706.873264649337
+        }
+      },
+      "dec": 594.9199829101562,
+      "risk_abs": 575.9775583646309,
+      "tf": "1d"
+    },
+    "TSLA": {
+      "pos": {
+        "instrument": "TSLA",
+        "direction": "short",
+        "units": 12.666336310784894,
+        "notional": 4191.037420359851,
+        "risk_fraction": 0.004537037037037037,
+        "stop_price": 366.6996525355748,
+        "stop_distance": 35.81964765276228,
+        "target_price": 277.1505334036691,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.45"
+        ],
+        "rationale": "SHORT TSLA: p=0.74, b=1.50 -> risk 0.45% of equity, notional 4,191. Constraints: max_risk_per_trade, regime_scale=0.45.",
+        "sizing_detail": {
+          "probability": 0.7394683366889341,
+          "reward_risk": 1.5,
+          "ann_vol": 0.5728454779406308,
+          "atr": 14.327859061104911,
+          "stop_distance": 35.81964765276228,
+          "kelly_risk_fraction": 0.11315611222964471,
+          "regime": "down/high-vol",
+          "regime_scale": 0.4537037037037037,
+          "total_open_risk_pct": 0.010561362885233612,
+          "max_proposed_risk": 0.05443863711476639,
+          "notional_risk": 4191.037420359851,
+          "notional_voltarget": 17456.71456803643
+        }
+      },
+      "dec": 330.8800048828125,
+      "risk_abs": 453.70370370370375,
+      "tf": "1d"
+    },
+    "PLTR": {
+      "pos": {
+        "instrument": "PLTR",
+        "direction": "long",
+        "units": 20.488394388362693,
+        "notional": 3590.18126113693,
+        "risk_fraction": 0.004933862433862433,
+        "stop_price": 151.148741040911,
+        "stop_distance": 24.081254686628068,
+        "target_price": 211.35187775748116,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.49"
+        ],
+        "rationale": "LONG PLTR: p=0.73, b=1.50 -> risk 0.49% of equity, notional 3,590. Constraints: max_risk_per_trade, regime_scale=0.49.",
+        "sizing_detail": {
+          "probability": 0.7346925264254268,
+          "reward_risk": 1.5,
+          "ann_vol": 0.773086330684764,
+          "atr": 9.632501874651227,
+          "stop_distance": 24.081254686628068,
+          "kelly_risk_fraction": 0.11156417547514229,
+          "regime": "up/high-vol",
+          "regime_scale": 0.4933862433862434,
+          "total_open_risk_pct": 0.015098399922270649,
+          "max_proposed_risk": 0.049901600077729355,
+          "notional_risk": 3590.18126113693,
+          "notional_voltarget": 12935.165974468162
+        }
+      },
+      "dec": 175.22999572753906,
+      "risk_abs": 493.3862433862433,
+      "tf": "1d"
+    },
+    "NFLX": {
+      "pos": {
+        "instrument": "NFLX",
+        "direction": "short",
+        "units": 111.50529638866698,
+        "notional": 8506.739163577551,
+        "risk_fraction": 0.006174603174603175,
+        "stop_price": 81.82749857221332,
+        "stop_distance": 5.537497656685966,
+        "target_price": 67.9837544304984,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.62"
+        ],
+        "rationale": "SHORT NFLX: p=0.82, b=1.50 -> risk 0.62% of equity, notional 8,507. Constraints: max_risk_per_trade, regime_scale=0.62.",
+        "sizing_detail": {
+          "probability": 0.82,
+          "reward_risk": 1.5,
+          "ann_vol": 0.33736322315413586,
+          "atr": 2.2149990626743863,
+          "stop_distance": 5.537497656685966,
+          "kelly_risk_fraction": 0.13999999999999999,
+          "regime": "down/normal-vol",
+          "regime_scale": 0.6174603174603175,
+          "total_open_risk_pct": 0.02003226235613308,
+          "max_proposed_risk": 0.044967737643866926,
+          "notional_risk": 8506.739163577551,
+          "notional_voltarget": 29641.642341765153
+        }
+      },
+      "dec": 76.29000091552734,
+      "risk_abs": 617.4603174603175,
+      "tf": "1d"
+    },
+    "UBER": {
+      "pos": {
+        "instrument": "UBER",
+        "direction": "short",
+        "units": 26.279280456121842,
+        "notional": 2050.5722219119875,
+        "risk_fraction": 0.001846306886224105,
+        "stop_price": 85.0557120186942,
+        "stop_distance": 7.025713239397321,
+        "target_price": 71.31500015258788,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.18"
+        ],
+        "rationale": "SHORT UBER: p=0.52, b=1.20 -> risk 0.18% of equity, notional 2,051. Constraints: max_risk_per_trade, regime_scale=0.18.",
+        "sizing_detail": {
+          "probability": 0.52,
+          "reward_risk": 1.2,
+          "ann_vol": 0.40341828310457417,
+          "atr": 2.8102852957589284,
+          "stop_distance": 7.025713239397321,
+          "kelly_risk_fraction": 0.024,
+          "regime": "ranging/high-vol",
+          "regime_scale": 0.1846306886224105,
+          "total_open_risk_pct": 0.026206865530736253,
+          "max_proposed_risk": 0.038793134469263746,
+          "notional_risk": 2050.5722219119875,
+          "notional_voltarget": 24788.167564056082
+        }
+      },
+      "dec": 78.02999877929688,
+      "risk_abs": 184.6306886224105,
+      "tf": "1d"
+    },
+    "XBI": {
+      "pos": {
+        "instrument": "XBI",
+        "direction": "long",
+        "units": 50.02742405172072,
+        "notional": 7905.833761824792,
+        "risk_fraction": 0.005063492063492063,
+        "stop_price": 147.90856606619698,
+        "stop_distance": 10.121432713099889,
+        "target_price": 173.2121478489467,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.51"
+        ],
+        "rationale": "LONG XBI: p=0.82, b=1.50 -> risk 0.51% of equity, notional 7,906. Constraints: max_risk_per_trade, regime_scale=0.51.",
+        "sizing_detail": {
+          "probability": 0.82,
+          "reward_risk": 1.5,
+          "ann_vol": 0.3015796780797456,
+          "atr": 4.048573085239956,
+          "stop_distance": 10.121432713099889,
+          "kelly_risk_fraction": 0.13999999999999999,
+          "regime": "up/normal-vol",
+          "regime_scale": 0.5063492063492062,
+          "total_open_risk_pct": 0.02805317241696036,
+          "max_proposed_risk": 0.036946827583039646,
+          "notional_risk": 7905.833761824792,
+          "notional_voltarget": 33158.732921505856
+        }
+      },
+      "dec": 158.02999877929688,
+      "risk_abs": 506.3492063492063,
+      "tf": "1d"
+    },
+    "DOGE/USD": {
+      "pos": {
+        "instrument": "DOGE/USD",
+        "direction": "short",
+        "units": 211301.11987533583,
+        "notional": 14725.152396431346,
+        "risk_fraction": 0.00847883597883598,
+        "stop_price": 0.07370067893394402,
+        "stop_distance": 0.004012679148997579,
+        "target_price": 0.06366898106145008,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.85"
+        ],
+        "rationale": "SHORT DOGE/USD: p=0.82, b=1.50 -> risk 0.85% of equity, notional 14,725. Constraints: max_risk_per_trade, regime_scale=0.85.",
+        "sizing_detail": {
+          "probability": 0.82,
+          "reward_risk": 1.5,
+          "ann_vol": 0.3707936075630673,
+          "atr": 0.0016050716595990317,
+          "stop_distance": 0.004012679148997579,
+          "kelly_risk_fraction": 0.13999999999999999,
+          "regime": "down/low-vol",
+          "regime_scale": 0.8478835978835979,
+          "total_open_risk_pct": 0.033116664480452425,
+          "max_proposed_risk": 0.03188333551954758,
+          "notional_risk": 14725.152396431346,
+          "notional_voltarget": 26969.181226510565
+        }
+      },
+      "dec": 0.06968799978494644,
+      "risk_abs": 847.883597883598,
+      "tf": "1d"
+    },
+    "ARB/USD": {
+      "pos": {
+        "instrument": "ARB/USD",
+        "direction": "short",
+        "units": 1415311.6669333186,
+        "notional": 890.2310618369071,
+        "risk_fraction": 0.0003513007485652598,
+        "stop_price": 0.0006538214573603389,
+        "stop_distance": 2.4821440872204092e-05,
+        "target_price": 0.0005917678551798287,
+        "permitted": true,
+        "constraints_applied": [
+          "max_risk_per_trade",
+          "regime_scale=0.63",
+          "vol_target"
+        ],
+        "rationale": "SHORT ARB/USD: p=0.62, b=1.50 -> risk 0.04% of equity, notional 890. Constraints: max_risk_per_trade, regime_scale=0.63, vol_target.",
+        "sizing_detail": {
+          "probability": 0.6214480069007258,
+          "reward_risk": 1.5,
+          "ann_vol": 11.233038734197784,
+          "atr": 9.928576348881637e-06,
+          "stop_distance": 2.4821440872204092e-05,
+          "kelly_risk_fraction": 0.07381600230024192,
+          "regime": "down/low-vol",
+          "regime_scale": 0.6296296296296297,
+          "total_open_risk_pct": 0.041595500459288406,
+          "max_proposed_risk": 0.023404499540711596,
+          "notional_risk": 15955.4414853471,
+          "notional_voltarget": 890.2310618369071
+        }
+      },
+      "dec": 0.0006290000164881349,
+      "risk_abs": 35.13007485652598,
+      "tf": "1d"
+    }
+  },
+  "trades": [],
+  "per_inst": {
+    "AAPL": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "MSFT": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "NVDA": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "META": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AMZN": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "GOOGL": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "TSLA": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AMD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "PLTR": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "TSM": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "NFLX": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "UBER": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ISWD.L": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ISDU.L": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ISDE.L": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "XLK": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "XLE": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "XBI": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "SMH": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "SOXX": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "SGLD.L": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "BTC/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ETH/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "SOL/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "BNB/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "XRP/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ADA/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AVAX/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "DOGE/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "LINK/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "ARB/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "SUI/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "EUR/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "GBP/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "USD/JPY": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "USD/CHF": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "AUD/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "USD/CAD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    },
+    "NZD/USD": {
+      "n_trades": 0,
+      "net_pnl": 0.0
+    }
+  },
+  "constraint_log": {
+    "max_risk_per_trade": 9,
+    "regime_scale=0.48": 1,
+    "regime_scale=0.58": 1,
+    "regime_scale=0.45": 1,
+    "regime_scale=0.49": 1,
+    "regime_scale=0.62": 1,
+    "regime_scale=0.18": 1,
+    "regime_scale=0.51": 1,
+    "regime_scale=0.85": 1,
+    "regime_scale=0.63": 1,
+    "vol_target": 1
+  },
+  "equity_curve": [
+    [
+      "2026-08-10",
+      100000.0
+    ]
+  ],
+  "last_processed_date": "2026-08-10"
+}

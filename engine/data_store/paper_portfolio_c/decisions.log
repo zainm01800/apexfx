@@ -1,0 +1,10 @@
+2026-08-10 | eq 100000.00 cash 100000.00 open 0 gross 0.00x dd 0.0% cost_day 0.00
+  PERMIT MSFT long notional 5384 risk 0.48% caps [max_risk_per_trade, regime_scale=0.48]
+  PERMIT META short notional 6080 risk 0.58% caps [max_risk_per_trade, regime_scale=0.58]
+  PERMIT TSLA short notional 4191 risk 0.45% caps [max_risk_per_trade, regime_scale=0.45]
+  PERMIT PLTR long notional 3590 risk 0.49% caps [max_risk_per_trade, regime_scale=0.49]
+  PERMIT NFLX short notional 8507 risk 0.62% caps [max_risk_per_trade, regime_scale=0.62]
+  PERMIT UBER short notional 2051 risk 0.18% caps [max_risk_per_trade, regime_scale=0.18]
+  PERMIT XBI long notional 7906 risk 0.51% caps [max_risk_per_trade, regime_scale=0.51]
+  PERMIT DOGE/USD short notional 14725 risk 0.85% caps [max_risk_per_trade, regime_scale=0.85]
+  PERMIT ARB/USD short notional 890 risk 0.04% caps [max_risk_per_trade, regime_scale=0.63, vol_target]

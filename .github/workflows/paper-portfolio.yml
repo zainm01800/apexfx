@@ -85,6 +85,13 @@ jobs:
         continue-on-error: true
         working-directory: engine
         run: python scripts/run_paper_portfolio_challenger.py
+      - name: Advance the CHAMPION paper book one closed bar (Multi-Horizon [63, 126, 252])
+        # Third forward book (Book C) — Champion Multi-Horizon Trend Ensemble:
+        # equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments,
+        # own state dir + apex_paper_c_* tables.
+        continue-on-error: true
+        working-directory: engine
+        run: python scripts/run_paper_portfolio_c.py
       - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
         working-directory: engine
         run: python scripts/nightly_risk_report.py

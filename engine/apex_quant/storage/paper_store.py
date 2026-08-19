@@ -28,6 +28,10 @@ DAILY_TABLE = "apex_paper_daily"
 POSITIONS_TABLE_B = "apex_paper_b_positions"
 DAILY_TABLE_B = "apex_paper_b_daily"
 
+# Champion Multi-Horizon book (Book C) mirror tables.
+POSITIONS_TABLE_C = "apex_paper_c_positions"
+DAILY_TABLE_C = "apex_paper_c_daily"
+
 
 def _url(table: str) -> str:
     return f"{_SUPA_URL}/rest/v1/{table}"

@@ -26,6 +26,12 @@ const BOOKS = {
     positionsTable: 'apex_paper_b_positions',
     blurb: 'Challenger book — certified Book H gold 252 + SPY 50-day spillover gate on crypto/FX entries, virtual £100,000 seeded 10 Aug 2026, stepped nightly in sync with Book A as a live A/B. Paper only; nothing here is real money.',
   },
+  c: {
+    startLabel: '19 Aug 2026',
+    dailyTable: 'apex_paper_c_daily',
+    positionsTable: 'apex_paper_c_positions',
+    blurb: 'Champion Multi-Horizon Trend Book — equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments, 1% risk per trade, seeded 19 Aug 2026. Paper only; nothing here is real money.',
+  },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
 if (!BOOKS[_book]) _book = 'a';
@@ -862,7 +868,11 @@ function startPolling(ms) {
 // ── Supabase Realtime: push updates, no refresh ──────────────────────────────
 const SUPA_RT_URL  = 'https://cuvchjhaojhmxfgczndy.supabase.co';
 const SUPA_RT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
-const RT_TABLES = ['apex_paper_positions', 'apex_paper_daily', 'apex_paper_b_positions', 'apex_paper_b_daily'];
+const RT_TABLES = [
+  'apex_paper_positions', 'apex_paper_daily',
+  'apex_paper_b_positions', 'apex_paper_b_daily',
+  'apex_paper_c_positions', 'apex_paper_c_daily'
+];
 let _rtDebounce = null;
 
 function setLivePill(connected) {

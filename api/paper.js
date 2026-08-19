@@ -9,11 +9,12 @@ export const config = { runtime: 'edge' };
 const SUPA_URL  = 'https://cuvchjhaojhmxfgczndy.supabase.co';
 const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
 
-// Book A = frozen proof (Book D); Book B = challenger (Book H gold 252 + spill50).
-// Same schema/RLS on both pairs; only the table names differ.
+// Book A = frozen proof (Book D); Book B = challenger (Book H gold 252 + spill50); Book C = champion multi-horizon.
+// Same schema/RLS on all pairs; only the table names differ.
 const TABLES = {
   a: { daily: 'apex_paper_daily', positions: 'apex_paper_positions' },
   b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
+  c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions' },
 };
 
 function supaHeaders() {

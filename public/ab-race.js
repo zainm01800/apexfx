@@ -1,9 +1,7 @@
-/* The Race — live A/B forward test: Book A (certified 252) vs Book B (252+spill50).
-   Headline comparisons are re-based to the shared window start (2026-08-10). */
+/* The Race — 3-Way Championship Race: Book A (certified 252) vs Book B (252+spill50) vs Book C (Champion Multi-Horizon [63,126,252]). */
 (function () {
   'use strict';
 
-  const SHARED_START = '2026-08-10';
   const SEED = 100000;
   const DAYS_TARGET = 60;
   const SUPA_URL = 'https://cuvchjhaojhmxfgczndy.supabase.co';
@@ -15,15 +13,19 @@
   const fmtPct = (v) => (v * 100).toFixed(2) + '%';
 
   async function fetchDaily(book) {
-    const q = book === 'b' ? '?book=b&table=daily&limit=500' : '?table=daily&limit=500';
+    const q = `?book=${book}&table=daily&limit=500`;
     try {
       const r = await fetch('/api/paper' + q);
       if (r.ok) { const j = await r.json(); if (Array.isArray(j) && j.length) return j; }
     } catch (e) { /* fall through to Supabase */ }
-    const table = book === 'b' ? 'apex_paper_b_daily' : 'apex_paper_daily';
-    const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?order=date.asc&limit=500`,
-      { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` } });
-    return r2.ok ? await r2.json() : [];
+    const table = book === 'c' ? 'apex_paper_c_daily' : (book === 'b' ? 'apex_paper_b_daily' : 'apex_paper_daily');
+    try {
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?order=date.asc&limit=500`,
+        { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` } });
+      return r2.ok ? await r2.json() : [];
+    } catch (e) {
+      return [];
+    }
   }
 
   let _gbpUsd = 1.285;
@@ -66,109 +68,169 @@
   }
 
   async function fetchPositions(book) {
-    const q = book === 'b' ? '?book=b&table=positions' : '?table=positions';
+    const q = `?book=${book}&table=positions`;
     try {
       const r = await fetch('/api/paper' + q);
       if (r.ok) { const j = await r.json(); if (Array.isArray(j)) return j; }
     } catch (e) { /* fall through */ }
-    const table = book === 'b' ? 'apex_paper_b_positions' : 'apex_paper_positions';
-    const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?select=*`,
-      { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` } });
-    return r2.ok ? await r2.json() : [];
+    const table = book === 'c' ? 'apex_paper_c_positions' : (book === 'b' ? 'apex_paper_b_positions' : 'apex_paper_positions');
+    try {
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/${table}?select=*`,
+        { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` } });
+      return r2.ok ? await r2.json() : [];
+    } catch (e) {
+      return [];
+    }
   }
 
-  // Re-base an equity series to SEED on the shared start date (last row <= start).
+  // Re-base an equity series to SEED
   function rebase(rows, liveEquity = null) {
-    const prior = rows.filter(r => r.date <= SHARED_START);
-    if (!prior.length) return { base: null, pts: [] };
-    const base = prior[prior.length - 1].equity;
-    const pts = rows.filter(r => r.date >= SHARED_START)
-      .map(r => ({ time: r.date, value: r.equity / base * SEED }));
+    if (!rows || !rows.length) return { base: null, pts: [] };
+    const base = rows[0].equity || SEED;
+    const pts = rows.map(r => ({ time: r.date, value: (r.equity / base) * SEED }));
     if (liveEquity !== null && pts.length) {
-      pts[pts.length - 1].value = (liveEquity / base) * SEED;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (pts[pts.length - 1].time === todayStr) {
+        pts[pts.length - 1].value = (liveEquity / base) * SEED;
+      } else {
+        pts.push({ time: todayStr, value: (liveEquity / base) * SEED });
+      }
     }
     return { base, pts };
   }
 
-  function bookStats(rows, positions, liveOpenPnl = 0) {
-    if (!rows.length) return null;
+  function bookStats(rows, positions, liveOpenPnl = 0, defaultSeed = SEED) {
+    if (!rows || !rows.length) {
+      return {
+        equity: defaultSeed + liveOpenPnl,
+        cum: liveOpenPnl,
+        curDD: 0,
+        maxDD: 0,
+        days: 1,
+        open: positions.length,
+        updated: new Date().toISOString(),
+      };
+    }
     const last = rows[rows.length - 1];
-    const initialSeed = rows[0]?.equity || SEED;
+    const initialSeed = rows[0]?.equity || defaultSeed;
     const realizedBanked = Number(last.cum_pnl) || 0;
     const liveEquity = Number(last.equity) + liveOpenPnl;
-    const liveCum = realizedBanked + liveOpenPnl;
+    const liveCum = (liveEquity - initialSeed);
 
-    const rb = rebase(rows, liveEquity);
-    const rbLast = rb.pts.length ? rb.pts[rb.pts.length - 1].value : null;
     const maxDD = Math.min(...rows.map(r => Number(r.drawdown_from_peak) || 0));
     return {
       equity: liveEquity,
       cum: liveCum,
-      sinceShared: rbLast !== null ? rbLast - SEED : null,
       curDD: Number(last.drawdown_from_peak) || 0,
       maxDD,
-      days: rows.length,
+      days: Math.max(1, rows.length),
       open: positions.length,
-      updated: last.inserted_at,
+      updated: last.inserted_at || new Date().toISOString(),
     };
   }
 
-  function renderHero(a, b) {
-    $('raceEquityA').textContent = a ? fmtMoney(a.equity) : '—';
-    $('raceEquityB').textContent = b ? fmtMoney(b.equity) : '—';
-    $('raceSubA').textContent = a && a.sinceShared !== null ? `since 10 Aug: ${fmtSigned(a.sinceShared)}` : 'since 10 Aug: —';
-    $('raceSubB').textContent = b && b.sinceShared !== null ? `since 10 Aug: ${fmtSigned(b.sinceShared)}` : 'since 10 Aug: —';
+  function renderHero(a, b, c) {
+    if ($('raceEquityA')) $('raceEquityA').textContent = a ? fmtMoney(a.equity) : '—';
+    if ($('raceEquityB')) $('raceEquityB').textContent = b ? fmtMoney(b.equity) : '—';
+    if ($('raceEquityC')) $('raceEquityC').textContent = c ? fmtMoney(c.equity) : '—';
+
+    if ($('raceSubA')) $('raceSubA').textContent = a ? `Net Return: ${fmtSigned(a.cum)}` : '—';
+    if ($('raceSubB')) $('raceSubB').textContent = b ? `Net Return: ${fmtSigned(b.cum)}` : '—';
+    if ($('raceSubC')) $('raceSubC').textContent = c ? `Net Return: ${fmtSigned(c.cum)}` : '—';
+
     const el = $('raceLeader');
-    if (a && b && a.sinceShared !== null && b.sinceShared !== null) {
-      const diff = b.sinceShared - a.sinceShared;
-      const abs = fmtMoney(Math.abs(diff));
-      if (Math.abs(diff) < 1) {
-        el.textContent = `Dead heat on the shared window — ${abs} between them.`;
-      } else {
-        const leader = diff > 0 ? 'Book B (spill50)' : 'Book A (certified)';
-        el.textContent = `${leader} leads by ${abs} on the shared window.`;
-        el.style.color = diff > 0 ? '#D8B36A' : '#2FD6A3';
-      }
+    if (!el) return;
+
+    const books = [
+      { name: 'Book A (Certified)', eq: a ? a.equity : 0, color: '#2FD6A3' },
+      { name: 'Book B (spill50)', eq: b ? b.equity : 0, color: '#D8B36A' },
+      { name: 'Book C (Champion Ensemble)', eq: c ? c.equity : 0, color: '#38BDF8' }
+    ];
+
+    books.sort((x, y) => y.eq - x.eq);
+    const leader = books[0];
+    const runnerUp = books[1];
+    const leadAmount = leader.eq - runnerUp.eq;
+
+    if (leadAmount < 1) {
+      el.textContent = `Dead heat between top engines — ${fmtMoney(leader.eq)} live.`;
+      el.style.color = '#F8FAFC';
     } else {
-      el.textContent = 'Waiting for both books to share a window…';
+      el.textContent = `👑 ${leader.name} leads the championship by ${fmtMoney(leadAmount)}!`;
+      el.style.color = leader.color;
     }
   }
 
-  function renderChart(rowsA, rowsB) {
+  let _chartInstance = null;
+  function renderChart(rowsA, rowsB, rowsC, liveA = null, liveB = null, liveC = null) {
     const el = $('raceChart');
-    if (typeof LightweightCharts === 'undefined') { el.textContent = 'chart library failed to load'; return; }
-    const a = rebase(rowsA).pts, b = rebase(rowsB).pts;
-    if (a.length < 2) { el.textContent = 'not enough shared-window data yet'; return; }
+    if (!el || typeof LightweightCharts === 'undefined') return;
+
+    if (_chartInstance) {
+      try { _chartInstance.remove(); } catch (e) {}
+      _chartInstance = null;
+    }
+
+    const a = rebase(rowsA, liveA).pts;
+    const b = rebase(rowsB, liveB).pts;
+    const c = rebase(rowsC, liveC).pts;
+
+    if (!a.length && !b.length && !c.length) {
+      el.textContent = 'Waiting for engine data…';
+      return;
+    }
+
     const chart = LightweightCharts.createChart(el, {
-      width: el.clientWidth, height: el.clientHeight || 340,
-      layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#64748B',
-                fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 },
-      grid: { vertLines: { color: 'rgba(51,65,85,0.35)' }, horzLines: { color: 'rgba(51,65,85,0.35)' } },
+      width: el.clientWidth,
+      height: el.clientHeight || 340,
+      layout: {
+        background: { type: 'solid', color: 'transparent' },
+        textColor: '#64748B',
+        fontFamily: "'Space Mono', monospace",
+        fontSize: 10
+      },
+      grid: {
+        vertLines: { color: 'rgba(51,65,85,0.35)' },
+        horzLines: { color: 'rgba(51,65,85,0.35)' }
+      },
       rightPriceScale: { borderColor: 'rgba(51,65,85,0.6)' },
       timeScale: { borderColor: 'rgba(51,65,85,0.6)' },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       localization: { priceFormatter: v => fmtMoney(v) },
     });
-    const sA = chart.addLineSeries({ color: '#2FD6A3', lineWidth: 2, title: 'A' });
-    const sB = chart.addLineSeries({ color: '#D8B36A', lineWidth: 2, title: 'B' });
-    sA.setData(a);
+
+    const sA = chart.addLineSeries({ color: '#2FD6A3', lineWidth: 2, title: 'Book A' });
+    const sB = chart.addLineSeries({ color: '#D8B36A', lineWidth: 2, title: 'Book B' });
+    const sC = chart.addLineSeries({ color: '#38BDF8', lineWidth: 2, title: 'Book C' });
+
+    if (a.length) sA.setData(a);
     if (b.length) sB.setData(b);
-    sA.createPriceLine({ price: SEED, color: 'rgba(148,163,184,0.4)', lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'seed' });
+    if (c.length) sC.setData(c);
+
+    sA.createPriceLine({
+      price: SEED,
+      color: 'rgba(148,163,184,0.4)',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: 'seed'
+    });
+
     chart.timeScale().fitContent();
     window.addEventListener('resize', () => chart.applyOptions({ width: el.clientWidth }));
+    _chartInstance = chart;
   }
 
-  function renderTable(a, b) {
+  function renderTable(a, b, c) {
     const rows = [
-      ['Equity', a?.equity, b?.equity, 'money'],
-      ['Since 10 Aug (shared window)', a?.sinceShared, b?.sinceShared, 'signed'],
-      ['Since seed (A: 16 Jul · B: 10 Aug)', a?.cum, b?.cum, 'signed'],
-      ['Current drawdown', a?.curDD, b?.curDD, 'pct'],
-      ['Max drawdown', a?.maxDD, b?.maxDD, 'pct'],
-      ['Open positions', a?.open, b?.open, 'int'],
-      ['Days in proof', a?.days, b?.days, 'int'],
+      ['Live Equity', a?.equity, b?.equity, c?.equity, 'money'],
+      ['Cumulative P&L', a?.cum, b?.cum, c?.cum, 'signed'],
+      ['Current Drawdown', a?.curDD, b?.curDD, c?.curDD, 'pct'],
+      ['Max Drawdown', a?.maxDD, b?.maxDD, c?.maxDD, 'pct'],
+      ['Open Positions', a?.open, b?.open, c?.open, 'int'],
+      ['Days in Proof', a?.days, b?.days, c?.days, 'int'],
     ];
+
     const fmt = (v, kind) => {
       if (v === null || v === undefined) return '—';
       if (kind === 'money') return fmtMoney(v);
@@ -176,40 +238,57 @@
       if (kind === 'pct') return fmtPct(v);
       return String(v);
     };
-    const delta = (kind) => {
-      if (!a || !b || a.sinceShared === null || b.sinceShared === null) return '—';
-      return null;
-    };
-    $('raceTableBody').innerHTML = rows.map(([label, va, vb, kind]) => {
-      let d = '—';
-      if (va !== null && va !== undefined && vb !== null && vb !== undefined && kind !== 'int') {
-        d = kind === 'pct' ? ((vb - va) * 100).toFixed(2) + 'pt' : fmtSigned(vb - va);
+
+    const determineLeader = (va, vb, vc, kind) => {
+      if (va === null || vb === null || vc === null) return '—';
+      if (kind === 'money' || kind === 'signed') {
+        const max = Math.max(va, vb, vc);
+        if (max === va) return '<span style="color:#2FD6A3; font-weight:700;">Book A</span>';
+        if (max === vb) return '<span style="color:#D8B36A; font-weight:700;">Book B</span>';
+        return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
       }
-      return `<tr><td>${label}</td><td>${fmt(va, kind)}</td><td>${fmt(vb, kind)}</td><td>${d}</td></tr>`;
+      if (kind === 'pct') {
+        const min = Math.min(va, vb, vc);
+        if (min === va) return '<span style="color:#2FD6A3; font-weight:700;">Book A</span>';
+        if (min === vb) return '<span style="color:#D8B36A; font-weight:700;">Book B</span>';
+        return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
+      }
+      return '—';
+    };
+
+    $('raceTableBody').innerHTML = rows.map(([label, va, vb, vc, kind]) => {
+      const leader = determineLeader(va, vb, vc, kind);
+      return `<tr><td>${label}</td><td>${fmt(va, kind)}</td><td>${fmt(vb, kind)}</td><td>${fmt(vc, kind)}</td><td>${leader}</td></tr>`;
     }).join('');
   }
 
-  function renderDays(a, b) {
-    if (a) {
+  function renderDays(a, b, c) {
+    if (a && $('raceDayA')) {
       $('raceDayA').textContent = `${a.days} / ${DAYS_TARGET}`;
-      $('raceBarA').style.width = Math.min(100, a.days / DAYS_TARGET * 100) + '%';
+      if ($('raceBarA')) $('raceBarA').style.width = Math.min(100, (a.days / DAYS_TARGET) * 100) + '%';
     }
-    if (b) {
+    if (b && $('raceDayB')) {
       $('raceDayB').textContent = `${b.days} / ${DAYS_TARGET}`;
-      $('raceBarB').style.width = Math.min(100, b.days / DAYS_TARGET * 100) + '%';
+      if ($('raceBarB')) $('raceBarB').style.width = Math.min(100, (b.days / DAYS_TARGET) * 100) + '%';
+    }
+    if (c && $('raceDayC')) {
+      $('raceDayC').textContent = `${c.days} / ${DAYS_TARGET}`;
+      if ($('raceBarC')) $('raceBarC').style.width = Math.min(100, (c.days / DAYS_TARGET) * 100) + '%';
     }
   }
 
   async function load() {
     try {
-      const [rowsA, rowsB, posA, posB] = await Promise.all([
-        fetchDaily('a'), fetchDaily('b'), fetchPositions('a'), fetchPositions('b'),
+      const [rowsA, rowsB, rowsC, posA, posB, posC] = await Promise.all([
+        fetchDaily('a'), fetchDaily('b'), fetchDaily('c'),
+        fetchPositions('a'), fetchPositions('b'), fetchPositions('c')
       ]);
 
-      // Collect all instruments from both books to fetch live marks
+      // Collect all instruments from all 3 books to fetch live marks
       const instruments = new Set();
       for (const p of (posA || [])) if (p && p.instrument) instruments.add(p.instrument);
       for (const p of (posB || [])) if (p && p.instrument) instruments.add(p.instrument);
+      for (const p of (posC || [])) if (p && p.instrument) instruments.add(p.instrument);
 
       const stale = [{ inst: 'GBP/USD', cls: 'forex' }];
       for (const inst of instruments) {
@@ -248,16 +327,30 @@
         livePnlB += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
       }
 
+      // Compute live open PnL for Book C
+      let livePnlC = 0;
+      for (const p of (posC || [])) {
+        const inst = String(p.instrument || '');
+        const livePx = _liveMarks[inst] || parseFloat(p.last_px);
+        const entry = parseFloat(p.entry_price);
+        const units = parseFloat(p.units);
+        const isLong = String(p.direction || '').toLowerCase() !== 'short';
+        livePnlC += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+      }
+
       const a = bookStats(rowsA, posA || [], livePnlA);
       const b = bookStats(rowsB, posB || [], livePnlB);
-      renderHero(a, b);
-      renderChart(rowsA, rowsB);
-      renderTable(a, b);
-      renderDays(a, b);
-      const upd = (b && b.updated) || (a && a.updated);
-      if (upd) {
-        $('raceLastSync').textContent = 'Last nightly step: ' +
-          new Date(upd).toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' UK · Live marks active.';
+      const c = bookStats(rowsC, posC || [], livePnlC);
+
+      renderHero(a, b, c);
+      renderChart(rowsA, rowsB, rowsC, a.equity, b.equity, c.equity);
+      renderTable(a, b, c);
+      renderDays(a, b, c);
+
+      const upd = (c && c.updated) || (b && b.updated) || (a && a.updated);
+      if (upd && $('raceLastSync')) {
+        $('raceLastSync').textContent = 'Last sync: ' +
+          new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' UK · Live marks active.';
       }
     } catch (e) {
       console.warn('race load failed', e);
