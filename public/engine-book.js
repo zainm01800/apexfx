@@ -399,7 +399,7 @@ function renderPositionCard(p) {
   const bankedPartials = num(p.realized_pnl_total);
 
   return `
-    <div class="stat-item ibkr-pos-card eng-pos-card" data-instrument="${escHtml(inst)}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
+    <div class="stat-item ibkr-pos-card eng-pos-card" data-instrument="${escHtml(inst)}" data-live-entry="${entry}" data-live-units="${units}" data-live-dir="${isLong ? 'long' : 'short'}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
       <div class="card-face-stats">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -439,6 +439,11 @@ function renderPositionCard(p) {
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
         <span style="color: var(--text)">Unrealized P&amp;L</span>
         <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl))}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 2px;">
+        <span style="color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Live Intraday</span>
+        <span class="live-mark-val" style="font-family: var(--mono); font-size: 11.5px; color: var(--text3);">—</span>
       </div>
 
       ${bankedPartials !== null && bankedPartials !== 0 ? `
@@ -544,6 +549,87 @@ function renderAll() {
   renderEquityChart();
   renderPositions();
   renderClosedTrades();
+  refreshLiveMarks().catch(() => {});
+}
+
+// ── Live Intraday Marks (Overlay) ────────────────────────────────────────────
+const _liveMarks = {};
+const LIVE_MARK_TTL = 50000;
+let _liveTimer = null;
+
+function normalizeCandleSymbol(sym, cls) {
+  return sym;
+}
+
+async function fetchLiveMark(inst, cls) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 7 * 86400;
+  const type = cls === 'forex' ? 'Forex' : (cls === 'crypto' ? 'Crypto' : 'Stock');
+  const sym = normalizeCandleSymbol(inst, cls);
+  const res = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${encodeURIComponent(type)}&tf=1d&from=${from}&to=${to}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const bars = await res.json();
+  if (!Array.isArray(bars) || !bars.length) return null;
+  const px = num(bars[bars.length - 1].close);
+  if (px === null) return null;
+  const prevClose = bars.length > 1 ? num(bars[bars.length - 2].close) : null;
+  return { px, prevClose };
+}
+
+async function refreshLiveMarks() {
+  if (document.hidden) return;
+  const wrap = document.getElementById('engPositionsWrap');
+  if (!wrap) return;
+  const cards = wrap.querySelectorAll('.eng-pos-card');
+  if (!cards.length) return;
+
+  const stale = [];
+  for (const card of cards) {
+    const inst = card.dataset.instrument;
+    if (!inst) continue;
+    if (!_liveMarks[inst] || (Date.now() - _liveMarks[inst].at) > LIVE_MARK_TTL) {
+      stale.push({ inst, cls: paperClassFor(inst) });
+    }
+  }
+  if (!stale.length) {
+    applyLiveMarks();
+    return;
+  }
+
+  await Promise.allSettled(stale.map(async ({ inst, cls }) => {
+    try {
+      const mark = await fetchLiveMark(inst, cls);
+      if (mark) _liveMarks[inst] = { px: mark.px, prevClose: mark.prevClose, at: Date.now() };
+    } catch (e) { /* keep official mark on failure */ }
+  }));
+
+  applyLiveMarks();
+}
+
+function applyLiveMarks() {
+  const wrap = document.getElementById('engPositionsWrap');
+  if (!wrap) return;
+  for (const card of wrap.querySelectorAll('.eng-pos-card')) {
+    const row = card.querySelector('.live-mark-val');
+    if (!row) continue;
+    const inst = card.dataset.instrument;
+    const m = _liveMarks[inst];
+    if (!m) continue;
+    const entry = num(card.dataset.liveEntry);
+    const units = num(card.dataset.liveUnits);
+    if (entry === null || units === null) continue;
+    const cls = paperClassFor(inst);
+    const isLong = card.dataset.liveDir !== 'short';
+    let pnl = 0;
+    if (cls === 'forex' && inst.includes('/')) {
+      const diff = (isLong ? (m.px - entry) : (entry - m.px)) * units;
+      pnl = inst.startsWith('USD/') ? (diff / m.px) : diff;
+    } else {
+      pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    }
+    const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : 'var(--text3)');
+    row.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnl))}</span> live`;
+  }
 }
 
 // ── Book toggle (A = frozen proof / B = challenger) ──────────────────────────
@@ -595,6 +681,7 @@ function initRefreshButton() {
 
     try {
       await loadEngineBook();
+      await refreshLiveMarks();
     } catch (e) {
       console.error('Refresh fetch error:', e);
     } finally {
@@ -616,10 +703,6 @@ function startPolling(ms) {
 }
 
 // ── Supabase Realtime: push updates, no refresh ──────────────────────────────
-// Subscribes to both books' tables (a write to either reloads the currently
-// shown book); the nightly step's writes trigger a reload. 15-min polling
-// stays as fallback. 5s debounce collapses the nightly write burst into one
-// refresh (egress-conscious — same pattern as terminal).
 const SUPA_RT_URL  = 'https://cuvchjhaojhmxfgczndy.supabase.co';
 const SUPA_RT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
 const RT_TABLES = ['apex_paper_positions', 'apex_paper_daily', 'apex_paper_b_positions', 'apex_paper_b_daily'];
@@ -643,7 +726,7 @@ function initRealtime() {
   const trigger = () => {
     if (_rtDebounce) clearTimeout(_rtDebounce);
     _rtDebounce = setTimeout(() => {
-      if (document.hidden) return;   // background tabs don't need to re-pull
+      if (document.hidden) return;
       try { loadEngineBook(); } catch (e) { console.error('Realtime reload err:', e); }
     }, 5000);
   };
@@ -665,6 +748,12 @@ function bootEngineBook() {
   // Initial load + slow 15-minute background fallback (Realtime is primary)
   try { loadEngineBook(); } catch (e) { console.error('Initial load err:', e); }
   startPolling(900000);
+
+  // Live intraday price polling (every 60s while active tab)
+  if (!_liveTimer) _liveTimer = setInterval(refreshLiveMarks, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshLiveMarks();
+  });
 }
 
 if (document.readyState === 'loading') {
