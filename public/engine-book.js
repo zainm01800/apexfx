@@ -183,13 +183,33 @@ function closedTrades() {
   return [...trades].sort((a, b) => String(b.exit_time || '').localeCompare(String(a.exit_time || '')));
 }
 
+let _gbpUsdRate = 1.285;
+
+function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsdRate || 1.285)) {
+  if (entry === null || currentPx === null || units === null || entry <= 0 || currentPx <= 0) return null;
+  const rawDiff = (isLong ? (currentPx - entry) : (entry - currentPx)) * units;
+  const cls = paperClassFor(inst);
+
+  let pnlUsd = rawDiff;
+  if (cls === 'forex' && inst.includes('/')) {
+    if (inst.startsWith('USD/')) {
+      pnlUsd = rawDiff / currentPx;
+    } else if (inst.endsWith('/USD')) {
+      pnlUsd = rawDiff;
+    }
+  }
+
+  // Convert USD to Book Currency (£ GBP)
+  return pnlUsd / (gbpusd || 1.285);
+}
+
 function positionUpnl(p) {
   const entry = num(p.entry_price);
   const lastPx = num(p.last_px);
   const units = num(p.units);
   if (entry === null || lastPx === null || units === null) return null;
   const isLong = String(p.direction || '').toLowerCase() !== 'short';
-  return (isLong ? (lastPx - entry) : (entry - lastPx)) * units;
+  return calcTradePnl(String(p.instrument || ''), entry, lastPx, units, isLong, _gbpUsdRate);
 }
 
 // ── Hero + book stats ────────────────────────────────────────────────────────
@@ -418,7 +438,7 @@ function renderPositionCard(p) {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
         <span style="color: var(--text3)">Last Price</span>
-        <span style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${escHtml(fmtPrice(lastPx, cls))}</span>
+        <span class="card-last-px" style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${escHtml(fmtPrice(lastPx, cls))}</span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
@@ -438,7 +458,7 @@ function renderPositionCard(p) {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
         <span style="color: var(--text)">Unrealized P&amp;L</span>
-        <span class="${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl))}</span>
+        <span class="card-upnl-val ${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl))}</span>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 2px;">
@@ -499,6 +519,8 @@ function renderPositions() {
   }
 
   wrap.innerHTML = open.map(renderPositionCard).join('');
+  applyLiveMarks();
+  refreshLiveMarks().catch(() => {});
 }
 
 // ── Closed trades table ──────────────────────────────────────────────────────
@@ -549,12 +571,11 @@ function renderAll() {
   renderEquityChart();
   renderPositions();
   renderClosedTrades();
-  refreshLiveMarks().catch(() => {});
 }
 
 // ── Live Intraday Marks (Overlay) ────────────────────────────────────────────
 const _liveMarks = {};
-const LIVE_MARK_TTL = 50000;
+const LIVE_MARK_TTL = 45000;
 let _liveTimer = null;
 
 function normalizeCandleSymbol(sym, cls) {
@@ -583,7 +604,7 @@ async function refreshLiveMarks() {
   const cards = wrap.querySelectorAll('.eng-pos-card');
   if (!cards.length) return;
 
-  const stale = [];
+  const stale = [{ inst: 'GBP/USD', cls: 'forex' }];
   for (const card of cards) {
     const inst = card.dataset.instrument;
     if (!inst) continue;
@@ -591,15 +612,14 @@ async function refreshLiveMarks() {
       stale.push({ inst, cls: paperClassFor(inst) });
     }
   }
-  if (!stale.length) {
-    applyLiveMarks();
-    return;
-  }
 
   await Promise.allSettled(stale.map(async ({ inst, cls }) => {
     try {
       const mark = await fetchLiveMark(inst, cls);
-      if (mark) _liveMarks[inst] = { px: mark.px, prevClose: mark.prevClose, at: Date.now() };
+      if (mark) {
+        _liveMarks[inst] = { px: mark.px, prevClose: mark.prevClose, at: Date.now() };
+        if (inst === 'GBP/USD') _gbpUsdRate = mark.px;
+      }
     } catch (e) { /* keep official mark on failure */ }
   }));
 
@@ -610,8 +630,6 @@ function applyLiveMarks() {
   const wrap = document.getElementById('engPositionsWrap');
   if (!wrap) return;
   for (const card of wrap.querySelectorAll('.eng-pos-card')) {
-    const row = card.querySelector('.live-mark-val');
-    if (!row) continue;
     const inst = card.dataset.instrument;
     const m = _liveMarks[inst];
     if (!m) continue;
@@ -620,15 +638,28 @@ function applyLiveMarks() {
     if (entry === null || units === null) continue;
     const cls = paperClassFor(inst);
     const isLong = card.dataset.liveDir !== 'short';
-    let pnl = 0;
-    if (cls === 'forex' && inst.includes('/')) {
-      const diff = (isLong ? (m.px - entry) : (entry - m.px)) * units;
-      pnl = inst.startsWith('USD/') ? (diff / m.px) : diff;
-    } else {
-      pnl = (isLong ? (m.px - entry) : (entry - m.px)) * units;
+    const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
+    if (pnlGbp === null) continue;
+
+    // 1. Update Live Intraday row
+    const liveRow = card.querySelector('.live-mark-val');
+    const pnlColor = pnlGbp > 0 ? 'var(--green)' : (pnlGbp < 0 ? 'var(--red)' : 'var(--text3)');
+    if (liveRow) {
+      liveRow.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnlGbp))}</span> live`;
     }
-    const pnlColor = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : 'var(--text3)');
-    row.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnl))}</span> live`;
+
+    // 2. Update card's Last Price
+    const lastPxEl = card.querySelector('.card-last-px');
+    if (lastPxEl) {
+      lastPxEl.textContent = fmtPrice(m.px, cls);
+    }
+
+    // 3. Update card's main Unrealized P&L
+    const upnlEl = card.querySelector('.card-upnl-val');
+    if (upnlEl) {
+      upnlEl.className = 'card-upnl-val ' + (pnlGbp > 0 ? 'pos' : (pnlGbp < 0 ? 'neg' : ''));
+      upnlEl.textContent = fmtSignedMoney(pnlGbp);
+    }
   }
 }
 
