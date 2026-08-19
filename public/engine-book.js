@@ -631,6 +631,7 @@ function applyLiveMarks() {
   if (!wrap) return;
 
   let liveTotalOpenPnl = 0;
+  let liveTotalGross = 0;
   let liveCount = 0;
 
   // Calculate live PnL across all open positions in the book
@@ -645,10 +646,12 @@ function applyLiveMarks() {
     const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
     if (pnlGbp !== null) {
       liveTotalOpenPnl += pnlGbp;
+      liveTotalGross += (m.px * units) / (_gbpUsdRate || 1.285);
       liveCount++;
     }
   }
 
+  // Update open cards in DOM
   for (const card of wrap.querySelectorAll('.eng-pos-card')) {
     const inst = card.dataset.instrument;
     const m = _liveMarks[inst];
@@ -661,32 +664,51 @@ function applyLiveMarks() {
     const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
     if (pnlGbp === null) continue;
 
-    // 1. Update Live Intraday row
-    const liveRow = card.querySelector('.live-mark-val');
-    const pnlColor = pnlGbp > 0 ? 'var(--green)' : (pnlGbp < 0 ? 'var(--red)' : 'var(--text3)');
-    if (liveRow) {
-      liveRow.innerHTML = `${escHtml(fmtPrice(m.px, cls))} · <span style="color:${pnlColor};font-weight:600;">${escHtml(fmtSignedMoney(pnlGbp))}</span> live`;
-    }
-
-    // 2. Update card's Last Price
+    // 1. Directly update card Last Price
     const lastPxEl = card.querySelector('.card-last-px');
     if (lastPxEl) {
       lastPxEl.textContent = fmtPrice(m.px, cls);
     }
 
-    // 3. Update card's main Unrealized P&L
+    // 2. Directly update card's main primary Unrealized P&L
     const upnlEl = card.querySelector('.card-upnl-val');
     if (upnlEl) {
       upnlEl.className = 'card-upnl-val ' + (pnlGbp > 0 ? 'pos' : (pnlGbp < 0 ? 'neg' : ''));
       upnlEl.textContent = fmtSignedMoney(pnlGbp);
     }
+
+    // 3. Update Live Intraday row with live confirmation
+    const liveRow = card.querySelector('.live-mark-val');
+    if (liveRow) {
+      liveRow.innerHTML = `<span style="color:var(--green);font-weight:600;">● Active</span> · ${escHtml(fmtPrice(m.px, cls))}`;
+    }
   }
 
-  // 4. Update the top OPEN P&L stat card subline with the overall live open P&L
-  const unrealSub = document.getElementById('engUnrealSub');
-  if (unrealSub && liveCount > 0) {
-    const pnlCol = liveTotalOpenPnl > 0 ? 'var(--green)' : (liveTotalOpenPnl < 0 ? 'var(--red)' : 'var(--text2)');
-    unrealSub.innerHTML = `Live Now: <strong style="color:${pnlCol};font-family:var(--mono);font-size:12px;">${escHtml(fmtSignedMoney(liveTotalOpenPnl))}</strong>`;
+  // 4. Directly replace the main OPEN P&L summary stat with the live total
+  if (liveCount > 0) {
+    setText('engUnreal', fmtSignedMoney(liveTotalOpenPnl), pnlClass(liveTotalOpenPnl));
+    const unrealSub = document.getElementById('engUnrealSub');
+    if (unrealSub) unrealSub.textContent = 'live real-time aggregate';
+
+    if (liveTotalGross > 0) {
+      setText('engGross', fmtMoney(liveTotalGross));
+    }
+
+    // 5. Update hero chips with live floating P&L
+    const latest = latestDaily();
+    const realizedBanked = (latest && num(latest.cum_pnl) !== null) ? num(latest.cum_pnl) : 0;
+    const liveTotalNetReturn = realizedBanked + liveTotalOpenPnl;
+    const sinceChip = document.getElementById('engSinceChip');
+    if (sinceChip) {
+      const pct = (liveTotalNetReturn / BOOK_START_EQUITY) * 100;
+      sinceChip.textContent = `Net Return: ${fmtSignedMoney(liveTotalNetReturn)} (${liveTotalNetReturn >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+      sinceChip.style.color = liveTotalNetReturn >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+
+    const heroLine = document.getElementById('engHeroLine');
+    if (heroLine) {
+      heroLine.innerHTML = `<span style="color:var(--green);">● Live market marks active</span> · updated ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} UK`;
+    }
   }
 }
 
