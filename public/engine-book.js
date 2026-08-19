@@ -629,6 +629,26 @@ async function refreshLiveMarks() {
 function applyLiveMarks() {
   const wrap = document.getElementById('engPositionsWrap');
   if (!wrap) return;
+
+  let liveTotalOpenPnl = 0;
+  let liveCount = 0;
+
+  // Calculate live PnL across all open positions in the book
+  for (const p of _positions) {
+    const inst = String(p.instrument || '');
+    const m = _liveMarks[inst];
+    if (!m) continue;
+    const entry = num(p.entry_price);
+    const units = num(p.units);
+    if (entry === null || units === null) continue;
+    const isLong = String(p.direction || '').toLowerCase() !== 'short';
+    const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
+    if (pnlGbp !== null) {
+      liveTotalOpenPnl += pnlGbp;
+      liveCount++;
+    }
+  }
+
   for (const card of wrap.querySelectorAll('.eng-pos-card')) {
     const inst = card.dataset.instrument;
     const m = _liveMarks[inst];
@@ -660,6 +680,13 @@ function applyLiveMarks() {
       upnlEl.className = 'card-upnl-val ' + (pnlGbp > 0 ? 'pos' : (pnlGbp < 0 ? 'neg' : ''));
       upnlEl.textContent = fmtSignedMoney(pnlGbp);
     }
+  }
+
+  // 4. Update the top OPEN P&L stat card subline with the overall live open P&L
+  const unrealSub = document.getElementById('engUnrealSub');
+  if (unrealSub && liveCount > 0) {
+    const pnlCol = liveTotalOpenPnl > 0 ? 'var(--green)' : (liveTotalOpenPnl < 0 ? 'var(--red)' : 'var(--text2)');
+    unrealSub.innerHTML = `Live Now: <strong style="color:${pnlCol};font-family:var(--mono);font-size:12px;">${escHtml(fmtSignedMoney(liveTotalOpenPnl))}</strong>`;
   }
 }
 
