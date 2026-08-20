@@ -8,3 +8,22 @@
   PERMIT XBI long notional 7906 risk 0.51% caps [max_risk_per_trade, regime_scale=0.51]
   PERMIT DOGE/USD short notional 14725 risk 0.85% caps [max_risk_per_trade, regime_scale=0.85]
   PERMIT ARB/USD short notional 890 risk 0.04% caps [max_risk_per_trade, regime_scale=0.63, vol_target]
+2026-08-19 | eq 100000.00 cash 100000.00 open 0 gross 0.00x dd 0.0% cost_day 0.00
+  PERMIT MSFT long notional 6297 risk 0.42% caps [max_risk_per_trade, regime_scale=0.49]
+  PERMIT NVDA long notional 4703 risk 0.35% caps [max_risk_per_trade, regime_scale=0.41]
+  PERMIT META short notional 2674 risk 0.24% caps [max_risk_per_trade, regime_scale=0.29]
+  PERMIT AMZN long notional 4079 risk 0.36% caps [max_risk_per_trade, regime_scale=0.43]
+  PERMIT TSLA short notional 4988 risk 0.39% caps [max_risk_per_trade, regime_scale=0.46]
+  PERMIT PLTR long notional 3173 risk 0.41% caps [max_risk_per_trade, regime_scale=0.49]
+  PERMIT NFLX short notional 8762 risk 0.63% caps [max_risk_per_trade, regime_scale=0.75]
+  PERMIT XLE long notional 5364 risk 0.27% caps [max_risk_per_trade, regime_scale=0.32]
+  PERMIT XBI long notional 4187 risk 0.26% caps [max_risk_per_trade, regime_scale=0.30]
+2026-08-20 | INTRADAY PAPER ENTRY MSFT long 13.0025 @ 483.0966 (official open 483.0)
+2026-08-20 | INTRADAY PAPER ENTRY NVDA long 21.6183 @ 218.40367261047362 (official open 218.36000061035156)
+2026-08-20 | INTRADAY PAPER ENTRY META short 4.897 @ 546.8406222045899 (official open 546.9500122070312)
+2026-08-20 | INTRADAY PAPER ENTRY AMZN long 15.3423 @ 262.9575797790527 (official open 262.9049987792969)
+2026-08-20 | INTRADAY PAPER ENTRY TSLA short 14.2066 @ 345.8208366455078 (official open 345.8900146484375)
+2026-08-20 | INTRADAY PAPER ENTRY PLTR long 18.1106 @ 175.92517738952637 (official open 175.88999938964844)
+2026-08-20 | INTRADAY PAPER ENTRY NFLX short 109.2224 @ 80.15836544952393 (official open 80.17440032958984)
+2026-08-20 | INTRADAY PAPER ENTRY XLE long 84.3599 @ 64.26285 (official open 64.25)
+2026-08-20 | INTRADAY PAPER ENTRY XBI long 24.6945 @ 166.6933356628418 (official open 166.66000366210938)

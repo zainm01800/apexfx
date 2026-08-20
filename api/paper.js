@@ -3,6 +3,7 @@
 // GET /api/paper?table=daily&limit=N — same, explicit (limit cap 500)
 // GET /api/paper?table=positions    — open paper positions (apex_paper_positions)
 // GET /api/paper?book=b             — challenger book (252+spill50, apex_paper_b_* tables); default = A
+// GET /api/paper?book=c             — champion book (63/126/252, apex_paper_c_* tables)
 
 export const config = { runtime: 'edge' };
 

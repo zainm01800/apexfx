@@ -1,11 +1,11 @@
 name: paper-portfolio
 
-# Daily forward paper step for the FROZEN multi-asset trend book (Book C,
-# lookback 126 — pre-registered in engine/data_store/pre_registration_paper_trend_2026-07-17.md).
-# The stepper is engine-simulated (no broker): each run tops up the parquet
-# cache, restores the paper portfolio from the Supabase mirror, advances it one
-# closed daily bar, and writes the state back to Supabase. Idempotent — only
-# bars strictly before today 00:00 UTC are processed, so re-runs are no-ops.
+# Daily forward paper steps for Book A (frozen 252-day), Book B (252-day plus
+# spillover gate), and Book C (champion 63/126/252 ensemble at 0.85% risk).
+# These steppers are engine-simulated, not broker execution: each run tops up
+# the parquet cache, restores the authoritative Supabase state, advances one
+# closed daily bar, and writes the state back. Idempotent — only bars strictly
+# before today 00:00 UTC are processed, so re-runs are no-ops.
 #
 # Scheduled daily 7x (not weekdays-only): crypto trades 365, so the weekend
 # runs advance the crypto sleeve (the only class with weekend bars); equity/FX
@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify Supabase tables exist (fail fast if not)
         run: |
-          for t in apex_paper_positions apex_paper_daily; do
+          for t in apex_paper_positions apex_paper_daily apex_paper_c_positions apex_paper_c_daily; do
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               "$SUPABASE_URL/rest/v1/$t?select=*&limit=1" \
               -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
@@ -73,7 +73,7 @@ jobs:
           restore-keys: paper-portfolio-data-
       - name: Advance the paper book one closed bar
         working-directory: engine
-        run: python scripts/run_paper_portfolio.py
+        run: python scripts/run_paper_portfolio.py --prefer-supabase
       - name: Advance the CHALLENGER paper book one closed bar (252+spill50 vs Book D)
         # Second forward book (Book B) — pre-registered A/B challenger in
         # engine/data_store/pre_registration_paper_challenger_2026-08-11.md:
@@ -84,14 +84,13 @@ jobs:
         # annotation on the run summary (visible, not a silent skip).
         continue-on-error: true
         working-directory: engine
-        run: python scripts/run_paper_portfolio_challenger.py
+        run: python scripts/run_paper_portfolio_challenger.py --prefer-supabase
       - name: Advance the CHAMPION paper book one closed bar (Multi-Horizon [63, 126, 252])
         # Third forward book (Book C) — Champion Multi-Horizon Trend Ensemble:
         # equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments,
         # own state dir + apex_paper_c_* tables.
-        continue-on-error: true
         working-directory: engine
-        run: python scripts/run_paper_portfolio_c.py
+        run: python scripts/run_paper_portfolio_c.py --prefer-supabase
       - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
         working-directory: engine
         run: python scripts/nightly_risk_report.py

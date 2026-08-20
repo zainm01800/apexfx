@@ -30,7 +30,7 @@ const BOOKS = {
     startLabel: '19 Aug 2026',
     dailyTable: 'apex_paper_c_daily',
     positionsTable: 'apex_paper_c_positions',
-    blurb: 'Champion Multi-Horizon Trend Book — equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments, 1% risk per trade, seeded 19 Aug 2026. Paper only; nothing here is real money.',
+    blurb: 'Champion Multi-Horizon Trend Book — equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments, 0.85% maximum risk per trade, seeded 19 Aug 2026. Paper only; nothing here is real money.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
@@ -179,6 +179,20 @@ async function loadEngineBook() {
     ]);
     if (sdRes && sdRes.ok) daily = await sdRes.json().catch(() => daily);
     if (spRes && spRes.ok) positions = await spRes.json().catch(() => positions);
+  }
+
+  // Book C was launched before its dedicated Supabase mirror was provisioned.
+  // Keep the last committed engine snapshot visible instead of presenting a
+  // fictional empty book when those tables are unavailable.  Once the mirror
+  // exists, the live rows above remain authoritative and this is not read.
+  if (_book === 'c' && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const fallback = await fetch('/book-c-paper-snapshot.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
+    if (fallback) {
+      if (!Array.isArray(daily) && Array.isArray(fallback.daily)) daily = fallback.daily;
+      if (!Array.isArray(positions) && Array.isArray(fallback.positions)) positions = fallback.positions;
+    }
   }
 
   if (Array.isArray(daily)) _dailyRows = daily;
@@ -354,7 +368,7 @@ function renderEquityChart() {
     if (emptyEl) {
       emptyEl.style.display = 'flex';
       emptyEl.textContent = _book === 'c'
-        ? 'Book C seeded at £100,000.00 on 19 Aug 2026. 9 pending orders queued — first daily equity step takes place tonight at 23:30 UTC.'
+        ? 'Book C is seeded at £100,000.00 with the promoted 0.85% risk budget. Waiting for the next verified daily equity snapshot.'
         : 'Waiting for daily equity snapshots…';
     }
     return;
@@ -540,10 +554,13 @@ function renderPositions() {
   if (!open.length) {
     const bookLabel = _book === 'c' ? 'Book C' : (_book === 'b' ? 'Book B' : 'Book A');
     const classLabel = _activeClass === 'all' ? '' : _activeClass + ' ';
-    const pendingMsg = _book === 'c'
+    const pending = latest && latest.state_extra && latest.state_extra.pending
+      ? Object.entries(latest.state_extra.pending)
+      : [];
+    const pendingMsg = pending.length
       ? `<div style="margin-top:14px; padding: 12px 18px; border-radius: 8px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); display: inline-block; font-style: normal; color: #38BDF8; font-size: 13px; font-family: 'Space Mono', monospace;">
-          ⚡ <strong>9 Pending Entry Orders Queued for Tonight's Market Close</strong><br/>
-          <span style="color: var(--text2); font-size: 11.5px; display: block; margin-top: 4px;">MSFT (Long), PLTR (Long), XBI (Long), META (Short), TSLA (Short), NFLX (Short), UBER (Short), DOGE/USD (Short), ARB/USD (Short)</span>
+          ⚡ <strong>${pending.length} Pending Entry Order${pending.length === 1 ? '' : 's'} Queued for the Next Session Open</strong><br/>
+          <span style="color: var(--text2); font-size: 11.5px; display: block; margin-top: 4px;">${pending.map(([inst, d]) => `${escHtml(inst)} (${escHtml((((d || {}).pos || {}).direction || '—'))})`).join(', ')}</span>
         </div>`
       : '';
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">

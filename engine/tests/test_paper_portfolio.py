@@ -149,6 +149,60 @@ def test_one_step_advance_from_seed():
         assert d["pos"].permitted and d["tf"] == "1d" and inst in panel
 
 
+def test_intraday_open_matches_normal_next_open_accounting():
+    """Pre-opening a queued paper batch must not change completed-bar results."""
+    panel = _panel()
+    strategies = _fitted_strats(panel)
+    seeded = PaperPortfolio(panel, strategies, warmup=_WARMUP)
+    dates = seeded.union_dates()
+
+    decision_i = None
+    for i, t in enumerate(dates[:-1]):
+        seeded.advance(t)
+        if seeded.pending_entries:
+            decision_i = i
+            break
+    assert decision_i is not None, "synthetic series should produce a queued signal"
+
+    entry_t = dates[decision_i + 1]
+    state = seeded.to_state()
+    normal = PaperPortfolio(panel, _fitted_strats(panel), warmup=_WARMUP, state=state)
+    preopened = PaperPortfolio(panel, _fitted_strats(panel), warmup=_WARMUP, state=state)
+    prices = {
+        inst: float(panel[inst].loc[entry_t, "open"])
+        for inst in preopened.pending_entries
+    }
+
+    opened = preopened.open_pending_at(entry_t, prices)
+    assert len(opened) == len(prices) > 0
+    assert preopened.pending_entries == {}
+    assert preopened.last_processed == seeded.last_processed
+    assert preopened.equity_series().equals(seeded.equity_series())
+    assert preopened.open_pending_at(entry_t, {}) == []  # idempotent
+
+    normal.step(entry_t)
+    preopened.step(entry_t)
+    assert json.dumps(preopened.to_state(), sort_keys=True) == json.dumps(
+        normal.to_state(), sort_keys=True
+    )
+
+
+def test_intraday_open_validates_entire_batch_before_mutation():
+    panel = _panel()
+    stepper = PaperPortfolio(panel, _fitted_strats(panel), warmup=_WARMUP)
+    dates = stepper.union_dates()
+    for t in dates[:-1]:
+        stepper.advance(t)
+        if stepper.pending_entries:
+            break
+    assert stepper.pending_entries
+    before = json.dumps(stepper.to_state(), sort_keys=True)
+
+    with pytest.raises(ValueError, match="missing opening prices"):
+        stepper.open_pending_at(dates[-1], {})
+    assert json.dumps(stepper.to_state(), sort_keys=True) == before
+
+
 # -- the experiment HALT overlay (paper-only; off in the parity test) -------------------
 def test_halt_blocks_new_entries():
     panel = _panel()

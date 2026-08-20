@@ -412,7 +412,11 @@ class PortfolioBacktester:
                         posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
 
                     if exit_reason != "":
-                        exit_price = d["close"][i] if exit_reason == "time" else (posd["stop"] if exit_reason == "stop" else posd["target"])
+                        exit_price = posd.get(
+                            "last_exit_price",
+                            d["close"][i] if exit_reason == "time" else
+                            (posd["stop"] if exit_reason == "stop" else posd["target"]),
+                        )
                         trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
                         per_inst[inst]["n_trades"] += 1
                         per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
@@ -457,6 +461,9 @@ class PortfolioBacktester:
                 if i is None:
                     continue
                 open_pos[inst] = self._enter(pending.pop(inst), d["open"][i], t, i, inst)
+                # The position's trade record already includes entry commission;
+                # cash/equity must pay it at the same instant as well.
+                realized -= d["commission"]
 
             # 3. mark-to-market portfolio equity
             eq = realized

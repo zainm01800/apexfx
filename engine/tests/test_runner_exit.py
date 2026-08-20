@@ -96,6 +96,7 @@ def test_stop_gapped_through_fills_at_the_open_not_the_stop():
         fill_fn=NOCOST, open_=80.0)
     assert reason == "stop"
     assert pnl == (80 - 100) * 10                  # -200, NOT the optimistic -100
+    assert pos["last_exit_price"] == 80.0
     assert pos["tms_log"][-1]["action"] == "gap_through_stop"
 
 

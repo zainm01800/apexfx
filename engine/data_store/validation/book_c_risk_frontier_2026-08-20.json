@@ -1,0 +1,950 @@
+{
+  "generated_at": "2026-08-20T11:01:26+00:00",
+  "prereg": "engine/data_store/book_c_risk_frontier_prereg_2026-08-20.md",
+  "ledger": {
+    "before": 351,
+    "after": 358,
+    "used": 358
+  },
+  "grid": [
+    0.008,
+    0.00825,
+    0.0085,
+    0.00875,
+    0.009,
+    0.00925,
+    0.0095
+  ],
+  "anchors": [
+    0.0075,
+    0.01
+  ],
+  "ranked": [
+    {
+      "risk": 0.0085,
+      "return_progress": 0.5298256450946381,
+      "drawdown_progress": 0.6124066399814159,
+      "ideal_distance": 0.609337785420508
+    },
+    {
+      "risk": 0.00875,
+      "return_progress": 0.5854923587321702,
+      "drawdown_progress": 0.5292097585651481,
+      "ideal_distance": 0.6272639285816665
+    },
+    {
+      "risk": 0.009,
+      "return_progress": 0.6588616650790093,
+      "drawdown_progress": 0.4486390962708071,
+      "ideal_distance": 0.6483627146233336
+    },
+    {
+      "risk": 0.00925,
+      "return_progress": 0.7293426499177077,
+      "drawdown_progress": 0.38972277819752893,
+      "ideal_distance": 0.6676029423276316
+    },
+    {
+      "risk": 0.0095,
+      "return_progress": 0.9223296356539438,
+      "drawdown_progress": 0.3357686834842377,
+      "ideal_distance": 0.6687570017113181
+    },
+    {
+      "risk": 0.00825,
+      "return_progress": 0.35466961739273056,
+      "drawdown_progress": 0.7012006548642442,
+      "ideal_distance": 0.7111486141233779
+    },
+    {
+      "risk": 0.008,
+      "return_progress": 0.25061500461675884,
+      "drawdown_progress": 0.7948349449333306,
+      "ideal_distance": 0.7769624000722621
+    }
+  ],
+  "selected_risk": 0.0085,
+  "results": {
+    "0.00750": {
+      "metrics": {
+        "total_return": 1.6231790590068176,
+        "ann_return": 0.1155918785570762,
+        "ann_vol": 0.09956331859972893,
+        "sharpe": 1.1489445625769517,
+        "sortino": 1.3172083389142861,
+        "max_drawdown": 0.12803560311586992,
+        "calmar": 0.9028104350980221,
+        "n_trades": 1646,
+        "win_rate": 0.5583232077764277,
+        "profit_factor": 1.3772594231507933,
+        "avg_trade_return": 0.010320455650060754,
+        "expectancy_pnl": 100.56359659781288,
+        "expectancy_pct": 0.010320455650060747,
+        "final_equity": 262317.90590068174,
+        "net_pnl": 165527.68,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1502.94,
+        "median_monthly_pnl": 620.81,
+        "worst_month_pnl": -12627.91,
+        "worst_daily_return": -0.032528,
+        "worst_daily_pnl": -5419.0,
+        "worst_trade_pnl": -3169.03
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1489445625769517,
+        "sharpe_delta": 0.037191987846669994,
+        "p_value_one_sided": 0.2989,
+        "ci_95_lower": -0.09390854453179258,
+        "ci_95_upper": 0.17193559105957795,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9994452757280162,
+        "observed_sharpe": 0.060138506978272534,
+        "observed_sharpe_ann": 1.1489445625769517,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.19508802322694563,
+        "kurtosis": 8.549623806647944
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 599,
+            "pass": 1790,
+            "fail": 464
+          },
+          "reasons": {
+            "window_end": 599,
+            "target": 1790,
+            "daily_loss": 348,
+            "max_loss": 116
+          },
+          "pass_rate_all_starts": 0.627409744128987,
+          "pass_rate_resolved": 0.7941437444543035,
+          "median_days_to_pass": 140.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 1073,
+            "pass": 1363,
+            "fail": 52
+          },
+          "reasons": {
+            "phase1_window_end": 909,
+            "passed_both": 1363,
+            "phase2_window_end": 164,
+            "phase2_max_loss": 32,
+            "phase1_max_loss": 20
+          },
+          "pass_rate_all_starts": 0.5478295819935691,
+          "pass_rate_resolved": 0.9632508833922262,
+          "median_days_to_pass": 264.0
+        }
+      }
+    },
+    "0.01000": {
+      "metrics": {
+        "total_return": 2.161810796516242,
+        "ann_return": 0.13947544447189508,
+        "ann_vol": 0.12447189927849374,
+        "sharpe": 1.1117525747302817,
+        "sortino": 1.280001174816279,
+        "max_drawdown": 0.15921488068143141,
+        "calmar": 0.8760201551195933,
+        "n_trades": 1654,
+        "win_rate": 0.5519951632406288,
+        "profit_factor": 1.3408903595144865,
+        "avg_trade_return": 0.00959010278113664,
+        "expectancy_pnl": 132.2275541186185,
+        "expectancy_pct": 0.009411583334667808,
+        "final_equity": 316181.0796516242,
+        "net_pnl": 221343.85,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 2001.68,
+        "median_monthly_pnl": 850.83,
+        "worst_month_pnl": -20634.49,
+        "worst_daily_return": -0.034487,
+        "worst_daily_pnl": -8610.25,
+        "worst_trade_pnl": -4052.0
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1117525747302817,
+        "sharpe_delta": 0.0,
+        "p_value_one_sided": 1.0,
+        "ci_95_lower": 0.0,
+        "ci_95_upper": 0.0,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9991869904216435,
+        "observed_sharpe": 0.05819178936150938,
+        "observed_sharpe_ann": 1.1117525747302817,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.22093190073209712,
+        "kurtosis": 8.19811229167944
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 243,
+            "pass": 1500,
+            "fail": 1110
+          },
+          "reasons": {
+            "window_end": 243,
+            "target": 1500,
+            "daily_loss": 542,
+            "max_loss": 568
+          },
+          "pass_rate_all_starts": 0.5257623554153522,
+          "pass_rate_resolved": 0.5747126436781609,
+          "median_days_to_pass": 93.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 778,
+            "pass": 1301,
+            "fail": 409
+          },
+          "reasons": {
+            "phase1_window_end": 693,
+            "passed_both": 1301,
+            "phase2_window_end": 85,
+            "phase2_max_loss": 122,
+            "phase1_max_loss": 287
+          },
+          "pass_rate_all_starts": 0.5229099678456591,
+          "pass_rate_resolved": 0.7608187134502924,
+          "median_days_to_pass": 187.0
+        }
+      }
+    },
+    "0.00800": {
+      "metrics": {
+        "total_return": 1.7581682543894748,
+        "ann_return": 0.12195950786604337,
+        "ann_vol": 0.10566070837572353,
+        "sharpe": 1.1424663127988668,
+        "sortino": 1.3107975557034248,
+        "max_drawdown": 0.13443250131454731,
+        "calmar": 0.9072174263921532,
+        "n_trades": 1646,
+        "win_rate": 0.5583232077764277,
+        "profit_factor": 1.373264454035162,
+        "avg_trade_return": 0.010323663426488458,
+        "expectancy_pnl": 109.00201701093573,
+        "expectancy_pct": 0.010323663426488452,
+        "final_equity": 275816.8254389475,
+        "net_pnl": 179417.32,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1627.93,
+        "median_monthly_pnl": 682.68,
+        "worst_month_pnl": -14162.14,
+        "worst_daily_return": -0.034644,
+        "worst_daily_pnl": -6057.65,
+        "worst_trade_pnl": -3506.2
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1424663127988668,
+        "sharpe_delta": 0.030713738068585128,
+        "p_value_one_sided": 0.323,
+        "ci_95_lower": -0.09639532469481225,
+        "ci_95_upper": 0.15970884784978323,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9994077212006977,
+        "observed_sharpe": 0.0597994198872361,
+        "observed_sharpe_ann": 1.1424663127988668,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.19231449883735643,
+        "kurtosis": 8.589973669031465
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 567,
+            "pass": 1697,
+            "fail": 589
+          },
+          "reasons": {
+            "window_end": 567,
+            "target": 1697,
+            "daily_loss": 337,
+            "max_loss": 252
+          },
+          "pass_rate_all_starts": 0.5948124780932352,
+          "pass_rate_resolved": 0.742344706911636,
+          "median_days_to_pass": 124.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 1005,
+            "pass": 1408,
+            "fail": 75
+          },
+          "reasons": {
+            "phase1_window_end": 876,
+            "passed_both": 1408,
+            "phase2_window_end": 129,
+            "phase2_max_loss": 39,
+            "phase1_max_loss": 36
+          },
+          "pass_rate_all_starts": 0.5659163987138264,
+          "pass_rate_resolved": 0.9494268374915711,
+          "median_days_to_pass": 245.5
+        }
+      }
+    },
+    "0.00825": {
+      "metrics": {
+        "total_return": 1.8142153712648668,
+        "ann_return": 0.12452243632618143,
+        "ann_vol": 0.1085346131410373,
+        "sharpe": 1.136087903571204,
+        "sortino": 1.3040374720570456,
+        "max_drawdown": 0.13735195083426566,
+        "calmar": 0.9065938675777176,
+        "n_trades": 1646,
+        "win_rate": 0.5583232077764277,
+        "profit_factor": 1.370363392939773,
+        "avg_trade_return": 0.010323663426488458,
+        "expectancy_pnl": 112.52160996354809,
+        "expectancy_pct": 0.010323663426488452,
+        "final_equity": 281421.53712648666,
+        "net_pnl": 185210.57,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1679.83,
+        "median_monthly_pnl": 712.23,
+        "worst_month_pnl": -14901.23,
+        "worst_daily_return": -0.035699,
+        "worst_daily_pnl": -6363.4,
+        "worst_trade_pnl": -3674.52
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.136087903571204,
+        "sharpe_delta": 0.024335328840922266,
+        "p_value_one_sided": 0.3573,
+        "ci_95_lower": -0.10258378392051107,
+        "ci_95_upper": 0.1505448978979795,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9993685212599221,
+        "observed_sharpe": 0.059465558689453205,
+        "observed_sharpe_ann": 1.136087903571204,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.18945012890151253,
+        "kurtosis": 8.614631222217191
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 529,
+            "pass": 1638,
+            "fail": 686
+          },
+          "reasons": {
+            "window_end": 529,
+            "target": 1638,
+            "daily_loss": 392,
+            "max_loss": 294
+          },
+          "pass_rate_all_starts": 0.5741324921135647,
+          "pass_rate_resolved": 0.7048192771084337,
+          "median_days_to_pass": 116.5
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 983,
+            "pass": 1410,
+            "fail": 95
+          },
+          "reasons": {
+            "phase1_window_end": 855,
+            "passed_both": 1410,
+            "phase2_window_end": 128,
+            "phase2_max_loss": 52,
+            "phase1_max_loss": 43
+          },
+          "pass_rate_all_starts": 0.5667202572347267,
+          "pass_rate_resolved": 0.9368770764119602,
+          "median_days_to_pass": 234.5
+        }
+      }
+    },
+    "0.00850": {
+      "metrics": {
+        "total_return": 1.908559966801194,
+        "ann_return": 0.1287361695456104,
+        "ann_vol": 0.11135179547212302,
+        "sharpe": 1.1437353884699188,
+        "sortino": 1.3152904684464142,
+        "max_drawdown": 0.14012048407045796,
+        "calmar": 0.9187533885543595,
+        "n_trades": 1646,
+        "win_rate": 0.5583232077764277,
+        "profit_factor": 1.3738847326206198,
+        "avg_trade_return": 0.010328323207776427,
+        "expectancy_pnl": 118.40278250303771,
+        "expectancy_pct": 0.010328323207776435,
+        "final_equity": 290855.9966801194,
+        "net_pnl": 194890.98,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1767.19,
+        "median_monthly_pnl": 732.32,
+        "worst_month_pnl": -15871.32,
+        "worst_daily_return": -0.036752,
+        "worst_daily_pnl": -6766.6,
+        "worst_trade_pnl": -3235.8
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1437353884699188,
+        "sharpe_delta": 0.031982813739637184,
+        "p_value_one_sided": 0.3091,
+        "ci_95_lower": -0.08559901245736609,
+        "ci_95_upper": 0.15275329084562822,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9994179977909631,
+        "observed_sharpe": 0.059865846343816684,
+        "observed_sharpe_ann": 1.1437353884699188,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.1783696621060831,
+        "kurtosis": 8.615124941076095
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 400,
+            "pass": 1631,
+            "fail": 822
+          },
+          "reasons": {
+            "window_end": 400,
+            "target": 1631,
+            "daily_loss": 490,
+            "max_loss": 332
+          },
+          "pass_rate_all_starts": 0.5716789344549597,
+          "pass_rate_resolved": 0.6649001222992255,
+          "median_days_to_pass": 113.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 926,
+            "pass": 1450,
+            "fail": 112
+          },
+          "reasons": {
+            "phase1_window_end": 830,
+            "passed_both": 1450,
+            "phase2_window_end": 96,
+            "phase2_max_loss": 62,
+            "phase1_max_loss": 50
+          },
+          "pass_rate_all_starts": 0.5827974276527331,
+          "pass_rate_resolved": 0.9282970550576184,
+          "median_days_to_pass": 234.0
+        }
+      }
+    },
+    "0.00875": {
+      "metrics": {
+        "total_return": 1.9385438254892176,
+        "ann_return": 0.13004997910569505,
+        "ann_vol": 0.11444621516193657,
+        "sharpe": 1.1260444506958702,
+        "sortino": 1.289350962479593,
+        "max_drawdown": 0.14271450272872488,
+        "calmar": 0.9112597291734053,
+        "n_trades": 1644,
+        "win_rate": 0.5565693430656934,
+        "profit_factor": 1.3652372911778237,
+        "avg_trade_return": 0.01029161192214112,
+        "expectancy_pnl": 120.46917274939165,
+        "expectancy_pct": 0.010291611922141113,
+        "final_equity": 293854.38254892174,
+        "net_pnl": 198051.32,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1794.95,
+        "median_monthly_pnl": 776.9,
+        "worst_month_pnl": -16516.42,
+        "worst_daily_return": -0.037804,
+        "worst_daily_pnl": -7032.25,
+        "worst_trade_pnl": -3825.35
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1260444506958702,
+        "sharpe_delta": 0.014291875965588563,
+        "p_value_one_sided": 0.4144,
+        "ci_95_lower": -0.10861475378189946,
+        "ci_95_upper": 0.13894551792329596,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.999295113207117,
+        "observed_sharpe": 0.05893986033941749,
+        "observed_sharpe_ann": 1.1260444506958702,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.21332492837444872,
+        "kurtosis": 8.770773326497553
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 313,
+            "pass": 1579,
+            "fail": 961
+          },
+          "reasons": {
+            "window_end": 313,
+            "target": 1579,
+            "daily_loss": 598,
+            "max_loss": 363
+          },
+          "pass_rate_all_starts": 0.5534525061338942,
+          "pass_rate_resolved": 0.6216535433070867,
+          "median_days_to_pass": 108.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 919,
+            "pass": 1434,
+            "fail": 135
+          },
+          "reasons": {
+            "phase1_window_end": 819,
+            "passed_both": 1434,
+            "phase2_window_end": 100,
+            "phase2_max_loss": 78,
+            "phase1_max_loss": 57
+          },
+          "pass_rate_all_starts": 0.5763665594855305,
+          "pass_rate_resolved": 0.9139579349904398,
+          "median_days_to_pass": 225.5
+        }
+      }
+    },
+    "0.00900": {
+      "metrics": {
+        "total_return": 1.9780628624466767,
+        "ann_return": 0.13176355621279945,
+        "ann_vol": 0.11659142993348162,
+        "sharpe": 1.120464150525688,
+        "sortino": 1.2786593923388523,
+        "max_drawdown": 0.14522663777204126,
+        "calmar": 0.9072960596913737,
+        "n_trades": 1643,
+        "win_rate": 0.5587340231284236,
+        "profit_factor": 1.3611206787721453,
+        "avg_trade_return": 0.010356725502130251,
+        "expectancy_pnl": 123.05623858794877,
+        "expectancy_pct": 0.010356725502130237,
+        "final_equity": 297806.28624466766,
+        "net_pnl": 202181.4,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1831.54,
+        "median_monthly_pnl": 784.4,
+        "worst_month_pnl": -17234.55,
+        "worst_daily_return": -0.038854,
+        "worst_daily_pnl": -7323.75,
+        "worst_trade_pnl": -4032.37
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.120464150525688,
+        "sharpe_delta": 0.008711575795406379,
+        "p_value_one_sided": 0.4495,
+        "ci_95_lower": -0.11055091735354458,
+        "ci_95_upper": 0.12896166030173853,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9992482963789762,
+        "observed_sharpe": 0.058647774078986734,
+        "observed_sharpe_ann": 1.120464150525688,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.2421494728594347,
+        "kurtosis": 8.607012821089837
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 298,
+            "pass": 1566,
+            "fail": 989
+          },
+          "reasons": {
+            "window_end": 298,
+            "target": 1566,
+            "daily_loss": 615,
+            "max_loss": 374
+          },
+          "pass_rate_all_starts": 0.5488958990536278,
+          "pass_rate_resolved": 0.6129158512720156,
+          "median_days_to_pass": 104.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 894,
+            "pass": 1426,
+            "fail": 168
+          },
+          "reasons": {
+            "phase1_window_end": 801,
+            "passed_both": 1426,
+            "phase2_window_end": 93,
+            "phase2_max_loss": 92,
+            "phase1_max_loss": 76
+          },
+          "pass_rate_all_starts": 0.5731511254019293,
+          "pass_rate_resolved": 0.8946047678795483,
+          "median_days_to_pass": 215.0
+        }
+      }
+    },
+    "0.00925": {
+      "metrics": {
+        "total_return": 2.0160261577717202,
+        "ann_return": 0.13339079419436306,
+        "ann_vol": 0.11890674668617872,
+        "sharpe": 1.1130355915629337,
+        "sortino": 1.2698097503188255,
+        "max_drawdown": 0.1470636060063889,
+        "calmar": 0.9070279032092288,
+        "n_trades": 1642,
+        "win_rate": 0.5584652862362972,
+        "profit_factor": 1.3591566929533456,
+        "avg_trade_return": 0.01034235079171742,
+        "expectancy_pnl": 125.55239342265537,
+        "expectancy_pct": 0.010342350791717414,
+        "final_equity": 301602.61577717203,
+        "net_pnl": 206157.03,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1866.69,
+        "median_monthly_pnl": 807.17,
+        "worst_month_pnl": -17951.36,
+        "worst_daily_return": -0.039813,
+        "worst_daily_pnl": -7615.81,
+        "worst_trade_pnl": -4302.75
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1130355915629337,
+        "sharpe_delta": 0.001283016832652084,
+        "p_value_one_sided": 0.4971,
+        "ci_95_lower": -0.11550576084992556,
+        "ci_95_upper": 0.11935849988002446,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9991879241037586,
+        "observed_sharpe": 0.05825894553183898,
+        "observed_sharpe_ann": 1.1130355915629337,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.25364776656617555,
+        "kurtosis": 8.538659855021564
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 290,
+            "pass": 1565,
+            "fail": 998
+          },
+          "reasons": {
+            "window_end": 290,
+            "target": 1565,
+            "daily_loss": 623,
+            "max_loss": 375
+          },
+          "pass_rate_all_starts": 0.5485453908166842,
+          "pass_rate_resolved": 0.610612563402263,
+          "median_days_to_pass": 101.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 880,
+            "pass": 1420,
+            "fail": 188
+          },
+          "reasons": {
+            "phase1_window_end": 787,
+            "passed_both": 1420,
+            "phase2_window_end": 93,
+            "phase2_max_loss": 104,
+            "phase1_max_loss": 84
+          },
+          "pass_rate_all_starts": 0.5707395498392283,
+          "pass_rate_resolved": 0.8830845771144279,
+          "median_days_to_pass": 208.0
+        }
+      }
+    },
+    "0.00950": {
+      "metrics": {
+        "total_return": 2.1199750732155356,
+        "ann_return": 0.13775522309403865,
+        "ann_vol": 0.12114592260225421,
+        "sharpe": 1.1264294779851556,
+        "sortino": 1.2883248270046375,
+        "max_drawdown": 0.1487458557012532,
+        "calmar": 0.9261113356375551,
+        "n_trades": 1642,
+        "win_rate": 0.5560292326431181,
+        "profit_factor": 1.3659291250524226,
+        "avg_trade_return": 0.010419330085261875,
+        "expectancy_pnl": 131.5606928949552,
+        "expectancy_pct": 0.010328924245843793,
+        "final_equity": 311997.50732155354,
+        "net_pnl": 216836.62,
+        "short_borrow_fees_total": 0.0
+      },
+      "monthly_tail": {
+        "n_months": 108,
+        "avg_monthly_pnl": 1962.94,
+        "median_monthly_pnl": 802.48,
+        "worst_month_pnl": -18332.97,
+        "worst_daily_return": -0.040753,
+        "worst_daily_pnl": -8057.47,
+        "worst_trade_pnl": -4495.59
+      },
+      "paired_vs_control": {
+        "sharpe_base": 1.1117525747302817,
+        "sharpe_new": 1.1264294779851556,
+        "sharpe_delta": 0.014676903254873919,
+        "p_value_one_sided": 0.416,
+        "ci_95_lower": -0.10701283895198709,
+        "ci_95_upper": 0.14214393343723386,
+        "n_bootstraps": 10000,
+        "block_size": 21
+      },
+      "dsr": {
+        "dsr": 0.9992898586262035,
+        "observed_sharpe": 0.05896001358882369,
+        "observed_sharpe_ann": 1.1264294779851556,
+        "sr0": 0.0021006562536009785,
+        "n_trials": 358,
+        "n_trials_observed": 9,
+        "n_obs": 3217,
+        "skew": -0.25325016730806416,
+        "kurtosis": 8.462814897225096
+      },
+      "funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 253,
+            "pass": 1572,
+            "fail": 1028
+          },
+          "reasons": {
+            "window_end": 253,
+            "target": 1572,
+            "daily_loss": 645,
+            "max_loss": 383
+          },
+          "pass_rate_all_starts": 0.5509989484752892,
+          "pass_rate_resolved": 0.6046153846153847,
+          "median_days_to_pass": 99.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 865,
+            "pass": 1411,
+            "fail": 212
+          },
+          "reasons": {
+            "phase1_window_end": 773,
+            "passed_both": 1411,
+            "phase2_window_end": 92,
+            "phase2_max_loss": 113,
+            "phase1_max_loss": 99
+          },
+          "pass_rate_all_starts": 0.5671221864951769,
+          "pass_rate_resolved": 0.8693776956253851,
+          "median_days_to_pass": 207.0
+        }
+      }
+    }
+  },
+  "selected_cpcv": {
+    "n_paths": 15,
+    "oos_sharpe_mean": 0.05977799392350432,
+    "oos_sharpe_std": 0.02007246665100498,
+    "oos_sharpe_median": 0.0618515496329667,
+    "frac_positive": 1.0,
+    "oos_sharpe_paths": [
+      0.0528,
+      0.0802,
+      0.0793,
+      0.0658,
+      0.0889,
+      0.0354,
+      0.0347,
+      0.0203,
+      0.0397,
+      0.0672,
+      0.0548,
+      0.0737,
+      0.0619,
+      0.0808,
+      0.0612
+    ]
+  },
+  "control_cpcv_paths": [
+    0.0517,
+    0.0836,
+    0.0795,
+    0.0616,
+    0.0845,
+    0.0354,
+    0.0348,
+    0.0122,
+    0.035,
+    0.0715,
+    0.0542,
+    0.0639,
+    0.0548,
+    0.0631,
+    0.0603
+  ],
+  "selected_cpcv_paths_won": 10,
+  "selected_verification_2025_plus_nonblind": {
+    "total_return": 0.16813386066752356,
+    "ann_return": 0.10145636691791848,
+    "ann_vol": 0.09163210014350237,
+    "sharpe": 1.1023141558501572,
+    "sortino": 1.405532575374224,
+    "max_drawdown": 0.08176579015717145,
+    "calmar": 1.2408168100974444,
+    "n_trades": 323,
+    "win_rate": 0.5325077399380805,
+    "profit_factor": 1.2572933665372095,
+    "avg_trade_return": 0.002857089783281734,
+    "expectancy_pnl": 143.64804953560383,
+    "expectancy_pct": 0.002857089783281745,
+    "final_equity": 340165.52800752496,
+    "net_pnl": 46398.32
+  },
+  "selected_cost_stress_2x": {
+    "metrics": {
+      "total_return": 1.85856312021465,
+      "ann_return": 0.12651850144906684,
+      "ann_vol": 0.11098700958907137,
+      "sharpe": 1.129413912086933,
+      "sortino": 1.2921349188062081,
+      "max_drawdown": 0.13947521681554176,
+      "calmar": 0.907103816274325,
+      "n_trades": 1638,
+      "win_rate": 0.5555555555555556,
+      "profit_factor": 1.364192891958298,
+      "avg_trade_return": 0.01008058608058608,
+      "expectancy_pnl": 115.71695970695981,
+      "expectancy_pct": 0.010080586080586082,
+      "final_equity": 285856.312021465,
+      "net_pnl": 189544.38,
+      "short_borrow_fees_total": 0.0
+    },
+    "monthly_tail": {
+      "n_months": 108,
+      "avg_monthly_pnl": 1720.89,
+      "median_monthly_pnl": 698.65,
+      "worst_month_pnl": -15733.76,
+      "worst_daily_return": -0.036825,
+      "worst_daily_pnl": -6671.65,
+      "worst_trade_pnl": -3127.91
+    }
+  },
+  "checks": {
+    "return_gt_075": true,
+    "monthly_gt_075": true,
+    "drawdown_lt_100": true,
+    "cpcv_positive_12_of_15": true,
+    "cpcv_beats_control_8_of_15": true,
+    "cost_sharpe_drop_le_010": true,
+    "verification_positive": true
+  },
+  "verdict": "PASS_MIDDLE_GROUND"
+}

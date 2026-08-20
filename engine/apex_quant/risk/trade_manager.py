@@ -154,6 +154,7 @@ class TradeManager:
                 fill_price = fill_fn(level, False)
                 pnl = (fill_price - entry) * units
                 position["units"] = 0.0
+                position["last_exit_price"] = float(fill_price)
                 if open_ is not None and open_ < stop:
                     position["tms_log"].append(
                         {"action": "gap_through_stop", "stop": stop, "filled": level})
@@ -164,6 +165,7 @@ class TradeManager:
                 fill_price = fill_fn(level, True)
                 pnl = (entry - fill_price) * units
                 position["units"] = 0.0
+                position["last_exit_price"] = float(fill_price)
                 if open_ is not None and open_ > stop:
                     position["tms_log"].append(
                         {"action": "gap_through_stop", "stop": stop, "filled": level})
@@ -179,12 +181,14 @@ class TradeManager:
                     fill_price = fill_fn(target, False)
                     pnl = (fill_price - entry) * units
                     position["units"] = 0.0
+                    position["last_exit_price"] = float(fill_price)
                     return pnl, "target"
             else:
                 if low <= target:
                     fill_price = fill_fn(target, True)
                     pnl = (entry - fill_price) * units
                     position["units"] = 0.0
+                    position["last_exit_price"] = float(fill_price)
                     return pnl, "target"
 
         # Initialize tracking variables for this step
@@ -313,6 +317,7 @@ class TradeManager:
             pnl = (fill_price - entry) * units if is_long else (entry - fill_price) * units
             realized_pnl += pnl
             position["units"] = 0.0
+            position["last_exit_price"] = float(fill_price)
             position["tms_log"].append({"action": "time_stop", "bars_open": position["bars_open"]})
             return realized_pnl, "time"
 

@@ -157,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="process bars strictly before this date 00:00 UTC (default: today)")
     ap.add_argument("--state", default=str(STATE_PATH), help="local JSON state path")
     ap.add_argument("--no-supabase", action="store_true", help="skip all Supabase reads/writes")
+    ap.add_argument("--prefer-supabase", action="store_true",
+                    help="prefer mirrored state over the tracked local snapshot (CI mode)")
     ap.add_argument("--clear-halt", action="store_true",
                     help="clear the experiment HALT flag after a review, then exit")
     args = ap.parse_args(argv)
@@ -207,14 +209,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"panel: {len(panel)} instruments | latest closed bar {latest.date()} | "
           f"gated (crypto+FX): {len(gated)}", flush=True)
 
-    # 2. restore state: local JSON -> Supabase mirror (B tables) -> fresh seed
-    state = PaperPortfolio.load_state_file(state_path)
-    origin = "local"
-    if state is None and not args.no_supabase:
+    # 2. restore state. CI explicitly prefers Supabase because a checkout can
+    #    contain a tracked snapshot that is older than the nightly mirror.
+    local_state = PaperPortfolio.load_state_file(state_path)
+    state = local_state
+    origin = "local" if state is not None else "fresh"
+    if args.prefer_supabase and not args.no_supabase:
+        remote_state = _restore_from_supabase()
+        if remote_state is not None:
+            state, origin = remote_state, "supabase"
+        elif local_state is not None:
+            origin = "local-fallback (Supabase state empty)"
+    elif state is None and not args.no_supabase:
         state = _restore_from_supabase()
         origin = "supabase" if state is not None else "fresh"
-    elif state is None:
-        origin = "fresh"
 
     # 3. the certified TrendBook with the spill50 wrapper on crypto/FX
     model = TrendBook(panel, **BOOK_PARAMS)

@@ -1,0 +1,396 @@
+{
+  "generated_at": "2026-08-19T21:23:56+00:00",
+  "data_end_exclusive": "2025-01-01",
+  "funded_rule_model": {
+    "account": 100000.0,
+    "window_observations_per_phase": 365,
+    "one_step": "10% target; fixed $3k daily loss; $10k EOD trailing loss; 50% Best Day proxy",
+    "two_step": "10% then 5% target; fixed $5k daily loss; static $10k max loss; >=4 nonzero-return days proxy",
+    "limitations": "Optimistic close-only proxy. Intraday floating equity, CE(S)T boundaries, exact trade-opening-day counts, closed-P&L Best Day accounting, withdrawals and fees are omitted. Rolling starts overlap and are not independent trials."
+  },
+  "variants": {
+    "book_c_control": {
+      "metrics": {
+        "total_return": 2.161810796516242,
+        "ann_return": 0.13947544447189508,
+        "ann_vol": 0.12447189927849374,
+        "sharpe": 1.1117525747302817,
+        "sortino": 1.280001174816279,
+        "max_drawdown": 0.15921488068143141,
+        "calmar": 0.8760201551195933,
+        "n_trades": 1654,
+        "win_rate": 0.5519951632406288,
+        "profit_factor": 1.3408903595144865,
+        "avg_trade_return": 0.00959010278113664,
+        "expectancy_pnl": 132.2275541186185,
+        "expectancy_pct": 0.009411583334667808,
+        "final_equity": 316181.0796516242,
+        "net_pnl": 221343.85,
+        "short_borrow_fees_total": 0.0
+      },
+      "rolling_funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 243,
+            "pass": 1500,
+            "fail": 1110
+          },
+          "reasons": {
+            "window_end": 243,
+            "target": 1500,
+            "daily_loss": 542,
+            "max_loss": 568
+          },
+          "pass_rate_all_starts": 0.5257623554153522,
+          "pass_rate_resolved": 0.5747126436781609,
+          "median_days_to_pass": 93.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 778,
+            "pass": 1301,
+            "fail": 409
+          },
+          "reasons": {
+            "phase1_window_end": 693,
+            "passed_both": 1301,
+            "phase2_window_end": 85,
+            "phase2_max_loss": 122,
+            "phase1_max_loss": 287
+          },
+          "pass_rate_all_starts": 0.5229099678456591,
+          "pass_rate_resolved": 0.7608187134502924,
+          "median_days_to_pass": 187.0
+        }
+      }
+    },
+    "book_c_notional15": {
+      "metrics": {
+        "total_return": 1.8791256361634958,
+        "ann_return": 0.12743470679619917,
+        "ann_vol": 0.11532208669987376,
+        "sharpe": 1.0982593590284215,
+        "sortino": 1.2787801062442645,
+        "max_drawdown": 0.15647784529406172,
+        "calmar": 0.8143945652927218,
+        "n_trades": 1654,
+        "win_rate": 0.5513905683192262,
+        "profit_factor": 1.3455141492381122,
+        "avg_trade_return": 0.009647811366384524,
+        "expectancy_pnl": 115.34937792084719,
+        "expectancy_pct": 0.009468668009559394,
+        "final_equity": 287912.5636163496,
+        "net_pnl": 192292.03,
+        "short_borrow_fees_total": 0.0
+      },
+      "rolling_funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 295,
+            "pass": 1500,
+            "fail": 1058
+          },
+          "reasons": {
+            "window_end": 295,
+            "target": 1500,
+            "daily_loss": 319,
+            "max_loss": 739
+          },
+          "pass_rate_all_starts": 0.5257623554153522,
+          "pass_rate_resolved": 0.5863956215793589,
+          "median_days_to_pass": 100.5
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 838,
+            "pass": 1329,
+            "fail": 321
+          },
+          "reasons": {
+            "phase1_window_end": 736,
+            "passed_both": 1329,
+            "phase2_window_end": 102,
+            "phase2_max_loss": 36,
+            "phase1_max_loss": 285
+          },
+          "pass_rate_all_starts": 0.5341639871382636,
+          "pass_rate_resolved": 0.8054545454545454,
+          "median_days_to_pass": 210.0
+        }
+      }
+    },
+    "book_c_risk075": {
+      "metrics": {
+        "total_return": 1.6231790590068176,
+        "ann_return": 0.1155918785570762,
+        "ann_vol": 0.09956331859972893,
+        "sharpe": 1.1489445625769517,
+        "sortino": 1.3172083389142861,
+        "max_drawdown": 0.12803560311586992,
+        "calmar": 0.9028104350980221,
+        "n_trades": 1646,
+        "win_rate": 0.5583232077764277,
+        "profit_factor": 1.3772594231507933,
+        "avg_trade_return": 0.010320455650060754,
+        "expectancy_pnl": 100.56359659781288,
+        "expectancy_pct": 0.010320455650060747,
+        "final_equity": 262317.90590068174,
+        "net_pnl": 165527.68,
+        "short_borrow_fees_total": 0.0
+      },
+      "rolling_funded_proxies": {
+        "ftmo_1_step_proxy": {
+          "n_overlapping_starts": 2853,
+          "statuses": {
+            "timeout": 599,
+            "pass": 1790,
+            "fail": 464
+          },
+          "reasons": {
+            "window_end": 599,
+            "target": 1790,
+            "daily_loss": 348,
+            "max_loss": 116
+          },
+          "pass_rate_all_starts": 0.627409744128987,
+          "pass_rate_resolved": 0.7941437444543035,
+          "median_days_to_pass": 140.0
+        },
+        "ftmo_2_step_proxy": {
+          "n_overlapping_starts": 2488,
+          "statuses": {
+            "timeout": 1073,
+            "pass": 1363,
+            "fail": 52
+          },
+          "reasons": {
+            "phase1_window_end": 909,
+            "passed_both": 1363,
+            "phase2_window_end": 164,
+            "phase2_max_loss": 32,
+            "phase1_max_loss": 20
+          },
+          "pass_rate_all_starts": 0.5478295819935691,
+          "pass_rate_resolved": 0.9632508833922262,
+          "median_days_to_pass": 264.0
+        }
+      }
+    }
+  },
+  "entry_bar_census": {
+    "totals": {
+      "total": 1664,
+      "target_hit": 2,
+      "first_partial_hit": 7,
+      "stop_hit": 5
+    },
+    "fractions": {
+      "stop_hit": 0.0030048076923076925,
+      "target_hit": 0.001201923076923077,
+      "both_stop_and_target": 0.0,
+      "first_partial_hit": 0.004206730769230769
+    },
+    "by_instrument": {
+      "BTC/USD": {
+        "total": 73,
+        "stop_hit": 1
+      },
+      "EUR/USD": {
+        "total": 6
+      },
+      "USD/JPY": {
+        "total": 4
+      },
+      "USD/CHF": {
+        "total": 4
+      },
+      "AUD/USD": {
+        "total": 3
+      },
+      "NZD/USD": {
+        "total": 1
+      },
+      "USD/CAD": {
+        "total": 1
+      },
+      "SGLD.L": {
+        "total": 21
+      },
+      "MSFT": {
+        "total": 116,
+        "stop_hit": 1
+      },
+      "NVDA": {
+        "total": 135,
+        "stop_hit": 1
+      },
+      "TSLA": {
+        "total": 116,
+        "first_partial_hit": 1
+      },
+      "AMD": {
+        "total": 99,
+        "first_partial_hit": 2
+      },
+      "NFLX": {
+        "total": 88,
+        "first_partial_hit": 1
+      },
+      "AAPL": {
+        "total": 124,
+        "stop_hit": 1,
+        "first_partial_hit": 1
+      },
+      "ISDU.L": {
+        "total": 40
+      },
+      "AMZN": {
+        "total": 119
+      },
+      "META": {
+        "total": 124
+      },
+      "GBP/USD": {
+        "total": 5,
+        "target_hit": 1,
+        "first_partial_hit": 1
+      },
+      "GOOGL": {
+        "total": 114
+      },
+      "ISWD.L": {
+        "total": 49
+      },
+      "TSM": {
+        "total": 103,
+        "stop_hit": 1
+      },
+      "ISDE.L": {
+        "total": 51,
+        "target_hit": 1,
+        "first_partial_hit": 1
+      },
+      "XBI": {
+        "total": 18
+      },
+      "XLK": {
+        "total": 21
+      },
+      "SMH": {
+        "total": 8
+      },
+      "XLE": {
+        "total": 25
+      },
+      "SOXX": {
+        "total": 5
+      },
+      "UBER": {
+        "total": 31
+      },
+      "BNB/USD": {
+        "total": 20
+      },
+      "ETH/USD": {
+        "total": 20
+      },
+      "XRP/USD": {
+        "total": 17
+      },
+      "ADA/USD": {
+        "total": 14
+      },
+      "LINK/USD": {
+        "total": 7
+      },
+      "PLTR": {
+        "total": 40
+      },
+      "AVAX/USD": {
+        "total": 9
+      },
+      "DOGE/USD": {
+        "total": 8
+      },
+      "SOL/USD": {
+        "total": 18
+      },
+      "ARB/USD": {
+        "total": 5
+      },
+      "SUI/USD": {
+        "total": 2
+      }
+    },
+    "first_20_barrier_examples": [
+      {
+        "date": "2017-01-17",
+        "instrument": "GBP/USD",
+        "direction": "long",
+        "stop_hit": false,
+        "target_hit": true,
+        "both_stop_and_target": false,
+        "first_partial_hit": true
+      },
+      {
+        "date": "2018-02-05",
+        "instrument": "NVDA",
+        "direction": "long",
+        "stop_hit": true,
+        "target_hit": false,
+        "both_stop_and_target": false,
+        "first_partial_hit": false
+      },
+      {
+        "date": "2019-06-26",
+        "instrument": "BTC/USD",
+        "direction": "long",
+        "stop_hit": true,
+        "target_hit": false,
+        "both_stop_and_target": false,
+        "first_partial_hit": false
+      },
+      {
+        "date": "2019-10-31",
+        "instrument": "AAPL",
+        "direction": "long",
+        "stop_hit": true,
+        "target_hit": false,
+        "both_stop_and_target": false,
+        "first_partial_hit": false
+      },
+      {
+        "date": "2021-01-08",
+        "instrument": "TSM",
+        "direction": "long",
+        "stop_hit": true,
+        "target_hit": false,
+        "both_stop_and_target": false,
+        "first_partial_hit": false
+      },
+      {
+        "date": "2022-02-24",
+        "instrument": "MSFT",
+        "direction": "short",
+        "stop_hit": true,
+        "target_hit": false,
+        "both_stop_and_target": false,
+        "first_partial_hit": false
+      },
+      {
+        "date": "2022-11-14",
+        "instrument": "ISDE.L",
+        "direction": "short",
+        "stop_hit": false,
+        "target_hit": true,
+        "both_stop_and_target": false,
+        "first_partial_hit": true
+      }
+    ],
+    "interpretation": "The certified loop begins management on the bar after entry. Stop/target/partial touches on the entry bar are therefore omitted; OHLC cannot resolve ordering when both barriers touch."
+  }
+}

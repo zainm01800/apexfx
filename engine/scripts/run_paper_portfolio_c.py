@@ -1,7 +1,7 @@
 """Daily forward paper-trading stepper for the CHAMPION book (Book C).
 
 Book C: Pure Multi-Horizon Trend Ensemble [63, 126, 252] on the 39-instrument
-multi-asset panel (Equities, ETFs, Gold, FX Majors, Crypto), 1.0% ATR risk per trade,
+multi-asset panel (Equities, ETFs, Gold, FX Majors, Crypto), 0.85% maximum risk per trade,
 managed exits with trailing stops.
 
 State persists locally to engine/data_store/paper_portfolio_c/state.json and
@@ -43,12 +43,22 @@ from run_portfolio_gate import COMMON_PARAMS, MIN_BARS, WARMUP, TrendBook  # noq
 from run_portfolio_gate_multiasset import FX_MAJORS_7  # noqa: E402
 
 BOOK_LABEL = "book_c_champion_ensemble_63_126_252"
-CERTIFIED_MRPT = 0.01
+PREVIOUS_MRPT = 0.01
+CERTIFIED_MRPT = 0.0085
+RISK_PROMOTION = "book_c_risk_frontier_2026-08-20"
 
 BOOK_PARAMS = {
     "carry_filter": False,
     **COMMON_PARAMS,
     "momentum_lookbacks": [63, 126, 252],
+}
+
+# Strategy construction consumes BOOK_PARAMS.  State metadata also records the
+# promoted sizing so an old 1.0% pending-order book cannot silently resume.
+STATE_PARAMS = {
+    **BOOK_PARAMS,
+    "max_risk_per_trade": CERTIFIED_MRPT,
+    "risk_promotion": RISK_PROMOTION,
 }
 
 BOOK_EQUITIES = [
@@ -75,6 +85,40 @@ def _cfg():
     return cfg
 
 
+def _migrate_promoted_risk_state(state: dict | None) -> tuple[dict | None, str | None]:
+    """Invalidate legacy pending entries when promoting Book C from 1.0% to 0.85%.
+
+    Open positions and genuine history are retained, because changing their
+    original sizing after entry would falsify the paper record. Pending entries
+    have not traded yet and must be regenerated under the promoted risk budget.
+    A seed-only legacy state can be discarded completely and rebuilt cleanly.
+    """
+    if state is None:
+        return None, None
+
+    params = state.get("params") or {}
+    stored_mrpt = float(params.get("max_risk_per_trade", PREVIOUS_MRPT))
+    if abs(stored_mrpt - CERTIFIED_MRPT) < 1e-12:
+        return state, None
+
+    pending_count = len(state.get("pending") or {})
+    has_history = bool(state.get("trades") or state.get("open_positions"))
+    if not has_history:
+        return None, (
+            f"risk promotion {stored_mrpt:.2%} -> {CERTIFIED_MRPT:.2%}: "
+            f"discarded seed-only state and {pending_count} stale pending entries"
+        )
+
+    migrated = copy.deepcopy(state)
+    migrated["pending"] = {}
+    migrated["params"] = copy.deepcopy(STATE_PARAMS)
+    migrated["book"] = BOOK_LABEL
+    return migrated, (
+        f"risk promotion {stored_mrpt:.2%} -> {CERTIFIED_MRPT:.2%}: "
+        f"preserved history/open positions and discarded {pending_count} stale pending entries"
+    )
+
+
 def _restore_from_supabase() -> dict | None:
     latest = paper_store.fetch_latest_daily(table=paper_store.DAILY_TABLE_C)
     if not latest:
@@ -82,22 +126,28 @@ def _restore_from_supabase() -> dict | None:
     extra = latest.get("state_extra") or {}
     curve = paper_store.fetch_daily_curve(table=paper_store.DAILY_TABLE_C) or []
     pos_rows = paper_store.fetch_open_positions(table=paper_store.POSITIONS_TABLE_C) or []
+    open_instruments = {r["instrument"] for r in pos_rows}
     return {
         "schema_version": 1,
         "book": extra.get("book", BOOK_LABEL),
-        "params": extra.get("params", BOOK_PARAMS),
+        "params": extra.get("params", STATE_PARAMS),
         "initial_equity": float(extra.get("initial_equity", START_EQUITY)),
         "realized": float(latest.get("cash", latest.get("equity", START_EQUITY))),
         "peak": float(extra.get("peak", latest.get("equity", START_EQUITY))),
         "halted": bool(extra.get("halted", False)),
         "cost_total": float(extra.get("cost_total", 0.0)),
         "open_positions": {r["instrument"]: _posrow_to_posd(r) for r in pos_rows},
-        "pending": extra.get("pending", {}),
+        # A partially completed mirror write can briefly contain an instrument
+        # in both tables.  An open row is authoritative: never queue it again.
+        "pending": {
+            inst: payload for inst, payload in extra.get("pending", {}).items()
+            if inst not in open_instruments
+        },
         "trades": extra.get("trades", []),
         "per_inst": extra.get("per_inst", {}),
         "constraint_log": extra.get("constraint_log", {}),
         "equity_curve": [[r["date"], float(r["equity"])] for r in curve],
-        "last_processed_date": latest.get("date"),
+        "last_processed_date": extra.get("last_processed_date", latest.get("date")),
     }
 
 
@@ -108,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="process bars strictly before this date 00:00 UTC (default: today)")
     ap.add_argument("--state", default=str(STATE_PATH), help="local JSON state path")
     ap.add_argument("--no-supabase", action="store_true", help="skip all Supabase reads/writes")
+    ap.add_argument("--prefer-supabase", action="store_true",
+                    help="prefer mirrored state over the tracked local snapshot (CI mode)")
     ap.add_argument("--clear-halt", action="store_true",
                     help="clear the experiment HALT flag after a review, then exit")
     args = ap.parse_args(argv)
@@ -122,7 +174,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print("=" * 72, flush=True)
     print(f"PAPER PORTFOLIO STEP | book={BOOK_LABEL} (CHAMPION ENSEMBLE [63, 126, 252]) "
-          f"| cutoff {cutoff.date()} | now {now.isoformat(timespec='seconds')}")
+          f"| risk {CERTIFIED_MRPT:.2%} | cutoff {cutoff.date()} "
+          f"| now {now.isoformat(timespec='seconds')}")
     print(f"universe: {len(instruments)} instruments | state: {state_path}")
     print("=" * 72, flush=True)
 
@@ -143,14 +196,26 @@ def main(argv: list[str] | None = None) -> int:
     latest = max(df.index[-1] for df in panel.values())
     print(f"panel: {len(panel)} instruments | latest closed bar {latest.date()}", flush=True)
 
-    # Restore state: local JSON -> Supabase mirror -> fresh seed
-    state = PaperPortfolio.load_state_file(state_path)
-    origin = "local"
-    if state is None and not args.no_supabase:
+    # Restore state. CI explicitly prefers Supabase because a checkout can
+    # contain a tracked snapshot that is older than the nightly mirror.
+    local_state = PaperPortfolio.load_state_file(state_path)
+    state = local_state
+    origin = "local" if state is not None else "fresh"
+    if args.prefer_supabase and not args.no_supabase:
+        remote_state = _restore_from_supabase()
+        if remote_state is not None:
+            state, origin = remote_state, "supabase"
+        elif local_state is not None:
+            origin = "local-fallback (Supabase state empty)"
+    elif state is None and not args.no_supabase:
         state = _restore_from_supabase()
         origin = "supabase" if state is not None else "fresh"
-    elif state is None:
-        origin = "fresh"
+
+    state, migration_note = _migrate_promoted_risk_state(state)
+    if migration_note:
+        print(f"state migration: {migration_note}", flush=True)
+        if state is None:
+            origin = "fresh-after-risk-promotion"
 
     model = TrendBook(panel, **BOOK_PARAMS)
     strategies = model.strategies()
@@ -158,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     stepper = PaperPortfolio(
         panel, strategies, cfg=cfg,
         timeframes={k: "1d" for k in panel}, warmup=WARMUP,
-        state=state, book=BOOK_LABEL, params=BOOK_PARAMS,
+        state=state, book=BOOK_LABEL, params=STATE_PARAMS,
         halt_drawdown=HALT_DRAWDOWN, initial_equity=START_EQUITY,
     )
 

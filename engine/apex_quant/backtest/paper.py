@@ -271,6 +271,75 @@ class PaperPortfolio(PortfolioBacktester):
     def set_halted(self, value: bool) -> None:
         self._halted = bool(value)
 
+    def open_pending_at(self, t, opening_prices: dict[str, float]) -> list[dict]:
+        """Fill every queued entry at a verified session open, without stepping the bar.
+
+        This is the intraday counterpart to phase 2 of :meth:`step`.  It exists
+        for the paper dashboard, where a position should become visible after
+        the market opens even though the daily bar is not safe to mark/manage
+        until it has closed.  The method intentionally does *only* entry
+        accounting: no exit management, close mark, equity point, new signal,
+        or processed-date advance.
+
+        A later normal ``step(t)`` therefore still processes the completed bar.
+        Phase 1 skips positions whose entry date is ``t`` so that pre-opening a
+        queued trade has exactly the same same-bar exit semantics as the normal
+        engine sequence (manage old positions, then fill new ones).
+        """
+        t = _norm_ts(t)
+        if self._last_processed is not None and t <= self._last_processed:
+            raise ValueError(
+                f"entry date {t.date()} must be after last processed date "
+                f"{self._last_processed.date()}"
+            )
+
+        missing = [inst for inst in self._pending if inst not in opening_prices]
+        if missing:
+            raise ValueError(f"missing opening prices for: {', '.join(sorted(missing))}")
+
+        # Validate the complete batch before mutating state.
+        prices: dict[str, float] = {}
+        entry_indices: dict[str, int] = {}
+        for inst in self._pending:
+            px = float(opening_prices[inst])
+            if not np.isfinite(px) or px <= 0:
+                raise ValueError(f"invalid opening price for {inst}: {opening_prices[inst]!r}")
+            d = self.data.get(inst)
+            if d is None:
+                raise ValueError(f"pending instrument is absent from panel: {inst}")
+            i = d["pos"].get(t)
+            if i is None:
+                known_dates = list(d["pos"])
+                if known_dates and t <= max(known_dates):
+                    raise ValueError(f"entry date {t.date()} is missing inside {inst}'s panel")
+                i = len(d["open"])
+            prices[inst] = px
+            entry_indices[inst] = int(i)
+
+        entries: list[dict] = []
+        for inst in list(self._pending):
+            if inst in self._open:
+                # Defensive repair for a stale mirror containing the same item
+                # in both collections.
+                self._pending.pop(inst)
+                continue
+            d = self.data[inst]
+            raw_open = prices[inst]
+            posd = self._enter(
+                self._pending.pop(inst), raw_open, t, entry_indices[inst], inst
+            )
+            self._open[inst] = posd
+            self._realized -= d["commission"]
+            self._cost_total += abs(posd["entry_price"] - raw_open) * posd["units"]
+            entries.append({
+                "instrument": inst,
+                "direction": posd["direction"].value,
+                "units": round(posd["units"], 4),
+                "raw_open": raw_open,
+                "entry_price": posd["entry_price"],
+            })
+        return entries
+
     # -- calendar ---------------------------------------------------------------
     def union_dates(self, cutoff=None) -> pd.DatetimeIndex:
         """All bar dates in the panel (the union calendar run() uses), ≤ cutoff."""
@@ -317,6 +386,12 @@ class PaperPortfolio(PortfolioBacktester):
             if i is None:
                 continue
             posd = open_pos[inst]
+            # ``open_pending_at`` may have materialized this position during
+            # the live session.  A regular step fills after exit management,
+            # so replaying the now-complete entry bar must not expose the new
+            # position to that bar's high/low retroactively.
+            if _norm_ts(posd["entry_time"]).normalize() == t.normalize():
+                continue
 
             high_window = d["high"][max(0, i - 21):i + 1]
             low_window = d["low"][max(0, i - 21):i + 1]
@@ -337,6 +412,7 @@ class PaperPortfolio(PortfolioBacktester):
             realized_pnl, exit_reason = self.trade_manager.update_position(
                 position=posd,
                 high=d["high"][i],
+                open_=d["open"][i],
                 low=d["low"][i],
                 close=d["close"][i],
                 atr=d["atr"][i],
@@ -360,7 +436,11 @@ class PaperPortfolio(PortfolioBacktester):
                 posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
 
             if exit_reason != "":
-                exit_price = d["close"][i] if exit_reason == "time" else (posd["stop"] if exit_reason == "stop" else posd["target"])
+                exit_price = posd.get(
+                    "last_exit_price",
+                    d["close"][i] if exit_reason == "time" else
+                    (posd["stop"] if exit_reason == "stop" else posd["target"]),
+                )
                 self._trades.append(self._record(posd, exit_price, t, exit_reason, posd["realized_pnl_total"], inst))
                 self._per_inst[inst]["n_trades"] += 1
                 self._per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
@@ -381,6 +461,7 @@ class PaperPortfolio(PortfolioBacktester):
             if i is None:
                 continue
             open_pos[inst] = self._enter(pending.pop(inst), d["open"][i], t, i, inst)
+            realized -= d["commission"]
             self._cost_total += abs(open_pos[inst]["entry_price"] - d["open"][i]) * open_pos[inst]["units"]
             rec["entries"].append({
                 "instrument": inst, "direction": open_pos[inst]["direction"].value,

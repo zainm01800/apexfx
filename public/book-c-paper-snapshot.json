@@ -1,0 +1,415 @@
+{
+  "daily": [
+    {
+      "cash": 100000.0,
+      "cum_pnl": 0.0,
+      "date": "2026-08-19",
+      "day_pnl": 0.0,
+      "drawdown_from_peak": 0.0,
+      "equity": 100000.0,
+      "gross_exposure_x": 0.44106967359611116,
+      "metrics": null,
+      "n_open": 9,
+      "notes": "9 queued entries opened internally at the 20 Aug 2026 official market open; awaiting first settled close mark",
+      "state_extra": {
+        "book": "book_c_champion_ensemble_63_126_252",
+        "constraint_log": {
+          "max_risk_per_trade": 9,
+          "regime_scale=0.29": 1,
+          "regime_scale=0.30": 1,
+          "regime_scale=0.32": 1,
+          "regime_scale=0.41": 1,
+          "regime_scale=0.43": 1,
+          "regime_scale=0.46": 1,
+          "regime_scale=0.49": 2,
+          "regime_scale=0.75": 1
+        },
+        "cost_total": 8.820937216569169,
+        "halted": false,
+        "initial_equity": 100000.0,
+        "last_processed_date": "2026-08-19",
+        "params": {
+          "carry_filter": false,
+          "holding_horizon": 21,
+          "htf_ma_window": 50,
+          "htf_rule": "1w",
+          "max_risk_per_trade": 0.0085,
+          "momentum_lookback": 126,
+          "momentum_lookbacks": [
+            63,
+            126,
+            252
+          ],
+          "regime_method": "rule_based",
+          "reward_risk": 1.5,
+          "risk_promotion": "book_c_risk_frontier_2026-08-20",
+          "timeframe": "1d",
+          "vol_window": 63
+        },
+        "peak": 100000.0,
+        "pending": {},
+        "per_inst": {
+          "AAPL": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ADA/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "AMD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "AMZN": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ARB/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "AUD/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "AVAX/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "BNB/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "BTC/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "DOGE/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ETH/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "EUR/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "GBP/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "GOOGL": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ISDE.L": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ISDU.L": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "ISWD.L": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "LINK/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "META": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "MSFT": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "NFLX": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "NVDA": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "NZD/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "PLTR": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "SGLD.L": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "SMH": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "SOL/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "SOXX": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "SUI/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "TSLA": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "TSM": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "UBER": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "USD/CAD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "USD/CHF": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "USD/JPY": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "XBI": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "XLE": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "XLK": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          },
+          "XRP/USD": {
+            "n_trades": 0,
+            "net_pnl": 0.0
+          }
+        },
+        "trades": []
+      }
+    }
+  ],
+  "generated_at": "2026-08-20T15:05:39+00:00",
+  "positions": [
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 2672,
+      "entry_price": 483.0966,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 451.0591047956194,
+      "initial_units": 13.002497781427738,
+      "instrument": "MSFT",
+      "last_px": 483.0966,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 416.56746031746036,
+      "stop": 451.0591047956194,
+      "target": 531.152842806571,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 13.002497781427738,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 2672,
+      "entry_price": 218.40367261047362,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 202.15189060189383,
+      "initial_units": 21.61826433085471,
+      "instrument": "NVDA",
+      "last_px": 218.40367261047362,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 351.335319308907,
+      "stop": 202.15189060189383,
+      "target": 242.78134562334333,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 21.61826433085471,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "short",
+      "entry_idx": 2672,
+      "entry_price": 546.8406222045899,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 596.319163987514,
+      "initial_units": 4.896970783981224,
+      "instrument": "META",
+      "last_px": 546.8406222045899,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 242.29497354497366,
+      "stop": 596.319163987514,
+      "target": 472.6228095302037,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 4.896970783981224,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 2672,
+      "entry_price": 262.9575797790527,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 239.31472372610907,
+      "initial_units": 15.342336711742458,
+      "instrument": "AMZN",
+      "last_px": 262.9575797790527,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 362.73665839151954,
+      "stop": 239.31472372610907,
+      "target": 298.42186385846816,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 15.342336711742458,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "short",
+      "entry_idx": 2672,
+      "entry_price": 345.8208366455078,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 373.5601326049805,
+      "initial_units": 14.206585791018023,
+      "instrument": "TSLA",
+      "last_px": 345.8208366455078,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 394.0806878306879,
+      "stop": 373.5601326049805,
+      "target": 304.21189270629884,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 14.206585791018023,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 1478,
+      "entry_price": 175.92517738952637,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 153.07910260402136,
+      "initial_units": 18.11062152432097,
+      "instrument": "PLTR",
+      "last_px": 175.92517738952637,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 413.7566137566138,
+      "stop": 153.07910260402136,
+      "target": 210.1942895677839,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 18.11062152432097,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "short",
+      "entry_idx": 2672,
+      "entry_price": 80.15836544952393,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 85.96193687809536,
+      "initial_units": 109.22235404581372,
+      "instrument": "NFLX",
+      "last_px": 80.15836544952393,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 633.8797333015975,
+      "stop": 85.96193687809536,
+      "target": 71.45300830666679,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 109.22235404581372,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 2672,
+      "entry_price": 64.26285,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 61.05749476449149,
+      "initial_units": 84.35989751087334,
+      "instrument": "XLE",
+      "last_px": 64.26285,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 270.4034391534392,
+      "stop": 61.05749476449149,
+      "target": 69.07088285326277,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 84.35989751087334,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    },
+    {
+      "bars_open": 0,
+      "direction": "long",
+      "entry_idx": 2672,
+      "entry_price": 166.6933356628418,
+      "entry_time": "2026-08-20T00:00:00+00:00",
+      "initial_stop": 156.1986920427595,
+      "initial_units": 24.694507245022617,
+      "instrument": "XBI",
+      "last_px": 166.6933356628418,
+      "realized_pnl_total": -0.0,
+      "risk_abs": 259.160052910053,
+      "stop": 156.1986920427595,
+      "target": 182.43530109296526,
+      "tf": "1d",
+      "tms_be": false,
+      "tms_log": [],
+      "tms_p1": false,
+      "tms_p2": false,
+      "units": 24.694507245022617,
+      "updated_at": "2026-08-20T15:05:39+00:00"
+    }
+  ],
+  "source": "committed Book C internal paper state; used only while dedicated Supabase tables are unavailable"
+}

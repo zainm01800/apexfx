@@ -11,9 +11,9 @@ SELECT-only) and falls back to the public anon key — see
 ``apex_quant.storage._keys``.
 
 Every function degrades to ``False`` / ``None`` on ANY error (table missing,
-offline, 4xx) and never raises: the local JSON state is the primary store, and
-the daily GitHub Action restores from these tables, so a Supabase outage must
-not kill a paper step.
+offline, 4xx) and never raises. Local runs use JSON as their primary store;
+the daily GitHub Action explicitly prefers these tables so a tracked checkout
+snapshot cannot rewind the forward record, with JSON retained as a fallback.
 """
 
 from __future__ import annotations

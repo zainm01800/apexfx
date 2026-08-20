@@ -193,13 +193,18 @@ class Backtester:
 
                     if exit_reason != "":
                         # Record the final trade
-                        exit_price = closes[i] if exit_reason == "time" else (position["stop"] if exit_reason == "stop" else position["target"])
+                        exit_price = position.get(
+                            "last_exit_price",
+                            closes[i] if exit_reason == "time" else
+                            (position["stop"] if exit_reason == "stop" else position["target"]),
+                        )
                         trades.append(self._record(position, exit_price, t, exit_reason, position["realized_pnl_total"], instrument))
                         position = None
 
             # 2. execute pending entry at THIS bar's open
             if pending is not None and position is None and i > 0:
                 position = self._enter(pending, opens[i], t, i, instrument, timeframe=tf_clean)
+                realized -= commission
                 pending = None
 
             # 3. mark-to-market equity
