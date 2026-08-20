@@ -32,6 +32,13 @@ DAILY_TABLE_B = "apex_paper_b_daily"
 POSITIONS_TABLE_C = "apex_paper_c_positions"
 DAILY_TABLE_C = "apex_paper_c_daily"
 
+# Temporary Book C state mirror while its dedicated tables are not provisioned.
+# ``apex_analyses`` is currently empty and already exposes a JSONB payload with
+# service-role writes / anonymous reads.  The row is strictly namespaced and
+# the dedicated tables automatically take precedence as soon as they exist.
+FALLBACK_TABLE_C = "apex_analyses"
+FALLBACK_ID_C = "__apex_book_c_paper_runtime__"
+
 
 def _url(table: str) -> str:
     return f"{_SUPA_URL}/rest/v1/{table}"
@@ -79,9 +86,38 @@ def _get(table: str, params: dict) -> list | None:
         return None
 
 
+def _fetch_c_fallback() -> dict | None:
+    rows = _get(
+        FALLBACK_TABLE_C,
+        {"select": "feature_vector", "id": f"eq.{FALLBACK_ID_C}", "limit": "1"},
+    )
+    if not rows:
+        return None
+    payload = rows[0].get("feature_vector")
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_c_fallback(payload: dict) -> bool:
+    return _post_upsert(FALLBACK_TABLE_C, [{
+        "id": FALLBACK_ID_C,
+        "user_id": "apex_engine",
+        "symbol": "BOOK_C",
+        "timeframe": "1d",
+        "direction": "paper",
+        "feature_vector": payload,
+        "analysis_text": "Namespaced Book C internal-paper runtime mirror",
+        "verdict": "PAPER_STATE",
+    }])
+
+
 def upsert_positions(rows: list[dict], table: str = POSITIONS_TABLE) -> bool:
     """Insert/refresh the currently-open position rows (primary key: instrument)."""
-    return _post_upsert(table, rows)
+    ok = _post_upsert(table, rows)
+    if ok or table != POSITIONS_TABLE_C:
+        return ok
+    payload = _fetch_c_fallback() or {"daily": [], "positions": []}
+    payload["positions"] = rows
+    return _write_c_fallback(payload)
 
 
 def delete_positions_not_open(open_instruments: list[str], table: str = POSITIONS_TABLE) -> bool:
@@ -96,27 +132,57 @@ def delete_positions_not_open(open_instruments: list[str], table: str = POSITION
                 headers=_headers(prefer="return=minimal"),
                 params={"instrument": f"not.in.({quoted})"},
             )
-            return r.status_code in (200, 204)
+            ok = r.status_code in (200, 204)
+            if ok or table != POSITIONS_TABLE_C:
+                return ok
     except Exception:
-        return False
+        if table != POSITIONS_TABLE_C:
+            return False
+    payload = _fetch_c_fallback() or {"daily": [], "positions": []}
+    keep = set(open_instruments)
+    payload["positions"] = [
+        row for row in payload.get("positions", []) if row.get("instrument") in keep
+    ]
+    return _write_c_fallback(payload)
 
 
 def upsert_daily(rows: list[dict], table: str = DAILY_TABLE) -> bool:
     """Append the daily snapshot(s). Primary key is ``date``, so re-running a
     day merges rather than duplicating (the local stepper is already idempotent,
     this is belt-and-braces)."""
-    return _post_upsert(table, rows)
+    ok = _post_upsert(table, rows)
+    if ok or table != DAILY_TABLE_C:
+        return ok
+    payload = _fetch_c_fallback() or {"daily": [], "positions": []}
+    by_date = {row.get("date"): row for row in payload.get("daily", []) if row.get("date")}
+    by_date.update({row.get("date"): row for row in rows if row.get("date")})
+    payload["daily"] = [by_date[d] for d in sorted(by_date)]
+    return _write_c_fallback(payload)
 
 
 def fetch_latest_daily(table: str = DAILY_TABLE) -> dict | None:
     rows = _get(table, {"order": "date.desc", "limit": "1"})
+    if rows is None and table == DAILY_TABLE_C:
+        payload = _fetch_c_fallback() or {}
+        rows = sorted(payload.get("daily", []), key=lambda row: row.get("date", ""), reverse=True)
     return rows[0] if rows else None
 
 
 def fetch_daily_curve(table: str = DAILY_TABLE) -> list | None:
     """All daily rows (date, equity) ascending - used to rebuild the equity curve."""
-    return _get(table, {"select": "date,equity", "order": "date.asc"})
+    rows = _get(table, {"select": "date,equity", "order": "date.asc"})
+    if rows is None and table == DAILY_TABLE_C:
+        payload = _fetch_c_fallback() or {}
+        return [
+            {"date": row.get("date"), "equity": row.get("equity")}
+            for row in sorted(payload.get("daily", []), key=lambda row: row.get("date", ""))
+        ]
+    return rows
 
 
 def fetch_open_positions(table: str = POSITIONS_TABLE) -> list | None:
-    return _get(table, {"select": "*"})
+    rows = _get(table, {"select": "*"})
+    if rows is None and table == POSITIONS_TABLE_C:
+        payload = _fetch_c_fallback() or {}
+        return payload.get("positions", [])
+    return rows

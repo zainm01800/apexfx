@@ -63,6 +63,19 @@ export default async function handler(req) {
     });
 
     if (!response.ok) {
+      // Temporary Book C mirror while its dedicated pair has not yet been
+      // provisioned. The engine stores both arrays in one namespaced JSONB row;
+      // dedicated tables automatically win as soon as they become reachable.
+      if (book === 'c') {
+        const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.__apex_book_c_paper_runtime__&select=feature_vector&limit=1`;
+        const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
+        if (stateResponse.ok) {
+          const stateRows = await stateResponse.json();
+          const state = stateRows[0] && stateRows[0].feature_vector;
+          const fallback = state && Array.isArray(state[table]) ? state[table] : [];
+          return new Response(JSON.stringify(fallback), { status: 200, headers: cors });
+        }
+      }
       const txt = await response.text();
       return new Response(JSON.stringify({ error: `Supabase query failed: ${txt}` }), { status: response.status, headers: cors });
     }

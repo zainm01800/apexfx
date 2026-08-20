@@ -94,9 +94,26 @@ def _mirror(stepper: PaperPortfolio, entry_date: pd.Timestamp) -> tuple[bool, bo
         marker = f"queued entries opened internally at {entry_date.date()} session open"
         daily["notes"] = f"{prior_note} | {marker}" if prior_note else marker
         daily["state_extra"] = _state_extra(stepper)
-        ok_daily = paper_store.upsert_daily([daily], table=paper_store.DAILY_TABLE_C)
     else:
-        ok_daily = False
+        state = stepper.to_state()
+        gross = sum(abs(p["units"] * p["last_px"]) for p in stepper.open_positions.values())
+        daily = {
+            "date": state["last_processed_date"],
+            "equity": stepper.initial_equity,
+            "cash": state["realized"],
+            "n_open": len(stepper.open_positions),
+            "gross_exposure_x": gross / stepper.initial_equity,
+            "day_pnl": 0.0,
+            "cum_pnl": 0.0,
+            "drawdown_from_peak": 0.0,
+            "metrics": None,
+            "notes": (
+                f"{len(stepper.open_positions)} queued entries opened internally at "
+                f"{entry_date.date()} session open; awaiting first settled close mark"
+            ),
+            "state_extra": _state_extra(stepper),
+        }
+    ok_daily = paper_store.upsert_daily([daily], table=paper_store.DAILY_TABLE_C)
     return ok_pos, ok_prune, ok_daily
 
 

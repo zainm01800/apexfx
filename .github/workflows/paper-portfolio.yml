@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify Supabase tables exist (fail fast if not)
         run: |
-          for t in apex_paper_positions apex_paper_daily apex_paper_c_positions apex_paper_c_daily; do
+          for t in apex_paper_positions apex_paper_daily; do
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               "$SUPABASE_URL/rest/v1/$t?select=*&limit=1" \
               -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
@@ -50,7 +50,26 @@ jobs:
               exit 1
             fi
           done
-          echo "Tables OK — proceeding."
+          # Book C prefers its dedicated pair. Until the checked-in migration is
+          # applied, paper_store uses one namespaced JSONB row in the existing
+          # apex_analyses table so the forward state still persists across CI.
+          c_daily=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_paper_c_daily?select=*&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          c_positions=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_paper_c_positions?select=*&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          if [ "$c_daily" != "200" ] || [ "$c_positions" != "200" ]; then
+            fallback=$(curl -s -o /dev/null -w "%{http_code}" \
+              "$SUPABASE_URL/rest/v1/apex_analyses?select=id&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+            if [ "$fallback" != "200" ]; then
+              echo "::error::Neither the dedicated Book C tables nor its namespaced fallback are reachable."
+              exit 1
+            fi
+            echo "Book C dedicated tables unavailable; namespaced JSONB mirror is reachable."
+          fi
+          echo "Paper-state persistence OK — proceeding."
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
