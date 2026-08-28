@@ -3,34 +3,46 @@
 // Data comes from /api/paper (Supabase mirror of the engine's nightly step):
 //   ?table=daily&limit=500  — ascending daily equity snapshots (apex_paper_daily)
 //   ?table=positions        — open engine paper positions (apex_paper_positions)
-//   &book=b                 — challenger book (apex_paper_b_* tables); default = A
+//   &book=b/c/r             — isolated challenger/champion/Book R paper states
 // Closed trades are read from the latest daily row's state_extra.trades log —
 // there is no separate closed-trades endpoint.
 
-const BOOK_START_EQUITY = 100000; // both books seeded £100,000
-const BOOK_CCY = '£'; // the experiment is a £100k virtual book
+const BOOK_START_EQUITY = 100000;
 
 // Book A = the frozen proof (Book D, seeded 16 Jul 2026); Book B = the
 // challenger (certified Book H gold 252 + SPY 50d spillover gate on crypto/FX,
 // seeded 10 Aug 2026 — prereg engine/data_store/pre_registration_paper_challenger_2026-08-11.md).
 const BOOKS = {
   a: {
+    label: 'Book A',
+    currency: '£',
     startLabel: '16 Jul 2026',
     dailyTable: 'apex_paper_daily',
     positionsTable: 'apex_paper_positions',
     blurb: "The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.",
   },
   b: {
+    label: 'Book B',
+    currency: '£',
     startLabel: '10 Aug 2026',
     dailyTable: 'apex_paper_b_daily',
     positionsTable: 'apex_paper_b_positions',
     blurb: 'Challenger book — certified Book H gold 252 + SPY 50-day spillover gate on crypto/FX entries, virtual £100,000 seeded 10 Aug 2026, stepped nightly in sync with Book A as a live A/B. Paper only; nothing here is real money.',
   },
   c: {
+    label: 'Book C',
+    currency: '£',
     startLabel: '19 Aug 2026',
     dailyTable: 'apex_paper_c_daily',
     positionsTable: 'apex_paper_c_positions',
     blurb: 'Champion Multi-Horizon Trend Book — equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments, 0.85% maximum risk per trade, seeded 19 Aug 2026. Paper only; nothing here is real money.',
+  },
+  r: {
+    label: 'Book R-252',
+    currency: '$',
+    startLabel: '27 Aug 2026',
+    fallbackId: '__apex_book_r_252_forward_paper_runtime__',
+    blurb: 'Active forward-paper Book R-252 — $100,000 USD, ten US-listed ETFs, month-end momentum decisions and next-session-open fills at 5 bps per side. Long-only, 95% maximum gross exposure, no leverage and no broker execution.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
@@ -70,13 +82,13 @@ function fmtMoney(v) {
   const n = num(v);
   if (n === null) return '—';
   const sign = n < 0 ? '-' : '';
-  return sign + BOOK_CCY + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return sign + BOOKS[_book].currency + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtSignedMoney(v) {
   const n = num(v);
   if (n === null) return '—';
-  return (n >= 0 ? '+' : '-') + BOOK_CCY + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (n >= 0 ? '+' : '-') + BOOKS[_book].currency + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtQty(v) {
@@ -170,9 +182,23 @@ async function loadEngineBook() {
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
   } catch (e) { /* fall through to direct Supabase */ }
 
+  // Direct namespaced mirror fallback for Book R (including static local dev).
+  if (_book === 'r' && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const stateRes = await fetch(
+      `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${tables.fallbackId}&select=feature_vector&limit=1`,
+      { headers: supaHeaders },
+    ).catch(() => null);
+    if (stateRes && stateRes.ok) {
+      const stateRows = await stateRes.json().catch(() => []);
+      const payload = stateRows[0] && stateRows[0].feature_vector;
+      if (!Array.isArray(daily) && payload && Array.isArray(payload.daily)) daily = payload.daily;
+      if (!Array.isArray(positions) && payload && Array.isArray(payload.positions)) positions = payload.positions;
+    }
+  }
+
   // Direct Supabase REST fallback if the Vercel serverless proxy route returned
   // an error or is unreachable (e.g. static local dev server without /api).
-  if (!Array.isArray(daily) || !Array.isArray(positions)) {
+  if (_book !== 'r' && (!Array.isArray(daily) || !Array.isArray(positions))) {
     const [sdRes, spRes] = await Promise.all([
       fetch(`${SUPA_URL}/rest/v1/${tables.dailyTable}?order=date.asc&limit=500`, { headers: supaHeaders }).catch(() => null),
       fetch(`${SUPA_URL}/rest/v1/${tables.positionsTable}?order=instrument.asc&limit=100`, { headers: supaHeaders }).catch(() => null),
@@ -230,7 +256,9 @@ function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsdRa
     }
   }
 
-  // Convert USD to Book Currency (£ GBP)
+  if (_book === 'r') return pnlUsd;
+
+  // Convert USD to Book Currency (£ GBP) for Books A/B/C.
   return pnlUsd / (gbpusd || 1.285);
 }
 
@@ -246,6 +274,9 @@ function positionUpnl(p) {
 // ── Hero + book stats ────────────────────────────────────────────────────────
 function renderHero() {
   const latest = latestDaily();
+  const actualStartLabel = _dailyRows.length && _dailyRows[0].date
+    ? fmtDay(_dailyRows[0].date)
+    : BOOKS[_book].startLabel;
 
   const equity = latest ? num(latest.equity) : BOOK_START_EQUITY;
   const dayPnl = latest ? num(latest.day_pnl) : 0;
@@ -286,11 +317,13 @@ function renderHero() {
     const bits = [];
     if (latest && latest.date) bits.push('snapshot ' + latest.date);
     if (num(se.peak) !== null) bits.push('peak ' + fmtMoney(se.peak));
-    bits.push((_dailyRows.length || 0) + ' daily snapshots since ' + BOOKS[_book].startLabel);
+    bits.push((_dailyRows.length || 0) + ' daily snapshots since ' + actualStartLabel);
     if (se.halted) bits.push('HALTED — drawdown rule hit');
     heroLine.textContent = bits.join(' · ');
     heroLine.style.color = se.halted ? 'var(--red)' : 'var(--text3)';
   }
+  const since = document.getElementById('engSinceSub');
+  if (since) since.textContent = 'since ' + actualStartLabel;
 
   const label = document.getElementById('lastUpdatedLabel');
   if (label) {
@@ -321,10 +354,10 @@ function renderBookStats() {
   const grossX = (equity !== null && equity > 0) ? gross / equity : 0;
 
   setText('engOpenCount', String(openCount));
-  setText('engGross', gross > 0 ? fmtMoney(gross) : '£0.00');
+  setText('engGross', fmtMoney(gross));
   const gxEl = document.getElementById('engGrossX');
   if (gxEl) gxEl.textContent = grossX === 0 ? '0.00x of book equity' : grossX.toFixed(2) + 'x of book equity';
-  setText('engUnreal', unrealKnown ? fmtSignedMoney(unreal) : '£0.00', unrealKnown ? pnlClass(unreal) : '');
+  setText('engUnreal', unrealKnown ? fmtSignedMoney(unreal) : fmtMoney(0), unrealKnown ? pnlClass(unreal) : '');
 
   const closed = closedTrades();
   const wins = closed.filter(t => (num(t.pnl) || 0) > 0);
@@ -334,7 +367,7 @@ function renderBookStats() {
   setText('engWinRate', winRate === null ? '—' : winRate.toFixed(1) + '%');
   const ccEl = document.getElementById('engClosedCount');
   if (ccEl) ccEl.textContent = `${closed.length} closed`;
-  setText('engRealized', closed.length ? fmtSignedMoney(realized) : '£0.00', closed.length ? pnlClass(realized) : '');
+  setText('engRealized', closed.length ? fmtSignedMoney(realized) : fmtMoney(0), closed.length ? pnlClass(realized) : '');
 }
 
 // ── Equity curve ─────────────────────────────────────────────────────────────
@@ -369,7 +402,9 @@ function renderEquityChart() {
       emptyEl.style.display = 'flex';
       emptyEl.textContent = _book === 'c'
         ? 'Book C is seeded at £100,000.00 with the promoted 0.85% risk budget. Waiting for the next verified daily equity snapshot.'
-        : 'Waiting for daily equity snapshots…';
+        : (_book === 'r'
+          ? 'Book R-252 is active at $100,000.00. Waiting for the next closed-session snapshot.'
+          : 'Waiting for daily equity snapshots…');
     }
     return;
   }
@@ -404,7 +439,7 @@ function renderEquityChart() {
     priceFormat: { type: 'price', precision: 0, minMove: 1 },
   });
   area.setData(pts);
-  // Seed reference line at £100,000 — the pre-registered starting equity.
+  // Seed reference line at 100,000 in the selected book's account currency.
   area.createPriceLine({ price: BOOK_START_EQUITY, color: 'rgba(56, 189, 248, 0.45)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'seed' });
   chart.timeScale().fitContent();
   if (_eqResize) window.removeEventListener('resize', _eqResize);
@@ -457,6 +492,25 @@ function renderPositionCard(p) {
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
   const bars = num(p.bars_open);
   const bankedPartials = num(p.realized_pnl_total);
+  const exitRows = _book === 'r' ? `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--text3)">Exit / rebalance</span>
+        <span style="font-family: var(--mono); color: var(--text2);">Next month-end target</span>
+      </div>` : `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Stop Loss</span>
+        <span style="font-family: var(--mono); color: var(--red);">${escHtml(stop !== null ? fmtPrice(stop, cls) : '—')}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
+        <span style="color: var(--text3)">Partials (+1.0R)</span>
+        <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--text3)">Take Profit</span>
+        <span style="font-family: var(--mono); color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
+      </div>`;
 
   return `
     <div class="stat-item ibkr-pos-card eng-pos-card" data-instrument="${escHtml(inst)}" data-live-entry="${entry}" data-live-units="${units}" data-live-dir="${isLong ? 'long' : 'short'}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
@@ -481,20 +535,7 @@ function renderPositionCard(p) {
         <span class="card-last-px" style="font-family: var(--mono); color: var(--text2); font-weight: 600;">${escHtml(fmtPrice(lastPx, cls))}</span>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-        <span style="color: var(--text3)">Stop Loss</span>
-        <span style="font-family: var(--mono); color: var(--red);">${escHtml(stop !== null ? fmtPrice(stop, cls) : '—')}</span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
-        <span style="color: var(--text3)">Partials (+1.0R)</span>
-        <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-        <span style="color: var(--text3)">Take Profit</span>
-        <span style="font-family: var(--mono); color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
-      </div>
+      ${exitRows}
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
         <span style="color: var(--text)">Unrealized P&amp;L</span>
@@ -552,7 +593,7 @@ function renderPositions() {
   }
 
   if (!open.length) {
-    const bookLabel = _book === 'c' ? 'Book C' : (_book === 'b' ? 'Book B' : 'Book A');
+    const bookLabel = BOOKS[_book].label;
     const classLabel = _activeClass === 'all' ? '' : _activeClass + ' ';
     const pending = latest && latest.state_extra && latest.state_extra.pending
       ? Object.entries(latest.state_extra.pending)
@@ -585,7 +626,7 @@ function renderClosedTrades() {
   if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips` : '';
 
   if (!closed.length) {
-    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet for ${_book === 'b' ? 'Book B' : 'Book A'}.</div>`;
+    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet for ${BOOKS[_book].label}.</div>`;
     return;
   }
 
@@ -656,7 +697,7 @@ async function refreshLiveMarks() {
   const cards = wrap.querySelectorAll('.eng-pos-card');
   if (!cards.length) return;
 
-  const stale = [{ inst: 'GBP/USD', cls: 'forex' }];
+  const stale = _book === 'r' ? [] : [{ inst: 'GBP/USD', cls: 'forex' }];
   for (const card of cards) {
     const inst = card.dataset.instrument;
     if (!inst) continue;
@@ -684,6 +725,7 @@ function applyLiveMarks() {
   if (!wrap) return;
 
   let liveTotalOpenPnl = 0;
+  let officialMarkedOpenPnl = 0;
   let liveTotalGross = 0;
   let liveCount = 0;
 
@@ -696,10 +738,12 @@ function applyLiveMarks() {
     const units = num(p.units);
     if (entry === null || units === null) continue;
     const isLong = String(p.direction || '').toLowerCase() !== 'short';
-    const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
-    if (pnlGbp !== null) {
-      liveTotalOpenPnl += pnlGbp;
-      liveTotalGross += (m.px * units) / (_gbpUsdRate || 1.285);
+    const livePnl = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
+    const officialPnl = calcTradePnl(inst, entry, num(p.last_px), units, isLong, _gbpUsdRate);
+    if (livePnl !== null) {
+      liveTotalOpenPnl += livePnl;
+      if (officialPnl !== null) officialMarkedOpenPnl += officialPnl;
+      liveTotalGross += _book === 'r' ? (m.px * units) : (m.px * units) / (_gbpUsdRate || 1.285);
       liveCount++;
     }
   }
@@ -714,8 +758,8 @@ function applyLiveMarks() {
     if (entry === null || units === null) continue;
     const cls = paperClassFor(inst);
     const isLong = card.dataset.liveDir !== 'short';
-    const pnlGbp = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
-    if (pnlGbp === null) continue;
+    const livePnl = calcTradePnl(inst, entry, m.px, units, isLong, _gbpUsdRate);
+    if (livePnl === null) continue;
 
     // 1. Directly update card Last Price
     const lastPxEl = card.querySelector('.card-last-px');
@@ -726,8 +770,8 @@ function applyLiveMarks() {
     // 2. Directly update card's main primary Unrealized P&L
     const upnlEl = card.querySelector('.card-upnl-val');
     if (upnlEl) {
-      upnlEl.className = 'card-upnl-val ' + (pnlGbp > 0 ? 'pos' : (pnlGbp < 0 ? 'neg' : ''));
-      upnlEl.textContent = fmtSignedMoney(pnlGbp);
+      upnlEl.className = 'card-upnl-val ' + (livePnl > 0 ? 'pos' : (livePnl < 0 ? 'neg' : ''));
+      upnlEl.textContent = fmtSignedMoney(livePnl);
     }
 
     // 3. Update Live Intraday row with live confirmation
@@ -750,8 +794,12 @@ function applyLiveMarks() {
     // 5. Update hero equity and net return with live floating P&L
     const closed = closedTrades();
     const realizedBanked = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
-    const liveTotalNetReturn = realizedBanked + liveTotalOpenPnl;
-    const liveTotalEquity = BOOK_START_EQUITY + liveTotalNetReturn;
+    const latest = latestDaily();
+    const officialEquity = latest ? num(latest.equity) : BOOK_START_EQUITY;
+    const liveTotalEquity = _book === 'r'
+      ? officialEquity + (liveTotalOpenPnl - officialMarkedOpenPnl)
+      : BOOK_START_EQUITY + realizedBanked + liveTotalOpenPnl;
+    const liveTotalNetReturn = liveTotalEquity - BOOK_START_EQUITY;
 
     setText('engEquity', fmtMoney(liveTotalEquity));
     setText('engCumPnl', fmtSignedMoney(liveTotalNetReturn), pnlClass(liveTotalNetReturn));
@@ -764,7 +812,6 @@ function applyLiveMarks() {
     }
 
     const dayChip = document.getElementById('engDayChip');
-    const latest = latestDaily();
     if (dayChip) {
       const priorEquity = latest ? num(latest.equity) : BOOK_START_EQUITY;
       const liveDayPnl = liveTotalEquity - priorEquity;
@@ -829,6 +876,14 @@ function applyBookChrome() {
   if (blurb) blurb.textContent = meta.blurb;
   const since = document.getElementById('engSinceSub');
   if (since) since.textContent = 'since ' + meta.startLabel;
+  const experiment = document.getElementById('engExperimentLabel');
+  if (experiment) experiment.textContent = _book === 'r'
+    ? 'Forward Paper · $100k USD Account'
+    : 'Paper Proof · £100k Experiment';
+  const heroLabel = document.getElementById('engHeroLabel');
+  if (heroLabel) heroLabel.textContent = _book === 'r'
+    ? 'Book R-252 — Forward Paper'
+    : 'Engine Proof Book — Paper';
 }
 
 function setBook(book) {
@@ -896,7 +951,8 @@ const SUPA_RT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const RT_TABLES = [
   'apex_paper_positions', 'apex_paper_daily',
   'apex_paper_b_positions', 'apex_paper_b_daily',
-  'apex_paper_c_positions', 'apex_paper_c_daily'
+  'apex_paper_c_positions', 'apex_paper_c_daily',
+  'apex_analyses'
 ];
 let _rtDebounce = null;
 

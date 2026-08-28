@@ -39,6 +39,11 @@ DAILY_TABLE_C = "apex_paper_c_daily"
 FALLBACK_TABLE_C = "apex_analyses"
 FALLBACK_ID_C = "__apex_book_c_paper_runtime__"
 
+# Book R is intentionally isolated from the A/B/C schemas.  Its forward-paper
+# runtime is one namespaced JSONB document so it can start collecting unseen
+# evidence immediately without pretending a research book is a funded book.
+FALLBACK_ID_R = "__apex_book_r_252_forward_paper_runtime__"
+
 
 def _url(table: str) -> str:
     return f"{_SUPA_URL}/rest/v1/{table}"
@@ -107,6 +112,32 @@ def _write_c_fallback(payload: dict) -> bool:
         "feature_vector": payload,
         "analysis_text": "Namespaced Book C internal-paper runtime mirror",
         "verdict": "PAPER_STATE",
+    }])
+
+
+def fetch_book_r_runtime() -> dict | None:
+    """Fetch the complete namespaced Book R forward-paper runtime payload."""
+    rows = _get(
+        FALLBACK_TABLE_C,
+        {"select": "feature_vector", "id": f"eq.{FALLBACK_ID_R}", "limit": "1"},
+    )
+    if not rows:
+        return None
+    payload = rows[0].get("feature_vector")
+    return payload if isinstance(payload, dict) else None
+
+
+def write_book_r_runtime(payload: dict) -> bool:
+    """Persist Book R's paper state; never touches broker or A/B/C rows."""
+    return _post_upsert(FALLBACK_TABLE_C, [{
+        "id": FALLBACK_ID_R,
+        "user_id": "apex_engine",
+        "symbol": "BOOK_R_252",
+        "timeframe": "1d",
+        "direction": "paper",
+        "feature_vector": payload,
+        "analysis_text": "Namespaced Book R-252 $100k forward-paper runtime mirror",
+        "verdict": "FORWARD_PAPER_ACTIVE",
     }])
 
 

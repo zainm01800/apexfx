@@ -1,7 +1,8 @@
 name: paper-portfolio
 
 # Daily forward paper steps for Book A (frozen 252-day), Book B (252-day plus
-# spillover gate), and Book C (champion 63/126/252 ensemble at 0.85% risk).
+# spillover gate), Book C (champion 63/126/252 ensemble at 0.85% risk), and
+# Book R-252 (long-only USD ETF momentum control seeded at $100,000).
 # These steppers are engine-simulated, not broker execution: each run tops up
 # the parquet cache, restores the authoritative Supabase state, advances one
 # closed daily bar, and writes the state back. Idempotent — only bars strictly
@@ -69,6 +70,15 @@ jobs:
             fi
             echo "Book C dedicated tables unavailable; namespaced JSONB mirror is reachable."
           fi
+          # Book R intentionally uses a namespaced JSONB document: it is a new
+          # forward-paper evidence stream, not a promoted/funded A/B/C book.
+          r_fallback=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_analyses?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          if [ "$r_fallback" != "200" ]; then
+            echo "::error::Book R namespaced runtime mirror is not reachable."
+            exit 1
+          fi
           echo "Paper-state persistence OK — proceeding."
       - uses: actions/setup-python@v5
         with:
@@ -110,6 +120,13 @@ jobs:
         # own state dir + apex_paper_c_* tables.
         working-directory: engine
         run: python scripts/run_paper_portfolio_c.py --prefer-supabase
+      - name: Advance Book R-252 $100k USD ETF forward paper
+        # Fourth, isolated paper account. Monthly decisions are formed at the
+        # official XNYS month-end close and filled at the next common-session
+        # open with 5 bps/side. This creates forward evidence only; no broker
+        # route exists in the runner.
+        working-directory: engine
+        run: python scripts/run_paper_portfolio_r.py --prefer-supabase
       - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
         working-directory: engine
         run: python scripts/nightly_risk_report.py

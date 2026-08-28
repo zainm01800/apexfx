@@ -47,7 +47,7 @@
 
     <div class="pg-header ob-pagehead">
       <div>
-        <span class="ob-eyebrow">Paper Proof · £100k Experiment</span>
+        <span class="ob-eyebrow" id="engExperimentLabel">Paper Proof · £100k Experiment</span>
         <h1 class="pg-title">Engine Book</h1>
         <p class="pg-subtitle" id="engBookBlurb">The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.</p>
       </div>
@@ -64,7 +64,7 @@
       <div class="hs-stat">
         <div class="ob-hero-inner">
           <div class="ob-hero-left">
-            <span class="ob-eyebrow">Engine Proof Book — Paper</span>
+            <span class="ob-eyebrow" id="engHeroLabel">Engine Proof Book — Paper</span>
             <span class="hs-val" id="engEquity">—</span>
             <span class="ob-hero-sub">latest daily equity snapshot — engine paper book only</span>
             <span class="ob-hero-line" id="engHeroLine"></span>
@@ -88,6 +88,7 @@
         <button id="btnBookA" class="vt-btn active" data-book="a">Book A · Certified 252</button>
         <button id="btnBookB" class="vt-btn" data-book="b">Book B · Challenger 252+spill50</button>
         <button id="btnBookC" class="vt-btn" data-book="c">Book C · Champion 63/126/252</button>
+        <button id="btnBookR" class="vt-btn" data-book="r">Book R · USD ETF 252</button>
       </div>
       <div class="ob-toolbar-end">
         <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
@@ -154,6 +155,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=15"></script>
+  <script src="./engine-book.js?v=16"></script>
 </body>
 </html>

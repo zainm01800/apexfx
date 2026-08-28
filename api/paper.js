@@ -4,6 +4,7 @@
 // GET /api/paper?table=positions    — open paper positions (apex_paper_positions)
 // GET /api/paper?book=b             — challenger book (252+spill50, apex_paper_b_* tables); default = A
 // GET /api/paper?book=c             — champion book (63/126/252, apex_paper_c_* tables)
+// GET /api/paper?book=r             — Book R-252 $100k USD ETF forward-paper mirror
 
 export const config = { runtime: 'edge' };
 
@@ -16,6 +17,7 @@ const TABLES = {
   a: { daily: 'apex_paper_daily', positions: 'apex_paper_positions' },
   b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
   c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions' },
+  r: { fallbackId: '__apex_book_r_252_forward_paper_runtime__' },
 };
 
 function supaHeaders() {
@@ -48,6 +50,22 @@ export default async function handler(req) {
     const table = url.searchParams.get('table') || 'daily';
     const limit = Math.min(500, parseInt(url.searchParams.get('limit') || '120', 10));
     const book  = TABLES[url.searchParams.get('book')] ? url.searchParams.get('book') : 'a';
+
+    // Book R is an isolated forward-paper evidence stream stored as one
+    // namespaced JSONB document. It has no funded/broker table pair.
+    if (book === 'r') {
+      const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${TABLES.r.fallbackId}&select=feature_vector&limit=1`;
+      const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
+      if (!stateResponse.ok) {
+        const txt = await stateResponse.text();
+        return new Response(JSON.stringify({ error: `Book R mirror query failed: ${txt}` }), { status: stateResponse.status, headers: cors });
+      }
+      const stateRows = await stateResponse.json();
+      const state = stateRows[0] && stateRows[0].feature_vector;
+      const key = table === 'positions' ? 'positions' : 'daily';
+      const rows = state && Array.isArray(state[key]) ? state[key].slice(-limit) : [];
+      return new Response(JSON.stringify(rows), { status: 200, headers: cors });
+    }
 
     let queryUrl;
     if (table === 'positions') {

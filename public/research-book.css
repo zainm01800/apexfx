@@ -7,6 +7,7 @@
 .research-subtitle { margin:0; color:var(--text2); font-size:15px; line-height:1.65; }
 .research-status,.research-label,.research-chip,.research-cost-tag { font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 .research-status { display:inline-flex; align-items:center; min-height:30px; padding:5px 10px; color:var(--warn); background:var(--warn-dim); border:1px solid var(--warn-line); border-radius:var(--r-pill); }
+.research-status.active { color:var(--mint); background:var(--mint-dim); border-color:var(--mint-line); }
 .research-top-pill { display:inline-flex; align-items:center; min-height:28px; padding:5px 10px; color:var(--info); background:var(--info-dim); border:1px solid var(--info-line); border-radius:var(--r-pill); font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; }
 .research-guardrail { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:start; gap:12px; margin-bottom:20px; padding:15px 17px; border:1px solid var(--warn-line); border-radius:var(--r-card); color:var(--ink-2); background:linear-gradient(135deg,rgba(240,180,92,.10),rgba(240,180,92,.035)); }
 .research-guardrail-icon { font-size:18px; line-height:1.25; }.research-guardrail strong { color:var(--warn); }.research-guardrail p { margin:3px 0 0; font-size:13px; line-height:1.6; }

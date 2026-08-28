@@ -11,6 +11,7 @@ pydantic-settings>=2.1
 # ── Data / maths ─────────────────────────────────────────────────────────────
 numpy>=1.26
 pandas>=2.1
+exchange-calendars>=4.5,<5  # authoritative XNYS sessions for Book R month-end decisions
 scipy>=1.11
 pyarrow>=14          # parquet historical store
 httpx>=0.26          # async OHLCV fetching + DeepSeek API calls
