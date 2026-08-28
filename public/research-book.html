@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Z.FX — Book R-252 Research</title>
+  <meta name="description" content="Book R-252 is a research-only causal retrospective audit of a USD ETF momentum control." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#07090D" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Z.FX" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./progress.css" />
+  <link rel="stylesheet" href="./research-book.css" />
+  <link rel="stylesheet" href="./theme.css?v=3" />
+</head>
+<body>
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+      <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
+      <a class="nav-link" id="nav-race" href="ab-race.html">A/B Race</a>
+      <a class="nav-link active" id="nav-research" href="research-book.html" aria-current="page">Research</a>
+      <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+    </nav>
+    <div class="header-right" id="headerRight"><span class="research-top-pill">Audited research</span></div>
+  </header>
+
+  <main class="research-main">
+    <header class="research-head">
+      <span class="ob-eyebrow">Research control · USD ETF momentum</span>
+      <div class="research-title-row"><h1 class="research-title">Book R-252</h1><span class="research-status">Research only</span></div>
+      <p class="research-subtitle">A frozen causal retrospective audit of a USD-only ETF momentum control. It is <strong>not live, funded, or a true blind backtest</strong>; its results are deliberately kept separate from the GBP A/B/C forward-paper books.</p>
+    </header>
+
+    <section class="research-guardrail" aria-label="Research status">
+      <span class="research-guardrail-icon" aria-hidden="true">⚠</span>
+      <div><strong>Do not treat this as a deployable strategy.</strong><p>Causal timing was enforced, but the historical cache was already accessible to this project. The next valid evidence is an externally held lockbox or meaningful forward-paper period after the 28 Aug 2026 specification freeze.</p></div>
+    </section>
+
+    <section class="research-summary" aria-label="Book R-252 audited summary">
+      <article class="research-panel">
+        <div class="research-panel-kicker research-label">10-year causal retrospective audit</div>
+        <h2 class="research-panel-title">USD ETF Momentum Control</h2>
+        <p class="research-panel-copy">From <strong>19 Aug 2016</strong> to <strong>19 Aug 2026</strong>, R-252 used 2,513 strict common daily sessions. It began with <strong>$100,000</strong> and used the base cost assumption of <strong>5 bps per side</strong>.</p>
+        <div class="research-action-row"><a class="research-link-btn" href="research/book-r-252-audit.json" target="_blank" rel="noopener">Open audit data</a><a class="research-link-btn secondary" href="engine-book.html">View live paper books</a></div>
+      </article>
+      <div class="research-metrics" aria-label="Base-cost results">
+        <article class="research-metric"><span class="research-metric-value mint">+405.22%</span><span class="research-metric-label">Total return</span><span class="research-metric-note">5 bps / side</span></article>
+        <article class="research-metric"><span class="research-metric-value">0.974</span><span class="research-metric-label">Sharpe ratio</span><span class="research-metric-note">Annualised daily-return Sharpe</span></article>
+        <article class="research-metric"><span class="research-metric-value">$505,217</span><span class="research-metric-label">Final NAV</span><span class="research-metric-note">from $100,000</span></article>
+        <article class="research-metric"><span class="research-metric-value warn">−23.63%</span><span class="research-metric-label">Maximum drawdown</span><span class="research-metric-note">Peak-to-trough</span></article>
+      </div>
+    </section>
+
+    <section class="research-section" aria-labelledby="method-heading">
+      <div class="research-section-head"><div><h2 class="research-section-title" id="method-heading">Frozen method</h2><p class="research-section-note">The rules below were fixed before the audit result was run.</p></div></div>
+      <div class="research-grid">
+        <article class="research-card"><span class="research-label">1 · Signal</span><h3>Positive momentum only</h3><p>At each calendar month-end close, rank ETFs by 252-session return divided by 63-session log-return volatility. Non-positive momentum stays in cash.</p></article>
+        <article class="research-card"><span class="research-label">2 · Portfolio</span><h3>Three equal-weight slots</h3><p>Hold up to three ETFs at 95% gross exposure. Only one ETF can be selected from each predeclared economic cluster.</p></article>
+        <article class="research-card"><span class="research-label">3 · Execution</span><h3>Next session open</h3><p>The month-end decision is never filled on the same close. Rebalances occur at the next common ETF-market open with transaction costs applied.</p></article>
+        <article class="research-card"><span class="research-label">4 · Boundaries</span><h3>Long-only control</h3><p>No shorts, leverage, intrabar stop or target assumptions. A final liquidation cost is included rather than assuming a free exit.</p></article>
+      </div>
+    </section>
+
+    <section class="research-section" aria-labelledby="cost-heading">
+      <div class="research-section-head"><div><h2 class="research-section-title" id="cost-heading">Cost robustness</h2><p class="research-section-note">Same frozen rules and holdings; only the per-side cost changes.</p></div></div>
+      <div class="research-cost-grid">
+        <article class="research-cost-card"><div class="research-cost-top"><h3 class="research-cost-title">Base cost model</h3><span class="research-cost-tag">5 bps / side</span></div><div class="research-cost-stats"><div class="research-cost-stat"><span class="research-cost-value">+17.64%</span><span class="research-cost-label">Annualised return</span></div><div class="research-cost-stat"><span class="research-cost-value">0.974</span><span class="research-cost-label">Sharpe</span></div><div class="research-cost-stat"><span class="research-cost-value">$6,196</span><span class="research-cost-label">Total costs</span></div></div><p class="research-cost-foot">Final NAV $505,217.46 · max drawdown 23.63%.</p></article>
+        <article class="research-cost-card stress"><div class="research-cost-top"><h3 class="research-cost-title">2× cost stress</h3><span class="research-cost-tag">10 bps / side</span></div><div class="research-cost-stats"><div class="research-cost-stat"><span class="research-cost-value">+17.29%</span><span class="research-cost-label">Annualised return</span></div><div class="research-cost-stat"><span class="research-cost-value">0.958</span><span class="research-cost-label">Sharpe</span></div><div class="research-cost-stat"><span class="research-cost-value">$12,171</span><span class="research-cost-label">Total costs</span></div></div><p class="research-cost-foot">Final NAV $490,374.65 · max drawdown 23.65%.</p></article>
+      </div>
+    </section>
+
+    <section class="research-section" aria-labelledby="universe-heading">
+      <div class="research-card research-universe"><div><span class="research-label" id="universe-heading">Fixed USD universe</span><p class="research-universe-copy">Ten predeclared US-listed, USD-quoted ETFs. The audit did not include FX, crypto, individual shares, CFDs, futures, or foreign listings.</p></div><div class="research-chip-grid" aria-label="ETF universe"><span class="research-chip"><strong>SPY</strong> broad equity</span><span class="research-chip"><strong>QQQ</strong> broad equity</span><span class="research-chip"><strong>IWM</strong> broad equity</span><span class="research-chip"><strong>XLK</strong> technology</span><span class="research-chip"><strong>SMH</strong> technology</span><span class="research-chip"><strong>SOXX</strong> technology</span><span class="research-chip"><strong>GLD</strong> gold</span><span class="research-chip"><strong>TLT</strong> rates</span><span class="research-chip"><strong>XLE</strong> energy</span><span class="research-chip"><strong>XBI</strong> biotech</span></div></div>
+    </section>
+
+    <section class="research-section" aria-labelledby="activity-heading">
+      <div class="research-section-head"><div><h2 class="research-section-title" id="activity-heading">Audit activity</h2><p class="research-section-note">Order fills are operational rebalance events, not 406 independent trade ideas.</p></div></div>
+      <div class="research-activity-grid">
+        <article class="research-card research-activity"><strong>120</strong><span>Scheduled monthly selections</span><p>One decision point per audited month.</p></article>
+        <article class="research-card research-activity"><strong>406</strong><span>Order fills</span><p>403 rebalancing fills plus 3 final liquidation fills.</p></article>
+        <article class="research-card research-activity"><strong>86</strong><span>Continuous ETF holding episodes</span><p>The comparable measure of distinct periods held.</p></article>
+        <article class="research-card research-activity"><strong>61.5d</strong><span>Median completed episode</span><p>Calendar days; a monthly system, not a day-trading result.</p></article>
+      </div>
+    </section>
+
+    <section class="research-section" aria-labelledby="fold-heading">
+      <div class="research-section-head"><div><h2 class="research-section-title" id="fold-heading">Calendar-fold inspection</h2><p class="research-section-note">Each calendar row is a separate flat $100,000 start; rows are not additive or compounding parts of the full result.</p></div></div>
+      <article class="research-card research-table-card"><div class="research-table-wrap"><table class="research-table"><thead><tr><th>Fold</th><th>Base return</th><th>2× cost return</th><th>Base max DD</th><th>Selections</th><th>Holding episodes</th></tr></thead><tbody>
+        <tr><td>2016</td><td>0.00%</td><td>0.00%</td><td>0.00%</td><td>4</td><td>0</td></tr><tr><td>2017</td><td class="positive">+20.08%</td><td class="positive">+19.59%</td><td>4.79%</td><td>11</td><td>13</td></tr><tr><td>2018</td><td class="negative">−11.84%</td><td class="negative">−12.21%</td><td>23.63%</td><td>11</td><td>12</td></tr><tr><td>2019</td><td class="positive">+18.26%</td><td class="positive">+17.96%</td><td>4.60%</td><td>11</td><td>8</td></tr><tr><td>2020</td><td class="positive">+33.91%</td><td class="positive">+33.43%</td><td>17.08%</td><td>11</td><td>11</td></tr><tr><td>2021</td><td class="positive">+10.29%</td><td class="positive">+9.83%</td><td>13.96%</td><td>11</td><td>13</td></tr><tr><td>2022</td><td class="positive">+3.88%</td><td class="positive">+3.58%</td><td>22.30%</td><td>11</td><td>6</td></tr><tr><td>2023</td><td class="positive">+7.06%</td><td class="positive">+6.50%</td><td>13.21%</td><td>11</td><td>14</td></tr><tr><td>2024</td><td class="positive">+16.55%</td><td class="positive">+16.18%</td><td>11.07%</td><td>11</td><td>10</td></tr><tr><td>2025</td><td class="positive">+23.27%</td><td class="positive">+22.95%</td><td>16.49%</td><td>11</td><td>8</td></tr><tr><td>2026</td><td class="positive">+27.69%</td><td class="positive">+27.40%</td><td>12.44%</td><td>7</td><td>7</td></tr>
+      </tbody></table></div><p class="research-table-note">2016 has no signal before the required lookback warm-up. The full-history compound result above is the primary result; these independent folds show variation rather than supplying a second performance claim.</p></article>
+    </section>
+
+    <section class="research-section" aria-labelledby="limits-heading">
+      <div class="research-section-head"><div><h2 class="research-section-title" id="limits-heading">What this result does not establish</h2><p class="research-section-note">These limitations are part of the audit, not small print.</p></div></div>
+      <ul class="research-limit-list"><li><strong>Not blind</strong>The historical cache was already accessible before the test, so causal replay cannot be called a true blind backtest.</li><li><strong>Not total return</strong>Cached ETF bars are price returns. Dividends and cash interest were not reconstructed.</li><li><strong>Not comparable to A/B/C</strong>R is a USD ETF control. A/B/C are separate GBP-labelled forward-paper books with different rules and accounting.</li></ul>
+      <p class="research-next"><strong>Before any promotion:</strong> obtain an externally held unseen historical lockbox or meaningful forward-paper evidence after the specification freeze, then reconcile account-currency valuation and use verified total-return data for benchmark-quality ETF comparisons.</p>
+    </section>
+  </main>
+  <script src="./app-mode.js"></script>
+</body>
+</html>

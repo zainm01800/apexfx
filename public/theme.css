@@ -574,6 +574,7 @@ select option { background: var(--obs-s2); color: var(--ink); }
   }
   body.layout-app .header .nav-link[href="ibkr-trades.html"]::before { content: '🏛️'; }
   body.layout-app .header .nav-link[href="engine-book.html"]::before { content: '🧪'; }
+  body.layout-app .header .nav-link[href="research-book.html"]::before { content: '🔬'; }
   body.layout-app .header .nav-link[href="progress.html"]::before    { content: '📈'; }
   body.layout-app .header .nav-link[href="history.html"]::before     { content: '📜'; }
   body.layout-app .header .nav-link.active { background: var(--mint-dim); border-color: transparent; color: var(--mint); }
@@ -925,3 +926,82 @@ select option { background: var(--obs-s2); color: var(--ink); }
     font-size: 15px !important;
   }
 }
+
+/* ── 20 · Book R research route ─────────────────────────────────────────── */
+.ob-research-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 20px;
+  padding: 12px 15px;
+  background: linear-gradient(100deg, rgba(94,162,255,.11), rgba(47,214,163,.045));
+  border: 1px solid var(--info-line);
+  border-radius: var(--r-card);
+  color: var(--ink-2) !important;
+  text-decoration: none;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.ob-research-callout:hover { transform: translateY(-1px); border-color: rgba(94,162,255,.48); background: linear-gradient(100deg, rgba(94,162,255,.16), rgba(47,214,163,.08)); }
+.ob-research-kicker { color: var(--info); font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.ob-research-copy { min-width: 0; font-size: 12.5px; line-height: 1.5; }
+.ob-research-copy strong { color: var(--ink); }
+.ob-research-arrow { color: var(--mint); font-family: var(--font-mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+/* ── 21 · Final iPhone safe-area rules ─────────────────────────────────────
+   The installed app uses viewport-fit=cover. This comes after earlier mobile
+   shorthands so the camera island and home indicator remain clear. */
+@supports (padding: env(safe-area-inset-top)) {
+  @media (max-width: 768px) {
+    .header {
+      padding-top: max(6px, env(safe-area-inset-top));
+      padding-inline-start: max(12px, env(safe-area-inset-left));
+      padding-inline-end: max(12px, env(safe-area-inset-right));
+      min-height: calc(52px + env(safe-area-inset-top));
+    }
+    .results-section,
+    .history-main,
+    .bt-main,
+    .tr-main,
+    .pg-main,
+    .hiw-main,
+    .research-main {
+      padding-inline-start: max(14px, env(safe-area-inset-left)) !important;
+      padding-inline-end: max(14px, env(safe-area-inset-right)) !important;
+      padding-bottom: max(48px, calc(28px + env(safe-area-inset-bottom))) !important;
+    }
+    .app-footer { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+    .apex-modal-bg,
+    .bt-modal {
+      padding-top: env(safe-area-inset-top);
+      padding-right: max(12px, env(safe-area-inset-right));
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      padding-left: max(12px, env(safe-area-inset-left));
+    }
+    .apex-modal { width: min(480px, 100%); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); overflow: auto; }
+    .bt-modal-box { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); }
+  }
+  @media (max-width: 480px) {
+    .header { padding-inline-start: max(10px, env(safe-area-inset-left)); padding-inline-end: max(10px, env(safe-area-inset-right)); }
+    .results-section,
+    .history-main,
+    .bt-main,
+    .tr-main,
+    .pg-main,
+    .hiw-main,
+    .research-main { padding-inline-start: max(10px, env(safe-area-inset-left)) !important; padding-inline-end: max(10px, env(safe-area-inset-right)) !important; }
+  }
+}
+
+@media (max-width: 768px) {
+  /* Prevent Safari's focus zoom and make navigation comfortably tappable. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea { font-size: 16px !important; }
+  .nav-link,
+  .header .nav-settings-btn { min-height: 38px; display: inline-flex; align-items: center; }
+  .ob-research-callout { grid-template-columns: 1fr auto; align-items: start; }
+  .ob-research-kicker { grid-column: 1 / -1; }
+  .pg-book-grid { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+}
+@media (max-width: 480px) { .ob-research-callout { padding: 12px; gap: 8px; } .ob-research-arrow { font-size: 10px; } }

@@ -1,0 +1,48 @@
+{
+  "book_id": "book_r_usd_etf_momentum_control",
+  "display_name": "Book R-252 · USD ETF Momentum Control",
+  "status": "research-only causal retrospective audit; not live, funded, or a true blind backtest",
+  "audit_window": {
+    "start": "2016-08-19",
+    "end": "2026-08-19",
+    "common_daily_sessions": 2513,
+    "account_currency": "USD",
+    "starting_nav_usd": 100000
+  },
+  "method": {
+    "decision": "At each month-end close, rank a fixed ETF universe by positive 252-session momentum adjusted for 63-session log-return volatility.",
+    "portfolio": "Up to three equal-weight long ETFs, with one ETF per predeclared economic cluster and 95% gross exposure.",
+    "execution": "Fill at the next common market open. No shorting, leverage, intrabar stops, or targets. Final liquidation cost included.",
+    "universe": ["GLD", "IWM", "QQQ", "SMH", "SOXX", "SPY", "TLT", "XBI", "XLE", "XLK"]
+  },
+  "base_cost_5bps_per_side": {
+    "total_return": 4.052174624889605,
+    "annualized_return": 0.17644566295946817,
+    "sharpe": 0.973737446541698,
+    "max_drawdown": 0.236285722451819,
+    "final_nav_usd": 505217.4624889605,
+    "net_pnl_usd": 405217.4624889605,
+    "transaction_cost_usd": 6196.253791852989
+  },
+  "stress_cost_10bps_per_side": {
+    "total_return": 3.903746524457035,
+    "annualized_return": 0.17293167541821153,
+    "sharpe": 0.9575082065040336,
+    "max_drawdown": 0.2365496732318474,
+    "final_nav_usd": 490374.6524457035,
+    "net_pnl_usd": 390374.6524457035,
+    "transaction_cost_usd": 12171.485433799735
+  },
+  "activity": {
+    "monthly_selections": 120,
+    "order_fills": 406,
+    "continuous_holding_episodes": 86,
+    "median_completed_episode_calendar_days": 61.5
+  },
+  "required_next_evidence": [
+    "A genuinely unseen third-party historical lockbox or a meaningful forward-paper period after the 2026-08-28 specification freeze.",
+    "Reconciled account-currency valuation before comparing it with GBP books.",
+    "Dividend / total-return data for benchmark-quality ETF comparisons."
+  ],
+  "source_artifact": "engine/data_store/validation/book_r_10y_causal_audit_2026-08-28.parts/part-*"
+}

@@ -117,7 +117,11 @@
     const liveEquity = Number(last.equity) + liveOpenPnl;
     const liveCum = (liveEquity - initialSeed);
 
-    const maxDD = Math.min(...rows.map(r => Number(r.drawdown_from_peak) || 0));
+    // `drawdown_from_peak` is stored as a positive loss fraction (for example,
+    // 0.0648 means a 6.48% drawdown).  The largest observed value is therefore
+    // the maximum drawdown; taking Math.min incorrectly reports 0 whenever the
+    // series includes an at-peak observation.
+    const maxDD = Math.max(...rows.map(r => Number(r.drawdown_from_peak) || 0));
     return {
       equity: liveEquity,
       cum: liveCum,

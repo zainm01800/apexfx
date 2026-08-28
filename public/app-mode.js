@@ -316,6 +316,22 @@ window.addEventListener('DOMContentLoaded', () => {
   // Inject Settings button into header
   const header = document.querySelector('.header');
   if (header) {
+    // Keep the research-control audit reachable from every terminal page. It is
+    // intentionally separate from the A/B/C live paper-book navigation.
+    const nav = header.querySelector('.nav');
+    if (nav && !nav.querySelector('#nav-research')) {
+      const research = document.createElement('a');
+      research.className = 'nav-link';
+      research.id = 'nav-research';
+      research.href = 'research-book.html';
+      research.textContent = 'Research';
+      if ((window.location.pathname.split('/').pop() || '') === 'research-book.html') {
+        research.classList.add('active');
+        research.setAttribute('aria-current', 'page');
+      }
+      const race = nav.querySelector('#nav-race');
+      nav.insertBefore(research, race ? race.nextSibling : null);
+    }
     const right = header.querySelector('.header-right');
     if (right) {
       const btn = document.createElement('button');
@@ -339,9 +355,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Preload sub-pages and assets to make tab switching instantaneous (0ms network lag)
   const resources = [
-    'index.html', 'dashboard.html', 'history.html', 'backtest.html', 'track-record.html', 'how-it-works.html', 'engine-book.html', 'ab-race.html',
+    'index.html', 'dashboard.html', 'history.html', 'backtest.html', 'track-record.html', 'how-it-works.html', 'engine-book.html', 'ab-race.html', 'research-book.html',
     'dashboard.css', 'history.css', 'backtest.css',
-    'dashboard.js', 'history.js', 'backtest.js', 'track-record.js', 'engine-book.js', 'ab-race.js'
+    'dashboard.js', 'history.js', 'backtest.js', 'track-record.js', 'engine-book.js', 'ab-race.js', 'research-book.css'
   ];
   const currentPage = window.location.pathname.split('/').pop() || 'index.html';
   resources.forEach(res => {
