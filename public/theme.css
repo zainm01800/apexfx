@@ -651,6 +651,79 @@ select option { background: var(--obs-s2); color: var(--ink); }
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
+.book-r-signal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+  padding: 10px 11px;
+  border: 1px solid var(--mint-line);
+  border-radius: 8px;
+  background: var(--mint-dim);
+}
+.book-r-signal-head > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.book-r-signal-head span {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.book-r-signal-head strong { color: var(--mint); font-family: var(--font-mono); font-size: 12px; }
+.book-r-signal-head .book-r-cluster {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  color: var(--mint);
+  border: 1px solid var(--mint-line);
+  border-radius: var(--r-pill);
+  background: rgba(0,0,0,.14);
+  white-space: nowrap;
+}
+.book-r-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.book-r-detail {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--obs-line);
+  border-radius: 7px;
+  background: rgba(255,255,255,.018);
+}
+.book-r-detail span, .book-r-detail small {
+  display: block;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.35;
+}
+.book-r-detail strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-r-detail strong.pos { color: var(--mint); }
+.book-r-detail strong.neg { color: var(--red); }
+.book-r-detail small { margin-top: 2px; font-size: 8.5px; }
+.book-r-rule-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--obs-line);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+.book-r-rule-row strong { color: var(--ink-2); font-weight: 600; }
 #mt4TradesGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));

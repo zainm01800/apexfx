@@ -204,7 +204,8 @@ def _execute_pending(
     if not state["pending"]:
         return []
 
-    selected = {inst for inst in state["pending"] if inst != "CASH"}
+    pending = copy.deepcopy(state["pending"])
+    selected = {inst for inst in pending if inst != "CASH"}
     equity, _ = _mark_equity(state, open_prices)
     target_value = equity * BOOK_SPEC.gross_target / len(selected) if selected else 0.0
     current_units = {
@@ -232,7 +233,7 @@ def _execute_pending(
         side = "buy" if delta > 0 else "sell"
         fill = {
             "date": _date(date),
-            "decision_date": next(iter(state["pending"].values()))["decision_date"],
+            "decision_date": next(iter(pending.values()))["decision_date"],
             "instrument": inst,
             "side": side,
             "units": abs(delta),
@@ -295,6 +296,18 @@ def _execute_pending(
         state["cost_total"] = float(state["cost_total"]) + cost
         state["fills"].append(fill)
         fills.append(fill)
+
+    # Persist the selection rationale on each surviving holding. This is
+    # display/audit metadata only; sizing above still uses the frozen spec.
+    for inst in selected:
+        position = state["positions"].get(inst)
+        meta = pending.get(inst) or {}
+        if position is not None:
+            position["decision_date"] = meta.get("decision_date")
+            position["signal_score"] = meta.get("score")
+            position["momentum"] = meta.get("momentum")
+            position["cluster"] = meta.get("cluster")
+            position["target_weight"] = BOOK_SPEC.gross_target / len(selected)
 
     if state["cash"] < -1e-6:
         raise RuntimeError("Book R forward sizing attempted to borrow cash")
@@ -382,14 +395,42 @@ def display_daily_rows(state: dict) -> list[dict]:
 def display_position_rows(state: dict, *, updated_at: str | None = None) -> list[dict]:
     validate_forward_state(state)
     stamp = updated_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    latest_equity = (
+        float(state["equity_curve"][-1]["equity"])
+        if state.get("equity_curve")
+        else INITIAL_EQUITY_USD
+    )
+
+    # States created before detailed cards were introduced do not have signal
+    # metadata embedded in each position. Recover it from the immutable
+    # selection log so existing forward positions render correctly immediately.
+    selection_meta: dict[str, dict] = {}
+    for selection in reversed(state.get("selections") or []):
+        for selected in selection.get("selected") or []:
+            inst = selected.get("instrument")
+            if inst and inst not in selection_meta:
+                selection_meta[inst] = {
+                    **selected,
+                    "decision_date": selection.get("decision_date"),
+                    "selection_size": len(selection.get("selected") or []),
+                }
+
     rows = []
     for inst, position in sorted(state["positions"].items()):
+        meta = selection_meta.get(inst, {})
+        last_px = float(position["last_px"])
+        units = float(position["units"])
+        notional = units * last_px
+        selection_size = int(meta.get("selection_size") or 0)
+        target_weight = position.get("target_weight")
+        if target_weight is None and selection_size:
+            target_weight = BOOK_SPEC.gross_target / selection_size
         rows.append({
             "instrument": inst,
             "updated_at": stamp,
             "direction": "long",
-            "units": float(position["units"]),
-            "initial_units": float(position["units"]),
+            "units": units,
+            "initial_units": units,
             "entry_price": float(position["entry_price"]),
             "entry_time": position["entry_time"],
             "entry_idx": 0,
@@ -398,13 +439,28 @@ def display_position_rows(state: dict, *, updated_at: str | None = None) -> list
             "target": None,
             "risk_abs": None,
             "tf": "1d",
-            "last_px": float(position["last_px"]),
+            "last_px": last_px,
             "bars_open": int(position.get("bars_open", 0)),
             "tms_p1": False,
             "tms_p2": False,
             "tms_be": False,
             "realized_pnl_total": float(position.get("realized_pnl_total", 0.0)),
             "tms_log": [],
+            "account_currency": "USD",
+            "strategy": "R-252 monthly USD ETF momentum",
+            "decision_date": position.get("decision_date") or meta.get("decision_date"),
+            "cluster": position.get("cluster") or meta.get("cluster"),
+            "signal_score": position.get("signal_score", meta.get("score")),
+            "momentum": position.get("momentum", meta.get("momentum")),
+            "target_weight": target_weight,
+            "current_notional_usd": notional,
+            "current_weight": notional / latest_equity if latest_equity > 0 else None,
+            "entry_cost_remaining_usd": float(position.get("entry_cost_remaining", 0.0)),
+            "cost_bps_per_side": BOOK_SPEC.cost_bps_per_side,
+            "gross_target": BOOK_SPEC.gross_target,
+            "max_positions": BOOK_SPEC.max_positions,
+            "next_rebalance_date": state.get("next_month_end_session"),
+            "exit_rule": "official XNYS month-end rebalance",
         })
     return rows
 

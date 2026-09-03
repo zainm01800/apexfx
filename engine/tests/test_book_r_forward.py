@@ -12,6 +12,7 @@ from apex_quant.research.book_r_forward import (
     INITIAL_EQUITY_USD,
     advance_book_r_forward,
     display_daily_rows,
+    display_position_rows,
     runtime_payload,
     validate_forward_state,
 )
@@ -64,6 +65,37 @@ def test_pending_decision_fills_only_at_next_common_open_with_costs() -> None:
     assert {fill["decision_date"] for fill in advanced["fills"]} == {"2024-01-31"}
     assert advanced["cost_total"] > 0.0
     assert 0.0 < advanced["cash"] < INITIAL_EQUITY_USD * 0.06
+
+    cards = display_position_rows(advanced, updated_at="2024-02-01T22:00:00+00:00")
+    assert len(cards) == 3
+    assert all(row["account_currency"] == "USD" for row in cards)
+    assert all(row["decision_date"] == "2024-01-31" for row in cards)
+    assert all(row["cluster"] for row in cards)
+    assert all(row["signal_score"] is not None for row in cards)
+    assert all(row["momentum"] > 0.0 for row in cards)
+    assert all(row["target_weight"] == pytest.approx(0.95 / 3.0) for row in cards)
+    assert all(row["current_notional_usd"] > 0.0 for row in cards)
+    assert all(row["current_weight"] > 0.0 for row in cards)
+    assert all(row["cost_bps_per_side"] == 5.0 for row in cards)
+
+
+def test_detailed_cards_backfill_metadata_for_existing_state() -> None:
+    state, _ = advance_book_r_forward(
+        _panel("2024-01-31"), None, month_end_sessions={"2024-01-31"}
+    )
+    state, _ = advance_book_r_forward(
+        _panel("2024-02-01"), state, month_end_sessions={"2024-01-31"}
+    )
+    # Mimic the already-persisted production state from before detailed card
+    # fields were copied onto each open position.
+    for position in state["positions"].values():
+        for key in ("decision_date", "signal_score", "momentum", "cluster", "target_weight"):
+            position.pop(key, None)
+    rows = display_position_rows(state)
+    assert all(row["decision_date"] == "2024-01-31" for row in rows)
+    assert all(row["cluster"] for row in rows)
+    assert all(row["signal_score"] is not None for row in rows)
+    assert all(row["momentum"] > 0.0 for row in rows)
 
 
 def test_repeat_is_an_idempotent_noop() -> None:

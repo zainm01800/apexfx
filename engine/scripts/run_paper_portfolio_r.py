@@ -140,13 +140,24 @@ def main(argv: list[str] | None = None) -> int:
 
     month_ends = _xnys_month_ends(index[0], cutoff + pd.Timedelta(days=40))
     state, rows = advance_book_r_forward(panel, state, month_end_sessions=month_ends)
+    future_month_ends = sorted(
+        date for date in month_ends if date > state["last_processed_date"]
+    )
+    state["next_month_end_session"] = future_month_ends[0] if future_month_ends else None
     if not rows:
+        # Re-serialize on a no-op as well. This lets additive dashboard metadata
+        # ship for an already-open book without fabricating a new equity point.
+        _save_local(state_path, state)
+        mirror_ok = True
+        if not args.no_supabase:
+            mirror_ok = paper_store.write_book_r_runtime(runtime_payload(state))
         print(
             f"state restored from {origin}; no new common sessions since "
-            f"{state['last_processed_date']} (idempotent no-op)",
+            f"{state['last_processed_date']} (idempotent no-op; mirror "
+            f"{'refreshed' if mirror_ok else 'FAILED'})",
             flush=True,
         )
-        return 0
+        return 0 if mirror_ok else 1
 
     _save_local(state_path, state)
     log_lines = [
