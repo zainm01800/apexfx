@@ -1,0 +1,97 @@
+{
+  "common_end": "2026-08-27 00:00:00+00:00",
+  "common_rows_per_instrument": 2678,
+  "common_start": "2016-01-04 00:00:00+00:00",
+  "created_at_utc": "2026-09-03T16:47:12.911660+00:00",
+  "purpose": "pre-result frozen input for Book R-252 stop-overlay study",
+  "snapshot": {
+    "bytes": 642921,
+    "path": "engine/data_store/validation/book_r_stop_inputs_2026-09-03.parquet",
+    "rows": 26780,
+    "sha256": "efc75fb7056efe2d03d0cd13de955616882c2c7c54ac794c53cdfdbac0cc7974"
+  },
+  "source_files": {
+    "GLD": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/GLD_1d.parquet",
+      "rows": 2678,
+      "sha256": "1e2cd8955f3315993739bab5a3508118c1a0b94294d10bf6ce81911562fafe97",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "IWM": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/IWM_1d.parquet",
+      "rows": 2678,
+      "sha256": "03e4971ed3c9b92b47c7979d369123cc6996741205908ed0f0515b1ecb785e0f",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "QQQ": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/QQQ_1d.parquet",
+      "rows": 2678,
+      "sha256": "7f9991e4a291e8776b1f916a8ae8ec80f12bde6f39455d9ebc5d9b850397652e",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "SMH": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/SMH_1d.parquet",
+      "rows": 2678,
+      "sha256": "4c821c906f87bcb7cbed3c7a6a27ab6032192cd2623c93be30d55b372c9910a2",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "SOXX": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/SOXX_1d.parquet",
+      "rows": 2678,
+      "sha256": "992a9375d988bedbfa68c195f6576101dd03717201fb02c5ea30d677480b3a5b",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "SPY": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/SPY_1d.parquet",
+      "rows": 2679,
+      "sha256": "d7cbccf623b10fb67bc8423e0b3d7a4b1bb99b095dcc11db203d0c9c188cd705",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "TLT": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/TLT_1d.parquet",
+      "rows": 2678,
+      "sha256": "4e0b5f7d83c36d54580172305fb57eb681069eb6d983544a23015d76c1f73dbf",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "XBI": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/XBI_1d.parquet",
+      "rows": 2678,
+      "sha256": "e9274c4fdea14c8b20b3da81618d314f58857d7e8de4e3f71f3170a423d9d644",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "XLE": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/XLE_1d.parquet",
+      "rows": 2678,
+      "sha256": "22b00ed39426b70e9ff610612aa15449536ef32bdffe8173945cf054c8d46559",
+      "start": "2016-01-04 00:00:00+00:00"
+    },
+    "XLK": {
+      "end": "2026-08-27 00:00:00+00:00",
+      "path": "engine/data_store/XLK_1d.parquet",
+      "rows": 2678,
+      "sha256": "1e99790002def7c68398fdd47cf1c23c4175823b011943d4d7739c57013824da",
+      "start": "2016-01-04 00:00:00+00:00"
+    }
+  },
+  "universe": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "GLD",
+    "TLT",
+    "XLK",
+    "XLE",
+    "XBI",
+    "SMH",
+    "SOXX"
+  ]
+}
