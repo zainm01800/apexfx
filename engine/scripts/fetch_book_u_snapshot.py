@@ -47,10 +47,10 @@ DOWNLOAD_START = "2008-01-01"
 DOWNLOAD_END_EXCLUSIVE = "2026-09-03"
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    # Yahoo's chart edge currently rate-limits a fabricated full Chrome UA on
+    # this host while serving the same public response to a generic browser UA.
+    # Keep the transport identifier minimal and freeze the raw response bytes.
+    "User-Agent": "Mozilla/5.0",
     "Accept": "application/json",
     "Accept-Language": "en-US,en;q=0.9",
 }

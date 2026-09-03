@@ -15,6 +15,7 @@ SPEC.loader.exec_module(MODULE)
 
 def test_snapshot_excludes_the_in_progress_freeze_day():
     assert MODULE.DOWNLOAD_END_EXCLUSIVE == "2026-09-03"
+    assert MODULE.HEADERS["User-Agent"] == "Mozilla/5.0"
 
 
 def _payload(*, scale: float = 1.0):
