@@ -21,6 +21,7 @@ validation harness fits them per CPCV fold before backtesting.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -65,14 +66,130 @@ def _cf_tau_arrays(skew: pd.Series, kurt: pd.Series, z: float,
     return long.to_numpy(dtype=float), short.to_numpy(dtype=float)
 
 
+@dataclass(frozen=True)
+class _FundedCashRiskLimits:
+    """One decision's preregistered V2 cash-risk limits."""
+
+    capital_base: float
+    daily_floor: float
+    max_floor: float
+    day_buffer: float
+    max_buffer: float
+    candidate_stop_risk_cap_dollars: float
+    aggregate_stop_risk_cap_dollars: float
+
+
+_FUNDED_CASH_RISK_POLICIES = {
+    "evaluation": {
+        "base_risk_fraction": 0.0035,
+        "daily_buffer_fraction": 0.15,
+        "max_buffer_fraction": 0.06,
+        "aggregate_risk_fraction": 0.0090,
+    },
+    "payout": {
+        "base_risk_fraction": 0.0025,
+        "daily_buffer_fraction": 0.10,
+        "max_buffer_fraction": 0.04,
+        "aggregate_risk_fraction": 0.0060,
+    },
+}
+
+# The sizing core is useful for isolated research, but these missing mechanics
+# make a funded-account verdict invalid under the frozen V2 preregistration.
+# Keeping the blockers machine-readable on every V2 result prevents a caller
+# from mistaking a numerically successful replay for a compliant pass.
+_FUNDED_CASH_RISK_DATA_BLOCKERS = (
+    "planned_loss_excludes_ordinary_entry_exit_costs",
+    "aggregate_carried_stop_risk_not_continuously_rebalanced",
+    "atomic_open_pending_risk_reservation_not_integrated",
+    "pending_next_open_not_revalidated_against_authoritative_opening_state",
+    "account_currency_conversion_not_applied",
+    "authoritative_persisted_firm_session_state_not_supplied",
+)
+
+
+def _floor_cash(value: float) -> float:
+    """Round a non-negative cash allowance down to the nearest cent."""
+
+    cents = max(0.0, float(value)) * 100.0
+    nearest_integer = round(cents)
+    # Decimal policy constants such as 0.009 cannot be represented exactly as
+    # binary floats. Snap only a few machine ULPs around an integer-cent boundary;
+    # economically real fractions of a cent still round strictly downward.
+    if abs(cents - nearest_integer) <= 4.0 * math.ulp(cents):
+        cents = float(nearest_integer)
+    return math.floor(cents) / 100.0
+
+
+def _funded_cash_risk_limits(
+    *,
+    mode: str,
+    max_loss_mode: str,
+    equity: float,
+    initial_balance: float,
+    day_start_balance: float,
+    peak_eod_balance: float,
+) -> _FundedCashRiskLimits:
+    """Calculate the frozen C_FUNDED_V2 cash limits without touching legacy paths."""
+
+    if mode not in _FUNDED_CASH_RISK_POLICIES:
+        raise ValueError("funded_cash_risk_mode must be 'evaluation' or 'payout'")
+    if max_loss_mode not in ("static", "eod_trailing"):
+        raise ValueError("funded_cash_max_loss_mode must be 'static' or 'eod_trailing'")
+    values = (equity, initial_balance, day_start_balance, peak_eod_balance)
+    if not all(np.isfinite(value) for value in values) or initial_balance <= 0.0:
+        raise ValueError("funded cash-risk inputs must be finite with positive initial balance")
+
+    policy = _FUNDED_CASH_RISK_POLICIES[mode]
+    capital_base = max(0.0, min(float(equity), float(initial_balance)))
+    daily_floor = float(day_start_balance) - 0.03 * float(initial_balance)
+    max_reference = (
+        float(initial_balance)
+        if max_loss_mode == "static"
+        else max(float(initial_balance), float(peak_eod_balance))
+    )
+    max_floor = max_reference - 0.10 * float(initial_balance)
+    day_buffer = max(0.0, float(equity) - daily_floor)
+    max_buffer = max(0.0, float(equity) - max_floor)
+    candidate_cap = _floor_cash(min(
+        policy["base_risk_fraction"] * capital_base,
+        policy["daily_buffer_fraction"] * day_buffer,
+        policy["max_buffer_fraction"] * max_buffer,
+    ))
+    aggregate_cap = _floor_cash(
+        policy["aggregate_risk_fraction"] * capital_base
+    )
+    return _FundedCashRiskLimits(
+        capital_base=capital_base,
+        daily_floor=daily_floor,
+        max_floor=max_floor,
+        day_buffer=day_buffer,
+        max_buffer=max_buffer,
+        candidate_stop_risk_cap_dollars=candidate_cap,
+        aggregate_stop_risk_cap_dollars=aggregate_cap,
+    )
+
+
 @dataclass
 class PortfolioResult:
+    """Result of a portfolio simulation.
+
+    ``funded_trace`` is an optional research diagnostic.  When present it is a
+    per-union-bar frame whose ``conservative_intraday_min_equity`` is *not* a
+    reconstructed intraday path.  It combines the prior close, executable opening
+    marks, a stop-aware pre-management snapshot that preserves original units, and
+    post-fill OHLC co-extremes.  That deliberately pessimistic bound is useful for
+    screening daily-loss risk, but it must not be described as an observed
+    firm-rule breach without intraday quote data and account-currency conversion.
+    """
+
     instruments: list[str]
     equity: pd.Series
     trades: list[Trade] = field(default_factory=list)
     metrics: dict = field(default_factory=dict)
     per_instrument: dict = field(default_factory=dict)
     constraint_log: dict = field(default_factory=dict)
+    funded_trace: pd.DataFrame | None = None
 
     @property
     def returns(self) -> pd.Series:
@@ -106,6 +223,12 @@ class PortfolioBacktester:
         entry_fill: Literal["open", "close"] = "open",
         earnings_derisk: "dict[str, set[int]] | None" = None,
         earnings_derisk_frac: float = 1.0,
+        capture_funded_trace: bool = False,
+        enforce_entry_bar_exits: bool = False,
+        funded_sizing_limits: tuple[float, float] | None = None,
+        funded_cash_risk_mode: Literal["evaluation", "payout"] | None = None,
+        funded_cash_max_loss_mode: Literal["static", "eod_trailing"] = "eod_trailing",
+        retain_pre_start_history: bool = False,
     ):
         self.cfg = cfg or get_config()
         self.bt = self.cfg.backtest
@@ -124,6 +247,58 @@ class PortfolioBacktester:
         # position at that bar's close, BEFORE TradeManager management.
         self._earnings_derisk = earnings_derisk or {}
         self._earnings_derisk_frac = earnings_derisk_frac
+        # Optional, observation-only funded-account diagnostics.  The default is
+        # deliberately false so certified result objects, metrics and the hot loop
+        # remain unchanged unless a research caller explicitly asks for the trace.
+        self.capture_funded_trace = bool(capture_funded_trace)
+        # Optional research mechanic.  The certified/default path deliberately keeps
+        # its historical behaviour (a next-open fill is first managed on the following
+        # bar).  Opting in runs the chosen exit engine on the entry bar as well; both
+        # engines check the stop before the target when OHLC cannot reveal ordering.
+        self.enforce_entry_bar_exits = bool(enforce_entry_bar_exits)
+        # Optional funded-account capital base for NEW decisions.  The tuple is
+        # (official daily-loss percentage, strict EOD-trailing max-loss percentage).
+        # It is deliberately separate from the close-only daily guard: this feature
+        # sizes against the remaining rule buffers but makes no claim to reconstruct
+        # an intraday liquidation process.  None is an exact historical no-op.
+        if funded_sizing_limits is not None:
+            daily_pct, max_pct = (float(v) for v in funded_sizing_limits)
+            if not (
+                np.isfinite(daily_pct)
+                and np.isfinite(max_pct)
+                and 0.0 < daily_pct < max_pct < 1.0
+            ):
+                raise ValueError(
+                    "funded_sizing_limits must be finite (daily, max) percentages "
+                    "with 0 < daily < max < 1"
+                )
+            self.funded_sizing_limits = (daily_pct, max_pct)
+        else:
+            self.funded_sizing_limits = None
+        # C_FUNDED_V2 is an isolated opt-in cash-risk policy.  Unlike the frozen
+        # V1 tuple above, it sizes from min(marked equity, initial balance) and
+        # passes separate absolute candidate/aggregate loss allowances to the
+        # risk layer.  Keeping the modes mutually exclusive makes it impossible
+        # for a caller to silently blend the two preregistered semantics.
+        if funded_cash_risk_mode is not None:
+            if funded_cash_risk_mode not in _FUNDED_CASH_RISK_POLICIES:
+                raise ValueError(
+                    "funded_cash_risk_mode must be 'evaluation', 'payout', or None"
+                )
+            if funded_sizing_limits is not None:
+                raise ValueError(
+                    "funded_cash_risk_mode cannot be combined with funded_sizing_limits"
+                )
+        if funded_cash_max_loss_mode not in ("static", "eod_trailing"):
+            raise ValueError(
+                "funded_cash_max_loss_mode must be 'static' or 'eod_trailing'"
+            )
+        self.funded_cash_risk_mode = funded_cash_risk_mode
+        self.funded_cash_max_loss_mode = funded_cash_max_loss_mode
+        # Keep bars before ``start`` solely for indicator/signal warm-up while
+        # starting the account, positions, event timeline and outputs at ``start``.
+        # False preserves the legacy slice-before-indicators convention exactly.
+        self.retain_pre_start_history = bool(retain_pre_start_history)
         # Defensive cash-substitute sleeve (U2, 2026-07-27; prereg
         # engine/data_store/defensive_sleeve_prereg.md). None (default) = certified
         # zero-yield GBP cash on idle capital — byte-identical certified behaviour.
@@ -215,10 +390,18 @@ class PortfolioBacktester:
         logret_cols: dict[str, pd.Series] = {}
         for inst, pit in pits.items():
             df = pit.as_of(pit.end)
-            if start is not None:
+            if start is not None and not self.retain_pre_start_history:
                 df = df[df.index >= _utc(start)]
             if end is not None:
                 df = df[df.index <= _utc(end)]
+            if (
+                start is not None
+                and self.retain_pre_start_history
+                and not bool((df.index >= _utc(start)).any())
+            ):
+                # The retained frame contains only warm-up history and no
+                # executable event inside the requested partition.
+                continue
             if df.empty:
                 # No bars inside [start, end] (e.g. a late-listing instrument in
                 # an early CPCV window) - the instrument simply doesn't exist
@@ -280,6 +463,8 @@ class PortfolioBacktester:
 
         R = pd.DataFrame(logret_cols).sort_index()
         timeline = R.index
+        if start is not None and self.retain_pre_start_history:
+            timeline = timeline[timeline >= _utc(start)]
 
         # Defensive sleeve precompute (flagged; None = certified zero-yield cash).
         # Per-bar leg returns and sleeve mix on the union timeline — see step 3c.
@@ -321,6 +506,7 @@ class PortfolioBacktester:
 
         realized = float(self.bt.initial_equity)
         peak = realized
+        peak_eod_balance = realized
         open_pos: dict[str, dict] = {}
         pending: dict[str, dict] = {}
         pending_trims: dict[str, float] = {}   # instrument -> fraction of units to de-risk (W1 gamma)
@@ -329,10 +515,68 @@ class PortfolioBacktester:
         constraint_log: dict[str, int] = defaultdict(int)
         eq_points: list[tuple[pd.Timestamp, float]] = []
         total_borrow = 0.0
+        funded_rows: list[dict] | None = [] if self.capture_funded_trace else None
 
         for t_i, t in enumerate(timeline):
             # Day's opening equity = last bar's close (daily bars: one bar == one session).
             day_start_eq = eq_points[-1][1] if eq_points else realized
+            # Funded rules commonly anchor the session and profit target to closed
+            # balance while enforcing loss limits against live equity.  Preserve both
+            # values in the opt-in trace; marked equity must never be silently treated
+            # as realised balance by the rule simulator.
+            trace_day_start_balance = float(realized)
+
+            # FUNDED TRACE, opening snapshot.  This is captured before intrabar
+            # management so a gap through a carried position's stop cannot disappear
+            # merely because the stop is subsequently booked.  `_fill` supplies the
+            # executable side of the opening mark (spread/slippage, but no hypothetical
+            # close commission).  Missing bars retain the last available mark.
+            trace_trades_before = len(trades)
+            trace_start_contrib: dict[str, float] = {}
+            trace_open_contrib: dict[str, float] = {}
+            trace_pre_management_contrib: dict[str, float] = {}
+            trace_opening_eq = float(day_start_eq)
+            trace_pre_management_adverse_eq = float(day_start_eq)
+            if funded_rows is not None:
+                trace_opening_eq = float(realized)
+                for inst, posd in open_pos.items():
+                    start_contrib = (
+                        float(posd.get("realized_pnl_total", 0.0))
+                        + self._unrealized(posd, float(posd["last_px"]))
+                    )
+                    trace_start_contrib[inst] = start_contrib
+                    d = data[inst]
+                    i = d["pos"].get(t)
+                    mark = float(posd["last_px"])
+                    if i is not None:
+                        mark = self._fill(
+                            float(d["open"][i]), inst,
+                            buying=posd["direction"] != Direction.LONG,
+                            timeframe=posd["tf"],
+                        )
+                    trace_opening_eq += self._unrealized(posd, mark)
+                    trace_open_contrib[inst] = (
+                        float(posd.get("realized_pnl_total", 0.0))
+                        + self._unrealized(posd, mark)
+                    )
+
+                # Preserve the carried positions before TradeManager, earnings
+                # de-risking, or gamma trims mutate their units/stops.  If the bar
+                # crosses the live stop, cap the adverse mark at the executable
+                # stop (or the worse opening gap) and include the close commission;
+                # otherwise use the adverse raw OHLC extreme.  This avoids both
+                # post-partial unit understatement and impossible marks beyond a
+                # stop that the engine would have executed first.
+                carried_snapshot = {
+                    inst: posd.copy() for inst, posd in open_pos.items()
+                }
+                (
+                    trace_pre_management_adverse_eq,
+                    trace_pre_management_contrib,
+                ) = self._funded_adverse_snapshot(
+                    carried_snapshot, realized, data, t, stop_aware=True,
+                )
+
             # 1. manage exits on open positions via TradeManager or barrier check
             for inst in list(open_pos.keys()):
                 d = data[inst]
@@ -343,7 +587,8 @@ class PortfolioBacktester:
 
                 if self.exit_mode == "barrier":
                     exit_price, exit_reason = self._check_exit(
-                        posd, d["high"][i], d["low"][i], d["close"][i], i, d["hold"], inst, timeframe=d["tf"]
+                        posd, d["high"][i], d["low"][i], d["close"][i], i,
+                        d["hold"], inst, timeframe=d["tf"], open_px=d["open"][i],
                     )
                     if exit_reason != "":
                         realized_pnl = self._pnl(posd, exit_price)
@@ -391,6 +636,9 @@ class PortfolioBacktester:
                     def fill_fn(price, buying, inst_name=inst, tf=posd["tf"]):
                         return self._fill(price, inst_name, buying, timeframe=tf)
 
+                    before_p1 = bool(posd.get("tms_p1", False))
+                    before_p2 = bool(posd.get("tms_p2", False))
+                    before_units = float(posd.get("units", 0.0))
                     realized_pnl, exit_reason = self.trade_manager.update_position(
                         position=posd,
                         high=d["high"][i],
@@ -406,10 +654,17 @@ class PortfolioBacktester:
                         max_bars=d["hold"],
                     )
 
-                    if realized_pnl != 0.0 or exit_reason != "":
-                        # Subtract commission for any close transaction
-                        realized += realized_pnl - d["commission"]
-                        posd["realized_pnl_total"] = posd.get("realized_pnl_total", 0.0) + (realized_pnl - d["commission"])
+                    close_fills = self._managed_close_fill_count(
+                        posd, before_p1, before_p2, before_units, exit_reason,
+                    )
+                    if realized_pnl != 0.0 or close_fills:
+                        # TradeManager can execute P1, P2, and a final close in one
+                        # update. Commission is per close fill, not per bar/update.
+                        net_realized = realized_pnl - d["commission"] * close_fills
+                        realized += net_realized
+                        posd["realized_pnl_total"] = (
+                            posd.get("realized_pnl_total", 0.0) + net_realized
+                        )
 
                     if exit_reason != "":
                         exit_price = posd.get(
@@ -423,6 +678,9 @@ class PortfolioBacktester:
                         del open_pos[inst]
 
             # 2. execute pending entries at THIS bar's open
+            entered_this_bar: list[str] = []
+            trace_post_entry_adverse_eq: float | None = None
+            trace_post_entry_contrib: dict[str, float] = {}
             # 2a. gamma trims FIRST (W1 simultaneous mode): de-risk existing positions
             #     queued at last bar's decision before adding new risk. A trim is a
             #     partial reduction of a position that stays open — stop/target and
@@ -461,9 +719,119 @@ class PortfolioBacktester:
                 if i is None:
                     continue
                 open_pos[inst] = self._enter(pending.pop(inst), d["open"][i], t, i, inst)
+                entered_this_bar.append(inst)
                 # The position's trade record already includes entry commission;
                 # cash/equity must pay it at the same instant as well.
                 realized -= d["commission"]
+
+            if funded_rows is not None and entered_this_bar:
+                # Capture new positions at their original entry size before optional
+                # same-bar management can stop, target, or partially close them.  The
+                # stop-aware snapshot supplies an executable bound for those fills;
+                # the later raw co-extreme snapshot still preserves the historical
+                # (entry-bar exits disabled) diagnostic behaviour.
+                entry_snapshot = {
+                    inst: posd.copy() for inst, posd in open_pos.items()
+                }
+                (
+                    trace_post_entry_adverse_eq,
+                    trace_post_entry_contrib,
+                ) = self._funded_adverse_snapshot(
+                    entry_snapshot, realized, data, t, stop_aware=True,
+                )
+                for trade in trades[trace_trades_before:]:
+                    trace_post_entry_contrib[trade.instrument] = (
+                        trace_post_entry_contrib.get(trade.instrument, 0.0)
+                        + float(trade.pnl)
+                    )
+
+            # Optional entry-bar management.  This is intentionally disabled by
+            # default so certified studies remain bit-for-bit compatible.  When it
+            # is enabled, use the same selected exit engine as carried positions;
+            # both implementations resolve an ambiguous stop-and-target bar in the
+            # conservative stop-first order.
+            if self.enforce_entry_bar_exits:
+                for inst in entered_this_bar:
+                    posd = open_pos.get(inst)
+                    if posd is None:
+                        continue
+                    d = data[inst]
+                    i = d["pos"].get(t)
+                    if i is None:
+                        continue
+
+                    if self.exit_mode == "barrier":
+                        exit_price, exit_reason = self._check_exit(
+                            posd, d["high"][i], d["low"][i], d["close"][i],
+                            i, d["hold"], inst, timeframe=d["tf"],
+                            open_px=d["open"][i],
+                        )
+                        if exit_reason:
+                            realized_pnl = self._pnl(posd, exit_price)
+                            realized += realized_pnl - d["commission"]
+                            posd["realized_pnl_total"] += (
+                                realized_pnl - d["commission"]
+                            )
+                            trades.append(self._record(
+                                posd, exit_price, t, exit_reason,
+                                posd["realized_pnl_total"], inst,
+                            ))
+                            per_inst[inst]["n_trades"] += 1
+                            per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                            del open_pos[inst]
+                        continue
+
+                    high_window = d["high"][max(0, i - 21):i + 1]
+                    low_window = d["low"][max(0, i - 21):i + 1]
+                    bars_history = {
+                        "high": float(high_window.max()),
+                        "low": float(low_window.min()),
+                        "len": i + 1,
+                    }
+
+                    def entry_fill_fn(price, buying, inst_name=inst, tf=posd["tf"]):
+                        return self._fill(price, inst_name, buying, timeframe=tf)
+
+                    before_p1 = bool(posd.get("tms_p1", False))
+                    before_p2 = bool(posd.get("tms_p2", False))
+                    before_units = float(posd.get("units", 0.0))
+                    realized_pnl, exit_reason = self.trade_manager.update_position(
+                        position=posd,
+                        high=d["high"][i],
+                        open_=d["open"][i],
+                        low=d["low"][i],
+                        close=d["close"][i],
+                        atr=d["atr"][i],
+                        is_squeeze=bool(d["squeeze"][i]),
+                        bars_history=bars_history,
+                        timeframe=posd["tf"],
+                        pip_size=self._pip(inst),
+                        fill_fn=entry_fill_fn,
+                        max_bars=d["hold"],
+                    )
+                    close_fills = self._managed_close_fill_count(
+                        posd, before_p1, before_p2, before_units, exit_reason,
+                    )
+                    if realized_pnl != 0.0 or close_fills:
+                        net_realized = realized_pnl - d["commission"] * close_fills
+                        realized += net_realized
+                        posd["realized_pnl_total"] = (
+                            posd.get("realized_pnl_total", 0.0)
+                            + net_realized
+                        )
+                    if exit_reason:
+                        exit_price = posd.get(
+                            "last_exit_price",
+                            d["close"][i] if exit_reason == "time" else
+                            (posd["stop"] if exit_reason == "stop" else posd["target"]),
+                        )
+                        trades.append(self._record(
+                            posd, exit_price, t, exit_reason,
+                            posd["realized_pnl_total"], inst,
+                        ))
+                        per_inst[inst]["n_trades"] += 1
+                        per_inst[inst]["net_pnl"] += posd["realized_pnl_total"]
+                        del open_pos[inst]
 
             # 3. mark-to-market portfolio equity
             eq = realized
@@ -513,6 +881,63 @@ class PortfolioBacktester:
                 sleeve_idle_frac_sum += idle_frac
                 sleeve_prev_w = target_w
                 sleeve_prev_eq = eq
+
+            # FUNDED TRACE, conservative co-extreme snapshots.  The pre-management
+            # state above retains original units and caps a crossed stop at its
+            # executable fill.  This final state reflects actual fills, then marks
+            # every remaining long at the raw low and short at the raw high.  The
+            # snapshots are alternative OHLC bounds, not a reconstructed path.
+            trace_intraday_min = min(
+                float(day_start_eq),
+                float(trace_opening_eq),
+                float(trace_pre_management_adverse_eq),
+                float(eq),
+            )
+            trace_worst_symbol_loss = 0.0
+            if funded_rows is not None:
+                adverse_eq, adverse_contrib = self._funded_adverse_snapshot(
+                    open_pos, realized, data, t, stop_aware=False,
+                )
+
+                # A position may have disappeared at step 1 because its stop was
+                # filled at a gapped open.  Its cumulative trade P&L is the current
+                # symbol contribution and is compared with the prior-close carrying
+                # contribution below.  This also attributes ordinary full exits.
+                for trade in trades[trace_trades_before:]:
+                    adverse_contrib[trade.instrument] += float(trade.pnl)
+
+                scenario_equities = [
+                    float(day_start_eq),
+                    float(trace_opening_eq),
+                    float(trace_pre_management_adverse_eq),
+                    float(adverse_eq),
+                    float(eq),
+                ]
+                if trace_post_entry_adverse_eq is not None:
+                    scenario_equities.append(float(trace_post_entry_adverse_eq))
+                trace_intraday_min = min(scenario_equities)
+
+                contribution_scenarios = [
+                    trace_open_contrib,
+                    trace_pre_management_contrib,
+                    adverse_contrib,
+                ]
+                if trace_post_entry_adverse_eq is not None:
+                    contribution_scenarios.append(trace_post_entry_contrib)
+                symbols = set(trace_start_contrib)
+                for scenario in contribution_scenarios:
+                    symbols.update(scenario)
+                for inst in symbols:
+                    start = trace_start_contrib.get(inst, 0.0)
+                    worst = min(
+                        scenario.get(inst, 0.0)
+                        for scenario in contribution_scenarios
+                    )
+                    trace_worst_symbol_loss = max(
+                        trace_worst_symbol_loss,
+                        max(0.0, start - worst),
+                    )
+
             peak = max(peak, eq)
             eq_points.append((t, eq))
 
@@ -557,10 +982,117 @@ class PortfolioBacktester:
                     )
 
             # 4. decisions (sequential; provisional book so same-bar caps bind)
+            # Funded sizing is based on the nearest remaining official loss
+            # buffer.  The max-loss floor is strict EOD-trailing closed balance.
+            # A decision can fill either at this close or at the next open, so the
+            # daily floor uses the stricter of the current session anchor and the
+            # prospective next-session anchor.  In particular, a profitable close
+            # must not create a fictitious extra daily-loss allowance for an order
+            # queued to the next session.  This is decision sizing only.
+            peak_eod_balance = max(peak_eod_balance, float(realized))
+            decision_risk_sizing_base = max(0.0, float(eq))
+            decision_candidate_stop_risk_cap: float | None = None
+            decision_aggregate_stop_risk_cap: float | None = None
+            if self.funded_sizing_limits is not None:
+                funded_daily_pct, funded_max_pct = self.funded_sizing_limits
+                initial_balance = float(self.bt.initial_equity)
+                daily_allowance = initial_balance * funded_daily_pct
+                daily_floor = max(
+                    trace_day_start_balance - daily_allowance,
+                    float(realized) - daily_allowance,
+                )
+                trailing_max_floor = (
+                    peak_eod_balance - initial_balance * funded_max_pct
+                )
+                decision_risk_sizing_base = max(
+                    0.0,
+                    min(
+                        float(eq),
+                        initial_balance,
+                        float(eq) - daily_floor,
+                        float(eq) - trailing_max_floor,
+                    ),
+                )
+            elif self.funded_cash_risk_mode is not None:
+                # A next-open order belongs to the prospective next session.  A
+                # profitable close on today's bar must therefore raise (never
+                # lower) its daily-loss anchor to the closed balance that will
+                # open that session.  Retaining today's lower anchor would grant
+                # the pending order fictitious extra cushion.  After a loss the
+                # current session's higher anchor remains the stricter one.
+                cash_day_start_balance = float(trace_day_start_balance)
+                if self.entry_fill == "open":
+                    cash_day_start_balance = max(
+                        cash_day_start_balance, float(realized),
+                    )
+                cash_limits = _funded_cash_risk_limits(
+                    mode=self.funded_cash_risk_mode,
+                    max_loss_mode=self.funded_cash_max_loss_mode,
+                    equity=float(eq),
+                    initial_balance=float(self.bt.initial_equity),
+                    day_start_balance=cash_day_start_balance,
+                    peak_eod_balance=peak_eod_balance,
+                )
+                decision_risk_sizing_base = cash_limits.capital_base
+                decision_candidate_stop_risk_cap = (
+                    cash_limits.candidate_stop_risk_cap_dollars
+                )
+                decision_aggregate_stop_risk_cap = (
+                    cash_limits.aggregate_stop_risk_cap_dollars
+                )
             if eq <= 0:
+                if funded_rows is not None:
+                    end_eq = float(eq_points[-1][1])
+                    exposure = self._funded_exposure_diagnostics(
+                        open_pos, pending, pending_trims,
+                    )
+                    funded_rows.append({
+                        "timestamp": t,
+                        "day_start_balance": trace_day_start_balance,
+                        "day_start_equity": float(day_start_eq),
+                        "opening_equity": float(trace_opening_eq),
+                        "conservative_intraday_min_equity": min(
+                            float(day_start_eq), trace_intraday_min, end_eq,
+                        ),
+                        "end_balance": float(realized),
+                        "end_equity": end_eq,
+                        "closed_pnl": float(realized) - trace_day_start_balance,
+                        "positions_opened": int(len(entered_this_bar)),
+                        "verified_flat_at_end": bool(
+                            not open_pos and not pending
+                        ),
+                        "risk_sizing_base": decision_risk_sizing_base,
+                        **exposure,
+                        # Backward-compatible aliases.  Gross is actual/open;
+                        # planned stop risk includes queued next-open orders.
+                        "gross_exposure": exposure["actual_open_gross_exposure"],
+                        "planned_stop_risk": exposure[
+                            "post_pending_planned_stop_risk"
+                        ],
+                        "worst_symbol_adverse_loss": float(trace_worst_symbol_loss),
+                    })
                 continue
             book = [self._open_record(inst, posd) for inst, posd in open_pos.items()]
+            if self.funded_cash_risk_mode is not None:
+                # V2's aggregate ceiling is explicitly open PLUS pending risk.
+                # A queued order that did not have a bar on which to fill remains
+                # a live reservation; excluding it would let a later candidate
+                # spend the same cash-risk budget a second time.
+                for inst, order in pending.items():
+                    if inst in open_pos:
+                        continue
+                    pending_pos = order.get("pos")
+                    if pending_pos is None:
+                        continue
+                    book.append(OpenPosition(
+                        instrument=inst,
+                        direction=pending_pos.direction,
+                        notional=float(pending_pos.notional),
+                        risk=max(0.0, float(order.get("risk_abs", 0.0))),
+                        timeframe=order.get("tf", "1d"),
+                    ))
             cm = None
+            close_entered_this_bar: list[str] = []
 
             # PASS 1 — collect every live candidate for this bar BEFORE allocating.
             #
@@ -625,7 +1157,21 @@ class PortfolioBacktester:
                         corrs[op.instrument] = float(abs(c)) if np.isfinite(c) else 0.0
 
                 account = AccountState(equity=eq, peak_equity=peak, open_positions=book,
-                                      day_start_equity=day_start_eq or None)
+                                      day_start_equity=day_start_eq or None,
+                                      risk_sizing_base=(
+                                          decision_risk_sizing_base
+                                          if (
+                                              self.funded_sizing_limits is not None
+                                              or self.funded_cash_risk_mode is not None
+                                          )
+                                          else None
+                                      ),
+                                      candidate_stop_risk_cap_dollars=(
+                                          decision_candidate_stop_risk_cap
+                                      ),
+                                      aggregate_stop_risk_cap_dollars=(
+                                          decision_aggregate_stop_risk_cap
+                                      ))
                 market = MarketState(
                     instrument=inst, price=float(d["close"][i]), ann_vol=float(vol_i),
                     atr=float(atr_i), correlations=corrs,
@@ -646,6 +1192,8 @@ class PortfolioBacktester:
                                 {"pos": pos, "dec": float(d["close"][i]),
                                  "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]},
                                 d["close"][i], t, i, inst)
+                            realized -= d["commission"]
+                            close_entered_this_bar.append(inst)
                     else:
                         pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
                                          "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
@@ -673,10 +1221,51 @@ class PortfolioBacktester:
                     max(0.0, posd["units"] * abs(float(posd["last_px"]) - float(posd["stop"])))
                     for _k, posd in sorted(open_pos.items())
                 )
+                preexisting_pending_risk = (
+                    sum(
+                        max(0.0, float(order.get("risk_abs", 0.0)))
+                        for inst, order in sorted(pending.items())
+                        if inst not in open_pos
+                    )
+                    if self.funded_cash_risk_mode is not None
+                    else 0.0
+                )
                 cand_risk = sum(pos.risk_fraction * eq for _, _, _, pos in permitted_today)
-                implied_total = open_risk + cand_risk
+                existing_risk = open_risk + preexisting_pending_risk
+                implied_total = existing_risk + cand_risk
                 budget = cap * eq
-                if implied_total > budget and implied_total > 0.0:
+                if decision_aggregate_stop_risk_cap is not None:
+                    budget = min(budget, decision_aggregate_stop_risk_cap)
+                if (
+                    self.funded_cash_risk_mode is not None
+                    and cand_risk > max(0.0, budget - existing_risk)
+                ):
+                    # V2 allocates the REMAINING aggregate allowance among this
+                    # bar's new candidates. Existing positions/pending orders are
+                    # senior reservations and are never resized merely because a
+                    # new signal arrived.
+                    remaining = max(0.0, budget - existing_risk)
+                    gamma = remaining / cand_risk if cand_risk > 0.0 else 0.0
+                    scaled: list[tuple] = []
+                    for inst, d, i, pos in permitted_today:
+                        raw_cash_risk = pos.risk_fraction * eq
+                        scaled_cash_risk = _floor_cash(raw_cash_risk * gamma)
+                        candidate_gamma = (
+                            scaled_cash_risk / raw_cash_risk
+                            if raw_cash_risk > 0.0 else 0.0
+                        )
+                        if pos.notional * candidate_gamma <= float(getattr(rcfg, "min_position", 0.0)):
+                            constraint_log["below_min_position"] += 1
+                            continue
+                        pos.units *= candidate_gamma
+                        pos.notional *= candidate_gamma
+                        pos.risk_fraction *= candidate_gamma
+                        label = f"aggregate_stop_risk_gamma={gamma:.2f}"
+                        pos.constraints_applied.append(label)
+                        constraint_log[label] += 1
+                        scaled.append((inst, d, i, pos))
+                    permitted_today = scaled
+                elif implied_total > budget and implied_total > 0.0:
                     gamma = budget / implied_total
                     scaled: list[tuple] = []
                     for inst, d, i, pos in permitted_today:
@@ -703,9 +1292,74 @@ class PortfolioBacktester:
                                 {"pos": pos, "dec": float(d["close"][i]),
                                  "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]},
                                 d["close"][i], t, i, inst)
+                            realized -= d["commission"]
+                            close_entered_this_bar.append(inst)
                     else:
                         pending[inst] = {"pos": pos, "dec": float(d["close"][i]),
                                          "risk_abs": pos.risk_fraction * eq, "tf": d["tf"]}
+
+            if close_entered_this_bar:
+                # Close-filled orders are created after the ordinary close mark.  Pay
+                # their entry commissions immediately and rebuild the same bar's final
+                # equity so neither the equity curve nor the funded trace shifts those
+                # costs into the following firm day.  Daily highs/lows pre-date a MOC
+                # fill, so they are intentionally not used as entry-bar exit evidence.
+                for inst in close_entered_this_bar:
+                    i = data[inst]["pos"].get(t)
+                    if i is not None:
+                        open_pos[inst]["last_px"] = float(data[inst]["close"][i])
+                eq = float(realized) + sum(
+                    self._unrealized(posd, float(posd["last_px"]))
+                    for posd in open_pos.values()
+                )
+                eq_points[-1] = (t, eq)
+                if pv_target > 0.0 and eq_hist:
+                    eq_hist[-1] = eq
+                trace_intraday_min = min(trace_intraday_min, eq)
+                if funded_rows is not None:
+                    for inst in close_entered_this_bar:
+                        posd = open_pos[inst]
+                        contribution = (
+                            float(posd.get("realized_pnl_total", 0.0))
+                            + self._unrealized(posd, float(posd["last_px"]))
+                        )
+                        trace_worst_symbol_loss = max(
+                            trace_worst_symbol_loss, max(0.0, -contribution),
+                        )
+
+            if funded_rows is not None:
+                # Keep actual open exposure distinct from the book implied after
+                # queued next-open entries and gamma trims.  The latter uses decision
+                # marks because the future opening gap is unknowable at this bar.
+                exposure = self._funded_exposure_diagnostics(
+                    open_pos, pending, pending_trims,
+                )
+                end_eq = float(eq_points[-1][1])
+                funded_rows.append({
+                    "timestamp": t,
+                    "day_start_balance": trace_day_start_balance,
+                    "day_start_equity": float(day_start_eq),
+                    "opening_equity": float(trace_opening_eq),
+                    "conservative_intraday_min_equity": min(
+                        float(day_start_eq), trace_intraday_min, end_eq,
+                    ),
+                    "end_balance": float(realized),
+                    "end_equity": end_eq,
+                    "closed_pnl": float(realized) - trace_day_start_balance,
+                    "positions_opened": int(
+                        len(entered_this_bar) + len(close_entered_this_bar)
+                    ),
+                    "verified_flat_at_end": bool(not open_pos and not pending),
+                    "risk_sizing_base": decision_risk_sizing_base,
+                    **exposure,
+                    # Backward-compatible aliases.  Gross is actual/open;
+                    # planned stop risk includes queued next-open orders.
+                    "gross_exposure": exposure["actual_open_gross_exposure"],
+                    "planned_stop_risk": exposure[
+                        "post_pending_planned_stop_risk"
+                    ],
+                    "worst_symbol_adverse_loss": float(trace_worst_symbol_loss),
+                })
 
         equity_series = pd.Series(
             [v for _, v in eq_points],
@@ -713,6 +1367,14 @@ class PortfolioBacktester:
         )
         metrics = compute_metrics(equity_series, trades, periods_per_year)
         metrics["short_borrow_fees_total"] = round(total_borrow, 2)
+        if self.funded_cash_risk_mode is not None:
+            # Fail closed at the result boundary.  The isolated V2 sizing core
+            # may be exercised in research, but it is not a prereg-compliant
+            # funded verdict until every blocker below is removed in code/data.
+            metrics["funded_cash_risk_status"] = "DATA_BLOCKED"
+            metrics["funded_cash_risk_blockers"] = list(
+                _FUNDED_CASH_RISK_DATA_BLOCKERS
+            )
         if sleeve_arrays is not None:
             n_bars = len(eq_points)
             metrics["defensive_sleeve_net_pnl"] = round(sleeve_net_total, 2)
@@ -721,12 +1383,213 @@ class PortfolioBacktester:
                 sleeve_idle_frac_sum / n_bars if n_bars else 0.0)
             metrics["defensive_sleeve_mean_idle_capital"] = (
                 sleeve_idle_capital_sum / n_bars if n_bars else 0.0)
+        funded_trace = None
+        if funded_rows is not None:
+            trace_columns = [
+                "day_start_balance", "day_start_equity", "opening_equity",
+                "conservative_intraday_min_equity", "end_balance", "end_equity",
+                "closed_pnl", "positions_opened", "verified_flat_at_end",
+                "risk_sizing_base",
+                "actual_open_gross_exposure", "actual_open_stop_risk",
+                "post_pending_planned_gross_exposure",
+                "post_pending_planned_stop_risk",
+                "gross_exposure", "planned_stop_risk",
+                "worst_symbol_adverse_loss",
+            ]
+            if funded_rows:
+                funded_trace = pd.DataFrame(funded_rows).set_index("timestamp")
+                funded_trace.index = pd.DatetimeIndex(
+                    funded_trace.index, name="timestamp")
+                funded_trace = funded_trace[trace_columns]
+            else:
+                funded_trace = pd.DataFrame(
+                    columns=trace_columns,
+                    index=pd.DatetimeIndex([], name="timestamp"),
+                    dtype=float,
+                )
+            funded_trace.attrs["semantics"] = (
+                "Diagnostic OHLC co-extreme bound only: day_start_balance is closed "
+                "cash before the bar, day_start_equity is the previous union-bar "
+                "mark, and opening marks carried positions on the executable "
+                "side of today's open before management; conservative_intraday_min "
+                "also includes day_start_equity, a stop-aware original-unit snapshot "
+                "before management, any original-unit entry snapshot, and post-fill "
+                "equity with all remaining longs at today's low and shorts at today's "
+                "high simultaneously. Actual-open exposure/risk is separate from the "
+                "post-pending plan. This is not a reconstructed intraday path or an "
+                "exact prop-firm rule-breach series. risk_sizing_base is the capital "
+                "available to new risk/vol sizing at that day's decision point (actual "
+                "equity when funded sizing is disabled), including on days with no "
+                "candidate. It does not identify the older sizing bases of carried "
+                "positions, so day-level rescaling is not exact exposure-level replay."
+                " positions_opened is the exact count of backtester entry fills on "
+                "the union bar; it is the only field used for minimum-trading-day "
+                "qualification. verified_flat_at_end is true only when no position "
+                "or pending entry remains in the simulated book."
+            )
+            funded_trace.attrs["account_currency_conversion_applied"] = False
+            funded_trace.attrs["currency_basis"] = "UNCONVERTED_RAW_QUOTE_CURRENCY"
+            funded_trace.attrs["account_currency_limitation"] = (
+                "Exposure, stop-risk, P&L, balance, and equity values are summed in "
+                "each instrument's raw quote currency. Mixed-quote portfolios are "
+                "not account-currency-safe and must not be used for a funded verdict "
+                "until causal FX/contract-value conversion is supplied."
+            )
+            if self.funded_cash_risk_mode is not None:
+                funded_trace.attrs["funded_cash_risk_status"] = "DATA_BLOCKED"
+                funded_trace.attrs["funded_cash_risk_blockers"] = (
+                    _FUNDED_CASH_RISK_DATA_BLOCKERS
+                )
+
         return PortfolioResult(
             instruments=instruments, equity=equity_series, trades=trades, metrics=metrics,
             per_instrument=per_inst, constraint_log=dict(constraint_log),
+            funded_trace=funded_trace,
         )
 
     # -- mechanics (per-instrument) -------------------------------------------
+    @staticmethod
+    def _managed_close_fill_count(
+        position: dict,
+        before_p1: bool,
+        before_p2: bool,
+        before_units: float,
+        exit_reason: str,
+    ) -> int:
+        """Count close transactions emitted by one TradeManager update.
+
+        The manager returns aggregate realised P&L, so P1 and P2 can otherwise be
+        mistaken for one transaction when both trigger on the same bar.  The TMS
+        flags identify those fills; a terminal reason adds the final close.  The
+        unit-change fallback keeps custom managers from silently receiving a free
+        partial when they do not expose the standard flags.
+        """
+
+        fills = int(not before_p1 and bool(position.get("tms_p1", False)))
+        fills += int(not before_p2 and bool(position.get("tms_p2", False)))
+        if exit_reason and exit_reason != "closed":
+            fills += 1
+        tolerance = max(1e-12, abs(before_units) * 1e-12)
+        if fills == 0 and float(position.get("units", before_units)) < before_units - tolerance:
+            fills = 1
+        return fills
+
+    def _funded_adverse_snapshot(
+        self,
+        positions: dict[str, dict],
+        realized: float,
+        data: dict[str, dict],
+        timestamp,
+        *,
+        stop_aware: bool,
+    ) -> tuple[float, dict[str, float]]:
+        """Return an executable-side OHLC adverse snapshot without mutation.
+
+        ``stop_aware`` means a crossed live stop is marked at the stop, or at the
+        worse opening price after a gap, and the corresponding exit commission is
+        included.  Otherwise positions are marked at the raw adverse bar extreme.
+        Callers pass shallow copies when preserving pre-management units/stops is
+        important; this helper never mutates either representation.
+        """
+
+        equity = float(realized)
+        contributions: dict[str, float] = defaultdict(float)
+        for inst, position in positions.items():
+            d = data[inst]
+            i = d["pos"].get(timestamp)
+            mark = float(position["last_px"])
+            stop_filled = False
+            direction = position["direction"]
+            is_long = (
+                direction == Direction.LONG
+                or direction == "long"
+                or getattr(direction, "value", "") == "long"
+            )
+            if i is not None:
+                open_px = float(d["open"][i])
+                low = float(d["low"][i])
+                high = float(d["high"][i])
+                raw_mark = low if is_long else high
+                stop = float(position["stop"])
+                if stop_aware and np.isfinite(stop):
+                    if is_long and low <= stop:
+                        raw_mark = min(stop, open_px)
+                        stop_filled = True
+                    elif not is_long and high >= stop:
+                        raw_mark = max(stop, open_px)
+                        stop_filled = True
+                mark = self._fill(
+                    raw_mark, inst, buying=not is_long,
+                    timeframe=position["tf"],
+                )
+
+            unrealized = self._unrealized(position, mark)
+            close_cost = float(d["commission"]) if stop_filled else 0.0
+            equity += unrealized - close_cost
+            contributions[inst] += (
+                float(position.get("realized_pnl_total", 0.0))
+                + unrealized - close_cost
+            )
+        return equity, contributions
+
+    def _funded_exposure_diagnostics(
+        self,
+        open_positions: dict[str, dict],
+        pending: dict[str, dict],
+        pending_trims: dict[str, float],
+    ) -> dict[str, float]:
+        """Separate current open risk from the queued next-open portfolio plan.
+
+        Values deliberately remain in raw quote-currency units.  The trace metadata
+        makes that limitation machine-visible; silently inventing an FX conversion
+        here would be materially worse than an explicit research limitation.
+        """
+
+        actual_gross = 0.0
+        actual_stop_risk = 0.0
+        planned_gross = 0.0
+        planned_stop_risk = 0.0
+
+        for inst, position in open_positions.items():
+            units = max(0.0, float(position["units"]))
+            mark = float(position["last_px"])
+            stop = float(position["stop"])
+            direction = position["direction"]
+            is_long = (
+                direction == Direction.LONG
+                or direction == "long"
+                or getattr(direction, "value", "") == "long"
+            )
+            gross = abs(units * mark)
+            stop_risk = units * max(
+                0.0, mark - stop if is_long else stop - mark,
+            )
+            actual_gross += gross
+            actual_stop_risk += stop_risk
+
+            trim_fraction = float(pending_trims.get(inst, 0.0))
+            retention = 1.0 - float(np.clip(trim_fraction, 0.0, 1.0))
+            planned_gross += gross * retention
+            planned_stop_risk += stop_risk * retention
+
+        for inst, order in pending.items():
+            # The execution loop will not fill a stale pending order over an already
+            # open symbol, so neither should the planned diagnostic double count it.
+            if inst in open_positions:
+                continue
+            position = order.get("pos")
+            if position is None:
+                continue
+            planned_gross += abs(float(position.notional))
+            planned_stop_risk += max(0.0, float(order.get("risk_abs", 0.0)))
+
+        return {
+            "actual_open_gross_exposure": float(actual_gross),
+            "actual_open_stop_risk": float(actual_stop_risk),
+            "post_pending_planned_gross_exposure": float(planned_gross),
+            "post_pending_planned_stop_risk": float(planned_stop_risk),
+        }
+
     def _enter(self, pend: dict, open_price: float, t, i, instrument) -> dict:
         pos = pend["pos"]
         dec = pend["dec"]                       # close at decision time
@@ -771,9 +1634,36 @@ class PortfolioBacktester:
             timeframe=posd["tf"],
         )
 
-    def _check_exit(self, position, hi, lo, close_px, i, max_hold, instrument, timeframe: str | None = None):
+    def _check_exit(
+        self,
+        position,
+        hi,
+        lo,
+        close_px,
+        i,
+        max_hold,
+        instrument,
+        timeframe: str | None = None,
+        open_px: float | None = None,
+    ):
         long = position["direction"] == Direction.LONG or position["direction"] == "long" or getattr(position["direction"], "value", "") == "long"
         stop, target = position["stop"], position["target"]
+        # The opening print is causally first. A gap through a stop fills at the
+        # worse open; a favourable gap through a resting target is credited only at
+        # the target, not at the better open. Once the open is between both barriers,
+        # unresolved intrabar ordering remains conservatively stop-first.
+        if open_px is not None:
+            open_px = float(open_px)
+            if long:
+                if open_px <= stop:
+                    return self._fill(open_px, instrument, buying=False, timeframe=timeframe), "stop"
+                if open_px >= target:
+                    return self._fill(target, instrument, buying=False, timeframe=timeframe), "target"
+            else:
+                if open_px >= stop:
+                    return self._fill(open_px, instrument, buying=True, timeframe=timeframe), "stop"
+                if open_px <= target:
+                    return self._fill(target, instrument, buying=True, timeframe=timeframe), "target"
         if long:
             if lo <= stop:
                 return self._fill(stop, instrument, buying=False, timeframe=timeframe), "stop"

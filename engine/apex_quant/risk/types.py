@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Direction(str, Enum):
@@ -21,6 +21,8 @@ class Direction(str, Enum):
 
 class Signal(BaseModel):
     """A probabilistic suggestion. Never sets size; never an order."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
 
     instrument: str
     direction: Direction
@@ -35,6 +37,8 @@ class Signal(BaseModel):
 
 
 class OpenPosition(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     instrument: str
     direction: Direction
     notional: float = Field(ge=0.0)
@@ -45,6 +49,8 @@ class OpenPosition(BaseModel):
 
 
 class AccountState(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     equity: float = Field(gt=0.0)
     peak_equity: float = Field(gt=0.0)
     open_positions: list[OpenPosition] = []
@@ -52,6 +58,22 @@ class AccountState(BaseModel):
     #: rule against this, NOT against peak equity — a from-peak breaker cannot see a bad day
     #: that begins from a fresh high. None means "unknown", and the daily check is skipped.
     day_start_equity: float | None = Field(default=None, gt=0.0)
+    #: Optional capital base for NEW risk/vol sizing.  Funded accounts may require
+    #: a base smaller than marked equity (for example the remaining official loss
+    #: buffer).  None preserves the certified behaviour exactly.  Book-level gross,
+    #: correlation, notional and portfolio caps continue to use actual ``equity``.
+    risk_sizing_base: float | None = Field(default=None, ge=0.0)
+    #: Optional absolute cash ceiling for the candidate's NEW entry-to-stop risk.
+    #: This is deliberately distinct from ``risk_sizing_base``: funded-account
+    #: policies size from ordinary account capital, then constrain the resulting
+    #: cash loss by the currently available rule cushions.  None preserves the
+    #: historical percentage-only sizing path exactly.
+    candidate_stop_risk_cap_dollars: float | None = Field(default=None, ge=0.0)
+    #: Optional absolute ceiling for aggregate post-order entry-to-stop risk,
+    #: including every open position plus the candidate.  RiskManager enforces it
+    #: in sequential mode; simultaneous portfolio allocation consumes the same
+    #: value after collecting that bar's candidate set.  None is a strict no-op.
+    aggregate_stop_risk_cap_dollars: float | None = Field(default=None, ge=0.0)
 
     @property
     def drawdown(self) -> float:
@@ -72,11 +94,17 @@ class AccountState(BaseModel):
 
 
 class MarketState(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     instrument: str
     price: float = Field(gt=0.0)
     ann_vol: float = Field(gt=0.0, description="annualised forward vol (from volatility model)")
     atr: float = Field(gt=0.0, description="ATR in price terms, for stop distance")
-    quote_to_account_rate: float = Field(default=1.0, description="Exchange rate to convert quote currency to account currency (GBP)")
+    quote_to_account_rate: float = Field(
+        default=1.0,
+        gt=0.0,
+        description="Exchange rate to convert quote currency to account currency (GBP)",
+    )
     # |correlation| of this instrument to each currently-open instrument
     correlations: dict[str, float] = {}
     #: Optional Cornish-Fisher tail multipliers (W2, 2026-07-25), precomputed by the
@@ -92,6 +120,8 @@ class Position(BaseModel):
     """The risk layer's authoritative output. ``permitted=False`` / zero size is
     a valid, common result. ``constraints_applied`` is the transparency log -
     every binding rule that shaped this decision."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
 
     instrument: str
     direction: Direction

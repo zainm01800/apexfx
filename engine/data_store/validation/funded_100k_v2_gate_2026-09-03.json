@@ -1,0 +1,3760 @@
+{
+  "blocking_reasons": [
+    "At least one required V2 cell failed a binding preregistered gate.",
+    "Observed stop-only aggregate planned risk exceeded its registered cap (evaluation::eod_trailing +0.410% of C, evaluation::static +0.410% of C, payout::eod_trailing +0.166% of C, payout::static +0.166% of C); carried risk is not continuously de-risked between decisions.",
+    "Whole-day bootstrap output is diagnostic only: it does not replay V2 position state or persistent guard block/flatten/cycle-halt transitions.",
+    "The historical trial ledger lacks per-observation Sharpe annualization metadata, so DSR is data-blocked.",
+    "Concentration is data-blocked until terminal open positions and partial realizations are reconciled to final equity.",
+    "Exact one-minute-or-better venue bid/ask, fills, spread, commission, swap, and liquidation event data are not integrated.",
+    "Book C monetary exposures mix quote currencies without executable account-currency FX conversion.",
+    "Planned stop-risk accounting currently excludes ordinary entry/exit costs and has no registered stressed-loss-per-unit feed.",
+    "Queued next-open entries are not causally resized or cancelled from the opening account cushions before fill.",
+    "The guard has no atomic broker-backed open-plus-pending risk reservation, so separate approvals cannot be treated as spendable order budgets.",
+    "Daily OHLC cannot prove persistent block/cancel/flatten/fill-verification/latch guard transitions.",
+    "The exact funded firm, product, platform, symbols, and contract specifications have not been frozen."
+  ],
+  "candidate_passed_all_modes_and_variants": false,
+  "cells": {
+    "evaluation::eod_trailing": {
+      "bootstrap": {
+        "evaluation_252": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        }
+      },
+      "cap_diagnostics": {
+        "aggregate_stop_only_overrun_pct_capital_base": 0.004099797333393619,
+        "aggregate_stop_risk_cap": 0.009,
+        "configured_correlated_exposure_cap": 0.2,
+        "configured_max_positions": 5,
+        "configured_position_notional_cap": 0.08,
+        "exact_exposure_gate_pass": false,
+        "gross_cap": 0.6,
+        "gross_cap_pass": true,
+        "max_observed_symbol_adverse_pct_capital_base": 0.00412919200002724,
+        "max_post_pending_gross_pct_equity": 0.2621013985586788,
+        "max_post_pending_stop_risk_pct_capital_base": 0.013099797333393618,
+        "planned_loss_includes_entry_exit_costs": false,
+        "position_cluster_concurrency_trace_available": false,
+        "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+        "stop_only_cap_pass": false,
+        "stressed_loss_per_unit_available": false,
+        "stressed_symbol_cap": 0.0045
+      },
+      "cell": "evaluation::eod_trailing",
+      "concentration": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "cpcv": {
+        "n_paths": 0,
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "doubled_cost_validation": {
+        "independent_seed": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        },
+        "metrics": {
+          "ann_return": 0.011048496123626794,
+          "ann_vol": 0.02300988717406589,
+          "avg_trade_return": 0.004055855855855858,
+          "calmar": 0.3435740189256341,
+          "expectancy_pct": 0.004055855855855849,
+          "expectancy_pnl": 9.359954954954944,
+          "final_equity": 102224.98347122407,
+          "funded_cash_risk_blockers": [
+            "planned_loss_excludes_ordinary_entry_exit_costs",
+            "aggregate_carried_stop_risk_not_continuously_rebalanced",
+            "atomic_open_pending_risk_reservation_not_integrated",
+            "pending_next_open_not_revalidated_against_authoritative_opening_state",
+            "account_currency_conversion_not_applied",
+            "authoritative_persisted_firm_session_state_not_supplied"
+          ],
+          "funded_cash_risk_status": "DATA_BLOCKED",
+          "max_drawdown": 0.03215754252366276,
+          "n_trades": 222,
+          "net_pnl": 2077.91,
+          "profit_factor": 1.12526041792254,
+          "sharpe": 0.489677837645407,
+          "short_borrow_fees_total": 0.0,
+          "sortino": 0.6923280244995176,
+          "total_return": 0.022249834712240624,
+          "win_rate": 0.49099099099099097
+        },
+        "replay": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 597.4638766467688,
+            "ending_balance": 102169.15360419928,
+            "ending_equity": 102224.98347122407,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.036173628153968525,
+              "daily_loss_buffer": 691.636646909159,
+              "daily_loss_buffer_pct_initial": 0.00691636646909159,
+              "max_loss_buffer": 1618.50388329025,
+              "max_loss_buffer_pct_initial": 0.0161850388329025,
+              "positive_days_profit": 16516.559359313876,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97697.4689570276,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 102697.4689570276,
+            "positive_days_profit": 16516.559359313876,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 173
+          },
+          "official": {
+            "best_day_profit": 597.4638766467688,
+            "ending_balance": 102169.15360419928,
+            "ending_equity": 102224.98347122407,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.036173628153968525,
+              "daily_loss_buffer": 2191.636646909159,
+              "daily_loss_buffer_pct_initial": 0.02191636646909159,
+              "max_loss_buffer": 6618.50388329025,
+              "max_loss_buffer_pct_initial": 0.0661850388329025,
+              "positive_days_profit": 16516.559359313876,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 92697.4689570276,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 102697.4689570276,
+            "positive_days_profit": 16516.559359313876,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 173
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.008083633530908409,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.0338149611670975
+        }
+      },
+      "dsr": {
+        "candidate_validation_per_period_sharpes": {
+          "evaluation::eod_trailing": 0.025406653599628983,
+          "evaluation::static": 0.025406653599628983,
+          "payout::eod_trailing": 0.017909023571380172,
+          "payout::static": 0.017909023571380172
+        },
+        "dsr": null,
+        "passed": false,
+        "reason": "DSR was not calculated because the frozen prior-trial Sharpes lack complete per-observation annualization metadata.",
+        "repository_reference": {
+          "annualization_metadata_complete": false,
+          "eligible_for_dsr": false,
+          "exists": true,
+          "n_trials": 362,
+          "reason": "The legacy trial ledger does not record each Sharpe observation's annualization convention; mixed/unknown units cannot be normalized.",
+          "sha256": "5a390364354ddaa48899f421b56ee887d2905e6d682136cee2399f5d0f1a6575",
+          "sharpes": [],
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+        },
+        "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+      },
+      "engine_cash_risk_blockers": [
+        "planned_loss_excludes_ordinary_entry_exit_costs",
+        "aggregate_carried_stop_risk_not_continuously_rebalanced",
+        "atomic_open_pending_risk_reservation_not_integrated",
+        "pending_next_open_not_revalidated_against_authoritative_opening_state",
+        "account_currency_conversion_not_applied",
+        "authoritative_persisted_firm_session_state_not_supplied"
+      ],
+      "engine_cash_risk_status": "DATA_BLOCKED",
+      "future_poison": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "gates": [
+        {
+          "gate": "fresh_independent_build_interim_validation",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "all start flat at 100,000",
+          "value": false
+        },
+        {
+          "gate": "zero_official_breaches",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "0 in build/interim/validation",
+          "value": false
+        },
+        {
+          "gate": "combined_historical_stress_zero_breaches",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": "0",
+          "value": "intraday gap/outage/partial-fill/missed-stop event stream absent"
+        },
+        {
+          "gate": "validation_sharpe",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 0.75",
+          "value": 0.485393435475813
+        },
+        {
+          "gate": "validation_profit_factor",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 1.15",
+          "value": 1.1206542653675573
+        },
+        {
+          "gate": "validation_doubled_cost_return",
+          "passed": true,
+          "status": "EVALUATED",
+          "threshold": "> 0",
+          "value": 0.022249834712240624
+        },
+        {
+          "gate": "exact_winner_haircut_return",
+          "passed": false,
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH",
+          "threshold": "> 0",
+          "value": {
+            "binding_pass": false,
+            "closed_trade_net_pnl_proxy": -7529.2,
+            "positive_proxy": false,
+            "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+            "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+          }
+        },
+        {
+          "gate": "purged_cpcv",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": ">= 12/15 positive",
+          "value": {
+            "n_paths": 0,
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "deflated_sharpe_ratio",
+          "passed": false,
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION",
+          "threshold": ">= 0.95",
+          "value": null
+        },
+        {
+          "gate": "top_profit_cluster_removal_and_concentration",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "positive and <=35%",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "future_poison_causality",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "input_order_permutations",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "100/100 identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "observed_aggregate_stop_only_risk",
+          "passed": false,
+          "status": "EVALUATED_RAW_QUOTE_STOP_ONLY",
+          "threshold": "<= 0.90% of C",
+          "value": {
+            "currency_basis": "UNCONVERTED_RAW_QUOTE_CURRENCY",
+            "maximum": 0.013099797333393618,
+            "overrun": 0.004099797333393619
+          }
+        },
+        {
+          "gate": "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "never exceed cap between decisions; include ordinary costs",
+          "value": "carried-position mark-to-stop risk is not continuously de-risked and planned risk excludes ordinary costs"
+        },
+        {
+          "gate": "gross_correlation_notional_concurrency_and_cash_risk",
+          "passed": false,
+          "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+          "threshold": "all V2 limits observed including costs/stress",
+          "value": {
+            "aggregate_stop_only_overrun_pct_capital_base": 0.004099797333393619,
+            "aggregate_stop_risk_cap": 0.009,
+            "configured_correlated_exposure_cap": 0.2,
+            "configured_max_positions": 5,
+            "configured_position_notional_cap": 0.08,
+            "exact_exposure_gate_pass": false,
+            "gross_cap": 0.6,
+            "gross_cap_pass": true,
+            "max_observed_symbol_adverse_pct_capital_base": 0.00412919200002724,
+            "max_post_pending_gross_pct_equity": 0.2621013985586788,
+            "max_post_pending_stop_risk_pct_capital_base": 0.013099797333393618,
+            "planned_loss_includes_entry_exit_costs": false,
+            "position_cluster_concurrency_trace_available": false,
+            "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+            "stop_only_cap_pass": false,
+            "stressed_loss_per_unit_available": false,
+            "stressed_symbol_cap": 0.0045
+          }
+        },
+        {
+          "gate": "engine_cash_risk_readiness",
+          "passed": false,
+          "status": "DATA_BLOCKED",
+          "threshold": "READY with no unresolved implementation/data blockers",
+          "value": {
+            "blockers": [
+              "planned_loss_excludes_ordinary_entry_exit_costs",
+              "aggregate_carried_stop_risk_not_continuously_rebalanced",
+              "atomic_open_pending_risk_reservation_not_integrated",
+              "pending_next_open_not_revalidated_against_authoritative_opening_state",
+              "account_currency_conversion_not_applied",
+              "authoritative_persisted_firm_session_state_not_supplied"
+            ],
+            "status": "DATA_BLOCKED"
+          }
+        },
+        {
+          "gate": "exact_contract_fx_bidask_stressed_loss_inputs",
+          "passed": false,
+          "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS",
+          "threshold": "all present, mapped, validated and replayed",
+          "value": {
+            "all_present": false,
+            "integrated_into_executable_replay": false,
+            "passed": false,
+            "required": {
+              "bid_ask_data": {
+                "description": "one-minute-or-better venue bid/ask and fill path",
+                "path": null,
+                "status": "MISSING"
+              },
+              "contract_metadata": {
+                "description": "contract multiplier, lot step, leverage and symbol map",
+                "path": null,
+                "status": "MISSING"
+              },
+              "fx_conversion_data": {
+                "description": "timestamped executable account-currency FX bid/ask",
+                "path": null,
+                "status": "MISSING"
+              },
+              "stressed_loss_data": {
+                "description": "registered doubled-gap/doubled-cost loss per unit",
+                "path": null,
+                "status": "MISSING"
+              }
+            },
+            "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS"
+          }
+        },
+        {
+          "gate": "protective_stop_acknowledged_with_entry",
+          "passed": false,
+          "status": "DATA_BLOCKED_ORDER_ACKNOWLEDGEMENT",
+          "threshold": "venue-native acknowledgement for every entry",
+          "value": "daily backtest has no venue acknowledgement stream"
+        },
+        {
+          "gate": "pending_order_fill_time_revalidation",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "resize/cancel from opening equity before fill",
+          "value": "current historical event ordering does not causally revalidate next-open pending risk"
+        },
+        {
+          "gate": "persistent_guard_counterfactual",
+          "passed": false,
+          "status": "DATA_BLOCKED_INTRADAY_GUARD",
+          "threshold": "block/cancel/flatten/verify/latch",
+          "value": "threshold replay is available but executable state transitions are not"
+        },
+        {
+          "gate": "worst_intraday_daily_loss",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 1.50%",
+          "value": null
+        },
+        {
+          "gate": "maximum_drawdown",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 5.00%",
+          "value": null
+        },
+        {
+          "gate": "reach_10pct_252_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 70%",
+          "value": null
+        },
+        {
+          "gate": "hard_breach_upper_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": "<= 5%",
+          "value": null
+        }
+      ],
+      "historical_replay": {
+        "validation": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 597.7610392446804,
+            "ending_balance": 102158.04332867834,
+            "ending_equity": 102216.79644065446,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.03507353729970375,
+              "daily_loss_buffer": 696.9643463659304,
+              "daily_loss_buffer_pct_initial": 0.006969643463659304,
+              "max_loss_buffer": 1666.5987417999131,
+              "max_loss_buffer_pct_initial": 0.016665987417999132,
+              "positive_days_profit": 17043.078208416962,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97629.59450446472,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 102629.59450446472,
+            "positive_days_profit": 17043.078208416962,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 179
+          },
+          "official": {
+            "best_day_profit": 597.7610392446804,
+            "ending_balance": 102158.04332867834,
+            "ending_equity": 102216.79644065446,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.03507353729970375,
+              "daily_loss_buffer": 2196.9643463659304,
+              "daily_loss_buffer_pct_initial": 0.021969643463659302,
+              "max_loss_buffer": 6666.598741799913,
+              "max_loss_buffer_pct_initial": 0.06666598741799913,
+              "positive_days_profit": 17043.078208416962,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 92629.59450446472,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 102629.59450446472,
+            "positive_days_profit": 17043.078208416962,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 179
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.008030356536340696,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03333401258200087
+        }
+      },
+      "independent_partition_manifest": {
+        "validation": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        }
+      },
+      "maximum_loss_mode": "eod_trailing",
+      "mode": "evaluation",
+      "monthly_return_confidence": {
+        "lower_95": -0.002954176127095144,
+        "mean": 0.0009550563917728369,
+        "n_months": 24,
+        "standard_error": 0.0018897436188466618,
+        "status": "EVALUATED_STUDENT_T"
+      },
+      "order_permutations": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "passed_all_binding_gates": false,
+      "risk_policy": {
+        "aggregate_risk_fraction": 0.009,
+        "base_risk_fraction": 0.0035,
+        "correlated_exposure": 0.2,
+        "cycle_drawdown": 0.05,
+        "daily_buffer_fraction": 0.15,
+        "gross_exposure": 0.6,
+        "guard_block": 0.009,
+        "guard_flatten": 0.015,
+        "max_buffer_fraction": 0.06,
+        "max_positions": 5,
+        "position_notional": 0.08,
+        "stressed_symbol_fraction": 0.0045
+      },
+      "status": "FAILED_BINDING_GATES",
+      "stress_scenarios": {
+        "base": {
+          "historical_replay": {
+            "validation": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 597.7610392446804,
+                "ending_balance": 102158.04332867834,
+                "ending_equity": 102216.79644065446,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.03507353729970375,
+                  "daily_loss_buffer": 696.9643463659304,
+                  "daily_loss_buffer_pct_initial": 0.006969643463659304,
+                  "max_loss_buffer": 1666.5987417999131,
+                  "max_loss_buffer_pct_initial": 0.016665987417999132,
+                  "positive_days_profit": 17043.078208416962,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97629.59450446472,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 102629.59450446472,
+                "positive_days_profit": 17043.078208416962,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 179
+              },
+              "official": {
+                "best_day_profit": 597.7610392446804,
+                "ending_balance": 102158.04332867834,
+                "ending_equity": 102216.79644065446,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.03507353729970375,
+                  "daily_loss_buffer": 2196.9643463659304,
+                  "daily_loss_buffer_pct_initial": 0.021969643463659302,
+                  "max_loss_buffer": 6666.598741799913,
+                  "max_loss_buffer_pct_initial": 0.06666598741799913,
+                  "positive_days_profit": 17043.078208416962,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 92629.59450446472,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 102629.59450446472,
+                "positive_days_profit": 17043.078208416962,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 179
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.008030356536340696,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03333401258200087
+            }
+          },
+          "status": "EVALUATED_DAILY_OHLC_PROVISIONAL"
+        },
+        "combined_severe": {
+          "reason": "unsupported execution events cannot be synthesized without inventing a path",
+          "status": "DATA_BLOCKED"
+        },
+        "doubled_costs": {
+          "status": "EVALUATED_ENGINE_RERUN",
+          "validation": {
+            "independent_seed": {
+              "end": "2024-12-31",
+              "first_actual_open_gross_exposure": 0.0,
+              "first_day_start_balance": 100000.0,
+              "first_day_start_equity": 100000.0,
+              "first_event": "2023-01-01T00:00:00+00:00",
+              "first_opening_equity": 100000.0,
+              "independent_seed_verified": true,
+              "last_event": "2024-12-31T00:00:00+00:00",
+              "pre_start_history": "retained_for_indicators_only_not_account_state",
+              "start": "2023-01-01"
+            },
+            "metrics": {
+              "ann_return": 0.011048496123626794,
+              "ann_vol": 0.02300988717406589,
+              "avg_trade_return": 0.004055855855855858,
+              "calmar": 0.3435740189256341,
+              "expectancy_pct": 0.004055855855855849,
+              "expectancy_pnl": 9.359954954954944,
+              "final_equity": 102224.98347122407,
+              "funded_cash_risk_blockers": [
+                "planned_loss_excludes_ordinary_entry_exit_costs",
+                "aggregate_carried_stop_risk_not_continuously_rebalanced",
+                "atomic_open_pending_risk_reservation_not_integrated",
+                "pending_next_open_not_revalidated_against_authoritative_opening_state",
+                "account_currency_conversion_not_applied",
+                "authoritative_persisted_firm_session_state_not_supplied"
+              ],
+              "funded_cash_risk_status": "DATA_BLOCKED",
+              "max_drawdown": 0.03215754252366276,
+              "n_trades": 222,
+              "net_pnl": 2077.91,
+              "profit_factor": 1.12526041792254,
+              "sharpe": 0.489677837645407,
+              "short_borrow_fees_total": 0.0,
+              "sortino": 0.6923280244995176,
+              "total_return": 0.022249834712240624,
+              "win_rate": 0.49099099099099097
+            },
+            "replay": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 597.4638766467688,
+                "ending_balance": 102169.15360419928,
+                "ending_equity": 102224.98347122407,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.036173628153968525,
+                  "daily_loss_buffer": 691.636646909159,
+                  "daily_loss_buffer_pct_initial": 0.00691636646909159,
+                  "max_loss_buffer": 1618.50388329025,
+                  "max_loss_buffer_pct_initial": 0.0161850388329025,
+                  "positive_days_profit": 16516.559359313876,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97697.4689570276,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 102697.4689570276,
+                "positive_days_profit": 16516.559359313876,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 173
+              },
+              "official": {
+                "best_day_profit": 597.4638766467688,
+                "ending_balance": 102169.15360419928,
+                "ending_equity": 102224.98347122407,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.036173628153968525,
+                  "daily_loss_buffer": 2191.636646909159,
+                  "daily_loss_buffer_pct_initial": 0.02191636646909159,
+                  "max_loss_buffer": 6618.50388329025,
+                  "max_loss_buffer_pct_initial": 0.0661850388329025,
+                  "positive_days_profit": 16516.559359313876,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 92697.4689570276,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 102697.4689570276,
+                "positive_days_profit": 16516.559359313876,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 173
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.008083633530908409,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.0338149611670975
+            }
+          }
+        },
+        "fills_50pct_on_worst_liquidity_sessions": {
+          "reason": "no order book, fill acknowledgement, rejects, or depth history",
+          "status": "DATA_BLOCKED"
+        },
+        "one_30_min_liquidation_outage_per_year": {
+          "reason": "no intraday liquidation clock or executable queued-fill path",
+          "status": "DATA_BLOCKED"
+        },
+        "one_missed_stop_per_year": {
+          "reason": "no venue stop-order event stream or next executable quote path",
+          "status": "DATA_BLOCKED"
+        },
+        "volatility_1_5x_with_2x_gaps": {
+          "reason": "daily trace has no separable continuous-volatility and gap components",
+          "status": "DATA_BLOCKED"
+        },
+        "winners_reduced_50pct_losses_unchanged": {
+          "binding_pass": false,
+          "closed_trade_net_pnl_proxy": -7529.2,
+          "positive_proxy": false,
+          "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+        }
+      },
+      "validation_metrics": {
+        "ann_return": 0.011008064093733338,
+        "ann_vol": 0.023136523588216103,
+        "avg_trade_return": 0.004423526785714289,
+        "calmar": 0.3465791100588355,
+        "expectancy_pct": 0.004423526785714275,
+        "expectancy_pnl": 9.22388392857144,
+        "final_equity": 102216.79644065446,
+        "funded_cash_risk_blockers": [
+          "planned_loss_excludes_ordinary_entry_exit_costs",
+          "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "atomic_open_pending_risk_reservation_not_integrated",
+          "pending_next_open_not_revalidated_against_authoritative_opening_state",
+          "account_currency_conversion_not_applied",
+          "authoritative_persisted_firm_session_state_not_supplied"
+        ],
+        "funded_cash_risk_status": "DATA_BLOCKED",
+        "max_drawdown": 0.03176205309046065,
+        "n_trades": 224,
+        "net_pnl": 2066.1499999999996,
+        "profit_factor": 1.1206542653675573,
+        "sharpe": 0.485393435475813,
+        "short_borrow_fees_total": 0.0,
+        "sortino": 0.6804727764722067,
+        "total_return": 0.02216796440654467,
+        "win_rate": 0.49107142857142855
+      },
+      "winner_haircut": {
+        "binding_pass": false,
+        "closed_trade_net_pnl_proxy": -7529.2,
+        "positive_proxy": false,
+        "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+        "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+      }
+    },
+    "evaluation::static": {
+      "bootstrap": {
+        "evaluation_252": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        }
+      },
+      "cap_diagnostics": {
+        "aggregate_stop_only_overrun_pct_capital_base": 0.004099797333393619,
+        "aggregate_stop_risk_cap": 0.009,
+        "configured_correlated_exposure_cap": 0.2,
+        "configured_max_positions": 5,
+        "configured_position_notional_cap": 0.08,
+        "exact_exposure_gate_pass": false,
+        "gross_cap": 0.6,
+        "gross_cap_pass": true,
+        "max_observed_symbol_adverse_pct_capital_base": 0.00412919200002724,
+        "max_post_pending_gross_pct_equity": 0.2621013985586788,
+        "max_post_pending_stop_risk_pct_capital_base": 0.013099797333393618,
+        "planned_loss_includes_entry_exit_costs": false,
+        "position_cluster_concurrency_trace_available": false,
+        "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+        "stop_only_cap_pass": false,
+        "stressed_loss_per_unit_available": false,
+        "stressed_symbol_cap": 0.0045
+      },
+      "cell": "evaluation::static",
+      "concentration": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "cpcv": {
+        "n_paths": 0,
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "doubled_cost_validation": {
+        "independent_seed": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        },
+        "metrics": {
+          "ann_return": 0.011048496123626794,
+          "ann_vol": 0.02300988717406589,
+          "avg_trade_return": 0.004055855855855858,
+          "calmar": 0.3435740189256341,
+          "expectancy_pct": 0.004055855855855849,
+          "expectancy_pnl": 9.359954954954944,
+          "final_equity": 102224.98347122407,
+          "funded_cash_risk_blockers": [
+            "planned_loss_excludes_ordinary_entry_exit_costs",
+            "aggregate_carried_stop_risk_not_continuously_rebalanced",
+            "atomic_open_pending_risk_reservation_not_integrated",
+            "pending_next_open_not_revalidated_against_authoritative_opening_state",
+            "account_currency_conversion_not_applied",
+            "authoritative_persisted_firm_session_state_not_supplied"
+          ],
+          "funded_cash_risk_status": "DATA_BLOCKED",
+          "max_drawdown": 0.03215754252366276,
+          "n_trades": 222,
+          "net_pnl": 2077.91,
+          "profit_factor": 1.12526041792254,
+          "sharpe": 0.489677837645407,
+          "short_borrow_fees_total": 0.0,
+          "sortino": 0.6923280244995176,
+          "total_return": 0.022249834712240624,
+          "win_rate": 0.49099099099099097
+        },
+        "replay": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 597.4638766467688,
+            "ending_balance": 102169.15360419928,
+            "ending_equity": 102224.98347122407,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.036173628153968525,
+              "daily_loss_buffer": 691.636646909159,
+              "daily_loss_buffer_pct_initial": 0.00691636646909159,
+              "max_loss_buffer": 1618.50388329025,
+              "max_loss_buffer_pct_initial": 0.0161850388329025,
+              "positive_days_profit": 16516.559359313876,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97697.4689570276,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 102697.4689570276,
+            "positive_days_profit": 16516.559359313876,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 173
+          },
+          "official": {
+            "best_day_profit": 597.4638766467688,
+            "ending_balance": 102169.15360419928,
+            "ending_equity": 102224.98347122407,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.036173628153968525,
+              "daily_loss_buffer": 2191.636646909159,
+              "daily_loss_buffer_pct_initial": 0.02191636646909159,
+              "max_loss_buffer": 7008.525162002217,
+              "max_loss_buffer_pct_initial": 0.07008525162002217,
+              "positive_days_profit": 16516.559359313876,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 90000.0,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 102697.4689570276,
+            "positive_days_profit": 16516.559359313876,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 173
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.008083633530908409,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.0338149611670975
+        }
+      },
+      "dsr": {
+        "candidate_validation_per_period_sharpes": {
+          "evaluation::eod_trailing": 0.025406653599628983,
+          "evaluation::static": 0.025406653599628983,
+          "payout::eod_trailing": 0.017909023571380172,
+          "payout::static": 0.017909023571380172
+        },
+        "dsr": null,
+        "passed": false,
+        "reason": "DSR was not calculated because the frozen prior-trial Sharpes lack complete per-observation annualization metadata.",
+        "repository_reference": {
+          "annualization_metadata_complete": false,
+          "eligible_for_dsr": false,
+          "exists": true,
+          "n_trials": 362,
+          "reason": "The legacy trial ledger does not record each Sharpe observation's annualization convention; mixed/unknown units cannot be normalized.",
+          "sha256": "5a390364354ddaa48899f421b56ee887d2905e6d682136cee2399f5d0f1a6575",
+          "sharpes": [],
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+        },
+        "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+      },
+      "engine_cash_risk_blockers": [
+        "planned_loss_excludes_ordinary_entry_exit_costs",
+        "aggregate_carried_stop_risk_not_continuously_rebalanced",
+        "atomic_open_pending_risk_reservation_not_integrated",
+        "pending_next_open_not_revalidated_against_authoritative_opening_state",
+        "account_currency_conversion_not_applied",
+        "authoritative_persisted_firm_session_state_not_supplied"
+      ],
+      "engine_cash_risk_status": "DATA_BLOCKED",
+      "future_poison": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "gates": [
+        {
+          "gate": "fresh_independent_build_interim_validation",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "all start flat at 100,000",
+          "value": false
+        },
+        {
+          "gate": "zero_official_breaches",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "0 in build/interim/validation",
+          "value": false
+        },
+        {
+          "gate": "combined_historical_stress_zero_breaches",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": "0",
+          "value": "intraday gap/outage/partial-fill/missed-stop event stream absent"
+        },
+        {
+          "gate": "validation_sharpe",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 0.75",
+          "value": 0.485393435475813
+        },
+        {
+          "gate": "validation_profit_factor",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 1.15",
+          "value": 1.1206542653675573
+        },
+        {
+          "gate": "validation_doubled_cost_return",
+          "passed": true,
+          "status": "EVALUATED",
+          "threshold": "> 0",
+          "value": 0.022249834712240624
+        },
+        {
+          "gate": "exact_winner_haircut_return",
+          "passed": false,
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH",
+          "threshold": "> 0",
+          "value": {
+            "binding_pass": false,
+            "closed_trade_net_pnl_proxy": -7529.2,
+            "positive_proxy": false,
+            "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+            "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+          }
+        },
+        {
+          "gate": "purged_cpcv",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": ">= 12/15 positive",
+          "value": {
+            "n_paths": 0,
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "deflated_sharpe_ratio",
+          "passed": false,
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION",
+          "threshold": ">= 0.95",
+          "value": null
+        },
+        {
+          "gate": "top_profit_cluster_removal_and_concentration",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "positive and <=35%",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "future_poison_causality",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "input_order_permutations",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "100/100 identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "observed_aggregate_stop_only_risk",
+          "passed": false,
+          "status": "EVALUATED_RAW_QUOTE_STOP_ONLY",
+          "threshold": "<= 0.90% of C",
+          "value": {
+            "currency_basis": "UNCONVERTED_RAW_QUOTE_CURRENCY",
+            "maximum": 0.013099797333393618,
+            "overrun": 0.004099797333393619
+          }
+        },
+        {
+          "gate": "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "never exceed cap between decisions; include ordinary costs",
+          "value": "carried-position mark-to-stop risk is not continuously de-risked and planned risk excludes ordinary costs"
+        },
+        {
+          "gate": "gross_correlation_notional_concurrency_and_cash_risk",
+          "passed": false,
+          "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+          "threshold": "all V2 limits observed including costs/stress",
+          "value": {
+            "aggregate_stop_only_overrun_pct_capital_base": 0.004099797333393619,
+            "aggregate_stop_risk_cap": 0.009,
+            "configured_correlated_exposure_cap": 0.2,
+            "configured_max_positions": 5,
+            "configured_position_notional_cap": 0.08,
+            "exact_exposure_gate_pass": false,
+            "gross_cap": 0.6,
+            "gross_cap_pass": true,
+            "max_observed_symbol_adverse_pct_capital_base": 0.00412919200002724,
+            "max_post_pending_gross_pct_equity": 0.2621013985586788,
+            "max_post_pending_stop_risk_pct_capital_base": 0.013099797333393618,
+            "planned_loss_includes_entry_exit_costs": false,
+            "position_cluster_concurrency_trace_available": false,
+            "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+            "stop_only_cap_pass": false,
+            "stressed_loss_per_unit_available": false,
+            "stressed_symbol_cap": 0.0045
+          }
+        },
+        {
+          "gate": "engine_cash_risk_readiness",
+          "passed": false,
+          "status": "DATA_BLOCKED",
+          "threshold": "READY with no unresolved implementation/data blockers",
+          "value": {
+            "blockers": [
+              "planned_loss_excludes_ordinary_entry_exit_costs",
+              "aggregate_carried_stop_risk_not_continuously_rebalanced",
+              "atomic_open_pending_risk_reservation_not_integrated",
+              "pending_next_open_not_revalidated_against_authoritative_opening_state",
+              "account_currency_conversion_not_applied",
+              "authoritative_persisted_firm_session_state_not_supplied"
+            ],
+            "status": "DATA_BLOCKED"
+          }
+        },
+        {
+          "gate": "exact_contract_fx_bidask_stressed_loss_inputs",
+          "passed": false,
+          "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS",
+          "threshold": "all present, mapped, validated and replayed",
+          "value": {
+            "all_present": false,
+            "integrated_into_executable_replay": false,
+            "passed": false,
+            "required": {
+              "bid_ask_data": {
+                "description": "one-minute-or-better venue bid/ask and fill path",
+                "path": null,
+                "status": "MISSING"
+              },
+              "contract_metadata": {
+                "description": "contract multiplier, lot step, leverage and symbol map",
+                "path": null,
+                "status": "MISSING"
+              },
+              "fx_conversion_data": {
+                "description": "timestamped executable account-currency FX bid/ask",
+                "path": null,
+                "status": "MISSING"
+              },
+              "stressed_loss_data": {
+                "description": "registered doubled-gap/doubled-cost loss per unit",
+                "path": null,
+                "status": "MISSING"
+              }
+            },
+            "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS"
+          }
+        },
+        {
+          "gate": "protective_stop_acknowledged_with_entry",
+          "passed": false,
+          "status": "DATA_BLOCKED_ORDER_ACKNOWLEDGEMENT",
+          "threshold": "venue-native acknowledgement for every entry",
+          "value": "daily backtest has no venue acknowledgement stream"
+        },
+        {
+          "gate": "pending_order_fill_time_revalidation",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "resize/cancel from opening equity before fill",
+          "value": "current historical event ordering does not causally revalidate next-open pending risk"
+        },
+        {
+          "gate": "persistent_guard_counterfactual",
+          "passed": false,
+          "status": "DATA_BLOCKED_INTRADAY_GUARD",
+          "threshold": "block/cancel/flatten/verify/latch",
+          "value": "threshold replay is available but executable state transitions are not"
+        },
+        {
+          "gate": "worst_intraday_daily_loss",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 1.50%",
+          "value": null
+        },
+        {
+          "gate": "maximum_drawdown",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 5.00%",
+          "value": null
+        },
+        {
+          "gate": "reach_10pct_252_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 70%",
+          "value": null
+        },
+        {
+          "gate": "hard_breach_upper_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": "<= 5%",
+          "value": null
+        }
+      ],
+      "historical_replay": {
+        "validation": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 597.7610392446804,
+            "ending_balance": 102158.04332867834,
+            "ending_equity": 102216.79644065446,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.03507353729970375,
+              "daily_loss_buffer": 696.9643463659304,
+              "daily_loss_buffer_pct_initial": 0.006969643463659304,
+              "max_loss_buffer": 1666.5987417999131,
+              "max_loss_buffer_pct_initial": 0.016665987417999132,
+              "positive_days_profit": 17043.078208416962,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97629.59450446472,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 102629.59450446472,
+            "positive_days_profit": 17043.078208416962,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 179
+          },
+          "official": {
+            "best_day_profit": 597.7610392446804,
+            "ending_balance": 102158.04332867834,
+            "ending_equity": 102216.79644065446,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.03507353729970375,
+              "daily_loss_buffer": 2196.9643463659304,
+              "daily_loss_buffer_pct_initial": 0.021969643463659302,
+              "max_loss_buffer": 7026.503074802473,
+              "max_loss_buffer_pct_initial": 0.07026503074802473,
+              "positive_days_profit": 17043.078208416962,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 90000.0,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 102629.59450446472,
+            "positive_days_profit": 17043.078208416962,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 179
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.008030356536340696,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03333401258200087
+        }
+      },
+      "independent_partition_manifest": {
+        "validation": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        }
+      },
+      "maximum_loss_mode": "static",
+      "mode": "evaluation",
+      "monthly_return_confidence": {
+        "lower_95": -0.002954176127095144,
+        "mean": 0.0009550563917728369,
+        "n_months": 24,
+        "standard_error": 0.0018897436188466618,
+        "status": "EVALUATED_STUDENT_T"
+      },
+      "order_permutations": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "passed_all_binding_gates": false,
+      "risk_policy": {
+        "aggregate_risk_fraction": 0.009,
+        "base_risk_fraction": 0.0035,
+        "correlated_exposure": 0.2,
+        "cycle_drawdown": 0.05,
+        "daily_buffer_fraction": 0.15,
+        "gross_exposure": 0.6,
+        "guard_block": 0.009,
+        "guard_flatten": 0.015,
+        "max_buffer_fraction": 0.06,
+        "max_positions": 5,
+        "position_notional": 0.08,
+        "stressed_symbol_fraction": 0.0045
+      },
+      "status": "FAILED_BINDING_GATES",
+      "stress_scenarios": {
+        "base": {
+          "historical_replay": {
+            "validation": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 597.7610392446804,
+                "ending_balance": 102158.04332867834,
+                "ending_equity": 102216.79644065446,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.03507353729970375,
+                  "daily_loss_buffer": 696.9643463659304,
+                  "daily_loss_buffer_pct_initial": 0.006969643463659304,
+                  "max_loss_buffer": 1666.5987417999131,
+                  "max_loss_buffer_pct_initial": 0.016665987417999132,
+                  "positive_days_profit": 17043.078208416962,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97629.59450446472,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 102629.59450446472,
+                "positive_days_profit": 17043.078208416962,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 179
+              },
+              "official": {
+                "best_day_profit": 597.7610392446804,
+                "ending_balance": 102158.04332867834,
+                "ending_equity": 102216.79644065446,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.03507353729970375,
+                  "daily_loss_buffer": 2196.9643463659304,
+                  "daily_loss_buffer_pct_initial": 0.021969643463659302,
+                  "max_loss_buffer": 7026.503074802473,
+                  "max_loss_buffer_pct_initial": 0.07026503074802473,
+                  "positive_days_profit": 17043.078208416962,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 90000.0,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 102629.59450446472,
+                "positive_days_profit": 17043.078208416962,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 179
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.008030356536340696,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03333401258200087
+            }
+          },
+          "status": "EVALUATED_DAILY_OHLC_PROVISIONAL"
+        },
+        "combined_severe": {
+          "reason": "unsupported execution events cannot be synthesized without inventing a path",
+          "status": "DATA_BLOCKED"
+        },
+        "doubled_costs": {
+          "status": "EVALUATED_ENGINE_RERUN",
+          "validation": {
+            "independent_seed": {
+              "end": "2024-12-31",
+              "first_actual_open_gross_exposure": 0.0,
+              "first_day_start_balance": 100000.0,
+              "first_day_start_equity": 100000.0,
+              "first_event": "2023-01-01T00:00:00+00:00",
+              "first_opening_equity": 100000.0,
+              "independent_seed_verified": true,
+              "last_event": "2024-12-31T00:00:00+00:00",
+              "pre_start_history": "retained_for_indicators_only_not_account_state",
+              "start": "2023-01-01"
+            },
+            "metrics": {
+              "ann_return": 0.011048496123626794,
+              "ann_vol": 0.02300988717406589,
+              "avg_trade_return": 0.004055855855855858,
+              "calmar": 0.3435740189256341,
+              "expectancy_pct": 0.004055855855855849,
+              "expectancy_pnl": 9.359954954954944,
+              "final_equity": 102224.98347122407,
+              "funded_cash_risk_blockers": [
+                "planned_loss_excludes_ordinary_entry_exit_costs",
+                "aggregate_carried_stop_risk_not_continuously_rebalanced",
+                "atomic_open_pending_risk_reservation_not_integrated",
+                "pending_next_open_not_revalidated_against_authoritative_opening_state",
+                "account_currency_conversion_not_applied",
+                "authoritative_persisted_firm_session_state_not_supplied"
+              ],
+              "funded_cash_risk_status": "DATA_BLOCKED",
+              "max_drawdown": 0.03215754252366276,
+              "n_trades": 222,
+              "net_pnl": 2077.91,
+              "profit_factor": 1.12526041792254,
+              "sharpe": 0.489677837645407,
+              "short_borrow_fees_total": 0.0,
+              "sortino": 0.6923280244995176,
+              "total_return": 0.022249834712240624,
+              "win_rate": 0.49099099099099097
+            },
+            "replay": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 597.4638766467688,
+                "ending_balance": 102169.15360419928,
+                "ending_equity": 102224.98347122407,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.036173628153968525,
+                  "daily_loss_buffer": 691.636646909159,
+                  "daily_loss_buffer_pct_initial": 0.00691636646909159,
+                  "max_loss_buffer": 1618.50388329025,
+                  "max_loss_buffer_pct_initial": 0.0161850388329025,
+                  "positive_days_profit": 16516.559359313876,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97697.4689570276,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 102697.4689570276,
+                "positive_days_profit": 16516.559359313876,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 173
+              },
+              "official": {
+                "best_day_profit": 597.4638766467688,
+                "ending_balance": 102169.15360419928,
+                "ending_equity": 102224.98347122407,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.036173628153968525,
+                  "daily_loss_buffer": 2191.636646909159,
+                  "daily_loss_buffer_pct_initial": 0.02191636646909159,
+                  "max_loss_buffer": 7008.525162002217,
+                  "max_loss_buffer_pct_initial": 0.07008525162002217,
+                  "positive_days_profit": 16516.559359313876,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 90000.0,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 102697.4689570276,
+                "positive_days_profit": 16516.559359313876,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 173
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.008083633530908409,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.0338149611670975
+            }
+          }
+        },
+        "fills_50pct_on_worst_liquidity_sessions": {
+          "reason": "no order book, fill acknowledgement, rejects, or depth history",
+          "status": "DATA_BLOCKED"
+        },
+        "one_30_min_liquidation_outage_per_year": {
+          "reason": "no intraday liquidation clock or executable queued-fill path",
+          "status": "DATA_BLOCKED"
+        },
+        "one_missed_stop_per_year": {
+          "reason": "no venue stop-order event stream or next executable quote path",
+          "status": "DATA_BLOCKED"
+        },
+        "volatility_1_5x_with_2x_gaps": {
+          "reason": "daily trace has no separable continuous-volatility and gap components",
+          "status": "DATA_BLOCKED"
+        },
+        "winners_reduced_50pct_losses_unchanged": {
+          "binding_pass": false,
+          "closed_trade_net_pnl_proxy": -7529.2,
+          "positive_proxy": false,
+          "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+        }
+      },
+      "validation_metrics": {
+        "ann_return": 0.011008064093733338,
+        "ann_vol": 0.023136523588216103,
+        "avg_trade_return": 0.004423526785714289,
+        "calmar": 0.3465791100588355,
+        "expectancy_pct": 0.004423526785714275,
+        "expectancy_pnl": 9.22388392857144,
+        "final_equity": 102216.79644065446,
+        "funded_cash_risk_blockers": [
+          "planned_loss_excludes_ordinary_entry_exit_costs",
+          "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "atomic_open_pending_risk_reservation_not_integrated",
+          "pending_next_open_not_revalidated_against_authoritative_opening_state",
+          "account_currency_conversion_not_applied",
+          "authoritative_persisted_firm_session_state_not_supplied"
+        ],
+        "funded_cash_risk_status": "DATA_BLOCKED",
+        "max_drawdown": 0.03176205309046065,
+        "n_trades": 224,
+        "net_pnl": 2066.1499999999996,
+        "profit_factor": 1.1206542653675573,
+        "sharpe": 0.485393435475813,
+        "short_borrow_fees_total": 0.0,
+        "sortino": 0.6804727764722067,
+        "total_return": 0.02216796440654467,
+        "win_rate": 0.49107142857142855
+      },
+      "winner_haircut": {
+        "binding_pass": false,
+        "closed_trade_net_pnl_proxy": -7529.2,
+        "positive_proxy": false,
+        "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+        "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+      }
+    },
+    "payout::eod_trailing": {
+      "bootstrap": {
+        "combined_severe": {
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH"
+        },
+        "survival_12m": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        },
+        "survival_24m": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        }
+      },
+      "cap_diagnostics": {
+        "aggregate_stop_only_overrun_pct_capital_base": 0.0016551368662981788,
+        "aggregate_stop_risk_cap": 0.006,
+        "configured_correlated_exposure_cap": 0.15,
+        "configured_max_positions": 4,
+        "configured_position_notional_cap": 0.06,
+        "exact_exposure_gate_pass": false,
+        "gross_cap": 0.45,
+        "gross_cap_pass": true,
+        "max_observed_symbol_adverse_pct_capital_base": 0.0027000697146082405,
+        "max_post_pending_gross_pct_equity": 0.16689543221300138,
+        "max_post_pending_stop_risk_pct_capital_base": 0.007655136866298179,
+        "planned_loss_includes_entry_exit_costs": false,
+        "position_cluster_concurrency_trace_available": false,
+        "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+        "stop_only_cap_pass": false,
+        "stressed_loss_per_unit_available": false,
+        "stressed_symbol_cap": 0.0035
+      },
+      "cell": "payout::eod_trailing",
+      "concentration": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "cpcv": {
+        "n_paths": 0,
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "doubled_cost_validation": {
+        "independent_seed": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        },
+        "metrics": {
+          "ann_return": 0.0007592652766104102,
+          "ann_vol": 0.015191361624726566,
+          "avg_trade_return": 0.004341748633879783,
+          "calmar": 0.02052602597029467,
+          "expectancy_pct": 0.0043417486338797814,
+          "expectancy_pnl": 1.25180327868852,
+          "final_equity": 100152.1189587497,
+          "funded_cash_risk_blockers": [
+            "planned_loss_excludes_ordinary_entry_exit_costs",
+            "aggregate_carried_stop_risk_not_continuously_rebalanced",
+            "atomic_open_pending_risk_reservation_not_integrated",
+            "pending_next_open_not_revalidated_against_authoritative_opening_state",
+            "account_currency_conversion_not_applied",
+            "authoritative_persisted_firm_session_state_not_supplied"
+          ],
+          "funded_cash_risk_status": "DATA_BLOCKED",
+          "max_drawdown": 0.03699036909089082,
+          "n_trades": 183,
+          "net_pnl": 229.08,
+          "profit_factor": 1.0201979412348183,
+          "sharpe": 0.05761509658423551,
+          "short_borrow_fees_total": 0.0,
+          "sortino": 0.07478879588367876,
+          "total_return": 0.0015211895874971404,
+          "win_rate": 0.4808743169398907
+        },
+        "replay": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 312.2366647936724,
+            "ending_balance": 100229.13415013763,
+            "ending_equity": 100152.1189587497,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.030987049038936083,
+              "daily_loss_buffer": 650.6157176616252,
+              "daily_loss_buffer_pct_initial": 0.006506157176616252,
+              "max_loss_buffer": 243.75450228717818,
+              "max_loss_buffer_pct_initial": 0.002437545022871782,
+              "positive_days_profit": 10076.360107777233,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97895.60546087002,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 101895.60546087002,
+            "positive_days_profit": 10076.360107777233,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 153
+          },
+          "official": {
+            "best_day_profit": 312.2366647936724,
+            "ending_balance": 100229.13415013763,
+            "ending_equity": 100152.1189587497,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.030987049038936083,
+              "daily_loss_buffer": 2450.6157176616252,
+              "daily_loss_buffer_pct_initial": 0.024506157176616254,
+              "max_loss_buffer": 6243.754502287178,
+              "max_loss_buffer_pct_initial": 0.062437545022871785,
+              "positive_days_profit": 10076.360107777233,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 91895.60546087002,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 101895.60546087002,
+            "positive_days_profit": 10076.360107777233,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 153
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.005493842823383748,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03756245497712822
+        }
+      },
+      "dsr": {
+        "candidate_validation_per_period_sharpes": {
+          "evaluation::eod_trailing": 0.025406653599628983,
+          "evaluation::static": 0.025406653599628983,
+          "payout::eod_trailing": 0.017909023571380172,
+          "payout::static": 0.017909023571380172
+        },
+        "dsr": null,
+        "passed": false,
+        "reason": "DSR was not calculated because the frozen prior-trial Sharpes lack complete per-observation annualization metadata.",
+        "repository_reference": {
+          "annualization_metadata_complete": false,
+          "eligible_for_dsr": false,
+          "exists": true,
+          "n_trials": 362,
+          "reason": "The legacy trial ledger does not record each Sharpe observation's annualization convention; mixed/unknown units cannot be normalized.",
+          "sha256": "5a390364354ddaa48899f421b56ee887d2905e6d682136cee2399f5d0f1a6575",
+          "sharpes": [],
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+        },
+        "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+      },
+      "engine_cash_risk_blockers": [
+        "planned_loss_excludes_ordinary_entry_exit_costs",
+        "aggregate_carried_stop_risk_not_continuously_rebalanced",
+        "atomic_open_pending_risk_reservation_not_integrated",
+        "pending_next_open_not_revalidated_against_authoritative_opening_state",
+        "account_currency_conversion_not_applied",
+        "authoritative_persisted_firm_session_state_not_supplied"
+      ],
+      "engine_cash_risk_status": "DATA_BLOCKED",
+      "future_poison": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "gates": [
+        {
+          "gate": "fresh_independent_build_interim_validation",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "all start flat at 100,000",
+          "value": false
+        },
+        {
+          "gate": "zero_official_breaches",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "0 in build/interim/validation",
+          "value": false
+        },
+        {
+          "gate": "combined_historical_stress_zero_breaches",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": "0",
+          "value": "intraday gap/outage/partial-fill/missed-stop event stream absent"
+        },
+        {
+          "gate": "validation_sharpe",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 0.75",
+          "value": 0.34215141491347284
+        },
+        {
+          "gate": "validation_profit_factor",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 1.15",
+          "value": 1.0965459308219756
+        },
+        {
+          "gate": "validation_doubled_cost_return",
+          "passed": true,
+          "status": "EVALUATED",
+          "threshold": "> 0",
+          "value": 0.0015211895874971404
+        },
+        {
+          "gate": "exact_winner_haircut_return",
+          "passed": false,
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH",
+          "threshold": "> 0",
+          "value": {
+            "binding_pass": false,
+            "closed_trade_net_pnl_proxy": -4861.265,
+            "positive_proxy": false,
+            "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+            "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+          }
+        },
+        {
+          "gate": "purged_cpcv",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": ">= 12/15 positive",
+          "value": {
+            "n_paths": 0,
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "deflated_sharpe_ratio",
+          "passed": false,
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION",
+          "threshold": ">= 0.95",
+          "value": null
+        },
+        {
+          "gate": "top_profit_cluster_removal_and_concentration",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "positive and <=35%",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "future_poison_causality",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "input_order_permutations",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "100/100 identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "observed_aggregate_stop_only_risk",
+          "passed": false,
+          "status": "EVALUATED_RAW_QUOTE_STOP_ONLY",
+          "threshold": "<= 0.60% of C",
+          "value": {
+            "currency_basis": "UNCONVERTED_RAW_QUOTE_CURRENCY",
+            "maximum": 0.007655136866298179,
+            "overrun": 0.0016551368662981788
+          }
+        },
+        {
+          "gate": "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "never exceed cap between decisions; include ordinary costs",
+          "value": "carried-position mark-to-stop risk is not continuously de-risked and planned risk excludes ordinary costs"
+        },
+        {
+          "gate": "gross_correlation_notional_concurrency_and_cash_risk",
+          "passed": false,
+          "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+          "threshold": "all V2 limits observed including costs/stress",
+          "value": {
+            "aggregate_stop_only_overrun_pct_capital_base": 0.0016551368662981788,
+            "aggregate_stop_risk_cap": 0.006,
+            "configured_correlated_exposure_cap": 0.15,
+            "configured_max_positions": 4,
+            "configured_position_notional_cap": 0.06,
+            "exact_exposure_gate_pass": false,
+            "gross_cap": 0.45,
+            "gross_cap_pass": true,
+            "max_observed_symbol_adverse_pct_capital_base": 0.0027000697146082405,
+            "max_post_pending_gross_pct_equity": 0.16689543221300138,
+            "max_post_pending_stop_risk_pct_capital_base": 0.007655136866298179,
+            "planned_loss_includes_entry_exit_costs": false,
+            "position_cluster_concurrency_trace_available": false,
+            "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+            "stop_only_cap_pass": false,
+            "stressed_loss_per_unit_available": false,
+            "stressed_symbol_cap": 0.0035
+          }
+        },
+        {
+          "gate": "engine_cash_risk_readiness",
+          "passed": false,
+          "status": "DATA_BLOCKED",
+          "threshold": "READY with no unresolved implementation/data blockers",
+          "value": {
+            "blockers": [
+              "planned_loss_excludes_ordinary_entry_exit_costs",
+              "aggregate_carried_stop_risk_not_continuously_rebalanced",
+              "atomic_open_pending_risk_reservation_not_integrated",
+              "pending_next_open_not_revalidated_against_authoritative_opening_state",
+              "account_currency_conversion_not_applied",
+              "authoritative_persisted_firm_session_state_not_supplied"
+            ],
+            "status": "DATA_BLOCKED"
+          }
+        },
+        {
+          "gate": "exact_contract_fx_bidask_stressed_loss_inputs",
+          "passed": false,
+          "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS",
+          "threshold": "all present, mapped, validated and replayed",
+          "value": {
+            "all_present": false,
+            "integrated_into_executable_replay": false,
+            "passed": false,
+            "required": {
+              "bid_ask_data": {
+                "description": "one-minute-or-better venue bid/ask and fill path",
+                "path": null,
+                "status": "MISSING"
+              },
+              "contract_metadata": {
+                "description": "contract multiplier, lot step, leverage and symbol map",
+                "path": null,
+                "status": "MISSING"
+              },
+              "fx_conversion_data": {
+                "description": "timestamped executable account-currency FX bid/ask",
+                "path": null,
+                "status": "MISSING"
+              },
+              "stressed_loss_data": {
+                "description": "registered doubled-gap/doubled-cost loss per unit",
+                "path": null,
+                "status": "MISSING"
+              }
+            },
+            "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS"
+          }
+        },
+        {
+          "gate": "protective_stop_acknowledged_with_entry",
+          "passed": false,
+          "status": "DATA_BLOCKED_ORDER_ACKNOWLEDGEMENT",
+          "threshold": "venue-native acknowledgement for every entry",
+          "value": "daily backtest has no venue acknowledgement stream"
+        },
+        {
+          "gate": "pending_order_fill_time_revalidation",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "resize/cancel from opening equity before fill",
+          "value": "current historical event ordering does not causally revalidate next-open pending risk"
+        },
+        {
+          "gate": "persistent_guard_counterfactual",
+          "passed": false,
+          "status": "DATA_BLOCKED_INTRADAY_GUARD",
+          "threshold": "block/cancel/flatten/verify/latch",
+          "value": "threshold replay is available but executable state transitions are not"
+        },
+        {
+          "gate": "worst_intraday_daily_loss",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 1.20%",
+          "value": null
+        },
+        {
+          "gate": "maximum_drawdown",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 4.00%",
+          "value": null
+        },
+        {
+          "gate": "survival_12m_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 99%",
+          "value": null
+        },
+        {
+          "gate": "survival_24m_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 97.5%",
+          "value": null
+        },
+        {
+          "gate": "combined_stress_12m_survival_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": ">= 95%",
+          "value": "combined severe intraday execution path unavailable"
+        },
+        {
+          "gate": "validation_annualized_return",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 4%",
+          "value": 0.004966229742130457
+        },
+        {
+          "gate": "doubled_cost_annualized_return",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 2%",
+          "value": 0.0007592652766104102
+        },
+        {
+          "gate": "monthly_return_lower_95",
+          "passed": false,
+          "status": "EVALUATED_STUDENT_T",
+          "threshold": "> 0",
+          "value": -0.002171215178510666
+        }
+      ],
+      "historical_replay": {
+        "validation": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 506.03611993069353,
+            "ending_balance": 101039.07033678952,
+            "ending_equity": 100997.08305923312,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.04810035866085421,
+              "daily_loss_buffer": 653.7258222405944,
+              "daily_loss_buffer_pct_initial": 0.006537258222405944,
+              "max_loss_buffer": 1600.0948268584762,
+              "max_loss_buffer_pct_initial": 0.016000948268584763,
+              "positive_days_profit": 10520.423007625592,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97723.01291616634,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 101723.01291616634,
+            "positive_days_profit": 10520.423007625592,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 150
+          },
+          "official": {
+            "best_day_profit": 506.03611993069353,
+            "ending_balance": 101039.07033678952,
+            "ending_equity": 100997.08305923312,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.04810035866085421,
+              "daily_loss_buffer": 2453.7258222405944,
+              "daily_loss_buffer_pct_initial": 0.024537258222405944,
+              "max_loss_buffer": 7600.094826858476,
+              "max_loss_buffer_pct_initial": 0.07600094826858476,
+              "positive_days_profit": 10520.423007625592,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 91723.01291616634,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 101723.01291616634,
+            "positive_days_profit": 10520.423007625592,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 150
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.005462741777594056,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.023999051731415238
+        }
+      },
+      "independent_partition_manifest": {
+        "validation": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        }
+      },
+      "maximum_loss_mode": "eod_trailing",
+      "mode": "payout",
+      "monthly_return_confidence": {
+        "lower_95": -0.002171215178510666,
+        "mean": 0.00043170794756215713,
+        "n_months": 24,
+        "standard_error": 0.0012582667682476214,
+        "status": "EVALUATED_STUDENT_T"
+      },
+      "order_permutations": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "passed_all_binding_gates": false,
+      "risk_policy": {
+        "aggregate_risk_fraction": 0.006,
+        "base_risk_fraction": 0.0025,
+        "correlated_exposure": 0.15,
+        "cycle_drawdown": 0.04,
+        "daily_buffer_fraction": 0.1,
+        "gross_exposure": 0.45,
+        "guard_block": 0.006,
+        "guard_flatten": 0.012,
+        "max_buffer_fraction": 0.04,
+        "max_positions": 4,
+        "position_notional": 0.06,
+        "stressed_symbol_fraction": 0.0035
+      },
+      "status": "FAILED_BINDING_GATES",
+      "stress_scenarios": {
+        "base": {
+          "historical_replay": {
+            "validation": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 506.03611993069353,
+                "ending_balance": 101039.07033678952,
+                "ending_equity": 100997.08305923312,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.04810035866085421,
+                  "daily_loss_buffer": 653.7258222405944,
+                  "daily_loss_buffer_pct_initial": 0.006537258222405944,
+                  "max_loss_buffer": 1600.0948268584762,
+                  "max_loss_buffer_pct_initial": 0.016000948268584763,
+                  "positive_days_profit": 10520.423007625592,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97723.01291616634,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 101723.01291616634,
+                "positive_days_profit": 10520.423007625592,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 150
+              },
+              "official": {
+                "best_day_profit": 506.03611993069353,
+                "ending_balance": 101039.07033678952,
+                "ending_equity": 100997.08305923312,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.04810035866085421,
+                  "daily_loss_buffer": 2453.7258222405944,
+                  "daily_loss_buffer_pct_initial": 0.024537258222405944,
+                  "max_loss_buffer": 7600.094826858476,
+                  "max_loss_buffer_pct_initial": 0.07600094826858476,
+                  "positive_days_profit": 10520.423007625592,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 91723.01291616634,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 101723.01291616634,
+                "positive_days_profit": 10520.423007625592,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 150
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.005462741777594056,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.023999051731415238
+            }
+          },
+          "status": "EVALUATED_DAILY_OHLC_PROVISIONAL"
+        },
+        "combined_severe": {
+          "reason": "unsupported execution events cannot be synthesized without inventing a path",
+          "status": "DATA_BLOCKED"
+        },
+        "doubled_costs": {
+          "status": "EVALUATED_ENGINE_RERUN",
+          "validation": {
+            "independent_seed": {
+              "end": "2024-12-31",
+              "first_actual_open_gross_exposure": 0.0,
+              "first_day_start_balance": 100000.0,
+              "first_day_start_equity": 100000.0,
+              "first_event": "2023-01-01T00:00:00+00:00",
+              "first_opening_equity": 100000.0,
+              "independent_seed_verified": true,
+              "last_event": "2024-12-31T00:00:00+00:00",
+              "pre_start_history": "retained_for_indicators_only_not_account_state",
+              "start": "2023-01-01"
+            },
+            "metrics": {
+              "ann_return": 0.0007592652766104102,
+              "ann_vol": 0.015191361624726566,
+              "avg_trade_return": 0.004341748633879783,
+              "calmar": 0.02052602597029467,
+              "expectancy_pct": 0.0043417486338797814,
+              "expectancy_pnl": 1.25180327868852,
+              "final_equity": 100152.1189587497,
+              "funded_cash_risk_blockers": [
+                "planned_loss_excludes_ordinary_entry_exit_costs",
+                "aggregate_carried_stop_risk_not_continuously_rebalanced",
+                "atomic_open_pending_risk_reservation_not_integrated",
+                "pending_next_open_not_revalidated_against_authoritative_opening_state",
+                "account_currency_conversion_not_applied",
+                "authoritative_persisted_firm_session_state_not_supplied"
+              ],
+              "funded_cash_risk_status": "DATA_BLOCKED",
+              "max_drawdown": 0.03699036909089082,
+              "n_trades": 183,
+              "net_pnl": 229.08,
+              "profit_factor": 1.0201979412348183,
+              "sharpe": 0.05761509658423551,
+              "short_borrow_fees_total": 0.0,
+              "sortino": 0.07478879588367876,
+              "total_return": 0.0015211895874971404,
+              "win_rate": 0.4808743169398907
+            },
+            "replay": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 312.2366647936724,
+                "ending_balance": 100229.13415013763,
+                "ending_equity": 100152.1189587497,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.030987049038936083,
+                  "daily_loss_buffer": 650.6157176616252,
+                  "daily_loss_buffer_pct_initial": 0.006506157176616252,
+                  "max_loss_buffer": 243.75450228717818,
+                  "max_loss_buffer_pct_initial": 0.002437545022871782,
+                  "positive_days_profit": 10076.360107777233,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97895.60546087002,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 101895.60546087002,
+                "positive_days_profit": 10076.360107777233,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 153
+              },
+              "official": {
+                "best_day_profit": 312.2366647936724,
+                "ending_balance": 100229.13415013763,
+                "ending_equity": 100152.1189587497,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.030987049038936083,
+                  "daily_loss_buffer": 2450.6157176616252,
+                  "daily_loss_buffer_pct_initial": 0.024506157176616254,
+                  "max_loss_buffer": 6243.754502287178,
+                  "max_loss_buffer_pct_initial": 0.062437545022871785,
+                  "positive_days_profit": 10076.360107777233,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 91895.60546087002,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 101895.60546087002,
+                "positive_days_profit": 10076.360107777233,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 153
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.005493842823383748,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03756245497712822
+            }
+          }
+        },
+        "fills_50pct_on_worst_liquidity_sessions": {
+          "reason": "no order book, fill acknowledgement, rejects, or depth history",
+          "status": "DATA_BLOCKED"
+        },
+        "one_30_min_liquidation_outage_per_year": {
+          "reason": "no intraday liquidation clock or executable queued-fill path",
+          "status": "DATA_BLOCKED"
+        },
+        "one_missed_stop_per_year": {
+          "reason": "no venue stop-order event stream or next executable quote path",
+          "status": "DATA_BLOCKED"
+        },
+        "volatility_1_5x_with_2x_gaps": {
+          "reason": "daily trace has no separable continuous-volatility and gap components",
+          "status": "DATA_BLOCKED"
+        },
+        "winners_reduced_50pct_losses_unchanged": {
+          "binding_pass": false,
+          "closed_trade_net_pnl_proxy": -4861.265,
+          "positive_proxy": false,
+          "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+        }
+      },
+      "validation_metrics": {
+        "ann_return": 0.004966229742130457,
+        "ann_vol": 0.01481921147646374,
+        "avg_trade_return": 0.008331657458563537,
+        "calmar": 0.20485990680779742,
+        "expectancy_pct": 0.008331657458563554,
+        "expectancy_pnl": 5.740220994475166,
+        "final_equity": 100997.08305923312,
+        "funded_cash_risk_blockers": [
+          "planned_loss_excludes_ordinary_entry_exit_costs",
+          "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "atomic_open_pending_risk_reservation_not_integrated",
+          "pending_next_open_not_revalidated_against_authoritative_opening_state",
+          "account_currency_conversion_not_applied",
+          "authoritative_persisted_firm_session_state_not_supplied"
+        ],
+        "funded_cash_risk_status": "DATA_BLOCKED",
+        "max_drawdown": 0.024242077522713346,
+        "n_trades": 181,
+        "net_pnl": 1038.98,
+        "profit_factor": 1.0965459308219756,
+        "sharpe": 0.34215141491347284,
+        "short_borrow_fees_total": 0.0,
+        "sortino": 0.4471595635617027,
+        "total_return": 0.00997083059233117,
+        "win_rate": 0.5027624309392266
+      },
+      "winner_haircut": {
+        "binding_pass": false,
+        "closed_trade_net_pnl_proxy": -4861.265,
+        "positive_proxy": false,
+        "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+        "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+      }
+    },
+    "payout::static": {
+      "bootstrap": {
+        "combined_severe": {
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH"
+        },
+        "survival_12m": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        },
+        "survival_24m": {
+          "candidates": {},
+          "n_paths": 0,
+          "status": "SKIPPED_NON_BINDING"
+        }
+      },
+      "cap_diagnostics": {
+        "aggregate_stop_only_overrun_pct_capital_base": 0.0016551368662981788,
+        "aggregate_stop_risk_cap": 0.006,
+        "configured_correlated_exposure_cap": 0.15,
+        "configured_max_positions": 4,
+        "configured_position_notional_cap": 0.06,
+        "exact_exposure_gate_pass": false,
+        "gross_cap": 0.45,
+        "gross_cap_pass": true,
+        "max_observed_symbol_adverse_pct_capital_base": 0.0027000697146082405,
+        "max_post_pending_gross_pct_equity": 0.16689543221300138,
+        "max_post_pending_stop_risk_pct_capital_base": 0.007655136866298179,
+        "planned_loss_includes_entry_exit_costs": false,
+        "position_cluster_concurrency_trace_available": false,
+        "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+        "stop_only_cap_pass": false,
+        "stressed_loss_per_unit_available": false,
+        "stressed_symbol_cap": 0.0035
+      },
+      "cell": "payout::static",
+      "concentration": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "cpcv": {
+        "n_paths": 0,
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "doubled_cost_validation": {
+        "independent_seed": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        },
+        "metrics": {
+          "ann_return": 0.0007592652766104102,
+          "ann_vol": 0.015191361624726566,
+          "avg_trade_return": 0.004341748633879783,
+          "calmar": 0.02052602597029467,
+          "expectancy_pct": 0.0043417486338797814,
+          "expectancy_pnl": 1.25180327868852,
+          "final_equity": 100152.1189587497,
+          "funded_cash_risk_blockers": [
+            "planned_loss_excludes_ordinary_entry_exit_costs",
+            "aggregate_carried_stop_risk_not_continuously_rebalanced",
+            "atomic_open_pending_risk_reservation_not_integrated",
+            "pending_next_open_not_revalidated_against_authoritative_opening_state",
+            "account_currency_conversion_not_applied",
+            "authoritative_persisted_firm_session_state_not_supplied"
+          ],
+          "funded_cash_risk_status": "DATA_BLOCKED",
+          "max_drawdown": 0.03699036909089082,
+          "n_trades": 183,
+          "net_pnl": 229.08,
+          "profit_factor": 1.0201979412348183,
+          "sharpe": 0.05761509658423551,
+          "short_borrow_fees_total": 0.0,
+          "sortino": 0.07478879588367876,
+          "total_return": 0.0015211895874971404,
+          "win_rate": 0.4808743169398907
+        },
+        "replay": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 312.2366647936724,
+            "ending_balance": 100229.13415013763,
+            "ending_equity": 100152.1189587497,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.030987049038936083,
+              "daily_loss_buffer": 650.6157176616252,
+              "daily_loss_buffer_pct_initial": 0.006506157176616252,
+              "max_loss_buffer": 243.75450228717818,
+              "max_loss_buffer_pct_initial": 0.002437545022871782,
+              "positive_days_profit": 10076.360107777233,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97895.60546087002,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 101895.60546087002,
+            "positive_days_profit": 10076.360107777233,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 153
+          },
+          "official": {
+            "best_day_profit": 312.2366647936724,
+            "ending_balance": 100229.13415013763,
+            "ending_equity": 100152.1189587497,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.030987049038936083,
+              "daily_loss_buffer": 2450.6157176616252,
+              "daily_loss_buffer_pct_initial": 0.024506157176616254,
+              "max_loss_buffer": 8139.3599631572,
+              "max_loss_buffer_pct_initial": 0.081393599631572,
+              "positive_days_profit": 10076.360107777233,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 90000.0,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 101895.60546087002,
+            "positive_days_profit": 10076.360107777233,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 153
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.005493842823383748,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03756245497712822
+        }
+      },
+      "dsr": {
+        "candidate_validation_per_period_sharpes": {
+          "evaluation::eod_trailing": 0.025406653599628983,
+          "evaluation::static": 0.025406653599628983,
+          "payout::eod_trailing": 0.017909023571380172,
+          "payout::static": 0.017909023571380172
+        },
+        "dsr": null,
+        "passed": false,
+        "reason": "DSR was not calculated because the frozen prior-trial Sharpes lack complete per-observation annualization metadata.",
+        "repository_reference": {
+          "annualization_metadata_complete": false,
+          "eligible_for_dsr": false,
+          "exists": true,
+          "n_trials": 362,
+          "reason": "The legacy trial ledger does not record each Sharpe observation's annualization convention; mixed/unknown units cannot be normalized.",
+          "sha256": "5a390364354ddaa48899f421b56ee887d2905e6d682136cee2399f5d0f1a6575",
+          "sharpes": [],
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+        },
+        "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+      },
+      "engine_cash_risk_blockers": [
+        "planned_loss_excludes_ordinary_entry_exit_costs",
+        "aggregate_carried_stop_risk_not_continuously_rebalanced",
+        "atomic_open_pending_risk_reservation_not_integrated",
+        "pending_next_open_not_revalidated_against_authoritative_opening_state",
+        "account_currency_conversion_not_applied",
+        "authoritative_persisted_firm_session_state_not_supplied"
+      ],
+      "engine_cash_risk_status": "DATA_BLOCKED",
+      "future_poison": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "gates": [
+        {
+          "gate": "fresh_independent_build_interim_validation",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "all start flat at 100,000",
+          "value": false
+        },
+        {
+          "gate": "zero_official_breaches",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "0 in build/interim/validation",
+          "value": false
+        },
+        {
+          "gate": "combined_historical_stress_zero_breaches",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": "0",
+          "value": "intraday gap/outage/partial-fill/missed-stop event stream absent"
+        },
+        {
+          "gate": "validation_sharpe",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 0.75",
+          "value": 0.34215141491347284
+        },
+        {
+          "gate": "validation_profit_factor",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 1.15",
+          "value": 1.0965459308219756
+        },
+        {
+          "gate": "validation_doubled_cost_return",
+          "passed": true,
+          "status": "EVALUATED",
+          "threshold": "> 0",
+          "value": 0.0015211895874971404
+        },
+        {
+          "gate": "exact_winner_haircut_return",
+          "passed": false,
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH",
+          "threshold": "> 0",
+          "value": {
+            "binding_pass": false,
+            "closed_trade_net_pnl_proxy": -4861.265,
+            "positive_proxy": false,
+            "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+            "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+          }
+        },
+        {
+          "gate": "purged_cpcv",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": ">= 12/15 positive",
+          "value": {
+            "n_paths": 0,
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "deflated_sharpe_ratio",
+          "passed": false,
+          "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION",
+          "threshold": ">= 0.95",
+          "value": null
+        },
+        {
+          "gate": "top_profit_cluster_removal_and_concentration",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "positive and <=35%",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "future_poison_causality",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "input_order_permutations",
+          "passed": false,
+          "status": "SKIPPED_NON_BINDING",
+          "threshold": "100/100 identical",
+          "value": {
+            "passed": false,
+            "status": "SKIPPED_NON_BINDING"
+          }
+        },
+        {
+          "gate": "observed_aggregate_stop_only_risk",
+          "passed": false,
+          "status": "EVALUATED_RAW_QUOTE_STOP_ONLY",
+          "threshold": "<= 0.60% of C",
+          "value": {
+            "currency_basis": "UNCONVERTED_RAW_QUOTE_CURRENCY",
+            "maximum": 0.007655136866298179,
+            "overrun": 0.0016551368662981788
+          }
+        },
+        {
+          "gate": "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "never exceed cap between decisions; include ordinary costs",
+          "value": "carried-position mark-to-stop risk is not continuously de-risked and planned risk excludes ordinary costs"
+        },
+        {
+          "gate": "gross_correlation_notional_concurrency_and_cash_risk",
+          "passed": false,
+          "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+          "threshold": "all V2 limits observed including costs/stress",
+          "value": {
+            "aggregate_stop_only_overrun_pct_capital_base": 0.0016551368662981788,
+            "aggregate_stop_risk_cap": 0.006,
+            "configured_correlated_exposure_cap": 0.15,
+            "configured_max_positions": 4,
+            "configured_position_notional_cap": 0.06,
+            "exact_exposure_gate_pass": false,
+            "gross_cap": 0.45,
+            "gross_cap_pass": true,
+            "max_observed_symbol_adverse_pct_capital_base": 0.0027000697146082405,
+            "max_post_pending_gross_pct_equity": 0.16689543221300138,
+            "max_post_pending_stop_risk_pct_capital_base": 0.007655136866298179,
+            "planned_loss_includes_entry_exit_costs": false,
+            "position_cluster_concurrency_trace_available": false,
+            "status": "DATA_BLOCKED_COST_STRESS_AND_POSITION_LEVEL_TRACE",
+            "stop_only_cap_pass": false,
+            "stressed_loss_per_unit_available": false,
+            "stressed_symbol_cap": 0.0035
+          }
+        },
+        {
+          "gate": "engine_cash_risk_readiness",
+          "passed": false,
+          "status": "DATA_BLOCKED",
+          "threshold": "READY with no unresolved implementation/data blockers",
+          "value": {
+            "blockers": [
+              "planned_loss_excludes_ordinary_entry_exit_costs",
+              "aggregate_carried_stop_risk_not_continuously_rebalanced",
+              "atomic_open_pending_risk_reservation_not_integrated",
+              "pending_next_open_not_revalidated_against_authoritative_opening_state",
+              "account_currency_conversion_not_applied",
+              "authoritative_persisted_firm_session_state_not_supplied"
+            ],
+            "status": "DATA_BLOCKED"
+          }
+        },
+        {
+          "gate": "exact_contract_fx_bidask_stressed_loss_inputs",
+          "passed": false,
+          "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS",
+          "threshold": "all present, mapped, validated and replayed",
+          "value": {
+            "all_present": false,
+            "integrated_into_executable_replay": false,
+            "passed": false,
+            "required": {
+              "bid_ask_data": {
+                "description": "one-minute-or-better venue bid/ask and fill path",
+                "path": null,
+                "status": "MISSING"
+              },
+              "contract_metadata": {
+                "description": "contract multiplier, lot step, leverage and symbol map",
+                "path": null,
+                "status": "MISSING"
+              },
+              "fx_conversion_data": {
+                "description": "timestamped executable account-currency FX bid/ask",
+                "path": null,
+                "status": "MISSING"
+              },
+              "stressed_loss_data": {
+                "description": "registered doubled-gap/doubled-cost loss per unit",
+                "path": null,
+                "status": "MISSING"
+              }
+            },
+            "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS"
+          }
+        },
+        {
+          "gate": "protective_stop_acknowledged_with_entry",
+          "passed": false,
+          "status": "DATA_BLOCKED_ORDER_ACKNOWLEDGEMENT",
+          "threshold": "venue-native acknowledgement for every entry",
+          "value": "daily backtest has no venue acknowledgement stream"
+        },
+        {
+          "gate": "pending_order_fill_time_revalidation",
+          "passed": false,
+          "status": "IMPLEMENTATION_BLOCKED",
+          "threshold": "resize/cancel from opening equity before fill",
+          "value": "current historical event ordering does not causally revalidate next-open pending risk"
+        },
+        {
+          "gate": "persistent_guard_counterfactual",
+          "passed": false,
+          "status": "DATA_BLOCKED_INTRADAY_GUARD",
+          "threshold": "block/cancel/flatten/verify/latch",
+          "value": "threshold replay is available but executable state transitions are not"
+        },
+        {
+          "gate": "worst_intraday_daily_loss",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 1.20%",
+          "value": null
+        },
+        {
+          "gate": "maximum_drawdown",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": "<= 4.00%",
+          "value": null
+        },
+        {
+          "gate": "survival_12m_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 99%",
+          "value": null
+        },
+        {
+          "gate": "survival_24m_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_BOOTSTRAP_POLICY_REPLAY",
+          "threshold": ">= 97.5%",
+          "value": null
+        },
+        {
+          "gate": "combined_stress_12m_survival_lower_wilson",
+          "passed": false,
+          "status": "DATA_BLOCKED_EXECUTION_PATH",
+          "threshold": ">= 95%",
+          "value": "combined severe intraday execution path unavailable"
+        },
+        {
+          "gate": "validation_annualized_return",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 4%",
+          "value": 0.004966229742130457
+        },
+        {
+          "gate": "doubled_cost_annualized_return",
+          "passed": false,
+          "status": "EVALUATED",
+          "threshold": ">= 2%",
+          "value": 0.0007592652766104102
+        },
+        {
+          "gate": "monthly_return_lower_95",
+          "passed": false,
+          "status": "EVALUATED_STUDENT_T",
+          "threshold": "> 0",
+          "value": -0.002171215178510666
+        }
+      ],
+      "historical_replay": {
+        "validation": {
+          "guard_terminal_failure": false,
+          "guard_terminal_proxy": {
+            "best_day_profit": 506.03611993069353,
+            "ending_balance": 101039.07033678952,
+            "ending_equity": 100997.08305923312,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.04810035866085421,
+              "daily_loss_buffer": 653.7258222405944,
+              "daily_loss_buffer_pct_initial": 0.006537258222405944,
+              "max_loss_buffer": 1600.0948268584762,
+              "max_loss_buffer_pct_initial": 0.016000948268584763,
+              "positive_days_profit": 10520.423007625592,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 97723.01291616634,
+            "minimum_trading_days": 0,
+            "peak_eod_balance": 101723.01291616634,
+            "positive_days_profit": 10520.423007625592,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 150
+          },
+          "official": {
+            "best_day_profit": 506.03611993069353,
+            "ending_balance": 101039.07033678952,
+            "ending_equity": 100997.08305923312,
+            "margins": {
+              "best_day_consistency_buffer": null,
+              "best_day_profit_share": 0.04810035866085421,
+              "daily_loss_buffer": 2453.7258222405944,
+              "daily_loss_buffer_pct_initial": 0.024537258222405944,
+              "max_loss_buffer": 8167.656310457431,
+              "max_loss_buffer_pct_initial": 0.0816765631045743,
+              "positive_days_profit": 10520.423007625592,
+              "profit_target_buffer": null,
+              "profit_target_buffer_pct_initial": null
+            },
+            "max_loss_floor": 90000.0,
+            "minimum_trading_days": 4,
+            "peak_eod_balance": 101723.01291616634,
+            "positive_days_profit": 10520.423007625592,
+            "reason": "data_exhausted",
+            "session": "2024-12-31",
+            "sessions_processed": 731,
+            "status": "active",
+            "timestamp": "2024-12-31T00:00:00+00:00",
+            "trading_days": 150
+          },
+          "official_breach": false,
+          "records": 731,
+          "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+          "worst_intraday_daily_loss_pct_initial": 0.005462741777594056,
+          "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.023999051731415238
+        }
+      },
+      "independent_partition_manifest": {
+        "validation": {
+          "end": "2024-12-31",
+          "first_actual_open_gross_exposure": 0.0,
+          "first_day_start_balance": 100000.0,
+          "first_day_start_equity": 100000.0,
+          "first_event": "2023-01-01T00:00:00+00:00",
+          "first_opening_equity": 100000.0,
+          "independent_seed_verified": true,
+          "last_event": "2024-12-31T00:00:00+00:00",
+          "pre_start_history": "retained_for_indicators_only_not_account_state",
+          "start": "2023-01-01"
+        }
+      },
+      "maximum_loss_mode": "static",
+      "mode": "payout",
+      "monthly_return_confidence": {
+        "lower_95": -0.002171215178510666,
+        "mean": 0.00043170794756215713,
+        "n_months": 24,
+        "standard_error": 0.0012582667682476214,
+        "status": "EVALUATED_STUDENT_T"
+      },
+      "order_permutations": {
+        "passed": false,
+        "status": "SKIPPED_NON_BINDING"
+      },
+      "passed_all_binding_gates": false,
+      "risk_policy": {
+        "aggregate_risk_fraction": 0.006,
+        "base_risk_fraction": 0.0025,
+        "correlated_exposure": 0.15,
+        "cycle_drawdown": 0.04,
+        "daily_buffer_fraction": 0.1,
+        "gross_exposure": 0.45,
+        "guard_block": 0.006,
+        "guard_flatten": 0.012,
+        "max_buffer_fraction": 0.04,
+        "max_positions": 4,
+        "position_notional": 0.06,
+        "stressed_symbol_fraction": 0.0035
+      },
+      "status": "FAILED_BINDING_GATES",
+      "stress_scenarios": {
+        "base": {
+          "historical_replay": {
+            "validation": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 506.03611993069353,
+                "ending_balance": 101039.07033678952,
+                "ending_equity": 100997.08305923312,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.04810035866085421,
+                  "daily_loss_buffer": 653.7258222405944,
+                  "daily_loss_buffer_pct_initial": 0.006537258222405944,
+                  "max_loss_buffer": 1600.0948268584762,
+                  "max_loss_buffer_pct_initial": 0.016000948268584763,
+                  "positive_days_profit": 10520.423007625592,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97723.01291616634,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 101723.01291616634,
+                "positive_days_profit": 10520.423007625592,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 150
+              },
+              "official": {
+                "best_day_profit": 506.03611993069353,
+                "ending_balance": 101039.07033678952,
+                "ending_equity": 100997.08305923312,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.04810035866085421,
+                  "daily_loss_buffer": 2453.7258222405944,
+                  "daily_loss_buffer_pct_initial": 0.024537258222405944,
+                  "max_loss_buffer": 8167.656310457431,
+                  "max_loss_buffer_pct_initial": 0.0816765631045743,
+                  "positive_days_profit": 10520.423007625592,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 90000.0,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 101723.01291616634,
+                "positive_days_profit": 10520.423007625592,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 150
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.005462741777594056,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.023999051731415238
+            }
+          },
+          "status": "EVALUATED_DAILY_OHLC_PROVISIONAL"
+        },
+        "combined_severe": {
+          "reason": "unsupported execution events cannot be synthesized without inventing a path",
+          "status": "DATA_BLOCKED"
+        },
+        "doubled_costs": {
+          "status": "EVALUATED_ENGINE_RERUN",
+          "validation": {
+            "independent_seed": {
+              "end": "2024-12-31",
+              "first_actual_open_gross_exposure": 0.0,
+              "first_day_start_balance": 100000.0,
+              "first_day_start_equity": 100000.0,
+              "first_event": "2023-01-01T00:00:00+00:00",
+              "first_opening_equity": 100000.0,
+              "independent_seed_verified": true,
+              "last_event": "2024-12-31T00:00:00+00:00",
+              "pre_start_history": "retained_for_indicators_only_not_account_state",
+              "start": "2023-01-01"
+            },
+            "metrics": {
+              "ann_return": 0.0007592652766104102,
+              "ann_vol": 0.015191361624726566,
+              "avg_trade_return": 0.004341748633879783,
+              "calmar": 0.02052602597029467,
+              "expectancy_pct": 0.0043417486338797814,
+              "expectancy_pnl": 1.25180327868852,
+              "final_equity": 100152.1189587497,
+              "funded_cash_risk_blockers": [
+                "planned_loss_excludes_ordinary_entry_exit_costs",
+                "aggregate_carried_stop_risk_not_continuously_rebalanced",
+                "atomic_open_pending_risk_reservation_not_integrated",
+                "pending_next_open_not_revalidated_against_authoritative_opening_state",
+                "account_currency_conversion_not_applied",
+                "authoritative_persisted_firm_session_state_not_supplied"
+              ],
+              "funded_cash_risk_status": "DATA_BLOCKED",
+              "max_drawdown": 0.03699036909089082,
+              "n_trades": 183,
+              "net_pnl": 229.08,
+              "profit_factor": 1.0201979412348183,
+              "sharpe": 0.05761509658423551,
+              "short_borrow_fees_total": 0.0,
+              "sortino": 0.07478879588367876,
+              "total_return": 0.0015211895874971404,
+              "win_rate": 0.4808743169398907
+            },
+            "replay": {
+              "guard_terminal_failure": false,
+              "guard_terminal_proxy": {
+                "best_day_profit": 312.2366647936724,
+                "ending_balance": 100229.13415013763,
+                "ending_equity": 100152.1189587497,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.030987049038936083,
+                  "daily_loss_buffer": 650.6157176616252,
+                  "daily_loss_buffer_pct_initial": 0.006506157176616252,
+                  "max_loss_buffer": 243.75450228717818,
+                  "max_loss_buffer_pct_initial": 0.002437545022871782,
+                  "positive_days_profit": 10076.360107777233,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 97895.60546087002,
+                "minimum_trading_days": 0,
+                "peak_eod_balance": 101895.60546087002,
+                "positive_days_profit": 10076.360107777233,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 153
+              },
+              "official": {
+                "best_day_profit": 312.2366647936724,
+                "ending_balance": 100229.13415013763,
+                "ending_equity": 100152.1189587497,
+                "margins": {
+                  "best_day_consistency_buffer": null,
+                  "best_day_profit_share": 0.030987049038936083,
+                  "daily_loss_buffer": 2450.6157176616252,
+                  "daily_loss_buffer_pct_initial": 0.024506157176616254,
+                  "max_loss_buffer": 8139.3599631572,
+                  "max_loss_buffer_pct_initial": 0.081393599631572,
+                  "positive_days_profit": 10076.360107777233,
+                  "profit_target_buffer": null,
+                  "profit_target_buffer_pct_initial": null
+                },
+                "max_loss_floor": 90000.0,
+                "minimum_trading_days": 4,
+                "peak_eod_balance": 101895.60546087002,
+                "positive_days_profit": 10076.360107777233,
+                "reason": "data_exhausted",
+                "session": "2024-12-31",
+                "sessions_processed": 731,
+                "status": "active",
+                "timestamp": "2024-12-31T00:00:00+00:00",
+                "trading_days": 153
+              },
+              "official_breach": false,
+              "records": 731,
+              "semantics": "Daily-OHLC terminal threshold proxy; this is not an executable replay of block/cancel/flatten acknowledgements.",
+              "worst_intraday_daily_loss_pct_initial": 0.005493842823383748,
+              "worst_peak_to_intraday_cash_drawdown_pct_initial": 0.03756245497712822
+            }
+          }
+        },
+        "fills_50pct_on_worst_liquidity_sessions": {
+          "reason": "no order book, fill acknowledgement, rejects, or depth history",
+          "status": "DATA_BLOCKED"
+        },
+        "one_30_min_liquidation_outage_per_year": {
+          "reason": "no intraday liquidation clock or executable queued-fill path",
+          "status": "DATA_BLOCKED"
+        },
+        "one_missed_stop_per_year": {
+          "reason": "no venue stop-order event stream or next executable quote path",
+          "status": "DATA_BLOCKED"
+        },
+        "volatility_1_5x_with_2x_gaps": {
+          "reason": "daily trace has no separable continuous-volatility and gap components",
+          "status": "DATA_BLOCKED"
+        },
+        "winners_reduced_50pct_losses_unchanged": {
+          "binding_pass": false,
+          "closed_trade_net_pnl_proxy": -4861.265,
+          "positive_proxy": false,
+          "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+          "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+        }
+      },
+      "validation_metrics": {
+        "ann_return": 0.004966229742130457,
+        "ann_vol": 0.01481921147646374,
+        "avg_trade_return": 0.008331657458563537,
+        "calmar": 0.20485990680779742,
+        "expectancy_pct": 0.008331657458563554,
+        "expectancy_pnl": 5.740220994475166,
+        "final_equity": 100997.08305923312,
+        "funded_cash_risk_blockers": [
+          "planned_loss_excludes_ordinary_entry_exit_costs",
+          "aggregate_carried_stop_risk_not_continuously_rebalanced",
+          "atomic_open_pending_risk_reservation_not_integrated",
+          "pending_next_open_not_revalidated_against_authoritative_opening_state",
+          "account_currency_conversion_not_applied",
+          "authoritative_persisted_firm_session_state_not_supplied"
+        ],
+        "funded_cash_risk_status": "DATA_BLOCKED",
+        "max_drawdown": 0.024242077522713346,
+        "n_trades": 181,
+        "net_pnl": 1038.98,
+        "profit_factor": 1.0965459308219756,
+        "sharpe": 0.34215141491347284,
+        "short_borrow_fees_total": 0.0,
+        "sortino": 0.4471595635617027,
+        "total_return": 0.00997083059233117,
+        "win_rate": 0.5027624309392266
+      },
+      "winner_haircut": {
+        "binding_pass": false,
+        "closed_trade_net_pnl_proxy": -4861.265,
+        "positive_proxy": false,
+        "reason": "Closed trades can be haircutted exactly, but daily floating equity and partial-fill timing cannot be reconciled from the aggregate trace.",
+        "status": "DATA_BLOCKED_RECONCILED_EQUITY_PATH"
+      }
+    }
+  },
+  "data_manifest": {
+    "AAPL": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "AAPL_1d.parquet",
+      "rows": 2672,
+      "sha256": "ab51843ba487292b5f9202a33af32cbd7fbb6e95f3eba084940feb5a4fd565fd",
+      "status": "loaded"
+    },
+    "ADA/USD": {
+      "first_bar": "2020-01-01T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "ADA_USD_1d.parquet",
+      "rows": 2423,
+      "sha256": "0cc6a1fe9213463b661a9405950a5fe00d0d42ac64b15675b2dc3de3773789b7",
+      "status": "loaded"
+    },
+    "AMD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "AMD_1d.parquet",
+      "rows": 2672,
+      "sha256": "627b02cb3d87e114a0aa1ac4781e2cda5a96bf63cc2f31c0ce3b6e40029bdbfc",
+      "status": "loaded"
+    },
+    "AMZN": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "AMZN_1d.parquet",
+      "rows": 2672,
+      "sha256": "292b21170ae343c62b14792c495098524e0068d19e16d4da2e21436cee536f2d",
+      "status": "loaded"
+    },
+    "ARB/USD": {
+      "first_bar": "2023-03-23T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "ARB_USD_1d.parquet",
+      "rows": 1246,
+      "sha256": "9d1ea6dd5d2e082e23274beb949b1da9cd783b61bac9f8151c86ac59deb105e0",
+      "status": "loaded"
+    },
+    "AUD/USD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "AUD_USD_1d.parquet",
+      "rows": 2749,
+      "sha256": "b77575d8e3fc5d9e9fbc9de4ecc22262afb3a123c2c1c3e5ee615c0aad017df8",
+      "status": "loaded"
+    },
+    "AVAX/USD": {
+      "first_bar": "2020-12-24T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "AVAX_USD_1d.parquet",
+      "rows": 2065,
+      "sha256": "4667b6a8bb192cd904bf871c03ac94aafa77c908f60c79f64d0d7c5dbf735788",
+      "status": "loaded"
+    },
+    "BNB/USD": {
+      "first_bar": "2020-01-01T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "BNB_USD_1d.parquet",
+      "rows": 2423,
+      "sha256": "fbfb0fc40643450a3897b20e6d82819dd671bc2518b1231881c09d8d154e0e0b",
+      "status": "loaded"
+    },
+    "BTC/USD": {
+      "first_bar": "2016-01-01T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "BTC_USD_1d.parquet",
+      "rows": 3735,
+      "sha256": "680653701b4a1c7c5af4f9b57871e75780071ccbdf67e64356046c1fade33399",
+      "status": "loaded"
+    },
+    "DOGE/USD": {
+      "first_bar": "2021-06-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "DOGE_USD_1d.parquet",
+      "rows": 1903,
+      "sha256": "5cb49c36ef227ebebaafecec57345972913bfa120791e728d6de7575ac221c5e",
+      "status": "loaded"
+    },
+    "ETH/USD": {
+      "first_bar": "2020-01-02T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "ETH_USD_1d.parquet",
+      "rows": 2328,
+      "sha256": "bfa5b8e7a530aa5cdaae2322a4ce2e50af2fad8ccd426400ad71b2b56263e837",
+      "status": "loaded"
+    },
+    "EUR/USD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "EUR_USD_1d.parquet",
+      "rows": 2749,
+      "sha256": "6c0df113a024073c97b06a4bb4864aeafec73ef52f2d4aa01dca19b0359d96fc",
+      "status": "loaded"
+    },
+    "GBP/USD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "GBP_USD_1d.parquet",
+      "rows": 2749,
+      "sha256": "9f35087fd7de0a2b275dc2339acd58f25cf53f55cd7cb7222c5c91e9d647e6bb",
+      "status": "loaded"
+    },
+    "GOOGL": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "GOOGL_1d.parquet",
+      "rows": 2672,
+      "sha256": "7217930a03a26b6d0f97ab066afe822124a8c82af0f03981ccd23d727baa3906",
+      "status": "loaded"
+    },
+    "ISDE.L": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "ISDE_L_1d.parquet",
+      "rows": 2684,
+      "sha256": "3d058dccfca1aac90de028853ba7b000a41299468a890a81458b358bf15b45fa",
+      "status": "loaded"
+    },
+    "ISDU.L": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "ISDU_L_1d.parquet",
+      "rows": 2684,
+      "sha256": "2ee33cb1567448e0aa908f56c990bb3863ca6c3bcbfe0bb030f0febb5e912076",
+      "status": "loaded"
+    },
+    "ISWD.L": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "ISWD_L_1d.parquet",
+      "rows": 2683,
+      "sha256": "d1dfd7aeedb0ef38219b277317eede29985d672a9e737a6d72ff4d6c5e035431",
+      "status": "loaded"
+    },
+    "LINK/USD": {
+      "first_bar": "2020-01-01T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "LINK_USD_1d.parquet",
+      "rows": 2423,
+      "sha256": "9c5d028dfa42b70571552c0129989cf5a0ccd06ad6f160db9d4ae7780e82d00a",
+      "status": "loaded"
+    },
+    "MATIC/USD": {
+      "path": "MATIC_USD_1d.parquet",
+      "status": "missing"
+    },
+    "META": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "META_1d.parquet",
+      "rows": 2672,
+      "sha256": "ddfa7c391d04877047b525ded98abd3f786544ddfeba4bf60efc88527c5551d0",
+      "status": "loaded"
+    },
+    "MSFT": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "MSFT_1d.parquet",
+      "rows": 2672,
+      "sha256": "cdf2b1dec08317674dbff1f9f718fe1c045db4b995db8547cfdae7ab8928ed5e",
+      "status": "loaded"
+    },
+    "NFLX": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "NFLX_1d.parquet",
+      "rows": 2672,
+      "sha256": "163f78921132195961ed2dc12b1925f23f9c326157dd640d089e4f5af3a9a9d3",
+      "status": "loaded"
+    },
+    "NVDA": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "NVDA_1d.parquet",
+      "rows": 2672,
+      "sha256": "be451a7ad9a99e829eba27a8560ba8097f4cb73869c89f648034830344216897",
+      "status": "loaded"
+    },
+    "NZD/USD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "NZD_USD_1d.parquet",
+      "rows": 2752,
+      "sha256": "01af7741ac35c4bf6e4fd1b65d70333c48a9f8c789683f96e5615848741628a5",
+      "status": "loaded"
+    },
+    "PLTR": {
+      "first_bar": "2020-09-30T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "PLTR_1d.parquet",
+      "rows": 1478,
+      "sha256": "36a428bffe90d4394d622d1199bfddfff92d33993549c33435a5446ba4579ae8",
+      "status": "loaded"
+    },
+    "SGLD.L": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "SGLD_L_1d.parquet",
+      "rows": 2685,
+      "sha256": "1f2b1c349514950c26e733b13ad8d0a5b688468d9feef2b8b96fea91a2589945",
+      "status": "loaded"
+    },
+    "SMH": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-27T00:00:00+00:00",
+      "path": "SMH_1d.parquet",
+      "rows": 2678,
+      "sha256": "4c821c906f87bcb7cbed3c7a6a27ab6032192cd2623c93be30d55b372c9910a2",
+      "status": "loaded"
+    },
+    "SOL/USD": {
+      "first_bar": "2021-08-31T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "SOL_USD_1d.parquet",
+      "rows": 1815,
+      "sha256": "0d383d6c95f74243bd9985c00ed71bd6c018084e79e80e4c0a91b3ac79852490",
+      "status": "loaded"
+    },
+    "SOXX": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-27T00:00:00+00:00",
+      "path": "SOXX_1d.parquet",
+      "rows": 2678,
+      "sha256": "992a9375d988bedbfa68c195f6576101dd03717201fb02c5ea30d677480b3a5b",
+      "status": "loaded"
+    },
+    "SUI/USD": {
+      "first_bar": "2023-05-13T00:00:00+00:00",
+      "last_bar": "2026-07-06T00:00:00+00:00",
+      "path": "SUI_USD_1d.parquet",
+      "rows": 1151,
+      "sha256": "6ce3ff4d7c03f46421c5c1ca859d652e52b190c96b6d2637a48693fb3a79145d",
+      "status": "loaded"
+    },
+    "TSLA": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "TSLA_1d.parquet",
+      "rows": 2672,
+      "sha256": "f74a7045b03bca1df253cfa4e9258178f67027d252e90d2d49534381bcc19077",
+      "status": "loaded"
+    },
+    "TSM": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "TSM_1d.parquet",
+      "rows": 2672,
+      "sha256": "fb73de0c53fbccdaba90066e71b21de797da33770f0babc7108da76a12b3a098",
+      "status": "loaded"
+    },
+    "UBER": {
+      "first_bar": "2019-05-10T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "UBER_1d.parquet",
+      "rows": 1829,
+      "sha256": "11a6c9cc58c2916066acf0cdc65fba87b90515c3febae33b406aab742eb8c855",
+      "status": "loaded"
+    },
+    "USD/CAD": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "USD_CAD_1d.parquet",
+      "rows": 2749,
+      "sha256": "851917f08efe3b4bfd10c38abdd4da34e40ca2607ae4bbe3fe7f9b86f3f26d9c",
+      "status": "loaded"
+    },
+    "USD/CHF": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "USD_CHF_1d.parquet",
+      "rows": 2749,
+      "sha256": "30d24b3924839248b00c8ee657bb13ac2102d9a4a11581b3396812159074846c",
+      "status": "loaded"
+    },
+    "USD/JPY": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-18T00:00:00+00:00",
+      "path": "USD_JPY_1d.parquet",
+      "rows": 2750,
+      "sha256": "0f8813dd62947ea82359df1ef099fa7c164aaf6d4e13356fc8675a6e60100d1e",
+      "status": "loaded"
+    },
+    "XBI": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-27T00:00:00+00:00",
+      "path": "XBI_1d.parquet",
+      "rows": 2678,
+      "sha256": "e9274c4fdea14c8b20b3da81618d314f58857d7e8de4e3f71f3170a423d9d644",
+      "status": "loaded"
+    },
+    "XLE": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-27T00:00:00+00:00",
+      "path": "XLE_1d.parquet",
+      "rows": 2678,
+      "sha256": "22b00ed39426b70e9ff610612aa15449536ef32bdffe8173945cf054c8d46559",
+      "status": "loaded"
+    },
+    "XLK": {
+      "first_bar": "2016-01-04T00:00:00+00:00",
+      "last_bar": "2026-08-27T00:00:00+00:00",
+      "path": "XLK_1d.parquet",
+      "rows": 2678,
+      "sha256": "1e99790002def7c68398fdd47cf1c23c4175823b011943d4d7739c57013824da",
+      "status": "loaded"
+    },
+    "XRP/USD": {
+      "first_bar": "2020-01-01T00:00:00+00:00",
+      "last_bar": "2026-08-19T00:00:00+00:00",
+      "path": "XRP_USD_1d.parquet",
+      "rows": 2423,
+      "sha256": "6dacbcacf88c78aac5bc519d22397711aa903fd79663a7df7bd0a13438a45c9c",
+      "status": "loaded"
+    }
+  },
+  "exact_input_manifest": {
+    "all_present": false,
+    "integrated_into_executable_replay": false,
+    "passed": false,
+    "required": {
+      "bid_ask_data": {
+        "description": "one-minute-or-better venue bid/ask and fill path",
+        "path": null,
+        "status": "MISSING"
+      },
+      "contract_metadata": {
+        "description": "contract multiplier, lot step, leverage and symbol map",
+        "path": null,
+        "status": "MISSING"
+      },
+      "fx_conversion_data": {
+        "description": "timestamped executable account-currency FX bid/ask",
+        "path": null,
+        "status": "MISSING"
+      },
+      "stressed_loss_data": {
+        "description": "registered doubled-gap/doubled-cost loss per unit",
+        "path": null,
+        "status": "MISSING"
+      }
+    },
+    "status": "DATA_BLOCKED_MISSING_EXACT_INPUTS"
+  },
+  "isolation": {
+    "book_or_paper_state_written": false,
+    "dedicated_ledger": "/tmp/funded_100k_v2_trial_ledger_2026-09-03_final.json",
+    "output_json": "/tmp/funded_100k_v2_gate_2026-09-03_final.json",
+    "output_report": "/tmp/funded_100k_v2_gate_2026-09-03_final.md",
+    "shared_trial_ledger_written": false,
+    "website_or_broker_state_written": false
+  },
+  "prior_trial_reference": {
+    "annualization_metadata_complete": false,
+    "eligible_for_dsr": false,
+    "exists": true,
+    "n_trials": 362,
+    "reason": "The legacy trial ledger does not record each Sharpe observation's annualization convention; mixed/unknown units cannot be normalized.",
+    "sha256": "5a390364354ddaa48899f421b56ee887d2905e6d682136cee2399f5d0f1a6575",
+    "sharpes": [],
+    "status": "DATA_BLOCKED_TRIAL_SHARPE_ANNUALIZATION"
+  },
+  "protocol": {
+    "evidence_ceiling": "PROVISIONAL_PAPER_ONLY",
+    "historical_blind_claim": false,
+    "path": "engine/data_store/funded_100k_v2_prereg_2026-09-03.md",
+    "pbo": "N/A_SINGLE_FIXED_CANDIDATE",
+    "registered_on": "2026-09-03",
+    "sha256": "3bd5c8ff0f38f9fed3957886690636fc53643c3a4e5e19c55c574733fcfe636a"
+  },
+  "qualification_decision": {
+    "all_cell_gates_pass": false,
+    "binding_invocation": false,
+    "engine_ready": false,
+    "exact_inputs_integrated": false,
+    "passed": false,
+    "required_cells_present": true,
+    "verdict": "NO_FUNDED_STRATEGY_V2"
+  },
+  "run_config": {
+    "binding_invocation_audit": {
+      "observed": {
+        "n_paths": 100000,
+        "order_permutations": 0,
+        "skip_bootstrap": true,
+        "skip_cpcv": true,
+        "skip_deep_diagnostics": true,
+        "validation_only_smoke": true
+      },
+      "passed": false,
+      "required": {
+        "all_skip_and_smoke_flags": false,
+        "n_paths": 100000,
+        "order_permutations": 100
+      },
+      "status": "NON_BINDING_INVOCATION"
+    },
+    "bootstrap": {
+      "chunk_size": 250,
+      "mean_block_lengths": [
+        5,
+        10,
+        21
+      ],
+      "n_paths": 100000,
+      "sizing_mode": "min_equity_initial"
+    },
+    "cells": {
+      "evaluation::eod_trailing": {
+        "ambiguous_daily_bar_order": "stop_first",
+        "entry_bar_exits": true,
+        "funded_cash_max_loss_mode": "eod_trailing",
+        "funded_cash_risk_mode": "evaluation",
+        "max_concurrent_trades": 5,
+        "max_correlated_exposure": 0.2,
+        "max_portfolio_risk": 0.009,
+        "max_position_notional_pct": 0.08,
+        "max_risk_per_trade": 0.0035,
+        "max_total_exposure": 0.6,
+        "portfolio_allocation": "simultaneous_remaining_cash_risk",
+        "signal_family": "Book C frozen [63,126,252] ensemble",
+        "slot_allocation": "expected_value",
+        "stressed_symbol_fraction": 0.0045
+      },
+      "evaluation::static": {
+        "ambiguous_daily_bar_order": "stop_first",
+        "entry_bar_exits": true,
+        "funded_cash_max_loss_mode": "static",
+        "funded_cash_risk_mode": "evaluation",
+        "max_concurrent_trades": 5,
+        "max_correlated_exposure": 0.2,
+        "max_portfolio_risk": 0.009,
+        "max_position_notional_pct": 0.08,
+        "max_risk_per_trade": 0.0035,
+        "max_total_exposure": 0.6,
+        "portfolio_allocation": "simultaneous_remaining_cash_risk",
+        "signal_family": "Book C frozen [63,126,252] ensemble",
+        "slot_allocation": "expected_value",
+        "stressed_symbol_fraction": 0.0045
+      },
+      "payout::eod_trailing": {
+        "ambiguous_daily_bar_order": "stop_first",
+        "entry_bar_exits": true,
+        "funded_cash_max_loss_mode": "eod_trailing",
+        "funded_cash_risk_mode": "payout",
+        "max_concurrent_trades": 4,
+        "max_correlated_exposure": 0.15,
+        "max_portfolio_risk": 0.006,
+        "max_position_notional_pct": 0.06,
+        "max_risk_per_trade": 0.0025,
+        "max_total_exposure": 0.45,
+        "portfolio_allocation": "simultaneous_remaining_cash_risk",
+        "signal_family": "Book C frozen [63,126,252] ensemble",
+        "slot_allocation": "expected_value",
+        "stressed_symbol_fraction": 0.0035
+      },
+      "payout::static": {
+        "ambiguous_daily_bar_order": "stop_first",
+        "entry_bar_exits": true,
+        "funded_cash_max_loss_mode": "static",
+        "funded_cash_risk_mode": "payout",
+        "max_concurrent_trades": 4,
+        "max_correlated_exposure": 0.15,
+        "max_portfolio_risk": 0.006,
+        "max_position_notional_pct": 0.06,
+        "max_risk_per_trade": 0.0025,
+        "max_total_exposure": 0.45,
+        "portfolio_allocation": "simultaneous_remaining_cash_risk",
+        "signal_family": "Book C frozen [63,126,252] ensemble",
+        "slot_allocation": "expected_value",
+        "stressed_symbol_fraction": 0.0035
+      }
+    },
+    "confirmation_start": "2025-01-01",
+    "order_permutations": 0,
+    "partitions": {
+      "build": [
+        "2016-01-01",
+        "2020-12-31"
+      ],
+      "interim": [
+        "2021-01-01",
+        "2022-12-31"
+      ],
+      "validation": [
+        "2023-01-01",
+        "2024-12-31"
+      ]
+    },
+    "skip_bootstrap": true,
+    "skip_cpcv": true,
+    "skip_deep_diagnostics": true,
+    "smoke_or_non_binding": true,
+    "validation_only_smoke": true
+  },
+  "schema_version": 2,
+  "source_hashes": {
+    "book_c_audit_runner": "fff5f9755ae8ce6138d932c90500a059bcc0802e28ea467b29cd7d0224f6019a",
+    "config": "74829e825d0b5d17cbaf068b2a33dd07ed454f18a75d1757ebbfab1238caf80f",
+    "portfolio_gate_runner": "101f98dc58686cd2e0de23904797f16a88ed4f7cdc346a931a96f3cef7f94103",
+    "protocol": "3bd5c8ff0f38f9fed3957886690636fc53643c3a4e5e19c55c574733fcfe636a",
+    "runner": "d03296ac02c3fe9862ef1642b48d934e927f54840b06ee6e1c950c9370501ada",
+    "source:apex_quant/__init__.py": "fa6d77cd501f0d951315dd498f6e526ead78baf8694d66421117c13778e24263",
+    "source:apex_quant/ai/__init__.py": "0f3115001b67cd5fa46fe769a123abe99e3c1a6b0354fab41aa1dbbcd05d5ddb",
+    "source:apex_quant/ai/client.py": "4614f020168655a337c465c2487a1279a2eec1e32208a1076483f41fbbbb2b2d",
+    "source:apex_quant/ai/debate.py": "012c0f9ba29a894f963b31839af62660eed6e60d23d4b7d8b334b489e64b97a5",
+    "source:apex_quant/ai/hypothesis.py": "1c8260955ec4d96495e921ac14b83ef17c0d281822297ef8f44ab87f1b510c0d",
+    "source:apex_quant/ai/pipeline.py": "52f032c59e5bd46df4a58d48fdc1ed29688db3ea7cca5c3c2175459864287a28",
+    "source:apex_quant/ai/qualitative_shadow.py": "703ba5a36fb02e378d8bfe7f58e433c9ab13d07fd329f48d77e0967c9d98e42e",
+    "source:apex_quant/ai/retrieval.py": "5da6787b80516bdb71ee77d077482d97daf0c3faadb7960763040548361f6923",
+    "source:apex_quant/ai/sentiment_filter.py": "e03fe77dc505d1e90553e765255f5b2e0ba756c3c045a09ccf32318bf214560d",
+    "source:apex_quant/api/__init__.py": "0de945d4605edd6142fd54b49a2410d21c985806bec47c20b014bae463d1cd66",
+    "source:apex_quant/api/app.py": "07a11bbcf6f92dee11c527614570eac6f83b08472c5f7f81d94b7e244f44d393",
+    "source:apex_quant/api/schemas.py": "3225a7a9e3dce40444ea0ff43ddc60ca0cbd792b111713b140ec4418096f9106",
+    "source:apex_quant/api/service.py": "f5835428420ccff4622062857d57c916257aecfc17f4e0ac3fef042b2c39f6f0",
+    "source:apex_quant/backtest/__init__.py": "0c61a862650c13ef7d5f69c3745de9208a1bbbd2a90f58555dfa7cfcfb769198",
+    "source:apex_quant/backtest/adaptive.py": "10f38175e2bd56c40d578362d2d61539c60109c3545e73f6e52a0f829bca57dc",
+    "source:apex_quant/backtest/defensive_sleeve.py": "6c201386eccf061af54cffbfb30b7ef36d0bf76c7924d9377e57bde993a71c26",
+    "source:apex_quant/backtest/engine.py": "a6819196ac989823f627e75435fd199fc57b6d40af4e03c0861801d468cba7e7",
+    "source:apex_quant/backtest/paper.py": "710e12dfe9cb23fc2d172a7cbf34add5a8ee8359ac2cab759da2c6948e154703",
+    "source:apex_quant/backtest/portfolio.py": "d002b4c699bada5a11257a3108ba62a7b17d0f1d0ccb46e7359cc584c3f97458",
+    "source:apex_quant/backtest/result.py": "c3493b6ab896b6e5ab9af7169ce60a99ac180ef97c4822a325474bfc6d92e0ac",
+    "source:apex_quant/config.py": "c854abcf42703133b85450bec292491b92469dc4cbfc64d6260e36b4dd3a475f",
+    "source:apex_quant/data/__init__.py": "152f9ea98c6f113f90b31503d430875bbd356a7132151a8ab41ba5bab62719dc",
+    "source:apex_quant/data/_filelock.py": "f5247aeab7aa0bf0f98e02e400204c2615b22908e3c68c49a033e80d3d56816e",
+    "source:apex_quant/data/adapter.py": "deb21f286614e2bac113ec8491041c0be1e7e3d9dfef3de7f8d82b88117025e8",
+    "source:apex_quant/data/calendar.py": "74fc0c28a44ab313f5da03b0b5d4d5304c5d0d48a20fdf30275ff1536172bfdb",
+    "source:apex_quant/data/cot.py": "1cfceae8f1172bf7f2fa4b21d35cb29f4f427a048738c05549cfbe752d4b290c",
+    "source:apex_quant/data/local_setup_ledger.py": "5d745d68d0670cb595b9d13f2b3f4303af620c1bcc9557067896ee033fc31a9f",
+    "source:apex_quant/data/oanda_adapter.py": "d1d33ede1381c33a313ec464f8cb3cd01d9d447ca2c70f9e9e8063bc07e68c39",
+    "source:apex_quant/data/point_in_time.py": "4cc7576ac6ff0711ffe2d8dbbcfc8a47ff065f012a218d18e40d717d68ab8095",
+    "source:apex_quant/data/quality.py": "9dd3fb29e742f87baddcfe18ea6ea1a3ee823602d5000a83a9befcbe8732f2cf",
+    "source:apex_quant/data/rates.py": "365410fe4ce71e6a6417241fd3f3a3f8db454e7203920a6ebbfcc697af936118",
+    "source:apex_quant/data/schema.py": "fecc8dc20095b0705e45cd58c950d89b055a2faa3023399aa6ba840f6e6c4abb",
+    "source:apex_quant/data/store.py": "568af0b7709c25be2f025a3b504ff63b1c4d14c2f3e6e2a211ba8071286bdf59",
+    "source:apex_quant/data/supabase_guard.py": "5ac000f757d94faefada36f3617b442ec1298f639e16dcb721655f615a40dbf8",
+    "source:apex_quant/data/twelve_data_adapter.py": "5f916be1b76aa59b69839c3e4d8fd2c7a80a5fde013eef524986c7b52480ddc4",
+    "source:apex_quant/data/yahoo_adapter.py": "42f6df69dcd40e33d33668176f992b5f4816aa70c176ba62323e6ff1c762c713",
+    "source:apex_quant/execution/__init__.py": "c22229aa15be9839f85bd500a8c5925ff9eb7e27eb234c5c7e6f68b8116da836",
+    "source:apex_quant/execution/ibkr_bridge.py": "6442dc6569fb0fc2bf762b7fdffc44053b734964b191d159a1ac6d544af8622c",
+    "source:apex_quant/execution/ibkr_executor.py": "81daa32c02ef89b47b10334ee65276369f64c68aec5f851c2243804f2b0ee8fe",
+    "source:apex_quant/execution/mock_executor.py": "7dc60dd031dc4e848187848f45be3f5bb14bd92aba96ced3d2d9122c3a240a2e",
+    "source:apex_quant/execution/mt4_clock.py": "2097c2974d1fabf9ad1e401631bbe8f2b556f08f91b6fc325713ff6ff812af49",
+    "source:apex_quant/execution/mt4_executor.py": "8a6f51a5424a410c93b5d3039581de6b6dd9630bcbc46800a86d541349acc0f6",
+    "source:apex_quant/execution/ucits_map.py": "5595ee91999426e634ffd68304963e815c881487c18249012638fcc32199be0d",
+    "source:apex_quant/execution/zmq_bridge.py": "a82805e3ccab04b2ece65bae7d724845376514442cf1e5816e4273be56c9a4d6",
+    "source:apex_quant/features/__init__.py": "2e4ae5564d65adb0af0fb5cea340ab7e8778ebf486a487d1ad43b6f2fff986aa",
+    "source:apex_quant/features/base.py": "e4f8089085823668ae042cffc66a542143f2d23fccc9d8e865b96fa54592e36a",
+    "source:apex_quant/features/carry.py": "f6791062a0bc3fec746095322fba24301d8a40eff78eef9bb9667f81a1a07958",
+    "source:apex_quant/features/cot.py": "5c9ce8d0e5e2639fd252fa4ed9fa5e044917a3f7f4720836dc0d2182c7f4a64a",
+    "source:apex_quant/features/microstructure.py": "dafc99da1df728e78d6ddd43b2726d882952c4460b09fcda033bca975ddc7361",
+    "source:apex_quant/features/momentum.py": "9377644f9e0b42fd87a843a8640be6e636b36fa547a53d42decd9fe72200f56f",
+    "source:apex_quant/features/registry.py": "f254119af8e1b1de8e0e08bc3405b41f5dd3e3b97713dc02309ddb8ad63cd06c",
+    "source:apex_quant/features/trend.py": "ff0b3ac2cf571d90917a784a7e89230ba94c5357c390444c07d244e0dc1f431a",
+    "source:apex_quant/features/volatility_features.py": "a4c9c2cc643b7115bc0d045c28dddb9b96a362a94f650bb6d05b39fbffaa78e5",
+    "source:apex_quant/ml/__init__.py": "b33a025cde63f06f6ef94be04ab9240a7569e9b7e247b249e4f7cf1fe1060013",
+    "source:apex_quant/ml/dataset.py": "b3729faefc7c9c6274b1e10adbdbbe7bb149205a59cf36f2f6acb848a53f3763",
+    "source:apex_quant/ml/models.py": "84c0a085413b1821cfce307a981b82431839902d4e81b2232ee224a5c8fb2be0",
+    "source:apex_quant/regime/__init__.py": "c8574ed4a126d2cb02ecf75120b787ed1f2e6fc04c2a9380b1e148b6ab3744e5",
+    "source:apex_quant/regime/base.py": "2572eb9f76873eeeb516bf6a2dc307fa5a92e1598e4be0e63e64810c00a64f0c",
+    "source:apex_quant/regime/hmm.py": "615eb17ef34068ae8cbe2fa352f7a054743ece4991785ad076126a3f2abb5464",
+    "source:apex_quant/regime/rule_based.py": "4f25c70e79d385804c3e4b57308bfabe84328d57477d1f086d2e705b046b8f04",
+    "source:apex_quant/research/__init__.py": "ee949c605a21984e9923d488021f36a6b67233b72e46051d87cbdfda35cf7126",
+    "source:apex_quant/research/book_n_quality_pead.py": "61c73f55c7d89417d9d7d51fdbb4915a4bd7ee12fbc7e473fbec93139a45e488",
+    "source:apex_quant/research/book_r_forward.py": "006e8b1c1c6defefe3af2fe9131765e64c38a1dcc8d760a5a8ffb148a34558f0",
+    "source:apex_quant/research/book_r_stop_overlay.py": "dee66095cfbff46a849ad1182233ecdec0b0a75fa3b661522b3b6770b1b2b099",
+    "source:apex_quant/research/book_r_usd_etf.py": "7866ea6fb23322e828fa678ed95ba1c2255dab396fc251b6028c5ce3debf7248",
+    "source:apex_quant/research/historical_qualitative.py": "1b5229d5ea71f551f3443974b223448de8f0640d3e89c3ed4bb346a1c14f744e",
+    "source:apex_quant/risk/__init__.py": "a058891a34bfe2e69bbef598b583954b486d9d3e6ad5d8f7b99396d6593f7422",
+    "source:apex_quant/risk/bayesian_sizer.py": "e2ab1dc9240518d94c7d3b91b8b68349242cb126015faea1175c9f064edf26a2",
+    "source:apex_quant/risk/circuit_breaker.py": "169368f06ec3ed5c7e7d0381ba71914257e59b949869fd9adca56f2d8f387e82",
+    "source:apex_quant/risk/daily_stop.py": "b78dc5d2144b24149a2a84d574ecd6f325f85d5383b4198a6b0cd78f289c2bb4",
+    "source:apex_quant/risk/funded_guard.py": "4951e9d1a48c749eb4b11bc975ef775d2c4dd8dde2ba7634695850278f74684b",
+    "source:apex_quant/risk/learning.py": "4203111c4b976a4cdfb4efbc6f9caac720ab99143903163e1e167c4cae21f2ed",
+    "source:apex_quant/risk/limits.py": "942ab7300e9b0eb05ae067daa4b059585a7afd724e798249da47a59055c1a1c9",
+    "source:apex_quant/risk/manager.py": "e38662b5ee608b1b4870586bb93a8fd29c1cde5389ef09dfb8b3050fcb508f8c",
+    "source:apex_quant/risk/news_calendar.py": "f04fe66086dda9669fa0fcc7cd4779324defa0bfe922aa3952eb255738295388",
+    "source:apex_quant/risk/sizing.py": "9cd4977a3b039baf5c011e267c77552fa71bd2c4f097fa2823f6eca60c791278",
+    "source:apex_quant/risk/stops.py": "11af2e81370021371836ef53ea1ee7f6baa38185a1896a534b25e0f3dccbc944",
+    "source:apex_quant/risk/trade_manager.py": "e3decd678f5346a9131418836a3e973f560e36eac117f319fd79840231f05252",
+    "source:apex_quant/risk/types.py": "74886537e17abb2962999b2ea64e5b00908bc323d8ba4223f6c2edbabd310194",
+    "source:apex_quant/sentiment/__init__.py": "6d59d8791c3566096df6c850051d42dc86163ebb903e137c64a93d3153ea46d6",
+    "source:apex_quant/sentiment/filter.py": "5eb08088767de68ba9f4b55f0fa815b770af1fa5def1ffe5cb00dd2bae9bb30c",
+    "source:apex_quant/sentiment/provider.py": "f92563a6d56a45fb060d052634a3853f3ccff12ef98bc4d1f00a51f9ae2c87a2",
+    "source:apex_quant/storage/__init__.py": "cd66623eaad18d88d47379c7e37e124069d613fda361b5b69d352602525aadce",
+    "source:apex_quant/storage/_keys.py": "e2c919f0589f695258da0cc9d527c47544b52d00e1568bf9fc009bc663b2e5e2",
+    "source:apex_quant/storage/ibkr_store.py": "e9b525043bf4bfbca36ae48d85bad43e3ed8049c8dee299e59863e1c0577d64b",
+    "source:apex_quant/storage/paper_store.py": "6ea1cc5fbfbe1eff121cedef531b6ad28c5a720a21b49658ff3fd33da9419698",
+    "source:apex_quant/storage/supabase_store.py": "c6c2c438ee0700372b599f80026c279b47fac28cc93595ade325fc871becb2ac",
+    "source:apex_quant/storage/supabase_util.py": "c204354735c4c6f464a99d7bfedfc5bac6c88a07dff0fb75b619f725a4755b8a",
+    "source:apex_quant/strategies/__init__.py": "8bbf9227298b5671fc68a3d9add634bd440f2ab5750c171a4d0a223c80a1c5a9",
+    "source:apex_quant/strategies/base.py": "4dd1b412495050c2f1ec77cbf7531a0e3f38d1aa695a4fc7a1029ea731ce8435",
+    "source:apex_quant/strategies/baseline.py": "3293615a2b8c181f2bc4df1173927cea0f4d72cb2bcf447df5cbe583e2b01d13",
+    "source:apex_quant/strategies/calibration.py": "e72c46717e7bebb4883ac9418abe5d13d059d552f4abaf0f91f1d6666fff234f",
+    "source:apex_quant/strategies/carry.py": "7cd3c22105e17e8161cfbb7e0d1803048475f72593161d94bf77bbd46eddcc04",
+    "source:apex_quant/strategies/carry_trend_filter.py": "3b28db7b96616a712196b8be73e20ac80413efd60ffd637c9da0fa9e1e879ccf",
+    "source:apex_quant/strategies/cot_reversal.py": "bfd2261a9ef09574e4582e27107b531cd5a68cce78d4ed59f91e4f3f393fd340",
+    "source:apex_quant/strategies/cross_sectional.py": "22a224833bb6c881d85ecb0226b22a77b2319d4d94bf4ac8a5024e935178d087",
+    "source:apex_quant/strategies/crypto_xs_momentum.py": "986c7e04962235807d2c4896e82dd59ef3db7fb50b19fb8a3a9ed9138756dbfe",
+    "source:apex_quant/strategies/currency_momentum.py": "dcb0570b5243468aa4a3b4d3b055198efca42e76e68b737f0b625fef7bcbb993",
+    "source:apex_quant/strategies/ensemble.py": "0fce4079ad24821f2cb6af1ada19c7c4b909f5b1be0d4562432e6d5c473fe6fe",
+    "source:apex_quant/strategies/entry_gates.py": "da8783a863b7a7e394fb5b8b34406887bb846a5c040bd2dc7132ccbea634e3b7",
+    "source:apex_quant/strategies/fix_flow.py": "67dbab43a7fde34c23ab513a652c2fa14b9989aa087b1db8d1c2cb4ee3dbb3ee",
+    "source:apex_quant/strategies/intraday_close_momentum.py": "e58b68210e37b4c9691eb32de34635e0023ca32c1cc917e20d4b437eb590e615",
+    "source:apex_quant/strategies/labeling.py": "3f97196cf1377eb49e3168b45955ccb9fe88cf907d6c139ec575188804e0e93e",
+    "source:apex_quant/strategies/meta_labeling.py": "5fc7e66341750d903680dd5ed3b447eb9bd37012742f1718b50f77ae574a6fa2",
+    "source:apex_quant/strategies/ml_strategy.py": "fb8edcc35325ae8df457806c60b349ff336c97fc4aee1cf75e07c7312bfbd905",
+    "source:apex_quant/strategies/multi_timeframe.py": "ad0132570eb43e66ae63b619924d9ae2e0a8a3b41751ea5c38a835626af63b63",
+    "source:apex_quant/strategies/pead.py": "ddac45e8ffc0e3215572b301e5e940484b27e5335b7c0ab25ad032fff4c4f4d0",
+    "source:apex_quant/strategies/residual_momentum.py": "fe7a6f317a141c41b6646b314130cf248276ef6331d02f669397f33afb5de1da",
+    "source:apex_quant/strategies/spillover_gate.py": "4dbf587cda0233d271fc838dd74419f4f3e58502991f78ae2b8f6d19da8700bd",
+    "source:apex_quant/strategies/st_reversal.py": "6b4fb551a9d36813554f05b9a94408b6bea6d629ab57d5bcceedae968d0bc28d",
+    "source:apex_quant/strategies/vol_managed_overlay.py": "84a8c3d874299cb1d7cc8006dbd405dbec02b8ae32f3aa155d37327316664e56",
+    "source:apex_quant/strategies/vol_target_overlay.py": "4421489a60bac85756b68005a729745c8461be875ea3d88058ecd8ce2bfb23a6",
+    "source:apex_quant/validation/__init__.py": "573ef9b3790d0a5ddd00ddb5d8ccc3ab91c3bbfcf9c1a2a4913ff3f1708b792a",
+    "source:apex_quant/validation/cpcv.py": "c0ab4b6bd9cf2a137c6d651b67fa7a34f3e717e0450af25b83ef6bededdd88b9",
+    "source:apex_quant/validation/funded_simulator.py": "3ec6c07b1547453c836c10e5f08267252cfc15340e8c025e45c26e5d2c681977",
+    "source:apex_quant/validation/metrics.py": "918392590bb19dea42eefd149c472f4adec08bd36685b3af9f960a602ae95d6d",
+    "source:apex_quant/validation/paired_tests.py": "54a93bbf615526fa8b15f503b0e9ae7c39341b1348cd82443a1f0ad3221de872",
+    "source:apex_quant/validation/portfolio_report.py": "7c6869eaa9abd9f580de179cfb6e92ea8dbc11e6aa79a54f0bb8e6f07fae1f6a",
+    "source:apex_quant/validation/report.py": "abf04b2535bc1e77db3752d6f1713a43e32d713f2ca9306c7db52a76a53dd789",
+    "source:apex_quant/validation/trials.py": "c5ce7dc84bec295b52a90486bbb22e233997430b279042013d296f1481986a2a",
+    "source:apex_quant/volatility/__init__.py": "37d417a4329d5b84b0a814603d18aa7e32ca213053db2f3b2ea32bdadb9209d0",
+    "source:apex_quant/volatility/garch.py": "a79b247021bdd9ccb3702fd04f7df499c64a4b77d4c4043726cac6becac36eda",
+    "source:apex_quant/volatility/realized.py": "a9bc435cc9f65815e88a43d1e484958182fead07d54851aacba0e60d084f331f",
+    "v1_runner": "9caf1723f8ac1656958a7565edce1f6d769773d9208d9c5e3d96280188d482fa"
+  },
+  "verdict": "NO_FUNDED_STRATEGY_V2",
+  "winner": null
+}

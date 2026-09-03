@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from apex_quant.config import get_config
 from apex_quant.regime.base import RegimeLabel
@@ -17,6 +18,7 @@ from apex_quant.risk import (
     Direction,
     MarketState,
     OpenPosition,
+    Position,
     RiskManager,
     Signal,
     atr,
@@ -39,6 +41,181 @@ def mk_market(price=100.0, ann_vol=0.10, atr_val=1.0, correlations=None):
 
 def mk_signal(direction="long", p=0.70, b=2.0):
     return Signal(instrument="EUR/USD", direction=Direction(direction), probability=p, reward_risk=b)
+
+
+# -- numerical integrity -------------------------------------------------------
+@pytest.mark.parametrize(
+    "factory",
+    [
+        pytest.param(
+            lambda: Signal(
+                instrument="EUR/USD",
+                direction=Direction.LONG,
+                probability=0.7,
+                reward_risk=2.0,
+                stop_price=np.nan,
+            ),
+            id="signal-stop-nan",
+        ),
+        pytest.param(
+            lambda: Signal(
+                instrument="EUR/USD",
+                direction=Direction.LONG,
+                probability=0.7,
+                reward_risk=2.0,
+                target_price=np.inf,
+            ),
+            id="signal-target-inf",
+        ),
+        pytest.param(
+            lambda: OpenPosition(
+                instrument="EUR/USD",
+                direction=Direction.LONG,
+                notional=np.inf,
+            ),
+            id="open-position-inf",
+        ),
+        pytest.param(
+            lambda: AccountState(equity=100_000.0, peak_equity=np.inf),
+            id="account-inf",
+        ),
+        pytest.param(
+            lambda: AccountState(
+                equity=100_000.0,
+                peak_equity=100_000.0,
+                risk_sizing_base=np.nan,
+            ),
+            id="account-funded-cap-nan",
+        ),
+        pytest.param(
+            lambda: MarketState(
+                instrument="EUR/USD",
+                price=100.0,
+                ann_vol=0.1,
+                atr=1.0,
+                quote_to_account_rate=np.inf,
+            ),
+            id="market-fx-inf",
+        ),
+        pytest.param(
+            lambda: MarketState(
+                instrument="EUR/USD",
+                price=100.0,
+                ann_vol=0.1,
+                atr=1.0,
+                correlations={"GBP/USD": np.nan},
+            ),
+            id="market-correlation-nan",
+        ),
+        pytest.param(
+            lambda: MarketState(
+                instrument="EUR/USD", price=100.0, ann_vol=np.nan, atr=1.0
+            ),
+            id="market-vol-nan",
+        ),
+    ],
+)
+def test_risk_input_models_reject_non_finite_floats(factory):
+    with pytest.raises(ValidationError):
+        factory()
+
+
+@pytest.mark.parametrize("field", ["units", "notional", "risk_fraction"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_position_model_rejects_non_finite_order_values(field, value):
+    with pytest.raises(ValidationError):
+        Position.model_validate(
+            {
+                "instrument": "EUR/USD",
+                "direction": Direction.LONG,
+                field: value,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("price", np.nan, "invalid_market_price"),
+        ("price", np.inf, "invalid_market_price"),
+        ("ann_vol", np.nan, "invalid_market_volatility"),
+        ("ann_vol", np.inf, "invalid_market_volatility"),
+        ("atr", np.nan, "invalid_market_atr"),
+        ("atr", np.inf, "invalid_market_atr"),
+        ("quote_to_account_rate", np.nan, "invalid_quote_to_account_rate"),
+        ("quote_to_account_rate", np.inf, "invalid_quote_to_account_rate"),
+        ("quote_to_account_rate", 0.0, "invalid_quote_to_account_rate"),
+    ],
+)
+def test_manager_vetoes_invalid_market_values_when_validation_is_bypassed(
+    field, value, reason
+):
+    # Pydantic v2 deliberately does not validate model_copy(update=...). The
+    # manager is the final live-money boundary and must independently fail shut.
+    market = mk_market().model_copy(update={field: value})
+    pos = RiskManager().permit(mk_signal(), mk_account(), market)
+
+    assert not pos.permitted
+    assert reason in pos.constraints_applied
+    assert np.isfinite(pos.units)
+    assert np.isfinite(pos.notional)
+    assert np.isfinite(pos.risk_fraction)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("stop_price", np.nan, "invalid_stop"),
+        ("stop_price", np.inf, "invalid_stop"),
+        ("target_price", np.nan, "invalid_target"),
+        ("target_price", np.inf, "invalid_target"),
+    ],
+)
+def test_manager_vetoes_non_finite_stop_and_target_when_validation_is_bypassed(
+    field, value, reason
+):
+    signal = mk_signal().model_copy(update={field: value})
+    pos = RiskManager().permit(signal, mk_account(), mk_market())
+
+    assert not pos.permitted
+    assert reason in pos.constraints_applied
+
+
+@pytest.mark.parametrize(
+    ("direction", "stop_price", "target_price", "reason"),
+    [
+        (Direction.LONG, 101.0, 102.0, "invalid_stop_side"),
+        (Direction.SHORT, 99.0, 98.0, "invalid_stop_side"),
+        (Direction.LONG, 99.0, 99.0, "invalid_target_side"),
+        (Direction.SHORT, 101.0, 101.0, "invalid_target_side"),
+    ],
+)
+def test_manager_vetoes_wrong_side_protective_prices(
+    direction, stop_price, target_price, reason
+):
+    signal = Signal(
+        instrument="EUR/USD",
+        direction=direction,
+        probability=0.7,
+        reward_risk=2.0,
+        stop_price=stop_price,
+        target_price=target_price,
+    )
+    pos = RiskManager().permit(signal, mk_account(), mk_market(price=100.0))
+
+    assert not pos.permitted
+    assert reason in pos.constraints_applied
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_manager_vetoes_non_finite_portfolio_risk_scalar(value):
+    manager = RiskManager()
+    manager.risk_scalar = value
+
+    pos = manager.permit(mk_signal(), mk_account(), mk_market())
+
+    assert not pos.permitted
+    assert "invalid_portfolio_vol_scalar" in pos.constraints_applied
 
 
 # -- fractional Kelly ----------------------------------------------------------
@@ -251,4 +428,3 @@ def test_portfolio_risk_cap_downsize():
     assert "portfolio_risk_cap" in pos.constraints_applied
     # The final risk fraction must be capped at 1.5% (0.015)
     assert pos.sizing_detail["max_proposed_risk"] == pytest.approx(0.015)
-

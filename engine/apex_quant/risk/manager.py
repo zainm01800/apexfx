@@ -114,6 +114,110 @@ class RiskManager:
         if signal.direction == Direction.FLAT:
             return veto("flat_signal", "Signal is flat; no position.")
 
+        # 0.1 Numerical integrity gate.  Pydantic rejects non-finite values on
+        # ordinary construction, but ``model_copy(update=...)`` and
+        # ``model_construct`` deliberately bypass validation.  The risk boundary
+        # must therefore defend itself as well: comparisons with NaN are false and
+        # previously allowed a NaN stop/FX rate to escape as a permitted order.
+        for label, value in (
+            ("signal_probability", signal.probability),
+            ("signal_reward_risk", signal.reward_risk),
+            ("signal_confidence", signal.confidence),
+        ):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return veto("invalid_signal_numeric", f"{label} is not numeric; order blocked.")
+            if not np.isfinite(number):
+                return veto("invalid_signal_numeric", f"{label} is non-finite; order blocked.")
+        if not 0.0 <= float(signal.probability) <= 1.0:
+            return veto("invalid_signal_numeric", "Signal probability is outside [0, 1].")
+        if float(signal.reward_risk) <= 0.0:
+            return veto("invalid_signal_numeric", "Signal reward/risk must be positive.")
+        if not 0.0 <= float(signal.confidence) <= 1.0:
+            return veto("invalid_signal_numeric", "Signal confidence is outside [0, 1].")
+
+        for reason, label, value in (
+            ("invalid_market_price", "Market price", market.price),
+            ("invalid_market_volatility", "Annualised volatility", market.ann_vol),
+            ("invalid_market_atr", "ATR", market.atr),
+            (
+                "invalid_quote_to_account_rate",
+                "Quote-to-account FX rate",
+                market.quote_to_account_rate,
+            ),
+        ):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return veto(reason, f"{label} is not numeric; order blocked.")
+            if not np.isfinite(number) or number <= 0.0:
+                return veto(reason, f"{label} must be finite and positive; order blocked.")
+
+        for reason, label, value in (
+            ("invalid_account_equity", "Account equity", account.equity),
+            ("invalid_account_peak_equity", "Peak equity", account.peak_equity),
+        ):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return veto(reason, f"{label} is not numeric; order blocked.")
+            if not np.isfinite(number) or number <= 0.0:
+                return veto(reason, f"{label} must be finite and positive; order blocked.")
+
+        if account.day_start_equity is not None:
+            try:
+                day_start_equity = float(account.day_start_equity)
+            except (TypeError, ValueError):
+                return veto(
+                    "invalid_account_day_start_equity",
+                    "Day-start equity is not numeric; order blocked.",
+                )
+            if not np.isfinite(day_start_equity) or day_start_equity <= 0.0:
+                return veto(
+                    "invalid_account_day_start_equity",
+                    "Day-start equity must be finite and positive; order blocked.",
+                )
+
+        # AccountState/OpenPosition construction normally enforces these rules.
+        # Recheck at the live-money boundary because callers can bypass Pydantic
+        # validation with model_copy/model_construct.
+        for index, open_position in enumerate(account.open_positions or []):
+            for field in ("notional", "risk"):
+                try:
+                    number = float(getattr(open_position, field))
+                except (AttributeError, TypeError, ValueError):
+                    return veto(
+                        "invalid_open_position",
+                        f"Open position {index} has invalid {field}; order blocked.",
+                    )
+                if not np.isfinite(number) or number < 0.0:
+                    return veto(
+                        "invalid_open_position",
+                        f"Open position {index} {field} must be finite and non-negative; "
+                        "order blocked.",
+                    )
+
+        correlations = market.correlations or {}
+        if not isinstance(correlations, dict):
+            return veto(
+                "invalid_market_correlation",
+                "Market correlations must be a mapping of finite values; order blocked.",
+            )
+        for instrument, correlation in correlations.items():
+            try:
+                number = float(correlation)
+            except (TypeError, ValueError):
+                return veto(
+                    "invalid_market_correlation",
+                    f"Correlation for {instrument} is not numeric; order blocked.",
+                )
+            if not np.isfinite(number):
+                return veto(
+                    "invalid_market_correlation",
+                    f"Correlation for {instrument} is non-finite; order blocked.",
+                )
+
         # 0.5 DAILY-LOSS STOP — the prop-firm rule the from-peak breaker cannot see.
         #
         # Every prop contract has a daily-loss limit measured from the DAY'S OPENING
@@ -245,15 +349,71 @@ class RiskManager:
 
         # 2. Stop distance
         if getattr(signal, "stop_price", None) is not None:
-            stop_price = signal.stop_price
+            try:
+                stop_price = float(signal.stop_price)
+            except (TypeError, ValueError):
+                return veto("invalid_stop", "Stop price is not numeric; order blocked.")
             stop_distance = abs(market.price - stop_price)
         else:
             stop_price, stop_distance = atr_stop(
                 market.price, market.atr, cfg.atr_stop_mult, signal.direction
             )
         detail["stop_distance"] = stop_distance
-        if stop_distance <= 0:
-            return veto("invalid_stop", "Non-positive stop distance; cannot size.")
+        if (
+            not np.isfinite(stop_price)
+            or not np.isfinite(stop_distance)
+            or stop_price <= 0.0
+            or stop_distance <= 0.0
+        ):
+            return veto(
+                "invalid_stop",
+                "Stop price and distance must be finite and positive; order blocked.",
+            )
+        if (
+            signal.direction == Direction.LONG
+            and stop_price >= market.price
+        ) or (
+            signal.direction == Direction.SHORT
+            and stop_price <= market.price
+        ):
+            return veto(
+                "invalid_stop_side",
+                f"{signal.direction.value.upper()} stop is not on the protective side "
+                "of the current market price; order blocked.",
+            )
+
+        # Resolve and validate the target at the same decision price as the stop.
+        # Besides malformed custom targets, this catches an ATR/R-multiple target
+        # at or below zero before any position can be formed.
+        if getattr(signal, "target_price", None) is not None:
+            try:
+                target_price = float(signal.target_price)
+            except (TypeError, ValueError):
+                return veto("invalid_target", "Target price is not numeric; order blocked.")
+        else:
+            target_distance = signal.reward_risk * stop_distance
+            target_price = (
+                market.price + target_distance
+                if signal.direction == Direction.LONG
+                else market.price - target_distance
+            )
+        if not np.isfinite(target_price) or target_price <= 0.0:
+            return veto(
+                "invalid_target",
+                "Target price must be finite and positive; order blocked.",
+            )
+        if (
+            signal.direction == Direction.LONG
+            and target_price <= market.price
+        ) or (
+            signal.direction == Direction.SHORT
+            and target_price >= market.price
+        ):
+            return veto(
+                "invalid_target_side",
+                f"{signal.direction.value.upper()} target is not on the profitable side "
+                "of the current market price; order blocked.",
+            )
 
         # 3. Fractional Kelly edge gate — or Bayesian sizer if configured
         if self.bayesian_sizer is not None:
@@ -290,12 +450,35 @@ class RiskManager:
             detail["kelly_risk_fraction"] = kelly_rf
 
         # 4. Per-trade risk cap
-        risk_fraction = kelly_rf
-        if risk_fraction > cfg.max_risk_per_trade:
-            risk_fraction = cfg.max_risk_per_trade
+        try:
+            risk_fraction = float(kelly_rf)
+            max_risk_per_trade = float(cfg.max_risk_per_trade)
+        except (TypeError, ValueError):
+            return veto(
+                "invalid_risk_fraction",
+                "Risk fraction or per-trade risk cap is not numeric; order blocked.",
+            )
+        if (
+            not np.isfinite(risk_fraction)
+            or not np.isfinite(max_risk_per_trade)
+            or risk_fraction < 0.0
+            or max_risk_per_trade < 0.0
+        ):
+            return veto(
+                "invalid_risk_fraction",
+                "Risk fraction and per-trade risk cap must be finite and non-negative; "
+                "order blocked.",
+            )
+        if risk_fraction > max_risk_per_trade:
+            risk_fraction = max_risk_per_trade
             applied.append("max_risk_per_trade")
 
         # 4.5. Drawdown amber-zone ramp (1.0 -> 0.0 between reducing_limit and the halt)
+        if not np.isfinite(dd_scale) or not 0.0 <= dd_scale <= 1.0:
+            return veto(
+                "invalid_drawdown_scale",
+                "Drawdown risk scalar must be finite and within [0, 1]; order blocked.",
+            )
         if dd_scale < 1.0:
             risk_fraction *= dd_scale
             applied.append(f"drawdown_reducing_scale={dd_scale:.2f}")
@@ -310,7 +493,18 @@ class RiskManager:
         # NB: `or 1.0` would be a live-money bug here — a deliberate 0.0 (halt the book)
         # is falsy and would silently become full size. Only None means "unset".
         scalar = getattr(self, "risk_scalar", None)
-        scalar = 1.0 if scalar is None else float(scalar)
+        try:
+            scalar = 1.0 if scalar is None else float(scalar)
+        except (TypeError, ValueError):
+            return veto(
+                "invalid_portfolio_vol_scalar",
+                "Portfolio volatility scalar is not numeric; order blocked.",
+            )
+        if not np.isfinite(scalar) or scalar < 0.0:
+            return veto(
+                "invalid_portfolio_vol_scalar",
+                "Portfolio volatility scalar must be finite and non-negative; order blocked.",
+            )
         if scalar != 1.0:
             risk_fraction *= scalar
             detail["portfolio_vol_scalar"] = scalar
@@ -323,7 +517,19 @@ class RiskManager:
 
         # 5. Regime aggression scaling (optional)
         if regime is not None:
-            scale = regime.aggression_scalar()
+            try:
+                scale = float(regime.aggression_scalar())
+            except (TypeError, ValueError):
+                return veto(
+                    "invalid_regime_scale",
+                    "Regime aggression scalar is not numeric; order blocked.",
+                )
+            if not np.isfinite(scale) or not 0.0 <= scale <= 1.0:
+                return veto(
+                    "invalid_regime_scale",
+                    "Regime aggression scalar must be finite and within [0, 1]; "
+                    "order blocked.",
+                )
             risk_fraction *= scale
             detail["regime"] = getattr(regime, "name", "?")
             detail["regime_scale"] = scale
@@ -331,31 +537,139 @@ class RiskManager:
             if risk_fraction <= 0:
                 return veto("regime_zero", f"Regime {detail['regime']} scaled size to zero.")
 
+        # Optional funded-account sizing capital.  This changes only the capital
+        # multiplied by the per-trade risk and volatility targets below.  Every
+        # portfolio-level cap continues to be expressed against marked account
+        # equity, so supplying a smaller base can only de-lever a new decision.
+        # ``None`` is deliberately identical to the certified historical path.
+        requested_sizing_base = account.risk_sizing_base
+        sizing_equity = (
+            float(account.equity)
+            if requested_sizing_base is None
+            else float(requested_sizing_base)
+        )
+        detail["risk_sizing_base"] = sizing_equity
+        detail["risk_sizing_base_applied"] = requested_sizing_base is not None
+        if not np.isfinite(sizing_equity) or sizing_equity <= 0.0:
+            return veto(
+                "risk_sizing_base_exhausted",
+                "Funded risk-sizing buffer must be finite and positive; new positions blocked.",
+            )
+
+        # Optional absolute candidate cash-risk ceiling.  Percentage/Kelly,
+        # drawdown, book-vol and regime logic above first express the strategy's
+        # ordinary desired risk against ``sizing_equity``; a funded policy may
+        # then cap that cash amount by its live daily/maximum-loss cushions.
+        # Keeping this as a separate field avoids the V1 error of treating a loss
+        # buffer as though it were the account capital to which a percentage risk
+        # should be applied.  None leaves the historical arithmetic untouched.
+        candidate_cash_cap = account.candidate_stop_risk_cap_dollars
+        if candidate_cash_cap is not None:
+            candidate_cash_cap = float(candidate_cash_cap)
+            detail["candidate_stop_risk_cap_dollars"] = candidate_cash_cap
+            if not np.isfinite(candidate_cash_cap) or candidate_cash_cap <= 0.0:
+                return veto(
+                    "candidate_stop_risk_cash_exhausted",
+                    "Candidate stop-risk cash allowance must be finite and positive; "
+                    "new position blocked.",
+                )
+            proposed_cash_risk = risk_fraction * sizing_equity
+            detail["candidate_stop_risk_before_cash_cap_dollars"] = proposed_cash_risk
+            if proposed_cash_risk > candidate_cash_cap:
+                risk_fraction = candidate_cash_cap / sizing_equity
+                applied.append("candidate_stop_risk_cash_cap")
+
         # 5.5. Portfolio risk cap (prop firm safety) — skipped only when the
         # backtester defers it to the simultaneous end-of-bar gamma (W1 prereg).
         if not getattr(self, "defer_portfolio_risk_cap", False):
-            max_port_risk = getattr(cfg, "max_portfolio_risk", 0.035)
+            max_port_risk = float(getattr(cfg, "max_portfolio_risk", 0.035))
             total_open_risk = sum(getattr(p, "risk", 0.0) for p in (account.open_positions or []))
-            total_open_risk_pct = total_open_risk / account.equity
-            max_proposed_risk = max_port_risk - total_open_risk_pct
-
-            detail["total_open_risk_pct"] = total_open_risk_pct
-            detail["max_proposed_risk"] = max_proposed_risk
-
-            if max_proposed_risk <= 0:
+            if (
+                not np.isfinite(max_port_risk)
+                or max_port_risk < 0.0
+                or not np.isfinite(total_open_risk)
+                or total_open_risk < 0.0
+            ):
                 return veto(
-                    "max_portfolio_risk_exceeded",
-                    f"Active portfolio risk {total_open_risk_pct:.2%} >= limit {max_port_risk:.2%}; new trades blocked.",
+                    "invalid_portfolio_risk",
+                    "Portfolio risk cap and aggregate open risk must be finite and "
+                    "non-negative; order blocked.",
                 )
+            absolute_portfolio_cap = account.aggregate_stop_risk_cap_dollars
+            if absolute_portfolio_cap is None:
+                # Preserve the certified/default percentage path exactly.
+                total_open_risk_pct = total_open_risk / account.equity
+                max_proposed_risk = max_port_risk - total_open_risk_pct
 
-            if risk_fraction > max_proposed_risk:
-                risk_fraction = max_proposed_risk
-                applied.append("portfolio_risk_cap")
+                detail["total_open_risk_pct"] = total_open_risk_pct
+                detail["max_proposed_risk"] = max_proposed_risk
+
+                if max_proposed_risk <= 0:
+                    return veto(
+                        "max_portfolio_risk_exceeded",
+                        f"Active portfolio risk {total_open_risk_pct:.2%} >= limit {max_port_risk:.2%}; new trades blocked.",
+                    )
+
+                # ``risk_fraction`` is a fraction of the optional sizing base, while
+                # the book cap is a fraction of actual equity.  Translate before the
+                # comparison, and translate the remaining actual-equity budget back
+                # if it binds.  With the default base these operations are identities.
+                proposed_actual_risk = risk_fraction * sizing_equity / account.equity
+                detail["proposed_actual_risk_fraction"] = proposed_actual_risk
+                if proposed_actual_risk > max_proposed_risk:
+                    risk_fraction = max_proposed_risk * account.equity / sizing_equity
+                    applied.append("portfolio_risk_cap")
+            else:
+                configured_cap_dollars = float(max_port_risk) * account.equity
+                absolute_portfolio_cap = float(absolute_portfolio_cap)
+                if not np.isfinite(absolute_portfolio_cap) or absolute_portfolio_cap < 0.0:
+                    return veto(
+                        "invalid_aggregate_stop_risk_cap",
+                        "Aggregate stop-risk cash cap must be finite and non-negative; "
+                        "order blocked.",
+                    )
+                post_order_cap_dollars = min(
+                    configured_cap_dollars, absolute_portfolio_cap,
+                )
+                remaining_cash_risk = post_order_cap_dollars - total_open_risk
+                detail["total_open_risk_pct"] = total_open_risk / account.equity
+                detail["aggregate_stop_risk_cap_dollars"] = absolute_portfolio_cap
+                detail["effective_post_order_stop_risk_cap_dollars"] = (
+                    post_order_cap_dollars
+                )
+                detail["remaining_stop_risk_cap_dollars"] = remaining_cash_risk
+                detail["max_proposed_risk"] = remaining_cash_risk / account.equity
+
+                if remaining_cash_risk <= 0.0:
+                    return veto(
+                        "aggregate_stop_risk_cash_exhausted",
+                        f"Active portfolio stop risk {total_open_risk:,.2f} exhausts "
+                        f"the {post_order_cap_dollars:,.2f} post-order cash limit.",
+                    )
+
+                proposed_cash_risk = risk_fraction * sizing_equity
+                detail["proposed_actual_risk_fraction"] = (
+                    proposed_cash_risk / account.equity
+                )
+                if proposed_cash_risk > remaining_cash_risk:
+                    risk_fraction = remaining_cash_risk / sizing_equity
+                    applied.append("aggregate_stop_risk_cash_cap")
 
         # 6. Risk-based vs vol-target notional -> take the more conservative
         rate = getattr(market, "quote_to_account_rate", 1.0)
         stop_distance_account = stop_distance * rate
         price_account = market.price * rate
+        if (
+            not np.isfinite(stop_distance_account)
+            or stop_distance_account <= 0.0
+            or not np.isfinite(price_account)
+            or price_account <= 0.0
+        ):
+            return veto(
+                "invalid_currency_conversion",
+                "Converted price and stop distance must be finite and positive; "
+                "order blocked.",
+            )
 
         # 6a. Cornish-Fisher tail multiplier (W2, 2026-07-25; prereg
         # engine/data_store/cf_cvar_prereg.md). tau >= 1 contracts units on
@@ -374,13 +688,38 @@ class RiskManager:
                 applied.append(f"cf_cvar_tau={tau:.2f}")
             detail["cf_cvar_tau"] = tau
 
-        units_risk = units_from_risk(account.equity, risk_fraction, stop_distance_account * tau)
+        if not np.isfinite(tau) or tau <= 0.0:
+            return veto(
+                "invalid_cf_cvar_multiplier",
+                "Tail-risk multiplier must be finite and positive; order blocked.",
+            )
+
+        if not np.isfinite(risk_fraction) or risk_fraction <= 0.0:
+            return veto(
+                "invalid_final_risk",
+                "Final requested risk must be finite and positive; order blocked.",
+            )
+
+        units_risk = units_from_risk(sizing_equity, risk_fraction, stop_distance_account * tau)
         notional_risk = units_risk * price_account
         notional_voltarget = vol_target_notional(
-            account.equity, cfg.target_portfolio_vol, market.ann_vol * tau
+            sizing_equity, cfg.target_portfolio_vol, market.ann_vol * tau
         )
         detail["notional_risk"] = notional_risk
         detail["notional_voltarget"] = notional_voltarget
+        if (
+            not np.isfinite(units_risk)
+            or units_risk < 0.0
+            or not np.isfinite(notional_risk)
+            or notional_risk < 0.0
+            or not np.isfinite(notional_voltarget)
+            or notional_voltarget < 0.0
+        ):
+            return veto(
+                "invalid_position_size",
+                "Calculated units and notionals must be finite and non-negative; "
+                "order blocked.",
+            )
         notional = notional_risk
         if notional_voltarget < notional:
             notional = notional_voltarget
@@ -405,26 +744,38 @@ class RiskManager:
         # final risk_fraction below shrinks with the notional, so a capped trade
         # simply bets less, it is not re-levered back up.
         notional_cap_pct = float(getattr(cfg, "max_position_notional_pct", 0.0) or 0.0)
+        if not np.isfinite(notional_cap_pct) or notional_cap_pct < 0.0:
+            return veto(
+                "invalid_position_notional_cap",
+                "Per-position notional cap must be finite and non-negative; order blocked.",
+            )
         if notional_cap_pct > 0.0 and notional > notional_cap_pct * account.equity:
             notional = notional_cap_pct * account.equity
             applied.append("max_position_notional")
 
         # 9. Min-position floor
+        if not np.isfinite(notional) or notional < 0.0:
+            return veto(
+                "invalid_final_notional",
+                "Final notional must be finite and non-negative; order blocked.",
+            )
         if notional <= cfg.min_position:
             return veto("below_min_position", "Permitted size rounds to zero.")
 
         # Finalise
         units = notional / price_account
         final_risk_fraction = units * stop_distance_account / account.equity
-        
-        if getattr(signal, "target_price", None) is not None:
-            target_price = signal.target_price
-        else:
-            target_distance = signal.reward_risk * stop_distance
-            target_price = (
-                market.price + target_distance
-                if signal.direction == Direction.LONG
-                else market.price - target_distance
+        if (
+            not np.isfinite(units)
+            or units <= 0.0
+            or not np.isfinite(notional)
+            or notional <= 0.0
+            or not np.isfinite(final_risk_fraction)
+            or final_risk_fraction <= 0.0
+        ):
+            return veto(
+                "invalid_final_position",
+                "Final units, notional, and risk must be finite and positive; order blocked.",
             )
 
         rationale = (
