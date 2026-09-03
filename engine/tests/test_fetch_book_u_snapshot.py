@@ -61,3 +61,30 @@ def test_adjusted_ohlcv_rejects_nonpositive_factor():
     payload["chart"]["result"][0]["indicators"]["adjclose"][0]["adjclose"][0] = 0.0
     with pytest.raises(ValueError, match="factor"):
         MODULE.adjusted_ohlcv_from_yahoo(payload)
+
+
+def test_fetch_uses_range_max_and_leaves_frozen_dates_for_local_filtering():
+    class Response:
+        content = b"raw"
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"chart": {"result": [{}], "error": None}}
+
+    class Client:
+        def __init__(self):
+            self.params = None
+
+        def get(self, _url, *, params):
+            self.params = params
+            return Response()
+
+    client = Client()
+    raw, parsed = MODULE._fetch(client, "SPY", "2008-01-01", "2026-09-03")
+    assert raw == b"raw"
+    assert parsed["chart"]["error"] is None
+    assert client.params["range"] == "max"
+    assert "period1" not in client.params
+    assert "period2" not in client.params

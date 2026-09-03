@@ -134,13 +134,16 @@ def adjusted_ohlcv_from_yahoo(payload: dict[str, Any]) -> pd.DataFrame:
 
 
 def _fetch(client: httpx.Client, ticker: str, start: str, end: str) -> tuple[bytes, dict[str, Any]]:
-    begin = pd.Timestamp(start, tz="UTC")
-    finish = pd.Timestamp(end, tz="UTC")
+    # Yahoo intermittently rejects large explicit period1/period2 requests with
+    # HTTP 429 while serving the equivalent immutable daily history through
+    # ``range=max``.  Fetch the complete response and enforce the preregistered
+    # date bounds locally below.  The unused arguments remain explicit so a
+    # caller cannot mistake the local evidence window for an unconstrained run.
+    del start, end
     response = client.get(
         YAHOO_CHART.format(ticker=ticker),
         params={
-            "period1": int(begin.timestamp()),
-            "period2": int(finish.timestamp()),
+            "range": "max",
             "interval": "1d",
             "events": "div,splits",
             "includeAdjustedClose": "true",
@@ -243,6 +246,8 @@ def main(argv: list[str] | None = None) -> int:
             "vendor": "Yahoo Finance chart endpoint",
             "requested_start": args.start,
             "requested_end_exclusive": args.end_exclusive,
+            "vendor_request_range": "max",
+            "local_date_filter_applied": True,
             "interval": "1d",
             "events": "div,splits",
             "include_adjusted_close": True,
