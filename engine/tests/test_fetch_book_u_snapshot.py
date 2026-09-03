@@ -64,7 +64,7 @@ def test_adjusted_ohlcv_rejects_nonpositive_factor():
         MODULE.adjusted_ohlcv_from_yahoo(payload)
 
 
-def test_fetch_uses_range_max_and_leaves_frozen_dates_for_local_filtering():
+def test_fetch_uses_exact_frozen_dates_and_repeats_filter_locally():
     class Response:
         content = b"raw"
 
@@ -86,6 +86,10 @@ def test_fetch_uses_range_max_and_leaves_frozen_dates_for_local_filtering():
     raw, parsed = MODULE._fetch(client, "SPY", "2008-01-01", "2026-09-03")
     assert raw == b"raw"
     assert parsed["chart"]["error"] is None
-    assert client.params["range"] == "max"
-    assert "period1" not in client.params
-    assert "period2" not in client.params
+    assert client.params["period1"] == int(
+        MODULE.pd.Timestamp("2008-01-01", tz="UTC").timestamp()
+    )
+    assert client.params["period2"] == int(
+        MODULE.pd.Timestamp("2026-09-03", tz="UTC").timestamp()
+    )
+    assert "range" not in client.params
