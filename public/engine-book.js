@@ -97,13 +97,6 @@ function fmtQty(v) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
 
-function fmtPctFraction(v, digits = 2, signed = false) {
-  const n = num(v);
-  if (n === null) return '—';
-  const prefix = signed && n > 0 ? '+' : '';
-  return prefix + (n * 100).toFixed(digits) + '%';
-}
-
 // Paper rows carry no asset_class — classify loosely: slash pairs are forex or
 // crypto (by base), anything else is a stock. Matches the engine's book shape.
 function paperClassFor(inst) {
@@ -499,33 +492,26 @@ function renderPositionCard(p) {
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
   const bars = num(p.bars_open);
   const bankedPartials = num(p.realized_pnl_total);
-  const signalScore = num(p.signal_score);
-  const momentum = num(p.momentum);
-  const currentWeight = num(p.current_weight);
-  const targetWeight = num(p.target_weight);
-  const currentNotional = num(p.current_notional_usd);
-  const entryCost = num(p.entry_cost_remaining_usd);
-  const entryNotional = entry !== null && units !== null ? entry * units : null;
-  const positionReturn = upnl !== null && entryNotional > 0 ? upnl / entryNotional : null;
-  const decisionTxt = p.decision_date ? fmtDay(p.decision_date) : '—';
   const nextRebalanceTxt = p.next_rebalance_date ? fmtDay(p.next_rebalance_date) : 'next official month-end';
-  const clusterTxt = p.cluster ? String(p.cluster).replace(/_/g, ' ') : 'ETF sleeve';
   const exitRows = _book === 'r' ? `
-      <div class="book-r-signal-head">
-        <div><span>Signal fixed at close</span><strong>${escHtml(decisionTxt)}</strong></div>
-        <span class="book-r-cluster">${escHtml(clusterTxt)}</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+        <span style="color: var(--text3)">Stop Loss</span>
+        <span style="font-family: var(--mono); color: var(--text3);">Not used</span>
       </div>
-      <div class="book-r-detail-grid">
-        <div class="book-r-detail"><span>252d momentum</span><strong class="${momentum !== null && momentum >= 0 ? 'pos' : 'neg'}">${escHtml(fmtPctFraction(momentum, 2, true))}</strong></div>
-        <div class="book-r-detail"><span>Vol-adjusted score</span><strong>${escHtml(signalScore === null ? '—' : signalScore.toFixed(2))}</strong></div>
-        <div class="book-r-detail"><span>Current weight</span><strong>${escHtml(fmtPctFraction(currentWeight))}</strong><small>target ${escHtml(fmtPctFraction(targetWeight))}</small></div>
-        <div class="book-r-detail"><span>Current notional</span><strong>${escHtml(currentNotional === null ? '—' : fmtMoney(currentNotional))}</strong></div>
-        <div class="book-r-detail"><span>Return since entry</span><strong class="${positionReturn !== null && positionReturn >= 0 ? 'pos' : 'neg'}">${escHtml(fmtPctFraction(positionReturn, 2, true))}</strong></div>
-        <div class="book-r-detail"><span>Entry cost remaining</span><strong>${escHtml(entryCost === null ? '—' : fmtMoney(entryCost))}</strong></div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
+        <span style="color: var(--text3)">Partials (+1.0R)</span>
+        <span style="font-family: var(--mono); color: var(--text3);">Not used</span>
       </div>
-      <div class="book-r-rule-row">
-        <span><strong>Next review</strong> ${escHtml(nextRebalanceTxt)} close</span>
-        <span>95% gross · 3 slots · ${escHtml(num(p.cost_bps_per_side) === null ? '5' : num(p.cost_bps_per_side).toFixed(0))} bps/side</span>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <span style="color: var(--text3)">Take Profit</span>
+        <span style="font-family: var(--mono); color: var(--text3);">Not used</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 10px; color: var(--text3); font-family: var(--mono);">
+        <span>Next month-end review</span>
+        <span>${escHtml(nextRebalanceTxt)} close</span>
       </div>` : `
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
         <span style="color: var(--text3)">Stop Loss</span>
