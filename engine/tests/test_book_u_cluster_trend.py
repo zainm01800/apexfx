@@ -485,6 +485,45 @@ def test_full_rotation_aggregate_loss_reconstructs_costs_and_all_stressed_stops(
     assert recorded["within_cap"] is True
 
 
+def test_first_segment_day_loss_is_in_all_return_drawdown_and_year_metrics() -> None:
+    panel = common_book_u_panel(_smooth_rotation_panel())
+    index = next(iter(panel.values())).index
+    prior_i = next(
+        i for i in range(300, len(index) - 30) if index[i].month != index[i + 1].month
+    )
+    start, end = index[prior_i + 1], index[prior_i + 10]
+    decision = build_book_u_decision(panel, BookUSpec(), prior_i)
+    assert decision["selected"]
+    stopped = {instrument: frame.copy() for instrument, frame in panel.items()}
+    for selected in decision["selected"]:
+        instrument = selected["instrument"]
+        stopped[instrument].loc[start, "low"] = (
+            float(stopped[instrument].loc[start, "open"]) * 0.50
+        )
+
+    result = run_book_u(stopped, BookUSpec(), start=start, end=end)
+    daily = np.asarray([row["daily_return"] for row in result.trace], dtype=float)
+    assert len(daily) == result.metrics["sessions"]
+    assert daily[0] < 0.0
+    assert daily[0] == pytest.approx(daily.min())
+    assert all(value == pytest.approx(0.0) for value in daily[1:])
+
+    expected_std = float(pd.Series(daily).std(ddof=1))
+    expected_sharpe = float(daily.mean() / expected_std * np.sqrt(252.0))
+    expected_total = float(np.prod(1.0 + daily) - 1.0)
+    expected_drawdown = float(-np.min(
+        np.asarray([row["day_end_equity_usd"] for row in result.trace]) / 100_000.0 - 1.0
+    ))
+    assert result.metrics["worst_close_day"] == pytest.approx(daily[0])
+    assert result.metrics["sharpe"] == pytest.approx(expected_sharpe)
+    assert result.metrics["sharpe"] < 0.0
+    assert result.metrics["max_drawdown"] == pytest.approx(expected_drawdown)
+    assert result.metrics["max_drawdown"] == pytest.approx(-daily[0])
+    assert result.metrics["total_return"] == pytest.approx(expected_total)
+    assert result.metrics["annual_returns"][str(start.year)] == pytest.approx(expected_total)
+    assert result.metrics["final_equity_usd"] / 100_000.0 - 1.0 == pytest.approx(expected_total)
+
+
 def test_close_risk_overrun_is_reduced_within_every_cap_at_next_open() -> None:
     panel = common_book_u_panel(_panel())
     start, full_end = _active_range(panel)

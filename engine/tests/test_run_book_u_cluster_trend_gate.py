@@ -153,30 +153,103 @@ def test_loader_rejects_raw_vendor_gzip_hash_mismatch(tmp_path: Path) -> None:
 def test_cpcv_is_exactly_six_groups_choose_two_and_uses_sharpe_sign() -> None:
     index = pd.bdate_range("2020-01-02", periods=180, tz="UTC")
     values = np.resize(np.array([0.0010, 0.0020, 0.0005]), len(index))
-    result = gate._cpcv_sign_diagnostic(pd.Series(values, index=index))
+    equity = pd.Series((1.0 + values).cumprod() * gate.ACCOUNT, index=index)
+    result = gate._cpcv_sign_diagnostic(SimpleNamespace(equity=equity))
     assert result["n_paths"] == 15
     assert result["positive_paths"] == 15
     assert result["passed"] is True
     assert all(row["per_period_sharpe"] > 0.0 for row in result["paths"])
+    assert sum(row["observations"] for row in result["paths"]) == 180 * 5
     assert result["training_or_refit_performed"] is False
+    assert "first session" in result["return_construction"]
+
+
+def test_metrics_include_first_session_and_initial_capital_drawdown_baseline() -> None:
+    index = pd.bdate_range("2024-01-02", periods=2, tz="UTC")
+    run = SimpleNamespace(
+        equity=pd.Series([90_000.0, 99_000.0], index=index),
+        trace=[{"conservative_intraday_return": -0.12}, {"conservative_intraday_return": 0.0}],
+    )
+    returns = gate._session_returns_from_100k(run.equity)
+    metrics = gate._deterministic_metrics(run)
+    assert returns.to_list() == pytest.approx([-0.10, 0.10])
+    assert metrics["worst_close_day"] == pytest.approx(-0.10)
+    assert metrics["max_drawdown"] == pytest.approx(0.10)
+    assert metrics["annualized_volatility"] > 0.0
+    assert metrics["sessions"] == 2
 
 
 def test_dsr_is_data_blocked_without_compatible_project_dispersion() -> None:
     index = pd.bdate_range("2023-01-03", periods=40, tz="UTC")
     returns = pd.Series(np.linspace(-0.001, 0.002, len(index)), index=index)
-    run = SimpleNamespace(equity=(1.0 + returns).cumprod() * 100_000.0)
+    run = SimpleNamespace(
+        equity=(1.0 + returns).cumprod() * 100_000.0,
+        spec=gate._spec("U075", stressed=True),
+    )
     shared = {
         "object_entry_count": 362,
         "finite_compatible_sharpes": 0,
         "_annualized_sharpes": [],
     }
-    result = gate._dsr_diagnostic(returns, [run], None, shared)
+    result = gate._dsr_diagnostic(run, [run], None, shared)
     assert result["status"] == "DATA_BLOCKED"
     assert result["passed"] is False
     assert result["dsr"] is None
     assert result["spent_project_trial_count"] == 362
     assert result["effective_trial_count"] == 363
+    assert result["book_u_configuration_ids"] == [
+        "U075_STRESS_10BPS_25BPS_STOP"
+    ]
+    assert "first session" in result["return_construction"]
     assert "shared ledger" in result["reason"]
+
+
+def test_dsr_target_and_dispersion_each_include_first_session(monkeypatch) -> None:
+    index = pd.bdate_range("2023-01-03", periods=12, tz="UTC")
+    returns = np.linspace(-0.01, 0.012, len(index))
+    target = SimpleNamespace(
+        equity=pd.Series((1.0 + returns).cumprod() * gate.ACCOUNT, index=index),
+        spec=gate._spec("U075", stressed=True),
+    )
+    candidate = SimpleNamespace(
+        equity=pd.Series((1.0 + returns[::-1]).cumprod() * gate.ACCOUNT, index=index),
+        spec=gate._spec("U075"),
+    )
+    observed: dict[str, object] = {}
+
+    def capture_sharpe(values, *, periods_per_year):
+        observed["candidate"] = np.asarray(values, dtype=float)
+        assert periods_per_year == 1
+        return 0.1
+
+    def capture_dsr(values, dispersion, *, periods_per_year, n_trials):
+        observed["target"] = np.asarray(values, dtype=float)
+        assert len(dispersion) == 3
+        assert periods_per_year == gate.PERIODS_PER_YEAR
+        assert n_trials == 3
+        return {"dsr": 0.99}
+
+    monkeypatch.setattr(gate, "sharpe_ratio", capture_sharpe)
+    monkeypatch.setattr(gate, "deflated_sharpe_ratio", capture_dsr)
+    result = gate._dsr_diagnostic(
+        target,
+        (candidate,),
+        {
+            "n_trials": 2,
+            "per_period_sharpes": [0.0, 0.0],
+            "sha256": "a" * 64,
+        },
+        {
+            "object_entry_count": 2,
+            "finite_compatible_sharpes": 0,
+            "_annualized_sharpes": [],
+        },
+    )
+    assert result["passed"] is True
+    assert len(observed["target"]) == len(index)
+    assert len(observed["candidate"]) == len(index)
+    assert observed["target"][0] == pytest.approx(returns[0])
+    assert observed["candidate"][0] == pytest.approx(returns[-1])
 
 
 def test_shared_trial_ledger_observation_is_exact_and_read_only(tmp_path: Path) -> None:
@@ -316,6 +389,72 @@ def test_result_fingerprint_and_separate_ledger_bind_core_spec_and_consumed_hash
         "U075_STRESS_10BPS_25BPS_STOP",
     }
     assert "NaN" not in gate._strict_json(ledger)
+
+
+def test_expanded_frontier_dsr_failure_invalidates_shadow_selection(monkeypatch) -> None:
+    target = _fingerprinted_fake_run(gate._spec("U075", stressed=True))
+    frontier = {
+        "status": "EVALUATED",
+        "selected_cell": "U085",
+        "cells": {},
+    }
+    for cell in gate.RISK_CELLS:
+        frontier["cells"][cell] = {
+            "_base_run": _fingerprinted_fake_run(gate._spec(cell)),
+            "_stress_run": _fingerprinted_fake_run(gate._spec(cell, stressed=True)),
+            "eligibility": {"eligible": True},
+        }
+
+    def forced_dsr(_returns, _dispersion, *, periods_per_year, n_trials):
+        assert periods_per_year == gate.PERIODS_PER_YEAR
+        return {"dsr": 0.99 if n_trials == 4 else 0.50}
+
+    monkeypatch.setattr(gate, "deflated_sharpe_ratio", forced_dsr)
+    shared = {
+        "object_entry_count": 2,
+        "finite_compatible_sharpes": 0,
+        "_annualized_sharpes": [],
+    }
+    trial_history = {
+        "n_trials": 2,
+        "per_period_sharpes": [0.0, 0.0],
+        "sha256": "a" * 64,
+    }
+    preliminary = gate._dsr_diagnostic(
+        target,
+        (frontier["cells"]["U075"]["_base_run"], target),
+        trial_history,
+        shared,
+    )
+    expanded_runs = gate._frontier_configuration_runs(frontier)
+    expanded = gate._dsr_diagnostic(
+        target,
+        expanded_runs,
+        trial_history,
+        shared,
+    )
+    assert preliminary["passed"] is True
+    assert preliminary["book_u_cells_in_dispersion"] == 2
+    assert expanded["passed"] is False
+    assert expanded["book_u_cells_in_dispersion"] == 6
+    assert len(set(expanded["book_u_configuration_ids"])) == 6
+
+    reconciled = gate._reconcile_frontier_selection(
+        frontier,
+        {"status": "FAILED", "passed": False},
+    )
+    assert reconciled["status"] == "INVALIDATED_EXPANDED_DSR_ARCHITECTURE"
+    assert reconciled["selected_cell_before_expanded_dsr"] == "U085"
+    assert reconciled["selected_cell"] is None
+    assert reconciled["research_eligible"] is False
+    assert len(reconciled["cells"]) == 3
+    assert all(
+        not row["eligibility"]["eligible"]
+        for row in reconciled["cells"].values()
+    )
+    assert gate._research_status(
+        {"status": "FAILED", "passed": False}, reconciled
+    ) == "NO_RESEARCH_CANDIDATE"
 
 
 def test_conditional_frontier_does_not_touch_higher_risk_cells_when_blocked() -> None:

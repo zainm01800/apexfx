@@ -620,7 +620,19 @@ def _metrics(
     consumed_end: pd.Timestamp,
     cluster_attribution: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    returns = equity.pct_change().dropna()
+    # The segment begins with real capital immediately before its first marked
+    # session.  Using Series.pct_change() would silently discard that first
+    # session, including boundary-open costs or an entry-day stop.  Build every
+    # session return against its actual predecessor instead.
+    prior_equity = np.concatenate(
+        ([float(initial_equity_usd)], equity.to_numpy(dtype=float)[:-1])
+    )
+    returns = pd.Series(
+        equity.to_numpy(dtype=float) / prior_equity - 1.0,
+        index=equity.index,
+        name="daily_return",
+        dtype=float,
+    )
     total_return = float(equity.iloc[-1] / initial_equity_usd - 1.0)
     years = len(returns) / 252.0
     annualized_return = (
@@ -642,7 +654,14 @@ def _metrics(
         if downside_deviation > 0.0
         else 0.0
     )
-    drawdown = equity / equity.cummax() - 1.0
+    running_peak = np.maximum.accumulate(
+        np.concatenate(([float(initial_equity_usd)], equity.to_numpy(dtype=float)))
+    )[1:]
+    drawdown = pd.Series(
+        equity.to_numpy(dtype=float) / running_peak - 1.0,
+        index=equity.index,
+        dtype=float,
+    )
     max_drawdown = float(-drawdown.min())
     calmar = annualized_return / max_drawdown if max_drawdown > 0.0 else 0.0
     positive_episodes = sum(max(0.0, float(row["net_pnl_usd"])) for row in episodes)
@@ -660,9 +679,8 @@ def _metrics(
     cluster_sum = sum(float(row["net_pnl_usd"]) for row in cluster_attribution.values())
     net_pnl = float(equity.iloc[-1] - initial_equity_usd)
     annual_returns: dict[str, float] = {}
-    for year, values in equity.groupby(equity.index.year):
-        if len(values) > 1:
-            annual_returns[str(int(year))] = float(values.iloc[-1] / values.iloc[0] - 1.0)
+    for year, values in returns.groupby(returns.index.year):
+        annual_returns[str(int(year))] = float((1.0 + values).prod() - 1.0)
     outcome_payload = {
         "equity": [[_date_str(date), float(value)] for date, value in equity.items()],
         "events": events,

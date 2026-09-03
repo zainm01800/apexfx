@@ -395,18 +395,42 @@ def _result_fingerprint(run: BookURun) -> str:
     )
 
 
+def _session_returns_from_100k(equity: pd.Series) -> pd.Series:
+    """Return every marked session, including day one versus fresh capital."""
+
+    values = equity.astype(float).sort_index()
+    if values.empty or not np.isfinite(values.to_numpy()).all():
+        raise RuntimeError("Book U run has an invalid equity path")
+    prior = np.concatenate(([ACCOUNT], values.to_numpy(dtype=float)[:-1]))
+    if np.any(prior <= 0.0):
+        raise RuntimeError("Book U equity predecessor must remain positive")
+    return pd.Series(
+        values.to_numpy(dtype=float) / prior - 1.0,
+        index=values.index,
+        name="daily_return",
+        dtype=float,
+    )
+
+
 def _deterministic_metrics(run: BookURun) -> dict[str, Any]:
     equity = run.equity.astype(float).sort_index()
     if len(equity) < 2 or not np.isfinite(equity.to_numpy()).all():
         raise RuntimeError("Book U run has an invalid equity path")
-    returns = equity.pct_change().dropna()
+    returns = _session_returns_from_100k(equity)
     standard_deviation = float(returns.std(ddof=1)) if len(returns) > 1 else 0.0
     annualized_return = (
         float((equity.iloc[-1] / ACCOUNT) ** (PERIODS_PER_YEAR / len(returns)) - 1.0)
         if len(returns) and equity.iloc[-1] > 0.0
         else 0.0
     )
-    drawdown = equity / equity.cummax() - 1.0
+    running_peak = np.maximum.accumulate(
+        np.concatenate(([ACCOUNT], equity.to_numpy(dtype=float)))
+    )[1:]
+    drawdown = pd.Series(
+        equity.to_numpy(dtype=float) / running_peak - 1.0,
+        index=equity.index,
+        dtype=float,
+    )
     maximum_drawdown = float(-drawdown.min())
     return {
         "initial_equity_usd": ACCOUNT,
@@ -839,8 +863,8 @@ def _funded_replay_proxy(run: BookURun) -> dict[str, Any]:
     }
 
 
-def _cpcv_sign_diagnostic(returns: pd.Series) -> dict[str, Any]:
-    values = returns.sort_index().astype(float)
+def _cpcv_sign_diagnostic(run: BookURun) -> dict[str, Any]:
+    values = _session_returns_from_100k(run.equity)
     values = values[np.isfinite(values.to_numpy())]
     groups = np.array_split(np.arange(len(values), dtype=int), 6)
     paths: list[dict[str, Any]] = []
@@ -879,6 +903,9 @@ def _cpcv_sign_diagnostic(returns: pd.Series) -> dict[str, Any]:
         "required_positive_paths": 12,
         "paths": paths,
         "training_or_refit_performed": False,
+        "return_construction": (
+            "all marked sessions, including the first session versus fresh $100,000 capital"
+        ),
         "semantics": (
             "The one causal, terminally reconciled stressed U075 return stream is "
             "restricted to each fixed choose-two group combination; no parameter is fitted."
@@ -960,16 +987,45 @@ def _observe_shared_trial_ledger(path: Path = SHARED_TRIAL_LEDGER) -> dict[str, 
     }
 
 
+def _distinct_configuration_runs(
+    runs: Sequence[BookURun],
+) -> tuple[tuple[str, BookURun], ...]:
+    """Deduplicate market runs by frozen Book U base/stress configuration."""
+
+    distinct: dict[str, tuple[str, BookURun]] = {}
+    for run in runs:
+        configuration_id = _configuration_id(run)
+        spec_sha256 = _object_digest(run.spec.to_dict())
+        existing = distinct.get(configuration_id)
+        if existing is not None:
+            if existing[0] != spec_sha256:
+                raise RuntimeError(
+                    "Book U configuration identifier mapped to different specifications"
+                )
+            continue
+        distinct[configuration_id] = (spec_sha256, run)
+    return tuple(
+        (configuration_id, distinct[configuration_id][1])
+        for configuration_id in sorted(distinct)
+    )
+
+
 def _dsr_diagnostic(
-    target_returns: pd.Series,
+    target_run: BookURun,
     candidate_runs: Sequence[BookURun],
     trial_history: Mapping[str, Any] | None,
     shared_ledger: Mapping[str, Any],
 ) -> dict[str, Any]:
+    target_returns = _session_returns_from_100k(target_run.equity)
+    distinct_runs = _distinct_configuration_runs(candidate_runs)
     candidate_sharpes = [
-        sharpe_ratio(run.equity.pct_change().dropna().to_numpy(dtype=float), periods_per_year=1)
-        for run in candidate_runs
+        sharpe_ratio(
+            _session_returns_from_100k(run.equity).to_numpy(dtype=float),
+            periods_per_year=1,
+        )
+        for _, run in distinct_runs
     ]
+    configuration_ids = [configuration_id for configuration_id, _ in distinct_runs]
     spent_trials = int(shared_ledger.get("object_entry_count", 0))
     finite_shared = int(shared_ledger.get("finite_compatible_sharpes", 0))
     effective_trials = spent_trials + len(candidate_sharpes)
@@ -997,7 +1053,11 @@ def _dsr_diagnostic(
             "spent_project_trial_count": spent_trials,
             "finite_compatible_project_sharpes": finite_shared,
             "book_u_cells_in_dispersion": len(candidate_sharpes),
+            "book_u_configuration_ids": configuration_ids,
             "effective_trial_count": effective_trials,
+            "return_construction": (
+                "each target and candidate includes its first session versus fresh $100,000 capital"
+            ),
             "reason": (
                 "The shared ledger supplies the spent trial count but not a complete "
                 "compatible Sharpe dispersion; it was observed read-only and never mutated."
@@ -1017,10 +1077,14 @@ def _dsr_diagnostic(
         "spent_project_trial_count": spent_trials,
         "finite_compatible_project_sharpes": finite_shared,
         "book_u_cells_in_dispersion": len(candidate_sharpes),
+        "book_u_configuration_ids": configuration_ids,
         "effective_trial_count": effective_trials,
         "trial_history_sha256": history_hash,
         "trial_history_source": history_source,
         "dispersion_units": "per_period",
+        "return_construction": (
+            "each target and candidate includes its first session versus fresh $100,000 capital"
+        ),
     }
 
 
@@ -1320,6 +1384,49 @@ def _conditional_frontier(
     )
 
 
+def _frontier_configuration_runs(frontier: Mapping[str, Any]) -> tuple[BookURun, ...]:
+    """Return each evaluated full-history base/stress frontier cell exactly once."""
+
+    runs: list[BookURun] = []
+    for cell in RISK_CELLS:
+        row = frontier.get("cells", {}).get(cell)
+        if row is None:
+            continue
+        runs.extend((row["_base_run"], row["_stress_run"]))
+    distinct = _distinct_configuration_runs(runs)
+    return tuple(run for _, run in distinct)
+
+
+def _reconcile_frontier_selection(
+    frontier: dict[str, Any],
+    final_architecture: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Make a frontier selection conditional on the expanded final DSR gate."""
+
+    if not frontier.get("cells"):
+        return frontier
+    originally_selected = frontier.get("selected_cell")
+    final_passed = bool(final_architecture.get("passed"))
+    frontier["selected_cell_before_expanded_dsr"] = originally_selected
+    frontier["expanded_dsr_architecture_status"] = final_architecture.get("status")
+    frontier["research_eligible"] = bool(final_passed and originally_selected is not None)
+    for row in frontier["cells"].values():
+        eligibility = row["eligibility"]
+        eligible_before = bool(eligibility.get("eligible"))
+        eligibility["eligible_before_expanded_dsr"] = eligible_before
+        eligibility["expanded_dsr_architecture_passed"] = final_passed
+        eligibility["eligible"] = bool(eligible_before and final_passed)
+    if not final_passed:
+        frontier["selected_cell"] = None
+        frontier["status"] = "INVALIDATED_EXPANDED_DSR_ARCHITECTURE"
+        frontier["invalidation_reason"] = (
+            "The frontier was evaluated only after preliminary U075 passage, but the "
+            "architecture no longer passed when DSR included all six evaluated "
+            "full-history base/stress configuration cells."
+        )
+    return frontier
+
+
 def _configuration_id(run: BookURun) -> str:
     name = str(run.spec.name)
     mode = "STRESS_10BPS_25BPS_STOP" if name.endswith("_STRESS") else "BASE_5BPS"
@@ -1401,6 +1508,18 @@ def _build_book_u_trial_ledger(
         "synthetic_engineering_controls_count_as_market_trials": False,
         "shared_trial_ledger_modified": False,
     }
+
+
+def _research_status(
+    architecture: Mapping[str, Any], frontier: Mapping[str, Any]
+) -> str:
+    if architecture.get("status") == "FAILED":
+        return "NO_RESEARCH_CANDIDATE"
+    if architecture.get("status") == "DATA_BLOCKED":
+        return "DATA_BLOCKED"
+    if not bool(architecture.get("passed")) or frontier.get("selected_cell") is None:
+        return "NO_RESEARCH_CANDIDATE"
+    return "SHADOW_ELIGIBLE"
 
 
 def _render_report(payload: Mapping[str, Any]) -> str:
@@ -1551,9 +1670,9 @@ def run_gate(
         if shared_ledger is not None
         else _observe_shared_trial_ledger()
     )
-    cpcv = _cpcv_sign_diagnostic(full_stress.equity.pct_change().dropna())
-    dsr = _dsr_diagnostic(
-        validation_stress.equity.pct_change().dropna(),
+    cpcv = _cpcv_sign_diagnostic(full_stress)
+    preliminary_dsr = _dsr_diagnostic(
+        validation_stress,
         (validation_base, validation_stress),
         trial_history,
         shared_ledger_result,
@@ -1569,11 +1688,11 @@ def run_gate(
         "stress": _funded_replay_proxy(full_stress),
     }
     engineering_result = dict(engineering) if engineering is not None else _engineering_control_suite(run_fn)
-    architecture = _architecture_gate(
+    preliminary_architecture = _architecture_gate(
         raw_segments,
         raw_blocks,
         cpcv,
-        dsr,
+        preliminary_dsr,
         concentration,
         haircut,
         caps,
@@ -1582,13 +1701,35 @@ def run_gate(
     )
 
     frontier = _conditional_frontier(
-        architecture,
+        preliminary_architecture,
         checked,
         full,
         start="2010-01-04",
         end=terminal,
         run_fn=run_fn,
     )
+    dsr = preliminary_dsr
+    architecture = preliminary_architecture
+    expanded_frontier_runs = _frontier_configuration_runs(frontier)
+    if expanded_frontier_runs:
+        dsr = _dsr_diagnostic(
+            validation_stress,
+            expanded_frontier_runs,
+            trial_history,
+            shared_ledger_result,
+        )
+        architecture = _architecture_gate(
+            raw_segments,
+            raw_blocks,
+            cpcv,
+            dsr,
+            concentration,
+            haircut,
+            caps,
+            replays,
+            engineering_result,
+        )
+        frontier = _reconcile_frontier_selection(frontier, architecture)
 
     correlated_gap = {
         "segments": {
@@ -1619,14 +1760,7 @@ def run_gate(
         shared_ledger=shared_ledger_result,
     )
 
-    if architecture["status"] == "FAILED":
-        research_status = "NO_RESEARCH_CANDIDATE"
-    elif architecture["status"] == "DATA_BLOCKED":
-        research_status = "DATA_BLOCKED"
-    elif frontier.get("selected_cell") is None:
-        research_status = "NO_RESEARCH_CANDIDATE"
-    else:
-        research_status = "SHADOW_ELIGIBLE"
+    research_status = _research_status(architecture, frontier)
     if research_status not in ALLOWED_RESEARCH_STATUSES:
         raise RuntimeError("Book U status exceeded its frozen evidence ceiling")
 
@@ -1670,6 +1804,7 @@ def run_gate(
         "segments": _strip_private(raw_segments),
         "fixed_two_year_blocks": _strip_private(raw_blocks),
         "cpcv_sign_diagnostic": cpcv,
+        "deflated_sharpe_ratio_pre_frontier": preliminary_dsr,
         "deflated_sharpe_ratio": dsr,
         "shared_trial_ledger_observation": _strip_private(shared_ledger_result),
         "book_u_trial_ledger_sha256": hashlib.sha256(
@@ -1682,6 +1817,7 @@ def run_gate(
         "funded_rule_replay_proxy": replays,
         "engineering_controls": engineering_result,
         "correlated_gap_arithmetic": correlated_gap,
+        "architecture_gate_pre_frontier": preliminary_architecture,
         "architecture_gate": architecture,
         "conditional_risk_frontier": _strip_private(frontier),
         "evidence_labels": {
