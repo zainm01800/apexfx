@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
+import json
+from io import BytesIO
 from dataclasses import replace
 
 import numpy as np
@@ -9,6 +13,15 @@ import pandas as pd
 import pytest
 
 from apex_quant.research.book_r_stop_overlay import BookRStopSpec, run_book_r_stop_overlay
+from scripts.run_book_r_stop_overlay_audit import (
+    DEFAULT_JSON,
+    EXPECTED_OBSERVED_TRIAL_CELLS,
+    ORIGINAL_SELECTION_SPECS,
+    SNAPSHOT_SHA256,
+    _report,
+    _run_exposure_matched_no_stop,
+    _snapshot_bytes,
+)
 
 
 def _panel(n: int = 820) -> dict[str, pd.DataFrame]:
@@ -64,9 +77,15 @@ def test_next_open_entry_has_stop_and_risk_sized_units() -> None:
     assert entry["stop_price_usd"] < entry["price_usd"]
     intended_loss = entry["units"] * (entry["price_usd"] - entry["stop_price_usd"])
     assert intended_loss <= 850.0 + 1e-6
-    assert run.metrics["average_gross_exposure"] <= 0.95
-    assert run.metrics["max_planned_position_risk_fraction"] <= 0.0085 + 1e-12
-    assert run.metrics["max_planned_aggregate_risk_fraction"] <= 0.0255 + 1e-12
+    assert run.metrics["average_close_gross_exposure"] <= 0.95
+    assert (
+        run.metrics["max_planned_position_price_risk_fraction_before_costs"]
+        <= 0.0085 + 1e-12
+    )
+    assert (
+        run.metrics["max_planned_aggregate_price_risk_fraction_before_costs"]
+        <= 0.0255 + 1e-12
+    )
     assert run.metrics["max_planned_gross_fraction"] <= 0.95 + 1e-12
     assert run.metrics["minimum_cash_usd"] >= 0.0
 
@@ -155,3 +174,94 @@ def test_missing_high_or_low_is_rejected() -> None:
     panel["SPY"] = panel["SPY"].drop(columns="low")
     with pytest.raises(ValueError, match="lacks stop-test columns"):
         _run(panel)
+
+
+def test_multiplicity_includes_all_original_selection_cells() -> None:
+    assert [(spec.lookback, spec.cost_bps_per_side) for spec in ORIGINAL_SELECTION_SPECS] == [
+        (63, 5.0),
+        (126, 5.0),
+        (252, 5.0),
+    ]
+    assert len(ORIGINAL_SELECTION_SPECS) * 2 + 6 == EXPECTED_OBSERVED_TRIAL_CELLS
+
+
+def test_exposure_matched_control_matches_realized_close_exposure() -> None:
+    panel = _panel()
+    index = next(iter(panel.values())).index
+    _, realised = _run_exposure_matched_no_stop(
+        panel,
+        start=index[252],
+        end=index[-1],
+        target_average_gross=0.35,
+    )
+    assert realised == pytest.approx(0.35, abs=1e-8)
+
+
+def test_gap_stop_blocks_same_open_reentry() -> None:
+    panel = _panel()
+    clean = _run(panel)
+    first_selection = clean.selections[0]
+    instrument = first_selection["selected"][0]["instrument"]
+    later = next(
+        selection
+        for selection in clean.selections[1:]
+        if instrument in {row["instrument"] for row in selection["selected"]}
+    )
+    gap_date = pd.Timestamp(later["fill_date"], tz="UTC")
+    stopped_panel = {name: frame.copy() for name, frame in panel.items()}
+    stopped_panel[instrument].loc[gap_date, ["open", "close", "low", "high"]] = [
+        1.00,
+        1.01,
+        0.99,
+        1.02,
+    ]
+    stopped = _run(stopped_panel)
+    assert any(
+        row["reason"] == "stop_loss"
+        and row["instrument"] == instrument
+        and row["date"] == later["fill_date"]
+        and row["gap_through_stop"]
+        for row in stopped.events
+    )
+    assert not any(
+        row["reason"] == "monthly_rebalance"
+        and row["side"] == "buy"
+        and row["instrument"] == instrument
+        and row["date"] == later["fill_date"]
+        for row in stopped.events
+    )
+
+
+def test_final_liquidation_closes_every_position_and_pays_cost() -> None:
+    run = _run(_panel())
+    net_units: dict[str, float] = {}
+    for event in run.events:
+        sign = 1.0 if event["side"] == "buy" else -1.0
+        net_units[event["instrument"]] = (
+            net_units.get(event["instrument"], 0.0) + sign * float(event["units"])
+        )
+    assert all(abs(value) < 1e-8 for value in net_units.values())
+    liquidations = [row for row in run.events if row["reason"] == "final_liquidation"]
+    assert liquidations
+    assert all(float(row["cost_usd"]) > 0.0 for row in liquidations)
+
+
+def test_frozen_snapshot_is_available_and_hash_locked() -> None:
+    assert hashlib.sha256(_snapshot_bytes()).hexdigest() == SNAPSHOT_SHA256
+
+
+def test_published_report_includes_every_frozen_comparison() -> None:
+    parts_dir = DEFAULT_JSON.parent / f"{DEFAULT_JSON.name}.gz.parts"
+    compressed = b"".join(path.read_bytes() for path in sorted(parts_dir.glob("chunk-*")))
+    with gzip.GzipFile(fileobj=BytesIO(compressed), mode="rb") as handle:
+        payload = json.loads(handle.read())
+    report = _report(payload)
+    for label in (
+        "Baseline",
+        "Stop + 0.85% price-risk sizing",
+        "Stop only",
+        "Exposure-matched no stop",
+        "2.0ATR sensitivity",
+        "3.0ATR sensitivity",
+    ):
+        assert label in report

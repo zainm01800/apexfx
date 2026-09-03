@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from io import BytesIO
 import json
 import sys
 from dataclasses import replace
@@ -27,6 +28,7 @@ from apex_quant.research.book_r_usd_etf import (  # noqa: E402
     BookRRun,
     BookRSpec,
     USD_ETF_UNIVERSE,
+    _date_str,
     common_panel,
     run_book_r,
 )
@@ -35,6 +37,9 @@ from apex_quant.validation.paired_tests import paired_block_bootstrap  # noqa: E
 
 
 SNAPSHOT = ENGINE_DIR / "data_store" / "validation" / "book_r_stop_inputs_2026-09-03.parquet"
+SNAPSHOT_PARTS_DIR = (
+    ENGINE_DIR / "data_store" / "validation" / "book_r_stop_inputs_2026-09-03.parts"
+)
 MANIFEST = ENGINE_DIR / "data_store" / "validation" / "book_r_stop_inputs_2026-09-03.manifest.json"
 PREREG = ENGINE_DIR / "data_store" / "book_r_stop_overlay_prereg_2026-09-03.md"
 OVERLAY_SOURCE = ENGINE_DIR / "apex_quant" / "research" / "book_r_stop_overlay.py"
@@ -45,6 +50,11 @@ DEFAULT_REPORT = ENGINE_DIR / "data_store" / "validation" / "book_r_stop_overlay
 SNAPSHOT_SHA256 = "efc75fb7056efe2d03d0cd13de955616882c2c7c54ac794c53cdfdbac0cc7974"
 MANIFEST_SHA256 = "d5c1f9b664e6ec5a520313f58946d4169907fc32498cf2101796e5f19f6fe1ee"
 BASELINE = BookRSpec(name="R-252-control", lookback=252)
+ORIGINAL_SELECTION_SPECS = (
+    BookRSpec(name="R-63-original-cell", lookback=63),
+    BookRSpec(name="R-126-original-cell", lookback=126),
+    BASELINE,
+)
 PRIMARY = BookRStopSpec()
 STOP_ONLY = replace(PRIMARY, name="R-252-stop-only", risk_fraction=None)
 SENSITIVITIES = (
@@ -65,18 +75,31 @@ REGIME_BLOCKS = (
     ("2025_2026", "2025-01-02", "2026-08-27"),
 )
 EFFECTIVE_TRIAL_COUNT = 372
+EXPECTED_OBSERVED_TRIAL_CELLS = 12
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _load_frozen_panel() -> dict[str, pd.DataFrame]:
-    if _sha256(SNAPSHOT) != SNAPSHOT_SHA256:
+def _snapshot_bytes() -> bytes:
+    """Load the exact parquet bytes, preferring the Git-portable split package."""
+    parts = sorted(SNAPSHOT_PARTS_DIR.glob("chunk-*"))
+    if parts:
+        payload = b"".join(part.read_bytes() for part in parts)
+    elif SNAPSHOT.is_file():
+        payload = SNAPSHOT.read_bytes()
+    else:
+        raise RuntimeError("frozen stop-study snapshot and packaged parts are missing")
+    if hashlib.sha256(payload).hexdigest() != SNAPSHOT_SHA256:
         raise RuntimeError("frozen stop-study snapshot hash mismatch")
+    return payload
+
+
+def _load_frozen_panel() -> dict[str, pd.DataFrame]:
     if _sha256(MANIFEST) != MANIFEST_SHA256:
         raise RuntimeError("frozen stop-study manifest hash mismatch")
-    data = pd.read_parquet(SNAPSHOT)
+    data = pd.read_parquet(BytesIO(_snapshot_bytes()))
     expected = {"instrument", "timestamp", "open", "high", "low", "close", "volume"}
     if set(data.columns) != expected:
         raise RuntimeError("frozen snapshot schema mismatch")
@@ -144,6 +167,75 @@ def _summary(run: BookRRun | BookRStopRun, *, include_run: bool = False) -> dict
     return result
 
 
+def _realized_average_gross_exposure(
+    run: BookRRun,
+    panel: dict[str, pd.DataFrame],
+) -> float:
+    """Reconstruct close-marked gross exposure from the baseline fill ledger."""
+    units = {instrument: 0.0 for instrument in panel}
+    events_by_date: dict[str, list[dict[str, Any]]] = {}
+    final_liquidation_cost_by_date: dict[str, float] = {}
+    for event in run.events:
+        if event["reason"] == "final_liquidation":
+            final_liquidation_cost_by_date[event["date"]] = (
+                final_liquidation_cost_by_date.get(event["date"], 0.0)
+                + float(event["cost_usd"])
+            )
+            continue
+        events_by_date.setdefault(event["date"], []).append(event)
+    gross_fractions: list[float] = []
+    for date, equity in run.equity.items():
+        date_key = _date_str(date)
+        for event in events_by_date.get(date_key, []):
+            signed_units = float(event["units"]) * (1.0 if event["side"] == "buy" else -1.0)
+            units[event["instrument"]] += signed_units
+        gross = sum(
+            units[instrument] * float(frame.loc[date, "close"])
+            for instrument, frame in panel.items()
+        )
+        # The strategy is exposed through the final close and liquidates at
+        # that close. Add the final sale cost back so this denominator matches
+        # the overlay's pre-liquidation close exposure convention.
+        marked_equity = float(equity) + final_liquidation_cost_by_date.get(date_key, 0.0)
+        gross_fractions.append(gross / marked_equity if marked_equity > 0.0 else 0.0)
+    return float(np.mean(gross_fractions)) if gross_fractions else 0.0
+
+
+def _run_exposure_matched_no_stop(
+    panel: dict[str, pd.DataFrame],
+    *,
+    start: str,
+    end: str,
+    target_average_gross: float,
+) -> tuple[BookRRun, float]:
+    """Match the primary's realised close-average gross exposure by bisection."""
+    low, high = 0.001, 0.95
+    candidates: list[tuple[float, BookRRun, float]] = []
+    for _ in range(40):
+        gross_target = (low + high) / 2.0
+        run = run_book_r(
+            panel,
+            replace(
+                BASELINE,
+                name="R-252-exposure-matched-diagnostic",
+                gross_target=gross_target,
+            ),
+            start=start,
+            end=end,
+        )
+        realised = _realized_average_gross_exposure(run, panel)
+        candidates.append((gross_target, run, realised))
+        if realised < target_average_gross:
+            low = gross_target
+        else:
+            high = gross_target
+    _, best_run, best_realised = min(
+        candidates,
+        key=lambda item: abs(item[2] - target_average_gross),
+    )
+    return best_run, best_realised
+
+
 def _comparison(base: BookRRun, challenger: BookRStopRun) -> dict[str, float]:
     bm, cm = base.metrics, challenger.metrics
     return {
@@ -187,18 +279,30 @@ def _run_segment(panel: dict[str, pd.DataFrame], start: str, end: str, *, includ
         f"{spec.atr_multiple:.1f}ATR": run_book_r_stop_overlay(panel, spec, start=start, end=end)
         for spec in SENSITIVITIES
     }
-    matched_gross = min(0.95, max(0.01, float(primary.metrics["average_gross_exposure"])))
-    exposure_matched = run_book_r(
+    target_average_gross = float(primary.metrics["average_close_gross_exposure"])
+    exposure_matched, matched_average_gross = _run_exposure_matched_no_stop(
         panel,
-        replace(BASELINE, name="R-252-exposure-matched-diagnostic", gross_target=matched_gross),
         start=start,
         end=end,
+        target_average_gross=target_average_gross,
+    )
+    baseline_summary = _summary(base, include_run=include_run)
+    baseline_summary["metrics"]["average_close_gross_exposure"] = (
+        _realized_average_gross_exposure(base, panel)
+    )
+    baseline_stress_summary = _summary(base_stress)
+    baseline_stress_summary["metrics"]["average_close_gross_exposure"] = (
+        _realized_average_gross_exposure(base_stress, panel)
+    )
+    exposure_matched_summary = _summary(exposure_matched)
+    exposure_matched_summary["metrics"]["average_close_gross_exposure"] = (
+        matched_average_gross
     )
     return {
         "window": {"start": start, "end": end},
         "baseline": {
-            "base": _summary(base, include_run=include_run),
-            "stress_10bps": _summary(base_stress),
+            "base": baseline_summary,
+            "stress_10bps": baseline_stress_summary,
         },
         "primary_stop_risk085": {
             "base": _summary(primary, include_run=include_run),
@@ -209,8 +313,11 @@ def _run_segment(panel: dict[str, pd.DataFrame], start: str, end: str, *, includ
             "stress_10bps_plus_25bps_stop_slippage": _summary(stop_only_stress),
         },
         "exposure_matched_no_stop_diagnostic": {
-            "gross_target": matched_gross,
-            "base": _summary(exposure_matched),
+            "requested_gross_target": exposure_matched.spec.gross_target,
+            "target_average_gross_exposure": target_average_gross,
+            "realized_average_gross_exposure": matched_average_gross,
+            "absolute_match_error": abs(matched_average_gross - target_average_gross),
+            "base": exposure_matched_summary,
         },
         "sensitivity": {
             name: _summary(run) for name, run in sensitivities.items()
@@ -314,6 +421,17 @@ def _pct(value: float) -> str:
 
 
 def _report(payload: dict[str, Any]) -> str:
+    def result_row(segment_name: str, label: str, metrics: dict[str, Any]) -> str:
+        average_gross = metrics.get("average_close_gross_exposure")
+        return (
+            f"| {segment_name.replace('_', ' ')} | {label} | "
+            f"{_pct(metrics['annualized_return'])} | {metrics['sharpe']:.3f} | "
+            f"{_pct(metrics['max_drawdown'])} | {_pct(metrics['total_return'])} | "
+            f"{_pct(metrics['worst_day'])} | "
+            f"{_pct(average_gross) if average_gross is not None else 'n/a'} | "
+            f"{metrics.get('stop_exit_count', 0)} |"
+        )
+
     lines = [
         "# Book R-252 stop-overlay audit",
         "",
@@ -327,14 +445,64 @@ def _report(payload: dict[str, Any]) -> str:
         "|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for segment_name, segment in payload["segments"].items():
-        for label, key in (("Baseline", "baseline"), ("Stop + 0.85% risk", "primary_stop_risk085"), ("Stop only", "stop_only_diagnostic")):
-            metrics = segment[key]["base"]["metrics"]
+        for label, key in (
+            ("Baseline", "baseline"),
+            ("Stop + 0.85% price-risk sizing", "primary_stop_risk085"),
+            ("Stop only", "stop_only_diagnostic"),
+            ("Exposure-matched no stop", "exposure_matched_no_stop_diagnostic"),
+        ):
+            lines.append(result_row(segment_name, label, segment[key]["base"]["metrics"]))
+        for sensitivity_name, sensitivity in segment["sensitivity"].items():
             lines.append(
-                f"| {segment_name.replace('_', ' ')} | {label} | {_pct(metrics['annualized_return'])} | "
-                f"{metrics['sharpe']:.3f} | {_pct(metrics['max_drawdown'])} | {_pct(metrics['total_return'])} | "
-                f"{_pct(metrics['worst_day'])} | {_pct(metrics.get('average_gross_exposure', 0.0)) if 'average_gross_exposure' in metrics else 'n/a'} | "
-                f"{metrics.get('stop_exit_count', 0)} |"
+                result_row(
+                    segment_name,
+                    f"{sensitivity_name} sensitivity",
+                    sensitivity["metrics"],
+                )
             )
+
+    validation = payload["segments"]["retrospective_validation"]
+    stress_rows = (
+        ("Baseline, 10 bps/side", validation["baseline"]["stress_10bps"]["metrics"]),
+        (
+            "Stop + sizing, 10 bps/side + 25 bps stop slippage",
+            validation["primary_stop_risk085"][
+                "stress_10bps_plus_25bps_stop_slippage"
+            ]["metrics"],
+        ),
+        (
+            "Stop only, 10 bps/side + 25 bps stop slippage",
+            validation["stop_only_diagnostic"][
+                "stress_10bps_plus_25bps_stop_slippage"
+            ]["metrics"],
+        ),
+    )
+    lines += [
+        "",
+        "## Validation execution stress",
+        "",
+        "| Variant | Total return | CAGR | Sharpe | Max DD | Costs |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for label, metrics in stress_rows:
+        lines.append(
+            f"| {label} | {_pct(metrics['total_return'])} | "
+            f"{_pct(metrics['annualized_return'])} | {metrics['sharpe']:.3f} | "
+            f"{_pct(metrics['max_drawdown'])} | ${metrics['transaction_cost_usd']:,.2f} |"
+        )
+
+    actual = payload["validation_gates"]["actual"]
+    return_retention = (
+        actual["primary_annualized_return"] / actual["baseline_annualized_return"]
+    )
+    sharpe_change = actual["primary_sharpe"] - actual["baseline_sharpe"]
+    matched = validation["exposure_matched_no_stop_diagnostic"]
+    matched_metrics = matched["base"]["metrics"]
+    primary_metrics = validation["primary_stop_risk085"]["base"]["metrics"]
+    stop_only_metrics = validation["stop_only_diagnostic"]["base"]["metrics"]
+    bootstrap = payload["paired_block_bootstrap"]["retrospective_validation_stressed"]
+    dsr = payload["deflated_sharpe_diagnostic"]
+    regimes = payload["regime_summary"]
     lines += [
         "",
         "## Frozen validation gates",
@@ -344,6 +512,18 @@ def _report(payload: dict[str, Any]) -> str:
         lines.append(f"- {'PASS' if passed else 'FAIL'} — {name.replace('_', ' ')}")
     lines += [
         "",
+        f"The primary retained {_pct(return_retention)} of baseline CAGR (required 60.00%) and changed Sharpe by {sharpe_change:+.3f} (allowed decline: -0.100).",
+        "",
+        "## Attribution and robustness",
+        "",
+        f"The exposure-matched no-stop control matched close-average gross exposure to within {_pct(matched['absolute_match_error'])} and beat the primary: {_pct(matched_metrics['annualized_return'])} vs {_pct(primary_metrics['annualized_return'])} CAGR, {matched_metrics['sharpe']:.3f} vs {primary_metrics['sharpe']:.3f} Sharpe, and {_pct(matched_metrics['max_drawdown'])} vs {_pct(primary_metrics['max_drawdown'])} max drawdown.",
+        "",
+        f"The stop-only control produced {_pct(stop_only_metrics['total_return'])} total return with {stop_only_metrics['sharpe']:.3f} Sharpe and {_pct(stop_only_metrics['max_drawdown'])} max drawdown. This shows that most of the primary's apparent drawdown benefit came from lower exposure and cash, not from the stop rule.",
+        "",
+        f"Under stressed execution, the paired block-bootstrap Sharpe difference was {bootstrap['sharpe_delta']:+.3f}, with a 95% interval of [{bootstrap['ci_95_lower']:+.3f}, {bootstrap['ci_95_upper']:+.3f}] and one-sided superiority p={bootstrap['p_value_one_sided']:.4f}.",
+        "",
+        f"The stressed primary had positive return in {regimes['positive_primary_returns']}/{regimes['block_count']} regime blocks, lower drawdown in {regimes['lower_primary_drawdown']}/{regimes['block_count']}, and no-worse Sharpe in only {regimes['primary_sharpe_no_worse']}/{regimes['block_count']}. The corrected 12-cell Deflated Sharpe diagnostic was {dsr['dsr']:.3f} (below the conventional 0.95 reference level).",
+        "",
         "## Interpretation",
         "",
         payload["interpretation"],
@@ -351,8 +531,12 @@ def _report(payload: dict[str, Any]) -> str:
         "## Integrity and limitations",
         "",
         "- The result runner verifies the frozen parquet and manifest hashes before loading data.",
+        "- A first diagnostic artifact omitted four original Book R cells from Sharpe dispersion. The corrected run includes all 12 pre-registered cells; the non-gating DSR fell, while every validation gate and the verdict stayed unchanged.",
+        "- The first exposure control equated target gross with the primary's realised gross and therefore only approximated the match. The corrected non-gating control solves for equal realised close exposure; the primary and frozen gates are unchanged.",
         "- Yahoo quote OHLCV is a price-return dataset; dividends and cash interest are not reconstructed.",
-        "- A gap can execute below the stop and lose more than the intended 0.85% position risk.",
+        "- The 0.85% sizing budget covers entry-to-stop price movement before costs and slippage. Trading costs, adverse stop slippage, and opening gaps can make realised loss larger.",
+        "- Resting stops take precedence over a same-open monthly rebalance in this conservative simulator; stressed stop fills therefore receive the extra adverse slippage assumption.",
+        "- Average exposure is measured at each close before the final close liquidation; a position stopped intraday contributes zero close exposure for that session.",
         "- The 2023–2024 segment is retrospective validation, not an externally held blind lockbox.",
         "- A historical pass would authorize only a separate forward-paper challenger, never funding.",
         "",
@@ -376,15 +560,36 @@ def main(argv: list[str] | None = None) -> int:
     validation_objects = raw_segments["retrospective_validation"]["_objects"]
     full_objects = raw_segments["full_history"]["_objects"]
     research_objects = raw_segments["research"]["_objects"]
-    trial_runs = [
-        research_objects["base"],
-        research_objects["base_stress"],
+    research_start, research_end = SEGMENTS["research"]
+    original_selection_runs = []
+    for spec in ORIGINAL_SELECTION_SPECS:
+        if spec.lookback == BASELINE.lookback:
+            original_selection_runs.extend(
+                [research_objects["base"], research_objects["base_stress"]]
+            )
+        else:
+            original_selection_runs.extend([
+                run_book_r(panel, spec, start=research_start, end=research_end),
+                run_book_r(
+                    panel,
+                    _stress_baseline(spec),
+                    start=research_start,
+                    end=research_end,
+                ),
+            ])
+    new_overlay_runs = [
         research_objects["primary"],
         research_objects["primary_stress"],
         research_objects["stop_only"],
         research_objects["stop_only_stress"],
         *research_objects["sensitivities"].values(),
     ]
+    trial_runs = [*original_selection_runs, *new_overlay_runs]
+    if len(trial_runs) != EXPECTED_OBSERVED_TRIAL_CELLS:
+        raise RuntimeError(
+            "multiplicity composition mismatch: "
+            f"expected {EXPECTED_OBSERVED_TRIAL_CELLS} cells, got {len(trial_runs)}"
+        )
     trial_sharpes = [run.metrics["sharpe"] / np.sqrt(252.0) for run in trial_runs]
     dsr = deflated_sharpe_ratio(
         full_objects["primary_stress"].equity.pct_change().dropna().to_numpy(),
@@ -434,11 +639,25 @@ def main(argv: list[str] | None = None) -> int:
         "deflated_sharpe_diagnostic": dsr,
         "multiplicity": {
             "effective_trial_count": EFFECTIVE_TRIAL_COUNT,
-            "observed_new_cells": len(trial_runs),
-            "note": "Conservative count includes the existing global research family and omitted original Book R cells; the shared dirty ledger was not mutated.",
+            "observed_trial_cells": len(trial_runs),
+            "original_book_r_cells": len(original_selection_runs),
+            "new_overlay_and_control_cells": len(new_overlay_runs),
+            "note": "The observed dispersion includes all six original Book R selection cells and all six frozen overlay/control/sensitivity cells. The 372-cell effective count remains the conservative global research-family adjustment; the shared dirty ledger was not mutated.",
         },
+        "methodology_corrections": [
+            "The first generated diagnostic counted eight observed trial cells and omitted the R-63 and R-126 base/stress cells from Sharpe dispersion. This rerun includes all twelve cells required by the pre-registration. Validation gates and the deployment verdict never depended on DSR.",
+            "The first exposure diagnostic set the no-stop gross target equal to the primary's realised average gross, which only approximately matched realised exposure. This rerun solves the non-gating control's gross target by bisection to match realised close-average exposure directly. The primary strategy and every validation gate are unchanged.",
+        ],
         "integrity": {
-            "snapshot_sha256": _sha256(SNAPSHOT),
+            "snapshot_sha256": hashlib.sha256(_snapshot_bytes()).hexdigest(),
+            "snapshot_packaging": {
+                "format": "ordered_binary_parts",
+                "part_count": len(sorted(SNAPSHOT_PARTS_DIR.glob("chunk-*"))),
+                "part_sha256": {
+                    part.name: _sha256(part)
+                    for part in sorted(SNAPSHOT_PARTS_DIR.glob("chunk-*"))
+                },
+            },
             "manifest_sha256": _sha256(MANIFEST),
             "preregistration_sha256": _sha256(PREREG),
             "runner_sha256": _sha256(Path(__file__)),
@@ -451,7 +670,10 @@ def main(argv: list[str] | None = None) -> int:
         "limitations": [
             "historical cache was accessible before this study; no local segment is truly blind",
             "Yahoo quote OHLCV price returns; dividends and cash interest excluded",
-            "stop losses cap intended risk but opening gaps can exceed it",
+            "0.85% is entry-to-stop price risk before costs/slippage, not a guaranteed loss cap",
+            "opening gaps can execute below a resting stop",
+            "resting stops precede same-open monthly rebalances in the conservative stress model",
+            "exposure is measured at the close, so intraday-stopped positions count as zero that session",
             "only subsequent untouched forward paper can provide new evidence",
         ],
     }

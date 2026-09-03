@@ -1,0 +1,12 @@
+{
+  "combined_bytes": 51205,
+  "combined_filename": "book_r_stop_overlay_audit_2026-09-03.json.gz",
+  "combined_sha256": "c42890b697ae59adc58184e304e8762803902d059765a41988ae7de0f2b4bb56",
+  "format": "ordered_binary_parts",
+  "parts": [
+    {"bytes": 16000, "name": "chunk-000", "sha256": "d61a2817d0bf0e0965583bd90b45e9e299c5bd9d9be3a034e3bc15cd5918d21a"},
+    {"bytes": 16000, "name": "chunk-001", "sha256": "be70162fc9d77a45694bb59254a0a36d68226bbb6ca03a851ad1687128cb6d44"},
+    {"bytes": 16000, "name": "chunk-002", "sha256": "ad83bc46cdb5230673e4662ccaca07f408829732557db2abf030fda3026c1e82"},
+    {"bytes": 3205, "name": "chunk-003", "sha256": "2a8c73a153876870b55e483ba1decd45eff4373aa00b5d11fb282cd606ab35bd"}
+  ]
+}

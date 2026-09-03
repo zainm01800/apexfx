@@ -119,7 +119,9 @@ def _extended_metrics(
         ),
         "worst_month": float(monthly.min()) if len(monthly) else 0.0,
         "max_drawdown_duration_sessions": int(longest),
-        "average_gross_exposure": float(gross_exposure.mean()) if len(gross_exposure) else 0.0,
+        "average_close_gross_exposure": (
+            float(gross_exposure.mean()) if len(gross_exposure) else 0.0
+        ),
         "stop_exit_count": len(stop_events),
         "gap_stop_count": sum(bool(row.get("gap_through_stop")) for row in stop_events),
         "drawdown_breach_days": {
@@ -424,10 +426,10 @@ def run_book_r_stop_overlay(
         gross_exposure=gross_exposure,
     )
     metrics.update({
-        "max_planned_position_risk_fraction": (
+        "max_planned_position_price_risk_fraction_before_costs": (
             max(planned_position_risk_fractions) if planned_position_risk_fractions else 0.0
         ),
-        "max_planned_aggregate_risk_fraction": (
+        "max_planned_aggregate_price_risk_fraction_before_costs": (
             max(planned_aggregate_risk_fractions) if planned_aggregate_risk_fractions else 0.0
         ),
         "max_planned_gross_fraction": max(planned_gross_fractions) if planned_gross_fractions else 0.0,

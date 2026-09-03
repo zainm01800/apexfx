@@ -1,0 +1,10 @@
+{
+  "combined_bytes": 642921,
+  "combined_filename": "book_r_stop_inputs_2026-09-03.parquet",
+  "combined_sha256": "efc75fb7056efe2d03d0cd13de955616882c2c7c54ac794c53cdfdbac0cc7974",
+  "full_chunk_bytes": 16000,
+  "format": "ordered_binary_parts",
+  "part_count": 41,
+  "part_glob": "chunk-*",
+  "terminal_chunk_bytes": 2921
+}
