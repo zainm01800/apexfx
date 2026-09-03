@@ -132,6 +132,22 @@ def test_non_midnight_utc_vendor_labels_normalize_to_session_dates() -> None:
         common_book_u_panel(duplicated)
 
 
+def test_common_panel_allows_only_machine_epsilon_ohlc_noise() -> None:
+    tiny = _panel(300)
+    date = tiny["SMH"].index[20]
+    tiny_floor = min(tiny["SMH"].loc[date, "open"], tiny["SMH"].loc[date, "close"])
+    tiny["SMH"].loc[date, "low"] = tiny_floor + 1e-12
+    common_book_u_panel(tiny)
+
+    material = _panel(300)
+    material_floor = min(
+        material["SMH"].loc[date, "open"], material["SMH"].loc[date, "close"]
+    )
+    material["SMH"].loc[date, "low"] = material_floor + 1e-4
+    with pytest.raises(ValueError, match="violates OHLC ordering"):
+        common_book_u_panel(material)
+
+
 def test_missing_official_month_tail_cannot_create_false_month_end() -> None:
     raw = _panel(320)
     index = raw["SPY"].index

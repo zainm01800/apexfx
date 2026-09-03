@@ -274,10 +274,14 @@ def common_book_u_panel(panel: dict[str, pd.DataFrame]) -> dict[str, pd.DataFram
         prices = frame.loc[:, list(_PRICE_COLUMNS)].astype(float)
         if not np.isfinite(prices.to_numpy()).all() or (prices <= 0.0).any().any():
             raise ValueError(f"{instrument} contains non-finite or non-positive OHLC values")
+        # Adjustment-factor multiplication can leave high/low a few machine
+        # epsilons inside an equal close.  Match the frozen downloader's tiny
+        # numerical tolerance while continuing to reject real OHLC violations.
+        tolerance = 1e-10
         invalid_ohlc = (
-            (prices["high"] < prices[["open", "close"]].max(axis=1))
-            | (prices["low"] > prices[["open", "close"]].min(axis=1))
-            | (prices["high"] < prices["low"])
+            (prices["high"] + tolerance < prices[["open", "close"]].max(axis=1))
+            | (prices["low"] - tolerance > prices[["open", "close"]].min(axis=1))
+            | (prices["high"] + tolerance < prices["low"])
         )
         if invalid_ohlc.any():
             raise ValueError(f"{instrument} violates OHLC ordering")
