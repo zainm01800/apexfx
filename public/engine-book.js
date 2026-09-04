@@ -1114,12 +1114,9 @@ function applyLiveMarks() {
 
     // 5. Update hero equity and net return with live floating P&L
     const closed = closedTrades();
-    const realizedBanked = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
     const latest = latestDaily();
     const officialEquity = latest ? num(latest.equity) : BOOK_START_EQUITY;
-    const liveTotalEquity = (_book === 'r' || _book === 'f')
-      ? officialEquity + (liveTotalOpenPnl - officialMarkedOpenPnl)
-      : BOOK_START_EQUITY + realizedBanked + liveTotalOpenPnl;
+    const liveTotalEquity = officialEquity + (liveTotalOpenPnl - officialMarkedOpenPnl);
     const liveTotalNetReturn = liveTotalEquity - BOOK_START_EQUITY;
 
     setText('engEquity', fmtMoney(liveTotalEquity));
