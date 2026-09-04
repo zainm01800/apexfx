@@ -47,12 +47,12 @@ const BOOKS = {
   s: {
     label: 'Book S (Session SMC)',
     currency: '$',
-    startLabel: '28 Jul 2026',
+    startLabel: '01 Aug 2026',
     dailyTable: 'apex_paper_s_daily',
     positionsTable: 'apex_paper_s_positions',
     fallbackId: '__apex_book_s_session_smc_runtime__',
     snapshotFile: '/book-s-paper-snapshot.json',
-    blurb: 'Systematic 1H Session SMC & Order Flow Alpha (Seeded at $100,000 USD on 28 Jul 2026) — Microstructure edge capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Higher-Timeframe Daily 50 EMA trend alignment. Strictly 0.35% risk ($350/trade), 1:1.80 asymmetric target, and -1.8% daily loss circuit breaker.',
+    blurb: 'Systematic 1H Session SMC & Order Flow Alpha (Seeded at $100,000 USD on 01 Aug 2026) — Microstructure edge capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Higher-Timeframe Daily 50 EMA trend alignment. Strictly 0.35% risk ($350/trade), 1:1.80 asymmetric target, and -1.8% daily loss circuit breaker.',
   },
   f: {
     label: 'Book F (Prop Shield Elite)',
@@ -69,6 +69,7 @@ if (!BOOKS[_book]) _book = 'a';
 
 let _dailyRows = [];    // ascending daily snapshots
 let _positions = [];    // open engine positions
+let _trades = [];       // closed engine trades
 let _eqChart = null;    // equity curve chart instance (destroyed before re-render)
 let _eqSeries = null;   // equity area series instance
 let _eqResize = null;   // resize handler for the equity chart (replaced, not stacked)
@@ -205,18 +206,21 @@ async function loadEngineBook() {
 
   let daily = null;
   let positions = null;
+  let trades = null;
 
   try {
-    const [dRes, pRes] = await Promise.all([
+    const [dRes, pRes, tRes] = await Promise.all([
       fetch(`/api/paper?table=daily&limit=500&book=${_book}`).catch(() => null),
       fetch(`/api/paper?table=positions&limit=100&book=${_book}`).catch(() => null),
+      fetch(`/api/paper?table=trades&limit=500&book=${_book}`).catch(() => null),
     ]);
     if (dRes && dRes.ok) daily = await dRes.json().catch(() => null);
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
+    if (tRes && tRes.ok) trades = await tRes.json().catch(() => null);
   } catch (e) { /* fall through to direct Supabase */ }
 
   // Direct namespaced mirror fallback for Book R, Book S, and Book F (including static local dev).
-  if ((_book === 'r' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+  if ((_book === 'r' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions) || !Array.isArray(trades))) {
     const fallbackId = tables.fallbackId || (_book === 's' ? '__apex_book_s_session_smc_runtime__' : (_book === 'f' ? '__apex_book_f_prop_shield_runtime__' : '__apex_book_r_252_forward_paper_runtime__'));
     const stateRes = await fetch(
       `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`,
@@ -230,6 +234,9 @@ async function loadEngineBook() {
       }
       if (!Array.isArray(positions) && payload) {
         positions = Array.isArray(payload.positions) ? payload.positions : Object.values(payload.positions || {});
+      }
+      if (!Array.isArray(trades) && payload && Array.isArray(payload.trades)) {
+        trades = payload.trades;
       }
     }
   }
@@ -246,7 +253,7 @@ async function loadEngineBook() {
   }
 
   // Committed local engine snapshot fallback (Books C, S, and F).
-  if ((_book === 'c' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+  if ((_book === 'c' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions) || !Array.isArray(trades))) {
     const snapshotUrl = _book === 's' ? '/book-s-paper-snapshot.json' : (_book === 'f' ? '/book-f-paper-snapshot.json' : '/book-c-paper-snapshot.json');
     const fallback = await fetch(snapshotUrl, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
@@ -258,11 +265,15 @@ async function loadEngineBook() {
       if (!Array.isArray(positions)) {
         positions = Array.isArray(fallback.positions) ? fallback.positions : Object.values(fallback.positions || {});
       }
+      if (!Array.isArray(trades) && Array.isArray(fallback.trades)) {
+        trades = fallback.trades;
+      }
     }
   }
 
   if (Array.isArray(daily)) _dailyRows = daily;
   if (Array.isArray(positions)) _positions = positions;
+  if (Array.isArray(trades)) _trades = trades;
 
   renderAll();
 }
@@ -273,6 +284,9 @@ function latestDaily() {
 }
 
 function closedTrades() {
+  if (Array.isArray(_trades) && _trades.length) {
+    return [..._trades].sort((a, b) => String(b.exit_time || '').localeCompare(String(a.exit_time || '')));
+  }
   const latest = latestDaily();
   const trades = latest && latest.state_extra && Array.isArray(latest.state_extra.trades)
     ? latest.state_extra.trades
@@ -296,7 +310,7 @@ function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsdRa
     }
   }
 
-  if (_book === 'r' || _book === 'f') return pnlUsd;
+  if (_book === 'r' || _book === 's' || _book === 'f') return pnlUsd;
 
   // Convert USD to Book Currency (£ GBP) for Books A/B/C.
   return pnlUsd / (gbpusd || 1.285);
@@ -934,15 +948,15 @@ function renderClosedTrades() {
   }
 
   const rows = closed.map(t => {
-    const inst = String(t.instrument || '');
+    const inst = String(t.instrument || t.symbol || '');
     const cls = paperClassFor(inst);
     const isLong = String(t.direction || '').toLowerCase() !== 'short';
     const pnl = num(t.pnl);
     const retPct = num(t.return_pct);
     const defaultReason = (t.win || (pnl !== null && pnl > 0))
-      ? (t.pyramided ? 'PYRAMID (+1.5R)' : 'WIN / TRAIL')
+      ? (t.pyramided ? 'PYRAMID (+1.5R)' : 'TAKE PROFIT')
       : 'STOP LOSS';
-    const reason = t.exit_reason ? String(t.exit_reason).toUpperCase() : defaultReason;
+    const reason = t.exit_reason ? String(t.exit_reason).replace(/_/g, ' ').toUpperCase() : defaultReason;
     return `<tr class="wl-row">
       <td style="color: var(--text3); font-size: 11px; white-space: nowrap;">${escHtml(t.exit_time ? fmtDay(t.exit_time) : '—')}</td>
       <td><strong style="font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text);">${escHtml(inst)}</strong></td>

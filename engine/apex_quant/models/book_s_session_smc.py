@@ -101,12 +101,12 @@ def advance_book_s_forward(
             continue
         df_1h = df_1h.copy().sort_index()
         
-        # Match Daily 50 EMA trend filter
+        # Match Daily 50 EMA trend filter (strictly causal yesterday close, 0 lookahead)
         df_1d = daily_panel.get(sym)
         if df_1d is not None and not df_1d.empty:
             df_1d = df_1d.copy().sort_index()
             df_1d["ema50"] = df_1d["close"].ewm(span=50, adjust=False).mean()
-            df_1d["htf_bull"] = df_1d["close"] > df_1d["ema50"]
+            df_1d["htf_bull"] = (df_1d["close"] > df_1d["ema50"]).shift(1)
             df_1d["d_date"] = df_1d.index.date
             htf_map = df_1d.set_index("d_date")["htf_bull"].to_dict()
         else:
@@ -191,6 +191,7 @@ def advance_book_s_forward(
             risk_usd = float(pos["risk_usd"])
             reward_usd = float(pos["reward_usd"])
             stop_dist = float(pos["stop_dist"])
+            units = round(risk_usd / max(stop_dist, 1e-6), 2)
             
             entry_ts = pd.Timestamp(pos["entry_time"])
             if current_ts.tzinfo is not None and entry_ts.tzinfo is None:
@@ -208,11 +209,14 @@ def advance_book_s_forward(
                 trade_pnl = -risk_usd
                 equity += trade_pnl
                 closed_trades.append({
+                    "instrument": sym,
                     "symbol": sym,
                     "direction": pos["direction"],
+                    "units": units,
                     "entry_price": entry_px,
                     "exit_price": sl,
-                    "pnl": trade_pnl,
+                    "pnl": round(trade_pnl, 2),
+                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
                     "win": False,
                     "entry_time": pos["entry_time"],
                     "exit_time": _date_str(current_ts),
@@ -224,11 +228,14 @@ def advance_book_s_forward(
                 trade_pnl = reward_usd
                 equity += trade_pnl
                 closed_trades.append({
+                    "instrument": sym,
                     "symbol": sym,
                     "direction": pos["direction"],
+                    "units": units,
                     "entry_price": entry_px,
                     "exit_price": tp,
-                    "pnl": trade_pnl,
+                    "pnl": round(trade_pnl, 2),
+                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
                     "win": True,
                     "entry_time": pos["entry_time"],
                     "exit_time": _date_str(current_ts),
@@ -241,11 +248,14 @@ def advance_book_s_forward(
                 trade_pnl = (diff / stop_dist) * risk_usd
                 equity += trade_pnl
                 closed_trades.append({
+                    "instrument": sym,
                     "symbol": sym,
                     "direction": pos["direction"],
+                    "units": units,
                     "entry_price": entry_px,
                     "exit_price": c,
-                    "pnl": trade_pnl,
+                    "pnl": round(trade_pnl, 2),
+                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
                     "win": trade_pnl > 0,
                     "entry_time": pos["entry_time"],
                     "exit_time": _date_str(current_ts),
@@ -388,7 +398,7 @@ def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
         "win_rate": round(wr, 1),
         "profit_factor": round(pf, 2),
         "positions": state.get("positions", {}),
-        "trades": trades[-50:],
+        "trades": trades,
         "equity_curve": state.get("equity_curve", [])[-100:],
         "daily": state.get("equity_curve", [])[-100:],
         "last_updated": _date_str(datetime.now(timezone.utc))
