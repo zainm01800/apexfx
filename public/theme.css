@@ -1118,7 +1118,15 @@ select option { background: var(--obs-s2); color: var(--ink); }
   box-shadow: 0 8px 24px rgba(0,0,0,.45), var(--top-light) !important;
   transition: transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease) !important;
   position: relative;
-  overflow: hidden;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.ibkr-pos-card.chart-mode {
+  height: 420px !important;
+  min-height: 420px !important;
+  overflow: hidden !important;
 }
 .eng-pos-card:hover, .ibkr-pos-card:hover {
   transform: translateY(-2px) !important;

@@ -1139,17 +1139,36 @@ button.sc-btn { appearance: none; outline: none; }
 #ibkrPositionsWrap, #engPositionsWrap { align-items: start; }
 
 /* Engine Book cards reuse the ibkr-pos-card chrome but have no chart face —
-   let them size to their content instead of the terminal's locked 380px. */
-.eng-pos-card { height: auto; min-height: 0; }
+   let them size to their content dynamically with zero clipping. */
+.eng-pos-card {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
 
 /* Two-face position card: .card-face-stats and .card-face-chart share the
-   card's footprint — .chart-mode hides the stats face. Height stays locked at
-   380px in BOTH modes (the inline height transition stays, harmless); chart
-   readability comes from the chart's own vertical spread, not card growth.
-   Face chrome is kept slim so the chart box gets the remaining content height.
-   Entering faces fade in over ~180ms (fadeIn keyframes from dashboard.css). */
-.ibkr-pos-card { height: 380px; min-height: 380px; }
-.card-face-stats { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+   card's footprint — .chart-mode hides the stats face.
+   Stats face sizes dynamically so all metrics, live intraday mark, and banked
+   partials are fully visible without cutoff. */
+.ibkr-pos-card {
+  height: auto !important;
+  min-height: 380px;
+  overflow: visible !important;
+}
+.ibkr-pos-card.chart-mode {
+  height: 420px !important;
+  min-height: 420px !important;
+  overflow: hidden !important;
+}
+.card-face-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  height: auto;
+  overflow: visible;
+}
 .ibkr-pos-card.chart-mode .card-face-stats { display: none; }
 .card-face-stats.face-enter,
 .card-face-chart { animation: fadeIn .18s ease; }
