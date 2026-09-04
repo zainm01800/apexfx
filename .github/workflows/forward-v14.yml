@@ -39,17 +39,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install narrow forward-paper dependencies
-        run: >-
-          python -m pip install
-          "numpy>=1.26"
-          "pandas>=2.1"
-          "exchange-calendars>=4.5,<5"
-          "httpx>=0.26"
-          "yfinance>=0.2.65"
-          "python-dotenv>=1.0"
-          "PyYAML>=6.0"
-          "pydantic>=2.0"
-          "pytest>=8.0"
+        run: python -m pip install -r engine/requirements-forward.txt
 
       - name: Verify V14 state, causality, accounting and persistence invariants
         run: python -m pytest -q engine/tests/test_v14_forward.py

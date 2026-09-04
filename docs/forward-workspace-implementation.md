@@ -36,3 +36,12 @@ The normal preview serves only public files and read-only paper/research endpoin
 ## Rollout
 
 Publish only these scoped implementation changes, keeping earlier research-only local commits separate from the production branch. Verify production HTML/API, run the isolated V14 workflow, then read back both namespaced states. Do not report forward readiness until the new workflow and persisted payloads have been checked.
+
+### Activation verified — 5 September 2026 UK
+
+- Vercel production deployment succeeded. Published website files match the tested local trees.
+- Cloud activation run `33930733194` passed all 17 Python and 38 JavaScript tests, then persisted and verified both independent accounts.
+- Both production API payloads report GBP100,000 equity/cash, zero open/pending/closed trades, revision 1, paper-only true and broker-enabled false.
+- Read-only replay `33930804186` passed against the saved remote states. Neither account was reseeded or given retrospective profits.
+- First eligible decision session is 8 September 2026 after the US close. Scheduled runs are 23:30 UTC on weekdays; a qualifying signal is still required.
+- The Python 3.12 dependency set from the successful cloud run is frozen in `engine/requirements-forward.txt`. Updating it requires deliberate retesting.
