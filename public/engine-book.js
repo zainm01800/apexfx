@@ -354,6 +354,167 @@ function renderHero() {
   }
 }
 
+// ── Forward Testing Progress Tracker from 100k ──────────────────────────────
+function renderProgressTracker(liveOpenPnl = null, officialOpenPnl = null) {
+  const card = document.getElementById('engProgressCard');
+  if (!card) return;
+
+  const meta = BOOKS[_book] || {};
+  const seed = meta.seed || 100000;
+  const curr = meta.currency || '$';
+  const latest = latestDaily();
+
+  const officialEquity = latest ? num(latest.equity) : seed;
+  const closed = closedTrades();
+  const realizedBanked = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
+
+  // Compute live open P&L across all active positions
+  let calcOpenPnl = 0;
+  let activePositions = [];
+  for (const p of _positions) {
+    if (!p || num(p.units) <= 0) continue;
+    activePositions.push(p);
+    const inst = String(p.instrument || '');
+    const m = _liveMarks[inst];
+    const px = m ? m.px : num(p.last_px);
+    const entry = num(p.entry_price);
+    const units = num(p.units);
+    if (entry !== null && units !== null && px !== null) {
+      const isLong = String(p.direction || '').toLowerCase() !== 'short';
+      const pnl = calcTradePnl(inst, entry, px, units, isLong, _gbpUsdRate);
+      if (pnl !== null) calcOpenPnl += pnl;
+    }
+  }
+
+  const effectiveOpenPnl = (liveOpenPnl !== null) ? liveOpenPnl : calcOpenPnl;
+  const effectiveOfficialOpenPnl = (officialOpenPnl !== null) ? officialOpenPnl : 0;
+
+  const liveFloatingEquity = (_book === 'r' || _book === 'f')
+    ? (officialEquity + (effectiveOpenPnl - effectiveOfficialOpenPnl))
+    : (seed + realizedBanked + effectiveOpenPnl);
+
+  const totalNetGrowth = liveFloatingEquity - seed;
+  const growthPct = (totalNetGrowth / seed) * 100;
+
+  // Max Drawdown limit floor (10% from starting seed)
+  const ddFloor = seed * 0.90;
+  const cushion = liveFloatingEquity - ddFloor;
+
+  // Update text nodes
+  const titleEl = document.getElementById('progTitle');
+  if (titleEl) {
+    titleEl.textContent = `${meta.currency === '$' ? '$100K' : '£100K'} Forward Testing Progress (${meta.label.split('·')[0].trim()})`;
+  }
+  const baseNote = document.getElementById('progBaseNote');
+  if (baseNote) {
+    baseNote.textContent = `Seeded at ${curr}${seed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${meta.currency === '$' ? 'USD' : 'GBP'}`;
+  }
+  const startVal = document.getElementById('progStartVal');
+  if (startVal) startVal.textContent = fmtMoney(seed);
+  
+  const liveVal = document.getElementById('progLiveVal');
+  if (liveVal) liveVal.textContent = fmtMoney(liveFloatingEquity);
+  
+  const liveValSub = document.getElementById('progLiveValSub');
+  if (liveValSub) {
+    liveValSub.textContent = activePositions.length
+      ? `includes ${fmtSignedMoney(effectiveOpenPnl)} floating mark`
+      : 'all cash (flat position)';
+  }
+
+  const growthVal = document.getElementById('progGrowthVal');
+  if (growthVal) {
+    growthVal.textContent = fmtSignedMoney(totalNetGrowth);
+    growthVal.className = 'hs-val ' + (totalNetGrowth >= 0 ? 'green' : 'red');
+  }
+  const growthPctEl = document.getElementById('progGrowthPct');
+  if (growthPctEl) {
+    growthPctEl.textContent = `${totalNetGrowth >= 0 ? '+' : ''}${growthPct.toFixed(2)}% net forward return`;
+    growthPctEl.style.color = totalNetGrowth >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  const openPnlEl = document.getElementById('progOpenPnl');
+  if (openPnlEl) {
+    openPnlEl.textContent = fmtSignedMoney(effectiveOpenPnl);
+    openPnlEl.className = 'hs-val ' + (effectiveOpenPnl > 0 ? 'green' : (effectiveOpenPnl < 0 ? 'red' : ''));
+  }
+  const openSubEl = document.getElementById('progOpenSub');
+  if (openSubEl) {
+    openSubEl.textContent = `${activePositions.length} active position${activePositions.length === 1 ? '' : 's'} moving equity`;
+  }
+
+  const cushionVal = document.getElementById('progCushionVal');
+  if (cushionVal) {
+    cushionVal.textContent = fmtSignedMoney(cushion);
+    cushionVal.className = 'hs-val ' + (cushion > 0 ? 'green' : 'red');
+  }
+
+  // Milestones
+  const p1Target = seed * 1.08;
+  const p2Target = seed * 1.134;
+  const lblBase = document.getElementById('progLblBase');
+  if (lblBase) lblBase.textContent = `${curr}${(seed / 1000).toFixed(0)}k`;
+  const lblP1 = document.getElementById('progLblP1');
+  if (lblP1) lblP1.textContent = `${curr}${(p1Target / 1000).toFixed(0)}k (+8%)`;
+  const lblP2 = document.getElementById('progLblP2');
+  if (lblP2) lblP2.textContent = `${curr}${(p2Target / 1000).toFixed(1)}k (+5%)`;
+  const curTarget = document.getElementById('progCurrentTarget');
+  if (curTarget) curTarget.textContent = fmtMoney(liveFloatingEquity) + ' Live';
+
+  // Bar width calculation
+  let fillPct = 0;
+  if (growthPct <= 0) {
+    fillPct = Math.max(0, 100 + growthPct * 10);
+  } else if (growthPct < 8.0) {
+    fillPct = (growthPct / 8.0) * 45;
+  } else if (growthPct < 13.4) {
+    fillPct = 45 + ((growthPct - 8.0) / 5.4) * 35;
+  } else {
+    fillPct = Math.min(100, 80 + ((growthPct - 13.4) / 10.0) * 20);
+  }
+
+  const barFill = document.getElementById('progBarFill');
+  if (barFill) barFill.style.width = fillPct.toFixed(1) + '%';
+
+  const targetPctEl = document.getElementById('progTargetPct');
+  if (targetPctEl) {
+    if (growthPct >= 13.4) {
+      targetPctEl.innerHTML = `<span style="color:var(--green);">✓ Phase 1 &amp; 2 Passed</span> · <span style="color:#38BDF8;">Active Funded Stage (${fmtSignedMoney(totalNetGrowth)})</span>`;
+    } else if (growthPct >= 8.0) {
+      targetPctEl.innerHTML = `<span style="color:var(--green);">✓ Phase 1 Passed (+8%)</span> · Verifying Phase 2 (${growthPct.toFixed(1)}% / 13.4%)`;
+    } else {
+      targetPctEl.textContent = `${Math.max(0, growthPct).toFixed(1)}% toward Phase 1 (+8%)`;
+    }
+  }
+
+  // Open trades callout banner
+  const openDesc = document.getElementById('progOpenTradeDesc');
+  const openImpact = document.getElementById('progOpenTradeImpact');
+  if (openDesc && openImpact) {
+    if (activePositions.length > 0) {
+      const parts = activePositions.map(p => {
+        const inst = String(p.instrument || '');
+        const m = _liveMarks[inst];
+        const px = m ? m.px : num(p.last_px);
+        const entry = num(p.entry_price);
+        const units = num(p.units);
+        const isLong = String(p.direction || '').toLowerCase() !== 'short';
+        const pnl = calcTradePnl(inst, entry, px, units, isLong, _gbpUsdRate);
+        const isBe = num(p.stop) !== null && entry !== null && Math.abs(num(p.stop) - entry) < 0.05;
+        const stopTxt = isBe ? 'Stop @ Breakeven (0 Risk)' : ('Stop ' + (p.stop ? num(p.stop).toFixed(2) : '—'));
+        return `<strong>${escHtml(inst)} ${isLong ? 'Long' : 'Short'}</strong> (${fmtSignedMoney(pnl || 0)} live floating mark · ${stopTxt})`;
+      });
+      openDesc.innerHTML = `<span>⚡ <strong>Live Open Position Shifting Progress:</strong> ${parts.join(' · ')}</span>`;
+      
+      const bankedOnOpen = activePositions.reduce((s, p) => s + (num(p.realized_pnl_total) || 0), 0);
+      openImpact.innerHTML = `<span style="color:var(--green);">${fmtSignedMoney(effectiveOpenPnl)} live mark</span>${bankedOnOpen > 0 ? ' · +' + fmtMoney(bankedOnOpen) + ' banked partials' : ''}`;
+    } else {
+      openDesc.innerHTML = `<span>✓ <strong>All Positions Flat:</strong> Capital safely preserved in cash (${fmtMoney(liveFloatingEquity)}) · Awaiting next systematic entry signal.</span>`;
+      openImpact.textContent = '0 Open Risk';
+    }
+  }
+}
+
 function renderBookStats() {
   const latest = latestDaily();
 
@@ -701,6 +862,7 @@ function renderClosedTrades() {
 function renderAll() {
   renderHero();
   renderBookStats();
+  renderProgressTracker();
   renderEquityChart();
   renderPositions();
   renderClosedTrades();
@@ -871,6 +1033,7 @@ function applyLiveMarks() {
     setText('engCurDD', liveCurDD > 0 ? '-' + (liveCurDD * 100).toFixed(2) + '%' : '0.00%', liveCurDD > 0 ? 'red' : '');
 
     _latestLiveEquity = liveTotalEquity;
+    renderProgressTracker(liveTotalOpenPnl, officialMarkedOpenPnl);
 
     // 7. Update Equity Curve chart series with live point
     if (_eqSeries && _eqChart) {
