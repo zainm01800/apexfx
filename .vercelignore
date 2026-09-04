@@ -16,3 +16,8 @@ test/
 .aider.tags.cache.v4/
 .aider.chat.history.md
 .aider.input.history
+tmp/
+output/
+*.png
+*.jpg
+*.pdf
