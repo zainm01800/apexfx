@@ -44,6 +44,11 @@ FALLBACK_ID_C = "__apex_book_c_paper_runtime__"
 # evidence immediately without pretending a research book is a funded book.
 FALLBACK_ID_R = "__apex_book_r_252_forward_paper_runtime__"
 
+# Book F (Prop Shield Elite) mirror tables and runtime fallback.
+POSITIONS_TABLE_F = "apex_paper_f_positions"
+DAILY_TABLE_F = "apex_paper_f_daily"
+FALLBACK_ID_F = "__apex_book_f_prop_shield_runtime__"
+
 
 def _url(table: str) -> str:
     return f"{_SUPA_URL}/rest/v1/{table}"
@@ -138,6 +143,32 @@ def write_book_r_runtime(payload: dict) -> bool:
         "feature_vector": payload,
         "analysis_text": "Namespaced Book R-252 $100k forward-paper runtime mirror",
         "verdict": "FORWARD_PAPER_ACTIVE",
+    }])
+
+
+def fetch_book_f_runtime() -> dict | None:
+    """Fetch the complete namespaced Book F forward-paper runtime payload."""
+    rows = _get(
+        FALLBACK_TABLE_C,
+        {"select": "feature_vector", "id": f"eq.{FALLBACK_ID_F}", "limit": "1"},
+    )
+    if not rows:
+        return None
+    payload = rows[0].get("feature_vector")
+    return payload if isinstance(payload, dict) else None
+
+
+def write_book_f_runtime(payload: dict) -> bool:
+    """Persist Book F's paper state to namespaced fallback mirror."""
+    return _post_upsert(FALLBACK_TABLE_C, [{
+        "id": FALLBACK_ID_F,
+        "user_id": "apex_engine",
+        "symbol": "BOOK_F_PROP_SHIELD",
+        "timeframe": "1d",
+        "direction": "paper",
+        "feature_vector": payload,
+        "analysis_text": "Namespaced Book F Prop Shield Elite $100k forward-paper runtime mirror",
+        "verdict": "PROP_SHIELD_ACTIVE",
     }])
 
 

@@ -127,6 +127,14 @@ jobs:
         # route exists in the runner.
         working-directory: engine
         run: python scripts/run_paper_portfolio_r.py --prefer-supabase
+      - name: Advance Book F Prop Shield Elite $100k forward paper
+        # Fifth, institutional prop-firm shielded paper account ($100,000 USD).
+        # Blind multi-asset trend momentum with dynamic mathematical covariance
+        # clustering (rho >= 0.55), cross-sectional market breadth, +1.0R BE lock,
+        # and dynamic convexity pyramiding (+1.5R addition with profit-locked stop).
+        continue-on-error: true
+        working-directory: engine
+        run: python scripts/run_paper_portfolio_f.py --prefer-supabase
       - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
         working-directory: engine
         run: python scripts/nightly_risk_report.py
