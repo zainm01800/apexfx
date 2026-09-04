@@ -33,7 +33,8 @@
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
-      <a class="nav-link" id="nav-race" href="ab-race.html">A/B Race</a>
+      <a class="nav-link" id="nav-race" href="ab-race.html">The Race</a>
+      <a class="nav-link" id="nav-research" href="research-book.html">Research</a>
       <a class="nav-link active" id="nav-progress" href="progress.html">Progress</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
     </nav>
@@ -101,25 +102,56 @@
     <section class="pg-card" id="pgBookFCard" style="border: 1px solid rgba(47,214,163,0.3); background: linear-gradient(180deg, rgba(12,16,22,0.98) 0%, rgba(14,20,30,0.98) 100%);">
       <div class="pg-card-head">
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <div class="pg-card-title">🎯 Book F · Prop Shield Elite <span class="pg-book mono" style="color: var(--green);">$100k USD Forward Paper Proof</span></div>
+          <div class="pg-card-title">🎯 Book F · Prop Shield Elite <span class="pg-book mono" style="color: var(--green);">$100k USD Forward Paper Challenge</span></div>
         </div>
         <div class="pg-day-pill mono" style="background: rgba(245,176,76,0.15); color: #F5B04C; border: 1px solid rgba(245,176,76,0.3);">
-          Phase 1 Challenge Active ($100k Seed)
+          Phase 1 Evaluation Active
         </div>
       </div>
-      <div class="pg-book-grid" style="margin-bottom: 14px;">
+      <div class="pg-book-grid" style="margin-bottom: 16px;">
         <div class="pg-book-item"><span class="pg-book-k">Starting Seed</span><span class="pg-book-v mono">$100,000.00 USD</span></div>
-        <div class="pg-book-item"><span class="pg-book-k">Live Valuation</span><span class="pg-book-v mono" style="color: var(--green); font-weight: 700;" id="fProgLiveEq">$100,226.06 USD</span></div>
-        <div class="pg-book-item"><span class="pg-book-k">Net Growth</span><span class="pg-book-v mono" style="color: var(--green); font-weight: 700;" id="fProgGrowth">+$226.06 (+0.23%)</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Live Valuation</span><span class="pg-book-v mono" style="color: var(--green); font-weight: 700;" id="fProgLiveEq">$100,198.03 USD</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Net Growth</span><span class="pg-book-v mono" style="color: var(--green); font-weight: 700;" id="fProgGrowth">+$198.03 (+0.20%)</span></div>
         <div class="pg-book-item"><span class="pg-book-k">Closed Trades</span><span class="pg-book-v mono">0 round-trips · forward ledger active</span></div>
         <div class="pg-book-item"><span class="pg-book-k">Open Trades</span><span class="pg-book-v mono" id="fProgOpen">1 active (AMD Long · Stop at breakeven)</span></div>
-        <div class="pg-book-item"><span class="pg-book-k">Safety Cushion</span><span class="pg-book-v mono" style="color: var(--green);">+$10,226 above 10% max DD floor ($90k)</span></div>
+        <div class="pg-book-item"><span class="pg-book-k">Max DD Buffer</span><span class="pg-book-v mono" style="color: var(--green);">+$10,198 above 10% floor ($90k)</span></div>
       </div>
-      <div class="pg-day-track" title="Milestone challenge progress" style="height: 8px;">
-        <span class="pg-day-fill" style="width: 2.8%; background: linear-gradient(90deg, #F5B04C 0%, #2FD6A3 45%, #38BDF8 80%, #A78BFA 100%);"></span>
+
+      <!-- Milestone Track -->
+      <div style="background: rgba(0,0,0,0.3); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); font-weight: 700;">Challenge Progression</span>
+          <span style="font-size: 11px; font-family: var(--mono); color: #F5B04C; font-weight: 700;">Phase 1: 2.5% Completed</span>
+        </div>
+        <div class="prog-track-rail" style="margin-bottom: 12px;">
+          <div class="prog-track-fill" style="width: 2.5%;"></div>
+        </div>
+        <div class="prog-checkpoints">
+          <div class="prog-checkpoint passed">
+            <div class="prog-node">✓</div>
+            <div class="prog-node-label">Seed $100k</div>
+            <div class="prog-node-sub">Started 28 Jul</div>
+          </div>
+          <div class="prog-checkpoint active">
+            <div class="prog-node">1</div>
+            <div class="prog-node-label">Phase 1 ($108k)</div>
+            <div class="prog-node-sub">+8.0% target</div>
+          </div>
+          <div class="prog-checkpoint">
+            <div class="prog-node">2</div>
+            <div class="prog-node-label">Phase 2 ($105k)</div>
+            <div class="prog-node-sub">+5.0% target</div>
+          </div>
+          <div class="prog-checkpoint">
+            <div class="prog-node">★</div>
+            <div class="prog-node-label">Funded Account</div>
+            <div class="prog-node-sub">80% Profit Split</div>
+          </div>
+        </div>
       </div>
+
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
-        <span style="font-size: 11px; color: var(--text3);">Phase 1 (+8% / $108k target in progress). Live forward test from scratch with 1 open risk-free position (AMD).</span>
+        <span style="font-size: 11px; color: var(--text3);">Phase 1 target ($108,000 USD) tracked live from scratch with 1 open risk-free position (AMD).</span>
         <a href="engine-book.html?book=f" style="font-size: 11px; font-weight: 700; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; background: rgba(47,214,163,0.1); border: 1px solid rgba(47,214,163,0.25);">
           Inspect Live Book F Terminal →
         </a>

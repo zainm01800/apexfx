@@ -33,7 +33,7 @@
     <nav class="nav">
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link active" id="nav-engine" href="engine-book.html">Engine Book</a>
-      <a class="nav-link" id="nav-race" href="ab-race.html">A/B Race</a>
+      <a class="nav-link" id="nav-race" href="ab-race.html">The Race</a>
       <a class="nav-link" id="nav-research" href="research-book.html">Research</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
@@ -82,14 +82,14 @@
       <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">worst peak-to-date</span></div>
     </div>
 
-    <!-- Controls -->
+    <!-- Controls: Segmented Book Selector -->
     <div class="ob-toolbar">
       <div class="view-toggle" style="margin-bottom: 0;">
-        <button id="btnBookA" class="vt-btn active" data-book="a">Book A · Certified 252</button>
-        <button id="btnBookB" class="vt-btn" data-book="b">Book B · Challenger 252+spill50</button>
-        <button id="btnBookC" class="vt-btn" data-book="c">Book C · Champion 63/126/252</button>
-        <button id="btnBookR" class="vt-btn" data-book="r">Book R · USD ETF 252</button>
-        <button id="btnBookF" class="vt-btn" data-book="f">Book F · Prop Shield Elite</button>
+        <button id="btnBookA" class="vt-btn active" data-book="a">Book A <span class="vt-badge">252d Proof</span></button>
+        <button id="btnBookB" class="vt-btn" data-book="b">Book B <span class="vt-badge">Spill50</span></button>
+        <button id="btnBookC" class="vt-btn" data-book="c">Book C <span class="vt-badge">Champion</span></button>
+        <button id="btnBookR" class="vt-btn" data-book="r">Book R <span class="vt-badge">USD ETF</span></button>
+        <button id="btnBookF" class="vt-btn" data-book="f">Book F <span class="vt-badge vt-badge-mint">⭐ 100K Live Challenge</span></button>
       </div>
       <div class="ob-toolbar-end">
         <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
@@ -100,21 +100,21 @@
     </div>
 
     <!-- Forward Testing Progress Tracker from 100k -->
-    <section class="pg-card" id="engProgressCard" style="margin-bottom: 24px; border: 1px solid rgba(47,214,163,0.25); background: linear-gradient(180deg, rgba(12,16,22,0.98) 0%, rgba(14,20,28,0.98) 100%);">
-      <div class="pg-card-head" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+    <section class="pg-card" id="engProgressCard" style="margin-bottom: 24px; border: 1px solid rgba(47,214,163,0.28); background: linear-gradient(180deg, rgba(14,20,30,0.98) 0%, rgba(10,14,22,0.98) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);">
+      <div class="pg-card-head" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px;">
+          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700;">
             <span>🎯</span> <span id="progTitle">100K Forward Testing Progress</span>
           </div>
           <span class="ob-inline-note" id="progBaseNote">Seeded at $100,000.00 USD</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span id="progLiveBadge" class="live-pill" style="font-size: 10px; padding: 2px 8px;"><span class="live-dot"></span>LIVE FLOATING</span>
+          <span id="progLiveBadge" class="live-pill" style="font-size: 10px; padding: 3px 10px;"><span class="live-dot"></span>LIVE TELEMETRY</span>
         </div>
       </div>
 
-      <!-- Key progress metrics row -->
-      <div class="hist-summary" id="progStatsRow" style="margin-bottom: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+      <!-- Key progress metrics row: 5-column auto-fit grid -->
+      <div class="hist-summary" id="progStatsRow" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
         <div class="hs-stat">
           <span class="hs-label">Starting Seed</span>
           <span class="hs-val" id="progStartVal">$100,000.00</span>
@@ -145,30 +145,44 @@
       <!-- Multi-stage milestone progress bar -->
       <div style="margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2);">Milestone Target Progression</span>
-          <span style="font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--green);" id="progTargetPct">Phase 1 &amp; 2 Passed · Active Payout Stage</span>
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); font-family: var(--font-mono);">Milestone Target Progression</span>
+          <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--mint);" id="progTargetPct">Phase 1 in Progress</span>
         </div>
 
-        <div style="height: 10px; background: rgba(255,255,255,0.06); border-radius: 5px; overflow: hidden; position: relative; border: 1px solid var(--border);">
-          <div id="progBarFill" style="height: 100%; width: 0%; background: linear-gradient(90deg, #2FD6A3 0%, #38BDF8 65%, #A78BFA 100%); border-radius: 5px; transition: width 0.6s ease; box-shadow: 0 0 12px rgba(47,214,163,0.4);"></div>
-        </div>
+        <div class="prog-track-container">
+          <div class="prog-track-rail">
+            <div id="progBarFill" class="prog-track-fill" style="width: 0%;"></div>
+          </div>
 
-        <!-- Milestones labels -->
-        <div id="progMilestoneLabels" style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-wrap: wrap; gap: 4px;">
-          <div><span style="color: var(--text2); font-weight: 600;" id="progLblBase">$100k</span> Baseline</div>
-          <div><span style="color: #F5B04C; font-weight: 600;" id="progLblP1">$108k (+8%)</span> Phase 1 <span style="font-size:9.5px; background:rgba(245,176,76,0.15); color:#F5B04C; padding:1px 5px; border-radius:3px;">IN PROGRESS</span></div>
-          <div><span style="color: var(--text3); font-weight: 500;" id="progLblP2">$113.4k (+5%)</span> Phase 2 <span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span></div>
-          <div><span style="color: var(--text3); font-weight: 500;" id="progCurrentTarget">$113.4k+</span> Funded Stage <span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span></div>
+          <!-- Milestones labels with status badges -->
+          <div id="progMilestoneLabels" class="prog-checkpoints">
+            <div class="prog-checkpoint-node">
+              <span style="color: var(--ink-2); font-weight: 600;" id="progLblBase">$100k</span>
+              <span style="font-size: 9.5px; color: var(--ink-3);">Baseline Seed</span>
+            </div>
+            <div class="prog-checkpoint-node">
+              <span style="color: #F5B04C; font-weight: 700;" id="progLblP1">$108k (+8%)</span>
+              <div><span class="badge-stage-prog">PHASE 1 ACTIVE</span></div>
+            </div>
+            <div class="prog-checkpoint-node">
+              <span style="color: var(--ink-3); font-weight: 500;" id="progLblP2">$113.4k (+5%)</span>
+              <div><span class="badge-stage-locked">PHASE 2 LOCKED</span></div>
+            </div>
+            <div class="prog-checkpoint-node">
+              <span style="color: var(--ink-3); font-weight: 500;" id="progCurrentTarget">$113.4k+</span>
+              <div><span class="badge-stage-locked">FUNDED STAGE</span></div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Live Open Position Dynamic Callout -->
-      <div id="progOpenTradeBanner" style="margin-top: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.22); display: flex; align-items: center; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="color: #38BDF8; font-size: 14px;">⚡</span>
-          <span id="progOpenTradeDesc" style="color: var(--text);"><strong>Live Open Trades:</strong> Calculating live valuation...</span>
+      <div id="progOpenTradeBanner" style="margin-top: 14px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(90deg, rgba(56,189,248,0.08) 0%, rgba(47,214,163,0.05) 100%); border: 1px solid rgba(56,189,248,0.25); display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: #38BDF8; font-size: 15px;">⚡</span>
+          <span id="progOpenTradeDesc" style="color: var(--ink);"><strong>Live Open Trades:</strong> Calculating live valuation...</span>
         </div>
-        <div style="font-family: var(--mono); font-size: 11px; color: var(--green);" id="progOpenTradeImpact">—</div>
+        <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--mint);" id="progOpenTradeImpact">—</div>
       </div>
     </section>
 

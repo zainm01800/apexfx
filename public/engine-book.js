@@ -51,7 +51,7 @@ const BOOKS = {
     dailyTable: 'apex_paper_f_daily',
     positionsTable: 'apex_paper_f_positions',
     fallbackId: '__apex_book_f_prop_shield_runtime__',
-    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 28 Jul 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), market breadth guard, +1.0R BE lock, and +1.5R convexity pyramiding. Pure forward testing tracking challenge progression from scratch to funded.',
+    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 28 Jul 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering, +1.0R breakeven de-risking lock, next-session open fills, and gap-aware stop accounting. Pure forward testing tracking challenge progression from scratch to funded.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
@@ -742,6 +742,41 @@ function renderPositionCard(p) {
         <span style="font-family: var(--mono); color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
       </div>`;
 
+  const isRiskFree = hasPartials || (entry !== null && stop !== null && (isLong ? stop >= entry - 0.01 : stop <= entry + 0.01));
+
+  // Visual Risk-Reward Gauge
+  let gaugeHtml = '';
+  if (entry !== null && stop !== null && lastPx !== null) {
+    const initStop = num(p.initial_stop) || stop;
+    const initialRisk = Math.abs(entry - initStop);
+    if (initialRisk > 0.001) {
+      const rVal = isLong ? (lastPx - entry) / initialRisk : (entry - lastPx) / initialRisk;
+      // Gauge scale spans -1.0R to +2.0R (range of 3.0R)
+      const gaugePct = Math.min(100, Math.max(0, ((rVal - (-1.0)) / 3.0) * 100));
+      const entryPct = (1.0 / 3.0) * 100; // 33.3%
+      const rColor = rVal >= 0 ? 'var(--green)' : 'var(--red)';
+      gaugeHtml = `
+        <div style="margin: 10px 0 6px 0; background: rgba(0,0,0,0.25); padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; font-family: var(--mono); color: var(--text3); margin-bottom: 5px;">
+            <span style="color: var(--red);">Stop -1.0R</span>
+            <span style="color: var(--text2);">Entry 0.0R</span>
+            <span style="color: var(--green);">Target +2.0R</span>
+          </div>
+          <div class="pos-gauge-track" style="position: relative; height: 6px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: visible;">
+            <div style="position: absolute; left: ${entryPct.toFixed(1)}%; top: -2px; bottom: -2px; width: 2px; background: rgba(255,255,255,0.3); z-index: 2;" title="Entry Price"></div>
+            <div class="pos-gauge-fill" style="width: ${gaugePct.toFixed(1)}%; height: 100%; border-radius: 999px; background: ${rColor}; opacity: 0.85;"></div>
+            <div class="pos-gauge-marker" style="position: absolute; left: calc(${gaugePct.toFixed(1)}% - 5px); top: -3px; width: 12px; height: 12px; border-radius: 50%; background: #FFFFFF; border: 2px solid ${rColor}; box-shadow: 0 0 8px ${rColor}; z-index: 3;" title="Current: ${rVal >= 0 ? '+' : ''}${rVal.toFixed(2)}R"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; font-family: var(--mono); margin-top: 6px;">
+            <span style="color: var(--text3);">${escHtml(stop !== null ? fmtPrice(stop, cls) : '—')}</span>
+            <span style="color: ${rColor}; font-weight: 700; background: rgba(255,255,255,0.04); padding: 1px 6px; border-radius: 4px;">${rVal >= 0 ? '+' : ''}${rVal.toFixed(2)}R</span>
+            <span style="color: var(--green);">${escHtml(target !== null ? fmtPrice(target, cls) : '—')}</span>
+          </div>
+        </div>
+      `;
+    }
+  }
+
   return `
     <div class="stat-item ibkr-pos-card eng-pos-card" data-instrument="${escHtml(inst)}" data-live-entry="${entry}" data-live-units="${units}" data-live-dir="${isLong ? 'long' : 'short'}" style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;">
       <div class="card-face-stats">
@@ -749,6 +784,7 @@ function renderPositionCard(p) {
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <strong style="font-family: var(--mono); font-size: 17px; color: var(--text);">${escHtml(inst)}</strong>
           ${dirBadge(isLong)}
+          ${isRiskFree ? '<span class="badge-status-riskfree">🛡️ RISK-FREE (BE)</span>' : ''}
         </div>
         <span style="font-size: 11px; font-weight: 700; color: var(--text3); font-family: var(--mono);">${escHtml(fmtQty(units))} units</span>
       </div>
@@ -767,6 +803,8 @@ function renderPositionCard(p) {
 
       ${exitRows}
 
+      ${gaugeHtml}
+
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; padding-top: 4px;">
         <span style="color: var(--text)">Unrealized P&amp;L</span>
         <span class="card-upnl-val ${upnlCls}" style="font-family: var(--mono); font-size: 16px;">${escHtml(upnl === null ? '—' : fmtSignedMoney(upnl))}</span>
@@ -778,17 +816,19 @@ function renderPositionCard(p) {
       </div>
 
       ${bankedPartials !== null && bankedPartials !== 0 ? `
-      <div style="background: rgba(52,211,153,0.06); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(52,211,153,0.22); margin-top: 4px;">
+      <div class="pos-shield-card">
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-          <span style="color: var(--text2); font-weight: 600;">Banked partials (+1.0R)</span>
-          <span class="${bankedPartials > 0 ? 'pos' : 'neg'}" style="font-family: var(--mono); font-size: 12.5px; font-weight: 700;">${escHtml(fmtSignedMoney(bankedPartials))}</span>
+          <span style="color: var(--text2); font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+            <span>🛡️</span> Banked partials (+1.0R)
+          </span>
+          <span class="${bankedPartials > 0 ? 'pos' : 'neg'}" style="font-family: var(--mono); font-size: 13px; font-weight: 700;">${escHtml(fmtSignedMoney(bankedPartials))}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 3px;">
-          <span>Take-Profit Ratio</span>
-          <span style="font-weight: 700; background: rgba(52,211,153,0.15); padding: 1px 6px; border-radius: 4px;">1:1 R:R (+1.0R secured)</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 4px;">
+          <span>Execution Lock</span>
+          <span style="font-weight: 700; background: rgba(47,214,163,0.15); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(47,214,163,0.3);">1:1 R:R (+1.0R secured)</span>
         </div>
-        <div style="font-size: 10px; color: var(--text3); margin-top: 3px; line-height: 1.3;">
-          50% size closed · Stop moved to breakeven ($0 downside risk)
+        <div style="font-size: 10.5px; color: var(--text3); margin-top: 5px; line-height: 1.4;">
+          50% size locked into cash · Stop automatically anchored to entry ($0 downside risk)
         </div>
       </div>` : ''}
 

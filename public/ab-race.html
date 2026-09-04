@@ -51,6 +51,7 @@
       <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
       <a class="nav-link active" id="nav-race" href="ab-race.html">The Race</a>
+      <a class="nav-link" id="nav-research" href="research-book.html">Research</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
       <a class="nav-link" id="nav-history" href="history.html">History</a>
     </nav>
@@ -63,14 +64,14 @@
 
     <div class="pg-header ob-pagehead">
       <div>
-        <span class="ob-eyebrow">3-Way Forward Race · 60-Day Proof</span>
+        <span class="ob-eyebrow">4-Way Forward Race · Multi-Strategy Head-to-Head</span>
         <h1 class="pg-title">The Championship Race</h1>
-        <p class="pg-subtitle">Three frozen rule-sets stepped nightly off daily bars. Book A is the certified proof book; Book B adds the spill50 macro gate; Book C is the Champion Multi-Horizon Ensemble [63, 126, 252]. Virtual paper money only.</p>
+        <p class="pg-subtitle">Four distinct rule-sets tracked in live forward paper execution. Book A is the certified proof book; Book B adds the spill50 macro gate; Book C is the Champion Multi-Horizon Ensemble [63, 126, 252]; Book F is the Prop Shield Elite ($100k Challenge Tracker). Virtual paper money only.</p>
       </div>
     </div>
 
-    <!-- 3-Way Hero Cards -->
-    <div class="hist-summary race-hero" style="margin-bottom: 24px;">
+    <!-- 4-Way Hero Cards -->
+    <div class="hist-summary race-hero-4" style="margin-bottom: 24px;">
       <div class="hs-stat race-book">
         <span class="hs-label race-dot-a">Book A — Certified 252</span>
         <span class="hs-val" id="raceEquityA">—</span>
@@ -91,8 +92,8 @@
       </div>
       <div class="hs-stat race-book">
         <span class="hs-label" style="color: #A855F7;">Book F — Prop Shield Elite</span>
-        <span class="hs-val" id="raceEquityF">$123,529.91</span>
-        <span class="ob-stat-sub" id="raceSubF">since seed: +23.5% (Prop Shield)</span>
+        <span class="hs-val" id="raceEquityF">—</span>
+        <span class="ob-stat-sub" id="raceSubF">since seed: —</span>
         <a href="engine-book.html?book=f" style="margin-top: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-family: var(--mono); color: #A855F7; text-decoration: none; padding: 6px 10px; border-radius: 6px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3); font-weight: 600;">Inspect Book F →</a>
       </div>
     </div>
@@ -104,8 +105,8 @@
     <!-- Overlaid chart -->
     <section class="pg-card" style="margin-bottom: 24px;">
       <div class="pg-card-head">
-        <div class="pg-card-title">Equity Curves <span style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;">re-based to £100,000 seed</span></div>
-        <div style="font-size: 11.5px; font-family: var(--mono); color: var(--text3);"><span class="race-dot-a">— A certified</span>&nbsp;&nbsp;<span class="race-dot-b">— B spill50</span>&nbsp;&nbsp;<span class="race-dot-c">— C champion ensemble</span></div>
+        <div class="pg-card-title">Equity Curves <span style="font-size: 12px; font-weight: 400; color: var(--text3); font-family: var(--mono); margin-left: 10px;">re-based to 100,000 seed</span></div>
+        <div style="font-size: 11.5px; font-family: var(--mono); color: var(--text3);"><span class="race-dot-a">— A certified</span>&nbsp;&nbsp;<span class="race-dot-b">— B spill50</span>&nbsp;&nbsp;<span class="race-dot-c">— C champion</span>&nbsp;&nbsp;<span style="color: #A855F7;">— F prop shield</span></div>
       </div>
       <div id="raceChart" style="height: 340px; position: relative;"></div>
     </section>
@@ -115,14 +116,14 @@
       <div class="pg-card-head"><div class="pg-card-title">Head-to-Head Scoreboard</div></div>
       <div style="overflow-x: auto;">
         <table class="race-table">
-          <thead><tr><th>Metric</th><th class="race-dot-a">Book A</th><th class="race-dot-b">Book B</th><th class="race-dot-c">Book C</th><th>Leader</th></tr></thead>
+          <thead><tr><th>Metric</th><th class="race-dot-a">Book A (£)</th><th class="race-dot-b">Book B (£)</th><th class="race-dot-c">Book C (£)</th><th style="color: #A855F7;">Book F ($)</th><th>Leader</th></tr></thead>
           <tbody id="raceTableBody"></tbody>
         </table>
       </div>
     </section>
 
     <!-- Day counters -->
-    <div class="hist-summary race-hero" style="margin-bottom: 24px;">
+    <div class="hist-summary race-hero-4" style="margin-bottom: 24px;">
       <div class="hs-stat">
         <span class="hs-label race-dot-a">Book A — Day Count</span>
         <span class="hs-val" id="raceDayA" style="font-size: 20px;">—</span>
@@ -138,12 +139,17 @@
         <span class="hs-val" id="raceDayC" style="font-size: 20px;">—</span>
         <div class="race-bar-track"><div class="race-bar-fill" id="raceBarC" style="width: 0%; background: #38BDF8;"></div></div>
       </div>
+      <div class="hs-stat">
+        <span class="hs-label" style="color: #A855F7;">Book F — Day Count</span>
+        <span class="hs-val" id="raceDayF" style="font-size: 20px;">—</span>
+        <div class="race-bar-track"><div class="race-bar-fill" id="raceBarF" style="width: 0%; background: #A855F7;"></div></div>
+      </div>
     </div>
 
     <!-- Rules -->
     <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head"><div class="pg-card-title">The Three Rule-Sets</div></div>
-      <div class="race-rules" style="padding-top: 4px;">
+      <div class="pg-card-head"><div class="pg-card-title">The Four Rule-Sets</div></div>
+      <div class="race-hero-4" style="padding-top: 4px;">
         <div>
           <span class="ob-eyebrow race-dot-a">Book A — Certified 252</span>
           <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">The certified multi-asset trend book: 252-day regime-gated momentum across 39 instruments, 1% risk per trade, ladder exits (+1R partial, breakeven trail, chandelier). Seeded 16 Jul 2026.</p>
@@ -156,11 +162,15 @@
           <span class="ob-eyebrow race-dot-c">Book C — Champion Ensemble</span>
           <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">Equal-weight blend of fast (63d), medium (126d), and slow (252d) momentum scores across 39 instruments. 10-year blind backtest Sharpe 0.44 (+4,478% return). Seeded 19 Aug 2026.</p>
         </div>
+        <div>
+          <span class="ob-eyebrow" style="color: #A855F7;">Book F — Prop Shield Elite</span>
+          <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), +1.0R de-risking breakeven lock, next-session open fills, and strict prop DD protection. Seeded 28 Jul 2026.</p>
+        </div>
       </div>
     </section>
 
     <p style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 32px; line-height: 1.6;">
-      Honesty note: All three books run forward paper-trading in isolated sandboxes with £100,000 virtual capital. No real capital is risked on paper books. <span id="raceLastSync"></span>
+      Honesty note: All four books run forward paper-trading in isolated sandboxes with 100,000 virtual capital (Books A, B, C in GBP; Book F in USD). No real capital is risked on paper books. <span id="raceLastSync"></span>
     </p>
 
   </main>

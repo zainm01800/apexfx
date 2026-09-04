@@ -1,4 +1,4 @@
-/* The Race — 3-Way Championship Race: Book A (certified 252) vs Book B (252+spill50) vs Book C (Champion Multi-Horizon [63,126,252]). */
+/* The Race — 4-Way Championship Race: Book A (certified 252) vs Book B (252+spill50) vs Book C (Champion Multi-Horizon [63,126,252]) vs Book F (Prop Shield Elite). */
 (function () {
   'use strict';
 
@@ -10,9 +10,25 @@
   const $ = (id) => document.getElementById(id);
   const fmtMoney = (v) => '£' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtSigned = (v) => (v >= 0 ? '+' : '−') + '£' + Math.abs(Number(v)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtMoneyUSD = (v) => '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtSignedUSD = (v) => (v >= 0 ? '+' : '−') + '$' + Math.abs(Number(v)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtPct = (v) => (v * 100).toFixed(2) + '%';
 
   async function fetchDaily(book) {
+    if (book === 'f') {
+      try {
+        const r = await fetch('/api/paper?book=f&table=daily&limit=500');
+        if (r.ok) { const j = await r.json(); if (Array.isArray(j) && j.length) return j; }
+      } catch (e) {}
+      try {
+        const r = await fetch('/book-f-paper-snapshot.json');
+        if (r.ok) {
+          const j = await r.json();
+          if (j && Array.isArray(j.daily) && j.daily.length) return j.daily;
+        }
+      } catch (e) {}
+      return [];
+    }
     const q = `?book=${book}&table=daily&limit=500`;
     try {
       const r = await fetch('/api/paper' + q);
@@ -39,7 +55,7 @@
     return 'stocks';
   }
 
-  function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsd || 1.285)) {
+  function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsd || 1.285), toGbp = true) {
     if (!entry || !currentPx || !units || entry <= 0 || currentPx <= 0) return 0;
     const rawDiff = (isLong ? (currentPx - entry) : (entry - currentPx)) * units;
     const cls = paperClassFor(inst);
@@ -52,7 +68,7 @@
         pnlUsd = rawDiff;
       }
     }
-    return pnlUsd / (gbpusd || 1.285);
+    return toGbp ? (pnlUsd / (gbpusd || 1.285)) : pnlUsd;
   }
 
   async function fetchLiveMark(inst, cls) {
@@ -68,6 +84,22 @@
   }
 
   async function fetchPositions(book) {
+    if (book === 'f') {
+      try {
+        const r = await fetch('/api/paper?book=f&table=positions');
+        if (r.ok) { const j = await r.json(); if (Array.isArray(j)) return j; }
+      } catch (e) {}
+      try {
+        const r = await fetch('/book-f-paper-snapshot.json');
+        if (r.ok) {
+          const j = await r.json();
+          if (j && j.positions) {
+            return Array.isArray(j.positions) ? j.positions : Object.values(j.positions);
+          }
+        }
+      } catch (e) {}
+      return [];
+    }
     const q = `?book=${book}&table=positions`;
     try {
       const r = await fetch('/api/paper' + q);
@@ -113,19 +145,14 @@
     }
     const last = rows[rows.length - 1];
     const initialSeed = rows[0]?.equity || defaultSeed;
-    const realizedBanked = Number(last.cum_pnl) || 0;
     const liveEquity = Number(last.equity) + liveOpenPnl;
     const liveCum = (liveEquity - initialSeed);
 
-    // `drawdown_from_peak` is stored as a positive loss fraction (for example,
-    // 0.0648 means a 6.48% drawdown).  The largest observed value is therefore
-    // the maximum drawdown; taking Math.min incorrectly reports 0 whenever the
-    // series includes an at-peak observation.
-    const maxDD = Math.max(...rows.map(r => Number(r.drawdown_from_peak) || 0));
+    const maxDD = Math.max(...rows.map(r => Number(r.drawdown || r.drawdown_from_peak) || 0));
     return {
       equity: liveEquity,
       cum: liveCum,
-      curDD: Number(last.drawdown_from_peak) || 0,
+      curDD: Number(last.drawdown || last.drawdown_from_peak) || 0,
       maxDD,
       days: Math.max(1, rows.length),
       open: positions.length,
@@ -133,40 +160,43 @@
     };
   }
 
-  function renderHero(a, b, c) {
+  function renderHero(a, b, c, f) {
     if ($('raceEquityA')) $('raceEquityA').textContent = a ? fmtMoney(a.equity) : '—';
     if ($('raceEquityB')) $('raceEquityB').textContent = b ? fmtMoney(b.equity) : '—';
     if ($('raceEquityC')) $('raceEquityC').textContent = c ? fmtMoney(c.equity) : '—';
+    if ($('raceEquityF')) $('raceEquityF').textContent = f ? fmtMoneyUSD(f.equity) : '—';
 
     if ($('raceSubA')) $('raceSubA').textContent = a ? `Net Return: ${fmtSigned(a.cum)}` : '—';
     if ($('raceSubB')) $('raceSubB').textContent = b ? `Net Return: ${fmtSigned(b.cum)}` : '—';
     if ($('raceSubC')) $('raceSubC').textContent = c ? `Net Return: ${fmtSigned(c.cum)}` : '—';
+    if ($('raceSubF')) $('raceSubF').textContent = f ? `Net Return: ${fmtSignedUSD(f.cum)}` : '—';
 
     const el = $('raceLeader');
     if (!el) return;
 
     const books = [
-      { name: 'Book A (Certified)', eq: a ? a.equity : 0, color: '#2FD6A3' },
-      { name: 'Book B (spill50)', eq: b ? b.equity : 0, color: '#D8B36A' },
-      { name: 'Book C (Champion Ensemble)', eq: c ? c.equity : 0, color: '#38BDF8' }
+      { name: 'Book A (Certified)', pct: a ? (a.equity / SEED - 1) : -999, eq: a ? a.equity : 0, color: '#2FD6A3' },
+      { name: 'Book B (spill50)', pct: b ? (b.equity / SEED - 1) : -999, eq: b ? b.equity : 0, color: '#D8B36A' },
+      { name: 'Book C (Champion Ensemble)', pct: c ? (c.equity / SEED - 1) : -999, eq: c ? c.equity : 0, color: '#38BDF8' },
+      { name: 'Book F (Prop Shield)', pct: f ? (f.equity / SEED - 1) : -999, eq: f ? f.equity : 0, color: '#A855F7' }
     ];
 
-    books.sort((x, y) => y.eq - x.eq);
+    books.sort((x, y) => y.pct - x.pct);
     const leader = books[0];
     const runnerUp = books[1];
-    const leadAmount = leader.eq - runnerUp.eq;
+    const leadPct = (leader.pct - runnerUp.pct) * 100;
 
-    if (leadAmount < 1) {
-      el.textContent = `Dead heat between top engines — ${fmtMoney(leader.eq)} live.`;
+    if (leadPct < 0.05) {
+      el.textContent = `Dead heat between top models — leading return: ${fmtPct(leader.pct)}.`;
       el.style.color = '#F8FAFC';
     } else {
-      el.textContent = `👑 ${leader.name} leads the championship by ${fmtMoney(leadAmount)}!`;
+      el.textContent = `👑 ${leader.name} leads the championship (+${fmtPct(leader.pct)} return)!`;
       el.style.color = leader.color;
     }
   }
 
   let _chartInstance = null;
-  function renderChart(rowsA, rowsB, rowsC, liveA = null, liveB = null, liveC = null) {
+  function renderChart(rowsA, rowsB, rowsC, rowsF, liveA = null, liveB = null, liveC = null, liveF = null) {
     const el = $('raceChart');
     if (!el || typeof LightweightCharts === 'undefined') return;
 
@@ -178,8 +208,9 @@
     const a = rebase(rowsA, liveA).pts;
     const b = rebase(rowsB, liveB).pts;
     const c = rebase(rowsC, liveC).pts;
+    const f = rebase(rowsF, liveF).pts;
 
-    if (!a.length && !b.length && !c.length) {
+    if (!a.length && !b.length && !c.length && !f.length) {
       el.textContent = 'Waiting for engine data…';
       return;
     }
@@ -200,16 +231,18 @@
       rightPriceScale: { borderColor: 'rgba(51,65,85,0.6)' },
       timeScale: { borderColor: 'rgba(51,65,85,0.6)' },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      localization: { priceFormatter: v => fmtMoney(v) },
+      localization: { priceFormatter: v => Number(v).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) },
     });
 
     const sA = chart.addLineSeries({ color: '#2FD6A3', lineWidth: 2, title: 'Book A' });
     const sB = chart.addLineSeries({ color: '#D8B36A', lineWidth: 2, title: 'Book B' });
     const sC = chart.addLineSeries({ color: '#38BDF8', lineWidth: 2, title: 'Book C' });
+    const sF = chart.addLineSeries({ color: '#A855F7', lineWidth: 2, title: 'Book F' });
 
     if (a.length) sA.setData(a);
     if (b.length) sB.setData(b);
     if (c.length) sC.setData(c);
+    if (f.length) sF.setData(f);
 
     sA.createPriceLine({
       price: SEED,
@@ -225,48 +258,54 @@
     _chartInstance = chart;
   }
 
-  function renderTable(a, b, c) {
+  function renderTable(a, b, c, f) {
     const rows = [
-      ['Live Equity', a?.equity, b?.equity, c?.equity, 'money'],
-      ['Cumulative P&L', a?.cum, b?.cum, c?.cum, 'signed'],
-      ['Current Drawdown', a?.curDD, b?.curDD, c?.curDD, 'pct'],
-      ['Max Drawdown', a?.maxDD, b?.maxDD, c?.maxDD, 'pct'],
-      ['Open Positions', a?.open, b?.open, c?.open, 'int'],
-      ['Days in Proof', a?.days, b?.days, c?.days, 'int'],
+      ['Live Equity', a?.equity, b?.equity, c?.equity, f?.equity, 'money'],
+      ['Cumulative P&L', a?.cum, b?.cum, c?.cum, f?.cum, 'signed'],
+      ['Current Drawdown', a?.curDD, b?.curDD, c?.curDD, f?.curDD, 'pct'],
+      ['Max Drawdown', a?.maxDD, b?.maxDD, c?.maxDD, f?.maxDD, 'pct'],
+      ['Open Positions', a?.open, b?.open, c?.open, f?.open, 'int'],
+      ['Days in Proof', a?.days, b?.days, c?.days, f?.days, 'int'],
     ];
 
-    const fmt = (v, kind) => {
+    const fmtCol = (v, kind, isF = false) => {
       if (v === null || v === undefined) return '—';
-      if (kind === 'money') return fmtMoney(v);
-      if (kind === 'signed') return fmtSigned(v);
+      if (kind === 'money') return isF ? fmtMoneyUSD(v) : fmtMoney(v);
+      if (kind === 'signed') return isF ? fmtSignedUSD(v) : fmtSigned(v);
       if (kind === 'pct') return fmtPct(v);
       return String(v);
     };
 
-    const determineLeader = (va, vb, vc, kind) => {
-      if (va === null || vb === null || vc === null) return '—';
+    const determineLeader = (va, vb, vc, vf, kind) => {
+      if (va === null || vb === null || vc === null || vf === null) return '—';
       if (kind === 'money' || kind === 'signed') {
-        const max = Math.max(va, vb, vc);
-        if (max === va) return '<span style="color:#2FD6A3; font-weight:700;">Book A</span>';
-        if (max === vb) return '<span style="color:#D8B36A; font-weight:700;">Book B</span>';
-        return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
+        const ra = va !== null ? va / SEED : -999;
+        const rb = vb !== null ? vb / SEED : -999;
+        const rc = vc !== null ? vc / SEED : -999;
+        const rf = vf !== null ? vf / SEED : -999;
+        const max = Math.max(ra, rb, rc, rf);
+        if (max === ra) return '<span style="color:#2FD6A3; font-weight:700;">Book A</span>';
+        if (max === rb) return '<span style="color:#D8B36A; font-weight:700;">Book B</span>';
+        if (max === rc) return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
+        return '<span style="color:#A855F7; font-weight:700;">Book F</span>';
       }
       if (kind === 'pct') {
-        const min = Math.min(va, vb, vc);
+        const min = Math.min(va, vb, vc, vf);
         if (min === va) return '<span style="color:#2FD6A3; font-weight:700;">Book A</span>';
         if (min === vb) return '<span style="color:#D8B36A; font-weight:700;">Book B</span>';
-        return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
+        if (min === vc) return '<span style="color:#38BDF8; font-weight:700;">Book C</span>';
+        return '<span style="color:#A855F7; font-weight:700;">Book F</span>';
       }
       return '—';
     };
 
-    $('raceTableBody').innerHTML = rows.map(([label, va, vb, vc, kind]) => {
-      const leader = determineLeader(va, vb, vc, kind);
-      return `<tr><td>${label}</td><td>${fmt(va, kind)}</td><td>${fmt(vb, kind)}</td><td>${fmt(vc, kind)}</td><td>${leader}</td></tr>`;
+    $('raceTableBody').innerHTML = rows.map(([label, va, vb, vc, vf, kind]) => {
+      const leader = determineLeader(va, vb, vc, vf, kind);
+      return `<tr><td>${label}</td><td>${fmtCol(va, kind, false)}</td><td>${fmtCol(vb, kind, false)}</td><td>${fmtCol(vc, kind, false)}</td><td>${fmtCol(vf, kind, true)}</td><td>${leader}</td></tr>`;
     }).join('');
   }
 
-  function renderDays(a, b, c) {
+  function renderDays(a, b, c, f) {
     if (a && $('raceDayA')) {
       $('raceDayA').textContent = `${a.days} / ${DAYS_TARGET}`;
       if ($('raceBarA')) $('raceBarA').style.width = Math.min(100, (a.days / DAYS_TARGET) * 100) + '%';
@@ -279,20 +318,25 @@
       $('raceDayC').textContent = `${c.days} / ${DAYS_TARGET}`;
       if ($('raceBarC')) $('raceBarC').style.width = Math.min(100, (c.days / DAYS_TARGET) * 100) + '%';
     }
+    if (f && $('raceDayF')) {
+      $('raceDayF').textContent = `${f.days} / ${DAYS_TARGET}`;
+      if ($('raceBarF')) $('raceBarF').style.width = Math.min(100, (f.days / DAYS_TARGET) * 100) + '%';
+    }
   }
 
   async function load() {
     try {
-      const [rowsA, rowsB, rowsC, posA, posB, posC] = await Promise.all([
-        fetchDaily('a'), fetchDaily('b'), fetchDaily('c'),
-        fetchPositions('a'), fetchPositions('b'), fetchPositions('c')
+      const [rowsA, rowsB, rowsC, rowsF, posA, posB, posC, posF] = await Promise.all([
+        fetchDaily('a'), fetchDaily('b'), fetchDaily('c'), fetchDaily('f'),
+        fetchPositions('a'), fetchPositions('b'), fetchPositions('c'), fetchPositions('f')
       ]);
 
-      // Collect all instruments from all 3 books to fetch live marks
+      // Collect all instruments from all 4 books to fetch live marks
       const instruments = new Set();
       for (const p of (posA || [])) if (p && p.instrument) instruments.add(p.instrument);
       for (const p of (posB || [])) if (p && p.instrument) instruments.add(p.instrument);
       for (const p of (posC || [])) if (p && p.instrument) instruments.add(p.instrument);
+      for (const p of (posF || [])) if (p && p.instrument) instruments.add(p.instrument);
 
       const stale = [{ inst: 'GBP/USD', cls: 'forex' }];
       for (const inst of instruments) {
@@ -317,7 +361,7 @@
         const entry = parseFloat(p.entry_price);
         const units = parseFloat(p.units);
         const isLong = String(p.direction || '').toLowerCase() !== 'short';
-        livePnlA += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+        livePnlA += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd, true);
       }
 
       // Compute live open PnL for Book B
@@ -328,7 +372,7 @@
         const entry = parseFloat(p.entry_price);
         const units = parseFloat(p.units);
         const isLong = String(p.direction || '').toLowerCase() !== 'short';
-        livePnlB += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+        livePnlB += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd, true);
       }
 
       // Compute live open PnL for Book C
@@ -339,19 +383,31 @@
         const entry = parseFloat(p.entry_price);
         const units = parseFloat(p.units);
         const isLong = String(p.direction || '').toLowerCase() !== 'short';
-        livePnlC += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd);
+        livePnlC += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd, true);
+      }
+
+      // Compute live open PnL for Book F (USD)
+      let livePnlF = 0;
+      for (const p of (posF || [])) {
+        const inst = String(p.instrument || '');
+        const livePx = _liveMarks[inst] || parseFloat(p.last_px);
+        const entry = parseFloat(p.entry_price);
+        const units = parseFloat(p.units);
+        const isLong = String(p.direction || '').toLowerCase() !== 'short';
+        livePnlF += calcTradePnl(inst, entry, livePx, units, isLong, _gbpUsd, false);
       }
 
       const a = bookStats(rowsA, posA || [], livePnlA);
       const b = bookStats(rowsB, posB || [], livePnlB);
       const c = bookStats(rowsC, posC || [], livePnlC);
+      const f = bookStats(rowsF, posF || [], livePnlF);
 
-      renderHero(a, b, c);
-      renderChart(rowsA, rowsB, rowsC, a.equity, b.equity, c.equity);
-      renderTable(a, b, c);
-      renderDays(a, b, c);
+      renderHero(a, b, c, f);
+      renderChart(rowsA, rowsB, rowsC, rowsF, a.equity, b.equity, c.equity, f.equity);
+      renderTable(a, b, c, f);
+      renderDays(a, b, c, f);
 
-      const upd = (c && c.updated) || (b && b.updated) || (a && a.updated);
+      const upd = (f && f.updated) || (c && c.updated) || (b && b.updated) || (a && a.updated);
       if (upd && $('raceLastSync')) {
         $('raceLastSync').textContent = 'Last sync: ' +
           new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' UK · Live marks active.';

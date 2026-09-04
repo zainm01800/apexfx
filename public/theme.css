@@ -139,23 +139,27 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 .logo .logo-dot { color: var(--mint); }
 .logo:hover { color: #fff; }
 
-.nav { display: flex; gap: 4px; justify-self: center; }
+.nav { display: flex; gap: 6px; justify-self: center; }
 .nav-link, .nav-link:visited {
   position: relative;
-  padding: 6px 14px;
+  padding: 6px 15px;
   border-radius: var(--r-pill);
   font-size: 12.5px; font-weight: 500;
-  color: var(--ink-3);
+  color: var(--ink-2);
   letter-spacing: .01em;
   border: 1px solid transparent;
-  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  transition: all var(--dur) var(--ease);
 }
-.nav-link:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.nav-link:hover {
+  color: #fff;
+  background: rgba(255,255,255,.05);
+  border-color: rgba(255,255,255,.08);
+}
 .nav-link.active, .nav-link.active:visited {
   color: var(--mint);
-  background: var(--mint-dim);
-  border-color: var(--mint-line);
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(47,214,163,.15) 0%, rgba(47,214,163,.06) 100%);
+  border: 1px solid rgba(47,214,163,.32);
+  box-shadow: 0 0 16px rgba(47,214,163,.14), inset 0 1px 0 rgba(255,255,255,.1);
 }
 
 .header-right { display: flex; align-items: center; gap: 10px; justify-self: end; }
@@ -178,16 +182,28 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 .live-pill {
   display: inline-flex; align-items: center; gap: 7px;
   font-family: var(--font-mono);
-  font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
   color: var(--mint);
-  background: rgba(47,214,163,.06);
-  border: 1px solid rgba(47,214,163,.22);
-  padding: 5px 12px;
+  background: rgba(47,214,163,.08);
+  border: 1px solid rgba(47,214,163,.28);
+  padding: 5px 13px;
   border-radius: var(--r-pill);
   line-height: 1;
   flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(47,214,163,.12);
 }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); animation: blink 2.2s ease-in-out infinite; }
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--mint);
+  position: relative;
+  box-shadow: 0 0 8px var(--mint);
+  animation: liveRadar 2s cubic-bezier(.25,1,.5,1) infinite;
+}
+@keyframes liveRadar {
+  0% { box-shadow: 0 0 0 0 rgba(47,214,163,.7); }
+  70% { box-shadow: 0 0 0 8px rgba(47,214,163,0); }
+  100% { box-shadow: 0 0 0 0 rgba(47,214,163,0); }
+}
 
 .nav-winrate {
   font-family: var(--font-mono); font-size: 11px; font-weight: 600;
@@ -364,24 +380,61 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 
 /* ── 7 · Tabs, pills, toggles ──────────────────────────────────────────────── */
 .view-toggle {
-  background: var(--obs-s1);
-  border: 1px solid var(--obs-line);
-  border-radius: 10px;
-  padding: 3px;
+  background: rgba(12,16,22,.92);
+  border: 1px solid var(--obs-line-2);
+  border-radius: 12px;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,.45);
 }
 .vt-btn {
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-family: var(--font-body);
-  font-size: 12.5px; font-weight: 600;
+  font-size: 12px; font-weight: 600;
   padding: 7px 15px;
-  border-radius: var(--r-ctl);
-  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  transition: all var(--dur) var(--ease);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
-.vt-btn:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+.vt-btn:hover { color: #fff; background: rgba(255,255,255,.05); }
 .vt-btn.active {
-  background: var(--mint-dim);
+  background: rgba(47,214,163,.13);
   color: var(--mint);
-  box-shadow: inset 0 0 0 1px var(--mint-line);
+  border-color: rgba(47,214,163,.35);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35), 0 0 14px rgba(47,214,163,.12);
+}
+
+.vt-badge {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.06);
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.vt-btn.active .vt-badge {
+  background: rgba(47,214,163,.2);
+  color: var(--mint);
+}
+.vt-badge-gold {
+  background: rgba(245,176,76,.15) !important;
+  color: #F5B04C !important;
+  border: 1px solid rgba(245,176,76,.3);
+}
+.vt-badge-mint {
+  background: rgba(47,214,163,.18) !important;
+  color: var(--mint) !important;
+  border: 1px solid rgba(47,214,163,.35);
+  box-shadow: 0 0 8px rgba(47,214,163,.25);
 }
 
 .hf-pill, .qp-tab, .tr-tab {
@@ -1051,13 +1104,182 @@ select option { background: var(--obs-s2); color: var(--ink); }
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-.eng-compact-table .wl-row td {
-  padding: 6px 12px;
-  font-size: 11.5px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
-  vertical-align: middle;
-  line-height: 1.35;
-}
 .eng-compact-table .wl-row:hover td {
   background: rgba(255, 255, 255, 0.025);
 }
+
+/* ── 22 · Terminal Modern UI Component Enhancements ───────────────────────── */
+/* Refined Position Cards */
+.eng-pos-card, .ibkr-pos-card {
+  padding: 20px !important;
+  border: 1px solid var(--obs-line-2) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, rgba(17,22,31,.95) 0%, rgba(12,16,22,.98) 100%) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45), var(--top-light) !important;
+  transition: transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease) !important;
+  position: relative;
+  overflow: hidden;
+}
+.eng-pos-card:hover, .ibkr-pos-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: rgba(47,214,163,.32) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 20px rgba(47,214,163,.08), var(--top-light) !important;
+}
+
+/* Direction Pills */
+.badge-dir-long {
+  font-size: 10px; font-weight: 700;
+  padding: 2.5px 8px; border-radius: 4px;
+  background: rgba(47,214,163,.14); color: var(--mint);
+  font-family: var(--font-mono); letter-spacing: .06em;
+  border: 1px solid rgba(47,214,163,.3);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.badge-dir-short {
+  font-size: 10px; font-weight: 700;
+  padding: 2.5px 8px; border-radius: 4px;
+  background: rgba(255,92,116,.14); color: var(--loss);
+  font-family: var(--font-mono); letter-spacing: .06em;
+  border: 1px solid rgba(255,92,116,.3);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+/* Status Tag for Risk-Free positions */
+.badge-status-riskfree {
+  font-size: 9.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 4px;
+  background: rgba(216,179,106,.15); color: var(--gold);
+  font-family: var(--font-mono); letter-spacing: .05em;
+  border: 1px solid rgba(216,179,106,.3);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+/* Visual Risk-to-Reward Level Bar inside cards */
+.pos-gauge-track {
+  height: 6px;
+  background: rgba(255,255,255,.06);
+  border-radius: 3px;
+  position: relative;
+  margin: 12px 0 8px;
+  overflow: visible;
+}
+.pos-gauge-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2FD6A3 0%, #38BDF8 100%);
+  box-shadow: 0 0 10px rgba(47,214,163,.4);
+  transition: width .4s var(--ease);
+}
+.pos-gauge-marker {
+  position: absolute;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--mint);
+  box-shadow: 0 0 8px rgba(47,214,163,.8);
+  transform: translateX(-50%);
+}
+.pos-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+/* Banked Partials Shield Card */
+.pos-shield-card {
+  background: linear-gradient(135deg, rgba(47,214,163,.08) 0%, rgba(56,189,248,.04) 100%);
+  border: 1px solid rgba(47,214,163,.24);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+/* Multi-stage Milestone Progress Bar */
+.prog-track-container {
+  position: relative;
+  margin: 16px 0 10px;
+}
+.prog-track-rail {
+  height: 10px;
+  background: rgba(255,255,255,.05);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--obs-line);
+}
+.prog-track-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2FD6A3 0%, #38BDF8 60%, #A855F7 100%);
+  border-radius: 6px;
+  transition: width .6s cubic-bezier(.2,.8,.3,1);
+  box-shadow: 0 0 16px rgba(47,214,163,.4);
+}
+.prog-checkpoints {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.prog-checkpoint-node {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.badge-stage-prog {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(245,176,76,.18);
+  color: #F5B04C;
+  border: 1px solid rgba(245,176,76,.35);
+  display: inline-block;
+  white-space: nowrap;
+}
+.badge-stage-locked {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,.04);
+  color: var(--ink-3);
+  border: 1px solid var(--obs-line);
+  display: inline-block;
+  white-space: nowrap;
+}
+.badge-stage-passed {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(47,214,163,.18);
+  color: var(--mint);
+  border: 1px solid rgba(47,214,163,.35);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 4-Way Symmetrical Head-to-Head Race Hero */
+.race-hero-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+  gap: 14px !important;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .race-hero-4 {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  }
+}
+@media (max-width: 600px) {
+  .race-hero-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
