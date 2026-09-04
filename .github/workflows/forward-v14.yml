@@ -1,0 +1,94 @@
+name: V14 experimental GBP forward paper
+
+on:
+  schedule:
+    # Settled same-day US ETF bars should be available by this time.  The
+    # runner independently checks the official XNYS close plus a 30m grace.
+    - cron: "30 23 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate fresh data/state without writing Supabase"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+# One global writer at a time.  A queued run must finish rather than be
+# cancelled halfway between the two independent namespaced documents.
+concurrency:
+  group: forward-v14-paper-global
+  cancel-in-progress: false
+
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install narrow forward-paper dependencies
+        run: >-
+          python -m pip install
+          "numpy>=1.26"
+          "pandas>=2.1"
+          "exchange-calendars>=4.5,<5"
+          "httpx>=0.26"
+          "yfinance>=0.2.65"
+          "python-dotenv>=1.0"
+          "pytest>=8.0"
+
+      - name: Verify V14 state, causality, accounting and persistence invariants
+        run: python -m pytest -q engine/tests/test_v14_forward.py
+
+      - name: Verify public paper API and forward dashboard model
+        run: node --test tests/paper-api.test.js tests/forward-model.test.js
+
+      - name: Verify authoritative paper-state store
+        id: preflight
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run requested; remote write preflight intentionally skipped."
+            exit 0
+          fi
+          if [ -z "$SUPABASE_SERVICE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_KEY is required; no paper state was changed."
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/apex_analyses?select=id&limit=1" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY")
+          if [ "$code" != "200" ]; then
+            echo "::error::apex_analyses is unavailable (HTTP $code); no paper state was changed."
+            exit 1
+          fi
+
+      - name: Advance Book V6 static 3% daily / 6% maximum
+        id: v6_run
+        working-directory: engine
+        shell: bash
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python scripts/run_v14_forward.py --book v6 "${args[@]}"
+
+      - name: Advance Book V10 static 5% daily / 10% maximum
+        if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
+        working-directory: engine
+        shell: bash
+        run: |
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python scripts/run_v14_forward.py --book v10 "${args[@]}"

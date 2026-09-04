@@ -236,6 +236,12 @@ test('closed cards show actual net GBP result and supplied exit reason', () => {
   assert.doesNotMatch(html, /TAKE PROFIT|£500\.00/);
 });
 
+test('closed cards accept the producer initial-stop and initial-risk field names', () => {
+  const html = tradeCard({instrument:'SPY',direction:'long',initial_stop:95.25,initial_total_risk_gbp:740,net_pnl_gbp:20}, 'trades');
+  assert.match(html, /\$95\.25/);
+  assert.match(html, /£740\.00/);
+});
+
 test('trade-card untrusted symbol, rationale and exit reason are escaped', () => {
   const html = tradeCard({ ...position(), instrument: '<img src=x onerror="alert(1)">',
     signal_rationale: '</p><script>alert("reason")</script>',
