@@ -113,7 +113,13 @@ units_risk = risk_budget / loss_per_unit
 Each new notional is also capped by the remaining regime gross allowance split
 equally across target slots. Aggregate planned stop loss may not exceed 2.5% of
 the same capital base. Fractional ETF units are allowed for research. Cash earns
-zero and gross exposure may never exceed the applicable regime cap.
+zero. The gross and planned-risk caps are hard checks immediately after every
+executable fill set. Passive price movement can change marked exposure between
+fills; any marked cap overrun is reported separately, blocks new risk, and is
+trimmed at the next session open. It is not silently treated as though a
+retroactive close fill were available. With at most four 0.35% initial-risk
+legs, ordinary entry risk is at most 1.40%; 2.5% remains an absolute ceiling,
+not a target.
 
 Base friction is 5 bps per transaction side. The binding stress is 10 bps per
 side plus 25 bps additional adverse slippage on stop fills.
@@ -170,8 +176,11 @@ Book G earns `HISTORICAL_GATE_PASS_DATA_LIMITED` only if all conditions pass:
 5. Every sizing, gross-exposure, aggregate-risk, next-open, gap-stop,
    future-poison, input-order, cost, and segment-isolation invariant passes.
 
+For condition 5, the gross-exposure invariant applies at executable post-fill
+snapshots. Any passive marked overrun must be disclosed with its magnitude,
+must not permit a new entry, and must be corrected at the next XNYS open.
+
 Any failed criterion yields `NO_RESEARCH_CANDIDATE`. No parameter may be changed
 after OOS is opened. A new variant requires a new protocol and a new future
 clock. Historical passage still requires an unchanged forward-paper trial of at
 least six months and 100 closed trades plus exact broker bid/ask validation.
-
