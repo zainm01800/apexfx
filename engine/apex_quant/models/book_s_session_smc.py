@@ -23,7 +23,7 @@ BOOK_LABEL = "book_s_session_smc_100k"
 INITIAL_EQUITY_USD = 100_000.0
 RISK_PER_TRADE_USD = 500.0       # 0.50% risk per trade on $100k (profit-optimized prop sizing)
 TARGET_RR = 1.80                 # 1:1.80 Reward-to-Risk ratio
-MAX_CONCURRENT_POSITIONS = 3     # Maximum 3 open concurrent positions
+MAX_CONCURRENT_POSITIONS = 4     # Increased to 4 concurrent positions to capture more breakouts
 DAILY_CIRCUIT_BREAKER_USD = 1800.0 # -1.8% daily loss guard (vs FTMO -5.0%)
 MAX_HOLDING_HOURS = 16           # Clean intraday exit after 16 hours
 SCHEMA_VERSION = 1
@@ -398,6 +398,82 @@ def advance_book_s_forward(
     return state, new_daily_rows
 
 
+def compute_pending_radar(
+    hourly_panel: dict[str, pd.DataFrame],
+    daily_panel: dict[str, pd.DataFrame]
+) -> list[dict[str, Any]]:
+    """Compute real-time pending setups and breakout trigger levels for the London session."""
+    radar = []
+    for sym in CORE_UNIVERSE:
+        df_h = hourly_panel.get(sym)
+        df_d = daily_panel.get(sym)
+        if df_h is None or df_h.empty or df_d is None or df_d.empty:
+            continue
+            
+        df_h = df_h.copy().sort_index()
+        df_d = df_d.copy().sort_index()
+        
+        df_d["ema50"] = df_d["close"].ewm(span=50, adjust=False).mean()
+        df_d["htf_bull"] = (df_d["close"] > df_d["ema50"]).shift(1)
+        df_d["d_date"] = df_d.index.date
+        daily_map = df_d.set_index("d_date")["htf_bull"].to_dict()
+        
+        df_h["bar_date"] = df_h.index.date
+        df_h["bar_hour"] = df_h.index.hour
+        df_h["htf_bull"] = df_h["bar_date"].map(daily_map).fillna(True)
+        
+        asian_bars = df_h[(df_h["bar_hour"] >= 0) & (df_h["bar_hour"] < 7)]
+        ah = asian_bars.groupby("bar_date")["high"].max().rename("asian_high")
+        al = asian_bars.groupby("bar_date")["low"].min().rename("asian_low")
+        df_h = df_h.join(ah, on="bar_date")
+        df_h = df_h.join(al, on="bar_date")
+        
+        tr = pd.concat([
+            df_h["high"] - df_h["low"],
+            (df_h["high"] - df_h["close"].shift(1)).abs(),
+            (df_h["low"] - df_h["close"].shift(1)).abs()
+        ], axis=1).max(axis=1)
+        df_h["atr"] = tr.rolling(14).mean()
+        
+        last_bar = df_h.iloc[-1]
+        c = float(last_bar["close"])
+        ah_val = float(last_bar["asian_high"]) if not pd.isna(last_bar["asian_high"]) else c
+        al_val = float(last_bar["asian_low"]) if not pd.isna(last_bar["asian_low"]) else c
+        atr_val = float(last_bar["atr"]) if not pd.isna(last_bar["atr"]) else (c * 0.005)
+        htf_bull = bool(last_bar["htf_bull"])
+        
+        pip_val = PIP_SIZES.get(sym, 0.0001)
+        fmt = "{:.4f}" if pip_val == 0.0001 else "{:.2f}"
+        
+        if htf_bull:
+            trigger_px = ah_val + 0.1 * atr_val
+            dist_pips = (trigger_px - c) / pip_val
+            bias = "BULLISH"
+            direction = "LONG"
+            condition = f"1H Close > {fmt.format(trigger_px)} (Asian High Break)"
+        else:
+            trigger_px = al_val - 0.1 * atr_val
+            dist_pips = (c - trigger_px) / pip_val
+            bias = "BEARISH"
+            direction = "SHORT"
+            condition = f"1H Close < {fmt.format(trigger_px)} (Asian Low Break)"
+            
+        radar.append({
+            "pair": sym,
+            "instrument": sym,
+            "direction": direction,
+            "bias": bias,
+            "current_price": float(fmt.format(c)),
+            "asian_high": float(fmt.format(ah_val)),
+            "asian_low": float(fmt.format(al_val)),
+            "trigger_price": float(fmt.format(trigger_px)),
+            "dist_pips": round(dist_pips, 1),
+            "condition": condition,
+            "status": "Arming for session breakout" if dist_pips > 0 else "Trigger level reached"
+        })
+    return radar
+
+
 def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
     """Generate the complete runtime payload for Supabase and frontend consumption."""
     trades = state.get("trades", [])
@@ -423,6 +499,7 @@ def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
         "profit_factor": round(pf, 2),
         "positions": state.get("positions", {}),
         "trades": trades,
+        "pending_radar": state.get("pending_radar", []),
         "equity_curve": state.get("equity_curve", [])[-100:],
         "daily": state.get("equity_curve", [])[-100:],
         "last_updated": _date_str(datetime.now(timezone.utc))

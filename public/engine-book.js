@@ -70,6 +70,7 @@ if (!BOOKS[_book]) _book = 'a';
 let _dailyRows = [];    // ascending daily snapshots
 let _positions = [];    // open engine positions
 let _trades = [];       // closed engine trades
+let _pendingRadar = []; // pending trigger setups for Book S (SMC session radar)
 let _eqChart = null;    // equity curve chart instance (destroyed before re-render)
 let _eqSeries = null;   // equity area series instance
 let _eqResize = null;   // resize handler for the equity chart (replaced, not stacked)
@@ -207,16 +208,19 @@ async function loadEngineBook() {
   let daily = null;
   let positions = null;
   let trades = null;
+  let pendingRadar = null;
 
   try {
-    const [dRes, pRes, tRes] = await Promise.all([
+    const [dRes, pRes, tRes, rRes] = await Promise.all([
       fetch(`/api/paper?table=daily&limit=500&book=${_book}`).catch(() => null),
       fetch(`/api/paper?table=positions&limit=100&book=${_book}`).catch(() => null),
       fetch(`/api/paper?table=trades&limit=500&book=${_book}`).catch(() => null),
+      _book === 's' ? fetch(`/api/paper?table=pending_radar&limit=50&book=s`).catch(() => null) : Promise.resolve(null),
     ]);
     if (dRes && dRes.ok) daily = await dRes.json().catch(() => null);
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
     if (tRes && tRes.ok) trades = await tRes.json().catch(() => null);
+    if (rRes && rRes.ok) pendingRadar = await rRes.json().catch(() => null);
   } catch (e) { /* fall through to direct Supabase */ }
 
   // Direct namespaced mirror fallback for Book R, Book S, and Book F (including static local dev).
@@ -237,6 +241,9 @@ async function loadEngineBook() {
       }
       if (!Array.isArray(trades) && payload && Array.isArray(payload.trades)) {
         trades = payload.trades;
+      }
+      if (_book === 's' && payload && Array.isArray(payload.pending_radar)) {
+        if (!Array.isArray(pendingRadar)) pendingRadar = payload.pending_radar;
       }
     }
   }
@@ -268,12 +275,16 @@ async function loadEngineBook() {
       if (!Array.isArray(trades) && Array.isArray(fallback.trades)) {
         trades = fallback.trades;
       }
+      if (_book === 's' && Array.isArray(fallback.pending_radar)) {
+        if (!Array.isArray(pendingRadar)) pendingRadar = fallback.pending_radar;
+      }
     }
   }
 
   if (Array.isArray(daily)) _dailyRows = daily;
   if (Array.isArray(positions)) _positions = positions;
   if (Array.isArray(trades)) _trades = trades;
+  if (Array.isArray(pendingRadar)) _pendingRadar = pendingRadar;
 
   renderAll();
 }
@@ -421,7 +432,7 @@ function renderProgressTracker(liveOpenPnl = null, officialOpenPnl = null) {
   const effectiveOpenPnl = (liveOpenPnl !== null) ? liveOpenPnl : calcOpenPnl;
   const effectiveOfficialOpenPnl = (officialOpenPnl !== null) ? officialOpenPnl : 0;
 
-  const liveFloatingEquity = (_book === 'r' || _book === 'f')
+  const liveFloatingEquity = (_book === 'r' || _book === 's' || _book === 'f')
     ? (officialEquity + (effectiveOpenPnl - effectiveOfficialOpenPnl))
     : (seed + realizedBanked + effectiveOpenPnl);
 
@@ -977,6 +988,79 @@ function renderClosedTrades() {
   </table></div>`;
 }
 
+// ── SMC Session Radar (Book S Pending Breakouts) ────────────────────────────
+function renderPendingRadar() {
+  const card = document.getElementById('engPendingRadarCard');
+  const wrap = document.getElementById('engRadarWrap');
+  if (!card || !wrap) return;
+
+  if (_book !== 's') {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+
+  if (!Array.isArray(_pendingRadar) || !_pendingRadar.length) {
+    wrap.innerHTML = `<div class="ob-empty" style="padding: 24px; text-align: center; color: var(--text3); font-style: italic;">
+      No pending session triggers currently armed. Session radar recalculates after Asian accumulation liquidity bounds form (00:00–07:00 UTC).
+    </div>`;
+    return;
+  }
+
+  const rows = _pendingRadar.map(r => {
+    const pair = escHtml(r.instrument || r.pair || '');
+    const isBull = String(r.bias || '').toUpperCase() === 'BULLISH';
+    const isLong = String(r.direction || '').toUpperCase() === 'LONG';
+    const currPx = num(r.current_price);
+    const trigPx = num(r.trigger_price);
+    const asianHi = num(r.asian_high);
+    const asianLo = num(r.asian_low);
+    const dist = num(r.dist_pips);
+    const isJpy = pair.includes('JPY');
+    const decimals = isJpy ? 2 : 4;
+
+    const fmtP = (v) => (v !== null && v !== undefined) ? Number(v).toFixed(decimals) : '—';
+    const biasBadge = isBull
+      ? `<span style="background: rgba(34,197,94,0.12); color: #22C55E; border: 1px solid rgba(34,197,94,0.3); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; font-family: var(--mono);">▲ BULLISH</span>`
+      : `<span style="background: rgba(239,68,68,0.12); color: #EF4444; border: 1px solid rgba(239,68,68,0.3); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; font-family: var(--mono);">▼ BEARISH</span>`;
+
+    const dirBadge = isLong
+      ? `<span style="background: rgba(56,189,248,0.12); color: #38BDF8; border: 1px solid rgba(56,189,248,0.3); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; font-family: var(--mono);">BUY STOP</span>`
+      : `<span style="background: rgba(249,115,22,0.12); color: #F97316; border: 1px solid rgba(249,115,22,0.3); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; font-family: var(--mono);">SELL STOP</span>`;
+
+    let distHtml = '—';
+    if (dist !== null) {
+      if (dist <= 0) {
+        distHtml = `<span style="color: #C084FC; font-weight: 700; font-family: var(--mono); font-size: 11.5px;">Level Reached (${Math.abs(dist).toFixed(1)}p)</span>`;
+      } else {
+        distHtml = `<span style="color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 11.5px;">+${dist.toFixed(1)} pips</span>`;
+      }
+    }
+
+    const statusHtml = (dist !== null && dist <= 0)
+      ? `<span style="background: rgba(168,85,247,0.2); color: #C084FC; border: 1px solid rgba(168,85,247,0.5); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; font-family: var(--mono);">⚡ TRIGGER ACTIVE</span>`
+      : `<span style="background: rgba(56,189,248,0.1); color: #38BDF8; border: 1px solid rgba(56,189,248,0.25); padding: 3px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 600; font-family: var(--mono);">● ARMED (WATCHING)</span>`;
+
+    return `<tr class="wl-row">
+      <td><strong style="font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: #FFFFFF;">${pair}</strong></td>
+      <td>${biasBadge}</td>
+      <td>${dirBadge}</td>
+      <td style="font-family: var(--mono); font-size: 11.5px; color: var(--text2);">${fmtP(currPx)}</td>
+      <td style="font-family: var(--mono); font-size: 11.5px; color: var(--text3);">${fmtP(asianLo)} — ${fmtP(asianHi)}</td>
+      <td style="font-family: var(--mono); font-size: 12px; color: #C084FC; font-weight: 700;">${fmtP(trigPx)}</td>
+      <td>${distHtml}</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<div class="wl-table-wrap eng-closed-table-wrap" style="overflow-x: auto; border: 1px solid rgba(168,85,247,0.15); border-radius: 8px;"><table class="wl-table eng-compact-table" style="width: 100%;">
+    <thead><tr>
+      <th>Pair</th><th>Macro Trend (D1)</th><th>Setup Type</th><th>Market Price</th><th>Asian Range (00–07 UTC)</th><th>Breakout Trigger</th><th>Distance</th><th>Session Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
 // ── Render all ───────────────────────────────────────────────────────────────
 function renderAll() {
   renderHero();
@@ -984,6 +1068,7 @@ function renderAll() {
   renderProgressTracker();
   renderEquityChart();
   renderPositions();
+  renderPendingRadar();
   renderClosedTrades();
 }
 
@@ -1064,7 +1149,7 @@ function applyLiveMarks() {
     if (livePnl !== null) {
       liveTotalOpenPnl += livePnl;
       if (officialPnl !== null) officialMarkedOpenPnl += officialPnl;
-      liveTotalGross += (_book === 'r' || _book === 'f') ? (m.px * units) : (m.px * units) / (_gbpUsdRate || 1.285);
+      liveTotalGross += (_book === 'r' || _book === 's' || _book === 'f') ? (m.px * units) : (m.px * units) / (_gbpUsdRate || 1.285);
       liveCount++;
     }
   }
@@ -1196,13 +1281,18 @@ function applyBookChrome() {
   const since = document.getElementById('engSinceSub');
   if (since) since.textContent = 'since ' + meta.startLabel;
   const experiment = document.getElementById('engExperimentLabel');
-  if (experiment) experiment.textContent = (_book === 'r' || _book === 'f')
+  if (experiment) experiment.textContent = (_book === 'r' || _book === 's' || _book === 'f')
     ? 'Forward Paper · $100k USD Account'
     : 'Paper Proof · £100k Experiment';
   const heroLabel = document.getElementById('engHeroLabel');
   if (heroLabel) heroLabel.textContent = _book === 'f'
     ? 'Book F (Prop Shield Elite) — Forward Paper'
-    : (_book === 'r' ? 'Book R-252 — Forward Paper' : 'Engine Proof Book — Paper');
+    : (_book === 's' ? 'Book S (Session SMC) — Forward Paper' : (_book === 'r' ? 'Book R-252 — Forward Paper' : 'Engine Proof Book — Paper'));
+
+  const radarCard = document.getElementById('engPendingRadarCard');
+  if (radarCard) {
+    radarCard.style.display = _book === 's' ? 'block' : 'none';
+  }
 }
 
 function setBook(book) {
@@ -1213,6 +1303,8 @@ function setBook(book) {
   window.history.replaceState(null, '', url);
   _dailyRows = [];
   _positions = [];
+  _trades = [];
+  _pendingRadar = [];
   applyBookChrome();
   loadEngineBook().catch(e => console.error('Book switch load err:', e));
 }

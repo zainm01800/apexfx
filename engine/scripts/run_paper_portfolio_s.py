@@ -38,6 +38,7 @@ from apex_quant.models.book_s_session_smc import (
     BOOK_LABEL,
     CORE_UNIVERSE,
     advance_book_s_forward,
+    compute_pending_radar,
     new_book_s_state,
     runtime_payload,
     validate_book_s_state,
@@ -169,6 +170,10 @@ def main(argv: list[str] | None = None) -> int:
     wr = (len(wins) / len(state['trades']) * 100) if state['trades'] else 0.0
     pf = (sum(t['pnl'] for t in wins) / abs(sum(t['pnl'] for t in losses))) if losses and sum(t['pnl'] for t in losses) != 0 else 0.0
     print(f"Closed Win Rate:  {wr:.1f}% | Profit Factor: {pf:.2f}", flush=True)
+
+    # Compute real-time pending setups and breakout trigger levels for the session
+    state["pending_radar"] = compute_pending_radar(hourly_panel, daily_panel)
+    print(f"Computed {len(state['pending_radar'])} pending setup triggers for Session Radar.", flush=True)
 
     # Save local state
     _save_local_state(state_path, state)

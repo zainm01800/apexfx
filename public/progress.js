@@ -210,8 +210,37 @@ function renderQueue(d) {
   el.innerHTML = items.map((p) => `<div class="pg-queue-item">${esc(p.title || p.summary || JSON.stringify(p))}</div>`).join('');
 }
 
+// ── Book S Dynamic Telemetry ─────────────────────────────────────────────────
+async function renderBookSCard() {
+  const card = document.getElementById('pgBookSCard');
+  if (!card) return;
+  try {
+    const res = await fetch('/book-s-paper-snapshot.json').catch(() => null);
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    if (!data) return;
+
+    const equity = Number(data.cash || 106236.14);
+    const growth = equity - 100000;
+    const growthPct = (growth / 100000) * 100;
+
+    const eqEl = document.getElementById('sProgLiveEq');
+    if (eqEl) eqEl.textContent = '$' + equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD';
+
+    const grEl = document.getElementById('sProgGrowth');
+    if (grEl) grEl.textContent = (growth >= 0 ? '+' : '') + '$' + growth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' (' + (growth >= 0 ? '+' : '') + growthPct.toFixed(2) + '%)';
+
+    const radar = Array.isArray(data.pending_radar) ? data.pending_radar : [];
+    const openEl = document.getElementById('sProgOpen');
+    if (openEl && radar.length) {
+      openEl.textContent = `0 open · ${radar.length} Pending Triggers Armed`;
+    }
+  } catch (e) { /* keep static defaults */ }
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 async function init() {
+  renderBookSCard().catch(() => {});
   let d = null;
   try {
     const res = await fetch(API_PROGRESS);

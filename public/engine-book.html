@@ -124,6 +124,29 @@
       <div class="pg-card-foot">Engine paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
     </section>
 
+    <!-- SMC Session Radar & Pending Setups (Book S) -->
+    <section class="pg-card" id="engPendingRadarCard" style="margin-bottom: 24px; display: none; border: 1px solid rgba(168,85,247,0.3); background: linear-gradient(180deg, rgba(20,15,30,0.95) 0%, rgba(12,10,20,0.95) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45);">
+      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="min-width: 0;">
+          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px; color: #C084FC;">
+            <span>⚡</span> SMC Session Radar · Pending Setups &amp; Trigger Watchlist
+          </div>
+          <div class="ob-inline-note" style="margin-left: 0; margin-top: 3px; color: var(--text3);">
+            London Killzone breakout levels monitored across 6 pairs based on Asian accumulation liquidity bounds and Macro Daily 50 EMA.
+          </div>
+        </div>
+        <div class="pg-day-pill mono" style="background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.35); font-size: 11px;">
+          London Killzone: 07:00–12:00 UTC
+        </div>
+      </div>
+      <div id="engRadarWrap" style="padding: 4px 14px 14px;">
+        <div class="ob-empty">Scanning for pending session triggers…</div>
+      </div>
+      <div class="pg-card-foot" style="font-size: 11.5px; color: var(--text3);">
+        Pending trigger orders execute automatically when a 1H candle closes beyond the Asian Range with Macro Trend alignment.
+      </div>
+    </section>
+
     <!-- Forward Testing Progress Tracker from 100k -->
     <section class="pg-card" id="engProgressCard" style="margin-bottom: 24px; border: 1px solid rgba(47,214,163,0.28); background: linear-gradient(180deg, rgba(14,20,30,0.98) 0%, rgba(10,14,22,0.98) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);">
       <div class="pg-card-head" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
