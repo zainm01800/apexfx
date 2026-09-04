@@ -172,6 +172,20 @@ function pnlBadge(pnl, pct) {
   return `<span style="display:inline-block; font-size:12px; font-weight:700; padding:4px 10px; border-radius:6px; background:rgba(255,255,255,0.06); color:var(--text2); font-family:var(--mono); border:1px solid var(--border);">${escHtml(pnlTxt)}</span>`;
 }
 
+function dirBadgeCompact(isLong) {
+  return isLong
+    ? '<span style="font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(0,200,100,0.12);color:var(--green);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(0,200,100,0.25);">LONG</span>'
+    : '<span style="font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,70,70,0.12);color:var(--red);font-family:var(--mono);letter-spacing:0.04em;border:1px solid rgba(255,70,70,0.25);">SHORT</span>';
+}
+
+function pnlBadgeCompact(pnl, pct) {
+  const pnlTxt = fmtSignedMoney(pnl) + (pct === null ? '' : ` (${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(1)}%)`);
+  const color = pnl > 0 ? 'var(--green)' : (pnl < 0 ? 'var(--red)' : 'var(--text2)');
+  const bg = pnl > 0 ? 'rgba(0,200,100,0.12)' : (pnl < 0 ? 'rgba(255,70,70,0.12)' : 'rgba(255,255,255,0.04)');
+  const border = pnl > 0 ? 'rgba(0,200,100,0.25)' : (pnl < 0 ? 'rgba(255,70,70,0.25)' : 'var(--border)');
+  return `<span style="display:inline-block; font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; background:${bg}; color:${color}; font-family:var(--mono); border:1px solid ${border}; white-space:nowrap;">${escHtml(pnlTxt)}</span>`;
+}
+
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadEngineBook() {
   const SUPA_URL = 'https://cuvchjhaojhmxfgczndy.supabase.co';
@@ -649,7 +663,7 @@ function renderClosedTrades() {
 
   const closed = closedTrades();
   const noteEl = document.getElementById('engClosedNote');
-  if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips` : '';
+  if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips · scrollable ledger` : '';
 
   if (!closed.length) {
     wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet for ${BOOKS[_book].label}.</div>`;
@@ -664,18 +678,18 @@ function renderClosedTrades() {
     const retPct = num(t.return_pct); // fraction, e.g. -0.09538
     const reason = t.exit_reason ? String(t.exit_reason).toUpperCase() : '—';
     return `<tr class="wl-row">
-      <td style="color: var(--text3); font-size: 12px; white-space: nowrap;">${escHtml(t.exit_time ? fmtDay(t.exit_time) : '—')}</td>
-      <td><strong class="wl-sym">${escHtml(inst)}</strong></td>
-      <td>${dirBadge(isLong)}</td>
-      <td style="font-family: var(--mono);">${escHtml(fmtQty(t.units))}</td>
-      <td style="font-family: var(--mono); color: var(--text2);">${escHtml(fmtPrice(t.entry_price, cls))}</td>
-      <td style="font-family: var(--mono); color: var(--text); font-weight: 600;">${escHtml(fmtPrice(t.exit_price, cls))}</td>
-      <td>${pnlBadge(pnl, retPct)}</td>
-      <td><span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text2);font-family:var(--mono);border:1px solid var(--border);">${escHtml(reason)}</span></td>
+      <td style="color: var(--text3); font-size: 11px; white-space: nowrap;">${escHtml(t.exit_time ? fmtDay(t.exit_time) : '—')}</td>
+      <td><strong style="font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text);">${escHtml(inst)}</strong></td>
+      <td>${dirBadgeCompact(isLong)}</td>
+      <td style="font-family: var(--mono); font-size: 11px; color: var(--text2);">${escHtml(fmtQty(t.units))}</td>
+      <td style="font-family: var(--mono); font-size: 11px; color: var(--text2);">${escHtml(fmtPrice(t.entry_price, cls))}</td>
+      <td style="font-family: var(--mono); font-size: 11px; color: var(--text); font-weight: 600;">${escHtml(fmtPrice(t.exit_price, cls))}</td>
+      <td>${pnlBadgeCompact(pnl, retPct)}</td>
+      <td><span style="font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.04);color:var(--text2);font-family:var(--mono);border:1px solid var(--border);">${escHtml(reason)}</span></td>
     </tr>`;
   }).join('');
 
-  wrap.innerHTML = `<div class="wl-table-wrap"><table class="wl-table">
+  wrap.innerHTML = `<div class="wl-table-wrap eng-closed-table-wrap"><table class="wl-table eng-compact-table">
     <thead><tr>
       <th>Exit Date</th><th>Instrument</th><th>Direction</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Realized P&amp;L</th><th>Exit Reason</th>
     </tr></thead>
