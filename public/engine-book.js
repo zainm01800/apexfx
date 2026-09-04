@@ -507,7 +507,7 @@ function renderProgressTracker(liveOpenPnl = null, officialOpenPnl = null) {
       openDesc.innerHTML = `<span>⚡ <strong>Live Open Position Shifting Progress:</strong> ${parts.join(' · ')}</span>`;
       
       const bankedOnOpen = activePositions.reduce((s, p) => s + (num(p.realized_pnl_total) || 0), 0);
-      openImpact.innerHTML = `<span style="color:var(--green);">${fmtSignedMoney(effectiveOpenPnl)} live mark</span>${bankedOnOpen > 0 ? ' · +' + fmtMoney(bankedOnOpen) + ' banked partials' : ''}`;
+      openImpact.innerHTML = `<span style="color:var(--green);">${fmtSignedMoney(effectiveOpenPnl)} live mark</span>${bankedOnOpen > 0 ? ' · +' + fmtMoney(bankedOnOpen) + ' banked partials (1:1 R:R / +1.0R)' : ''}`;
     } else {
       openDesc.innerHTML = `<span>✓ <strong>All Positions Flat:</strong> Capital safely preserved in cash (${fmtMoney(liveFloatingEquity)}) · Awaiting next systematic entry signal.</span>`;
       openImpact.textContent = '0 Open Risk';
@@ -671,7 +671,8 @@ function renderPositionCard(p) {
   const lastPx = num(p.last_px);
   const upnl = positionUpnl(p);
   const upnlCls = upnl === null ? '' : (upnl > 0 ? 'pos' : (upnl < 0 ? 'neg' : ''));
-  const pInfo = partialsInfo(entry, lastPx, isLong, cls, p.tms_p1 === true, num(p.initial_stop), stop);
+  const hasPartials = p.tms_p1 === true || p.partial_taken === true || (num(p.realized_pnl_total) > 0);
+  const pInfo = partialsInfo(entry, lastPx, isLong, cls, hasPartials, num(p.initial_stop), stop);
 
   const enteredTxt = p.entry_time ? fmtDay(p.entry_time) : '—';
   const updated = p.updated_at ? fmtUK(p.updated_at) : '—';
@@ -704,7 +705,7 @@ function renderPositionCard(p) {
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; white-space: nowrap;">
-        <span style="color: var(--text3)">Partials (+1.0R)</span>
+        <span style="color: var(--text3)">Partials (+1.0R / 1:1 R:R)</span>
         <span style="font-family: var(--mono); color: ${pInfo.color}; font-weight: 600;">${escHtml(pInfo.targetTxt)} <span style="font-size:11px;font-weight:500;">${escHtml(pInfo.distTxt)}</span></span>
       </div>
 
@@ -749,9 +750,18 @@ function renderPositionCard(p) {
       </div>
 
       ${bankedPartials !== null && bankedPartials !== 0 ? `
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-        <span style="color: var(--text3)">Banked partials</span>
-        <span class="${bankedPartials > 0 ? 'pos' : 'neg'}" style="font-family: var(--mono); font-size: 12px;">${escHtml(fmtSignedMoney(bankedPartials))}</span>
+      <div style="background: rgba(52,211,153,0.06); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(52,211,153,0.22); margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+          <span style="color: var(--text2); font-weight: 600;">Banked partials (+1.0R)</span>
+          <span class="${bankedPartials > 0 ? 'pos' : 'neg'}" style="font-family: var(--mono); font-size: 12.5px; font-weight: 700;">${escHtml(fmtSignedMoney(bankedPartials))}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 3px;">
+          <span>Take-Profit Ratio</span>
+          <span style="font-weight: 700; background: rgba(52,211,153,0.15); padding: 1px 6px; border-radius: 4px;">1:1 R:R (+1.0R secured)</span>
+        </div>
+        <div style="font-size: 10px; color: var(--text3); margin-top: 3px; line-height: 1.3;">
+          50% size closed · Stop moved to breakeven ($0 downside risk)
+        </div>
       </div>` : ''}
 
       <div style="font-size: 10.5px; color: var(--text3); margin-top: 6px; text-align: right; font-style: italic;">
@@ -836,8 +846,11 @@ function renderClosedTrades() {
     const cls = paperClassFor(inst);
     const isLong = String(t.direction || '').toLowerCase() !== 'short';
     const pnl = num(t.pnl);
-    const retPct = num(t.return_pct); // fraction, e.g. -0.09538
-    const reason = t.exit_reason ? String(t.exit_reason).toUpperCase() : '—';
+    const retPct = num(t.return_pct);
+    const defaultReason = (t.win || (pnl !== null && pnl > 0))
+      ? (t.pyramided ? 'PYRAMID (+1.5R)' : 'WIN / TRAIL')
+      : 'STOP LOSS';
+    const reason = t.exit_reason ? String(t.exit_reason).toUpperCase() : defaultReason;
     return `<tr class="wl-row">
       <td style="color: var(--text3); font-size: 11px; white-space: nowrap;">${escHtml(t.exit_time ? fmtDay(t.exit_time) : '—')}</td>
       <td><strong style="font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text);">${escHtml(inst)}</strong></td>
