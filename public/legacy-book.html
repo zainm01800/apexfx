@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Z.FX — Legacy Books</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (let r of regs) { r.unregister(); }
+      });
+    }
+  </script>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#07090D" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Z.FX" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="stylesheet" href="./history.css" />
+  <link rel="stylesheet" href="./progress.css" />
+  <link rel="stylesheet" href="./theme.css?v=5" />
+  <link rel="stylesheet" href="./workspace.css?v=1" />
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
+    <nav class="nav">
+
+      <a class="nav-link active" id="nav-engine" href="engine-book.html">Engine Book</a>
+      <a class="nav-link" id="nav-race" href="ab-race.html">The Race</a>
+      <a class="nav-link" id="nav-research" href="research-book.html">Research</a>
+      <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
+      <a class="nav-link" id="nav-history" href="history.html">History</a>
+    </nav>
+    <div class="header-right" id="headerRight">
+      <span class="paper-pill">PAPER ONLY</span>
+    </div>
+  </header>
+
+  <main class="pg-main">
+    <p class="ws-muted"><a href="engine-book.html">← New forward books</a> · Older ledgers remain unchanged. Official saved marks only.</p>
+    <div id="legacyBookError" class="ws-notice error" role="alert" hidden></div>
+
+    <div class="pg-header ob-pagehead" style="margin-bottom: 12px;">
+      <div>
+        <span class="ob-eyebrow" id="engExperimentLabel">Paper Proof · £100k Experiment</span>
+        <h1 class="pg-title" style="margin-bottom: 2px;">Legacy books</h1>
+        <p class="pg-subtitle" id="engBookBlurb" style="margin: 0; font-size: 12px; color: var(--ink-3);">Forward paper-trading proof book — virtual £100,000, stepped nightly off daily bars.</p>
+      </div>
+    </div>
+
+    <!-- Controls: Segmented Book Selector -->
+    <div class="ob-toolbar" style="margin-bottom: 14px;">
+      <div class="view-toggle" style="margin-bottom: 0;">
+        <button id="btnBookA" class="vt-btn active" data-book="a">Book A <span class="vt-badge">252d Proof</span></button>
+        <button id="btnBookB" class="vt-btn" data-book="b">Book B <span class="vt-badge">Spill50</span></button>
+        <button id="btnBookC" class="vt-btn" data-book="c">Book C <span class="vt-badge">Champion</span></button>
+        <button id="btnBookR" class="vt-btn" data-book="r">Book R <span class="vt-badge">USD ETF</span></button>
+        <button id="btnBookS" class="vt-btn" data-book="s">Book S <span class="vt-badge vt-badge-mint">⚡ Session SMC</span></button>
+        <button id="btnBookF" class="vt-btn" data-book="f">Book F <span class="vt-badge">Prop shield</span></button>
+      </div>
+      <div class="ob-toolbar-end">
+        <span id="lastUpdatedLabel" class="ob-sync">Checked: —</span>
+        <button id="btnRefresh" class="ob-btn">
+          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Book</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Engine book hero + consolidated stats -->
+    <div class="hist-summary" id="engineSummary" style="margin-bottom: 16px;">
+      <div class="hs-stat">
+        <div class="ob-hero-inner">
+          <div class="ob-hero-left">
+            <span class="ob-eyebrow" id="engHeroLabel">Engine Proof Book — Paper</span>
+            <span class="hs-val" id="engEquity">—</span>
+            <span class="ob-hero-sub">latest daily equity snapshot</span>
+            <span class="ob-hero-line" id="engHeroLine"></span>
+          </div>
+          <div class="ob-hero-chips">
+            <span class="ob-chip" id="engDayChip">Today: —</span>
+            <span class="ob-chip" id="engSinceChip">Net Return: —</span>
+          </div>
+        </div>
+      </div>
+      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="engOpenCount">—</span><span class="ob-stat-sub" id="engUnrealSub">saved ledger</span></div>
+      <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val" id="engUnreal">—</span><span class="ob-stat-sub">unrealized mark</span></div>
+      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
+      <div class="hs-stat"><span class="hs-label">Closed Trades</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub"><span id="engWinRate" style="font-weight: 700; color: var(--mint);">—</span> win · <span id="engClosedCount">—</span></span></div>
+      <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested</span></div>
+      <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">current: <span id="engCurDD">—</span></span></div>
+    </div>
+
+    <!-- Hidden elements for script DOM safety -->
+    <div id="engineStats" style="display: none;">
+      <span id="engGross"></span><span id="engGrossX"></span>
+      <span id="engCumPnl"></span>
+      <span id="engSinceSub"></span>
+    </div>
+
+    <!-- Open positions Section (Front & Center) -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="min-width: 0;">
+          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px;">
+            <span>📈</span> Open positions
+          </div>
+          <div id="engPosNote" class="ob-inline-note" style="margin-left: 0; margin-top: 3px;"></div>
+        </div>
+        <!-- Asset-class filter pills embedded in the card head -->
+        <div class="view-toggle" style="margin-bottom: 0;">
+          <button id="btnClassAll" class="vt-btn active" data-class="all">🌐 All Assets</button>
+          <button id="btnClassStocks" class="vt-btn" data-class="stocks">📈 Stocks</button>
+          <button id="btnClassForex" class="vt-btn" data-class="forex">💱 Forex</button>
+          <button id="btnClassCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
+        </div>
+      </div>
+      <div id="engPositionsWrap">
+        <div class="ob-empty">Loading engine book…</div>
+      </div>
+      <div class="pg-card-foot">Legacy paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
+    </section>
+
+    <!-- SMC Session Radar & Pending Setups (Book S) -->
+    <section class="pg-card" id="engPendingRadarCard" style="margin-bottom: 24px; display: none; border: 1px solid rgba(168,85,247,0.3); background: linear-gradient(180deg, rgba(20,15,30,0.95) 0%, rgba(12,10,20,0.95) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45);">
+      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="min-width: 0;">
+          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px; color: #C084FC;">
+            <span>⚡</span> SMC Session Radar · Pending Setups &amp; Trigger Watchlist
+          </div>
+          <div class="ob-inline-note" style="margin-left: 0; margin-top: 3px; color: var(--text3);">
+            London Killzone breakout levels monitored across 6 pairs based on Asian accumulation liquidity bounds and Macro Daily 50 EMA.
+          </div>
+        </div>
+        <div class="pg-day-pill mono" style="background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.35); font-size: 11px;">
+          London Killzone: 07:00–12:00 UTC
+        </div>
+      </div>
+      <div id="engRadarWrap" style="padding: 4px 14px 14px;">
+        <div class="ob-empty">Scanning for pending session triggers…</div>
+      </div>
+      <div class="pg-card-foot" style="font-size: 11.5px; color: var(--text3);">
+        Pending trigger orders execute automatically when a 1H candle closes beyond the Asian Range with Macro Trend alignment.
+      </div>
+    </section>
+
+    <details class="legacy-details"><summary>Equity history &amp; closed trades</summary>
+    <!-- Equity curve -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📉 Equity Curve <span class="ob-inline-note">daily close-of-book snapshots since seed</span></div>
+      </div>
+      <div style="position: relative;">
+        <div id="equityChart" style="width: 100%; height: 300px;"></div>
+        <div id="equityChartEmpty" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 12px; color: var(--text3);">Waiting for daily equity snapshots…</div>
+      </div>
+    </section>
+
+    <!-- Closed Trades -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head">
+        <div class="pg-card-title">📜 Closed Trades <span id="engClosedNote" class="ob-inline-note"></span></div>
+      </div>
+      <div id="engClosedWrap">
+        <div class="ob-empty-sm">No closed engine trades yet.</div>
+      </div>
+      <div class="pg-card-foot">Closed round-trips as recorded in the latest daily engine snapshot (state trade log).</div>
+    </section>
+
+    </details>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="./app-mode.js"></script>
+  <script src="./engine-book.js?v=24"></script>
+  <script>document.querySelector('.legacy-details').addEventListener('toggle', function () { if (this.open) renderEquityChart(); });</script>
+</body>
+</html>

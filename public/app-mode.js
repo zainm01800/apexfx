@@ -316,21 +316,35 @@ window.addEventListener('DOMContentLoaded', () => {
   // Inject Settings button into header
   const header = document.querySelector('.header');
   if (header) {
-    // Keep the research-control audit reachable from every terminal page. It is
-    // intentionally separate from the A/B/C live paper-book navigation.
+    // One compact navigation across the existing site. The broker terminal is
+    // deliberately unlisted; its page and execution backend are unchanged.
     const nav = header.querySelector('.nav');
-    if (nav && !nav.querySelector('#nav-research')) {
-      const research = document.createElement('a');
-      research.className = 'nav-link';
-      research.id = 'nav-research';
-      research.href = 'research-book.html';
-      research.textContent = 'Research';
-      if ((window.location.pathname.split('/').pop() || '') === 'research-book.html') {
-        research.classList.add('active');
-        research.setAttribute('aria-current', 'page');
+    if (nav) {
+      let current = window.location.pathname.split('/').pop() || 'engine-book.html';
+      if (!current.includes('.')) current += '.html';
+      const items = [
+        ['engine', 'Books', 'engine-book.html', ['engine-book.html', 'legacy-book.html']],
+        ['race', 'Compare', 'ab-race.html', ['ab-race.html']],
+        ['progress', 'Research', 'progress.html', ['progress.html', 'research-book.html']],
+      ];
+      nav.replaceChildren();
+      nav.setAttribute('aria-label', 'Main navigation');
+      for (const [id, title, href, pages] of items) {
+        const link = document.createElement('a');
+        link.id = 'nav-' + id; link.className = 'nav-link'; link.href = href; link.textContent = title;
+        if (pages.includes(current)) { link.classList.add('active'); link.setAttribute('aria-current', 'page'); }
+        nav.append(link);
       }
-      const race = nav.querySelector('#nav-race');
-      nav.insertBefore(research, race ? race.nextSibling : null);
+      const more = document.createElement('details'); more.className = 'ws-more';
+      const summary = document.createElement('summary'); summary.className = 'nav-link'; summary.textContent = 'More'; more.append(summary);
+      const menu = document.createElement('div');
+      for (const [title, href] of [['Scan history', 'history.html'], ['Legacy books', 'legacy-book.html?book=a'], ['Track record', 'track-record.html'], ['Method guide', 'how-it-works.html']]) {
+        const link = document.createElement('a'); link.className = 'nav-link'; link.href = href; link.textContent = title; menu.append(link);
+      }
+      more.append(menu); nav.append(more);
+      document.addEventListener('click', (event) => { if (!more.contains(event.target)) more.open = false; });
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && more.open) { more.open = false; summary.focus(); } });
+      const logo = header.querySelector('.logo'); if (logo) logo.href = 'engine-book.html';
     }
     const right = header.querySelector('.header-right');
     if (right) {

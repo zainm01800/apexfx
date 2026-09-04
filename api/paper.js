@@ -1,10 +1,7 @@
-// /api/paper — Forward paper-trading book, READ-ONLY (mirrors /api/mt4-trades).
-// GET /api/paper                    — daily equity snapshots (apex_paper_daily, chronological)
-// GET /api/paper?table=daily&limit=N — same, explicit (limit cap 500)
-// GET /api/paper?table=positions    — open paper positions (apex_paper_positions)
-// GET /api/paper?book=b             — challenger book (252+spill50, apex_paper_b_* tables); default = A
-// GET /api/paper?book=c             — champion book (63/126/252, apex_paper_c_* tables)
-// GET /api/paper?book=r             — Book R-252 $100k USD ETF forward-paper mirror
+// Read-only paper data. No broker calls, execution, seeding or persistence.
+// GET ?book=a|b|c|r|s|f|v6|v10&table=state|daily|positions|trades|pending|metadata
+// Legacy pending_radar aliases pending. Defaults: book=a, table=daily, limit=120.
+// V6/V10 state is one validated atomic JSONB document, never a legacy fallback.
 
 export const config = { runtime: 'edge' };
 
@@ -16,11 +13,25 @@ const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs
 const TABLES = {
   a: { daily: 'apex_paper_daily', positions: 'apex_paper_positions' },
   b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
-  c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions' },
+  c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions', fallbackId: '__apex_book_c_paper_runtime__' },
   r: { fallbackId: '__apex_book_r_252_forward_paper_runtime__' },
   s: { daily: 'apex_paper_s_daily', positions: 'apex_paper_s_positions', fallbackId: '__apex_book_s_session_smc_runtime__' },
   f: { daily: 'apex_paper_f_daily', positions: 'apex_paper_f_positions', fallbackId: '__apex_book_f_prop_shield_runtime__' },
+  v6: { fallbackId: '__apex_book_v6_forward_paper_runtime__', profile: 'strict_3_6_static' },
+  v10: { fallbackId: '__apex_book_v10_forward_paper_runtime__', profile: 'standard_5_10_static' },
 };
+const PUBLIC_TABLES = new Set(['state', 'daily', 'positions', 'trades', 'pending', 'metadata', 'pending_radar']);
+const COLLECTIONS = ['daily', 'positions', 'trades', 'pending'];
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const isRows = value => Array.isArray(value) && value.every(isRecord);
+
+class DataError extends Error {
+  constructor(status = 503, code = 'paper_data_unavailable') {
+    super(code);
+    this.status = status;
+    this.code = code;
+  }
+}
 
 function supaHeaders() {
   return {
@@ -40,6 +51,159 @@ function corsHeaders(origin) {
   };
 }
 
+async function fetchRows(url) {
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: supaHeaders() });
+  } catch {
+    throw new DataError();
+  }
+  if (!response.ok) throw new DataError();
+  let rows;
+  try { rows = await response.json(); } catch { throw new DataError(); }
+  if (!isRows(rows)) throw new DataError();
+  return rows;
+}
+
+async function runtimeState(book) {
+  const id = TABLES[book].fallbackId;
+  if (!id) throw new DataError();
+  const rows = await fetchRows(`${SUPA_URL}/rest/v1/apex_analyses?id=eq.${id}&select=feature_vector&limit=1`);
+  if (!rows.length) throw new DataError(404, 'paper_state_not_found');
+  if (rows.length !== 1 || !isRecord(rows[0].feature_vector)) throw new DataError();
+  const state = rows[0].feature_vector;
+  if (state.book_id !== undefined && state.book_id !== book) throw new DataError();
+  return state;
+}
+
+function validateExperimental(state, book) {
+  if (state.schema_version !== 1 || state.book_id !== book ||
+      !isRecord(state.metadata) || state.metadata.book_id !== book ||
+      state.metadata.profile !== TABLES[book].profile ||
+      state.metadata.account_currency !== 'GBP' || state.metadata.initial_equity !== 100000 ||
+      state.metadata.paper_only !== true || state.metadata.broker_enabled !== false ||
+      !COLLECTIONS.every(key => isRows(state[key]))) throw new DataError();
+  return state;
+}
+
+function chronological(rows, limit, table = 'daily') {
+  const time = row => String(table === 'trades'
+    ? (row.exit_time || row.exit_date || row.date || '')
+    : (row.date || row.decision_date || ''));
+  return [...rows].sort((a, b) => time(a).localeCompare(time(b))).slice(-limit);
+}
+
+function project(state, table, limit) {
+  if (table === 'state') return state; // Keep the complete atomic document intact.
+  if (table === 'metadata') return state.metadata;
+  const rows = state[table];
+  if (!isRows(rows)) throw new DataError();
+  return table === 'positions' || table === 'pending'
+    ? rows.slice(0, limit) : chronological(rows, limit, table);
+}
+
+function legacyExtra(daily) {
+  const latest = daily.length ? daily[daily.length - 1] : null;
+  return latest && isRecord(latest.state_extra) ? latest.state_extra : {};
+}
+
+function legacyTrades(daily, state = null) {
+  const extra = legacyExtra(daily);
+  const rows = state?.trades ?? extra.trades;
+  if (rows === undefined && daily.length === 0) return [];
+  if (!isRows(rows)) throw new DataError();
+  return rows;
+}
+
+function legacyPending(extra, state = null) {
+  const value = state?.pending_radar ?? state?.pending ?? extra.pending_radar ?? extra.pending ?? extra.pending_orders;
+  if (value === undefined || value === null) return [];
+  // Legacy engines used both arrays and instrument-keyed dictionaries.
+  const rows = isRecord(value) ? Object.entries(value).map(([instrument, row]) =>
+    isRecord(row) ? { ...row, instrument: row.instrument || instrument } : row) : value;
+  if (!isRows(rows)) throw new DataError();
+  return rows;
+}
+
+function legacyMetadata(book, daily, state = null, atomic = false) {
+  const latest = daily.length ? daily[daily.length - 1] : null;
+  const extra = legacyExtra(daily);
+  const currency = ['a', 'b', 'c'].includes(book) ? 'GBP' : 'USD';
+  const halted = Boolean(state?.halted ?? extra.halted);
+  return {
+    ...(isRecord(state?.metadata) ? state.metadata : {}),
+    book_id: book, label: `Book ${book.toUpperCase()}`, currency, account_currency: currency,
+    paper_only: true, broker_enabled: false, atomic_snapshot: atomic,
+    halted, status: halted ? 'halted' : state?.status || extra.status || (latest ? 'paper_snapshot' : 'no_data'),
+    last_data_as_of: state?.last_processed_date || extra.last_processed_date || latest?.date || null,
+    initial_equity: state?.initial_equity ?? extra.initial_equity ?? null,
+  };
+}
+
+function normalizeLegacyState(raw, book, limit) {
+  const rawDaily = raw.daily ?? raw.equity_curve;
+  const rawPositions = isRecord(raw.positions) ? Object.values(raw.positions) : raw.positions;
+  if (!isRows(rawDaily) || !isRows(rawPositions)) throw new DataError();
+  const daily = chronological(rawDaily, limit);
+  return {
+    book_id: book, generated_at_utc: raw.generated_at_utc || raw.updated_at || null,
+    daily, positions: rawPositions.slice(0, limit),
+    trades: chronological(legacyTrades(daily, raw), limit, 'trades'),
+    pending: legacyPending(legacyExtra(daily), raw).slice(0, limit),
+    metadata: legacyMetadata(book, daily, raw, true),
+  };
+}
+
+async function dedicatedRows(book, table, limit) {
+  const name = TABLES[book][table];
+  if (!name) throw new DataError();
+  const order = table === 'daily' ? 'date.desc' : 'instrument.asc';
+  const rows = await fetchRows(`${SUPA_URL}/rest/v1/${name}?order=${order}&limit=${limit}`);
+  return table === 'daily' ? chronological(rows, limit) : rows;
+}
+
+async function legacyRequest(book, table, limit) {
+  if (!TABLES[book].daily) return project(normalizeLegacyState(await runtimeState(book), book, limit), table, limit);
+  let daily;
+  let positions;
+  try {
+    if (table === 'daily' || table === 'positions') return await dedicatedRows(book, table, limit);
+    if (table === 'state') {
+      const pair = await Promise.allSettled([
+        dedicatedRows(book, 'daily', limit), dedicatedRows(book, 'positions', limit),
+      ]);
+      if (pair.some(result => result.status === 'rejected')) {
+        const error = new DataError();
+        // If one primary side is readable, replacing the pair with an older
+        // mirror could contradict a valid flat/open state. Fail closed instead.
+        error.noFallback = pair.some(result => result.status === 'fulfilled');
+        throw error;
+      }
+      [daily, positions] = pair.map(result => result.value);
+    } else {
+      // Logs live inside the latest daily snapshot, not in the daily array.
+      daily = await dedicatedRows(book, 'daily', 1);
+    }
+  } catch (error) {
+    if (error.noFallback || !TABLES[book].fallbackId) throw error;
+    // A failed/malformed source can fall back; a successful empty positions
+    // array cannot. This avoids resurrecting closed lots from stale mirrors.
+    return project(normalizeLegacyState(await runtimeState(book), book, limit), table, limit);
+  }
+  // Successfully read primary tables remain authoritative. An absent/malformed
+  // embedded log is an availability error, not permission to swap in an older
+  // mirror that could resurrect positions or mix incompatible book revisions.
+  if (table === 'state') return {
+    book_id: book, generated_at_utc: null, daily, positions,
+    trades: chronological(legacyTrades(daily), limit, 'trades'),
+    pending: legacyPending(legacyExtra(daily)).slice(0, limit),
+    metadata: legacyMetadata(book, daily),
+  };
+  if (table === 'trades') return chronological(legacyTrades(daily), limit, 'trades');
+  if (table === 'pending') return legacyPending(legacyExtra(daily)).slice(0, limit);
+  return legacyMetadata(book, daily);
+}
+
 export default async function handler(req) {
   const url    = new URL(req.url);
   const origin = req.headers.get('origin');
@@ -48,71 +212,25 @@ export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method !== 'GET') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: cors });
 
+  const book = url.searchParams.get('book') ?? 'a';
+  const requestedTable = url.searchParams.get('table') ?? 'daily';
+  const rawLimit = url.searchParams.get('limit') ?? '120';
+  if (!Object.hasOwn(TABLES, book) || !PUBLIC_TABLES.has(requestedTable) ||
+      !/^[1-9]\d*$/.test(rawLimit) || Number(rawLimit) > 500) {
+    return new Response(JSON.stringify({ error: 'Invalid book, table or limit' }),
+      { status: 400, headers: { ...cors, 'Cache-Control': 'no-store' } });
+  }
+  const table = requestedTable === 'pending_radar' ? 'pending' : requestedTable;
+  const limit = Number(rawLimit);
   try {
-    const table = url.searchParams.get('table') || 'daily';
-    const limit = Math.min(500, parseInt(url.searchParams.get('limit') || '120', 10));
-    const book  = TABLES[url.searchParams.get('book')] ? url.searchParams.get('book') : 'a';
-
-    // Book R is an isolated forward-paper evidence stream stored as one
-    // namespaced JSONB document. It has no funded/broker table pair.
-    if (book === 'r') {
-      const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${TABLES.r.fallbackId}&select=feature_vector&limit=1`;
-      const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
-      if (!stateResponse.ok) {
-        const txt = await stateResponse.text();
-        return new Response(JSON.stringify({ error: `Book R mirror query failed: ${txt}` }), { status: stateResponse.status, headers: cors });
-      }
-      const stateRows = await stateResponse.json();
-      const state = stateRows[0] && stateRows[0].feature_vector;
-      const key = table === 'positions' ? 'positions' : 'daily';
-      const rows = state && Array.isArray(state[key]) ? state[key].slice(-limit) : [];
-      return new Response(JSON.stringify(rows), { status: 200, headers: cors });
-    }
-
-    let queryUrl;
-    if (table === 'positions') {
-      queryUrl = `${SUPA_URL}/rest/v1/${TABLES[book].positions}?order=instrument.asc&limit=${limit}`;
-    } else {
-      // Daily snapshots oldest→newest so the client can draw the curve as-is.
-      queryUrl = `${SUPA_URL}/rest/v1/${TABLES[book].daily}?order=date.asc&limit=${limit}`;
-    }
-
-    const response = await fetch(queryUrl, {
-      method: 'GET',
-      headers: supaHeaders(),
-    });
-
-    if (!response.ok) {
-      // Temporary Book C / F / S mirror while dedicated tables have not yet been
-      // provisioned. The engine stores both arrays in one namespaced JSONB row;
-      // dedicated tables automatically win as soon as they become reachable.
-      if (book === 'c' || book === 'f' || book === 's') {
-        const fallbackId = TABLES[book].fallbackId || (book === 'c' ? '__apex_book_c_paper_runtime__' : (book === 's' ? '__apex_book_s_session_smc_runtime__' : '__apex_book_f_prop_shield_runtime__'));
-        const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`;
-        const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
-        if (stateResponse.ok) {
-          const stateRows = await stateResponse.json();
-          const state = stateRows[0] && stateRows[0].feature_vector;
-          let fallback = [];
-          if (state) {
-            if (table === 'positions') {
-              fallback = Array.isArray(state.positions) ? state.positions : Object.values(state.positions || {});
-            } else if (table === 'daily') {
-              fallback = Array.isArray(state.daily) ? state.daily : (state.equity_curve || []);
-            } else {
-              fallback = Array.isArray(state[table]) ? state[table] : [];
-            }
-          }
-          return new Response(JSON.stringify(fallback), { status: 200, headers: cors });
-        }
-      }
-      const txt = await response.text();
-      return new Response(JSON.stringify({ error: `Supabase query failed: ${txt}` }), { status: response.status, headers: cors });
-    }
-
-    const data = await response.json();
-    return new Response(JSON.stringify(data), { status: 200, headers: cors });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+    const payload = book === 'v6' || book === 'v10'
+      ? project(validateExperimental(await runtimeState(book), book), table, limit)
+      : await legacyRequest(book, table, limit);
+    return new Response(JSON.stringify(payload), { status: 200, headers: cors });
+  } catch (error) {
+    const status = error instanceof DataError ? error.status : 503;
+    const code = error instanceof DataError ? error.code : 'paper_data_unavailable';
+    return new Response(JSON.stringify({ error: code }),
+      { status, headers: { ...cors, 'Cache-Control': 'no-store' } });
   }
 }

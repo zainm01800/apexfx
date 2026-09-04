@@ -1607,21 +1607,16 @@ async function fetchPaperClosed() {
 }
 
 async function loadEngineTrades() {
-  const [positions, closed, ibkrPosRes, ibkrTrdRes, ibkrAccRes] = await Promise.all([
+  const [positions, closed] = await Promise.all([
     fetchPaperPositions(),
     fetchPaperClosed(),
-    fetch('/api/ibkr?view=positions').catch(() => null),
-    fetch('/api/ibkr?view=trades&limit=100').catch(() => null),
-    fetch('/api/ibkr?view=account').catch(() => null),
   ]);
   _paperPositions = positions;
   _paperClosed = closed;
 
-  if (ibkrPosRes && ibkrPosRes.ok) _ibkrPositions = await ibkrPosRes.json().catch(() => []);
-  if (ibkrTrdRes && ibkrTrdRes.ok) _ibkrTrades = await ibkrTrdRes.json().catch(() => []);
-  if (ibkrAccRes && ibkrAccRes.ok) _ibkrAccount = await ibkrAccRes.json().catch(() => ({}));
-
-  _ibkrRoundTrips = computeIbkrRoundTrips(_ibkrTrades);
+  // The broker terminal is hidden. Scan history must not mix broker balances
+  // or trades into the paper/research summary while it is unlisted.
+  _ibkrPositions = []; _ibkrTrades = []; _ibkrAccount = {}; _ibkrRoundTrips = [];
 
   renderEngineTrades();
   updateSummary();
@@ -1723,7 +1718,7 @@ function renderEngineTrades() {
   if (!el) return;
 
   const hasIbkr = _ibkrRoundTrips.length > 0 || _ibkrPositions.length > 0;
-  const head = `<div class="acc-header"><div class="acc-title">⚙️ IBKR Account Trades <span class="pp-book">Interactive Brokers Paper Account DUQ278370</span></div></div>`;
+  const head = `<div class="acc-header"><div class="acc-title">Legacy paper-book trades <span class="pp-book">Book A · saved ledger</span></div></div>`;
 
   if (hasIbkr) {
     const sym = (_ibkrAccount && _ibkrAccount.currency === 'GBP') ? '£' : '$';

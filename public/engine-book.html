@@ -2,265 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Z.FX — Engine Book</title>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs) {
-        for (let r of regs) { r.unregister(); }
-      });
-    }
-  </script>
-  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Z.FX — Forward Books</title>
+  <meta name="description" content="Independent GBP100,000 experimental paper books with static risk limits and forward-only evidence." />
   <meta name="theme-color" content="#07090D" />
-  <link rel="apple-touch-icon" href="/icon.svg" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Z.FX" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230C1016'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-weight='700' font-size='13' fill='%232FD6A3'>AX</text></svg>" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./dashboard.css" />
-  <link rel="stylesheet" href="./history.css" />
-  <link rel="stylesheet" href="./progress.css" />
-  <link rel="stylesheet" href="./theme.css?v=4" />
+  <link rel="stylesheet" href="./theme.css?v=5" />
+  <link rel="stylesheet" href="./workspace.css?v=1" />
 </head>
 <body>
-
   <header class="header">
-    <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
-    <nav class="nav">
-      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
-      <a class="nav-link active" id="nav-engine" href="engine-book.html">Engine Book</a>
-      <a class="nav-link" id="nav-race" href="ab-race.html">The Race</a>
-      <a class="nav-link" id="nav-research" href="research-book.html">Research</a>
-      <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>
-      <a class="nav-link" id="nav-history" href="history.html">History</a>
-    </nav>
-    <div class="header-right" id="headerRight">
-      <div class="live-pill"><span class="live-dot"></span>LIVE</div>
-    </div>
+    <a class="logo" href="engine-book.html" aria-label="Z.FX home">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
+    <nav class="nav" aria-label="Main navigation"><a class="nav-link active" href="engine-book.html" aria-current="page">Books</a><a class="nav-link" href="ab-race.html">Compare</a><a class="nav-link" href="progress.html">Research</a></nav>
+    <div class="header-right"><span class="paper-pill">PAPER ONLY</span></div>
   </header>
-
-  <main class="pg-main">
-
-    <div class="pg-header ob-pagehead" style="margin-bottom: 12px;">
-      <div>
-        <span class="ob-eyebrow" id="engExperimentLabel">Paper Proof · £100k Experiment</span>
-        <h1 class="pg-title" style="margin-bottom: 2px;">Engine Book</h1>
-        <p class="pg-subtitle" id="engBookBlurb" style="margin: 0; font-size: 12px; color: var(--ink-3);">Forward paper-trading proof book — virtual £100,000, stepped nightly off daily bars.</p>
+  <main class="workspace">
+    <div class="ws-heading"><div><span class="ws-eyebrow">Strategy workspace</span><h1>Forward books</h1><p>Two risk profiles. Separate capital. One clear view.</p></div><span class="ws-meta" id="checkedAt">Connecting to paper ledger…</span></div>
+    <div class="ws-toolbar">
+      <div class="ws-book-tabs" role="group" aria-label="Select forward book">
+        <button class="ws-book-tab" data-book="v6" aria-pressed="true"><strong>Book V6</strong><span>3% daily · 6% static loss</span></button>
+        <button class="ws-book-tab" data-book="v10" aria-pressed="false"><strong>Book V10</strong><span>5% daily · 10% static loss</span></button>
       </div>
+      <div class="ws-controls"><label class="ws-muted" for="legacyBook">Older books</label><select id="legacyBook" class="ws-select"><option value="">Select a book</option><option value="a">Book A · 252-day</option><option value="b">Book B · Spill50</option><option value="c">Book C · Multi-horizon</option><option value="r">Book R · ETF momentum</option><option value="s">Book S · Session SMC</option><option value="f">Book F · Prop shield</option></select><button class="ws-btn" id="refreshBook">Refresh</button></div>
     </div>
-
-    <!-- Controls: Segmented Book Selector -->
-    <div class="ob-toolbar" style="margin-bottom: 14px;">
-      <div class="view-toggle" style="margin-bottom: 0;">
-        <button id="btnBookA" class="vt-btn active" data-book="a">Book A <span class="vt-badge">252d Proof</span></button>
-        <button id="btnBookB" class="vt-btn" data-book="b">Book B <span class="vt-badge">Spill50</span></button>
-        <button id="btnBookC" class="vt-btn" data-book="c">Book C <span class="vt-badge">Champion</span></button>
-        <button id="btnBookR" class="vt-btn" data-book="r">Book R <span class="vt-badge">USD ETF</span></button>
-        <button id="btnBookS" class="vt-btn" data-book="s">Book S <span class="vt-badge vt-badge-mint">⚡ Session SMC</span></button>
-      </div>
-      <div class="ob-toolbar-end">
-        <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
-        <button id="btnRefresh" class="ob-btn">
-          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Book</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Engine book hero + consolidated stats -->
-    <div class="hist-summary" id="engineSummary" style="margin-bottom: 16px;">
-      <div class="hs-stat">
-        <div class="ob-hero-inner">
-          <div class="ob-hero-left">
-            <span class="ob-eyebrow" id="engHeroLabel">Engine Proof Book — Paper</span>
-            <span class="hs-val" id="engEquity">—</span>
-            <span class="ob-hero-sub">latest daily equity snapshot</span>
-            <span class="ob-hero-line" id="engHeroLine"></span>
-          </div>
-          <div class="ob-hero-chips">
-            <span class="ob-chip" id="engDayChip">Today: —</span>
-            <span class="ob-chip" id="engSinceChip">Net Return: —</span>
-          </div>
-        </div>
-      </div>
-      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="engOpenCount">—</span><span class="ob-stat-sub" id="engUnrealSub">live floating</span></div>
-      <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val" id="engUnreal">—</span><span class="ob-stat-sub">unrealized mark</span></div>
-      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
-      <div class="hs-stat"><span class="hs-label">Closed Trades</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub"><span id="engWinRate" style="font-weight: 700; color: var(--mint);">—</span> win · <span id="engClosedCount">—</span></span></div>
-      <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested</span></div>
-      <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">current: <span id="engCurDD">—</span></span></div>
-    </div>
-
-    <!-- Hidden elements for script DOM safety -->
-    <div id="engineStats" style="display: none;">
-      <span id="engGross"></span><span id="engGrossX"></span>
-      <span id="engCumPnl"></span>
-      <span id="engSinceSub"></span>
-    </div>
-
-    <!-- Live Open Trades Section (Front & Center) -->
-    <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div style="min-width: 0;">
-          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px;">
-            <span>📈</span> Live Open Trades
-          </div>
-          <div id="engPosNote" class="ob-inline-note" style="margin-left: 0; margin-top: 3px;"></div>
-        </div>
-        <!-- Asset-class filter pills embedded in the card head -->
-        <div class="view-toggle" style="margin-bottom: 0;">
-          <button id="btnClassAll" class="vt-btn active" data-class="all">🌐 All Assets</button>
-          <button id="btnClassStocks" class="vt-btn" data-class="stocks">📈 Stocks</button>
-          <button id="btnClassForex" class="vt-btn" data-class="forex">💱 Forex</button>
-          <button id="btnClassCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
-        </div>
-      </div>
-      <div id="engPositionsWrap">
-        <div class="ob-empty">Loading engine book…</div>
-      </div>
-      <div class="pg-card-foot">Engine paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
+    <div class="ws-notice">Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval. <a href="progress.html">View research</a></div>
+    <div id="bookError" class="ws-notice error" role="alert" hidden></div>
+    <section class="ws-overview" aria-label="Account overview" aria-busy="true" id="overview">
+      <div class="ws-capital"><span class="ws-muted" id="accountLabel">Book V6 · GBP account equity</span><strong class="ws-value" id="accountEquity">—</strong><div class="ws-return"><span id="accountReturn">—</span><span class="ws-muted">since activation</span></div><div class="ws-meta" id="bookStatus">Loading authoritative state…</div><div class="ws-meta" id="dataThrough">No historical profits are imported.</div></div>
+      <div class="ws-chart-pane"><div class="ws-title-row"><span class="ws-muted">Forward equity</span><span class="ws-meta" id="sessionCount">— sessions</span></div><div class="ws-chart" id="forwardChart"><div class="ws-empty">Waiting for the paper ledger.</div></div><div class="ws-title-row"><span class="ws-meta" id="seedDate">Activation: —</span><span class="ws-meta">£100,000 seed</span></div></div>
+      <div class="ws-risk"><h2>Loss headroom</h2><div><div class="ws-risk-row"><span>Daily limit</span><strong id="dailyHeadroom">—</strong></div><div class="ws-meter"><span id="dailyMeter" style="width:0"></span></div><small id="dailyFloor">3% daily-loss model</small></div><div><div class="ws-risk-row"><span>Static maximum</span><strong id="maxHeadroom">—</strong></div><div class="ws-meter"><span id="maxMeter" style="width:0"></span></div><small id="maxFloor">£94,000 external floor</small></div></div>
     </section>
-
-    <!-- SMC Session Radar & Pending Setups (Book S) -->
-    <section class="pg-card" id="engPendingRadarCard" style="margin-bottom: 24px; display: none; border: 1px solid rgba(168,85,247,0.3); background: linear-gradient(180deg, rgba(20,15,30,0.95) 0%, rgba(12,10,20,0.95) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45);">
-      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div style="min-width: 0;">
-          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px; color: #C084FC;">
-            <span>⚡</span> SMC Session Radar · Pending Setups &amp; Trigger Watchlist
-          </div>
-          <div class="ob-inline-note" style="margin-left: 0; margin-top: 3px; color: var(--text3);">
-            London Killzone breakout levels monitored across 6 pairs based on Asian accumulation liquidity bounds and Macro Daily 50 EMA.
-          </div>
-        </div>
-        <div class="pg-day-pill mono" style="background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.35); font-size: 11px;">
-          London Killzone: 07:00–12:00 UTC
-        </div>
-      </div>
-      <div id="engRadarWrap" style="padding: 4px 14px 14px;">
-        <div class="ob-empty">Scanning for pending session triggers…</div>
-      </div>
-      <div class="pg-card-foot" style="font-size: 11.5px; color: var(--text3);">
-        Pending trigger orders execute automatically when a 1H candle closes beyond the Asian Range with Macro Trend alignment.
-      </div>
+    <section class="ws-metrics" aria-label="Book statistics">
+      <div class="ws-metric"><label>Day P&amp;L</label><strong id="dayPnl">—</strong><small>last completed session</small></div>
+      <div class="ws-metric"><label>Open P&amp;L</label><strong id="openPnl">—</strong><small>official closing marks</small></div>
+      <div class="ws-metric"><label>Closed net P&amp;L</label><strong id="closedPnl">—</strong><small>fees and borrow included</small></div>
+      <div class="ws-metric"><label>Peak drawdown</label><strong id="maxDrawdown">—</strong><small>not the static-loss rule</small></div>
+      <div class="ws-metric"><label>Closed win rate</label><strong id="winRate">—</strong><small id="tradeCount">no completed trades</small></div>
+      <div class="ws-metric"><label>Per-trade ceiling</label><strong id="tradeRisk">0.75%</strong><small>actual sizing may be lower</small></div>
     </section>
-
-    <!-- Forward Testing Progress Tracker from 100k -->
-    <section class="pg-card" id="engProgressCard" style="margin-bottom: 24px; border: 1px solid rgba(47,214,163,0.28); background: linear-gradient(180deg, rgba(14,20,30,0.98) 0%, rgba(10,14,22,0.98) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);">
-      <div class="pg-card-head" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700;">
-            <span>🎯</span> <span id="progTitle">100K Forward Testing Progress</span>
-          </div>
-          <span class="ob-inline-note" id="progBaseNote">Seeded at $100,000.00 USD</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span id="progLiveBadge" class="live-pill" style="font-size: 10px; padding: 3px 10px;"><span class="live-dot"></span>LIVE TELEMETRY</span>
-        </div>
-      </div>
-
-      <!-- Key progress metrics row: 5-column auto-fit grid -->
-      <div class="hist-summary" id="progStatsRow" style="margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
-        <div class="hs-stat">
-          <span class="hs-label">Starting Seed</span>
-          <span class="hs-val" id="progStartVal">$100,000.00</span>
-          <span class="ob-stat-sub">initial benchmark</span>
-        </div>
-        <div class="hs-stat">
-          <span class="hs-label">Live Valuation</span>
-          <span class="hs-val accent" id="progLiveVal">$100,000.00</span>
-          <span class="ob-stat-sub" id="progLiveValSub">cash + open marks</span>
-        </div>
-        <div class="hs-stat">
-          <span class="hs-label">Total Net Growth</span>
-          <span class="hs-val" id="progGrowthVal">—</span>
-          <span class="ob-stat-sub" id="progGrowthPct">forward return</span>
-        </div>
-        <div class="hs-stat">
-          <span class="hs-label">Open Trades Impact</span>
-          <span class="hs-val" id="progOpenPnl">—</span>
-          <span class="ob-stat-sub" id="progOpenSub">0 active positions</span>
-        </div>
-        <div class="hs-stat">
-          <span class="hs-label">Violation Cushion</span>
-          <span class="hs-val green" id="progCushionVal">—</span>
-          <span class="ob-stat-sub">above 10% max DD floor</span>
-        </div>
-      </div>
-
-      <!-- Multi-stage milestone progress bar -->
-      <div style="margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); font-family: var(--font-mono);">Milestone Target Progression</span>
-          <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--mint);" id="progTargetPct">Phase 1 in Progress</span>
-        </div>
-
-        <div class="prog-track-container">
-          <div class="prog-track-rail">
-            <div id="progBarFill" class="prog-track-fill" style="width: 0%;"></div>
-          </div>
-
-          <!-- Milestones labels with status badges -->
-          <div id="progMilestoneLabels" class="prog-checkpoints">
-            <div class="prog-checkpoint-node">
-              <span style="color: var(--ink-2); font-weight: 600;" id="progLblBase">$100k</span>
-              <span style="font-size: 9.5px; color: var(--ink-3);">Baseline Seed</span>
-            </div>
-            <div class="prog-checkpoint-node">
-              <span style="color: #F5B04C; font-weight: 700;" id="progLblP1">$108k (+8%)</span>
-              <div><span class="badge-stage-prog">PHASE 1 ACTIVE</span></div>
-            </div>
-            <div class="prog-checkpoint-node">
-              <span style="color: var(--ink-3); font-weight: 500;" id="progLblP2">$113.4k (+5%)</span>
-              <div><span class="badge-stage-locked">PHASE 2 LOCKED</span></div>
-            </div>
-            <div class="prog-checkpoint-node">
-              <span style="color: var(--ink-3); font-weight: 500;" id="progCurrentTarget">$113.4k+</span>
-              <div><span class="badge-stage-locked">FUNDED STAGE</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Open Position Dynamic Callout -->
-      <div id="progOpenTradeBanner" style="margin-top: 14px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(90deg, rgba(56,189,248,0.08) 0%, rgba(47,214,163,0.05) 100%); border: 1px solid rgba(56,189,248,0.25); display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; flex-wrap: wrap; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="color: #38BDF8; font-size: 15px;">⚡</span>
-          <span id="progOpenTradeDesc" style="color: var(--ink);"><strong>Live Open Trades:</strong> Calculating live valuation...</span>
-        </div>
-        <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--mint);" id="progOpenTradeImpact">—</div>
-      </div>
+    <section class="ws-panel" aria-label="Book details">
+      <div class="ws-panel-head"><div class="ws-tabs" role="tablist" aria-label="Book details"><button class="ws-tab" id="tab-positions" role="tab" aria-selected="true" aria-controls="bookPanel" data-panel="positions">Open positions <span class="ws-count" id="countPositions">0</span></button><button class="ws-tab" id="tab-pending" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="pending" tabindex="-1">Pending <span class="ws-count" id="countPending">0</span></button><button class="ws-tab" id="tab-trades" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="trades" tabindex="-1">Closed trades <span class="ws-count" id="countTrades">0</span></button><button class="ws-tab" id="tab-rules" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="rules" tabindex="-1">Rules &amp; evidence</button></div><label class="ws-muted" hidden id="tradeSearchLabel">Filter <input class="ws-search" id="tradeSearch" type="search" placeholder="Symbol…" aria-label="Filter trades by symbol" /></label></div>
+      <div class="ws-panel-body" id="bookPanel" role="tabpanel" aria-labelledby="tab-positions"><div class="ws-empty"><strong>Loading paper book</strong><p>Balances and trades will appear only after the saved ledger is verified.</p></div></div>
     </section>
-
-    <!-- Equity curve -->
-    <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head">
-        <div class="pg-card-title">📉 Equity Curve <span class="ob-inline-note">daily close-of-book snapshots since seed</span></div>
-      </div>
-      <div style="position: relative;">
-        <div id="equityChart" style="width: 100%; height: 300px;"></div>
-        <div id="equityChartEmpty" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 12px; color: var(--text3);">Waiting for daily equity snapshots…</div>
-      </div>
-    </section>
-
-    <!-- Closed Trades -->
-    <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head">
-        <div class="pg-card-title">📜 Closed Trades <span id="engClosedNote" class="ob-inline-note"></span></div>
-      </div>
-      <div id="engClosedWrap">
-        <div class="ob-empty-sm">No closed engine trades yet.</div>
-      </div>
-      <div class="pg-card-foot">Closed round-trips as recorded in the latest daily engine snapshot (state trade log).</div>
-    </section>
-
+    <p class="ws-footer">Paper fills are evaluated after each completed US market session, not executed with a broker at the open. ETF bars proxy CFD prices; intraday account-loss touches are conservative estimates. Firm-specific rules, spreads and contract sizes still need verification.</p>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-  <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=23"></script>
+  <script src="./app-mode.js?v=5"></script>
+  <script type="module" src="./forward-books.js?v=1"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Z.FX — AI Research</title>
   <script>
-    window.location.replace('/ibkr-trades.html');
+    window.location.replace('/engine-book.html');
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
         for (let r of regs) { r.unregister(); }
@@ -36,13 +36,14 @@
       window.addEventListener('unhandledrejection', function (e) { cap('promise', (e && e.reason && (e.reason.message || e.reason)) || e); });
     })();
   </script>
+  <link rel="stylesheet" href="./workspace.css?v=1" />
 </head>
 <body>
 
   <header class="header">
     <a href="index.html" class="logo" style="text-decoration: none;">Z<span class="logo-dot">.</span><span class="logo-fx">FX</span></a>
     <nav class="nav">
-      <a class="nav-link" id="nav-ibkr" href="ibkr-trades.html">IBKR Terminal</a>
+
       <a class="nav-link" id="nav-engine" href="engine-book.html">Engine Book</a>
       <a class="nav-link" id="nav-race" href="ab-race.html">A/B Race</a>
       <a class="nav-link" id="nav-progress" href="progress.html">Progress</a>

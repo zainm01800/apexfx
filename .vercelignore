@@ -11,6 +11,7 @@ venv/
 scratch/
 docs/
 test/
+tests/
 .pytest_cache/
 .playwright-mcp/
 .aider.tags.cache.v4/

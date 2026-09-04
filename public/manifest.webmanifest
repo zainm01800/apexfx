@@ -1,8 +1,8 @@
 {
-  "name": "APEX FX — AI Research",
-  "short_name": "APEX FX",
-  "description": "Hedge-fund-grade AI trading analysis on any stock, forex pair, or crypto. Multi-framework, probabilistic, honesty-first.",
-  "start_url": "/dashboard.html",
+  "name": "Z.FX — Forward Paper Books",
+  "short_name": "Z.FX",
+  "description": "Experimental forward-paper books, risk tracking and quantitative research evidence. No broker execution.",
+  "start_url": "/engine-book.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#09090f",

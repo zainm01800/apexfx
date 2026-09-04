@@ -61,11 +61,11 @@ const BOOKS = {
     dailyTable: 'apex_paper_f_daily',
     positionsTable: 'apex_paper_f_positions',
     fallbackId: '__apex_book_f_prop_shield_runtime__',
-    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 28 Jul 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering, +1.0R breakeven de-risking lock, next-session open fills, and gap-aware stop accounting. Pure forward testing tracking challenge progression from scratch to funded.',
+    blurb: 'Legacy USD prop-shield paper book. Its historical performance and management rules have not been re-certified by this interface update.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
-if (!BOOKS[_book]) _book = 'a';
+if (!Object.hasOwn(BOOKS, _book)) _book = 'a';
 
 let _dailyRows = [];    // ascending daily snapshots
 let _positions = [];    // open engine positions
@@ -81,7 +81,7 @@ function setLastSyncLabel(ts = new Date()) {
   _lastSyncTime = ts;
   const label = document.getElementById('lastUpdatedLabel');
   if (label) {
-    label.textContent = 'Last Sync: ' + fmtUK(ts, true);
+    label.textContent = 'Checked: ' + fmtUK(ts, true);
   }
 }
 
@@ -199,94 +199,32 @@ function pnlBadgeCompact(pnl, pct) {
 }
 
 // ── Data loading ─────────────────────────────────────────────────────────────
+let _loadSequence = 0;
+let _renderedBook = null;
 async function loadEngineBook() {
-  const SUPA_URL = 'https://cuvchjhaojhmxfgczndy.supabase.co';
-  const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM';
-  const supaHeaders = { 'apikey': SUPA_ANON, 'Authorization': `Bearer ${SUPA_ANON}` };
-  const tables = BOOKS[_book];
-
-  let daily = null;
-  let positions = null;
-  let trades = null;
-  let pendingRadar = null;
-
+  const selected = _book, sequence = ++_loadSequence;
+  const errorEl = document.getElementById('legacyBookError');
+  const summary = document.getElementById('engineSummary');
+  if (_renderedBook !== selected) {
+    if (summary) summary.hidden = true;
+    document.getElementById('engPositionsWrap').innerHTML = '<div class="ob-empty">Loading saved book…</div>';
+  }
   try {
-    const [dRes, pRes, tRes, rRes] = await Promise.all([
-      fetch(`/api/paper?table=daily&limit=500&book=${_book}`).catch(() => null),
-      fetch(`/api/paper?table=positions&limit=100&book=${_book}`).catch(() => null),
-      fetch(`/api/paper?table=trades&limit=500&book=${_book}`).catch(() => null),
-      _book === 's' ? fetch(`/api/paper?table=pending_radar&limit=50&book=s`).catch(() => null) : Promise.resolve(null),
-    ]);
-    if (dRes && dRes.ok) daily = await dRes.json().catch(() => null);
-    if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
-    if (tRes && tRes.ok) trades = await tRes.json().catch(() => null);
-    if (rRes && rRes.ok) pendingRadar = await rRes.json().catch(() => null);
-  } catch (e) { /* fall through to direct Supabase */ }
-
-  // Direct namespaced mirror fallback for Book R, Book S, and Book F (including static local dev).
-  if ((_book === 'r' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions) || !Array.isArray(trades))) {
-    const fallbackId = tables.fallbackId || (_book === 's' ? '__apex_book_s_session_smc_runtime__' : (_book === 'f' ? '__apex_book_f_prop_shield_runtime__' : '__apex_book_r_252_forward_paper_runtime__'));
-    const stateRes = await fetch(
-      `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`,
-      { headers: supaHeaders },
-    ).catch(() => null);
-    if (stateRes && stateRes.ok) {
-      const stateRows = await stateRes.json().catch(() => []);
-      const payload = stateRows[0] && stateRows[0].feature_vector;
-      if (!Array.isArray(daily) && payload) {
-        daily = Array.isArray(payload.daily) ? payload.daily : (payload.equity_curve || []);
-      }
-      if (!Array.isArray(positions) && payload) {
-        positions = Array.isArray(payload.positions) ? payload.positions : Object.values(payload.positions || {});
-      }
-      if (!Array.isArray(trades) && payload && Array.isArray(payload.trades)) {
-        trades = payload.trades;
-      }
-      if (_book === 's' && payload && Array.isArray(payload.pending_radar)) {
-        if (!Array.isArray(pendingRadar)) pendingRadar = payload.pending_radar;
-      }
-    }
+    const response = await fetch('/api/paper?table=state&limit=500&book=' + selected, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Saved paper ledger unavailable');
+    const payload = await response.json();
+    if (selected !== _book || sequence !== _loadSequence) return;
+    if (payload.book_id !== selected || !['daily','positions','trades','pending'].every(key => Array.isArray(payload[key]))) throw new Error('Invalid paper ledger');
+    _dailyRows = payload.daily; _positions = payload.positions; _trades = payload.trades; _pendingRadar = payload.pending;
+    _renderedBook = selected;
+    if (summary) summary.hidden = false;
+    if (errorEl) errorEl.hidden = true;
+    setLastSyncLabel(new Date()); renderAll();
+  } catch (error) {
+    if (selected !== _book || sequence !== _loadSequence) return;
+    if (errorEl) { errorEl.hidden = false; errorEl.textContent = 'The saved ledger is unavailable.' + (_renderedBook === selected ? ' Showing the last loaded snapshot; it may be stale.' : ' No positions or balance are being assumed.'); }
+    if (_renderedBook !== selected) document.getElementById('engPositionsWrap').innerHTML = '<div class="ob-empty">Ledger unavailable. Try Refresh Book.</div>';
   }
-
-  // Direct Supabase REST fallback if the Vercel serverless proxy route returned
-  // an error or is unreachable (e.g. static local dev server without /api).
-  if (_book !== 'r' && (!Array.isArray(daily) || !Array.isArray(positions)) && tables.dailyTable) {
-    const [sdRes, spRes] = await Promise.all([
-      fetch(`${SUPA_URL}/rest/v1/${tables.dailyTable}?order=date.asc&limit=500`, { headers: supaHeaders }).catch(() => null),
-      fetch(`${SUPA_URL}/rest/v1/${tables.positionsTable}?order=instrument.asc&limit=100`, { headers: supaHeaders }).catch(() => null),
-    ]);
-    if (sdRes && sdRes.ok) daily = await sdRes.json().catch(() => daily);
-    if (spRes && spRes.ok) positions = await spRes.json().catch(() => positions);
-  }
-
-  // Committed local engine snapshot fallback (Books C, S, and F).
-  if ((_book === 'c' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions) || !Array.isArray(trades))) {
-    const snapshotUrl = _book === 's' ? '/book-s-paper-snapshot.json' : (_book === 'f' ? '/book-f-paper-snapshot.json' : '/book-c-paper-snapshot.json');
-    const fallback = await fetch(snapshotUrl, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null);
-    if (fallback) {
-      if (!Array.isArray(daily)) {
-        daily = Array.isArray(fallback.daily) ? fallback.daily : (fallback.equity_curve || []);
-      }
-      if (!Array.isArray(positions)) {
-        positions = Array.isArray(fallback.positions) ? fallback.positions : Object.values(fallback.positions || {});
-      }
-      if (!Array.isArray(trades) && Array.isArray(fallback.trades)) {
-        trades = fallback.trades;
-      }
-      if (_book === 's' && Array.isArray(fallback.pending_radar)) {
-        if (!Array.isArray(pendingRadar)) pendingRadar = fallback.pending_radar;
-      }
-    }
-  }
-
-  if (Array.isArray(daily)) _dailyRows = daily;
-  if (Array.isArray(positions)) _positions = positions;
-  if (Array.isArray(trades)) _trades = trades;
-  if (Array.isArray(pendingRadar)) _pendingRadar = pendingRadar;
-
-  renderAll();
 }
 
 // ── Derived book state ───────────────────────────────────────────────────────
@@ -393,7 +331,7 @@ function renderHero() {
   const label = document.getElementById('lastUpdatedLabel');
   if (label) {
     const ts = _lastSyncTime || (_positions[0] && _positions[0].updated_at) || (latest && latest.inserted_at) || new Date();
-    label.textContent = 'Last Sync: ' + fmtUK(ts, true);
+    label.textContent = 'Checked: ' + fmtUK(ts, true);
   }
 }
 
@@ -1097,6 +1035,8 @@ async function fetchLiveMark(inst, cls) {
 }
 
 async function refreshLiveMarks() {
+  // Official paper metrics must not be overwritten by guessed intraday FX marks.
+  return;
   if (document.hidden) return;
   const wrap = document.getElementById('engPositionsWrap');
   if (!wrap) return;
@@ -1296,7 +1236,7 @@ function applyBookChrome() {
 }
 
 function setBook(book) {
-  if (!BOOKS[book] || book === _book) return;
+  if (!Object.hasOwn(BOOKS, book) || book === _book) return;
   _book = book;
   const url = new URL(window.location.href);
   url.searchParams.set('book', book);
