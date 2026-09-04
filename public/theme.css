@@ -903,14 +903,91 @@ select option { background: var(--obs-s2); color: var(--ink); }
   .vt-btn {
     flex: 0 0 auto;
     font-size: 11.5px !important;
-    padding: 7px 12px !important;
+    padding: 6px 11px !important;
     white-space: nowrap;
   }
   .ob-toolbar-end {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+  }
+  .ob-toolbar-end .ob-sync {
+    font-size: 10.5px !important;
+    padding: 4px 8px !important;
+    white-space: nowrap !important;
+    flex-shrink: 1 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .ob-toolbar-end .ob-btn {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Card headers cleanly stacked on mobile */
+  .pg-card-head {
+    display: flex;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .pg-card-title {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+  }
+  .pg-card-title span.mono,
+  .pg-card-title span.pg-book {
+    display: inline-block !important;
+    word-break: break-all !important;
+  }
+  .pg-day-pill {
+    align-self: flex-start !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+  }
+  .ob-inline-note {
+    display: block !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    color: var(--ink-3) !important;
+    margin-left: 0 !important;
+    margin-top: 3px !important;
+  }
+
+  /* Progress tracker on mobile */
+  #progStatsRow {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  #progStatsRow > .hs-stat:nth-child(5) {
+    grid-column: 1 / -1 !important;
+  }
+  .prog-checkpoints {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    width: 100%;
+    margin-top: 8px;
+    font-size: 9.5px !important;
+    gap: 3px;
+  }
+  .prog-checkpoint-node {
+    font-size: 9px !important;
+  }
+  .badge-stage-prog, .badge-stage-locked, .badge-stage-passed {
+    font-size: 8px !important;
+    padding: 1px 4px !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* Chart height on mobile */
+  #equityChart {
+    height: 230px !important;
   }
 
   /* Position Cards Grid on Mobile */
@@ -920,7 +997,7 @@ select option { background: var(--obs-s2); color: var(--ink); }
   }
   .ibkr-pos-card, .eng-pos-card {
     padding: 15px 16px !important;
-    border-radius: 10px !important;
+    border-radius: 12px !important;
   }
 
   /* Tables horizontal scrolling */
