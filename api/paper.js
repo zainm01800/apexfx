@@ -18,6 +18,7 @@ const TABLES = {
   b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
   c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions' },
   r: { fallbackId: '__apex_book_r_252_forward_paper_runtime__' },
+  s: { daily: 'apex_paper_s_daily', positions: 'apex_paper_s_positions', fallbackId: '__apex_book_s_session_smc_runtime__' },
   f: { daily: 'apex_paper_f_daily', positions: 'apex_paper_f_positions', fallbackId: '__apex_book_f_prop_shield_runtime__' },
 };
 
@@ -82,17 +83,26 @@ export default async function handler(req) {
     });
 
     if (!response.ok) {
-      // Temporary Book C mirror while its dedicated pair has not yet been
+      // Temporary Book C / F / S mirror while dedicated tables have not yet been
       // provisioned. The engine stores both arrays in one namespaced JSONB row;
       // dedicated tables automatically win as soon as they become reachable.
-      if (book === 'c' || book === 'f') {
-        const fallbackId = TABLES[book].fallbackId || (book === 'c' ? '__apex_book_c_paper_runtime__' : '__apex_book_f_prop_shield_runtime__');
+      if (book === 'c' || book === 'f' || book === 's') {
+        const fallbackId = TABLES[book].fallbackId || (book === 'c' ? '__apex_book_c_paper_runtime__' : (book === 's' ? '__apex_book_s_session_smc_runtime__' : '__apex_book_f_prop_shield_runtime__'));
         const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`;
         const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
         if (stateResponse.ok) {
           const stateRows = await stateResponse.json();
           const state = stateRows[0] && stateRows[0].feature_vector;
-          const fallback = state && Array.isArray(state[table]) ? state[table] : [];
+          let fallback = [];
+          if (state) {
+            if (table === 'positions') {
+              fallback = Array.isArray(state.positions) ? state.positions : Object.values(state.positions || {});
+            } else if (table === 'daily') {
+              fallback = Array.isArray(state.daily) ? state.daily : (state.equity_curve || []);
+            } else {
+              fallback = Array.isArray(state[table]) ? state[table] : [];
+            }
+          }
           return new Response(JSON.stringify(fallback), { status: 200, headers: cors });
         }
       }

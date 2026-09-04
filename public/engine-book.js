@@ -44,6 +44,16 @@ const BOOKS = {
     fallbackId: '__apex_book_r_252_forward_paper_runtime__',
     blurb: 'Active forward-paper Book R-252 — $100,000 USD, ten US-listed ETFs, month-end momentum decisions and next-session-open fills at 5 bps per side. Long-only, 95% maximum gross exposure, no leverage and no broker execution.',
   },
+  s: {
+    label: 'Book S (Session SMC)',
+    currency: '$',
+    startLabel: '28 Jul 2026',
+    dailyTable: 'apex_paper_s_daily',
+    positionsTable: 'apex_paper_s_positions',
+    fallbackId: '__apex_book_s_session_smc_runtime__',
+    snapshotFile: '/book-s-paper-snapshot.json',
+    blurb: 'Systematic 1H Session SMC & Order Flow Alpha (Seeded at $100,000 USD on 28 Jul 2026) — Microstructure edge capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Higher-Timeframe Daily 50 EMA trend alignment. Strictly 0.35% risk ($350/trade), 1:1.80 asymmetric target, and -1.8% daily loss circuit breaker.',
+  },
   f: {
     label: 'Book F (Prop Shield Elite)',
     currency: '$',
@@ -205,9 +215,9 @@ async function loadEngineBook() {
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
   } catch (e) { /* fall through to direct Supabase */ }
 
-  // Direct namespaced mirror fallback for Book R and Book F (including static local dev).
-  if ((_book === 'r' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
-    const fallbackId = tables.fallbackId || (_book === 'f' ? '__apex_book_f_prop_shield_runtime__' : '__apex_book_r_252_forward_paper_runtime__');
+  // Direct namespaced mirror fallback for Book R, Book S, and Book F (including static local dev).
+  if ((_book === 'r' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const fallbackId = tables.fallbackId || (_book === 's' ? '__apex_book_s_session_smc_runtime__' : (_book === 'f' ? '__apex_book_f_prop_shield_runtime__' : '__apex_book_r_252_forward_paper_runtime__'));
     const stateRes = await fetch(
       `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`,
       { headers: supaHeaders },
@@ -215,8 +225,12 @@ async function loadEngineBook() {
     if (stateRes && stateRes.ok) {
       const stateRows = await stateRes.json().catch(() => []);
       const payload = stateRows[0] && stateRows[0].feature_vector;
-      if (!Array.isArray(daily) && payload && Array.isArray(payload.daily)) daily = payload.daily;
-      if (!Array.isArray(positions) && payload && Array.isArray(payload.positions)) positions = payload.positions;
+      if (!Array.isArray(daily) && payload) {
+        daily = Array.isArray(payload.daily) ? payload.daily : (payload.equity_curve || []);
+      }
+      if (!Array.isArray(positions) && payload) {
+        positions = Array.isArray(payload.positions) ? payload.positions : Object.values(payload.positions || {});
+      }
     }
   }
 
@@ -231,15 +245,19 @@ async function loadEngineBook() {
     if (spRes && spRes.ok) positions = await spRes.json().catch(() => positions);
   }
 
-  // Committed local engine snapshot fallback (Books C and F).
-  if ((_book === 'c' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
-    const snapshotUrl = _book === 'f' ? '/book-f-paper-snapshot.json' : '/book-c-paper-snapshot.json';
+  // Committed local engine snapshot fallback (Books C, S, and F).
+  if ((_book === 'c' || _book === 's' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const snapshotUrl = _book === 's' ? '/book-s-paper-snapshot.json' : (_book === 'f' ? '/book-f-paper-snapshot.json' : '/book-c-paper-snapshot.json');
     const fallback = await fetch(snapshotUrl, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .catch(() => null);
     if (fallback) {
-      if (!Array.isArray(daily) && Array.isArray(fallback.daily)) daily = fallback.daily;
-      if (!Array.isArray(positions) && Array.isArray(fallback.positions)) positions = fallback.positions;
+      if (!Array.isArray(daily)) {
+        daily = Array.isArray(fallback.daily) ? fallback.daily : (fallback.equity_curve || []);
+      }
+      if (!Array.isArray(positions)) {
+        positions = Array.isArray(fallback.positions) ? fallback.positions : Object.values(fallback.positions || {});
+      }
     }
   }
 

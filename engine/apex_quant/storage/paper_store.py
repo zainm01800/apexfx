@@ -49,6 +49,11 @@ POSITIONS_TABLE_F = "apex_paper_f_positions"
 DAILY_TABLE_F = "apex_paper_f_daily"
 FALLBACK_ID_F = "__apex_book_f_prop_shield_runtime__"
 
+# Book S (Session SMC & Order Flow Engine) mirror tables and runtime fallback.
+POSITIONS_TABLE_S = "apex_paper_s_positions"
+DAILY_TABLE_S = "apex_paper_s_daily"
+FALLBACK_ID_S = "__apex_book_s_session_smc_runtime__"
+
 
 def _url(table: str) -> str:
     return f"{_SUPA_URL}/rest/v1/{table}"
@@ -169,6 +174,32 @@ def write_book_f_runtime(payload: dict) -> bool:
         "feature_vector": payload,
         "analysis_text": "Namespaced Book F Prop Shield Elite $100k forward-paper runtime mirror",
         "verdict": "PROP_SHIELD_ACTIVE",
+    }])
+
+
+def fetch_book_s_runtime() -> dict | None:
+    """Fetch the complete namespaced Book S forward-paper runtime payload."""
+    rows = _get(
+        FALLBACK_TABLE_C,
+        {"select": "feature_vector", "id": f"eq.{FALLBACK_ID_S}", "limit": "1"},
+    )
+    if not rows:
+        return None
+    payload = rows[0].get("feature_vector")
+    return payload if isinstance(payload, dict) else None
+
+
+def write_book_s_runtime(payload: dict) -> bool:
+    """Persist Book S's paper state to namespaced fallback mirror."""
+    return _post_upsert(FALLBACK_TABLE_C, [{
+        "id": FALLBACK_ID_S,
+        "user_id": "apex_engine",
+        "symbol": "BOOK_S_SESSION_SMC",
+        "timeframe": "1h",
+        "direction": "paper",
+        "feature_vector": payload,
+        "analysis_text": "Namespaced Book S Session SMC & Order Flow $100k forward-paper runtime mirror",
+        "verdict": "SESSION_SMC_ACTIVE",
     }])
 
 

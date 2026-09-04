@@ -66,7 +66,7 @@
       <div>
         <span class="ob-eyebrow">5-Way Forward Race · Multi-Strategy Head-to-Head</span>
         <h1 class="pg-title">The Championship Race</h1>
-        <p class="pg-subtitle">Five distinct rule-sets tracked in live forward paper execution. Book A is the certified proof book; Book B adds the spill50 macro gate; Book C is the Champion Multi-Horizon Ensemble; Book R is the monthly USD ETF Momentum; Book F is the Prop Shield Elite ($100k Challenge Tracker). Virtual paper money only.</p>
+        <p class="pg-subtitle">Five distinct rule-sets tracked in live forward paper execution. Book A is the certified proof book; Book B adds the spill50 macro gate; Book C is the Champion Multi-Horizon Ensemble; Book R is the monthly USD ETF Momentum; Book S is the Session SMC Alpha ($100k Challenge Tracker). Virtual paper money only.</p>
       </div>
     </div>
 
@@ -97,10 +97,10 @@
         <a href="engine-book.html?book=r" style="margin-top: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-family: var(--mono); color: #FB923C; text-decoration: none; padding: 6px 10px; border-radius: 6px; background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.3); font-weight: 600;">Inspect Book R →</a>
       </div>
       <div class="hs-stat race-book">
-        <span class="hs-label" style="color: #A855F7;">Book F — Prop Shield Elite</span>
-        <span class="hs-val" id="raceEquityF">—</span>
-        <span class="ob-stat-sub" id="raceSubF">since seed: —</span>
-        <a href="engine-book.html?book=f" style="margin-top: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-family: var(--mono); color: #A855F7; text-decoration: none; padding: 6px 10px; border-radius: 6px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3); font-weight: 600;">Inspect Book F →</a>
+        <span class="hs-label" style="color: #A855F7;">Book S — Session SMC Alpha</span>
+        <span class="hs-val" id="raceEquityS">—</span>
+        <span class="ob-stat-sub" id="raceSubS">since seed: —</span>
+        <a href="engine-book.html?book=s" style="margin-top: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-family: var(--mono); color: #A855F7; text-decoration: none; padding: 6px 10px; border-radius: 6px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3); font-weight: 600;">Inspect Book S →</a>
       </div>
     </div>
 
@@ -117,7 +117,7 @@
           <span class="race-dot-b">— B spill50</span>
           <span class="race-dot-c">— C champion</span>
           <span style="color: #FB923C;">— R usd etf</span>
-          <span style="color: #A855F7;">— F prop shield</span>
+          <span style="color: #A855F7;">— S session smc</span>
         </div>
       </div>
       <div id="raceChart" style="height: 340px; position: relative;"></div>
@@ -128,7 +128,7 @@
       <div class="pg-card-head"><div class="pg-card-title">Head-to-Head Scoreboard</div></div>
       <div style="overflow-x: auto;">
         <table class="race-table">
-          <thead><tr><th>Metric</th><th class="race-dot-a">Book A (£)</th><th class="race-dot-b">Book B (£)</th><th class="race-dot-c">Book C (£)</th><th style="color: #FB923C;">Book R ($)</th><th style="color: #A855F7;">Book F ($)</th><th>Leader</th></tr></thead>
+          <thead><tr><th>Metric</th><th class="race-dot-a">Book A (£)</th><th class="race-dot-b">Book B (£)</th><th class="race-dot-c">Book C (£)</th><th style="color: #FB923C;">Book R ($)</th><th style="color: #A855F7;">Book S ($)</th><th>Leader</th></tr></thead>
           <tbody id="raceTableBody"></tbody>
         </table>
       </div>
@@ -157,9 +157,9 @@
         <div class="race-bar-track"><div class="race-bar-fill" id="raceBarR" style="width: 0%; background: #FB923C;"></div></div>
       </div>
       <div class="hs-stat">
-        <span class="hs-label" style="color: #A855F7;">Book F — Day Count</span>
-        <span class="hs-val" id="raceDayF" style="font-size: 20px;">—</span>
-        <div class="race-bar-track"><div class="race-bar-fill" id="raceBarF" style="width: 0%; background: #A855F7;"></div></div>
+        <span class="hs-label" style="color: #A855F7;">Book S — Day Count</span>
+        <span class="hs-val" id="raceDayS" style="font-size: 20px;">—</span>
+        <div class="race-bar-track"><div class="race-bar-fill" id="raceBarS" style="width: 0%; background: #A855F7;"></div></div>
       </div>
     </div>
 
@@ -184,14 +184,14 @@
           <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">Month-end 252-day momentum across 10 liquid US ETFs, 95% gross target, next-session open fills, 5 bps cost per side. Long-only, zero leverage. Seeded 27 Aug 2026.</p>
         </div>
         <div>
-          <span class="ob-eyebrow" style="color: #A855F7;">Book F — Prop Shield Elite</span>
-          <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), +1.0R de-risking breakeven lock, next-session open fills, and strict prop DD protection. Seeded 28 Jul 2026.</p>
+          <span class="ob-eyebrow" style="color: #A855F7;">Book S — Session SMC Alpha</span>
+          <p style="font-size: 13px; color: var(--tx2); line-height: 1.6; margin-top: 8px;">Systematic 1H microstructure model capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Daily 50 EMA trend alignment. Strictly 0.35% risk ($350/trade), 1:1.80 asymmetric target, and -1.8% daily circuit breaker. Seeded 28 Jul 2026.</p>
         </div>
       </div>
     </section>
 
     <p style="font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 32px; line-height: 1.6;">
-      Honesty note: All five books run forward paper-trading in isolated sandboxes with 100,000 virtual capital (Books A, B, C in GBP; Books R and F in USD). No real capital is risked on paper books. <span id="raceLastSync"></span>
+      Honesty note: All five books run forward paper-trading in isolated sandboxes with 100,000 virtual capital (Books A, B, C in GBP; Books R and S in USD). No real capital is risked on paper books. <span id="raceLastSync"></span>
     </p>
 
   </main>
