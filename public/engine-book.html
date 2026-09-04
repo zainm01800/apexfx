@@ -45,51 +45,22 @@
 
   <main class="pg-main">
 
-    <div class="pg-header ob-pagehead">
+    <div class="pg-header ob-pagehead" style="margin-bottom: 12px;">
       <div>
         <span class="ob-eyebrow" id="engExperimentLabel">Paper Proof · £100k Experiment</span>
-        <h1 class="pg-title">Engine Book</h1>
-        <p class="pg-subtitle" id="engBookBlurb">The engine's forward paper-trading proof book — virtual £100,000 seeded 16 Jul 2026, stepped nightly off daily bars. Separate from the IBKR broker account; nothing here is real money.</p>
+        <h1 class="pg-title" style="margin-bottom: 2px;">Engine Book</h1>
+        <p class="pg-subtitle" id="engBookBlurb" style="margin: 0; font-size: 12px; color: var(--ink-3);">Forward paper-trading proof book — virtual £100,000, stepped nightly off daily bars.</p>
       </div>
-    </div>
-
-    <a class="ob-research-callout" href="research-book.html">
-      <span class="ob-research-kicker">Research-only audit · USD</span>
-      <span class="ob-research-copy"><strong>Book R-252</strong> — inspect the separate 10-year ETF momentum control, its cost stress, method, and limitations.</span>
-      <span class="ob-research-arrow" aria-hidden="true">View research →</span>
-    </a>
-
-    <!-- Engine book hero + daily-snapshot stats -->
-    <div class="hist-summary" id="engineSummary">
-      <div class="hs-stat">
-        <div class="ob-hero-inner">
-          <div class="ob-hero-left">
-            <span class="ob-eyebrow" id="engHeroLabel">Engine Proof Book — Paper</span>
-            <span class="hs-val" id="engEquity">—</span>
-            <span class="ob-hero-sub">latest daily equity snapshot — engine paper book only</span>
-            <span class="ob-hero-line" id="engHeroLine"></span>
-          </div>
-          <div class="ob-hero-chips">
-            <span class="ob-chip" id="engDayChip">Today: —</span>
-            <span class="ob-chip" id="engSinceChip">Net Return: —</span>
-          </div>
-        </div>
-      </div>
-      <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested (paper)</span></div>
-      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
-      <div class="hs-stat"><span class="hs-label">Cum P&amp;L</span><span class="hs-val" id="engCumPnl">—</span><span class="ob-stat-sub" id="engSinceSub">since 16 Jul 2026</span></div>
-      <div class="hs-stat"><span class="hs-label">Drawdown</span><span class="hs-val" id="engCurDD">—</span><span class="ob-stat-sub">below peak equity</span></div>
-      <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">worst peak-to-date</span></div>
     </div>
 
     <!-- Controls: Segmented Book Selector -->
-    <div class="ob-toolbar">
+    <div class="ob-toolbar" style="margin-bottom: 14px;">
       <div class="view-toggle" style="margin-bottom: 0;">
         <button id="btnBookA" class="vt-btn active" data-book="a">Book A <span class="vt-badge">252d Proof</span></button>
         <button id="btnBookB" class="vt-btn" data-book="b">Book B <span class="vt-badge">Spill50</span></button>
         <button id="btnBookC" class="vt-btn" data-book="c">Book C <span class="vt-badge">Champion</span></button>
         <button id="btnBookR" class="vt-btn" data-book="r">Book R <span class="vt-badge">USD ETF</span></button>
-        <button id="btnBookF" class="vt-btn" data-book="f">Book F <span class="vt-badge vt-badge-mint">⭐ 100K Live Challenge</span></button>
+        <button id="btnBookF" class="vt-btn" data-book="f">Book F <span class="vt-badge vt-badge-mint">⭐ 100K Challenge</span></button>
       </div>
       <div class="ob-toolbar-end">
         <span id="lastUpdatedLabel" class="ob-sync">Last Sync: —</span>
@@ -98,6 +69,57 @@
         </button>
       </div>
     </div>
+
+    <!-- Engine book hero + consolidated stats -->
+    <div class="hist-summary" id="engineSummary" style="margin-bottom: 16px;">
+      <div class="hs-stat">
+        <div class="ob-hero-inner">
+          <div class="ob-hero-left">
+            <span class="ob-eyebrow" id="engHeroLabel">Engine Proof Book — Paper</span>
+            <span class="hs-val" id="engEquity">—</span>
+            <span class="ob-hero-sub">latest daily equity snapshot</span>
+            <span class="ob-hero-line" id="engHeroLine"></span>
+          </div>
+          <div class="ob-hero-chips">
+            <span class="ob-chip" id="engDayChip">Today: —</span>
+            <span class="ob-chip" id="engSinceChip">Net Return: —</span>
+          </div>
+        </div>
+      </div>
+      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="engOpenCount">—</span><span class="ob-stat-sub" id="engUnrealSub">live floating</span></div>
+      <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val" id="engUnreal">—</span><span class="ob-stat-sub">unrealized mark</span></div>
+      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="engDayPnl">—</span><span class="ob-stat-sub">last daily step</span></div>
+      <div class="hs-stat"><span class="hs-label">Closed Trades</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub"><span id="engWinRate" style="font-weight: 700; color: var(--mint);">—</span> win · <span id="engClosedCount">—</span></span></div>
+      <div class="hs-stat"><span class="hs-label">Cash</span><span class="hs-val" id="engCash">—</span><span class="ob-stat-sub">uninvested</span></div>
+      <div class="hs-stat"><span class="hs-label">Max Drawdown</span><span class="hs-val" id="engMaxDD">—</span><span class="ob-stat-sub">current: <span id="engCurDD">—</span></span></div>
+    </div>
+
+    <!-- Hidden elements for script DOM safety -->
+    <div id="engineStats" style="display: none;">
+      <span id="engGross"></span><span id="engGrossX"></span>
+      <span id="engCumPnl"></span>
+      <span id="engSinceSub"></span>
+    </div>
+
+    <!-- Live Open Trades Section (Front & Center) -->
+    <section class="pg-card" style="margin-bottom: 24px;">
+      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px;">
+          <span>📈</span> Live Open Trades <span id="engPosNote" class="ob-inline-note"></span>
+        </div>
+        <!-- Asset-class filter pills embedded in the card head -->
+        <div class="view-toggle" style="margin-bottom: 0;">
+          <button id="btnClassAll" class="vt-btn active" data-class="all">🌐 All Assets</button>
+          <button id="btnClassStocks" class="vt-btn" data-class="stocks">📈 Stocks</button>
+          <button id="btnClassForex" class="vt-btn" data-class="forex">💱 Forex</button>
+          <button id="btnClassCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
+        </div>
+      </div>
+      <div id="engPositionsWrap">
+        <div class="ob-empty">Loading engine book…</div>
+      </div>
+      <div class="pg-card-foot">Engine paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
+    </section>
 
     <!-- Forward Testing Progress Tracker from 100k -->
     <section class="pg-card" id="engProgressCard" style="margin-bottom: 24px; border: 1px solid rgba(47,214,163,0.28); background: linear-gradient(180deg, rgba(14,20,30,0.98) 0%, rgba(10,14,22,0.98) 100%); box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);">
@@ -195,36 +217,6 @@
         <div id="equityChart" style="width: 100%; height: 300px;"></div>
         <div id="equityChartEmpty" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: 12px; color: var(--text3);">Waiting for daily equity snapshots…</div>
       </div>
-    </section>
-
-    <!-- Book stats -->
-    <div class="hist-summary" id="engineStats">
-      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="engOpenCount">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Gross Exposure</span><span class="hs-val" id="engGross">—</span><span class="ob-stat-sub" id="engGrossX">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val" id="engUnreal">—</span><span class="ob-stat-sub" id="engUnrealSub">vs last engine marks</span></div>
-      <div class="hs-stat"><span class="hs-label">Closed Win Rate</span><span class="hs-val accent" id="engWinRate">—</span><span class="ob-stat-sub" id="engClosedCount">— closed</span></div>
-      <div class="hs-stat"><span class="hs-label">Closed P&amp;L</span><span class="hs-val" id="engRealized">—</span><span class="ob-stat-sub">banked from closed trades</span></div>
-    </div>
-
-    <!-- Asset-class Tabs -->
-    <div class="ob-toolbar" style="margin-top: 12px; margin-bottom: 14px;">
-      <div class="view-toggle" style="margin-bottom: 0;">
-        <button id="btnClassAll" class="vt-btn active" data-class="all">🌐 All Assets</button>
-        <button id="btnClassStocks" class="vt-btn" data-class="stocks">📈 Stocks</button>
-        <button id="btnClassForex" class="vt-btn" data-class="forex">💱 Forex</button>
-        <button id="btnClassCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
-      </div>
-    </div>
-
-    <!-- Open Positions -->
-    <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head">
-        <div class="pg-card-title">📈 Open Positions <span id="engPosNote" class="ob-inline-note"></span></div>
-      </div>
-      <div id="engPositionsWrap">
-        <div class="ob-empty">Loading engine book…</div>
-      </div>
-      <div class="pg-card-foot">Engine paper positions — marked to the last closed daily bar at the nightly step (~00:30 UK). Prices are in each instrument's quote currency; P&amp;L is the engine's book-keeping figure.</div>
     </section>
 
     <!-- Closed Trades -->

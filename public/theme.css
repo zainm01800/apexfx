@@ -393,7 +393,7 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
   color: var(--ink-2);
   font-family: var(--font-body);
   font-size: 12px; font-weight: 600;
-  padding: 7px 15px;
+  padding: 5px 12px;
   border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;

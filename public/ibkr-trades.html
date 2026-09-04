@@ -45,16 +45,22 @@
 
   <main class="pg-main">
 
-    <div class="pg-header ob-pagehead">
+    <div class="pg-header ob-pagehead" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px;">
       <div>
         <span class="ob-eyebrow">Live Execution Feed</span>
-        <h1 class="pg-title">IBKR Terminal</h1>
-        <p class="pg-subtitle">Live account state, open positions, closed trades, and fill history synced directly from Interactive Brokers.</p>
+        <h1 class="pg-title" style="margin-bottom: 2px;">IBKR Terminal</h1>
+        <p class="pg-subtitle" style="margin: 0; font-size: 12px; color: var(--ink-3);">Live Interactive Brokers account state, open positions, and execution fills.</p>
+      </div>
+      <div class="ob-toolbar-end">
+        <span id="lastUpdatedLabel" class="ob-sync">Last Sync: Just now</span>
+        <button id="btnRefresh" class="ob-btn">
+          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Terminal</span>
+        </button>
       </div>
     </div>
 
     <!-- Overall IBKR Account Statistics -->
-    <div class="hist-summary" id="ibkrSummary">
+    <div class="hist-summary" id="ibkrSummary" style="margin-bottom: 16px;">
       <div class="hs-stat">
         <div class="ob-hero-inner">
           <div class="ob-hero-left">
@@ -75,40 +81,33 @@
       <div class="hs-stat"><span class="hs-label">Open P&amp;L</span><span class="hs-val green" id="statUnrealizedPnl">+£133.25</span><span class="ob-stat-sub">live P&amp;L on open trades</span></div>
       <div class="hs-stat"><span class="hs-label">Floating Net Profit</span><span class="hs-val green" id="statFloatingPnl">+£1,102.45</span><span class="ob-stat-sub">banked + open P&amp;L</span></div>
       <div class="hs-stat"><span class="hs-label">Banked P&amp;L</span><span class="hs-val green" id="statRealizedPnl">+£969.20</span><span class="ob-stat-sub">locked in from closed trades</span></div>
-      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="statPosCount">—</span><span class="ob-stat-sub">broker + engine book</span></div>
-      <div class="hs-stat"><span class="hs-label">Gross Exposure</span><span class="hs-val" id="statGrossExp">—</span><span class="ob-stat-sub">capital in open trades</span></div>
+      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="statPosCount">—</span><span class="ob-stat-sub">exposure: <span id="statGrossExp">—</span></span></div>
     </div>
 
-    <!-- Asset-class Tabs & Controls -->
-    <div class="ob-toolbar">
-      <div class="view-toggle" style="margin-bottom: 0;">
-        <button id="btnStocks" class="vt-btn active" data-class="stocks">📈 Stocks</button>
-        <button id="btnCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
-        <button id="btnForex" class="vt-btn" data-class="forex">💱 Forex</button>
-      </div>
-
-      <div class="ob-toolbar-end">
-        <span id="lastUpdatedLabel" class="ob-sync">Last Sync: Just now</span>
-        <button id="btnRefresh" class="ob-btn">
-          <span id="refreshIcon" class="ob-spin">🔄</span> <span id="refreshText">Refresh Terminal</span>
-        </button>
-      </div>
+    <!-- Hidden per-class stats for JS script compatibility -->
+    <div id="ibkrClassSummary" style="display: none;">
+      <span id="clsOpenCount"></span>
+      <span id="clsGrossExposure"></span>
+      <span id="clsUnrealizedPnl"></span>
+      <span id="clsDailyPnl"></span>
+      <span id="clsWinRate"></span>
+      <span id="clsClosedCount"></span>
     </div>
 
-    <!-- Per-class stats -->
-    <div class="hist-summary" id="ibkrClassSummary">
-      <div class="hs-stat"><span class="hs-label">Open Positions</span><span class="hs-val" id="clsOpenCount">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Gross Exposure</span><span class="hs-val" id="clsGrossExposure">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Unrealized P&amp;L</span><span class="hs-val" id="clsUnrealizedPnl">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Day P&amp;L</span><span class="hs-val" id="clsDailyPnl">—</span></div>
-      <div class="hs-stat"><span class="hs-label">Closed Win Rate</span><span class="hs-val accent" id="clsWinRate">—</span><span class="ob-stat-sub" id="clsClosedCount">— closed</span></div>
-    </div>
-
-    <!-- Open Positions Section -->
+    <!-- Open Positions Section (Front & Center) -->
     <section class="pg-card" style="margin-bottom: 24px;">
-      <div class="pg-card-head">
-        <div class="pg-card-title">📈 Open Positions <span id="posReconNote" class="ob-inline-note"></span></div>
-        <a href="engine-book.html" class="ob-card-link" title="Engine paper-book positions (£100k experiment) have their own tab now">Engine Book →</a>
+      <div class="pg-card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div class="pg-card-title" style="display: flex; align-items: center; gap: 8px;">
+          <span>📈</span> Open Positions <span id="posReconNote" class="ob-inline-note"></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div class="view-toggle" style="margin-bottom: 0;">
+            <button id="btnStocks" class="vt-btn active" data-class="stocks">📈 Stocks</button>
+            <button id="btnCrypto" class="vt-btn" data-class="crypto">₿ Crypto</button>
+            <button id="btnForex" class="vt-btn" data-class="forex">💱 Forex</button>
+          </div>
+          <a href="engine-book.html" class="ob-card-link" title="Engine paper-book positions">Engine Book →</a>
+        </div>
       </div>
       <div class="ob-note">position figures in each instrument's quote currency (US stocks/ETFs: USD · FX: quote ccy) — account totals above in GBP</div>
       <div id="ibkrPositionsWrap">
