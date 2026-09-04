@@ -47,11 +47,11 @@ const BOOKS = {
   f: {
     label: 'Book F (Prop Shield Elite)',
     currency: '$',
-    startLabel: '04 Sep 2026',
+    startLabel: '28 Jul 2026',
     dailyTable: 'apex_paper_f_daily',
     positionsTable: 'apex_paper_f_positions',
     fallbackId: '__apex_book_f_prop_shield_runtime__',
-    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 04 Sep 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), market breadth guard, +1.0R BE lock, and +1.5R convexity pyramiding. Pure forward testing tracking challenge progression from scratch to funded.',
+    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 28 Jul 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), market breadth guard, +1.0R BE lock, and +1.5R convexity pyramiding. Pure forward testing tracking challenge progression from scratch to funded.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();

@@ -48,7 +48,7 @@ from apex_quant.storage import paper_store
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "state.json"
 LOG_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "decisions.log"
 PUBLIC_SNAPSHOT_PATH = ENGINE_DIR.parent / "public" / "book-f-paper-snapshot.json"
-DEFAULT_SEED_DATE = "2026-09-04"
+DEFAULT_SEED_DATE = "2026-07-28"
 
 
 def _load_local_state(path: Path) -> dict | None:
