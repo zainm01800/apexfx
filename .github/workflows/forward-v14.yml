@@ -47,6 +47,8 @@ jobs:
           "httpx>=0.26"
           "yfinance>=0.2.65"
           "python-dotenv>=1.0"
+          "PyYAML>=6.0"
+          "pydantic>=2.0"
           "pytest>=8.0"
 
       - name: Verify V14 state, causality, accounting and persistence invariants
