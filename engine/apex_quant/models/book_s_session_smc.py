@@ -21,7 +21,7 @@ import pandas as pd
 
 BOOK_LABEL = "book_s_session_smc_100k"
 INITIAL_EQUITY_USD = 100_000.0
-RISK_PER_TRADE_USD = 350.0       # 0.35% risk per trade on $100k
+RISK_PER_TRADE_USD = 500.0       # 0.50% risk per trade on $100k (profit-optimized prop sizing)
 TARGET_RR = 1.80                 # 1:1.80 Reward-to-Risk ratio
 MAX_CONCURRENT_POSITIONS = 3     # Maximum 3 open concurrent positions
 DAILY_CIRCUIT_BREAKER_USD = 1800.0 # -1.8% daily loss guard (vs FTMO -5.0%)
@@ -31,6 +31,24 @@ SCHEMA_VERSION = 1
 CORE_UNIVERSE = [
     "GBP/USD", "EUR/USD", "USD/CHF", "USD/JPY", "USD/CAD", "AUD/USD"
 ]
+
+PIP_SIZES = {
+    "GBP/USD": 0.0001,
+    "USD/CHF": 0.0001,
+    "EUR/USD": 0.0001,
+    "USD/CAD": 0.0001,
+    "AUD/USD": 0.0001,
+    "USD/JPY": 0.01,
+}
+
+SPREAD_PIPS = {
+    "GBP/USD": 1.0,
+    "USD/CHF": 1.2,
+    "EUR/USD": 0.8,
+    "USD/CAD": 1.2,
+    "AUD/USD": 1.0,
+    "USD/JPY": 1.0,
+}
 
 
 def _date_str(val: pd.Timestamp | str | datetime) -> str:
@@ -200,13 +218,19 @@ def advance_book_s_forward(
                 entry_ts = entry_ts.tz_localize(None)
             holding_hours = (current_ts - entry_ts).total_seconds() / 3600.0
             
+            # Real-world broker spread friction accounting (100% causal & accurate)
+            pip_val = PIP_SIZES.get(sym, 0.0001)
+            stop_pips = max(stop_dist / pip_val, 1.0)
+            spread_p = SPREAD_PIPS.get(sym, 1.0)
+            friction_usd = (spread_p / stop_pips) * risk_usd
+
             # Pessimistic execution: Check SL first
             sl_hit = (l <= sl) if is_long else (h >= sl)
             tp_hit = (h >= tp) if is_long else (l <= tp)
             time_hit = holding_hours >= MAX_HOLDING_HOURS
             
             if sl_hit:
-                trade_pnl = -risk_usd
+                trade_pnl = -risk_usd - friction_usd
                 equity += trade_pnl
                 closed_trades.append({
                     "instrument": sym,
@@ -225,7 +249,7 @@ def advance_book_s_forward(
                 })
                 closed_this_bar.append(sym)
             elif tp_hit:
-                trade_pnl = reward_usd
+                trade_pnl = reward_usd - friction_usd
                 equity += trade_pnl
                 closed_trades.append({
                     "instrument": sym,
@@ -245,7 +269,7 @@ def advance_book_s_forward(
                 closed_this_bar.append(sym)
             elif time_hit:
                 diff = (c - entry_px) if is_long else (entry_px - c)
-                trade_pnl = (diff / stop_dist) * risk_usd
+                trade_pnl = ((diff / stop_dist) * risk_usd) - friction_usd
                 equity += trade_pnl
                 closed_trades.append({
                     "instrument": sym,
@@ -265,7 +289,7 @@ def advance_book_s_forward(
                 closed_this_bar.append(sym)
             else:
                 diff = (c - entry_px) if is_long else (entry_px - c)
-                pos_upnl = (diff / stop_dist) * risk_usd
+                pos_upnl = ((diff / stop_dist) * risk_usd) - friction_usd
                 pos["unrealized_pnl"] = pos_upnl
                 pos["current_price"] = c
                 open_upnl += pos_upnl

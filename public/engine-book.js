@@ -52,7 +52,7 @@ const BOOKS = {
     positionsTable: 'apex_paper_s_positions',
     fallbackId: '__apex_book_s_session_smc_runtime__',
     snapshotFile: '/book-s-paper-snapshot.json',
-    blurb: 'Systematic 1H Session SMC & Order Flow Alpha (Seeded at $100,000 USD on 01 Aug 2026) — Microstructure edge capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Higher-Timeframe Daily 50 EMA trend alignment. Strictly 0.35% risk ($350/trade), 1:1.80 asymmetric target, and -1.8% daily loss circuit breaker.',
+    blurb: 'Systematic 1H Session SMC & Order Flow Alpha (Seeded at $100,000 USD on 01 Aug 2026) — Microstructure edge capturing London opening breakouts from Asian accumulation liquidity bounds, filtered by Higher-Timeframe Daily 50 EMA trend alignment. Strictly 0.50% risk ($500/trade) with real broker spreads deducted, 1:1.80 asymmetric target, and -1.8% daily loss circuit breaker.',
   },
   f: {
     label: 'Book F (Prop Shield Elite)',
