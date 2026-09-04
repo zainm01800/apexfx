@@ -154,11 +154,11 @@
         </div>
 
         <!-- Milestones labels -->
-        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-wrap: wrap; gap: 4px;">
+        <div id="progMilestoneLabels" style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-wrap: wrap; gap: 4px;">
           <div><span style="color: var(--text2); font-weight: 600;" id="progLblBase">$100k</span> Baseline</div>
-          <div><span style="color: var(--green); font-weight: 600;" id="progLblP1">$108k (+8%)</span> Phase 1 <span style="color: var(--green);">✓</span></div>
-          <div><span style="color: var(--green); font-weight: 600;" id="progLblP2">$113.4k (+5%)</span> Phase 2 <span style="color: var(--green);">✓</span></div>
-          <div><span style="color: #38BDF8; font-weight: 600;" id="progCurrentTarget">$123.5k Live</span> <span id="progCurrentStage" style="color: #38BDF8;">● Funded Payouts</span></div>
+          <div><span style="color: #F5B04C; font-weight: 600;" id="progLblP1">$108k (+8%)</span> Phase 1 <span style="font-size:9.5px; background:rgba(245,176,76,0.15); color:#F5B04C; padding:1px 5px; border-radius:3px;">IN PROGRESS</span></div>
+          <div><span style="color: var(--text3); font-weight: 500;" id="progLblP2">$113.4k (+5%)</span> Phase 2 <span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span></div>
+          <div><span style="color: var(--text3); font-weight: 500;" id="progCurrentTarget">$113.4k+</span> Funded Stage <span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span></div>
         </div>
       </div>
 
@@ -229,6 +229,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
   <script src="./app-mode.js"></script>
-  <script src="./engine-book.js?v=21"></script>
+  <script src="./engine-book.js?v=22"></script>
 </body>
 </html>

@@ -21,8 +21,11 @@ import sys
 import warnings
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 warnings.filterwarnings("ignore")
 ENGINE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ENGINE_DIR / ".env")
 sys.path.insert(0, str(ENGINE_DIR))
 sys.path.insert(0, str(ENGINE_DIR / "scripts"))
 
@@ -45,7 +48,7 @@ from apex_quant.storage import paper_store
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "state.json"
 LOG_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "decisions.log"
 PUBLIC_SNAPSHOT_PATH = ENGINE_DIR.parent / "public" / "book-f-paper-snapshot.json"
-DEFAULT_SEED_DATE = "2025-01-02"
+DEFAULT_SEED_DATE = "2026-09-04"
 
 
 def _load_local_state(path: Path) -> dict | None:

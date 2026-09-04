@@ -47,11 +47,11 @@ const BOOKS = {
   f: {
     label: 'Book F (Prop Shield Elite)',
     currency: '$',
-    startLabel: '02 Jan 2025',
+    startLabel: '04 Sep 2026',
     dailyTable: 'apex_paper_f_daily',
     positionsTable: 'apex_paper_f_positions',
     fallbackId: '__apex_book_f_prop_shield_runtime__',
-    blurb: 'Institutional Prop Shield Engine — 100% blind cross-asset momentum with dynamic mathematical covariance clustering (rho >= 0.55), cross-sectional market breadth guard, asymmetric execution (+1.0R BE lock), and dynamic convexity pyramiding (+1.5R addition with profit-locked stop). Seeded at $100,000 USD on strict funded prop firm rules.',
+    blurb: 'Forward Paper Trading (Seeded at $100,000 USD on 04 Sep 2026) — Institutional Prop Shield Engine with 100% blind cross-asset selection, rolling covariance clustering (rho >= 0.55), market breadth guard, +1.0R BE lock, and +1.5R convexity pyramiding. Pure forward testing tracking challenge progression from scratch to funded.',
   },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
@@ -452,19 +452,11 @@ function renderProgressTracker(liveOpenPnl = null, officialOpenPnl = null) {
   // Milestones
   const p1Target = seed * 1.08;
   const p2Target = seed * 1.134;
-  const lblBase = document.getElementById('progLblBase');
-  if (lblBase) lblBase.textContent = `${curr}${(seed / 1000).toFixed(0)}k`;
-  const lblP1 = document.getElementById('progLblP1');
-  if (lblP1) lblP1.textContent = `${curr}${(p1Target / 1000).toFixed(0)}k (+8%)`;
-  const lblP2 = document.getElementById('progLblP2');
-  if (lblP2) lblP2.textContent = `${curr}${(p2Target / 1000).toFixed(1)}k (+5%)`;
-  const curTarget = document.getElementById('progCurrentTarget');
-  if (curTarget) curTarget.textContent = fmtMoney(liveFloatingEquity) + ' Live';
 
-  // Bar width calculation
+  // Bar width calculation (from 0% baseline to funded)
   let fillPct = 0;
   if (growthPct <= 0) {
-    fillPct = Math.max(0, 100 + growthPct * 10);
+    fillPct = 0;
   } else if (growthPct < 8.0) {
     fillPct = (growthPct / 8.0) * 45;
   } else if (growthPct < 13.4) {
@@ -479,12 +471,48 @@ function renderProgressTracker(liveOpenPnl = null, officialOpenPnl = null) {
   const targetPctEl = document.getElementById('progTargetPct');
   if (targetPctEl) {
     if (growthPct >= 13.4) {
-      targetPctEl.innerHTML = `<span style="color:var(--green);">✓ Phase 1 &amp; 2 Passed</span> · <span style="color:#38BDF8;">Active Funded Stage (${fmtSignedMoney(totalNetGrowth)})</span>`;
+      targetPctEl.innerHTML = `<span style="color:var(--green); font-weight:700;">✓ Phase 1 &amp; 2 Passed</span> · <span style="color:#A78BFA; font-weight:700;">Funded Account Active (${fmtSignedMoney(totalNetGrowth)})</span>`;
     } else if (growthPct >= 8.0) {
-      targetPctEl.innerHTML = `<span style="color:var(--green);">✓ Phase 1 Passed (+8%)</span> · Verifying Phase 2 (${growthPct.toFixed(1)}% / 13.4%)`;
+      const p2Gain = totalNetGrowth - (seed * 0.08);
+      const p2TargetGain = seed * 0.054;
+      const p2Pct = Math.min(100, (p2Gain / p2TargetGain) * 100);
+      const remainingP2 = Math.max(0, p2TargetGain - p2Gain);
+      targetPctEl.innerHTML = `<span style="color:var(--green); font-weight:700;">✓ Phase 1 Passed (+8%)</span> · <span style="color:#38BDF8; font-weight:700;">Phase 2: ${p2Pct.toFixed(1)}%</span> · <span style="color:var(--text2);">${fmtMoney(remainingP2)} to Funded</span>`;
+    } else if (growthPct > 0) {
+      const remainingP1 = Math.max(0, (seed * 0.08) - totalNetGrowth);
+      const p1Pct = Math.min(100, (totalNetGrowth / (seed * 0.08)) * 100);
+      targetPctEl.innerHTML = `<span style="color:#F5B04C; font-weight:700;">Phase 1: ${p1Pct.toFixed(1)}% Completed</span> · <span style="color:var(--text2);">${fmtMoney(remainingP1)} to pass (+8%)</span>`;
     } else {
-      targetPctEl.textContent = `${Math.max(0, growthPct).toFixed(1)}% toward Phase 1 (+8%)`;
+      targetPctEl.innerHTML = `<span style="color:#F5B04C; font-weight:700;">Phase 1 Challenge Active</span> · <span style="color:var(--text2);">${fmtMoney(seed * 0.08)} Profit Target (+8.0%)</span>`;
     }
+  }
+
+  const labelsEl = document.getElementById('progMilestoneLabels');
+  if (labelsEl) {
+    const isP1Done = growthPct >= 8.0;
+    const isP2Done = growthPct >= 13.4;
+
+    const p1Badge = isP1Done
+      ? `<span style="font-size:9.5px; background:rgba(52,211,153,0.15); color:var(--green); padding:1px 5px; border-radius:3px; font-weight:700;">PASSED ✓</span>`
+      : `<span style="font-size:9.5px; background:rgba(245,176,76,0.15); color:#F5B04C; padding:1px 5px; border-radius:3px; font-weight:600;">IN PROGRESS</span>`;
+    const p1Col = isP1Done ? 'var(--green)' : '#F5B04C';
+
+    const p2Badge = isP2Done
+      ? `<span style="font-size:9.5px; background:rgba(52,211,153,0.15); color:var(--green); padding:1px 5px; border-radius:3px; font-weight:700;">PASSED ✓</span>`
+      : (isP1Done ? `<span style="font-size:9.5px; background:rgba(56,189,248,0.15); color:#38BDF8; padding:1px 5px; border-radius:3px; font-weight:600;">IN PROGRESS</span>` : `<span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span>`);
+    const p2Col = isP2Done ? 'var(--green)' : (isP1Done ? '#38BDF8' : 'var(--text3)');
+
+    const fundedBadge = isP2Done
+      ? `<span style="font-size:9.5px; background:rgba(167,139,250,0.18); color:#A78BFA; padding:1px 5px; border-radius:3px; font-weight:700;">ACTIVE ● PAYOUTS</span>`
+      : `<span style="font-size:9.5px; background:rgba(255,255,255,0.04); color:var(--text3); padding:1px 5px; border-radius:3px;">LOCKED</span>`;
+    const fundedCol = isP2Done ? '#A78BFA' : 'var(--text3)';
+
+    labelsEl.innerHTML = `
+      <div><span style="color: var(--text2); font-weight: 600;">${curr}${(seed / 1000).toFixed(0)}k</span> Baseline</div>
+      <div><span style="color: ${p1Col}; font-weight: 600;">${curr}${(p1Target / 1000).toFixed(0)}k (+8%)</span> Phase 1 ${p1Badge}</div>
+      <div><span style="color: ${p2Col}; font-weight: 600;">${curr}${(p2Target / 1000).toFixed(1)}k (+5%)</span> Phase 2 ${p2Badge}</div>
+      <div><span style="color: ${fundedCol}; font-weight: 600;">${curr}${(p2Target / 1000).toFixed(1)}k+</span> Funded Stage ${fundedBadge}</div>
+    `;
   }
 
   // Open trades callout banner
@@ -815,8 +843,11 @@ function renderPositions() {
           <span style="color: var(--text2); font-size: 11.5px; display: block; margin-top: 4px;">${pending.map(([inst, d]) => `${escHtml(inst)} (${escHtml((((d || {}).pos || {}).direction || '—'))})`).join(', ')}</span>
         </div>`
       : '';
+    const subNote = _book === 'f'
+      ? `<br/><span style="font-size: 12px; color: var(--text3); display: block; margin-top: 6px; font-style: normal;">All capital safely preserved in cash (${fmtMoney(BOOK_START_EQUITY)} USD). Quantitative multi-horizon scanner will execute entry signals during the nightly session.</span>`
+      : '';
     wrap.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text3); font-size: 14px; font-style: italic;">
-      No open ${classLabel}positions for ${bookLabel}.
+      No open ${classLabel}positions for ${bookLabel}.${subNote}
       ${pendingMsg}
     </div>`;
     return;
@@ -834,10 +865,13 @@ function renderClosedTrades() {
 
   const closed = closedTrades();
   const noteEl = document.getElementById('engClosedNote');
-  if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips · scrollable ledger` : '';
+  if (noteEl) noteEl.textContent = closed.length ? `${closed.length} round-trips · scrollable ledger` : '0 round-trips · forward ledger active';
 
   if (!closed.length) {
-    wrap.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text3); font-size: 14px; font-style: italic;">No closed engine trades yet for ${BOOKS[_book].label}.</div>`;
+    wrap.innerHTML = `<div style="text-align: center; padding: 36px 20px; color: var(--text3); font-size: 13.5px; font-style: italic;">
+      No closed forward trades yet for ${BOOKS[_book].label}.<br/>
+      <span style="font-size: 12px; color: var(--text3); display: block; margin-top: 6px; font-style: normal;">Forward paper trading began at ${fmtMoney(BOOK_START_EQUITY)} USD. Trades executed by the engine will appear here as they complete.</span>
+    </div>`;
     return;
   }
 
