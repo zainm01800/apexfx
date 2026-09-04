@@ -44,6 +44,15 @@ const BOOKS = {
     fallbackId: '__apex_book_r_252_forward_paper_runtime__',
     blurb: 'Active forward-paper Book R-252 — $100,000 USD, ten US-listed ETFs, month-end momentum decisions and next-session-open fills at 5 bps per side. Long-only, 95% maximum gross exposure, no leverage and no broker execution.',
   },
+  f: {
+    label: 'Book F (Prop Shield Elite)',
+    currency: '$',
+    startLabel: '02 Jan 2025',
+    dailyTable: 'apex_paper_f_daily',
+    positionsTable: 'apex_paper_f_positions',
+    fallbackId: '__apex_book_f_prop_shield_runtime__',
+    blurb: 'Institutional Prop Shield Engine — 100% blind cross-asset momentum with dynamic mathematical covariance clustering (rho >= 0.55), cross-sectional market breadth guard, asymmetric execution (+1.0R BE lock), and dynamic convexity pyramiding (+1.5R addition with profit-locked stop). Seeded at $100,000 USD on strict funded prop firm rules.',
+  },
 };
 let _book = (new URLSearchParams(window.location.search).get('book') || 'a').toLowerCase();
 if (!BOOKS[_book]) _book = 'a';
@@ -182,10 +191,11 @@ async function loadEngineBook() {
     if (pRes && pRes.ok) positions = await pRes.json().catch(() => null);
   } catch (e) { /* fall through to direct Supabase */ }
 
-  // Direct namespaced mirror fallback for Book R (including static local dev).
-  if (_book === 'r' && (!Array.isArray(daily) || !Array.isArray(positions))) {
+  // Direct namespaced mirror fallback for Book R and Book F (including static local dev).
+  if ((_book === 'r' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const fallbackId = tables.fallbackId || (_book === 'f' ? '__apex_book_f_prop_shield_runtime__' : '__apex_book_r_252_forward_paper_runtime__');
     const stateRes = await fetch(
-      `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${tables.fallbackId}&select=feature_vector&limit=1`,
+      `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`,
       { headers: supaHeaders },
     ).catch(() => null);
     if (stateRes && stateRes.ok) {
@@ -198,7 +208,7 @@ async function loadEngineBook() {
 
   // Direct Supabase REST fallback if the Vercel serverless proxy route returned
   // an error or is unreachable (e.g. static local dev server without /api).
-  if (_book !== 'r' && (!Array.isArray(daily) || !Array.isArray(positions))) {
+  if (_book !== 'r' && (!Array.isArray(daily) || !Array.isArray(positions)) && tables.dailyTable) {
     const [sdRes, spRes] = await Promise.all([
       fetch(`${SUPA_URL}/rest/v1/${tables.dailyTable}?order=date.asc&limit=500`, { headers: supaHeaders }).catch(() => null),
       fetch(`${SUPA_URL}/rest/v1/${tables.positionsTable}?order=instrument.asc&limit=100`, { headers: supaHeaders }).catch(() => null),
@@ -207,12 +217,10 @@ async function loadEngineBook() {
     if (spRes && spRes.ok) positions = await spRes.json().catch(() => positions);
   }
 
-  // Book C was launched before its dedicated Supabase mirror was provisioned.
-  // Keep the last committed engine snapshot visible instead of presenting a
-  // fictional empty book when those tables are unavailable.  Once the mirror
-  // exists, the live rows above remain authoritative and this is not read.
-  if (_book === 'c' && (!Array.isArray(daily) || !Array.isArray(positions))) {
-    const fallback = await fetch('/book-c-paper-snapshot.json', { cache: 'no-store' })
+  // Committed local engine snapshot fallback (Books C and F).
+  if ((_book === 'c' || _book === 'f') && (!Array.isArray(daily) || !Array.isArray(positions))) {
+    const snapshotUrl = _book === 'f' ? '/book-f-paper-snapshot.json' : '/book-c-paper-snapshot.json';
+    const fallback = await fetch(snapshotUrl, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .catch(() => null);
     if (fallback) {
@@ -256,7 +264,7 @@ function calcTradePnl(inst, entry, currentPx, units, isLong, gbpusd = (_gbpUsdRa
     }
   }
 
-  if (_book === 'r') return pnlUsd;
+  if (_book === 'r' || _book === 'f') return pnlUsd;
 
   // Convert USD to Book Currency (£ GBP) for Books A/B/C.
   return pnlUsd / (gbpusd || 1.285);
@@ -402,9 +410,11 @@ function renderEquityChart() {
       emptyEl.style.display = 'flex';
       emptyEl.textContent = _book === 'c'
         ? 'Book C is seeded at £100,000.00 with the promoted 0.85% risk budget. Waiting for the next verified daily equity snapshot.'
-        : (_book === 'r'
-          ? 'Book R-252 is active at $100,000.00. Waiting for the next closed-session snapshot.'
-          : 'Waiting for daily equity snapshots…');
+        : (_book === 'f'
+          ? 'Book F (Prop Shield Elite) is active at $100,000.00. Waiting for the next closed-session snapshot.'
+          : (_book === 'r'
+            ? 'Book R-252 is active at $100,000.00. Waiting for the next closed-session snapshot.'
+            : 'Waiting for daily equity snapshots…'));
     }
     return;
   }
@@ -759,7 +769,7 @@ function applyLiveMarks() {
     if (livePnl !== null) {
       liveTotalOpenPnl += livePnl;
       if (officialPnl !== null) officialMarkedOpenPnl += officialPnl;
-      liveTotalGross += _book === 'r' ? (m.px * units) : (m.px * units) / (_gbpUsdRate || 1.285);
+      liveTotalGross += (_book === 'r' || _book === 'f') ? (m.px * units) : (m.px * units) / (_gbpUsdRate || 1.285);
       liveCount++;
     }
   }
@@ -812,7 +822,7 @@ function applyLiveMarks() {
     const realizedBanked = closed.reduce((s, t) => s + (num(t.pnl) || 0), 0);
     const latest = latestDaily();
     const officialEquity = latest ? num(latest.equity) : BOOK_START_EQUITY;
-    const liveTotalEquity = _book === 'r'
+    const liveTotalEquity = (_book === 'r' || _book === 'f')
       ? officialEquity + (liveTotalOpenPnl - officialMarkedOpenPnl)
       : BOOK_START_EQUITY + realizedBanked + liveTotalOpenPnl;
     const liveTotalNetReturn = liveTotalEquity - BOOK_START_EQUITY;
@@ -893,13 +903,13 @@ function applyBookChrome() {
   const since = document.getElementById('engSinceSub');
   if (since) since.textContent = 'since ' + meta.startLabel;
   const experiment = document.getElementById('engExperimentLabel');
-  if (experiment) experiment.textContent = _book === 'r'
+  if (experiment) experiment.textContent = (_book === 'r' || _book === 'f')
     ? 'Forward Paper · $100k USD Account'
     : 'Paper Proof · £100k Experiment';
   const heroLabel = document.getElementById('engHeroLabel');
-  if (heroLabel) heroLabel.textContent = _book === 'r'
-    ? 'Book R-252 — Forward Paper'
-    : 'Engine Proof Book — Paper';
+  if (heroLabel) heroLabel.textContent = _book === 'f'
+    ? 'Book F (Prop Shield Elite) — Forward Paper'
+    : (_book === 'r' ? 'Book R-252 — Forward Paper' : 'Engine Proof Book — Paper');
 }
 
 function setBook(book) {

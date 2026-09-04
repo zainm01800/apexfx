@@ -18,6 +18,7 @@ const TABLES = {
   b: { daily: 'apex_paper_b_daily', positions: 'apex_paper_b_positions' },
   c: { daily: 'apex_paper_c_daily', positions: 'apex_paper_c_positions' },
   r: { fallbackId: '__apex_book_r_252_forward_paper_runtime__' },
+  f: { daily: 'apex_paper_f_daily', positions: 'apex_paper_f_positions', fallbackId: '__apex_book_f_prop_shield_runtime__' },
 };
 
 function supaHeaders() {
@@ -84,8 +85,9 @@ export default async function handler(req) {
       // Temporary Book C mirror while its dedicated pair has not yet been
       // provisioned. The engine stores both arrays in one namespaced JSONB row;
       // dedicated tables automatically win as soon as they become reachable.
-      if (book === 'c') {
-        const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.__apex_book_c_paper_runtime__&select=feature_vector&limit=1`;
+      if (book === 'c' || book === 'f') {
+        const fallbackId = TABLES[book].fallbackId || (book === 'c' ? '__apex_book_c_paper_runtime__' : '__apex_book_f_prop_shield_runtime__');
+        const stateUrl = `${SUPA_URL}/rest/v1/apex_analyses?id=eq.${fallbackId}&select=feature_vector&limit=1`;
         const stateResponse = await fetch(stateUrl, { method: 'GET', headers: supaHeaders() });
         if (stateResponse.ok) {
           const stateRows = await stateResponse.json();
