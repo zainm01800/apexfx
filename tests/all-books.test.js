@@ -1,10 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {BOOKS,summarizeLegacy,legacyTradeCard,legacyRules} from '../public/legacy-forward-model.js';
+import {BOOKS,LEGACY_AUDIT,summarizeLegacy,legacyTradeCard,legacyRules} from '../public/legacy-forward-model.js';
 import {forwardFixture} from './fixtures/forward-ui.mjs';
 const saved=book=>({book_id:book,metadata:{book_id:book,account_currency:BOOKS[book].currency,initial_equity:100000,paper_only:true,broker_enabled:false},daily:[{date:'2026-09-04',equity:100100,cash:99900,day_pnl:20,cum_pnl:100,drawdown:0.01,state_extra:{params:{max_risk_per_trade:.0085}}}],positions:[],trades:[],pending:[]});
 test('all eight books have a direct selectable profile',()=>assert.deepEqual(Object.keys(BOOKS),['v6','v10','a','b','c','r','s','f']));
+test('each older book has explicit audit findings independent of fresh data',()=>{
+ for(const book of ['a','b','c','r','s','f']){assert.ok(LEGACY_AUDIT[book].status);assert.ok(LEGACY_AUDIT[book].detail);}
+ assert.match(LEGACY_AUDIT.c.detail,/GBP conversion/);assert.match(LEGACY_AUDIT.s.detail,/backfilled/);assert.match(LEGACY_AUDIT.f.detail,/added-lot/);
+});
+test('SMC take_profit field is shown without inventing missing closed-trade stops',()=>{
+ assert.match(legacyTradeCard({take_profit:1.25},'positions','s'),/>1.25</);
+ const card=legacyTradeCard({pnl:100},'trades','s');assert.match(card,/Not supplied/);assert.match(card,/backfilled/);assert.match(card,/not an independently corrected result/);
+});
 test('legacy GBP totals use saved equity, not added floating profit',()=>{
  const m=summarizeLegacy(saved('c'),'c');assert.equal(m.equity,100100);assert.equal(m.openPnl,200);assert.equal(m.pnl,100);assert.equal(m.tradeRisk,.0085);assert.equal(m.maxFloor,null);
 });
@@ -45,7 +53,7 @@ test('dashboard controller loads and switches every book without navigation or s
   globalThis.fetch=async url=>{const id=new URL(url,'https://example.test').searchParams.get('book');calls.push(id);return {ok:true,json:async()=>BOOKS[id].legacy?saved(id):forwardFixture(id)};};
   await import('../public/forward-books.js');
   const settled=async()=>{for(let i=0;i<10&&els.refreshBook.disabled;i++)await new Promise(setImmediate);assert.equal(els.bookError.hidden,true,els.bookError.textContent);};
-  await settled();assert.match(els.accountLabel.textContent,/Book C/);
+  await settled();assert.match(els.accountLabel.textContent,/Book C/);assert.match(els.bookStatus.textContent,/Not forward-ready/);assert.match(els.bookNotice.textContent,/GBP conversion/);
   for(const button of books){button.click();await settled();const p=BOOKS[button.dataset.book];assert.match(els.accountLabel.textContent,new RegExp(p.name));assert.match(els.accountLabel.textContent,new RegExp(p.currency));assert.equal(els.riskTitle.textContent,p.legacy?'Account allocation':'Loss headroom');for(const tab of tabs)tab.click();}
   assert.ok(calls.includes('a')&&calls.includes('f')&&calls.includes('v10'));
  } finally {for(const [k,v] of Object.entries(originals))if(v===undefined)delete globalThis[k];else globalThis[k]=v;}

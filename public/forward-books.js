@@ -1,5 +1,5 @@
 import { escapeHtml as e, number, firstNumber, money as formatMoney, percent, signClass, dateLabel, summarize, tradeCard } from './forward-model.js';
-import { BOOKS, summarizeLegacy, legacyTradeCard, legacyRules } from './legacy-forward-model.js';
+import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules } from './legacy-forward-model.js';
 
 const $ = id => document.getElementById(id);
 const requested = new URL(location.href).searchParams.get('book') || 'v6';
@@ -14,7 +14,7 @@ const empty = (title,description) => `<div class="ws-empty"><strong>${e(title)}<
 function chrome() {
   for (const button of document.querySelectorAll('[data-book]')) button.setAttribute('aria-pressed', String(button.dataset.book === book));
   const p=BOOKS[book];
-  set('accountLabel',`${p.name} · ${p.currency} account equity`);
+  set('accountLabel',`${p.name} · ${p.currency} ${p.legacy?'reported equity · not certified':'account equity'}`);
   set('tradeRisk',percent(p.legacy?model?.tradeRisk:p.trade));
   set('seedAmount',model?`${money(model.initialEquity??100000)} seed`:p.legacy?'Original account seed':'£100,000 seed');
   set('riskTitle',p.legacy?'Account allocation':'Loss headroom');
@@ -23,8 +23,8 @@ function chrome() {
   for(const id of ['dailyMeter','maxMeter'])$(id).parentElement.hidden=!!p.legacy;
   set('maxFloor',p.legacy?'No funded limits assumed':`${money(100000*(1-p.maximum))} external floor`);
   set('dailyFloor',p.legacy?'Original account currency':`${p.daily*100}% daily-loss model`);
-  set('bookNotice',p.legacy?'Original paper book · existing ledger and strategy preserved. Displayed results are not funded-account certification.':'Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval.');
-  set('closedPnlNote',p.legacy?'saved closed-trade ledger':'fees and borrow included');
+  set('bookNotice',p.legacy?`Audit · 5 September 2026: ${LEGACY_AUDIT[book].detail} Original figures are retained for inspection, not certified forward results.`:'Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval.');
+  set('closedPnlNote',p.legacy?'reported full exits · excludes open-trade partials':'fees and borrow included');
   set('workspaceFooter',p.legacy?'Original paper snapshots, not live broker execution. Instrument prices remain in their quote currency; account totals retain the original ledger currency. No balances, positions or strategy rules are changed by this view.':'Paper fills are evaluated after each completed US market session, not executed with a broker at the open. ETF bars proxy CFD prices; intraday account-loss touches are conservative estimates. Firm-specific rules, spreads and contract sizes still need verification.');
 }
 function drawChart(rows) {
@@ -45,7 +45,7 @@ function render() {
   set('accountEquity',money(m.equity));
   set('accountReturn',`${money(m.pnl,true)} (${percent(m.pnl/(m.initialEquity??100000))})`,signClass(m.pnl));
   const status=state.halted ? 'Halted · internal risk guard' : m.sessions===0 ? 'Seeded · waiting for first forward session' : String(meta.status || state.status || 'Waiting for next completed session').replaceAll('_',' ');
-  set('bookStatus',status);
+  set('bookStatus',p.legacy?LEGACY_AUDIT[book].status+(state.halted?' · engine also reports halted':''):status);
   set('dataThrough',m.through ? `${m.sessions===0?'Market inputs':'Ledger'} through ${dateLabel(m.through)}` : 'No completed forward sessions yet');
   set('sessionCount',p.legacy?`${m.sessions} saved snapshots`:`${m.sessions} forward session${m.sessions===1?'':'s'}`);
   set('seedDate',`${p.legacy?'History from':'Activated'} ${dateLabel(m.activation)}`);

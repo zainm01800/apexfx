@@ -9,6 +9,16 @@ export const BOOKS = Object.freeze({
   s:{name:'Book S',label:'Session SMC',currency:'USD',legacy:true},
   f:{name:'Book F',label:'Prop shield',currency:'USD',legacy:true},
 });
+// Dated engineering findings, not inferred from a successful fetch or fresh timestamp.
+// Revalidate the runner and accounting before clearing any of these warnings.
+export const LEGACY_AUDIT = Object.freeze({
+  a:{status:'Not forward-ready · accounting repair required',detail:'Mixed quote-currency P&L is summed without reliable GBP conversion. GBP-labelled balances, profit, drawdown and win rate are unverified.'},
+  b:{status:'Not forward-ready · accounting repair required',detail:'Mixed quote-currency P&L is summed without reliable GBP conversion. GBP-labelled balances, profit, drawdown and win rate are unverified.'},
+  c:{status:'Not forward-ready · accounting repair required',detail:'Mixed quote-currency P&L is summed without reliable GBP conversion. GBP-labelled balances, profit, drawdown and win rate are unverified.'},
+  r:{status:'Forward operation unverified · stale runner output',detail:'The audited USD cash-plus-holdings snapshot reconciles, but the checked scheduled run made no progress beyond 2 September. Monthly rebalance uses no position stop or target; funded-loss compliance is not established.'},
+  s:{status:'Not forward-ready · backfilled research history',detail:'This history was backfilled, not an untouched forward test. FX sizing and restart accounting defects invalidate its performance evidence. No Book S step is wired into the checked GitHub nightly workflow.'},
+  f:{status:'Not forward-ready · profit-accounting defect',detail:'Added pyramid units use the original entry price instead of their actual added-lot price. Reported performance is unverified; the audited equity history stopped on 19 August despite newer position timestamps.'},
+});
 const rows = v=>Array.isArray(v)&&v.every(x=>x&&typeof x==='object'&&!Array.isArray(x));
 export function summarizeLegacy(payload,book) {
   const p=BOOKS[book],meta=payload?.metadata;
@@ -40,7 +50,7 @@ const field=(label,value)=>`<div><dt>${e(label)}</dt><dd>${e(value)}</dd></div>`
 export function legacyTradeCard(raw,kind,book) {
   const t={...raw,...(raw.pos||{})},p=BOOKS[book],symbol=t.instrument||t.symbol||t.pair||'Unknown symbol';
   const dir=String(t.direction||'').toLowerCase(),side=['long','short'].includes(dir)?dir.toUpperCase():number(t.direction)===1?'LONG':number(t.direction)===-1?'SHORT':'UNKNOWN';
-  const entry=n(t.entry_price),mark=n(t.last_px,t.current_price),stop=n(t.stop,t.stop_loss,t.stop_price),target=n(t.target,t.target_price);
+  const entry=n(t.entry_price),mark=n(t.last_px,t.current_price),stop=n(t.stop,t.stop_loss,t.stop_price),target=n(t.target,t.target_price,t.take_profit);
   const price=v=>v===null?'Not supplied':Number(v).toLocaleString('en-GB',{maximumFractionDigits:6});
   const explicitPnl=kind==='trades'?n(t.net_pnl_gbp,t.net_pnl_usd,t.pnl):n(t.unrealized_pnl_gbp,t.unrealized_pnl_usd,t.unrealized_pnl,t.open_pnl);
   const rawPnl=entry!==null&&mark!==null&&number(t.units)!==null&&side!=='UNKNOWN'?(mark-entry)*Number(t.units)*(side==='SHORT'?-1:1):null;
@@ -58,7 +68,7 @@ export function legacyTradeCard(raw,kind,book) {
   ${field('Initial stop · quote',price(n(t.initial_stop)))}${field('First partial',flag(t.tms_p1??t.partial_taken))}${field('Second partial',flag(t.tms_p2))}${field('Breakeven move',flag(t.tms_be))}${field('Position risk fraction',percent(n(t.risk_fraction)))}${field('Exit / rebalance rule',t.exit_rule||t.next_rebalance_date||'See saved stop, target and management history')}
   ${field('Entry date',dateLabel(t.entry_time||t.entry_date))}${field('Decision date',dateLabel(t.decision_date))}${field('Last saved',dateLabel(t.updated_at,true))}</dl>
   ${actions.length?`<ul>${actions.map(a=>`<li>${e(String(a.action||'Management event').replaceAll('_',' '))}${n(a.price,a.new_sl)!==null?' · '+e(price(n(a.price,a.new_sl))):''}</li>`).join('')}</ul>`:'<p>No management events supplied in this snapshot.</p>'}
-  <p>Prices are in the instrument’s quote currency. Unconverted price-move P&amp;L is not account-currency profit. Missing fields are not replaced with another book’s rules.</p></details></article>`;
+  <p>Audit · 5 September 2026: ${e(LEGACY_AUDIT[book].detail)}</p><p>Prices are in the instrument’s quote currency. Saved P&amp;L is the original engine’s claim, not an independently corrected result. Unconverted price-move P&amp;L is not account-currency profit. Missing fields are not replaced with another book’s rules.</p></details></article>`;
 }
 export function legacyRules(m,book) {
   const p=BOOKS[book],params=m?.latest.state_extra?.params||{};
