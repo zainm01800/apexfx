@@ -3,9 +3,9 @@
 // fresh online — no stale-bundle bug), with a cache fallback only when offline.
 // /api/* and all cross-origin requests are NEVER intercepted, so the live AI calls,
 // candle/quant/crypto data and Supabase are completely unaffected.
-const CACHE = 'apex-v5';
+const CACHE = 'apex-v6';
 const SHELL = [
-  '/engine-book.html', '/workspace.css', '/forward-books.js', '/forward-model.js',
+  '/engine-book.html', '/workspace.css', '/forward-books.js', '/forward-model.js', '/legacy-forward-model.js',
   '/ab-race.html', '/compare-books.js', '/progress.html', '/progress.js',
   '/dashboard.html', '/history.html', '/backtest.html',
   '/dashboard.css', '/history.css', '/backtest.css',

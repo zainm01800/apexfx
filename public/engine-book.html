@@ -21,25 +21,31 @@
     <div class="header-right"><span class="paper-pill">PAPER ONLY</span></div>
   </header>
   <main class="workspace">
-    <div class="ws-heading"><div><span class="ws-eyebrow">Strategy workspace</span><h1>Forward books</h1><p>Two risk profiles. Separate capital. One clear view.</p></div><span class="ws-meta" id="checkedAt">Connecting to paper ledger…</span></div>
+    <div class="ws-heading"><div><span class="ws-eyebrow">Strategy workspace</span><h1>Forward books</h1><p>All your paper books. Separate ledgers. One clear view.</p></div><span class="ws-meta" id="checkedAt">Connecting to paper ledger…</span></div>
     <div class="ws-toolbar">
       <div class="ws-book-tabs" role="group" aria-label="Select forward book">
         <button class="ws-book-tab" data-book="v6" aria-pressed="true"><strong>Book V6</strong><span>3% daily · 6% static loss</span></button>
         <button class="ws-book-tab" data-book="v10" aria-pressed="false"><strong>Book V10</strong><span>5% daily · 10% static loss</span></button>
+        <button class="ws-book-tab" data-book="a" aria-pressed="false"><strong>Book A</strong><span>252-day trend</span></button>
+        <button class="ws-book-tab" data-book="b" aria-pressed="false"><strong>Book B</strong><span>252-day + Spill50</span></button>
+        <button class="ws-book-tab" data-book="c" aria-pressed="false"><strong>Book C</strong><span>Multi-horizon trend</span></button>
+        <button class="ws-book-tab" data-book="r" aria-pressed="false"><strong>Book R</strong><span>Monthly ETF momentum</span></button>
+        <button class="ws-book-tab" data-book="s" aria-pressed="false"><strong>Book S</strong><span>Session SMC</span></button>
+        <button class="ws-book-tab" data-book="f" aria-pressed="false"><strong>Book F</strong><span>Prop shield</span></button>
       </div>
-      <div class="ws-controls"><label class="ws-muted" for="legacyBook">Older books</label><select id="legacyBook" class="ws-select"><option value="">Select a book</option><option value="a">Book A · 252-day</option><option value="b">Book B · Spill50</option><option value="c">Book C · Multi-horizon</option><option value="r">Book R · ETF momentum</option><option value="s">Book S · Session SMC</option><option value="f">Book F · Prop shield</option></select><button class="ws-btn" id="refreshBook">Refresh</button></div>
+      <div class="ws-controls"><button class="ws-btn" id="refreshBook">Refresh</button></div>
     </div>
-    <div class="ws-notice">Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval. <a href="progress.html">View research</a></div>
+    <div class="ws-notice"><span id="bookNotice">Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval.</span> <a href="progress.html">View research</a></div>
     <div id="bookError" class="ws-notice error" role="alert" hidden></div>
     <section class="ws-overview" aria-label="Account overview" aria-busy="true" id="overview">
       <div class="ws-capital"><span class="ws-muted" id="accountLabel">Book V6 · GBP account equity</span><strong class="ws-value" id="accountEquity">—</strong><div class="ws-return"><span id="accountReturn">—</span><span class="ws-muted">since activation</span></div><div class="ws-meta" id="bookStatus">Loading authoritative state…</div><div class="ws-meta" id="dataThrough">No historical profits are imported.</div></div>
-      <div class="ws-chart-pane"><div class="ws-title-row"><span class="ws-muted">Forward equity</span><span class="ws-meta" id="sessionCount">— sessions</span></div><div class="ws-chart" id="forwardChart"><div class="ws-empty">Waiting for the paper ledger.</div></div><div class="ws-title-row"><span class="ws-meta" id="seedDate">Activation: —</span><span class="ws-meta">£100,000 seed</span></div></div>
-      <div class="ws-risk"><h2>Loss headroom</h2><div><div class="ws-risk-row"><span>Daily limit</span><strong id="dailyHeadroom">—</strong></div><div class="ws-meter"><span id="dailyMeter" style="width:0"></span></div><small id="dailyFloor">3% daily-loss model</small></div><div><div class="ws-risk-row"><span>Static maximum</span><strong id="maxHeadroom">—</strong></div><div class="ws-meter"><span id="maxMeter" style="width:0"></span></div><small id="maxFloor">£94,000 external floor</small></div></div>
+      <div class="ws-chart-pane"><div class="ws-title-row"><span class="ws-muted">Equity history</span><span class="ws-meta" id="sessionCount">— sessions</span></div><div class="ws-chart" id="forwardChart"><div class="ws-empty">Waiting for the paper ledger.</div></div><div class="ws-title-row"><span class="ws-meta" id="seedDate">Activation: —</span><span class="ws-meta" id="seedAmount">£100,000 seed</span></div></div>
+      <div class="ws-risk"><h2 id="riskTitle">Loss headroom</h2><div><div class="ws-risk-row"><span id="dailyHeadroomLabel">Daily limit</span><strong id="dailyHeadroom">—</strong></div><div class="ws-meter"><span id="dailyMeter" style="width:0"></span></div><small id="dailyFloor">3% daily-loss model</small></div><div><div class="ws-risk-row"><span id="maxHeadroomLabel">Static maximum</span><strong id="maxHeadroom">—</strong></div><div class="ws-meter"><span id="maxMeter" style="width:0"></span></div><small id="maxFloor">£94,000 external floor</small></div></div>
     </section>
     <section class="ws-metrics" aria-label="Book statistics">
       <div class="ws-metric"><label>Day P&amp;L</label><strong id="dayPnl">—</strong><small>last completed session</small></div>
       <div class="ws-metric"><label>Open P&amp;L</label><strong id="openPnl">—</strong><small>official closing marks</small></div>
-      <div class="ws-metric"><label>Closed net P&amp;L</label><strong id="closedPnl">—</strong><small>fees and borrow included</small></div>
+      <div class="ws-metric"><label>Closed net P&amp;L</label><strong id="closedPnl">—</strong><small id="closedPnlNote">fees and borrow included</small></div>
       <div class="ws-metric"><label>Peak drawdown</label><strong id="maxDrawdown">—</strong><small>not the static-loss rule</small></div>
       <div class="ws-metric"><label>Closed win rate</label><strong id="winRate">—</strong><small id="tradeCount">no completed trades</small></div>
       <div class="ws-metric"><label>Per-trade ceiling</label><strong id="tradeRisk">0.75%</strong><small>actual sizing may be lower</small></div>
@@ -48,7 +54,7 @@
       <div class="ws-panel-head"><div class="ws-tabs" role="tablist" aria-label="Book details"><button class="ws-tab" id="tab-positions" role="tab" aria-selected="true" aria-controls="bookPanel" data-panel="positions">Open positions <span class="ws-count" id="countPositions">0</span></button><button class="ws-tab" id="tab-pending" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="pending" tabindex="-1">Pending <span class="ws-count" id="countPending">0</span></button><button class="ws-tab" id="tab-trades" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="trades" tabindex="-1">Closed trades <span class="ws-count" id="countTrades">0</span></button><button class="ws-tab" id="tab-rules" role="tab" aria-selected="false" aria-controls="bookPanel" data-panel="rules" tabindex="-1">Rules &amp; evidence</button></div><label class="ws-muted" hidden id="tradeSearchLabel">Filter <input class="ws-search" id="tradeSearch" type="search" placeholder="Symbol…" aria-label="Filter trades by symbol" /></label></div>
       <div class="ws-panel-body" id="bookPanel" role="tabpanel" aria-labelledby="tab-positions"><div class="ws-empty"><strong>Loading paper book</strong><p>Balances and trades will appear only after the saved ledger is verified.</p></div></div>
     </section>
-    <p class="ws-footer">Paper fills are evaluated after each completed US market session, not executed with a broker at the open. ETF bars proxy CFD prices; intraday account-loss touches are conservative estimates. Firm-specific rules, spreads and contract sizes still need verification.</p>
+    <p class="ws-footer" id="workspaceFooter">Paper fills are evaluated after each completed US market session, not executed with a broker at the open. ETF bars proxy CFD prices; intraday account-loss touches are conservative estimates. Firm-specific rules, spreads and contract sizes still need verification.</p>
   </main>
   <script src="./app-mode.js?v=5"></script>
   <script type="module" src="./forward-books.js?v=1"></script>

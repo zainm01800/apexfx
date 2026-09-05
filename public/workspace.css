@@ -24,8 +24,8 @@ body { margin: 0; }
 .ws-btn:disabled { opacity: .55; cursor: wait; }
 .ws-btn.secondary { color: var(--ink-2); }
 .ws-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.ws-book-tabs { display: flex; gap: 6px; padding: 5px; background: var(--obs-s1); border: 1px solid var(--obs-line-2); border-radius: 12px; }
-.ws-book-tab { background: none; border: 1px solid transparent; border-radius: 8px; color: var(--ink-2); cursor: pointer; padding: 11px 18px; text-align: left; min-width: 170px; }
+.ws-book-tabs { display: flex; flex: 1; min-width: 0; gap: 6px; padding: 5px; overflow-x: auto; scrollbar-width: thin; background: var(--obs-s1); border: 1px solid var(--obs-line-2); border-radius: 12px; }
+.ws-book-tab { background: none; border: 1px solid transparent; border-radius: 8px; color: var(--ink-2); cursor: pointer; padding: 11px 14px; text-align: left; flex: 0 0 auto; min-width: 130px; }
 .ws-book-tab strong { display: block; font: 600 15px var(--font-body); }
 .ws-book-tab span { display: block; font-size: 12px; margin-top: 3px; }
 .ws-book-tab[aria-pressed=true] { color: var(--mint); background: var(--mint-dim); border-color: var(--mint-line); }
@@ -121,7 +121,7 @@ body { margin: 0; }
   .ws-heading { margin-bottom: 18px; }
   .ws-heading .ws-meta { display: none; }
   .ws-book-tabs { width: 100%; box-sizing: border-box; }
-  .ws-book-tab { flex: 1; min-width: 0; padding: 10px; }
+  .ws-book-tab { flex: 0 0 auto; min-width: 140px; padding: 10px; }
   .ws-book-tab strong { font-size: 14px; }
   .ws-book-tab span { font-size: 11px; }
   .ws-toolbar > .ws-controls { width: 100%; justify-content: space-between; }

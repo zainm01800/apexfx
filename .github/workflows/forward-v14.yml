@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest -q engine/tests/test_v14_forward.py
 
       - name: Verify public paper API and forward dashboard model
-        run: node --test tests/paper-api.test.js tests/forward-model.test.js
+        run: node --test tests/paper-api.test.js tests/forward-model.test.js tests/all-books.test.js
 
       - name: Verify authoritative paper-state store
         id: preflight

@@ -338,7 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const more = document.createElement('details'); more.className = 'ws-more';
       const summary = document.createElement('summary'); summary.className = 'nav-link'; summary.textContent = 'More'; more.append(summary);
       const menu = document.createElement('div');
-      for (const [title, href] of [['Scan history', 'history.html'], ['Legacy books', 'legacy-book.html?book=a'], ['Track record', 'track-record.html'], ['Method guide', 'how-it-works.html']]) {
+      for (const [title, href] of [['Scan history', 'history.html'], ['Older books', 'engine-book.html?book=a'], ['Track record', 'track-record.html'], ['Method guide', 'how-it-works.html']]) {
         const link = document.createElement('a'); link.className = 'nav-link'; link.href = href; link.textContent = title; menu.append(link);
       }
       more.append(menu); nav.append(more);

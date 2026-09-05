@@ -16,7 +16,7 @@ async function loadLegacy(){
   $('legacyRows').innerHTML='<tr><td colspan="6">Loading saved ledgers…</td></tr>';
   const rows=await Promise.all(['a','b','c','r','s','f'].map(async book=>{
     const currency=['a','b','c'].includes(book)?'GBP':'USD';
-    const title=`<a href="legacy-book.html?book=${book}">Book ${book.toUpperCase()}</a>`;
+    const title=`<a href="engine-book.html?book=${book}">Book ${book.toUpperCase()}</a>`;
     try{const d=await get(book),last=d.daily?.at(-1),equity=firstNumber(last?.equity);if(equity===null)throw new Error();return `<tr><td>${title}</td><td>${currency}</td><td>${money(equity,false,currency)}</td><td>${percent((equity-100000)/100000)}</td><td>${d.positions?.length??'—'}</td><td>${dateLabel(last.date)}</td></tr>`;}catch{return `<tr><td>${title}</td><td>${currency}</td><td colspan="4">Ledger unavailable</td></tr>`;}
   }));$('legacyRows').innerHTML=rows.join('');
 }
