@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {BOOKS,LEGACY_AUDIT,summarizeLegacy,legacyTradeCard,legacyRules} from '../public/legacy-forward-model.js';
 import {forwardFixture} from './fixtures/forward-ui.mjs';
-const saved=book=>({book_id:book,metadata:{book_id:book,account_currency:BOOKS[book].currency,initial_equity:100000,paper_only:true,broker_enabled:false},daily:[{date:'2026-09-04',equity:100100,cash:99900,day_pnl:20,cum_pnl:100,drawdown:0.01,state_extra:{params:{max_risk_per_trade:.0085}}}],positions:[],trades:[],pending:[]});
-test('all eight books have a direct selectable profile',()=>assert.deepEqual(Object.keys(BOOKS),['v6','v10','a','b','c','r','s','f']));
+const todayIso = new Date().toISOString().slice(0, 10);
+const saved=book=>({book_id:book,metadata:{book_id:book,account_currency:BOOKS[book].currency,initial_equity:100000,paper_only:true,broker_enabled:false},daily:[{date:todayIso,equity:100100,cash:99900,day_pnl:20,cum_pnl:100,drawdown:0.01,state_extra:{params:{max_risk_per_trade:.0085}}}],positions:[],trades:[],pending:[]});
+test('all ten books have a direct selectable profile',()=>assert.deepEqual(Object.keys(BOOKS),['v6','v10','v24','v30','a','b','c','r','s','f']));
 test('each older book has explicit audit findings independent of fresh data',()=>{
  for(const book of ['a','b','c','r','s','f']){assert.ok(LEGACY_AUDIT[book].status);assert.ok(LEGACY_AUDIT[book].detail);}
  assert.match(LEGACY_AUDIT.c.detail,/GBP conversion/);assert.match(LEGACY_AUDIT.s.detail,/backfilled/);assert.match(LEGACY_AUDIT.f.detail,/added-lot/);

@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 async function get(book) { const r=await fetch(`/api/paper?table=state&book=${book}&limit=500`,{cache:'no-store'}); if(!r.ok)throw new Error('Saved ledger unavailable');return r.json(); }
 async function load(){
   $('refreshCompare').disabled=true;
-  const cards=await Promise.all(['v6','v10'].map(async book=>{
+  const cards=await Promise.all(['v6','v10','v24','v30'].map(async book=>{
     const p=PROFILES[book];
     try { const m=summarize(await get(book),book);
       return `<article class="ws-compare-card"><div class="ws-title-row"><h2>${p.name}</h2><span class="paper-pill">${p.maximum*100}% STATIC</span></div><span class="ws-value">${money(m.equity)}</span><p class="${signClass(m.pnl)}">${money(m.pnl,true)} · ${percent(m.pnl/100000)} since activation</p><dl class="ws-trade-grid"><div><dt>Open positions</dt><dd>${m.payload.positions.length}</dd></div><div><dt>Closed trades</dt><dd>${m.payload.trades.length}</dd></div><div><dt>Peak drawdown</dt><dd>${percent(m.maxDD)}</dd></div></dl><p class="ws-meta">${e(m.meta.status||m.state.status||'Paper only')} · ${m.sessions} sessions<br>Ledger: ${dateLabel(m.through)}</p><a class="ws-btn" href="engine-book.html?book=${book}">Inspect ${p.name} →</a></article>`;

@@ -1,0 +1,102 @@
+{
+  "book_id": "v30",
+  "daily": [
+    {
+      "cash": 100000.0,
+      "cum_pnl": 0.0,
+      "date": "2026-09-05",
+      "day_pnl": 0.0,
+      "drawdown_from_peak": 0.0,
+      "equity": 100000.0,
+      "external_daily_floor": 95000.0,
+      "external_maximum_floor": 88000.0,
+      "internal_daily_floor": 96250.0,
+      "internal_maximum_floor": 91000.0,
+      "is_seed": true,
+      "open_pnl": 0.0,
+      "trades": 0
+    }
+  ],
+  "generated_at_utc": "2026-09-05T15:46:31.867869+00:00",
+  "metadata": {
+    "account_currency": "GBP",
+    "activation_recorded_at_utc": "2026-09-05T15:46:31.684625+00:00",
+    "book_id": "v30",
+    "broker_enabled": false,
+    "cash": 100000.0,
+    "cost_total_gbp": 0.0,
+    "current_equity": 100000.0,
+    "experimental": true,
+    "external_daily_floor": 95000.0,
+    "external_maximum_floor": 88000.0,
+    "first_eligible_decision_session": "2026-09-05",
+    "funded_qualified": false,
+    "initial_equity": 100000.0,
+    "internal_daily_floor": 96250.0,
+    "internal_maximum_floor": 91000.0,
+    "label": "Book V30 \u00b7 SPY ATR Breakout",
+    "last_data_as_of": "2026-09-05T15:46:31.684625+00:00",
+    "last_processed_session": null,
+    "open_pnl": 0.0,
+    "paper_only": true,
+    "profile": "higher_5_12_static",
+    "session_count": 0,
+    "status": "active_forward_paper",
+    "strategy_id": "spy_atr_intraday_v30",
+    "strategy_variant": "atr_open_stop",
+    "warning": "Experimental forward paper forward test. No broker execution, real money, or funded-account qualification."
+  },
+  "pending": [],
+  "positions": [],
+  "schema_version": 1,
+  "state": {
+    "activation_recorded_at_utc": "2026-09-05T15:46:31.684625+00:00",
+    "book_id": "v30",
+    "cash": 100000.0,
+    "cost_total_gbp": 0.0,
+    "daily": [
+      {
+        "cash": 100000.0,
+        "cum_pnl": 0.0,
+        "date": "2026-09-05",
+        "day_pnl": 0.0,
+        "drawdown_from_peak": 0.0,
+        "equity": 100000.0,
+        "external_daily_floor": 95000.0,
+        "external_maximum_floor": 88000.0,
+        "internal_daily_floor": 96250.0,
+        "internal_maximum_floor": 91000.0,
+        "is_seed": true,
+        "open_pnl": 0.0,
+        "trades": 0
+      }
+    ],
+    "equity": 100000.0,
+    "events": [
+      {
+        "book_id": "v30",
+        "event": "account_activated",
+        "initial_equity_gbp": 100000.0,
+        "sequence": 1,
+        "timestamp": "2026-09-05T15:46:31.684625+00:00"
+      }
+    ],
+    "first_eligible_decision_session": "2026-09-05",
+    "halted": false,
+    "initial_equity": 100000.0,
+    "last_data_as_of": "2026-09-05T15:46:31.684625+00:00",
+    "last_processed_session": null,
+    "parent_state_sha256": null,
+    "peak": 100000.0,
+    "pending": [],
+    "position": null,
+    "profile": "higher_5_12_static",
+    "revision": 1,
+    "schema_version": 1,
+    "status": "active_forward_paper",
+    "strategy_id": "spy_atr_intraday_v30",
+    "strategy_variant": "atr_open_stop",
+    "trades": []
+  },
+  "trades": []
+}
