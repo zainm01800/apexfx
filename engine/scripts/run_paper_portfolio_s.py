@@ -1,18 +1,9 @@
 #!/usr/bin/env python3
-"""Advance the Book S (Session SMC & Order Flow Engine) $100k forward-paper account.
+"""Local Book S repaired-paper driver and fresh hourly/daily data helpers.
 
-Book S is a systematic intraday/session quantitative engine with:
-- Microstructure edge: Asian Session (00:00 - 06:59 UTC) accumulation liquidity bounds.
-- Execution Killzone: London Opening session (07:00 - 11:59 UTC).
-- Regime Gate: Higher-Timeframe (Daily) 50 EMA trend filter.
-- Dynamic Invalidation: Stop placed at opposite Asian extreme or 1.2x ATR.
-- Asymmetric Target: 1:1.80 Risk:Reward ($630 profit target on $350 risk).
-- Prop Safety Shield: Strictly 0.35% risk ($350 per trade on $100k capital).
-- Fail-Closed Daily Circuit Breaker: Halt new entries if intraday drawdown touches -$1,800 (-1.8%).
-- Universe: 6 Highly Liquid FX Pairs (GBP/USD, EUR/USD, USD/CHF, USD/JPY, USD/CAD, AUD/USD).
-
-Usage:
-    python scripts/run_paper_portfolio_s.py --prefer-supabase
+Production uses run_repaired_paper.py and isolated atomic runtime documents.
+This compatibility driver refuses legacy schema/fallback reseeding and can
+initialize only a separate explicitly requested local ledger. Paper only.
 """
 
 from __future__ import annotations
@@ -26,6 +17,7 @@ import warnings
 warnings.filterwarnings("ignore")
 ENGINE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ENGINE_DIR))
+sys.path.insert(0, str(ENGINE_DIR / "scripts"))
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -33,7 +25,8 @@ from dotenv import load_dotenv
 load_dotenv(ENGINE_DIR / ".env")
 
 from apex_quant.config import get_config
-from apex_quant.data import ParquetStore, clean
+from apex_quant.data import ParquetStore, clean, get_adapter
+from run_paper_portfolio import _top_up
 from apex_quant.models.book_s_session_smc import (
     BOOK_LABEL,
     CORE_UNIVERSE,
@@ -44,6 +37,7 @@ from apex_quant.models.book_s_session_smc import (
     validate_book_s_state,
 )
 from apex_quant.storage import paper_store
+from apex_quant.models.paper_readiness import require_restored_state, require_daily_panel, require_hourly_panel
 
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_s" / "state.json"
 PUBLIC_SNAPSHOT_PATH = ENGINE_DIR.parent / "public" / "book-s-paper-snapshot.json"
@@ -58,8 +52,7 @@ def _load_local_state(path: Path) -> dict | None:
         validate_book_s_state(val)
         return val
     except Exception as e:
-        print(f"Warning: Failed to load local state from {path}: {e}", flush=True)
-        return None
+        raise ValueError(f"Invalid saved Book S state; refusing fallback/reseed") from e
 
 
 def _save_local_state(path: Path, state: dict) -> None:
@@ -78,26 +71,35 @@ def _restore_remote_state() -> dict | None:
             validate_book_s_state(state)
             return state
     except Exception as e:
-        print(f"Warning: Remote Supabase fetch failed: {e}", flush=True)
+        raise ValueError("Authoritative remote state invalid/unavailable; refusing fallback/reseed") from e
     return None
 
 
 def load_panels(store: ParquetStore) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
     hourly = {}
     daily = {}
+    now = pd.Timestamp.now(tz="UTC")
+    adapter = get_adapter("yahoo")
     for sym in CORE_UNIVERSE:
         df_h = store.load(sym, "1h")
+        start = df_h.index[-1] - pd.Timedelta(days=3) if df_h is not None and not df_h.empty else now - pd.Timedelta(days=60)
+        fetched = adapter.get_history(sym, start, now, "1h")
+        df_h = pd.concat([df_h, fetched]) if df_h is not None else fetched
+        df_h = df_h[~df_h.index.duplicated(keep="last")].sort_index()
+        df_h = df_h[df_h.index + pd.Timedelta(hours=1, minutes=2) <= now]
         if df_h is not None and not df_h.empty:
             df_h = clean(df_h)
             df_h.sort_index(inplace=True)
             hourly[sym] = df_h
             
-        df_d = store.load(sym, "1d")
+        df_d = _top_up(store, adapter, sym, now.normalize(), now)
         if df_d is not None and not df_d.empty:
             df_d = clean(df_d)
             df_d.sort_index(inplace=True)
-            daily[sym] = df_d
+            daily[sym] = df_d[df_d.index < now.normalize()]
             
+    require_hourly_panel(hourly, CORE_UNIVERSE, now)
+    require_daily_panel(daily, CORE_UNIVERSE, now.normalize())
     return hourly, daily
 
 
@@ -109,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-supabase", action="store_true")
     parser.add_argument("--prefer-supabase", action="store_true")
     parser.add_argument("--reseed", action="store_true", help="Force fresh reseed from seed-date")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate without ledger or mirror writes")
     args = parser.parse_args(argv)
 
     state_path = Path(args.state)
@@ -137,21 +140,31 @@ def main(argv: list[str] | None = None) -> int:
     # State resolution
     state = None
     origin = "fresh"
+    if args.reseed and state_path.exists():
+        raise ValueError("Cannot overwrite an existing ledger; choose a separate state path")
     if not args.reseed:
         if args.prefer_supabase and not args.no_supabase:
             state = _restore_remote_state()
             if state is not None:
                 origin = "supabase"
+            else:
+                raise ValueError("Authoritative Supabase state unavailable; local fallback prohibited")
         if state is None:
             state = _load_local_state(state_path)
             if state is not None:
                 origin = "local_json"
 
-    if state is None or args.reseed:
-        seed_dt = pd.Timestamp(args.seed_date, tz="UTC") if max_dt.tzinfo else pd.Timestamp(args.seed_date)
-        state = new_book_s_state(seed_dt)
-        origin = f"fresh_seeded_{args.seed_date}"
-        print(f"Initialized fresh Book S state seeded on {args.seed_date} with $100,000.00 USD.", flush=True)
+    require_restored_state(state, initialize=args.reseed, no_remote=args.no_supabase,
+                           state_path=state_path, original_path=STATE_PATH)
+    if state is None:
+        if args.as_of or args.seed_date != DEFAULT_SEED_DATE:
+            raise ValueError("Repaired forward initialization cannot be backdated")
+        state = new_book_s_state(pd.Timestamp.now(tz="UTC"))
+        state["last_processed_time"] = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M:%S")
+        if not args.dry_run:
+            _save_local_state(state_path, state)
+        print("Separate repaired ledger initialized; no historical trades imported.", flush=True)
+        return 0
     else:
         print(f"Restored Book S state from {origin}. Last processed: {state.get('last_processed_time')}", flush=True)
 
@@ -175,6 +188,10 @@ def main(argv: list[str] | None = None) -> int:
     state["pending_radar"] = compute_pending_radar(hourly_panel, daily_panel)
     print(f"Computed {len(state['pending_radar'])} pending setup triggers for Session Radar.", flush=True)
 
+    if args.dry_run:
+        print("DRY RUN: no local ledger, public snapshot or remote writes", flush=True)
+        return 0
+
     # Save local state
     _save_local_state(state_path, state)
     print(f"State saved locally to {state_path}", flush=True)
@@ -190,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Mirroring Book S runtime payload to Supabase...", flush=True)
         ok_remote = paper_store.write_book_s_runtime(payload)
         print(f"Supabase mirror status: runtime fallback={'OK' if ok_remote else 'FAILED'}", flush=True)
+        if not ok_remote:
+            return 1
 
     return 0
 

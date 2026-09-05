@@ -61,6 +61,7 @@ from apex_quant.backtest.paper import PaperPortfolio  # noqa: E402
 from apex_quant.config import get_config  # noqa: E402
 from apex_quant.data import ParquetStore, clean, get_adapter  # noqa: E402
 from apex_quant.storage import paper_store  # noqa: E402
+from apex_quant.models.paper_readiness import require_daily_panel, require_restored_state
 from apex_quant.strategies.spillover_gate import SpilloverGate, risk_on_map  # noqa: E402
 
 from run_paper_portfolio import (  # noqa: E402
@@ -128,10 +129,14 @@ def _restore_from_supabase() -> dict | None:
     if not latest:
         return None
     extra = latest.get("state_extra") or {}
+    if extra.get("full_state"):
+        return extra["full_state"]
     curve = paper_store.fetch_daily_curve(table=paper_store.DAILY_TABLE_B) or []
     pos_rows = paper_store.fetch_open_positions(table=paper_store.POSITIONS_TABLE_B) or []
     return {
         "schema_version": 1,
+        "accounting_version": extra.get("accounting_version"),
+        "account_currency": extra.get("account_currency"),
         "book": extra.get("book", BOOK_LABEL),
         "params": extra.get("params", {**BOOK_PARAMS, "spill_L": SPILL_L}),
         "initial_equity": float(extra.get("initial_equity", START_EQUITY)),
@@ -161,6 +166,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="prefer mirrored state over the tracked local snapshot (CI mode)")
     ap.add_argument("--clear-halt", action="store_true",
                     help="clear the experiment HALT flag after a review, then exit")
+    ap.add_argument("--dry-run", action="store_true", help="Simulate without ledger or mirror writes")
+    ap.add_argument("--initialize-repaired", action="store_true", help="Initialize a separate local repaired paper ledger")
     args = ap.parse_args(argv)
 
     now = pd.Timestamp.now(tz="UTC")
@@ -205,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     gated = tuple(inst for inst in panel if inst in set(BOOK_CRYPTO) | set(FX_MAJORS_7))
     risk_on = risk_on_map(spy_df["close"], panel, gated, SPILL_L)
 
+    require_daily_panel(panel, instruments, cutoff)
     latest = max(df.index[-1] for df in panel.values())
     print(f"panel: {len(panel)} instruments | latest closed bar {latest.date()} | "
           f"gated (crypto+FX): {len(gated)}", flush=True)
@@ -218,13 +226,15 @@ def main(argv: list[str] | None = None) -> int:
         remote_state = _restore_from_supabase()
         if remote_state is not None:
             state, origin = remote_state, "supabase"
-        elif local_state is not None:
-            origin = "local-fallback (Supabase state empty)"
+        else:
+            raise ValueError("Authoritative Supabase state unavailable; local fallback prohibited")
     elif state is None and not args.no_supabase:
         state = _restore_from_supabase()
         origin = "supabase" if state is not None else "fresh"
 
     # 3. the certified TrendBook with the spill50 wrapper on crypto/FX
+    require_restored_state(state, initialize=args.initialize_repaired, no_remote=args.no_supabase,
+                           state_path=state_path, original_path=STATE_PATH)
     model = TrendBook(panel, **BOOK_PARAMS)
     strategies = model.strategies()
     for inst in gated:
@@ -235,8 +245,11 @@ def main(argv: list[str] | None = None) -> int:
         timeframes={k: "1d" for k in panel}, warmup=WARMUP,
         state=state, book=BOOK_LABEL, params={**BOOK_PARAMS, "spill_L": SPILL_L},
         halt_drawdown=HALT_DRAWDOWN, initial_equity=START_EQUITY,
+        account_currency="GBP", fx_panel=panel,
     )
 
+    if args.clear_halt and args.dry_run:
+        raise ValueError("--clear-halt cannot be combined with --dry-run")
     if args.clear_halt:
         stepper.set_halted(False)
         stepper.save_state(state_path)
@@ -244,9 +257,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if state is None:
-        wm = stepper.seed_watermark(cutoff)
-        print(f"fresh seed: watermark {wm.date() if wm is not None else '-'}; "
-              f"the most recent closed bar's decisions become PENDING-ENTRY", flush=True)
+        if args.as_of:
+            raise ValueError("Repaired initialization cannot backdate activation")
+        stepper._last_processed = now.normalize()
+        stepper._eq_points = [(now.normalize(), START_EQUITY)]
+        if not args.dry_run:
+            stepper.save_state(state_path)
+        print("Separate repaired ledger initialized; no historical trades imported.", flush=True)
+        return 0
     else:
         print(f"state restored from {origin} | last processed {stepper.last_processed} "
               f"| equity points {len(stepper.equity_series())}", flush=True)
@@ -257,6 +275,10 @@ def main(argv: list[str] | None = None) -> int:
         lp = stepper.last_processed
         print(f"no new closed bars since {lp.date() if lp is not None else '-'} "
               f"- nothing to do (idempotent no-op). State NOT rewritten.", flush=True)
+        return 0
+
+    if args.dry_run:
+        print(f"DRY RUN: {len(recs)} new bars verified; no ledger or remote writes", flush=True)
         return 0
 
     lines = _log_lines(stepper, recs)
@@ -290,9 +312,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"supabase: positions upsert {'ok' if ok_pos else 'FAILED'}, "
               f"prune {'ok' if ok_del else 'FAILED'}, daily {'ok' if ok_day else 'FAILED'}", flush=True)
         if not (ok_pos and ok_del and ok_day):
-            print("  (clean degradation: local JSON state is authoritative; "
-                  "the apex_paper_b_* tables must exist with the same schema/RLS as "
-                  "apex_paper_positions/apex_paper_daily)", flush=True)
+            print("Durable mirror failed; forward run failed", flush=True)
+            return 1
 
     pend = stepper.pending_entries
     if pend:

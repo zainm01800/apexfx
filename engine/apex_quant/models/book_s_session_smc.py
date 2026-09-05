@@ -1,14 +1,10 @@
-"""Book S: Systematic 1H Session SMC & Order Flow Engine ($100k Prop Firm Standard).
+"""Repaired Book S USD session-breakout forward-paper state machine.
 
-Strategy Philosophy:
-- Microstructure edge: Asian Session (00:00 - 06:59 UTC) accumulation liquidity bounds.
-- Execution Killzone: London Opening session (07:00 - 11:59 UTC).
-- Regime Gate: Higher-Timeframe (Daily) 50 EMA trend filter.
-- Dynamic Invalidation: Stop placed at opposite Asian extreme or 1.2x ATR.
-- Asymmetric Target: 1:1.80 Risk:Reward ($630 profit target on $350 risk).
-- Prop Safety Shield: Strictly 0.35% risk ($350 per trade on $100k capital).
-- Fail-Closed Daily Circuit Breaker: Halt new entries if intraday drawdown touches -$1,800 (-1.8%).
-- Universe: 6 Highly Liquid FX Pairs (GBP/USD, EUR/USD, USD/CHF, USD/JPY, USD/CAD, AUD/USD).
+Closed-hour London breakouts use a causal prior-daily EMA and complete Asian
+session range. Fixed FX units target $500 stop risk including model spread;
+entries fill next hour. Restart-safe cash and daily entry locks, stop-first
+OHLC ordering and Friday closing exits are applied. These are paper proxies,
+not proof of intrabar funded compliance or a profitable trading edge.
 """
 
 from __future__ import annotations
@@ -18,6 +14,8 @@ from datetime import datetime, timezone
 from typing import Any
 import numpy as np
 import pandas as pd
+from .paper_accounting import VERSION
+from .book_s_execution import advance_hours
 
 BOOK_LABEL = "book_s_session_smc_100k"
 INITIAL_EQUITY_USD = 100_000.0
@@ -26,7 +24,7 @@ TARGET_RR = 1.80                 # 1:1.80 Reward-to-Risk ratio
 MAX_CONCURRENT_POSITIONS = 4     # Increased to 4 concurrent positions to capture more breakouts
 DAILY_CIRCUIT_BREAKER_USD = 1800.0 # -1.8% daily loss guard (vs FTMO -5.0%)
 MAX_HOLDING_HOURS = 16           # Clean intraday exit after 16 hours
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 CORE_UNIVERSE = [
     "GBP/USD", "EUR/USD", "USD/CHF", "USD/JPY", "USD/CAD", "AUD/USD"
@@ -66,6 +64,7 @@ def new_book_s_state(seed_date: pd.Timestamp | str = "2026-07-28") -> dict[str, 
     date_str = ts.strftime("%Y-%m-%d")
     return {
         "schema_version": SCHEMA_VERSION,
+        "accounting_version": VERSION,
         "book": BOOK_LABEL,
         "strategy": "Session SMC & Order Flow Engine",
         "status": "active_forward_paper_session_smc",
@@ -79,6 +78,9 @@ def new_book_s_state(seed_date: pd.Timestamp | str = "2026-07-28") -> dict[str, 
         "max_positions": MAX_CONCURRENT_POSITIONS,
         "last_processed_time": f"{date_str} 00:00:00",
         "positions": {},
+        "pending": {},
+        "daily_guard": {},
+        "last_traded_date": {},
         "trades": [],
         "equity_curve": [{
             "date": date_str,
@@ -101,6 +103,11 @@ def validate_book_s_state(state: dict[str, Any]) -> None:
         raise ValueError(f"Invalid Book S label: {state.get('book')}")
     if state.get("account_currency") != "USD":
         raise ValueError("Book S must be denominated in USD")
+    if state.get("accounting_version") != VERSION:
+        raise ValueError("Book S requires a separate repaired ledger; legacy history cannot be relabelled")
+    for pos in state.get("positions", {}).values():
+        if not np.isfinite(pos.get("units", np.nan)) or pos["units"] <= 0:
+            raise ValueError("Book S position lacks fixed entry-sized units")
 
 
 def advance_book_s_forward(
@@ -111,6 +118,7 @@ def advance_book_s_forward(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Step Book S across all unadvanced 1H bars up to cutoff_time."""
     validate_book_s_state(state)
+    state = copy.deepcopy(state)
     
     # 1. Precompute Daily Trend & Asian Ranges for each pair
     precomputed = {}
@@ -124,21 +132,27 @@ def advance_book_s_forward(
         if df_1d is not None and not df_1d.empty:
             df_1d = df_1d.copy().sort_index()
             df_1d["ema50"] = df_1d["close"].ewm(span=50, adjust=False).mean()
-            df_1d["htf_bull"] = (df_1d["close"] > df_1d["ema50"]).shift(1)
-            df_1d["d_date"] = df_1d.index.date
-            htf_map = df_1d.set_index("d_date")["htf_bull"].to_dict()
+            df_1d["htf_bull"] = (df_1d["close"] > df_1d["ema50"])
+            htf_map = {}
+            for day in set(df_1h.index.date):
+                prior = df_1d[df_1d.index.date < day]
+                if len(prior) >= 50:
+                    htf_map[day] = bool(prior.iloc[-1]["htf_bull"])
         else:
             htf_map = {}
             
         df_1h["bar_date"] = df_1h.index.date
         df_1h["bar_hour"] = df_1h.index.hour
-        df_1h["htf_bull"] = df_1h["bar_date"].map(htf_map).fillna(True)
+        df_1h["htf_bull"] = df_1h["bar_date"].map(htf_map)
         
         # Asian session high & low (00:00 - 06:59 UTC)
         asian_mask = (df_1h["bar_hour"] >= 0) & (df_1h["bar_hour"] < 7)
         asian_bars = df_1h[asian_mask]
         asian_high = asian_bars.groupby("bar_date")["high"].max().rename("asian_high")
         asian_low = asian_bars.groupby("bar_date")["low"].min().rename("asian_low")
+        complete = asian_bars.groupby("bar_date").size() == 7
+        asian_high = asian_high.where(complete)
+        asian_low = asian_low.where(complete)
         df_1h = df_1h.join(asian_high, on="bar_date")
         df_1h = df_1h.join(asian_low, on="bar_date")
         
@@ -173,229 +187,12 @@ def advance_book_s_forward(
     if not to_process:
         return state, []
         
-    positions = state["positions"]
-    closed_trades = state["trades"]
-    equity = float(state["equity"])
-    peak = float(state["peak"])
-    new_daily_rows = []
-    
-    # Track day start equity for circuit breaker
-    day_starts: dict[str, float] = {}
-    day_mins: dict[str, float] = {}
-    last_traded_date: dict[str, str] = {}
-    
-    for current_ts in to_process:
-        cur_date_str = current_ts.strftime("%Y-%m-%d")
-        if cur_date_str not in day_starts:
-            day_starts[cur_date_str] = equity
-            day_mins[cur_date_str] = equity
-            
-        closed_this_bar = []
-        open_upnl = 0.0
-        
-        # 1. Manage open positions
-        for sym, pos in list(positions.items()):
-            df = precomputed.get(sym)
-            if df is None or current_ts not in df.index:
-                open_upnl += float(pos.get("unrealized_pnl", 0.0))
-                continue
-                
-            bar = df.loc[current_ts]
-            h, l, c = float(bar["high"]), float(bar["low"]), float(bar["close"])
-            is_long = pos["direction"] == "long"
-            sl = float(pos["stop_loss"])
-            tp = float(pos["take_profit"])
-            entry_px = float(pos["entry_price"])
-            risk_usd = float(pos["risk_usd"])
-            reward_usd = float(pos["reward_usd"])
-            stop_dist = float(pos["stop_dist"])
-            units = round(risk_usd / max(stop_dist, 1e-6), 2)
-            
-            entry_ts = pd.Timestamp(pos["entry_time"])
-            if current_ts.tzinfo is not None and entry_ts.tzinfo is None:
-                entry_ts = entry_ts.tz_localize("UTC")
-            elif current_ts.tzinfo is None and entry_ts.tzinfo is not None:
-                entry_ts = entry_ts.tz_localize(None)
-            holding_hours = (current_ts - entry_ts).total_seconds() / 3600.0
-            
-            # Real-world broker spread friction accounting (100% causal & accurate)
-            pip_val = PIP_SIZES.get(sym, 0.0001)
-            stop_pips = max(stop_dist / pip_val, 1.0)
-            spread_p = SPREAD_PIPS.get(sym, 1.0)
-            friction_usd = (spread_p / stop_pips) * risk_usd
-
-            # Pessimistic execution: Check SL first
-            sl_hit = (l <= sl) if is_long else (h >= sl)
-            tp_hit = (h >= tp) if is_long else (l <= tp)
-            time_hit = holding_hours >= MAX_HOLDING_HOURS
-            
-            if sl_hit:
-                trade_pnl = -risk_usd - friction_usd
-                equity += trade_pnl
-                closed_trades.append({
-                    "instrument": sym,
-                    "symbol": sym,
-                    "direction": pos["direction"],
-                    "units": units,
-                    "entry_price": entry_px,
-                    "exit_price": sl,
-                    "pnl": round(trade_pnl, 2),
-                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
-                    "win": False,
-                    "entry_time": pos["entry_time"],
-                    "exit_time": _date_str(current_ts),
-                    "holding_hours": round(holding_hours, 1),
-                    "exit_reason": "stop_loss"
-                })
-                closed_this_bar.append(sym)
-            elif tp_hit:
-                trade_pnl = reward_usd - friction_usd
-                equity += trade_pnl
-                closed_trades.append({
-                    "instrument": sym,
-                    "symbol": sym,
-                    "direction": pos["direction"],
-                    "units": units,
-                    "entry_price": entry_px,
-                    "exit_price": tp,
-                    "pnl": round(trade_pnl, 2),
-                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
-                    "win": True,
-                    "entry_time": pos["entry_time"],
-                    "exit_time": _date_str(current_ts),
-                    "holding_hours": round(holding_hours, 1),
-                    "exit_reason": "take_profit"
-                })
-                closed_this_bar.append(sym)
-            elif time_hit:
-                diff = (c - entry_px) if is_long else (entry_px - c)
-                trade_pnl = ((diff / stop_dist) * risk_usd) - friction_usd
-                equity += trade_pnl
-                closed_trades.append({
-                    "instrument": sym,
-                    "symbol": sym,
-                    "direction": pos["direction"],
-                    "units": units,
-                    "entry_price": entry_px,
-                    "exit_price": c,
-                    "pnl": round(trade_pnl, 2),
-                    "return_pct": round(trade_pnl / INITIAL_EQUITY_USD, 4),
-                    "win": trade_pnl > 0,
-                    "entry_time": pos["entry_time"],
-                    "exit_time": _date_str(current_ts),
-                    "holding_hours": round(holding_hours, 1),
-                    "exit_reason": "time_limit"
-                })
-                closed_this_bar.append(sym)
-            else:
-                diff = (c - entry_px) if is_long else (entry_px - c)
-                pos_upnl = ((diff / stop_dist) * risk_usd) - friction_usd
-                pos["unrealized_pnl"] = pos_upnl
-                pos["current_price"] = c
-                open_upnl += pos_upnl
-                
-        for sym in closed_this_bar:
-            del positions[sym]
-            
-        cur_total_equity = equity + open_upnl
-        day_mins[cur_date_str] = min(day_mins[cur_date_str], cur_total_equity)
-        peak = max(peak, cur_total_equity)
-        current_dd = (peak - cur_total_equity) / peak
-        
-        # 2. Check Daily Circuit Breaker (-1.8% intraday)
-        day_loss = day_starts[cur_date_str] - cur_total_equity
-        daily_guard_active = day_loss >= DAILY_CIRCUIT_BREAKER_USD
-        
-        # 3. Scan for High-Expectancy Session Breakouts in London Killzone (07:00 - 11:59 UTC)
-        if len(positions) < MAX_CONCURRENT_POSITIONS and not daily_guard_active and 7 <= current_ts.hour < 12:
-            candidates = []
-            for sym in CORE_UNIVERSE:
-                if sym in positions or len(positions) + len(candidates) >= MAX_CONCURRENT_POSITIONS:
-                    continue
-                if last_traded_date.get(sym) == cur_date_str:
-                    continue
-                    
-                df = precomputed.get(sym)
-                if df is None or current_ts not in df.index:
-                    continue
-                    
-                bar = df.loc[current_ts]
-                h, l, c = float(bar["high"]), float(bar["low"]), float(bar["close"])
-                ah, al = bar.get("asian_high"), bar.get("asian_low")
-                atr = bar.get("atr")
-                htf_bull = bar.get("htf_bull", True)
-                
-                if pd.isna(ah) or pd.isna(al) or pd.isna(atr) or atr <= 0:
-                    continue
-                    
-                # Bullish Breakout: Close above Asian High + Macro Bull
-                if htf_bull and c > ah and (c - ah) > 0.1 * atr:
-                    stop_dist = max(c - al, 1.2 * atr)
-                    sl = c - stop_dist
-                    tp = c + TARGET_RR * stop_dist
-                    candidates.append({
-                        "symbol": sym,
-                        "direction": "long",
-                        "entry_price": c,
-                        "stop_loss": sl,
-                        "take_profit": tp,
-                        "stop_dist": stop_dist,
-                        "risk_usd": RISK_PER_TRADE_USD,
-                        "reward_usd": RISK_PER_TRADE_USD * TARGET_RR,
-                        "unrealized_pnl": 0.0,
-                        "current_price": c,
-                        "entry_time": _date_str(current_ts)
-                    })
-                    last_traded_date[sym] = cur_date_str
-                # Bearish Breakout: Close below Asian Low + Macro Bear
-                elif (not htf_bull) and c < al and (al - c) > 0.1 * atr:
-                    stop_dist = max(ah - c, 1.2 * atr)
-                    sl = c + stop_dist
-                    tp = c - TARGET_RR * stop_dist
-                    candidates.append({
-                        "symbol": sym,
-                        "direction": "short",
-                        "entry_price": c,
-                        "stop_loss": sl,
-                        "take_profit": tp,
-                        "stop_dist": stop_dist,
-                        "risk_usd": RISK_PER_TRADE_USD,
-                        "reward_usd": RISK_PER_TRADE_USD * TARGET_RR,
-                        "unrealized_pnl": 0.0,
-                        "current_price": c,
-                        "entry_time": _date_str(current_ts)
-                    })
-                    last_traded_date[sym] = cur_date_str
-                    
-            for cand in candidates:
-                positions[cand["symbol"]] = cand
-                
-        # Update daily snapshot on last bar of each calendar date or end of processing
-        if current_ts == to_process[-1] or current_ts.hour == 23:
-            day_pnl = cur_total_equity - day_starts[cur_date_str]
-            row = {
-                "date": cur_date_str,
-                "timestamp": _date_str(current_ts),
-                "equity": round(cur_total_equity, 2),
-                "cash": round(equity, 2),
-                "day_pnl": round(day_pnl, 2),
-                "cum_pnl": round(cur_total_equity - INITIAL_EQUITY_USD, 2),
-                "drawdown": round(current_dd, 4),
-                "open_count": len(positions),
-                "notes": f"Book S Session SMC: {len(positions)} open, {len(closed_trades)} total trades"
-            }
-            new_daily_rows.append(row)
-            
-    # Finalize state
-    state["last_processed_time"] = _date_str(to_process[-1])
-    state["equity"] = round(cur_total_equity, 2)
-    state["cash"] = round(equity, 2)
-    state["peak"] = round(peak, 2)
-    state["positions"] = positions
-    state["trades"] = closed_trades
-    state["equity_curve"].extend(new_daily_rows)
-    
-    return state, new_daily_rows
+    return advance_hours(
+        state, precomputed, to_process, universe=CORE_UNIVERSE,
+        risk=RISK_PER_TRADE_USD, rr=TARGET_RR, max_positions=MAX_CONCURRENT_POSITIONS,
+        daily_limit=DAILY_CIRCUIT_BREAKER_USD, max_hours=MAX_HOLDING_HOURS,
+        pip_sizes=PIP_SIZES, spreads=SPREAD_PIPS, stamp=_date_str,
+    )
 
 
 def compute_pending_radar(
@@ -414,13 +211,16 @@ def compute_pending_radar(
         df_d = df_d.copy().sort_index()
         
         df_d["ema50"] = df_d["close"].ewm(span=50, adjust=False).mean()
-        df_d["htf_bull"] = (df_d["close"] > df_d["ema50"]).shift(1)
-        df_d["d_date"] = df_d.index.date
-        daily_map = df_d.set_index("d_date")["htf_bull"].to_dict()
+        df_d["htf_bull"] = (df_d["close"] > df_d["ema50"])
+        daily_map = {}
+        for day in set(df_h.index.date):
+            prior = df_d[df_d.index.date < day]
+            if len(prior) >= 50:
+                daily_map[day] = bool(prior.iloc[-1]["htf_bull"])
         
         df_h["bar_date"] = df_h.index.date
         df_h["bar_hour"] = df_h.index.hour
-        df_h["htf_bull"] = df_h["bar_date"].map(daily_map).fillna(True)
+        df_h["htf_bull"] = df_h["bar_date"].map(daily_map)
         
         asian_bars = df_h[(df_h["bar_hour"] >= 0) & (df_h["bar_hour"] < 7)]
         ah = asian_bars.groupby("bar_date")["high"].max().rename("asian_high")
@@ -436,6 +236,9 @@ def compute_pending_radar(
         df_h["atr"] = tr.rolling(14).mean()
         
         last_bar = df_h.iloc[-1]
+        today_asian = asian_bars[asian_bars["bar_date"] == df_h.index[-1].date()]
+        if len(today_asian) != 7 or any(pd.isna(last_bar[k]) for k in ("htf_bull", "atr", "asian_high", "asian_low")):
+            continue
         c = float(last_bar["close"])
         ah_val = float(last_bar["asian_high"]) if not pd.isna(last_bar["asian_high"]) else c
         al_val = float(last_bar["asian_low"]) if not pd.isna(last_bar["asian_low"]) else c
@@ -476,15 +279,17 @@ def compute_pending_radar(
 
 def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
     """Generate the complete runtime payload for Supabase and frontend consumption."""
+    validate_book_s_state(state)
     trades = state.get("trades", [])
     wins = [t for t in trades if t.get("win")]
     losses = [t for t in trades if not t.get("win")]
     wr = (len(wins) / len(trades) * 100.0) if trades else 0.0
     gross_w = sum(t["pnl"] for t in wins)
     gross_l = abs(sum(t["pnl"] for t in losses))
-    pf = (gross_w / gross_l) if gross_l > 0 else (1.0 if not losses and wins else 0.0)
+    pf = (gross_w / gross_l) if gross_l > 0 else None
     
     return {
+        "state": copy.deepcopy(state),
         "book": BOOK_LABEL,
         "strategy": "Session SMC & Order Flow Engine",
         "currency": "USD",
@@ -496,7 +301,7 @@ def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
         "open_count": len(state.get("positions", {})),
         "total_trades": len(trades),
         "win_rate": round(wr, 1),
-        "profit_factor": round(pf, 2),
+        "profit_factor": round(pf, 2) if pf is not None else None,
         "positions": state.get("positions", {}),
         "trades": trades,
         "pending_radar": state.get("pending_radar", []),

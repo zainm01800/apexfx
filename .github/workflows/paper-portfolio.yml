@@ -1,162 +1,38 @@
 name: paper-portfolio
-
-# Daily forward paper steps for Book A (frozen 252-day), Book B (252-day plus
-# spillover gate), Book C (champion 63/126/252 ensemble at 0.85% risk), and
-# Book R-252 (long-only USD ETF momentum control seeded at $100,000).
-# These steppers are engine-simulated, not broker execution: each run tops up
-# the parquet cache, restores the authoritative Supabase state, advances one
-# closed daily bar, and writes the state back. Idempotent — only bars strictly
-# before today 00:00 UTC are processed, so re-runs are no-ops.
-#
-# Scheduled daily 7x (not weekdays-only): crypto trades 365, so the weekend
-# runs advance the crypto sleeve (the only class with weekend bars); equity/FX
-# bars from Friday are processed by the Saturday run. No separate catch-up
-# logic is needed — the stepper processes whatever new closed bars exist.
-#
-# A second, non-blocking step advances the CHALLENGER book (Book B,
-# 252+spill50 vs Book D A/B — prereg
-# engine/data_store/pre_registration_paper_challenger_2026-08-11.md) after the
-# proof step; it has its own state dir and apex_paper_b_* tables, and
-# continue-on-error ensures it can never fail the frozen proof.
-
+# Repaired paper accounts only. Original tables and runtime IDs are archives.
 on:
   schedule:
-    - cron: "30 23 * * *"     # 23:30 UTC daily — after US equity (20:00) and FX (21:00/22:00) closes
-  workflow_dispatch: {}        # run on demand from the Actions tab
-
+    - cron: "35 0 * * *"
+  workflow_dispatch: {}
+concurrency:
+  group: legacy-paper-writer
+  cancel-in-progress: false
+permissions:
+  contents: read
 jobs:
   step:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
-      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dmNoamhhb2pobXhmZ2N6bmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4ODYwNzYsImV4cCI6MjEwMDQ2MjA3Nn0.liH06gqou8QD0ifOLbNDohZjP5dsEk_RzH1WaXf1wtM
-      # Writers prefer the service-role key (2026-07-17 RLS lockdown: anon is SELECT-only)
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Verify Supabase tables exist (fail fast if not)
-        run: |
-          for t in apex_paper_positions apex_paper_daily; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" \
-              "$SUPABASE_URL/rest/v1/$t?select=*&limit=1" \
-              -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-            echo "$t REST status: $code"
-            if [ "$code" = "402" ]; then
-              echo "::error::Supabase has RESTRICTED this project (HTTP 402 — egress/quota exceeded). Nothing is broken in the engine or IBKR: the database is refusing to serve. Restore service in the Supabase dashboard (upgrade plan or raise the spend cap), then re-run. The stepper is halted deliberately — advancing the book without its state would corrupt the forward test."
-              exit 1
-            fi
-            if [ "$code" != "200" ]; then
-              echo "::error::$t not reachable (HTTP $code). If the table is genuinely missing, run supabase/apex_paper_portfolio.sql in the Supabase SQL editor first."
-              exit 1
-            fi
-          done
-          # Book C prefers its dedicated pair. Until the checked-in migration is
-          # applied, paper_store uses one namespaced JSONB row in the existing
-          # apex_analyses table so the forward state still persists across CI.
-          c_daily=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/apex_paper_c_daily?select=*&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          c_positions=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/apex_paper_c_positions?select=*&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          if [ "$c_daily" != "200" ] || [ "$c_positions" != "200" ]; then
-            fallback=$(curl -s -o /dev/null -w "%{http_code}" \
-              "$SUPABASE_URL/rest/v1/apex_analyses?select=id&limit=1" \
-              -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-            if [ "$fallback" != "200" ]; then
-              echo "::error::Neither the dedicated Book C tables nor its namespaced fallback are reachable."
-              exit 1
-            fi
-            echo "Book C dedicated tables unavailable; namespaced JSONB mirror is reachable."
-          fi
-          # Book R intentionally uses a namespaced JSONB document: it is a new
-          # forward-paper evidence stream, not a promoted/funded A/B/C book.
-          r_fallback=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/apex_analyses?select=id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          if [ "$r_fallback" != "200" ]; then
-            echo "::error::Book R namespaced runtime mirror is not reachable."
-            exit 1
-          fi
-          echo "Paper-state persistence OK — proceeding."
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: System deps (LightGBM OpenMP runtime)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgomp1
-      - name: Install Python deps
+      - name: Install engine dependencies
         run: pip install -r engine/requirements.txt
-      - name: Restore parquet price cache (history stays stable across runs)
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
-          # parquets + resolver-local state only — NOT paper_portfolio/state.json:
-          # in CI the Supabase mirror is the single source of truth for portfolio
-          # state. resolved_outcomes.json is the RESOLVER's own memory (processed
-          # keys + entry-barrier snapshots of open positions); without it a close
-          # still resolves, but with "derived" instead of exact barriers.
-          path: |
-            engine/data_store/*.parquet
-            engine/data_store/paper_portfolio/resolved_outcomes.json
+          path: engine/data_store/*.parquet
           key: paper-portfolio-data-${{ github.run_id }}
           restore-keys: paper-portfolio-data-
-      - name: Advance the paper book one closed bar
+      - name: Verify repaired accounting and persistence
         working-directory: engine
-        run: python scripts/run_paper_portfolio.py --prefer-supabase
-      - name: Advance the CHALLENGER paper book one closed bar (252+spill50 vs Book D)
-        # Second forward book (Book B) — pre-registered A/B challenger in
-        # engine/data_store/pre_registration_paper_challenger_2026-08-11.md:
-        # certified Book H gold 252 + SPY 50-day spillover gate on crypto/FX
-        # entries, own state dir + apex_paper_b_* tables. Runs AFTER the frozen
-        # proof step above. NON-BLOCKING: a challenger failure must never fail
-        # the proof — continue-on-error still surfaces the failure as an error
-        # annotation on the run summary (visible, not a silent skip).
-        continue-on-error: true
+        run: python -m pytest tests/test_repaired_paper_accounting.py tests/test_repaired_paper_runtime.py -q
+      - name: Advance all six isolated paper accounts
         working-directory: engine
-        run: python scripts/run_paper_portfolio_challenger.py --prefer-supabase
-      - name: Advance the CHAMPION paper book one closed bar (Multi-Horizon [63, 126, 252])
-        # Third forward book (Book C) — Champion Multi-Horizon Trend Ensemble:
-        # equal-weight blend of 63d, 126d, 252d momentum scores across 39 instruments,
-        # own state dir + apex_paper_c_* tables.
-        working-directory: engine
-        run: python scripts/run_paper_portfolio_c.py --prefer-supabase
-      - name: Advance Book R-252 $100k USD ETF forward paper
-        # Fourth, isolated paper account. Monthly decisions are formed at the
-        # official XNYS month-end close and filled at the next common-session
-        # open with 5 bps/side. This creates forward evidence only; no broker
-        # route exists in the runner.
-        working-directory: engine
-        run: python scripts/run_paper_portfolio_r.py --prefer-supabase
-      - name: Advance Book F Prop Shield Elite $100k forward paper
-        # Fifth, institutional prop-firm shielded paper account ($100,000 USD).
-        # Blind multi-asset trend momentum with dynamic mathematical covariance
-        # clustering (rho >= 0.55), cross-sectional market breadth, +1.0R BE lock,
-        # and dynamic convexity pyramiding (+1.5R addition with profit-locked stop).
-        continue-on-error: true
-        working-directory: engine
-        run: python scripts/run_paper_portfolio_f.py --prefer-supabase
-      - name: Nightly risk & ops pack (read-only; prints to log + uploads artifact)
-        working-directory: engine
-        run: python scripts/nightly_risk_report.py
-      - name: Upload risk pack artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: risk-pack-${{ github.run_id }}
-          path: engine/data_store/reports/
-          retention-days: 90
-          if-no-files-found: warn
-      - name: Resolve closed paper-book trades into research memory
-        # READ-ONLY toward the book (state.json / apex_paper_*); writes only
-        # apex_research_memory rows (source=paper_book, no ticket column — the
-        # Bayesian sizing posterior must keep excluding them) + its own state
-        # file. Runs AFTER the stepper so it sees today's closes; idempotent
-        # (deterministic row ids + merge-duplicates), so a failed night is
-        # simply re-resolved the next night.
-        # NON-BLOCKING (owner instruction 2026-07-28, superseding the original
-        # hard-fail choice): the stepper's state is already safely mirrored by
-        # the step above, so a resolver error must not fail the nightly run.
-        # continue-on-error still marks the step failed with an error
-        # annotation on the run summary — visible, not a silent skip.
-        continue-on-error: true
-        working-directory: engine
-        run: python scripts/resolve_paper_book_outcomes.py --apply
+        # Each book is attempted independently. Any blocked book fails the run.
+        # The runner cannot reseed or touch an original legacy ledger.
+        run: python scripts/run_repaired_paper.py --book all

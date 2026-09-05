@@ -3,7 +3,8 @@ import test from 'node:test';
 import handler from '../api/paper.js';
 
 const jsonResponse = (value, status = 200) => new Response(JSON.stringify(value), { status });
-const request = (query = '', method = 'GET') => new Request(`https://apexfx.test/api/paper${query}`, { method });
+// Original-table regression tests explicitly request the legacy compatibility view.
+const request = (query = '', method = 'GET') => new Request(`https://apexfx.test/api/paper${query}${query?'&':'?'}edition=legacy`, { method });
 const fixture = (book = 'v6') => ({
   schema_version: 1, book_id: book, generated_at_utc: '2026-09-05T12:00:00Z',
   state: { durable_revision: 7 },
@@ -13,6 +14,27 @@ const fixture = (book = 'v6') => ({
   pending: [{ instrument: 'XLV', decision_date: '2026-09-05' }],
   metadata: { book_id: book, profile: book === 'v6' ? 'strict_3_6_static' : 'standard_5_10_static',
     account_currency: 'GBP', initial_equity: 100000, paper_only: true, broker_enabled: false },
+});
+
+test('default old-book route reads repaired atomic state, never the old tables',async()=>{
+ const p=fixture('c');p.schema_version=2;p.metadata.accounting_version='quote_cash_v2';p.state={book_id:'c'};
+ await withFetch(url=>{assert.match(url,/__apex_book_c_repaired_v2__/);return jsonResponse([{feature_vector:p}]);},async calls=>{
+  const r=await handler(new Request('https://apexfx.test/api/paper?book=c&table=state'));
+  assert.equal(r.status,200);assert.deepEqual(await r.json(),p);assert.equal(calls.length,1);
+ });
+});
+test('missing repaired state cannot fall back to the old profitable history',async()=>{
+ await withFetch(()=>jsonResponse([]),async calls=>{
+  assert.equal((await handler(new Request('https://apexfx.test/api/paper?book=f&table=state'))).status,404);
+  assert.equal(calls.length,1);
+ });
+});
+test('archive is explicitly selected and cannot masquerade as repaired results',async()=>{
+ const p=fixture('c');
+ await withFetch(url=>{assert.match(url,/__apex_book_c_archive_20260905__/);return jsonResponse([{feature_vector:{snapshot:p}}]);},async()=>{
+  const r=await handler(new Request('https://apexfx.test/api/paper?book=c&table=state&edition=archive'));
+  assert.equal(r.status,200);assert.equal((await r.json()).metadata.archived,true);
+ });
 });
 
 async function withFetch(implementation, run) {

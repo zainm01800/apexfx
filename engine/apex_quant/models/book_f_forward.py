@@ -1,14 +1,10 @@
-"""Forward-paper state machine for the Book F Prop Shield Elite Engine.
+"""Repaired Book F USD forward-paper state machine.
 
-Institutional evaluation standard: $100,000 USD funded prop firm account.
-Core mechanics:
-- 100% blind multi-asset universe (Equities, ETFs, Gold, Crypto, FX)
-- Multi-horizon Sharpe momentum [63, 126, 252]
-- Dynamic rolling covariance clustering (rho >= 0.55, max 2 bets per cluster)
-- Cross-sectional market breadth filter (% of active universe > 200 SMA)
-- Asymmetric execution (+1.0R Breakeven lock)
-- Convexity Pyramiding (+1.5R addition with stop pegged at +0.75R)
-- Asymptotic Prop Shield & Fail-Closed Daily Protective Guard
+Multi-horizon momentum with breadth/correlation gates, next-open entries,
+partial realization and separately priced pyramid lots. A 5 bps/side cost
+proxy and adverse/ambiguous-bar stops apply. Not a blind-validation result
+or a guarantee of profitability or funded-account compliance. Version 1
+ledgers cannot be resumed as version 2; their evidence remains archived.
 """
 
 from __future__ import annotations
@@ -17,6 +13,7 @@ import copy
 from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
+from .paper_accounting import VERSION, conversion_rate, lot_pnl, close_fraction, positive
 
 BOOK_LABEL = "book_f_prop_shield_elite_100k"
 INITIAL_EQUITY_USD = 100_000.0
@@ -28,7 +25,8 @@ PYR_TRIGGER_R = 1.5           # Trigger pyramiding at +1.5R
 PYR_SCALE = 0.50              # Add 0.50x of original units
 STOP_ATR_MULT = 1.8           # Initial stop: 1.8x ATR
 TRAIL_ATR_MULT = 2.2          # Trailing stop: 2.2x ATR (1.4x past +2R)
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+FILL_COST_RATE = 0.0005  # explicit 5 bps/side proxy, not broker-certified costs
 
 CORE_UNIVERSE = [
     "NVDA", "TSM", "MSFT", "NFLX", "TSLA", "AAPL", "AMD", "PLTR", "META", "GOOGL", "AMZN",
@@ -50,6 +48,7 @@ def new_book_f_state(seed_date: pd.Timestamp) -> dict:
     seed_s = _date_str(seed_date)
     return {
         "schema_version": SCHEMA_VERSION,
+        "accounting_version": VERSION,
         "book": BOOK_LABEL,
         "status": "active_forward_paper_prop_shield",
         "account_currency": "USD",
@@ -62,6 +61,7 @@ def new_book_f_state(seed_date: pd.Timestamp) -> dict:
         "pyr_scale": PYR_SCALE,
         "last_processed_date": seed_s,
         "positions": {},
+        "pending": {},
         "trades": [],
         "equity_curve": [{
             "date": seed_s,
@@ -83,6 +83,11 @@ def validate_book_f_state(state: dict) -> None:
         raise ValueError("Invalid Book F label")
     if state.get("account_currency") != "USD":
         raise ValueError("Book F must be denominated in USD")
+    if state.get("accounting_version") != VERSION:
+        raise ValueError("Book F requires a separate repaired ledger; legacy history cannot be relabelled")
+    for pos in state.get("positions", {}).values():
+        if not pos.get("lots"):
+            raise ValueError("Book F position is missing actual entry lots")
 
 def advance_book_f_forward(
     state: dict,
@@ -91,6 +96,7 @@ def advance_book_f_forward(
 ) -> tuple[dict, list[dict]]:
     """Advance Book F forward across all unadvanced closed daily bars up to cutoff_date."""
     validate_book_f_state(state)
+    state = copy.deepcopy(state)  # failures must not partially mutate caller state
     
     # Collect all calendar dates across panel
     all_dates = set()
@@ -152,26 +158,57 @@ def advance_book_f_forward(
     
     positions = state["positions"]
     closed_trades = state["trades"]
-    equity = float(state["equity"])
+    equity = float(state["cash"])
+    previous_nav = float(state["equity"])
+    pending = state.setdefault("pending", {})
     peak_equity = float(state["peak"])
     new_daily_rows = []
     
     for current_dt in to_process:
         i = date_to_idx[current_dt]
-        prev_close_equity = equity
+        prev_close_equity = previous_nav
         closed_this_bar = []
         open_upnl = 0.0
+
+        def fx(sym, price=None, field="close"):
+            if sym.startswith("USD/") and price is not None:
+                return 1.0 / positive(price)
+            return conversion_rate(sym, "USD", panel, current_dt, field)
+
+        # Prior-close signals fill at the next instrument bar's open, not at
+        # the close that revealed the signal. Entry bars are managed below.
+        for sym, order in list(pending.items()):
+            if sym not in panel or current_dt not in panel[sym].index:
+                continue
+            if sym in positions:
+                raise ValueError("position and pending entry overlap")
+            raw = positive(panel[sym].loc[current_dt, "open"], "entry open")
+            is_long = order["direction"] == "long"
+            entry = raw * (1 + FILL_COST_RATE * (1 if is_long else -1))
+            stop_dist = order["stop_dist"]
+            units = order["risk_amount"] / (stop_dist * fx(sym, entry, "open"))
+            positions[sym] = {
+                "direction": order["direction"], "entry_price": entry,
+                "entry_time": _date_str(current_dt), "decision_date": order["decision_date"],
+                "units": units, "initial_units": units,
+                "lots": [{"entry_price": entry, "units": units}],
+                "stop_loss": entry - stop_dist if is_long else entry + stop_dist,
+                "initial_risk": stop_dist, "partial_taken": False, "pyramided": False,
+                "realized_pnl": 0.0, "last_close": raw, "bars_open": 0,
+            }
+            del pending[sym]
         
         # 1. Update open positions
         for sym, pos in list(positions.items()):
             df = panel.get(sym)
             if df is None:
-                continue
+                raise ValueError(f"{sym}: open position has no input data")
             if current_dt not in df.index:
                 # Market closed today (weekend/holiday) -> carry forward last known price!
                 last_px = float(pos.get("last_close", pos["entry_price"]))
-                diff = (last_px - pos["entry_price"]) if pos["direction"] == "long" else (pos["entry_price"] - last_px)
-                open_upnl += (float(pos["realized_pnl"]) + diff * float(pos["units"]))
+                pos["quote_to_account_rate"] = fx(sym, last_px)
+                pos["unrealized_pnl"] = lot_pnl(pos, last_px) * fx(sym, last_px)
+                open_upnl += lot_pnl(pos, last_px) * fx(sym, last_px)
                 continue
                 
             bar = df.loc[current_dt]
@@ -185,15 +222,38 @@ def advance_book_f_forward(
             initial_risk = float(pos["initial_risk"])
             
             stop_hit = (low_px <= stop_px) if is_long else (high_px >= stop_px)
+
+            def realize(price, fraction=1.0):
+                nonlocal equity
+                filled = price * (1 - FILL_COST_RATE * (1 if is_long else -1))
+                pnl = close_fraction(pos, fraction, filled) * fx(sym, filled, "open")
+                equity += pnl
+                pos["realized_pnl"] += pnl
+                return filled
+
+            # Stops have priority over favourable triggers on an ambiguous bar.
+            # Gap-through stops fill at the adverse open, never at a stale stop.
+            if stop_hit:
+                opening = float(bar["open"])
+                raw_exit = min(opening, stop_px) if is_long else max(opening, stop_px)
+                exit_px = realize(raw_exit)
+                closed_trades.append({
+                    "instrument": sym, "direction": pos["direction"],
+                    "entry_price": entry_px, "exit_price": exit_px,
+                    "stop_loss": stop_px, "initial_stop": entry_px - initial_risk if is_long else entry_px + initial_risk,
+                    "pnl": pos["realized_pnl"], "win": pos["realized_pnl"] > 0,
+                    "entry_time": pos["entry_time"], "exit_time": _date_str(current_dt),
+                    "exit_reason": "stop_loss", "holding_days": pos["bars_open"],
+                    "pyramided": pos.get("pyramided", False),
+                })
+                closed_this_bar.append(sym)
+                continue
             
             # Partial profit at +1.0R
             if not pos.get("partial_taken", False):
                 p_target = (entry_px + initial_risk) if is_long else (entry_px - initial_risk)
                 if (high_px >= p_target) if is_long else (low_px <= p_target):
-                    banked_units = units * 0.5
-                    r_pnl = initial_risk * banked_units
-                    pos["realized_pnl"] = float(pos["realized_pnl"]) + r_pnl
-                    pos["units"] = units - banked_units
+                    realize(p_target, 0.5)
                     pos["partial_taken"] = True
                     pos["stop_loss"] = entry_px  # Breakeven lock
                     units = pos["units"]
@@ -204,22 +264,27 @@ def advance_book_f_forward(
                 pyr_hit = (high_px >= pyr_target) if is_long else (low_px <= pyr_target)
                 if pyr_hit:
                     pyr_units = float(pos["initial_units"]) * PYR_SCALE
+                    pyr_entry = max(float(bar["open"]), pyr_target) if is_long else min(float(bar["open"]), pyr_target)
+                    pyr_entry *= 1 + FILL_COST_RATE * (1 if is_long else -1)
+                    pos["lots"].append({"entry_price": pyr_entry, "units": pyr_units})
                     pos["units"] = units + pyr_units
                     pos["pyramided"] = True
-                    # Lock stop at +0.75R to guarantee strong net profit
+                    # Raised stop is not a guarantee: added lots, costs and gaps count.
                     pos["stop_loss"] = (entry_px + 0.75 * initial_risk) if is_long else (entry_px - 0.75 * initial_risk)
                     units = pos["units"]
                     
-            if stop_hit:
-                diff = (stop_px - entry_px) if is_long else (entry_px - stop_px)
-                exit_pnl = diff * units
-                total_pnl = float(pos["realized_pnl"]) + exit_pnl
+            raised_stop = float(pos["stop_loss"])
+            if (low_px <= raised_stop) if is_long else (high_px >= raised_stop):
+                exit_px = realize(raised_stop)
+                total_pnl = float(pos["realized_pnl"])
                 closed_trades.append({
                     "token": sym,
                     "instrument": sym,
                     "direction": pos["direction"],
                     "entry_price": entry_px,
-                    "exit_price": stop_px,
+                    "exit_price": exit_px,
+                    "stop_loss": raised_stop,
+                    "exit_reason": "management_stop_ambiguous_bar",
                     "pnl": total_pnl,
                     "win": total_pnl > 0,
                     "entry_time": pos["entry_time"],
@@ -227,7 +292,6 @@ def advance_book_f_forward(
                     "holding_days": pos["bars_open"],
                     "pyramided": pos.get("pyramided", False)
                 })
-                equity += total_pnl
                 closed_this_bar.append(sym)
             else:
                 atr = cached_atr[sym].get(current_dt, 0)
@@ -243,9 +307,10 @@ def advance_book_f_forward(
                         if new_stop < float(pos["stop_loss"]):
                             pos["stop_loss"] = new_stop
                             
-                diff = (close_px - entry_px) if is_long else (entry_px - close_px)
-                floating_pnl = diff * units
-                open_upnl += (float(pos["realized_pnl"]) + floating_pnl)
+                floating_pnl = lot_pnl(pos, close_px) * fx(sym, close_px)
+                pos["unrealized_pnl"] = floating_pnl
+                pos["quote_to_account_rate"] = fx(sym, close_px)
+                open_upnl += floating_pnl
                 
         for sym in closed_this_bar:
             del positions[sym]
@@ -274,7 +339,7 @@ def advance_book_f_forward(
         if len(positions) < MAX_POSITIONS and not daily_guard_active:
             candidates = []
             for sym, score_series in cached_trend_score.items():
-                if sym in positions or current_dt not in score_series.index:
+                if sym in positions or sym in pending or current_dt not in score_series.index:
                     continue
                 score = score_series.loc[current_dt]
                 if pd.isna(score):
@@ -286,12 +351,12 @@ def advance_book_f_forward(
             candidates.sort(key=lambda x: x[2], reverse=True)
             
             for sym, direction, score in candidates:
-                if len(positions) >= MAX_POSITIONS:
+                if len(positions) + len(pending) >= MAX_POSITIONS:
                     break
                 correlated_cluster_count = 0
-                if len(positions) > 0 and i >= 60:
+                if (positions or pending) and i >= 60:
                     cand_idx = tok_to_idx[sym]
-                    for open_tok in positions:
+                    for open_tok in list(positions) + list(pending):
                         open_idx = tok_to_idx[open_tok]
                         val = corr_3d[i, cand_idx, open_idx]
                         if not np.isnan(val) and val >= CORR_THRESHOLD:
@@ -307,27 +372,14 @@ def advance_book_f_forward(
                     atr = entry_px * 0.02
                 risk_amount = INITIAL_EQUITY_USD * active_mrpt
                 stop_dist = STOP_ATR_MULT * atr
-                units = risk_amount / stop_dist
-                stop_loss = (entry_px - stop_dist) if direction == "long" else (entry_px + stop_dist)
-                positions[sym] = {
-                    "direction": direction,
-                    "entry_price": entry_px,
-                    "entry_time": _date_str(current_dt),
-                    "units": units,
-                    "initial_units": units,
-                    "stop_loss": stop_loss,
-                    "initial_risk": stop_dist,
-                    "partial_taken": False,
-                    "pyramided": False,
-                    "realized_pnl": 0.0,
-                    "last_close": entry_px,
-                    "bars_open": 0
-                }
+                fx(sym, entry_px)  # require a real conversion before queuing
+                pending[sym] = {"direction": direction, "stop_dist": stop_dist,
+                                "risk_amount": risk_amount, "decision_date": _date_str(current_dt)}
                 
         # Gross notional
         gross_notional = sum(
-            float(p["units"]) * float(p.get("last_close", p["entry_price"]))
-            for p in positions.values()
+            float(p["units"]) * float(p.get("last_close", p["entry_price"])) * fx(sym, p.get("last_close", p["entry_price"]))
+            for sym, p in positions.items()
         )
         
         daily_row = {
@@ -343,6 +395,7 @@ def advance_book_f_forward(
         }
         state["equity_curve"].append(daily_row)
         new_daily_rows.append(daily_row)
+        previous_nav = cur_total_equity
         
     state["equity"] = cur_total_equity
     state["cash"] = equity
@@ -378,7 +431,7 @@ def display_position_rows(state: dict, updated_at: str | None = None) -> list[di
         entry_px = float(p["entry_price"])
         stop_px = float(p["stop_loss"])
         is_long = p["direction"] == "long"
-        unrealized_pnl = (last_px - entry_px) * units if is_long else (entry_px - last_px) * units
+        unrealized_pnl = lot_pnl(p, last_px) * float(p["quote_to_account_rate"])
         total_pnl = float(p.get("realized_pnl", 0.0)) + unrealized_pnl
         
         # Classification

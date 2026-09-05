@@ -1,0 +1,33 @@
+name: Book S hourly paper
+on:
+  schedule:
+    - cron: "5 * * * 1-5"
+  workflow_dispatch: {}
+concurrency:
+  group: legacy-paper-writer
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r engine/requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: engine/data_store/*.parquet
+          key: book-s-data-${{ github.run_id }}
+          restore-keys: |
+            book-s-data-
+            paper-portfolio-data-
+      - name: Advance only a restored, versioned paper ledger
+        working-directory: engine
+        run: python scripts/run_repaired_paper.py --book s

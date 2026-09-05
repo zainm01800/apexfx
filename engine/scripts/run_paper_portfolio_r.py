@@ -88,6 +88,7 @@ def _xnys_month_ends(start: pd.Timestamp, end: pd.Timestamp) -> set[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from apex_quant.models.paper_readiness import require_daily_panel, require_restored_state
     parser = argparse.ArgumentParser(description="Advance Book R-252 $100k forward paper")
     parser.add_argument("--as-of", default="",
                         help="process bars strictly before this date 00:00 UTC (default: today)")
@@ -120,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  abort {inst}: {len(frame)} closed bars (< {MIN_BARS})", flush=True)
             return 1
         raw_panel[inst] = frame
+    require_daily_panel(raw_panel, USD_ETF_UNIVERSE, cutoff)
     panel = common_panel(raw_panel, USD_ETF_UNIVERSE)
     index = next(iter(panel.values())).index
     latest = index[-1]
@@ -132,12 +134,13 @@ def main(argv: list[str] | None = None) -> int:
         remote = _restore_remote()
         if remote is not None:
             state, origin = remote, "supabase"
-        elif local_state is not None:
-            origin = "local-fallback (Supabase state empty)"
+        else:
+            raise ValueError("Authoritative Supabase state unavailable; local fallback prohibited")
     elif state is None and not args.no_supabase:
         state = _restore_remote()
         origin = "supabase" if state is not None else "fresh"
 
+    require_restored_state(state)
     month_ends = _xnys_month_ends(index[0], cutoff + pd.Timedelta(days=40))
     state, rows = advance_book_r_forward(panel, state, month_end_sessions=month_ends)
     future_month_ends = sorted(

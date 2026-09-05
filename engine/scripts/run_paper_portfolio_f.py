@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
-"""Advance the Book F Prop Shield Elite $100k forward-paper account.
+"""Local Book F repaired-paper driver and data-loading helpers.
 
-Book F is an institutional bank-grade multi-asset trend momentum engine with:
-- 100% blind cross-asset selection (22 core liquid instruments)
-- Dynamic rolling covariance clustering (rho >= 0.55, max 2 bets per cluster)
-- Cross-sectional market breadth filter (% > 200 SMA)
-- Asymmetric execution: +1.0R Breakeven lock
-- Dynamic Convexity Pyramiding: +1.5R secondary 0.50x unit with profit-locked stop at +0.75R
-- Strict prop firm safety shield (worst day < 2.0%, max DD < 6.3%)
-
-Usage:
-    python scripts/run_paper_portfolio_f.py --prefer-supabase
+Production uses run_repaired_paper.py and isolated atomic runtime documents.
+This compatibility driver refuses legacy schema/fallback reseeding and can
+initialize only a separate explicitly requested local ledger. Paper only.
 """
 
 from __future__ import annotations
@@ -32,7 +25,8 @@ sys.path.insert(0, str(ENGINE_DIR / "scripts"))
 import pandas as pd
 
 from apex_quant.config import get_config
-from apex_quant.data import ParquetStore, clean
+from apex_quant.data import ParquetStore, clean, get_adapter
+from run_paper_portfolio import _top_up
 from apex_quant.models.book_f_forward import (
     BOOK_LABEL,
     CORE_UNIVERSE,
@@ -44,6 +38,7 @@ from apex_quant.models.book_f_forward import (
     validate_book_f_state,
 )
 from apex_quant.storage import paper_store
+from apex_quant.models.paper_readiness import require_restored_state, require_daily_panel, require_hourly_panel
 
 STATE_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "state.json"
 LOG_PATH = ENGINE_DIR / "data_store" / "paper_portfolio_f" / "decisions.log"
@@ -59,8 +54,7 @@ def _load_local_state(path: Path) -> dict | None:
         validate_book_f_state(val)
         return val
     except Exception as e:
-        print(f"Warning: Failed to load local state from {path}: {e}", flush=True)
-        return None
+        raise ValueError(f"Invalid saved Book F state; refusing fallback/reseed") from e
 
 
 def _save_local_state(path: Path, state: dict) -> None:
@@ -79,18 +73,23 @@ def _restore_remote_state() -> dict | None:
             validate_book_f_state(state)
             return state
     except Exception as e:
-        print(f"Warning: Remote Supabase fetch failed: {e}", flush=True)
+        raise ValueError("Authoritative remote state invalid/unavailable; refusing fallback/reseed") from e
     return None
 
 
 def load_panel(store: ParquetStore) -> dict[str, pd.DataFrame]:
     panel = {}
+    now = pd.Timestamp.now(tz="UTC")
+    cutoff = now.normalize()
+    adapter = get_adapter("yahoo")
     for sym in CORE_UNIVERSE:
-        df = store.load(sym, "1d")
+        df = _top_up(store, adapter, sym, cutoff, now)
         if df is not None and not df.empty:
             df = clean(df)
+            df = df[df.index < cutoff]
             df.sort_index(inplace=True)
             panel[sym] = df
+    require_daily_panel(panel, CORE_UNIVERSE, cutoff)
     return panel
 
 
@@ -102,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-supabase", action="store_true")
     parser.add_argument("--prefer-supabase", action="store_true")
     parser.add_argument("--reseed", action="store_true", help="Force fresh reseed from seed-date")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate without ledger or mirror writes")
     args = parser.parse_args(argv)
 
     state_path = Path(args.state)
@@ -131,21 +131,30 @@ def main(argv: list[str] | None = None) -> int:
     # State resolution
     state = None
     origin = "fresh"
+    if args.reseed and state_path.exists():
+        raise ValueError("Cannot overwrite an existing ledger; choose a separate state path")
     if not args.reseed:
         if args.prefer_supabase and not args.no_supabase:
             state = _restore_remote_state()
             if state is not None:
                 origin = "supabase"
+            else:
+                raise ValueError("Authoritative Supabase state unavailable; local fallback prohibited")
         if state is None:
             state = _load_local_state(state_path)
             if state is not None:
                 origin = "local_json"
 
-    if state is None or args.reseed:
-        seed_dt = pd.Timestamp(args.seed_date, tz="UTC") if max_dt.tzinfo else pd.Timestamp(args.seed_date)
-        state = new_book_f_state(seed_dt)
-        origin = f"fresh_seeded_{args.seed_date}"
-        print(f"Initialized fresh state seeded on {args.seed_date} with $100,000.00 USD.", flush=True)
+    require_restored_state(state, initialize=args.reseed, no_remote=args.no_supabase,
+                           state_path=state_path, original_path=STATE_PATH)
+    if state is None:
+        if args.as_of or args.seed_date != DEFAULT_SEED_DATE:
+            raise ValueError("Repaired forward initialization cannot be backdated")
+        state = new_book_f_state(pd.Timestamp.now(tz="UTC"))
+        if not args.dry_run:
+            _save_local_state(state_path, state)
+        print("Separate repaired ledger initialized; no historical trades imported.", flush=True)
+        return 0
     else:
         print(f"Restored Book F state from {origin}. Last processed: {state.get('last_processed_date')}", flush=True)
 
@@ -164,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
     wr = (len(wins) / len(state['trades']) * 100) if state['trades'] else 0.0
     pf = (sum(t['pnl'] for t in wins) / abs(sum(t['pnl'] for t in losses))) if losses and sum(t['pnl'] for t in losses) != 0 else 0.0
     print(f"Closed Win Rate:  {wr:.1f}% | Profit Factor: {pf:.2f}", flush=True)
+
+    if args.dry_run:
+        print("DRY RUN: no local ledger, public snapshot or remote writes", flush=True)
+        return 0
 
     # Save local state
     _save_local_state(state_path, state)
@@ -186,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Supabase mirror status: runtime fallback={'OK' if ok_remote else 'FAILED'}, "
               f"positions_table={'OK' if ok_pos else 'TABLE_PENDING'}, "
               f"daily_table={'OK' if ok_day else 'TABLE_PENDING'}", flush=True)
+        if not (ok_remote and ok_pos and ok_day):
+            return 1
 
     return 0
 

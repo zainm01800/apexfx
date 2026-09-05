@@ -33,12 +33,12 @@
         <button class="ws-book-tab" data-book="s" aria-pressed="false"><strong>Book S</strong><span>Session SMC</span></button>
         <button class="ws-book-tab" data-book="f" aria-pressed="false"><strong>Book F</strong><span>Prop shield</span></button>
       </div>
-      <div class="ws-controls"><button class="ws-btn" id="refreshBook">Refresh</button></div>
+      <div class="ws-controls"><a class="ws-btn" id="archiveLink" hidden>View old archive</a><button class="ws-btn" id="refreshBook">Refresh</button></div>
     </div>
     <div class="ws-notice"><span id="bookNotice">Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval.</span> <a href="progress.html">View research</a></div>
     <div id="bookError" class="ws-notice error" role="alert" hidden></div>
     <section class="ws-overview" aria-label="Account overview" aria-busy="true" id="overview">
-      <div class="ws-capital"><span class="ws-muted" id="accountLabel">Book V6 · GBP account equity</span><strong class="ws-value" id="accountEquity">—</strong><div class="ws-return"><span id="accountReturn">—</span><span class="ws-muted">since activation</span></div><div class="ws-meta" id="bookStatus">Loading authoritative state…</div><div class="ws-meta" id="dataThrough">No historical profits are imported.</div></div>
+      <div class="ws-capital"><span class="ws-muted" id="accountLabel">Book V6 · GBP account equity</span><strong class="ws-value" id="accountEquity">—</strong><div class="ws-return"><span id="accountReturn">—</span><span class="ws-muted" id="returnPeriod">since activation</span></div><div class="ws-meta" id="bookStatus">Loading authoritative state…</div><div class="ws-meta" id="dataThrough">No historical profits are imported.</div></div>
       <div class="ws-chart-pane"><div class="ws-title-row"><span class="ws-muted">Equity history</span><span class="ws-meta" id="sessionCount">— sessions</span></div><div class="ws-chart" id="forwardChart"><div class="ws-empty">Waiting for the paper ledger.</div></div><div class="ws-title-row"><span class="ws-meta" id="seedDate">Activation: —</span><span class="ws-meta" id="seedAmount">£100,000 seed</span></div></div>
       <div class="ws-risk"><h2 id="riskTitle">Loss headroom</h2><div><div class="ws-risk-row"><span id="dailyHeadroomLabel">Daily limit</span><strong id="dailyHeadroom">—</strong></div><div class="ws-meter"><span id="dailyMeter" style="width:0"></span></div><small id="dailyFloor">3% daily-loss model</small></div><div><div class="ws-risk-row"><span id="maxHeadroomLabel">Static maximum</span><strong id="maxHeadroom">—</strong></div><div class="ws-meter"><span id="maxMeter" style="width:0"></span></div><small id="maxFloor">£94,000 external floor</small></div></div>
     </section>

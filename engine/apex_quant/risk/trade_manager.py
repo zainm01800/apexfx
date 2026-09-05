@@ -27,8 +27,10 @@ class TradeManager:
         time_stop_bars: dict[str, int] | None = None,
         runner_mode: bool = False,
         p1_r_by_instrument: dict[str, float] | None = None,
+        causal_partials: bool = False,
     ) -> None:
         self.p1_r = p1_r
+        self.causal_partials = causal_partials
         self.p1_pct = p1_pct
         # VOL-ADAPTIVE FIRST PARTIAL (pre-registered experiment, default OFF — the
         # certified book uses the flat p1_r for every instrument). When given, maps
@@ -175,7 +177,8 @@ class TradeManager:
         # remainder rides the Chandelier trail uncapped instead of capping at a
         # fixed target. (Below 1R the target can't be reached anyway, so this only
         # bites once the trade is already in profit — exactly where we want to run.)
-        if not self.runner_mode:
+        target_r = abs(target - entry) / risk_dist if risk_dist > 0 else 0
+        if not self.runner_mode and (not self.causal_partials or target_r <= self._p1_r_for(position)):
             if is_long:
                 if high >= target:
                     fill_price = fill_fn(target, False)
@@ -232,7 +235,7 @@ class TradeManager:
 
         # Runner mode skips Partial 2 too: the whole post-P1 remainder rides the
         # trail, rather than being trimmed to 25% at 1.5R.
-        if position["tms_p1"] and not position["tms_p2"] and has_reached_p2 and not self.runner_mode:
+        if position["tms_p1"] and not position["tms_p2"] and has_reached_p2 and not self.runner_mode and (not self.causal_partials or self.p2_r <= target_r):
             close_units = initial_units * self.p2_pct
             close_units = min(close_units, units)
             if close_units > 0:
@@ -251,6 +254,15 @@ class TradeManager:
             if (is_long and locked_sl > current_stop) or (not is_long and locked_sl < current_stop):
                 position["stop"] = locked_sl
                 position["tms_log"].append({"action": "lock_0.5R_sl", "new_sl": locked_sl})
+
+        if self.causal_partials and not self.runner_mode:
+            hit = high >= target if is_long else low <= target
+            if hit:
+                fill_price = fill_fn(target, not is_long)
+                realized_pnl += ((fill_price - entry) if is_long else (entry - fill_price)) * units
+                position["units"] = 0.0
+                position["last_exit_price"] = float(fill_price)
+                return realized_pnl, "target"
 
         # ----------------------------------------------------------------
         # Technique 3: ATR Chandelier Trail (after partial 1)

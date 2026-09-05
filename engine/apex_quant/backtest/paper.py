@@ -1,42 +1,13 @@
-"""Engine-simulated forward paper portfolio - the day-by-day twin of PortfolioBacktester.
+"""Persistent trend paper portfolio, with explicit repaired account accounting.
 
-The paper book must behave EXACTLY like the backtest it continues, so this
-module adds no math of its own: ``PaperPortfolio`` subclasses
-``PortfolioBacktester`` and ``step()`` is a 1:1 port of ``run()``'s loop body
-(manage exits -> fill pending entries at the next bar's open -> mark to market
--> sequential risk-gated decisions with a provisional book), driven over a
-growing panel one union-calendar date at a time, with the full portfolio state
-serializable to JSON between invocations.
+account_currency="GBP" enables causal quote conversion in sizing, realized
+and floating P&L and exposure, entry-bar protection and partial-before-target
+execution. It requires a separate quote_cash_v2 ledger; legacy results are
+not silently migrated. Currency conversion uses bar-price proxies.
 
-Parity by construction - the shared components:
-  * the same strategy objects the caller passes (for the frozen trend book, the
-    gate's TrendBook construction - see scripts/run_paper_portfolio.py)
-  * the same RiskManager (config risk caps), TradeManager (managed exits) and
-    RuleBasedRegime a PortfolioBacktester builds
-  * the same cost mechanics: _fill/_pip/_mech (v5 per-pair forex pips,
-    equity/crypto bps), _enter/_record/_unrealized/_open_record
-  * the same causal precomputations (ATR / realized vol / squeeze / log-return
-    correlation frame). All rolling windows are causal, so values at date t are
-    identical whether computed over full history or a windowed slice.
-  * the warmup gate counts each instrument's own bars from its first cached bar,
-    exactly as run() does with start=None on full history.
-
-tests/test_paper_portfolio.py::test_stepper_matches_backtester proves the port:
-stepping day-by-day reproduces run()'s equity curve, trades, per-instrument
-accounting and constraint log on a synthetic panel.
-
-Two deliberate paper-only overlays (NOT part of the backtest math; both off in
-the parity test):
-  * ``halt_drawdown``: the pre-registration's experiment-level HALT rule blocks
-    NEW entries once drawdown from peak reaches the threshold (exits keep being
-    managed). None disables. This sits on top of the config drawdown breaker,
-    which remains the in-book risk mechanism.
-  * embedded-cost accounting: every simulated fill pays the model's
-    spread/slippage; a running total is kept for the evaluation protocol's
-    cost-drag metric. Exact for entries and single-fill exit bars; when several
-    fills land on one bar (partial + partial), the bar's mean per-unit cost
-    rate is applied to the units closed that bar - an approximation, immaterial
-    in size, and it never affects trading.
+Omitting account_currency retains the legacy backtester-parity mode solely
+for compatibility/research. Scheduled repaired accounts always enable the
+explicit currency mode. Neither mode certifies funded-account compliance.
 """
 
 from __future__ import annotations
@@ -55,6 +26,7 @@ from apex_quant.config import AppConfig, get_config
 from apex_quant.data.point_in_time import PointInTimeAccessor
 from apex_quant.risk.types import AccountState, Direction, MarketState, OpenPosition, Position
 from apex_quant.strategies.labeling import atr_series
+from apex_quant.models.paper_accounting import VERSION as ACCOUNTING_VERSION, conversion_rate
 
 SCHEMA_VERSION = 1
 
@@ -98,6 +70,8 @@ class PaperPortfolio(PortfolioBacktester):
         book: str = "",
         params: dict | None = None,
         halt_drawdown: float | None = None,
+        account_currency: str | None = None,
+        fx_panel: dict[str, pd.DataFrame] | None = None,
         initial_equity: float | None = None,
     ):
         super().__init__(cfg or get_config(), exit_mode="managed")
@@ -154,6 +128,11 @@ class PaperPortfolio(PortfolioBacktester):
         self.initial_equity = float(
             initial_equity if initial_equity is not None else self.bt.initial_equity
         )
+        self.account_currency = account_currency
+        if account_currency:
+            self.trade_manager.causal_partials = True
+        self.fx_panel = fx_panel if fx_panel is not None else panel
+        self._account_timestamp = None
         self._realized = self.initial_equity
         self._peak = self.initial_equity
         self._open: dict[str, dict] = {}
@@ -172,6 +151,13 @@ class PaperPortfolio(PortfolioBacktester):
 
     # -- state (de)serialization ------------------------------------------------
     def _load_state(self, st: dict) -> None:
+        if self.account_currency and self.book and st.get("book") != self.book:
+            raise ValueError("Repaired state belongs to another book")
+        if self.account_currency and (
+            st.get("accounting_version") != ACCOUNTING_VERSION
+            or st.get("account_currency") != self.account_currency
+        ):
+            raise ValueError("Legacy unconverted history cannot enter the repaired paper ledger")
         self.initial_equity = float(st["initial_equity"])
         self._realized = float(st["realized"])
         self._peak = float(st["peak"])
@@ -203,6 +189,8 @@ class PaperPortfolio(PortfolioBacktester):
     def to_state(self) -> dict:
         return {
             "schema_version": SCHEMA_VERSION,
+            "accounting_version": ACCOUNTING_VERSION if self.account_currency else "legacy_unconverted",
+            "account_currency": self.account_currency,
             "book": self.book,
             "params": self.params,
             "universe": list(self.data.keys()),
@@ -287,6 +275,7 @@ class PaperPortfolio(PortfolioBacktester):
         engine sequence (manage old positions, then fill new ones).
         """
         t = _norm_ts(t)
+        self._account_timestamp = t
         if self._last_processed is not None and t <= self._last_processed:
             raise ValueError(
                 f"entry date {t.date()} must be after last processed date "
@@ -330,7 +319,7 @@ class PaperPortfolio(PortfolioBacktester):
             )
             self._open[inst] = posd
             self._realized -= d["commission"]
-            self._cost_total += abs(posd["entry_price"] - raw_open) * posd["units"]
+            self._cost_total += abs(posd["entry_price"] - raw_open) * posd["units"] * self._account_rate(inst, "open")
             entries.append({
                 "instrument": inst,
                 "direction": posd["direction"].value,
@@ -368,6 +357,12 @@ class PaperPortfolio(PortfolioBacktester):
     # -- the daily step (1:1 port of PortfolioBacktester.run's loop body) --------
     def step(self, t) -> dict:
         t = _norm_ts(t)
+        self._account_timestamp = t
+        # Validate every required conversion before changing any holdings.
+        if self.account_currency:
+            for inst in self.data:
+                self._account_rate(inst)
+                self._account_rate(inst, "open")
         data, pits, R = self.data, self.pits, self.R
         open_pos, pending = self._open, self._pending
         realized, peak = self._realized, self._peak
@@ -376,6 +371,17 @@ class PaperPortfolio(PortfolioBacktester):
             "date": str(t.date()), "exits": [], "entries": [], "decisions": [],
             "n_flat_signals": 0, "halt_triggered": False, "halted": self._halted,
         }
+
+        if self.account_currency:
+            openings = {inst: data[inst]["open"][data[inst]["pos"][t]]
+                        for inst in pending if inst in data and t in data[inst]["pos"]}
+            # Only that instrument's next eligible bar can fill its order.
+            waiting = {inst: pending.pop(inst) for inst in list(pending) if inst not in openings}
+            try:
+                rec["entries"].extend(self.open_pending_at(t, openings))
+            finally:
+                pending.update(waiting)
+            realized = self._realized
 
         # 1. manage exits on open positions via TradeManager
         for inst in list(open_pos.keys()):
@@ -390,7 +396,7 @@ class PaperPortfolio(PortfolioBacktester):
             # the live session.  A regular step fills after exit management,
             # so replaying the now-complete entry bar must not expose the new
             # position to that bar's high/low retroactively.
-            if _norm_ts(posd["entry_time"]).normalize() == t.normalize():
+            if not self.account_currency and _norm_ts(posd["entry_time"]).normalize() == t.normalize():
                 continue
 
             high_window = d["high"][max(0, i - 21):i + 1]
@@ -423,12 +429,13 @@ class PaperPortfolio(PortfolioBacktester):
                 fill_fn=fill_fn,
                 max_bars=d["hold"],
             )
+            realized_pnl *= self._account_rate(inst)
 
             if fills:
                 units_closed = units_before - posd["units"]
                 if units_closed > 0:
                     rate = sum(abs(f - r) for r, f in fills) / len(fills)
-                    self._cost_total += rate * units_closed
+                    self._cost_total += rate * units_closed * self._account_rate(inst)
 
             if realized_pnl != 0.0 or exit_reason != "":
                 # Subtract commission for any close transaction
@@ -452,6 +459,8 @@ class PaperPortfolio(PortfolioBacktester):
 
         # 2. execute pending entries at THIS bar's open
         for inst in list(pending.keys()):
+            if self.account_currency:
+                break  # repaired entries were filled before entry-bar protection
             if inst in open_pos:
                 continue
             d = data.get(inst)
@@ -476,11 +485,14 @@ class PaperPortfolio(PortfolioBacktester):
             i = d["pos"].get(t) if d is not None else None
             if i is not None:
                 posd["last_px"] = float(d["close"][i])
-            eq += self._unrealized(posd, posd["last_px"])
+            unrealized = self._unrealized(posd, posd["last_px"])
+            eq += unrealized
+            if self.account_currency:
+                posd["unrealized_pnl"] = unrealized
         peak = max(peak, eq)
         self._eq_points.append((t, eq))
 
-        gross = sum(abs(p["units"] * p["last_px"]) for p in open_pos.values())
+        gross = sum(abs(p["units"] * p["last_px"]) * self._account_rate(inst) for inst, p in open_pos.items())
         rec.update({
             "equity": eq, "cash": realized, "peak": peak, "n_open": len(open_pos),
             "gross_exposure_x": (gross / eq) if eq > 0 else 0.0,
@@ -520,6 +532,7 @@ class PaperPortfolio(PortfolioBacktester):
                 market = MarketState(
                     instrument=inst, price=float(d["close"][i]), ann_vol=float(vol_i),
                     atr=float(atr_i), correlations=corrs,
+                    quote_to_account_rate=self._account_rate(inst),
                 )
                 regime = self._regime_for(inst, d["tf"]).classify(pits[inst], t) if self.use_regime else None
                 pos = self.risk.permit(signal, account, market, regime=regime, t=t)
@@ -543,6 +556,46 @@ class PaperPortfolio(PortfolioBacktester):
 
         self._realized, self._peak = realized, peak
         return rec
+
+    def _account_rate(self, inst, field="close") -> float:
+        if not self.account_currency:
+            return 1.0
+        return conversion_rate(inst, self.account_currency, self.fx_panel, self._account_timestamp, field)
+
+    def _unrealized(self, position, price) -> float:
+        return super()._unrealized(position, price) * self._account_rate(position["symbol"])
+
+    def _open_record(self, inst, posd):
+        record = super()._open_record(inst, posd)
+        rate = self._account_rate(inst)
+        risk = record.risk
+        if self.account_currency:
+            long = posd["direction"] == Direction.LONG
+            distance = posd["last_px"] - posd["stop"] if long else posd["stop"] - posd["last_px"]
+            risk = posd["units"] * max(0.0, distance)
+        return record.model_copy(update={"notional": record.notional * rate, "risk": risk * rate})
+
+    def _record(self, position, exit_price, t, reason, pnl, instrument=""):
+        trade = super()._record(position, exit_price, t, reason, pnl, instrument)
+        if not self.account_currency:
+            return trade
+        notional = position["entry_price"] * position["initial_units"] * position["entry_quote_to_account_rate"]
+        return trade.model_copy(update={"return_pct": round(pnl / notional, 5) if notional else 0.0})
+
+    def _enter(self, pend, open_price, t, i, instrument):
+        position = super()._enter(pend, open_price, t, i, instrument)
+        if self.account_currency:
+            rate = self._account_rate(instrument, "open")
+            distance = abs(position["entry_price"] - position["stop"])
+            if distance <= 0:
+                raise ValueError("repaired entry requires a positive stop distance")
+            # A changed FX rate or opening gap must not enlarge the permitted
+            # account-currency risk/notional. Never increase the queued units.
+            units = min(position["units"], pend["risk_abs"] / (distance * rate),
+                        pend["pos"].notional / (position["entry_price"] * rate))
+            position.update(units=units, initial_units=units, account_currency=self.account_currency,
+                            entry_quote_to_account_rate=rate)
+        return position
 
     # -- multi-day advance + experiment HALT overlay ------------------------------
     def advance(self, cutoff) -> list[dict]:

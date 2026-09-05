@@ -3,6 +3,7 @@ import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules } fr
 
 const $ = id => document.getElementById(id);
 const requested = new URL(location.href).searchParams.get('book') || 'v6';
+const archiveView=new URL(location.href).searchParams.get('edition')==='archive';
 const invalidRequest = !Object.hasOwn(BOOKS,requested);
 let needsSelection = invalidRequest;
 let book = Object.hasOwn(BOOKS,requested) ? requested : 'v6';
@@ -14,6 +15,11 @@ const empty = (title,description) => `<div class="ws-empty"><strong>${e(title)}<
 function chrome() {
   for (const button of document.querySelectorAll('[data-book]')) button.setAttribute('aria-pressed', String(button.dataset.book === book));
   const p=BOOKS[book];
+  const repaired=!!model?.repaired;
+  set('returnPeriod',p.legacy&&!repaired?'since original seed':'since activation');
+  $('archiveLink').hidden=!p.legacy;
+  $('archiveLink').href=`engine-book.html?book=${book}${archiveView?'':'&edition=archive'}`;
+  set('archiveLink',archiveView?'Back to repaired account':'View old archive');
   set('accountLabel',`${p.name} · ${p.currency} ${p.legacy?'reported equity · not certified':'account equity'}`);
   set('tradeRisk',percent(p.legacy?model?.tradeRisk:p.trade));
   set('seedAmount',model?`${money(model.initialEquity??100000)} seed`:p.legacy?'Original account seed':'£100,000 seed');
@@ -24,8 +30,13 @@ function chrome() {
   set('maxFloor',p.legacy?'No funded limits assumed':`${money(100000*(1-p.maximum))} external floor`);
   set('dailyFloor',p.legacy?'Original account currency':`${p.daily*100}% daily-loss model`);
   set('bookNotice',p.legacy?`Audit · 5 September 2026: ${LEGACY_AUDIT[book].detail} Original figures are retained for inspection, not certified forward results.`:'Experimental forward paper — historical validation failed. These books are for observation, not funded-account approval.');
+  if(repaired){
+    set('accountLabel',`${p.name} · ${p.currency} repaired paper equity`);
+    set('bookNotice','Repaired forward paper · fresh account, original history archived separately. Accounting fixes are not profitability or funded-account approval. Stale or missing inputs block advancement.');
+  }
   set('closedPnlNote',p.legacy?'reported full exits · excludes open-trade partials':'fees and borrow included');
   set('workspaceFooter',p.legacy?'Original paper snapshots, not live broker execution. Instrument prices remain in their quote currency; account totals retain the original ledger currency. No balances, positions or strategy rules are changed by this view.':'Paper fills are evaluated after each completed US market session, not executed with a broker at the open. ETF bars proxy CFD prices; intraday account-loss touches are conservative estimates. Firm-specific rules, spreads and contract sizes still need verification.');
+  if(repaired)set('workspaceFooter','Separate repaired paper account. Original history is archived, not imported. Market-data completeness is checked before advancement; simulated bar fills and costs are not broker execution or funded-account certification.');
 }
 function drawChart(rows) {
   const points=rows.map(d=>({date:d.date,value:firstNumber(d.equity_gbp,d.equity)})).filter(d=>d.value!==null);
@@ -45,10 +56,15 @@ function render() {
   set('accountEquity',money(m.equity));
   set('accountReturn',`${money(m.pnl,true)} (${percent(m.pnl/(m.initialEquity??100000))})`,signClass(m.pnl));
   const status=state.halted ? 'Halted · internal risk guard' : m.sessions===0 ? 'Seeded · waiting for first forward session' : String(meta.status || state.status || 'Waiting for next completed session').replaceAll('_',' ');
-  set('bookStatus',p.legacy?LEGACY_AUDIT[book].status+(state.halted?' · engine also reports halted':''):status);
+  set('bookStatus',m.repaired?(state.halted?'Halted · repaired paper':m.payload.trades.length===0&&m.payload.positions.length===0?'Repaired paper · waiting for eligible completed bars':'Repaired forward paper · saved state'):p.legacy?LEGACY_AUDIT[book].status+(state.halted?' · engine also reports halted':''):status);
+  if(m.repaired&&meta.runner_status==='blocked'){
+    set('bookStatus','Forward step blocked · inputs or persistence need attention');
+    set('bookNotice',`Repaired account preserved without advancing. ${meta.runner_error||'Check the scheduled runner.'} No stale fills or historical profit were imported.`);
+  }
   set('dataThrough',m.through ? `${m.sessions===0?'Market inputs':'Ledger'} through ${dateLabel(m.through)}` : 'No completed forward sessions yet');
   set('sessionCount',p.legacy?`${m.sessions} saved snapshots`:`${m.sessions} forward session${m.sessions===1?'':'s'}`);
   set('seedDate',`${p.legacy?'History from':'Activated'} ${dateLabel(m.activation)}`);
+  if(m.repaired){set('sessionCount',`${Math.max(0,m.sessions-1)} post-activation snapshots`);set('seedDate',`Activated ${dateLabel(m.activation,true)}`);}
   for(const [id,value] of [['dayPnl',m.dayPnl],['openPnl',m.openPnl],['closedPnl',m.closedPnl]])set(id,money(value,true),signClass(value));
   set('maxDrawdown',percent(m.maxDD)); set('winRate',percent(m.winRate));
   set('tradeCount',`${m.payload.trades.length} closed trade${m.payload.trades.length===1?'':'s'}`);
@@ -85,7 +101,7 @@ function renderPanel() {
     const message=term?['No matching trades','Try another symbol.']:BOOKS[book].legacy?[panel==='positions'?'No open positions':panel==='pending'?'No saved pending signals':'No closed trades supplied','This is the selected book’s saved ledger, not a new account or a forecast.']:panel==='positions'?['No open positions',model.state.halted?'The risk guard has halted this book. No new entries will be simulated.':'A position appears only when a saved decision reaches its eligible session and passes the risk checks.'+firstAssessment]:panel==='pending'?['No queued entries',(model.state.status_reason||model.state.reason||'No qualifying decision is currently saved. Stale inputs block new entries.')+firstAssessment]:['No closed trades yet','Completed trades and their actual exit reasons will appear here.'];
     $('bookPanel').innerHTML=empty(...message);return;
   }
-  $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>BOOKS[book].legacy?legacyTradeCard(t,panel,book):tradeCard(t,panel)).join('')}</div>`;
+  $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>BOOKS[book].legacy?legacyTradeCard(t,panel,book,model.repaired):tradeCard(t,panel)).join('')}</div>`;
 }
 async function load() {
   if(needsSelection)return;
@@ -93,7 +109,7 @@ async function load() {
   controller?.abort();controller=new AbortController();
   $('refreshBook').disabled=true;$('overview').setAttribute('aria-busy','true');
   try {
-    const response=await fetch(`/api/paper?book=${selected}&table=state`,{cache:'no-store',signal:controller.signal});
+    const response=await fetch(`/api/paper?book=${selected}&table=state${archiveView&&BOOKS[selected].legacy?'&edition=archive':''}`,{cache:'no-store',signal:controller.signal});
     if(!response.ok) throw new Error(response.status===404?'This book has not been activated in the saved paper ledger yet.':'The saved paper ledger is temporarily unavailable.');
     const payload=await response.json();
     const candidate=BOOKS[selected].legacy?summarizeLegacy(payload,selected):summarize(payload,selected);

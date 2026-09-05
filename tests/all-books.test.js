@@ -16,6 +16,11 @@ test('SMC take_profit field is shown without inventing missing closed-trade stop
 test('legacy GBP totals use saved equity, not added floating profit',()=>{
  const m=summarizeLegacy(saved('c'),'c');assert.equal(m.equity,100100);assert.equal(m.openPnl,200);assert.equal(m.pnl,100);assert.equal(m.tradeRisk,.0085);assert.equal(m.maxFloor,null);
 });
+test('repaired ledger has distinct rules; archived figures keep their warning',()=>{
+ const p=saved('c');p.metadata.accounting_version='quote_cash_v2';
+ const m=summarizeLegacy(p,'c');assert.equal(m.repaired,true);assert.match(legacyRules(m,'c'),/Old trades and profits were not imported/);
+ p.metadata.archived=true;assert.equal(summarizeLegacy(p,'c').repaired,false);
+});
 test('USD cash-funded holdings are not confused with floating profit',()=>{
  const d=saved('r');d.daily[0].cash=1000;d.positions=[{units:2,entry_price:100,last_px:110}];const m=summarizeLegacy(d,'r');assert.equal(m.openPnl,20);assert.equal(m.currency,'USD');
 });

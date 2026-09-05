@@ -76,6 +76,20 @@ async function runtimeState(book) {
   return state;
 }
 
+async function repairedRequest(book, table, limit, archive) {
+  const id=archive?`__apex_book_${book}_archive_20260905__`:`__apex_book_${book}_repaired_v2__`;
+  const rows=await fetchRows(`${SUPA_URL}/rest/v1/apex_analyses?id=eq.${id}&select=feature_vector&limit=1`);
+  if(rows.length!==1)throw new DataError(404,'paper_state_not_found');
+  const raw=rows[0].feature_vector;
+  const p=archive?raw?.snapshot:raw;
+  const currency=['a','b','c'].includes(book)?'GBP':'USD';
+  if(!isRecord(p)||p.book_id!==book||p.metadata?.book_id!==book||p.metadata.account_currency!==currency||
+    p.metadata.initial_equity!==100000||p.metadata.paper_only!==true||p.metadata.broker_enabled!==false||
+    !COLLECTIONS.every(k=>isRows(p[k])))throw new DataError();
+  if(!archive&&(p.schema_version!==2||p.metadata.accounting_version!=='quote_cash_v2'||p.state?.book_id!==book))throw new DataError();
+  return project(archive?{...p,metadata:{...p.metadata,archived:true}}:p,table,limit);
+}
+
 function validateExperimental(state, book) {
   if (state.schema_version !== 1 || state.book_id !== book ||
       !isRecord(state.metadata) || state.metadata.book_id !== book ||
@@ -215,7 +229,9 @@ export default async function handler(req) {
   const book = url.searchParams.get('book') ?? 'a';
   const requestedTable = url.searchParams.get('table') ?? 'daily';
   const rawLimit = url.searchParams.get('limit') ?? '120';
+  const edition = url.searchParams.get('edition') ?? 'repaired';
   if (!Object.hasOwn(TABLES, book) || !PUBLIC_TABLES.has(requestedTable) ||
+      !['repaired','archive','legacy'].includes(edition) ||
       !/^[1-9]\d*$/.test(rawLimit) || Number(rawLimit) > 500) {
     return new Response(JSON.stringify({ error: 'Invalid book, table or limit' }),
       { status: 400, headers: { ...cors, 'Cache-Control': 'no-store' } });
@@ -225,7 +241,7 @@ export default async function handler(req) {
   try {
     const payload = book === 'v6' || book === 'v10'
       ? project(validateExperimental(await runtimeState(book), book), table, limit)
-      : await legacyRequest(book, table, limit);
+      : edition==='legacy'?await legacyRequest(book,table,limit):await repairedRequest(book,table,limit,edition==='archive');
     return new Response(JSON.stringify(payload), { status: 200, headers: cors });
   } catch (error) {
     const status = error instanceof DataError ? error.status : 503;

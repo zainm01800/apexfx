@@ -62,6 +62,7 @@ from apex_quant.data import (  # noqa: E402
     ParquetStore, clean, get_adapter, normalize_day_bars, trim_forming_tail,
 )
 from apex_quant.storage import paper_store  # noqa: E402
+from apex_quant.models.paper_readiness import require_daily_panel, require_restored_state
 
 from run_portfolio_gate import COMMON_PARAMS, MIN_BARS, WARMUP, TrendBook  # noqa: E402
 from run_portfolio_gate_multiasset import FX_MAJORS_7  # noqa: E402
@@ -125,7 +126,7 @@ def _top_up(store: ParquetStore, adapter, inst: str, cutoff: pd.Timestamp,
     last = cached.index[-1] if not cached.empty else None
     if last is not None and _utc(last) >= cutoff:
         return cached
-    fetch_start = _utc(last) if last is not None else _utc(FETCH_START)
+    fetch_start = _utc(last) - pd.Timedelta(days=3) if last is not None else _utc(FETCH_START)
     try:
         fetched = adapter.get_history(inst, fetch_start, now, "1d")
     except Exception as e:  # noqa: BLE001
@@ -167,10 +168,14 @@ def _restore_from_supabase() -> dict | None:
     if not latest:
         return None
     extra = latest.get("state_extra") or {}
+    if extra.get("full_state"):
+        return extra["full_state"]
     curve = paper_store.fetch_daily_curve() or []
     pos_rows = paper_store.fetch_open_positions() or []
     return {
         "schema_version": 1,
+        "accounting_version": extra.get("accounting_version"),
+        "account_currency": extra.get("account_currency"),
         "book": extra.get("book", BOOK_LABEL),
         "params": extra.get("params", BOOK_PARAMS),
         "initial_equity": float(extra.get("initial_equity", START_EQUITY)),
@@ -215,9 +220,10 @@ def _position_rows(stepper: PaperPortfolio, now_iso: str) -> list[dict]:
 def _daily_rows(stepper: PaperPortfolio, recs: list[dict], metrics: dict) -> list[dict]:
     st = stepper.to_state()
     extra = {k: st[k] for k in (
-        "book", "params", "initial_equity", "peak", "halted", "cost_total",
+        "book", "params", "initial_equity", "peak", "halted", "cost_total", "accounting_version", "account_currency",
         "pending", "trades", "per_inst", "constraint_log", "last_processed_date",
     )}
+    extra["full_state"] = st  # one authoritative daily row retains complete conversion/lot metadata
     rows, prev_eq = [], stepper.initial_equity
     eq_series = stepper.equity_series()
     if len(eq_series) > len(recs):
@@ -288,6 +294,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="prefer mirrored state over the tracked local snapshot (CI mode)")
     ap.add_argument("--clear-halt", action="store_true",
                     help="clear the experiment HALT flag after a review, then exit")
+    ap.add_argument("--dry-run", action="store_true", help="Simulate without ledger or mirror writes")
+    ap.add_argument("--initialize-repaired", action="store_true", help="Initialize a separate local repaired paper ledger")
     args = ap.parse_args(argv)
 
     now = pd.Timestamp.now(tz="UTC")
@@ -318,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(panel) < 2:
         print("need >= 2 instruments with data; aborting", flush=True)
         return 1
+    require_daily_panel(panel, instruments, cutoff)
     latest = max(df.index[-1] for df in panel.values())
     print(f"panel: {len(panel)} instruments | latest closed bar {latest.date()}", flush=True)
 
@@ -330,20 +339,25 @@ def main(argv: list[str] | None = None) -> int:
         remote_state = _restore_from_supabase()
         if remote_state is not None:
             state, origin = remote_state, "supabase"
-        elif local_state is not None:
-            origin = "local-fallback (Supabase state empty)"
+        else:
+            raise ValueError("Authoritative Supabase state unavailable; local fallback prohibited")
     elif state is None and not args.no_supabase:
         state = _restore_from_supabase()
         origin = "supabase" if state is not None else "fresh"
 
+    require_restored_state(state, initialize=args.initialize_repaired, no_remote=args.no_supabase,
+                           state_path=state_path, original_path=STATE_PATH)
     model = TrendBook(panel, **BOOK_PARAMS)
     stepper = PaperPortfolio(
         panel, model.strategies(), cfg=cfg,
         timeframes={k: "1d" for k in panel}, warmup=WARMUP,
         state=state, book=BOOK_LABEL, params=BOOK_PARAMS,
         halt_drawdown=HALT_DRAWDOWN, initial_equity=START_EQUITY,
+        account_currency="GBP", fx_panel=panel,
     )
 
+    if args.clear_halt and args.dry_run:
+        raise ValueError("--clear-halt cannot be combined with --dry-run")
     if args.clear_halt:
         stepper.set_halted(False)
         stepper.save_state(state_path)
@@ -351,9 +365,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if state is None:
-        wm = stepper.seed_watermark(cutoff)
-        print(f"fresh seed: watermark {wm.date() if wm is not None else '-'}; "
-              f"the most recent closed bar's decisions become PENDING-ENTRY", flush=True)
+        if args.as_of:
+            raise ValueError("Repaired initialization cannot backdate activation")
+        stepper._last_processed = now.normalize()
+        stepper._eq_points = [(now.normalize(), START_EQUITY)]
+        if not args.dry_run:
+            stepper.save_state(state_path)
+        print("Separate repaired ledger initialized; no historical trades imported.", flush=True)
+        return 0
     else:
         print(f"state restored from {origin} | last processed {stepper.last_processed} "
               f"| equity points {len(stepper.equity_series())}", flush=True)
@@ -364,6 +383,10 @@ def main(argv: list[str] | None = None) -> int:
         lp = stepper.last_processed
         print(f"no new closed bars since {lp.date() if lp is not None else '-'} "
               f"- nothing to do (idempotent no-op). State NOT rewritten.", flush=True)
+        return 0
+
+    if args.dry_run:
+        print(f"DRY RUN: {len(recs)} new bars verified; no ledger or remote writes", flush=True)
         return 0
 
     lines = _log_lines(stepper, recs)
@@ -396,8 +419,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"supabase: positions upsert {'ok' if ok_pos else 'FAILED'}, "
               f"prune {'ok' if ok_del else 'FAILED'}, daily {'ok' if ok_day else 'FAILED'}", flush=True)
         if not (ok_pos and ok_del and ok_day):
-            print("  (clean degradation: local JSON state is authoritative; "
-                  "apply supabase/apex_paper_portfolio.sql if the tables are missing)", flush=True)
+            print("Durable mirror failed; this run is not a successful forward step", flush=True)
+            return 1
 
     pend = stepper.pending_entries
     if pend:
