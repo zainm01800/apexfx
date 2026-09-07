@@ -61,6 +61,7 @@ from apex_quant.config import get_config  # noqa: E402
 from apex_quant.data import (  # noqa: E402
     ParquetStore, clean, get_adapter, normalize_day_bars, trim_forming_tail,
 )
+from apex_quant.data.calendar import session_normalize  # noqa: E402
 from apex_quant.storage import paper_store  # noqa: E402
 from apex_quant.models.paper_readiness import require_daily_panel, require_restored_state
 
@@ -135,7 +136,7 @@ def _top_up(store: ParquetStore, adapter, inst: str, cutoff: pd.Timestamp,
     if fetched.empty:
         return cached
     combined = pd.concat([cached, fetched])
-    combined = normalize_day_bars(combined, "1d")
+    combined = session_normalize(combined, inst, "1d")
     combined = combined[~combined.index.duplicated(keep="last")].sort_index()
     # D-H2: a still-forming terminal bar must never enter the cache. `save`
     # does NOT trim (only get_or_fetch does), and this fetch ends at `now`,
