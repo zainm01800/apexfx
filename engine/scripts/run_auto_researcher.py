@@ -476,8 +476,8 @@ def main() -> int:
     print(f"[4/4] Calling Groq ({GROQ_MODEL}) — prompt {len(prompt)} chars...")
     resp = groq_propose(prompt, system)
     if not resp:
-        print("[ERROR] Groq call failed — no proposals drafted this run.")
-        return 1
+        print("[WARN] Groq call failed — skipping proposal drafting this run.")
+        return 0
 
     raw = extract_json(resp)
     proposals = validate_proposals(raw, ledger, prior)
