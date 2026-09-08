@@ -72,13 +72,20 @@ function render() {
     const through=m.observation?.market_data_through_utc;
     set('dataThrough',through?`Market bars through ${dateLabel(through,true)} · runner ${dateLabel(meta.runner_checked_at,true)}`:'Market-hour timestamp unavailable; freshness is unverified');
     if(m.hourlyRiskIncomplete)set('bookNotice',`Book S paper ledger: earlier hourly drawdown history is incomplete${m.observedHourlyMaxDD!==null?`; at least ${percent(m.observedHourlyMaxDD)} observed`:''}. Recorded fills are bar-based simulations, not broker orders or proof of pre-open submission.`);
-    if(fxObservationOverdue(through)===true)set('bookStatus','Saved market marks overdue · not current live P&L');
-    if(meta.runner_status==='blocked')set('bookNotice',`Paper step blocked: ${meta.runner_error||'Inputs need attention'}. Earlier hourly drawdown history remains incomplete.`);
+    if(fxObservationOverdue(through)===true&&!state.halted&&meta.runner_status!=='blocked')set('bookStatus','Saved market marks overdue · not current live P&L');
+    if(meta.runner_status==='blocked')set('bookNotice',`Paper step blocked: ${meta.runner_error||'Inputs need attention'}.${m.hourlyRiskIncomplete?' Earlier hourly drawdown history remains incomplete.':''}`);
+  }
+  if((book==='v24'||book==='v30')&&meta.execution_mode==='settled_session_paper_reconstruction'){
+    const warmup=state.status==='waiting_for_frozen_warmup';
+    if(meta.runner_status!=='blocked'&&!state.halted)set('bookStatus',warmup?'Collecting minute-history warmup · entries disabled':'After-close paper reconstruction');
+    set('bookNotice',`After-close simulation, not real-time execution. ${meta.minute_archive_sessions??0} complete sessions archived; features require the exact prior 15 cash sessions.${warmup?' No trades until warmup is complete.':''}${meta.runner_status==='blocked'?` Blocked: ${meta.runner_error||meta.data_readiness||'Missing inputs'}`:''}`);
+    set('workspaceFooter','V24/V30 use complete, first-seen cash-minute sessions and publication-qualified FX. Trades are reconstructed after the close, not submitted in real time; no broker orders. Missing history blocks entries, and missing active sessions block advancement.');
   }
   set('tradeCount',`${m.payload.trades.length} closed trade${m.payload.trades.length===1?'':'s'}`);
   if(book==='v27b'){
     set('tradeCount',`${m.completedLots} completed lots · ${m.payload.trades.length} exit fills`);
     set('closedPnlNote','net realized exits, including partial reductions');
+    if(meta.runner_status!=='blocked')set('bookNotice','V27B is post-selection research, not blind validation or a funded pass. A fresh paper account gathers new evidence; historical averages are not income forecasts.');
     set('workspaceFooter','V27B paper account: monthly ETF trend and five-session stock reversal share one cash balance. Decisions are saved before the eligible open; daily-bar fills are settled after the close. No broker orders. Base costs are hypothetical 5 bps per side plus 5 bps on stops; overnight financing is excluded. Not funded-qualified.');
   }
   if(p.legacy) {
@@ -157,75 +164,6 @@ function changeBook(next) {
   $('forwardChart').innerHTML=empty('Loading','');$('dailyMeter').style.width='0%';$('maxMeter').style.width='0%';$('tradeSearch').value='';
   chrome();renderPanel();load();
 }
-async function updateLiveBookRankings() {
-  try {
-    const tabsContainer = document.querySelector('.ws-book-tabs');
-    if (!tabsContainer) return;
-    const tabButtons = [...tabsContainer.querySelectorAll('[data-book]')];
-    const activeIds = ['s', 'v24', 'v30', 'v6', 'v10', 'v27b'];
-    
-    const scores = await Promise.all(activeIds.map(async id => {
-      try {
-        const res = await fetch(`/api/paper?book=${id}&table=state`, { cache: 'no-store' });
-        if (!res.ok) return { id, pnl: -999999, activation: 0 };
-        const data = await res.json();
-        const p = BOOKS[id];
-        const m = p?.legacy ? summarizeLegacy(data, id) : summarize(data, id);
-        return {
-          id,
-          pnl: m.pnl ?? 0,
-          equity: m.equity ?? 100000,
-          currency: p?.currency || (id === 's' ? 'USD' : 'GBP'),
-          activation: Date.parse(m.activation || '') || 0
-        };
-      } catch {
-        return { id, pnl: -999999, activation: 0 };
-      }
-    }));
-
-    // Sort: highest profit first, then newest activation
-    scores.sort((a, b) => {
-      const pnlDiff = (b.pnl ?? 0) - (a.pnl ?? 0);
-      if (Math.abs(pnlDiff) > 0.01) return pnlDiff;
-      return (b.activation ?? 0) - (a.activation ?? 0);
-    });
-
-    // Reorder tabs container so highest profit is first
-    scores.forEach((score, rank) => {
-      const btn = tabButtons.find(b => b.dataset.book === score.id);
-      if (btn) {
-        tabsContainer.insertBefore(btn, tabsContainer.children[rank] || null);
-        let strong = btn.querySelector('strong');
-        let badge = btn.querySelector('.ws-rank-badge');
-        let sub = btn.querySelector('span:not(.ws-rank-badge)');
-        
-        if (rank === 0 && score.pnl > 0) {
-          if (!badge) {
-            badge = document.createElement('span');
-            strong?.appendChild(badge);
-          }
-          badge.className = 'ws-rank-badge top-profit';
-          badge.textContent = '#1 PROFIT';
-          if (sub) {
-            const sym = score.currency === 'USD' ? 'US$' : '£';
-            const sign = score.pnl >= 0 ? '+' : '';
-            sub.textContent = `${sign}${sym}${score.pnl.toFixed(2)} · ${BOOKS[score.id]?.label || 'Session SMC'}`;
-          }
-        } else if (score.id === 'v24' || score.id === 'v30') {
-          if (!badge) {
-            badge = document.createElement('span');
-            strong?.appendChild(badge);
-          }
-          badge.className = 'ws-rank-badge newest';
-          badge.textContent = 'NEWEST';
-        }
-      }
-    });
-  } catch (e) {
-    // Keep clean static order on network failure
-  }
-}
-
 if(invalidRequest){ $('bookError').hidden=false;$('bookError').textContent='Unknown book. Choose one of the books above.'; }
 for(const button of document.querySelectorAll('[data-book]'))button.addEventListener('click',()=>changeBook(button.dataset.book));
 for(const button of document.querySelectorAll('[data-panel]')) {
@@ -233,7 +171,7 @@ for(const button of document.querySelectorAll('[data-panel]')) {
   button.addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[data-panel]')];let i=tabs.indexOf(button);if(event.key==='ArrowRight')i=(i+1)%tabs.length;else if(event.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;else if(event.key==='Home')i=0;else if(event.key==='End')i=tabs.length-1;else return;event.preventDefault();tabs[i].click();tabs[i].focus();});
 }
 $('tradeSearch').addEventListener('input',renderPanel);
-$('refreshBook').addEventListener('click',()=>{load();updateLiveBookRankings();});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){load();updateLiveBookRankings();}});
-setInterval(()=>{if(!document.hidden){load();updateLiveBookRankings();}},60000);
-chrome();if(!invalidRequest){load();updateLiveBookRankings();}
+$('refreshBook').addEventListener('click',()=>{load();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){load();}});
+setInterval(()=>{if(!document.hidden){load();}},60000);
+chrome();if(!invalidRequest){load();}

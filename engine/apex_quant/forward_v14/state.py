@@ -527,14 +527,38 @@ def enforce_persistence_deadline(
     return output
 
 
+def _unexposed_seed_high_low_correction(state: dict, old: dict, fresh: dict) -> bool:
+    """Only a seed's untraded high/low may receive an audited vendor correction.
+
+    Open/close feed the frozen selection. Those cannot change under this rule.
+    Existing NO_SIGNAL evidence is retained, never recomputed into a past fill.
+    Once a real session, instruction, cost or trade exists, fail closed.
+    """
+    daily = state.get("daily", [])
+    decisions = state.get("decisions", [])
+    return (
+        state["last_processed_session"] == state["seed_session"]
+        and len(daily) == 1 and daily[0].get("is_seed") is True
+        and not state.get("positions") and not state.get("pending_batch")
+        and not state.get("trades") and state["cost_total_gbp"] == 0
+        and state["cash"] == state["initial_equity"]
+        and bool(decisions)
+        and all(d.get("decision_date") == state["seed_session"]
+                and d.get("status") == "NO_SIGNAL" and not d.get("legs")
+                for d in decisions)
+        and old["open"] == fresh["open"] and old["close"] == fresh["close"]
+    )
+
+
 def _apply_adjustment_rebase(
     state: dict, panel: Mapping[str, pd.DataFrame], processing_date: Any
 ) -> bool:
     """Rebase open synthetic units across a uniform adjusted-history revision.
 
     This preserves already accrued GBP P&L while allowing a legitimate uniform
-    split/dividend adjustment.  A non-uniform correction to the frozen anchor is
-    ambiguous and therefore fails closed instead of rewriting evidence.
+    split/dividend adjustment. Non-uniform changes fail closed except an
+    unexposed seed's high/low correction, which is recorded separately while
+    retaining the original NO_SIGNAL evidence and account history.
     """
 
     anchor = session_label(state["last_processed_session"])
@@ -549,6 +573,16 @@ def _apply_adjustment_rebase(
         if max(abs(ratio - 1.0) for ratio in ratios) <= 1e-11:
             continue
         if max(ratios) - min(ratios) > 1e-8 * max(1.0, abs(sum(ratios) / len(ratios))):
+            if _unexposed_seed_high_low_correction(state, old, fresh):
+                changed = True
+                _event(
+                    state, processing_date, "input_audit", "unexposed_seed_ohlc_correction",
+                    instrument=symbol, anchor_session=iso_date(anchor),
+                    previous_bar=old, replacement_bar=fresh,
+                    preserved_decision_input_sha256=[d["decision_input_sha256"] for d in state["decisions"]],
+                    reason="Vendor high/low correction before any exposure; original NO_SIGNAL evidence and seed history retained",
+                )
+                continue
             raise DataRevisionError(
                 f"{symbol}: prior adjusted anchor changed non-uniformly; state left untouched"
             )

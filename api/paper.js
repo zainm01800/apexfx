@@ -21,6 +21,7 @@ const TABLES = {
   v10: { fallbackId: '__apex_book_v10_forward_paper_runtime__', profile: 'standard_5_10_static' },
   v24: { fallbackId: '__apex_book_v24_forward_paper_runtime__', profile: 'higher_5_12_static' },
   v30: { fallbackId: '__apex_book_v30_forward_paper_runtime__', profile: 'higher_5_12_static' },
+  v27b: { fallbackId: '__apex_book_v27b_forward_paper_runtime__', profile: 'higher_5_12_joint' },
 };
 const PUBLIC_TABLES = new Set(['state', 'daily', 'positions', 'trades', 'pending', 'metadata', 'pending_radar']);
 const COLLECTIONS = ['daily', 'positions', 'trades', 'pending'];
@@ -241,7 +242,7 @@ export default async function handler(req) {
   const table = requestedTable === 'pending_radar' ? 'pending' : requestedTable;
   const limit = Number(rawLimit);
   try {
-    const payload = ['v6', 'v10', 'v24', 'v30'].includes(book)
+    const payload = ['v6', 'v10', 'v24', 'v30', 'v27b'].includes(book)
       ? project(validateExperimental(await runtimeState(book), book), table, limit)
       : edition==='legacy'?await legacyRequest(book,table,limit):await repairedRequest(book,table,limit,edition==='archive');
     return new Response(JSON.stringify(payload), { status: 200, headers: cors });

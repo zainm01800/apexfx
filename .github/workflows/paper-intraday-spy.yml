@@ -2,8 +2,10 @@ name: SPY Intraday Forward Paper (V24 & V30)
 
 on:
   schedule:
-    # Run every 30 minutes during US market hours (14:00 to 21:00 UTC, Mon-Fri)
-    - cron: "*/30 14-21 * * 1-5"
+    # Settle after both summer/winter XNYS closes plus 30-minute grace.
+    - cron: "15 22 * * 1-5"
+    # Read-only until a new complete session is available; retry delayed feeds next morning.
+    - cron: "15 8 * * 2-6"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -37,8 +39,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r engine/requirements-forward.txt yfinance httpx python-dotenv
+          python -m pip install -r engine/requirements-forward.txt
 
       - name: Run unit tests
         run: python -m unittest engine/tests/test_intraday_forward.py

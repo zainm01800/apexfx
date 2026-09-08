@@ -55,7 +55,8 @@ export function summarizeLegacy(payload,book) {
 }
 export function fxObservationOverdue(through,now=Date.now()) {
   const saved=Date.parse(through||'');
-  if(!Number.isFinite(saved))return null;
+  now=typeof now==='string'?Date.parse(now):Number(now);
+  if(!Number.isFinite(saved)||!Number.isFinite(now))return null;
   let required=Math.floor((now-45*60000)/3600000)*3600000;
   const fmt=new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',hourCycle:'h23'});
   for(let i=0;i<74;i++){

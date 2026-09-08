@@ -40,6 +40,7 @@ from apex_quant.forward_v14.storage import (  # noqa: E402
     save_local,
     state_sha256,
     write_remote_verified,
+    write_runner_status,
 )
 
 
@@ -73,15 +74,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run and args.local_only:
         parser.error("--dry-run and --local-only are mutually exclusive")
 
+    try:
+        return _run(args)
+    except Exception as exc:
+        print(f"BLOCKED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+
+def _run(args) -> int:
+
     spec = book_spec(args.book)
     state_path = Path(args.state) if args.state else _default_state_path(spec.book_id)
     print(f"{spec.label} | GBP100,000 | EXPERIMENTAL FORWARD PAPER | NO BROKER")
-    market = fetch_market_data()
-    print(
-        f"fresh bundle: settled XNYS through {market.latest_completed_session.date()} | "
-        f"retrieved {market.retrieved_at_utc.isoformat()}"
-    )
-
     local = load_local(state_path, spec)
     remote_state = None
     origin = "fresh activation"
@@ -99,10 +103,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
             origin = "Supabase"
-        elif local is not None:
+        else:
             print(
-                "ERROR: Supabase runtime row is missing while a local state exists; "
-                "refusing implicit initialization from local",
+                "ERROR: Supabase runtime row is missing; refusing automatic activation or reseed",
                 file=sys.stderr,
             )
             return 1
@@ -111,6 +114,27 @@ def main(argv: list[str] | None = None) -> int:
         origin = "local-only"
 
     operation_time = datetime.now(timezone.utc)
+    try:
+        return _advance_restored(args, spec, state_path, remote_state, origin, operation_time)
+    except Exception as exc:
+        if remote_state is not None and not args.dry_run and not args.local_only:
+            try:
+                write_runner_status(
+                    spec, restored_state_hash=state_sha256(remote_state),
+                    status="blocked", checked_at=operation_time.isoformat(),
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            except Exception as status_exc:
+                print(f"ERROR: could not save blocked status: {status_exc}", file=sys.stderr)
+        raise
+
+
+def _advance_restored(args, spec, state_path, remote_state, origin, operation_time):
+    market = fetch_market_data()
+    print(
+        f"fresh bundle: settled XNYS through {market.latest_completed_session.date()} | "
+        f"retrieved {market.retrieved_at_utc.isoformat()}"
+    )
     parent_hash = state_sha256(remote_state) if remote_state is not None else None
     if remote_state is None:
         state = new_state(spec, market, now=operation_time)
@@ -138,6 +162,10 @@ def main(argv: list[str] | None = None) -> int:
         state["parent_state_sha256"] = parent_hash
         state["revision"] = int(remote_state["revision"]) + 1
     payload = public_payload(state, spec, generated_at=datetime.now(timezone.utc))
+    unchanged = remote_state is not None and state_sha256(state) == parent_hash
+    status = "fresh_no_new_session" if unchanged else "advanced" if rows else "input_revision_recorded"
+    payload["metadata"].update(runner_status=status,
+                               runner_checked_at=operation_time.isoformat(), runner_error=None)
     latest = payload["daily"][-1]
     print(
         f"origin {origin} | new rows {len(rows)} | last {latest['date']} | "
@@ -164,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if remote_state is not None and state_sha256(state) == parent_hash:
+        write_runner_status(spec, restored_state_hash=parent_hash, status=status,
+                            checked_at=operation_time.isoformat())
         print("idempotent no-op: authoritative state already covers the latest settled session")
         return 0
 

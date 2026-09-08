@@ -1,5 +1,5 @@
 import { PROFILES, summarize, money as formatMoney, percent, signClass, escapeHtml as e, dateLabel, firstNumber } from './forward-model.js';
-import { BOOKS, summarizeLegacy } from './legacy-forward-model.js';
+import { BOOKS, summarizeLegacy, fxObservationOverdue } from './legacy-forward-model.js';
 
 const $ = id => document.getElementById(id);
 async function get(book) {
@@ -10,7 +10,7 @@ async function get(book) {
 
 async function load() {
   $('refreshCompare').disabled = true;
-  const activeBooks = ['s', 'v24', 'v30', 'v6', 'v10'];
+  const activeBooks = ['s', 'v24', 'v30', 'v6', 'v10', 'v27b'];
   
   const bookData = await Promise.all(activeBooks.map(async book => {
     const isLegacy = BOOKS[book]?.legacy;
@@ -22,12 +22,14 @@ async function load() {
         book,
         name: p.name || `Book ${book.toUpperCase()}`,
         currency: p.currency || (isLegacy ? 'USD' : 'GBP'),
-        pnl: m.pnl ?? 0,
-        equity: m.equity ?? 100000,
+        pnl: m.pnl,
+        equity: m.equity,
         maxDD: m.maxDD,
         openPositions: m.payload?.positions?.length ?? 0,
-        closedTrades: m.payload?.trades?.length ?? 0,
-        status: m.meta?.status || m.state?.status || 'Paper only',
+        closedTrades: m.completedLots ?? m.payload?.trades?.length ?? 0,
+        status: m.meta?.runner_status === 'blocked' ? 'Blocked · account preserved' : m.state?.halted ? 'Halted' : book === 's' && fxObservationOverdue(m.observation?.market_data_through_utc) === true ? 'Market marks overdue · not current P&L' : m.meta?.status || m.state?.status || 'Paper only',
+        riskIncomplete: m.hourlyRiskIncomplete,
+        execution: m.meta?.execution_mode === 'settled_session_paper_reconstruction' ? 'After-close paper reconstruction' : 'Simulated paper ledger',
         sessions: m.sessions ?? 0,
         through: m.through,
         activation: m.activation,
@@ -48,23 +50,10 @@ async function load() {
     }
   }));
 
-  // Rank books: Most profit first (highest pnl), then newest activation
-  bookData.sort((a, b) => {
-    const pnlDiff = (b.pnl ?? 0) - (a.pnl ?? 0);
-    if (Math.abs(pnlDiff) > 0.01) return pnlDiff;
-    return new Date(b.activation || 0) - new Date(a.activation || 0);
-  });
-
-  const cards = bookData.map((d, index) => {
+  // Stable order: unlike currencies, activation dates and evidence are not a strategy ranking.
+  const cards = bookData.map(d => {
     const money = (val, signed = false) => formatMoney(val, signed, d.currency);
-    let rankBadge = '';
-    if (index === 0 && d.pnl > 0) {
-      rankBadge = `<span class="paper-pill" style="background:var(--mint);color:#07090d;font-weight:700">#1 MOST PROFIT</span>`;
-    } else if (d.book === 'v24' || d.book === 'v30') {
-      rankBadge = `<span class="paper-pill" style="background:rgba(137,155,255,0.18);color:#9daeff;border:1px solid rgba(137,155,255,0.35);font-weight:600">NEWEST INTRADAY</span>`;
-    } else {
-      rankBadge = `<span class="paper-pill">${(d.maximum * 100).toFixed(0)}% STATIC</span>`;
-    }
+    const rankBadge = '<span class="paper-pill">PAPER ONLY</span>';
 
     if (d.error) {
       return `<article class="ws-compare-card">
@@ -85,9 +74,9 @@ async function load() {
       <dl class="ws-trade-grid">
         <div><dt>Open positions</dt><dd>${d.openPositions}</dd></div>
         <div><dt>Closed trades</dt><dd>${d.closedTrades}</dd></div>
-        <div><dt>Peak drawdown</dt><dd>${percent(d.maxDD)}</dd></div>
+        <div><dt>Peak drawdown</dt><dd>${d.riskIncomplete ? 'Incomplete' : percent(d.maxDD)}</dd></div>
       </dl>
-      <p class="ws-meta">${e(d.status)} · ${d.sessions} sessions<br>Ledger: ${dateLabel(d.through)}</p>
+      <p class="ws-meta">${e(d.status)} · ${d.sessions} saved sessions<br>${e(d.execution)}<br>Ledger: ${dateLabel(d.through)}</p>
       <a class="ws-btn" href="engine-book.html?book=${d.book}">Inspect ${e(d.name)} →</a>
     </article>`;
   });

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pandas as pd
 from .paper_accounting import positive
+from .book_s_observation import ensure_drawdown_tracker, observe_hour_close
 
 
 def advance_hours(state, frames, times, *, universe, risk, rr, max_positions,
@@ -17,6 +18,7 @@ def advance_hours(state, frames, times, *, universe, risk, rr, max_positions,
     traded = state.setdefault("last_traded_date", {})
     guard = state.setdefault("daily_guard", {})
     changed_days = {}
+    ensure_drawdown_tracker(state)
 
     def rate(sym, px):
         base, quote = sym.split("/")
@@ -103,6 +105,7 @@ def advance_hours(state, frames, times, *, universe, risk, rr, max_positions,
                                "exit_price": filled, "stop_loss": stop, "take_profit": target,
                                "pnl": pnl, "win": pnl > 0, "return_pct": pnl / state["initial_equity"],
                                "entry_time": pos["entry_time"], "exit_time": stamp(t),
+                               "decision_time": pos.get("decision_time"),
                                "holding_hours": age, "exit_reason": reason})
                 del positions[sym]
             else:
@@ -114,6 +117,7 @@ def advance_hours(state, frames, times, *, universe, risk, rr, max_positions,
         # Persist the latch across invocations and recoveries within the day.
         guard["locked"] = guard["locked"] or guard["start_equity"] - guard["minimum_equity"] >= daily_limit
         peak = max(peak, nav)
+        drawdown = observe_hour_close(state, t, nav, peak)
         if nav <= 0:
             state["halted"] = True
         if 7 <= t.hour < 12 and not guard["locked"] and not state.get("halted"):
@@ -143,6 +147,9 @@ def advance_hours(state, frames, times, *, universe, risk, rr, max_positions,
         row = {"date": day, "timestamp": stamp(t), "equity": nav, "cash": cash,
                "day_pnl": nav - guard["start_equity"], "cum_pnl": nav - state["initial_equity"],
                "drawdown": (peak - nav) / peak, "open_count": len(positions),
+               "metrics": {"max_drawdown": drawdown["max_drawdown_fraction"] if drawdown["complete_since_activation"] else None,
+                           "observed_max_drawdown": drawdown["max_drawdown_fraction"],
+                           "drawdown_complete_since_activation": drawdown["complete_since_activation"]},
                "notes": "Repaired paper accounting; hourly OHLC is not intrabar funded-compliance proof"}
         changed_days[day] = row
         state["last_processed_time"] = stamp(t)

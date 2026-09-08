@@ -49,6 +49,7 @@ def initial_engine(book,now):
 
 
 def payload_for(book,engine,*,activated,revision,archive_sha,daily=None,now=None):
+    from apex_quant.models.book_s_observation import observation_metadata
     now=now if now is not None else pd.Timestamp.now(tz='UTC')
     currency='GBP' if book in 'abc' else 'USD'
     risk={'a':get_config().risk.max_risk_per_trade,'b':.01,'c':.0085,'r':None,'s':.005,'f':.0034}[book]
@@ -77,6 +78,7 @@ def payload_for(book,engine,*,activated,revision,archive_sha,daily=None,now=None
                         'activation_recorded_at_utc':activated,'archive_id':storage.archive_id(book),'archive_sha256':archive_sha,
                         'status':'repaired_forward_paper','halted':engine.get('halted',False),
                         'trade_risk_fraction':risk,
+                        **({'observation':observation_metadata(engine)} if book=='s' else {}),
                         'limitations':'Paper observation only. Generic bar/spread/FX proxies; no funded-compliance certification.'}}
 
 
@@ -119,11 +121,11 @@ def advance(book,old,now):
             panel[sym]=frame[frame.index<cutoff]
             if len(panel[sym])<d.MIN_BARS:
                 raise ValueError(f'{sym}: insufficient pinned strategy history')
-        require_daily_panel(panel,instruments,cutoff)
+        require_daily_panel(panel,instruments,cutoff,after=st['last_processed_date'])
         model=d.TrendBook(panel,**d.BOOK_PARAMS);strategies=model.strategies()
         if book=='b':
             spy=clean(d._top_up(store,adapter,d.GATE_SYMBOL,cutoff,now));spy=spy[spy.index<cutoff]
-            require_daily_panel({d.GATE_SYMBOL:spy},[d.GATE_SYMBOL],cutoff)
+            require_daily_panel({d.GATE_SYMBOL:spy},[d.GATE_SYMBOL],cutoff,after=st['last_processed_date'])
             gated=tuple(s for s in panel if s in set(d.BOOK_CRYPTO)|set(d.FX_MAJORS_7))
             risk_on=d.risk_on_map(spy['close'],panel,gated,d.SPILL_L)
             for sym in gated:
@@ -140,13 +142,13 @@ def advance(book,old,now):
         for sym in d.USD_ETF_UNIVERSE:
             frame=clean(d._top_up(store,adapter,sym,cutoff,now));panel[sym]=frame[frame.index<cutoff]
             if len(panel[sym])<d.MIN_BARS:raise ValueError(f'{sym}: insufficient history')
-        require_daily_panel(panel,d.USD_ETF_UNIVERSE,cutoff)
+        require_daily_panel(panel,d.USD_ETF_UNIVERSE,cutoff,after=st['last_processed_date'])
         panel=d.common_panel(panel,d.USD_ETF_UNIVERSE)
         index=next(iter(panel.values())).index
         st,rows=advance_book_r_forward(panel,st,month_end_sessions=d._xnys_month_ends(index[0],cutoff+pd.Timedelta(days=40)))
         if not rows:return None
     elif book=='f':
-        panel=d.load_panel(store)
+        panel=d.load_panel(store,after=st['last_processed_date'])
         st,rows=d.advance_book_f_forward(st,panel,cutoff-pd.Timedelta(nanoseconds=1))
         if not rows:return None
     else:
@@ -180,11 +182,14 @@ def main(argv=None):
             if new is None:
                 if not args.dry_run:
                     checked=copy.deepcopy(old)
-                    checked['metadata'].update(runner_status='fresh_no_new_session',runner_checked_at=now.isoformat(),runner_error=None)
+                    if book=='s':
+                        from apex_quant.models.book_s_observation import observation_metadata
+                        checked['metadata']['observation']=observation_metadata(checked['state']['engine'])
+                    checked['metadata'].update(runner_status='fresh_no_new_session',runner_checked_at=now.isoformat(),runner_error=None,runner_details=None)
                     storage.write(storage.runtime_id(book),checked,previous_hash=old['state_sha256'])
                 print(f'{book}: fresh inputs verified; no post-activation bar to advance');continue
             if not args.dry_run:
-                new['metadata'].update(runner_status='advanced',runner_checked_at=now.isoformat(),runner_error=None)
+                new['metadata'].update(runner_status='advanced',runner_checked_at=now.isoformat(),runner_error=None,runner_details=None)
                 storage.write(storage.runtime_id(book),new,previous_hash=old['state_sha256'])
             print(f'{book}: {"dry-run" if args.dry_run else "durably saved"} revision {new["state"]["revision"]}')
         except Exception as exc:
@@ -195,7 +200,7 @@ def main(argv=None):
                     current=storage.read(storage.runtime_id(book))
                     if current is not None:
                         blocked=copy.deepcopy(current)
-                        blocked['metadata'].update(runner_status='blocked',runner_checked_at=now.isoformat(),runner_error=str(exc)[:300])
+                        blocked['metadata'].update(runner_status='blocked',runner_checked_at=now.isoformat(),runner_error=str(exc)[:300],runner_details=getattr(exc,'details',None))
                         storage.write(storage.runtime_id(book),blocked,previous_hash=current['state_sha256'])
                 except Exception:
                     print(f'{book}: unable to persist operational failure status; trading state not replaced')

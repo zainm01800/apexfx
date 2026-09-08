@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from .paper_accounting import VERSION
 from .book_s_execution import advance_hours
+from .book_s_observation import new_drawdown_tracker, observation_metadata
 
 BOOK_LABEL = "book_s_session_smc_100k"
 INITIAL_EQUITY_USD = 100_000.0
@@ -61,6 +62,7 @@ def _date_str(val: pd.Timestamp | str | datetime) -> str:
 def new_book_s_state(seed_date: pd.Timestamp | str = "2026-07-28") -> dict[str, Any]:
     """Initialize a pristine Book S state seeded at $100,000 USD."""
     ts = pd.Timestamp(seed_date)
+    ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
     date_str = ts.strftime("%Y-%m-%d")
     return {
         "schema_version": SCHEMA_VERSION,
@@ -76,7 +78,8 @@ def new_book_s_state(seed_date: pd.Timestamp | str = "2026-07-28") -> dict[str, 
         "base_risk_usd": RISK_PER_TRADE_USD,
         "target_rr": TARGET_RR,
         "max_positions": MAX_CONCURRENT_POSITIONS,
-        "last_processed_time": f"{date_str} 00:00:00",
+        "last_processed_time": _date_str(ts),
+        "drawdown_tracker": new_drawdown_tracker(INITIAL_EQUITY_USD, ts),
         "positions": {},
         "pending": {},
         "daily_guard": {},
@@ -84,7 +87,7 @@ def new_book_s_state(seed_date: pd.Timestamp | str = "2026-07-28") -> dict[str, 
         "trades": [],
         "equity_curve": [{
             "date": date_str,
-            "timestamp": f"{date_str} 00:00:00",
+            "timestamp": _date_str(ts),
             "equity": INITIAL_EQUITY_USD,
             "cash": INITIAL_EQUITY_USD,
             "day_pnl": 0.0,
@@ -290,6 +293,7 @@ def runtime_payload(state: dict[str, Any]) -> dict[str, Any]:
     
     return {
         "state": copy.deepcopy(state),
+        "observation": observation_metadata(state),
         "book": BOOK_LABEL,
         "strategy": "Session SMC & Order Flow Engine",
         "currency": "USD",

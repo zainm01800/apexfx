@@ -77,7 +77,7 @@ def _restore_remote_state() -> dict | None:
     return None
 
 
-def load_panel(store: ParquetStore) -> dict[str, pd.DataFrame]:
+def load_panel(store: ParquetStore, *, after=None) -> dict[str, pd.DataFrame]:
     panel = {}
     now = pd.Timestamp.now(tz="UTC")
     cutoff = now.normalize()
@@ -89,7 +89,7 @@ def load_panel(store: ParquetStore) -> dict[str, pd.DataFrame]:
             df = df[df.index < cutoff]
             df.sort_index(inplace=True)
             panel[sym] = df
-    require_daily_panel(panel, CORE_UNIVERSE, cutoff)
+    require_daily_panel(panel, CORE_UNIVERSE, cutoff, after=after)
     return panel
 
 

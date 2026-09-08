@@ -105,38 +105,36 @@ def fetch_remote(spec: BookSpec, *, client=None) -> RemoteRead:
             client.close()
 
 
-def write_remote_verified(payload: dict, spec: BookSpec, *, client=None) -> None:
-    if payload.get("book_id") != spec.book_id:
-        raise ValueError("runtime payload book identity mismatch")
-    key = os.environ.get("SUPABASE_SERVICE_KEY")
-    if not key:
-        raise RuntimeError("SUPABASE_SERVICE_KEY is required for runtime writes")
-    owns_client = client is None
+def write_remote_verified(payload: dict, spec: BookSpec, *, expected_state_sha256: str, client=None) -> None:
+    """Compare-and-swap an existing account; never create/reseed or overwrite an unavailable state."""
+    if payload.get("book_id")!=spec.book_id:raise ValueError("runtime book identity mismatch")
+    key=os.environ.get("SUPABASE_SERVICE_KEY")
+    if not key:raise RuntimeError("SUPABASE_SERVICE_KEY required")
+    owns_client=client is None
     if owns_client:
         import httpx
-        client = httpx.Client(timeout=30)
+        client=httpx.Client(timeout=30)
     try:
-        row = {
-            "id": spec.runtime_id,
-            "user_id": "apex_engine",
-            "symbol": f"BOOK_{spec.book_id.upper()}_FORWARD",
-            "timeframe": "1m",
-            "direction": "paper",
-            "feature_vector": payload,
-            "analysis_text": f"{spec.label} GBP100k forward-paper runtime",
-            "verdict": "EXPERIMENTAL_FORWARD_PAPER",
-        }
-        response = client.post(
-            _url(),
-            headers=_headers(key, prefer="resolution=merge-duplicates,return=minimal"),
-            json=[row],
-        )
-        if response.status_code not in (200, 201, 204):
-            raise RuntimeError(f"Supabase upsert failed HTTP {response.status_code}: {response.text[:300]}")
-
-        verified = fetch_remote(spec, client=client)
-        if verified.status != "found" or verified.payload is None:
-            raise RuntimeError(f"Supabase write verification failed: {verified.detail}")
+        previous=fetch_remote(spec,client=client)
+        if previous.status!="found":raise RuntimeError("Existing authoritative account unavailable; no upsert fallback")
+        old=previous.payload.get("state")
+        if not isinstance(old,dict) or state_sha256(old)!=expected_state_sha256:
+            raise RuntimeError("Remote parent state changed")
+        new=payload["state"]
+        if new.get("parent_state_sha256")!=expected_state_sha256 or new["revision"]<=old["revision"]:
+            raise RuntimeError("Invalid state parent/revision")
+        for keyname in ("initial_equity","activation_recorded_at_utc","book_id"):
+            if new.get(keyname)!=old.get(keyname):raise RuntimeError("Original account identity/activation cannot change")
+        for keyname in ("daily","trades","events"):
+            if new.get(keyname,[])[:len(old.get(keyname,[]))]!=old.get(keyname,[]):
+                raise RuntimeError("Existing account history cannot be replaced")
+        response=client.patch(_url(),headers=_headers(key,prefer="return=representation"),
+            params={"id":f"eq.{spec.runtime_id}","feature_vector->state->>revision":f"eq.{old['revision']}","select":"feature_vector"},
+            json={"feature_vector":payload})
+        if response.status_code!=200 or len(response.json())!=1:
+            raise RuntimeError("Concurrent state update or failed CAS; no unconditional retry")
+        verified=fetch_remote(spec,client=client)
+        if verified.status!="found" or state_sha256(verified.payload.get("state",{}))!=state_sha256(new):
+            raise RuntimeError("Durable account content verification failed")
     finally:
-        if owns_client:
-            client.close()
+        if owns_client:client.close()

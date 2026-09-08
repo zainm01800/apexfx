@@ -1,0 +1,47 @@
+name: V27B joint portfolio forward paper
+on:
+  schedule:
+    # Settled daily bars; retry before the following US open. Calendar checked in code.
+    - cron: "45 23 * * 1-5"
+    - cron: "15 10 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      activate:
+        description: "Create the separate GBP100k V27B seed if absent"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Validate without account writes"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: paper-v27b-single-writer
+  cancel-in-progress: false
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      ACTIVATE: ${{ inputs.activate || false }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r engine/requirements-forward.txt
+      - run: python -m pytest -q engine/tests/test_v27b_forward.py
+      - run: node --test tests/paper-api.test.js tests/forward-model.test.js tests/all-books.test.js tests/paper-repair-claims.test.js
+      - name: Advance the isolated V27B paper account
+        shell: bash
+        run: |
+          args=()
+          if [ "$ACTIVATE" = "true" ]; then args+=(--activate); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python engine/scripts/run_v27b_forward.py "${args[@]}"

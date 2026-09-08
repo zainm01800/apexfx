@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+import copy
 from hashlib import sha256
 import json
 import os
@@ -114,6 +116,61 @@ def fetch_remote(spec: BookSpec, *, client=None) -> RemoteRead:
         return RemoteRead("found", payload=payload)
     except Exception as exc:
         return RemoteRead("unavailable", detail=f"Supabase runtime read failed: {exc}")
+    finally:
+        if owns_client:
+            client.close()
+
+
+def write_runner_status(spec: BookSpec, *, restored_state_hash: str,
+                        status: str, checked_at: str, error: str | None = None,
+                        client=None) -> None:
+    """CAS-update operational metadata without replacing or reseeding a ledger.
+
+    A state hash preflight plus revision and prior-check timestamp predicates
+    prevent a delayed failure from overwriting a newer state or status. The
+    ledger's generated/data timestamps deliberately do not become fake freshness.
+    """
+    if status not in {"blocked", "fresh_no_new_session", "advanced", "input_revision_recorded"}:
+        raise ValueError("invalid runner status")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not key:
+        raise RuntimeError("SUPABASE_SERVICE_KEY is required for runner status writes")
+    owns_client = client is None
+    if owns_client:
+        import httpx
+        client = httpx.Client(timeout=30)
+    try:
+        current = fetch_remote(spec, client=client)
+        if current.status != "found":
+            raise RuntimeError("authoritative state unavailable; no status or seed written")
+        original = current.payload
+        if state_sha256(original["state"]) != restored_state_hash:
+            raise RuntimeError("authoritative state advanced; refusing stale runner status")
+        updated = copy.deepcopy(original)
+        previous_check = original.get("metadata", {}).get("runner_checked_at")
+        if previous_check is not None and datetime.fromisoformat(str(previous_check).replace("Z", "+00:00")) > datetime.fromisoformat(checked_at.replace("Z", "+00:00")):
+            raise RuntimeError("newer runner status exists; refusing stale status")
+        updated["metadata"].update(
+            runner_status=status, runner_checked_at=checked_at,
+            runner_error=error[:300] if error else None,
+        )
+        params = {
+            "id": f"eq.{spec.runtime_id}",
+            "feature_vector->state->>revision": f"eq.{original['state']['revision']}",
+            "feature_vector->metadata->>runner_checked_at":
+                f"eq.{previous_check}" if previous_check is not None else "is.null",
+        }
+        response = client.patch(
+            _url(), headers=_headers(key, prefer="return=representation"),
+            params=params, json={"feature_vector": updated},
+        )
+        if response.status_code != 200 or len(response.json()) != 1:
+            raise RuntimeError("runner status compare-and-swap failed; ledger not replaced")
+        verified = fetch_remote(spec, client=client)
+        if (verified.status != "found"
+                or state_sha256(verified.payload["state"]) != restored_state_hash
+                or verified.payload.get("metadata") != updated["metadata"]):
+            raise RuntimeError("runner status verification failed")
     finally:
         if owns_client:
             client.close()

@@ -107,6 +107,18 @@ test('V10 namespace and metadata remain independent of V6 and legacy A', async (
   });
 });
 
+test('V27B uses only its isolated joint-profile namespace', async () => {
+  const state=fixture('v27b');state.metadata.profile='higher_5_12_joint';
+  await withFetch(url=>{
+    assert.match(url,/id=eq.__apex_book_v27b_forward_paper_runtime__/);
+    return jsonResponse([{feature_vector:state}]);
+  },async calls=>{
+    const response=await handler(request('?book=v27b&table=state'));
+    assert.equal(response.status,200);assert.deepEqual(await response.json(),state);
+    assert.equal(calls.length,1);
+  });
+});
+
 test('experimental projections and pending_radar alias return only their collection', async () => {
   const state = fixture();
   await withFetch(() => jsonResponse([{ feature_vector: state }]), async () => {
