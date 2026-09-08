@@ -137,7 +137,7 @@ async function load() {
   controller?.abort();controller=new AbortController();
   $('refreshBook').disabled=true;$('overview').setAttribute('aria-busy','true');
   try {
-    const response=await fetch(`/api/paper?book=${selected}&table=state${archiveView&&BOOKS[selected].legacy?'&edition=archive':''}`,{cache:'no-store',signal:controller.signal});
+    const response=await fetch(`/api/paper?book=${selected}&table=state${archiveView&&BOOKS[selected].legacy?'&edition=archive':''}&_t=${Date.now()}`,{cache:'no-store',signal:controller.signal});
     if(!response.ok) throw new Error(response.status===404?'This book has not been activated in the saved paper ledger yet.':'The saved paper ledger is temporarily unavailable.');
     const payload=await response.json();
     const candidate=BOOKS[selected].legacy?summarizeLegacy(payload,selected):summarize(payload,selected);
