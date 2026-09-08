@@ -77,7 +77,7 @@ function render() {
   }
   if((book==='v24'||book==='v30')&&meta.execution_mode==='settled_session_paper_reconstruction'){
     const warmup=state.status==='waiting_for_frozen_warmup';
-    if(meta.runner_status!=='blocked'&&!state.halted)set('bookStatus',warmup?'Collecting minute-history warmup · entries disabled':'After-close paper reconstruction');
+    if(meta.runner_status!=='blocked'&&!state.halted)set('bookStatus',warmup?'Collecting minute-history warmup · entries disabled':state.status==='ready_waiting_settled_session'?'History ready · awaiting next completed cash session':'After-close paper reconstruction');
     set('bookNotice',`After-close simulation, not real-time execution. ${meta.minute_archive_sessions??0} complete sessions archived; features require the exact prior 15 cash sessions.${warmup?' No trades until warmup is complete.':''}${meta.runner_status==='blocked'?` Blocked: ${meta.runner_error||meta.data_readiness||'Missing inputs'}`:''}`);
     set('workspaceFooter','V24/V30 use complete, first-seen cash-minute sessions and publication-qualified FX. Trades are reconstructed after the close, not submitted in real time; no broker orders. Missing history blocks entries, and missing active sessions block advancement.');
   }

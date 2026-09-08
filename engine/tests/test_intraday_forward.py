@@ -42,6 +42,72 @@ def load_runner():
     spec=importlib.util.spec_from_file_location(name,ENGINE/'scripts'/'run_intraday_forward.py')
     mod=importlib.util.module_from_spec(spec);sys.modules[name]=mod;spec.loader.exec_module(mod);return mod
 
+def test_verified_warmup_repair_requires_matching_neighbours_and_retrieval_time():
+    from apex_quant.forward_intraday.verified_warmup_repair import repair_retained_warmup, STAMP, RETRIEVED
+    frame=pd.DataFrame([[773.42999,773.45502,773.40002,773.44,4790],
+                        [773.40308,773.46002,773.37,773.45001,130027]],
+        columns=data.COLUMNS,index=[STAMP-pd.Timedelta(minutes=1),STAMP+pd.Timedelta(minutes=1)])
+    original=frame.copy()
+    old,evidence=repair_retained_warmup(frame,RETRIEVED-pd.Timedelta(seconds=1))
+    assert len(old)==2 and not evidence
+    fixed,evidence=repair_retained_warmup(frame,RETRIEVED)
+    assert fixed.loc[STAMP].to_list()==[773.37,773.43,773.35,773.43,955]
+    assert evidence[0]['historical_warmup_only']
+    pd.testing.assert_frame_equal(frame,original)
+    again,evidence=repair_retained_warmup(fixed,RETRIEVED)
+    pd.testing.assert_frame_equal(again,fixed);assert not evidence
+    frame.iloc[0,0]+=1
+    unchanged,evidence=repair_retained_warmup(frame,RETRIEVED)
+    assert len(unchanged)==2 and not evidence
+
+
+def test_verified_warmup_repair_is_forbidden_for_execution_sessions():
+    runner=load_runner();st=seed();record=data.freeze_session(bars(),DAY,0.,fixing(),{},NOW)
+    record['source']['verified_historical_warmup_repairs']=[{'timestamp':DAY+'T17:54:00Z'}]
+    with unittest.TestCase().assertRaises(data.DataUnavailable):
+        runner.advance_existing(st,BOOKS['v30'],{'sessions':{DAY:record},'latest':DAY,'issues':{}},NOW)
+
+
+def test_minute_bootstrap_chunks_are_bounded_and_preserve_raw_prices():
+    calls=[]
+    class Ticker:
+        def history(self,**kwargs):
+            calls.append(kwargs)
+            assert kwargs['interval']=='1m'
+            assert not any(kwargs[k] for k in ['auto_adjust','back_adjust','repair','prepost','actions'])
+            start=pd.Timestamp(kwargs['start'],tz='UTC');end=pd.Timestamp(kwargs['end'],tz='UTC')
+            assert end-start<=pd.Timedelta(days=7)
+            return pd.DataFrame({'Open':[101.],'High':[102.],'Low':[100.],'Close':[101.5],'Volume':[10.]},index=[start])
+    frame,issues=data.fetch_minute_chunks(Ticker(),'2026-08-11','2026-09-09')
+    assert len(calls)==5 and len(frame)==5 and not issues
+    assert list(frame.close)==[101.5]*5
+
+
+def test_missing_older_chunk_does_not_invent_history_or_drop_recent_data():
+    class Ticker:
+        def history(self,**kwargs):
+            if kwargs['start']=='2026-08-25':raise RuntimeError('private URL must not appear')
+            return bars('2026-09-02')
+    frame,issues=data.fetch_minute_chunks(Ticker(),'2026-08-25','2026-09-08')
+    assert len(frame)==390 and list(issues)==['2026-08-25']
+    assert 'private' not in str(issues)
+
+
+def test_retained_warmup_can_be_ready_without_backdated_trades():
+    runner=load_runner();st=seed();now=pd.Timestamp('2026-09-08T16:00:00Z')
+    days=data.required_warmup_sessions(DAY)[2]
+    archive={str(d.date()):data.freeze_session(bars(str(d.date())),str(d.date()),0.,fixing(str(d.date())),{'source':'synthetic'},now) for d in days}
+    m={'sessions':archive,'issues':{},'latest':'2026-09-04'}
+    ready=runner.advance_existing(st,BOOKS['v30'],m,now)
+    assert ready['status']=='ready_waiting_settled_session'
+    for key in ['cash','trades','daily','activation_recorded_at_utc','last_processed_session']:
+        assert ready[key]==st[key]
+    m['sessions'].pop('2026-09-03')
+    waiting=runner.advance_existing(st,BOOKS['v30'],m,now)
+    assert waiting['status']=='waiting_for_frozen_warmup'
+    assert waiting['trades']==[]
+
+
 class TestForwardIntraday(unittest.TestCase):
     def test_complete_once_preserves_account_and_reconciles(self):
         for book in BOOKS:

@@ -75,3 +75,31 @@ def test_top_up_keeps_settled_terminal_bar(tmp_path):
 
     assert out.index[-1] == pd.Timestamp("2026-07-15", tz="UTC")
     assert len(store.load("PLTR", "1d")) == 3
+
+
+def test_sui_identity_repair_uses_separate_full_history_and_keeps_weekends(tmp_path):
+    from apex_quant.data.yahoo_adapter import to_yahoo_ticker
+    assert to_yahoo_ticker("SUI/USD") == "SUI20947-USD"
+    store = ParquetStore(root=tmp_path)
+    idx = pd.date_range("2026-09-04", "2026-09-08", tz="UTC")
+    legacy = _frame(idx[:1]) * .000003
+    store.save("SUI/USD", legacy, "1d")
+    before = store.path_for("SUI/USD", "1d").read_bytes()
+    fresh = _frame(idx)
+    result = _top_up(store, _FakeAdapter(fresh), "SUI/USD",
+                     pd.Timestamp("2026-09-08", tz="UTC"), pd.Timestamp("2026-09-08 12:00", tz="UTC"))
+    assert list(result.index) == list(idx[:-1])
+    assert result.close.min() > 100
+    assert store.path_for("SUI/USD", "1d").read_bytes() == before
+    pd.testing.assert_frame_equal(store.load("YAHOO_SUI_USD_20947", "1d"), result, check_freq=False)
+
+
+def test_corrected_sui_feed_failure_cannot_fall_back_to_inactive_token(tmp_path):
+    store = ParquetStore(root=tmp_path)
+    store.save("SUI/USD", _frame(pd.date_range("2026-09-04", periods=2, tz="UTC")), "1d")
+    class Broken:
+        def get_history(self, *args):
+            raise RuntimeError("provider offline")
+    out = _top_up(store, Broken(), "SUI/USD", pd.Timestamp("2026-09-08", tz="UTC"),
+                  pd.Timestamp("2026-09-08 12:00", tz="UTC"))
+    assert out.empty

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 ENGINE_DIR=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ENGINE_DIR));load_dotenv(ENGINE_DIR/'.env')
 from apex_quant.forward_intraday.data import (DataUnavailable,XNYS,fetch_settled_inputs,
-    build_historical_warmup,thaw_session)
+    build_historical_warmup,thaw_session,required_warmup_sessions)
 from apex_quant.forward_intraday.engine import (step_session,export_public_payload,
     first_eligible_session,validate_history,state_sha256)
 from apex_quant.forward_intraday.spec import BOOKS
@@ -25,6 +25,9 @@ def advance_existing(state,spec,market,now):
     original=copy.deepcopy(state);st=copy.deepcopy(state)
     archive=st.setdefault('input_archive',{})
     for day,record in market['sessions'].items():
+        repairs=record.get('source',{}).get('verified_historical_warmup_repairs',[])
+        if any(r.get('timestamp','')[:10]==day for r in repairs) and day>=first_eligible_session(st):
+            raise DataUnavailable('Historical warm-up repair cannot be used as an execution-session bar')
         if day not in archive:archive[day]=copy.deepcopy(record)
         # Later provider revisions never rewrite an already frozen execution/feature input.
     st['last_checked_at_utc']=now.isoformat()
@@ -33,6 +36,14 @@ def advance_existing(state,spec,market,now):
         st['status']='waiting_for_frozen_warmup'
         st['data_readiness']='Collecting the required prior 15 official cash sessions; no assumed warmup'
     first=str(XNYS.next_session(st['last_processed_session']).date()) if st.get('last_processed_session') else first_eligible_session(st)
+    if not st.get('last_processed_session') and first>market['latest']:
+        prior,_,needed=required_warmup_sessions(first,require_noise=spec.strategy_variant=='noise_band')
+        if len(prior)==15 and all(str(d.date()) in archive for d in needed):
+            # No current-session bar or fixing is assumed. Actual execution still
+            # calls build_historical_warmup and the full settlement/risk checks.
+            for d in needed:thaw_session(archive[str(d.date())],now)
+            st['status']='ready_waiting_settled_session'
+            st['data_readiness']='Prior 15 cash sessions archived; awaiting next settled session and qualified FX'
     pending=list(XNYS.sessions_in_range(first,market['latest'])) if first<=market['latest'] else []
     for day in pending:
         label=str(day.date())

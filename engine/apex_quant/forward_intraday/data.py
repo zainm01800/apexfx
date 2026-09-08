@@ -78,6 +78,13 @@ def thaw_session(record,now=None):
     rows=record['bars'];bars=pd.DataFrame([r[1:] for r in rows],columns=COLUMNS,index=pd.to_datetime([r[0] for r in rows],utc=True))
     return validate_session_minutes(bars,record['date'],now or record['frozen_at_utc'])
 
+def required_warmup_sessions(day, *, require_noise=True):
+    history=list(XNYS.sessions_in_range(pd.Timestamp(day)-pd.Timedelta(days=65),pd.Timestamp(day)))[:-1]
+    prior15=history[-15:]
+    normal=[d for d in history if (session_times(d)[1]-session_times(d)[0])==pd.Timedelta(minutes=390)][-14:]
+    return prior15, normal, set(prior15)|(set(normal) if require_noise else set())
+
+
 def build_historical_warmup(archive,day,*,require_noise=True):
     """Exact prior scheduled slots, raw cash closes, ex-date dividends and 14 normal-session noise."""
     current=archive[day];info=current['fx_info']
@@ -90,10 +97,7 @@ def build_historical_warmup(archive,day,*,require_noise=True):
     rate=float(info['rate'])
     if not np.isfinite(rate) or rate<=0 or not 1<=age<=6 or available>opening:
         raise DataUnavailable(f'{day}: invalid, stale or unpublished fixing')
-    history=list(XNYS.sessions_in_range(pd.Timestamp(day)-pd.Timedelta(days=65),pd.Timestamp(day)))[:-1]
-    prior15=history[-15:]
-    normal=[d for d in history if (session_times(d)[1]-session_times(d)[0])==pd.Timedelta(minutes=390)][-14:]
-    needed=set(prior15)|(set(normal) if require_noise else set())
+    prior15,normal,needed=required_warmup_sessions(day,require_noise=require_noise)
     missing=[str(d.date()) for d in needed if str(d.date()) not in archive]
     if len(prior15)<15 or missing:
         return HistoricalWarmup(float('nan'),float('nan'),float('nan'),{},rate,'',info,
@@ -115,19 +119,43 @@ def build_historical_warmup(archive,day,*,require_noise=True):
         {'prior_session_hashes':{str(d.date()):archive[str(d.date())]['sha256'] for d in sorted(needed)},
          'current_session_hash':current['sha256'],'feature_basis':'raw minute cash OHLC; ex-date dividend-adjusted returns'})
 
+def fetch_minute_chunks(ticker, start, end):
+    """Request retained minute history in <=7-day chunks, without filling gaps.
+
+    The provider's per-request limit is shorter than its observed retention.
+    Failed older chunks must not discard good recent sessions or invent bars.
+    """
+    cursor=utc_timestamp(start).normalize();finish=utc_timestamp(end).normalize()
+    frames=[];issues={}
+    while cursor<finish:
+        stop=min(cursor+pd.Timedelta(days=7),finish)
+        key=cursor.date().isoformat()
+        try:
+            frame=ticker.history(start=key,end=stop.date().isoformat(),interval='1m',
+                auto_adjust=False,back_adjust=False,actions=False,repair=False,prepost=False)
+            if frame.empty:raise DataUnavailable('No retained minute bars for requested chunk')
+            frame=frame.rename(columns=lambda c:str(c).lower())
+            if pd.DatetimeIndex(frame.index).tz is None:raise DataUnavailable('Provider minute timezone missing')
+            frame.index=pd.DatetimeIndex(frame.index).tz_convert('UTC')
+            frames.append(frame.loc[(frame.index>=cursor)&(frame.index<stop),COLUMNS])
+        except Exception as exc:
+            # Do not include raw exception URLs/credentials in public provenance.
+            issues[key]=f'Minute chunk unavailable ({type(exc).__name__})'
+        cursor=stop
+    if not frames:raise DataUnavailable('No raw SPY minute history')
+    return pd.concat(frames).sort_index(),issues
+
+
 def fetch_settled_inputs(now=None):
-    """Read only. Short provider retention bootstraps an archive; absent history stays unavailable."""
+    """Read only. Bootstrap from retained history; absent sessions stay unavailable."""
     import yfinance as yf
     import httpx
     now=utc_timestamp(now or datetime.now(timezone.utc));latest=latest_completed_session(now)
-    start=(now-pd.Timedelta(days=7)).date().isoformat();end=(now+pd.Timedelta(days=1)).date().isoformat()
+    start=(now-pd.Timedelta(days=28)).date().isoformat();end=(now+pd.Timedelta(days=1)).date().isoformat()
     ticker=yf.Ticker('SPY')
-    raw=ticker.history(start=start,end=end,interval='1m',auto_adjust=False,back_adjust=False,
-        actions=False,repair=False,prepost=False)
-    if raw.empty:raise DataUnavailable('No raw SPY minute history')
-    raw=raw.rename(columns=lambda c:str(c).lower());raw.index=pd.DatetimeIndex(raw.index)
-    if raw.index.tz is None:raise DataUnavailable('Provider minute timezone missing')
-    raw.index=raw.index.tz_convert('UTC')
+    raw,chunk_issues=fetch_minute_chunks(ticker,start,end)
+    from .verified_warmup_repair import repair_retained_warmup
+    raw,warmup_repairs=repair_retained_warmup(raw,now)
     daily=ticker.history(start=start,end=end,interval='1d',auto_adjust=False,back_adjust=False,
         actions=True,repair=False,prepost=False)
     if daily.empty or 'Dividends' not in daily:raise DataUnavailable('Corporate action history unavailable')
@@ -137,13 +165,14 @@ def fetch_settled_inputs(now=None):
     dividends={str(pd.Timestamp(d).date()):float(v) for d,v in daily['Dividends'].items()}
     with httpx.Client(timeout=45,follow_redirects=True,headers={'User-Agent':'ApexFX-ForwardPaper/1.0'}) as client:
         response=client.get(BOE_XML_ENDPOINT,params={'CodeVer':'new','xml.x':'yes',
-            'Datefrom':(now-pd.Timedelta(days=30)).strftime('%d/%b/%Y'),'Dateto':now.strftime('%d/%b/%Y'),
+            'Datefrom':(now-pd.Timedelta(days=40)).strftime('%d/%b/%Y'),'Dateto':now.strftime('%d/%b/%Y'),
             'SeriesCodes':'XUDLUSS','VPD':'Y','VFD':'Y'})
         response.raise_for_status();fx=normalize_boe_xml(response.content)
     provenance={'source':'Yahoo raw cash-minute proxy; not certified executable/SIP quotes',
         'price_adjustment':'auto_adjust=False; back_adjust=False; repair=False',
         'retrieved_at_utc':now.isoformat(),'fx_series':'BoE XUDLUSS USD per GBP',
-        'fx_xml_sha256':sha256(response.content).hexdigest()}
+        'fx_xml_sha256':sha256(response.content).hexdigest(),'minute_chunk_issues':chunk_issues,
+        'requested_history_start':start,'verified_historical_warmup_repairs':warmup_repairs}
     output={};issues={}
     for d in XNYS.sessions_in_range(start,latest):
         day=str(d.date());opening,closing=session_times(day)

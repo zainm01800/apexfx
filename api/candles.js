@@ -38,7 +38,7 @@ function toYahooTicker(sym, type) {
     };
     return m[sym] || sym.replace('/', '') + '=X';
   }
-  if (type === 'Crypto') return sym.replace('/', '-'); // BTC/USD → BTC-USD
+  if (type === 'Crypto') return sym === 'SUI/USD' ? 'SUI20947-USD' : sym.replace('/', '-');
   if (type === 'Futures') {
     const m = { 'ES1!':'ES=F','CL1!':'CL=F','GC1!':'GC=F','NQ1!':'NQ=F' };
     return m[sym] || sym;

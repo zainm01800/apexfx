@@ -30,7 +30,7 @@ jobs:
           restore-keys: paper-portfolio-data-
       - name: Verify repaired accounting and persistence
         working-directory: engine
-        run: python -m pytest tests/test_repaired_paper_accounting.py tests/test_repaired_paper_runtime.py -q
+        run: python -m pytest tests/test_repaired_paper_accounting.py tests/test_repaired_paper_runtime.py tests/test_paper_topup_forming_bar.py -q
       - name: Advance all six isolated paper accounts
         working-directory: engine
         # Each book is attempted independently. Any blocked book fails the run.

@@ -123,7 +123,10 @@ def _top_up(store: ParquetStore, adapter, inst: str, cutoff: pd.Timestamp,
     partial final bar is replaced by its settled version). On any fetch failure
     the stale cache is used as-is - the step simply processes whatever closed
     bars exist."""
-    cached = store.load(inst, "1d")
+    # Keep the corrected Sui feed separate from legacy SUI-USD data. Never splice
+    # the inactive token's history into Sui signals or overwrite research caches.
+    cache_id = "YAHOO_SUI_USD_20947" if inst == "SUI/USD" else inst
+    cached = store.load(cache_id, "1d")
     last = cached.index[-1] if not cached.empty else None
     if last is not None and _utc(last) >= cutoff:
         return cached
@@ -144,7 +147,7 @@ def _top_up(store: ParquetStore, adapter, inst: str, cutoff: pd.Timestamp,
     # 2026-07-30: PLTR cached close 121.20 / vol 9.06M vs settled 122.26 /
     # 27.8M — stale partial reads until the next run self-healed it).
     combined = trim_forming_tail(combined, inst, "1d", now=now)
-    store.save(inst, combined, "1d")
+    store.save(cache_id, combined, "1d")
     return combined
 
 

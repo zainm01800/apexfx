@@ -30,6 +30,8 @@ _FOREX_TICKERS = {
 
 # Crypto on Yahoo uses "BASE-USD" (e.g. BTC-USD), NOT the forex "=X" suffix.
 _CRYPTO_TICKERS = {
+    # SUI-USD is a different, inactive micro-priced asset, not the Sui network.
+    "SUI/USD": "SUI20947-USD",
     "BTC/USD": "BTC-USD",
     "ETH/USD": "ETH-USD",
     "SOL/USD": "SOL-USD",
