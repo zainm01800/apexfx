@@ -64,7 +64,7 @@ def fetch_market(now=None):
                     retrieved_at_utc=now.isoformat(),latest_completed_session=str(latest.date()),
                     symbols=list(SYMBOLS),sec_sources={})
     events=[]
-    headers={"User-Agent":os.environ.get("SEC_USER_AGENT") or "ApexFX-ForwardPaper/1.0 (https://github.com/zainm01800/apexfx)"}
+    headers={"User-Agent":os.environ.get("SEC_USER_AGENT") or "ApexFX-Quantitative-Research zainm01800@gmail.com"}
     with httpx.Client(timeout=45,follow_redirects=True,headers=headers) as client:
         # Explicit maximum two starts per second; stop immediately on a rejection.
         next_request=monotonic()
