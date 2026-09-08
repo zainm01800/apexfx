@@ -52,7 +52,10 @@ export function summarize(payload, book) {
     winRate: wins.length && wins.every(n => n !== null && Number.isFinite(n)) ? wins.filter(n => n > 0).length / wins.length : null,
     completedLots: jointBook ? lotProfits.length : payload.trades.length,
     activation: meta.activation_recorded_at_utc || meta.activated_at_utc || meta.activation_time_utc || state.activated_at_utc || state.created_at_utc,
-    through: meta.last_processed_session || state.last_processed_session || state.last_processed_date || latest.date,
+    // A seed date proves activation, not successful market-data retrieval.
+    through: meta.last_processed_session || state.last_processed_session || state.last_processed_date ||
+      meta.last_input_session || state.last_input_session || meta.last_data_as_of ||
+      daily.filter(d => !d.is_seed && d.kind !== 'seed').at(-1)?.date || null,
     sessions: firstNumber(meta.session_count, latest.metrics?.session_count, state.forward_sessions, state.sessions_processed, meta.forward_sessions) ?? daily.filter(d => !d.is_seed && d.kind !== 'seed').length,
   };
 }

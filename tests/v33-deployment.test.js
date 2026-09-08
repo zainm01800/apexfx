@@ -38,3 +38,14 @@ test('new book has tabs, research disclosure and detailed paper cards',()=>{
   partials_policy:'Proportional risk reductions; no profit-target partials',management_rule:'Five-session time exit'});
  assert.match(card,/Prior-close cost filter passed/);assert.match(card,/95.00/);assert.match(card,/Five-session time exit/);
 });
+
+test('blocked activation never labels the seed date as verified market inputs',()=>{
+ for(const book of ['v27b','v33']){
+  const p=forwardFixture(book);
+  p.daily=[p.daily[0]];p.metadata.last_processed_session=null;p.metadata.session_count=0;
+  p.state.status='blocked';
+  assert.equal(summarize(p,book).through,null);
+  p.metadata.last_input_session='2026-09-04';
+  assert.equal(summarize(p,book).through,'2026-09-04');
+ }
+});

@@ -126,7 +126,9 @@ function renderPanel() {
   const term=$('tradeSearch').value.trim().toLowerCase();
   rows=rows.filter(t=>String(t.symbol||t.instrument||'').toLowerCase().includes(term));
   if(!rows.length) {
-    const firstAssessment=model.sessions===0&&model.meta.first_eligible_decision_session?` Next eligible assessment: ${dateLabel(model.meta.first_eligible_decision_session)} after the US close.`:'';
+    const firstAssessment=model.sessions===0&&!/blocked|warmup/.test(model.state.status||'')&&
+      model.meta.first_eligible_decision_session>=new Date().toISOString().slice(0,10)?
+      ` Next eligible assessment: ${dateLabel(model.meta.first_eligible_decision_session)} after the US close.`:'';
     const message=term?['No matching trades','Try another symbol.']:BOOKS[book].legacy?[panel==='positions'?'No open positions':panel==='pending'?'No saved pending signals':'No closed trades supplied','This is the selected book’s saved ledger, not a new account or a forecast.']:panel==='positions'?['No open positions',model.state.halted?'The risk guard has halted this book. No new entries will be simulated.':'A position appears only when a saved decision reaches its eligible session and passes the risk checks.'+firstAssessment]:panel==='pending'?['No queued entries',(model.state.status_reason||model.state.reason||'No qualifying decision is currently saved. Stale inputs block new entries.')+firstAssessment]:['No closed trades yet','Completed trades and their actual exit reasons will appear here.'];
     $('bookPanel').innerHTML=empty(...message);return;
   }
