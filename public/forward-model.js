@@ -4,6 +4,7 @@ export const PROFILES = Object.freeze({
   v24: { name: 'Book V24', label: 'SPY Noise-Band Momentum', daily: .05, maximum: .12, original_maximum: .10, trade: .01, vol_target: .02, gross: 4.0, nameCap: 4.0, profile: 'higher_5_12_static' },
   v30: { name: 'Book V30', label: 'SPY ATR Breakout', daily: .05, maximum: .12, original_maximum: .10, trade: .01, vol_target: .02, gross: 4.0, nameCap: 4.0, profile: 'higher_5_12_static' },
   v27b: { name: 'Book V27B', label: 'Joint trend / reversal', daily: .05, maximum: .12, original_maximum: .10, trade: .01, aggregate: .03375, gross: 2, nameCap: .75, profile: 'higher_5_12_joint' },
+  v33: { name: 'Book V33', label: 'Cost-aware trend / reversal', daily: .05, maximum: .10, original_maximum: .10, trade: .01, aggregate: .03375, gross: 2, nameCap: .75, profile: 'higher_5_10_cost_aware_joint' },
 });
 export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 export function number(value) { return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number.isFinite(Number(value)) ? Number(value) : null; }
@@ -44,11 +45,12 @@ export function summarize(payload, book) {
   const maxDD = drawdowns.length ? Math.max(...drawdowns) : firstNumber(state.max_drawdown, state.max_drawdown_from_peak);
   const completedIds = new Set(payload.trades.filter(t => t.lot_fully_closed === true).map(t => t.lot_id));
   const lotProfits = [...completedIds].map(id => payload.trades.filter(t => t.lot_id === id).reduce((sum,t) => sum + Number(t.net_pnl_gbp),0));
-  const wins = book === 'v27b' ? lotProfits : tradePnl;
+  const jointBook = ['v27b','v33'].includes(book);
+  const wins = jointBook ? lotProfits : tradePnl;
   return {payload, state, meta, daily, latest, equity, cash, closedPnl, openPnl, dailyFloor, maxFloor, maxDD,
     pnl: equity - 100000, dayPnl: firstNumber(latest.day_pnl_gbp, latest.day_pnl, state.day_pnl_gbp),
     winRate: wins.length && wins.every(n => n !== null && Number.isFinite(n)) ? wins.filter(n => n > 0).length / wins.length : null,
-    completedLots: book === 'v27b' ? lotProfits.length : payload.trades.length,
+    completedLots: jointBook ? lotProfits.length : payload.trades.length,
     activation: meta.activation_recorded_at_utc || meta.activated_at_utc || meta.activation_time_utc || state.activated_at_utc || state.created_at_utc,
     through: meta.last_processed_session || state.last_processed_session || state.last_processed_date || latest.date,
     sessions: firstNumber(meta.session_count, latest.metrics?.session_count, state.forward_sessions, state.sessions_processed, meta.forward_sessions) ?? daily.filter(d => !d.is_seed && d.kind !== 'seed').length,

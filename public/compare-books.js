@@ -10,7 +10,7 @@ async function get(book) {
 
 async function load() {
   $('refreshCompare').disabled = true;
-  const activeBooks = ['s', 'v24', 'v30', 'v6', 'v10', 'v27b'];
+  const activeBooks = ['s', 'v24', 'v30', 'v6', 'v10', 'v27b', 'v33'];
   
   const bookData = await Promise.all(activeBooks.map(async book => {
     const isLegacy = BOOKS[book]?.legacy;
