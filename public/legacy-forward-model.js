@@ -38,15 +38,33 @@ export function summarizeLegacy(payload,book) {
   const dds=daily.map(d=>n(d.drawdown_from_peak,d.drawdown)).filter(v=>v!==null).map(Math.abs);
   const maximum=n(latest.metrics?.max_drawdown);
   const repaired=meta.accounting_version==='quote_cash_v2'&&!meta.archived;
+  const observation=book==='s'&&repaired?meta.observation:null;
+  const tracker=observation?.drawdown||(book==='s'&&repaired?payload.state?.engine?.drawdown_tracker:null);
+  const hourlyRiskIncomplete=book==='s'&&repaired&&tracker?.complete_since_activation!==true;
+  const observedHourlyMaxDD=number(tracker?.max_drawdown_fraction);
   return {payload,meta,state:{...extra,halted:meta.halted},daily,latest,equity,cash,initialEquity,currency:p.currency,
     repaired,
     pnl:equity-initialEquity,dayPnl:n(latest.day_pnl),openPnl,
     closedPnl:profits.every(v=>v!==null)?profits.reduce((a,b)=>a+b,0):null,
     winRate:profits.length&&profits.every(v=>v!==null)?profits.filter(v=>v>0).length/profits.length:null,
-    maxDD:dds.length||maximum!==null?Math.max(...dds,Math.abs(maximum??0)):null,
+    maxDD:book==='s'&&repaired?(hourlyRiskIncomplete?null:observedHourlyMaxDD):dds.length||maximum!==null?Math.max(...dds,Math.abs(maximum??0)):null,
+    hourlyRiskIncomplete,observedHourlyMaxDD,observation,
     activation:meta.activation_recorded_at_utc||daily[0]?.date,through:latest.date,
     sessions:daily.length,tradeRisk:n(meta.trade_risk_fraction,extra.params?.max_risk_per_trade),
     grossExposure:n(latest.gross_exposure_x),dailyFloor:null,maxFloor:null};
+}
+export function fxObservationOverdue(through,now=Date.now()) {
+  const saved=Date.parse(through||'');
+  if(!Number.isFinite(saved))return null;
+  let required=Math.floor((now-45*60000)/3600000)*3600000;
+  const fmt=new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',hourCycle:'h23'});
+  for(let i=0;i<74;i++){
+    const p=Object.fromEntries(fmt.formatToParts(new Date(required-3600000)).map(x=>[x.type,x.value]));
+    const hour=Number(p.hour),closed=p.weekday==='Sat'||(p.weekday==='Fri'&&hour>=17)||(p.weekday==='Sun'&&hour<17);
+    if(!closed)break;
+    required-=3600000;
+  }
+  return saved<required;
 }
 const field=(label,value)=>`<div><dt>${e(label)}</dt><dd>${e(value)}</dd></div>`;
 export function legacyTradeCard(raw,kind,book,repaired=false) {
@@ -60,15 +78,18 @@ export function legacyTradeCard(raw,kind,book,repaired=false) {
   const flag=v=>v===true?'Triggered':v===false?'Not triggered':'Not supplied';
   const actions=Array.isArray(t.tms_log)?t.tms_log:[];
   const reason=t.rationale||t.signal_rationale||t.entry_reason||t.condition||t.exit_rule||t.strategy||'No decision rationale was saved with this position.';
-  return `<article class="ws-trade"><div class="ws-trade-head"><div><span class="ws-symbol">${e(symbol)}</span><span class="ws-direction ${side==='SHORT'?'short':''}">${side}</span><div class="ws-meta">${kind==='pending'?'Pending · '+e(t.status||'saved signal'):kind==='trades'?'Closed '+dateLabel(t.exit_time||t.exit_date):dateLabel(t.entry_time||t.entry_date)}</div></div><div><div class="ws-trade-pnl">${kind==='pending'?'Pending':e(pnl)}</div><small class="ws-meta">${kind==='pending'?'Not a filled position':explicitPnl!==null?p.currency+' saved P&L':'Price move · before costs'}</small></div></div><dl class="ws-trade-grid">
+  return `<article class="ws-trade"><div class="ws-trade-head"><div><span class="ws-symbol">${e(symbol)}</span><span class="ws-direction ${side==='SHORT'?'short':''}">${side}</span><div class="ws-meta">${kind==='pending'?'Pending · '+e(t.status||'saved signal'):kind==='trades'?'Closed '+dateLabel(t.exit_time||t.exit_date, true):'Entered '+dateLabel(t.entry_time||t.entry_date, true)}</div></div><div><div class="ws-trade-pnl">${kind==='pending'?'Pending':e(pnl)}</div><small class="ws-meta">${kind==='pending'?'Not a filled position':explicitPnl!==null?p.currency+' saved P&L':'Price move · before costs'}</small></div></div><dl class="ws-trade-grid">
   ${field(kind==='pending'?'Trigger / decision price':'Entry · quote',price(kind==='pending'?n(t.trigger_price,raw.dec):entry))}
   ${field(kind==='trades'?'Exit · quote':'Saved mark · quote',price(kind==='trades'?n(t.exit_price):mark))}
+  ${field('Entered at',dateLabel(t.entry_time||t.entry_date, true))}
+  ${kind==='trades'?field('Exited at',dateLabel(t.exit_time||t.exit_date, true)):field('Holding time',t.holding_hours!=null?Number(t.holding_hours).toFixed(1)+' hrs':n(t.bars_open)!=null?t.bars_open+' bars':'Active')}
   ${field('Stop loss · quote',stop===null&&book==='r'?'Not used · monthly rebalance':price(stop))}
   ${field('Take profit · quote',target===null&&book==='r'?'Not used · monthly rebalance':price(target))}
-  ${field('Units',price(n(t.units)))}${field(kind==='trades'?'Exit reason':'Bars held',kind==='trades'?String(t.exit_reason||'Not supplied').replaceAll('_',' '):n(t.bars_open)??'—')}
+  ${field('Units',price(n(t.units)))}${field(kind==='trades'?'Exit reason':'Risk ceiling',kind==='trades'?String(t.exit_reason||'Not supplied').replaceAll('_',' '):percent(p.trade))}
+  ${kind==='trades'?field('Duration',t.holding_hours!=null?Number(t.holding_hours).toFixed(1)+' hrs':n(t.bars_open)!=null?t.bars_open+' bars':'—'):''}
   </dl><details><summary>Decision, risk &amp; management details</summary><p>${e(reason)}</p><dl class="ws-trade-grid">
   ${field('Initial stop · quote',price(n(t.initial_stop)))}${field('First partial',flag(t.tms_p1??t.partial_taken))}${field('Second partial',flag(t.tms_p2))}${field('Breakeven move',flag(t.tms_be))}${field('Position risk fraction',percent(n(t.risk_fraction)))}${field('Exit / rebalance rule',t.exit_rule||t.next_rebalance_date||'See saved stop, target and management history')}
-  ${field('Entry date',dateLabel(t.entry_time||t.entry_date))}${field('Decision date',dateLabel(t.decision_date))}${field('Last saved',dateLabel(t.updated_at,true))}</dl>
+  ${field('Entry timestamp',dateLabel(t.entry_time||t.entry_date, true))}${field('Exit timestamp',dateLabel(t.exit_time||t.exit_date, true))}${field('Decision date',dateLabel(t.decision_date, true))}${field('Last saved',dateLabel(t.updated_at,true))}</dl>
   ${actions.length?`<ul>${actions.map(a=>`<li>${e(String(a.action||'Management event').replaceAll('_',' '))}${n(a.price,a.new_sl)!==null?' · '+e(price(n(a.price,a.new_sl))):''}</li>`).join('')}</ul>`:'<p>No management events supplied in this snapshot.</p>'}
   <p>${repaired?'Repaired forward ledger: account-currency P&amp;L uses versioned cash accounting. Prices, stops and targets remain in quote units. Paper costs and bar fills are estimates, not broker execution.':'Audit · 5 September 2026: '+e(LEGACY_AUDIT[book].detail)+' Saved P&amp;L is the original engine’s claim, not an independently corrected result.'}</p><p>Unconverted price-move P&amp;L is not account-currency profit. Missing fields are not replaced with another book’s rules.</p></details></article>`;
 }

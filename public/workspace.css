@@ -30,6 +30,9 @@ body { margin: 0; }
 .ws-book-tab span { display: block; font-size: 12px; margin-top: 3px; }
 .ws-book-tab[aria-pressed=true] { color: var(--mint); background: var(--mint-dim); border-color: var(--mint-line); }
 .ws-book-tab[data-book=v10][aria-pressed=true] { color: #9daeff; background: rgba(137,155,255,.1); border-color: rgba(137,155,255,.25); }
+.ws-rank-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 5px; border-radius: 4px; font: 700 9px/1.2 var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .04em; margin-left: 5px; vertical-align: middle; }
+.ws-rank-badge.top-profit { background: rgba(47,214,163,.2); color: var(--mint); border: 1px solid rgba(47,214,163,.4); }
+.ws-rank-badge.newest { background: rgba(137,155,255,.15); color: #9daeff; border: 1px solid rgba(137,155,255,.3); }
 .ws-toolbar { margin-bottom: 16px; align-items: stretch; }
 .ws-notice { background: var(--warn-dim); border: 1px solid var(--warn-line); color: #dac29a; font-size: 13px; line-height: 1.5; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
 .ws-notice a { color: inherit; }

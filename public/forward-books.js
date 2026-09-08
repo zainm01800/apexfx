@@ -1,12 +1,12 @@
 import { escapeHtml as e, number, firstNumber, money as formatMoney, percent, signClass, dateLabel, summarize, tradeCard } from './forward-model.js';
-import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules } from './legacy-forward-model.js';
+import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules, fxObservationOverdue } from './legacy-forward-model.js';
 
 const $ = id => document.getElementById(id);
-const requested = new URL(location.href).searchParams.get('book') || 'v6';
+const requested = new URL(location.href).searchParams.get('book') || 's';
 const archiveView=new URL(location.href).searchParams.get('edition')==='archive';
 const invalidRequest = !Object.hasOwn(BOOKS,requested);
 let needsSelection = invalidRequest;
-let book = Object.hasOwn(BOOKS,requested) ? requested : 'v6';
+let book = Object.hasOwn(BOOKS,requested) ? requested : 's';
 const money=(value,signed=false)=>formatMoney(value,signed,BOOKS[book].currency);
 let panel = 'positions', model = null, controller = null, sequence = 0;
 const set = (id,value,cls) => { const el=$(id); if (!el) return; el.textContent=value; if(cls !== undefined) el.className=cls; };
@@ -57,9 +57,9 @@ function render() {
   set('accountReturn',`${money(m.pnl,true)} (${percent(m.pnl/(m.initialEquity??100000))})`,signClass(m.pnl));
   const status=state.halted ? 'Halted · internal risk guard' : m.sessions===0 ? 'Seeded · waiting for first forward session' : String(meta.status || state.status || 'Waiting for next completed session').replaceAll('_',' ');
   set('bookStatus',m.repaired?(state.halted?'Halted · repaired paper':m.payload.trades.length===0&&m.payload.positions.length===0?'Repaired paper · waiting for eligible completed bars':'Repaired forward paper · saved state'):p.legacy?LEGACY_AUDIT[book].status+(state.halted?' · engine also reports halted':''):status);
-  if(m.repaired&&meta.runner_status==='blocked'){
+  if(meta.runner_status==='blocked'){
     set('bookStatus','Forward step blocked · inputs or persistence need attention');
-    set('bookNotice',`Repaired account preserved without advancing. ${meta.runner_error||'Check the scheduled runner.'} No stale fills or historical profit were imported.`);
+    set('bookNotice',`Account preserved without advancing. ${meta.runner_error||'Check the scheduled runner.'} No stale fills or historical profit were imported.`);
   }
   set('dataThrough',m.through ? `${m.sessions===0?'Market inputs':'Ledger'} through ${dateLabel(m.through)}` : 'No completed forward sessions yet');
   set('sessionCount',p.legacy?`${m.sessions} saved snapshots`:`${m.sessions} forward session${m.sessions===1?'':'s'}`);
@@ -67,7 +67,20 @@ function render() {
   if(m.repaired){set('sessionCount',`${Math.max(0,m.sessions-1)} post-activation snapshots`);set('seedDate',`Activated ${dateLabel(m.activation,true)}`);}
   for(const [id,value] of [['dayPnl',m.dayPnl],['openPnl',m.openPnl],['closedPnl',m.closedPnl]])set(id,money(value,true),signClass(value));
   set('maxDrawdown',percent(m.maxDD)); set('winRate',percent(m.winRate));
+  if(book==='s'&&m.repaired){
+    set('maxDrawdown',m.hourlyRiskIncomplete?'Incomplete':percent(m.maxDD));
+    const through=m.observation?.market_data_through_utc;
+    set('dataThrough',through?`Market bars through ${dateLabel(through,true)} · runner ${dateLabel(meta.runner_checked_at,true)}`:'Market-hour timestamp unavailable; freshness is unverified');
+    if(m.hourlyRiskIncomplete)set('bookNotice',`Book S paper ledger: earlier hourly drawdown history is incomplete${m.observedHourlyMaxDD!==null?`; at least ${percent(m.observedHourlyMaxDD)} observed`:''}. Recorded fills are bar-based simulations, not broker orders or proof of pre-open submission.`);
+    if(fxObservationOverdue(through)===true)set('bookStatus','Saved market marks overdue · not current live P&L');
+    if(meta.runner_status==='blocked')set('bookNotice',`Paper step blocked: ${meta.runner_error||'Inputs need attention'}. Earlier hourly drawdown history remains incomplete.`);
+  }
   set('tradeCount',`${m.payload.trades.length} closed trade${m.payload.trades.length===1?'':'s'}`);
+  if(book==='v27b'){
+    set('tradeCount',`${m.completedLots} completed lots · ${m.payload.trades.length} exit fills`);
+    set('closedPnlNote','net realized exits, including partial reductions');
+    set('workspaceFooter','V27B paper account: monthly ETF trend and five-session stock reversal share one cash balance. Decisions are saved before the eligible open; daily-bar fills are settled after the close. No broker orders. Base costs are hypothetical 5 bps per side plus 5 bps on stops; overnight financing is excluded. Not funded-qualified.');
+  }
   if(p.legacy) {
     set('dailyHeadroom',money(m.cash),'');set('maxHeadroom',m.grossExposure===null?'—':`${m.grossExposure.toFixed(2)}×`,'');
     set('dailyFloor',`${p.currency} · saved cash balance`);set('maxFloor',m.grossExposure===null?'Exposure not supplied':'Saved gross exposure / equity');
@@ -82,13 +95,15 @@ function render() {
   drawChart(m.daily); renderPanel();
 }
 function renderRules() {
+  if(book==='v27b') return `<div class="ws-rule-grid"><article class="ws-rule"><h3>Monthly ETF trend</h3><p>SPY, EFA, IYR, GSG, GLD, TLT, IEF and UUP. Rank 1/3/6/9/12-month returns at the completed month-end, select three with inverse-volatility weights, target 12% annual volatility, then remove names below their 10-month average without reallocating cash.</p><p>Initial 3 × ATR20 stop; daily close trailing takes effect next session. Monthly target changes can partially reduce positions.</p></article><article class="ws-rule"><h3>Five-session stock reversal</h3><p>Up to four of the fixed 31 stocks with the weakest five-session beta-adjusted returns. Exclude known results filings and large recent opening gaps. Buy only, at the next eligible open.</p><p>Fixed 2.5 × ATR20 stop, with exit after five complete sessions. No take-profit target or stock trailing stop. Shared risk controls may make proportional reductions.</p></article><article class="ws-rule"><h3>One £100,000 risk account</h3><p>5% daily / 12% research static loss. £88,000 external research floor; £91,000 internal halt. The original 10% compatibility floor is £90,000 and is reported separately.</p><p>1% per-instrument risk ceiling, 3.375% aggregate stop-risk, 2× gross and 0.75× per name. New additions use at most 90% of combined ceilings, with post-fee sizing. Existing books are separate.</p></article><article class="ws-rule"><h3>Forward evidence, not a funded pass</h3><p>Fresh account only. Pre-open saved decisions, immutable observed bars and idempotent replay from the original seed. Missing inputs block advancement.</p><p>Historical higher base: £732/month over 2017–July 2026, but £96/month in 2022–2024. Post-selection research, not blind validation. 5 bps per side plus 5 bps stop slippage; zero base financing is an assumption, not a verified swap-free contract.</p></article></div>`;
+
   const p=BOOKS[book],m=model;
   if(p.legacy)return legacyRules(m,book);
   if(book==='v24') {
     return `<div class="ws-rule-grid"><article class="ws-rule"><h3>Signal &amp; universe</h3><p>SPY intraday noise-band momentum. Evaluated at every 30-minute boundary from 10:00 to 15:30 America/New_York (12 decision points per session). Noise band is the mean 30m return over the prior 14 normal sessions, anchored to session open and prior close.</p><p>Long when Close &gt; Upper Band and Close &gt; VWAP. Short when Close &lt; Lower Band and Close &lt; VWAP.</p></article><article class="ws-rule"><h3>Stops &amp; exits</h3><p>Protective stop set at breakout barrier. If the same signal persists at later checks, the stop tightens in trade's favor; it never loosens. Exits immediately on neutral or opposite signal.</p><p>Mandatory flatten at 15:59 NY open. Zero overnight hold.</p></article><article class="ws-rule"><h3>${e(p.name)} · static limits</h3><p>5% daily / 12% maximum loss (£88,000 external floor, £90,000 original floor). 1% per-trade risk ceiling, 2% daily-vol target, 4.0× max gross exposure, 90% sizing utilization.</p><p>Internal static halt at £91,000; internal daily guard reserves 25% buffer (£96,250 floor).</p></article><article class="ws-rule"><h3>Evidence &amp; costs</h3><p>Separate fresh £100,000 GBP cash book. 1 bp per side fee and 1 bp stop slippage. (0.25bp hypothetical scenario recorded as a research diagnostic).</p><p>Specification: <code>${e(m?.meta.spec_sha256 || 'SPY Noise-Band Momentum V24')}</code></p></article></div>`;
   }
   if(book==='v30') {
-    return `<div class="ws-rule-grid"><article class="ws-rule"><h3>Signal &amp; universe</h3><p>SPY intraday ATR breakout (Zarattini &amp; Pagani, Feb 2026). Evaluated at every 15-minute boundary from 10:00 to 15:45 America/New_York (24 decision points). Bands set at Open ± 0.5 × ATR14 of prior 14 completed daily bars.</p><p>Long when 15m Close &gt; Upper Band. Short when 15m Close &lt; Lower Band.</p></article><article class="ws-rule"><h3>Stops &amp; exits</h3><p>Protective stop is locked strictly at <strong>Today's Session Open</strong>. No trailing stop, no neutral signal exit, no same-side resizing. Held until stop is hit, risk floor triggers, or 15:59 NY close.</p><p>Mandatory flatten at 15:59 NY open. Zero overnight hold.</p></article><article class="ws-rule"><h3>${e(p.name)} · static limits</h3><p>5% daily / 12% maximum loss (£88,000 external floor, £90,000 original floor). 1% per-trade risk ceiling, 2% daily-vol target, 4.0× max gross exposure, 90% sizing utilization.</p><p>Internal static halt at £91,000; internal daily guard reserves 25% buffer (£96,250 floor).</p></article><article class="ws-rule"><h3>Evidence &amp; costs</h3><p>Separate fresh £100,000 GBP cash book. 1 bp per side fee and 1 bp stop slippage. Demonstrated +£1,459/month in 2025 blind test, but historical 2024 was choppy.</p><p>Specification: <code>${e(m?.meta.spec_sha256 || 'SPY ATR Breakout Open Stop V30')}</code></p></article></div>`;
+    return `<div class="ws-rule-grid"><article class="ws-rule"><h3>Signal &amp; universe</h3><p>SPY intraday ATR breakout (Zarattini &amp; Pagani, Feb 2026). Evaluated at every 15-minute boundary from 10:00 to 15:45 America/New_York (24 decision points). Bands set at Open ± 0.5 × ATR14 of prior 14 completed daily bars.</p><p>Long when 15m Close &gt; Upper Band. Short when 15m Close &lt; Lower Band.</p></article><article class="ws-rule"><h3>Stops &amp; exits</h3><p>Protective stop is locked strictly at <strong>Today's Session Open</strong>. No trailing stop, no neutral signal exit, no same-side resizing. Held until stop is hit, risk floor triggers, or 15:59 NY close.</p><p>Mandatory flatten at 15:59 NY open. Zero overnight hold.</p></article><article class="ws-rule"><h3>${e(p.name)} · static limits</h3><p>5% daily / 12% maximum loss (£88,000 external floor, £90,000 original floor). 1% per-trade risk ceiling, 2% daily-vol target, 4.0× max gross exposure, 90% sizing utilization.</p><p>Internal static halt at £91,000; internal daily guard reserves 25% buffer (£96,250 floor).</p></article><article class="ws-rule"><h3>Evidence &amp; costs</h3><p>Separate fresh £100,000 GBP cash book. 1 bp per side fee and 1 bp stop slippage. Retrospective separate 108-session 2025 sample averaged +£1,459/month; this was not a blind test. The older 2021–2024 average was only £313/month and the fresh 2024 account lost money.</p><p>Specification: <code>${e(m?.meta.spec_sha256 || 'SPY ATR Breakout Open Stop V30')}</code></p></article></div>`;
   }
   return `<div class="ws-rule-grid"><article class="ws-rule"><h3>Signal &amp; universe</h3><p>Frozen five-day regime-switch research variant. With lagged VIX below 30, select up to four ETFs above their 200-session average with RSI2 below 10. At VIX 30 or above, buy the two weakest and short the two strongest sectors by prior-session return.</p><p>SPY, XLK, XLE, XLV, XLI, XLF, XLP and XLU. Flat batches; no overlapping re-entry.</p></article><article class="ws-rule"><h3>Stops &amp; exits</h3><p>Fixed stop at 1.5 × prior-session ATR20. Exit after five completed holding sessions at the following open, or earlier for a stop or account guard. No take-profit target, partial exits, breakeven move or trailing stop.</p><p>Entry-bar and gap stops include adverse price movement and modelled slippage.</p></article><article class="ws-rule"><h3>${e(p.name)} · static limits</h3><p>${percent(p.daily)} daily / ${percent(p.maximum)} maximum loss. Per-trade risk ceiling ${percent(p.trade)}, aggregate stop-risk ceiling ${percent(p.aggregate || p.trade)}, gross exposure ${p.gross.toFixed(1)}× and single-name ${(p.nameCap || p.gross).toFixed(2)}×. New entry baskets use 80% of aggregate/exposure ceilings.</p><p>Internal static halt at ${money(100000*(1-p.maximum*.75))}; internal daily guard reserves 25% of the daily allowance. These are generic conservative rules, not a chosen firm's contract.</p></article><article class="ws-rule"><h3>Evidence &amp; costs</h3><p>Separate fresh £100,000 GBP cash book. 5 bps per side, 5 bps stop slippage and 2% annual short borrow. Price-change P&amp;L and costs use publication-aware USD/GBP rates; USD principal does not become FX profit.</p><p>Daily ETF data are a CFD proxy, not a tick-level funded-compliance proof. Historical validation failed; no funded or monthly-income promise.</p><p>Specification: <code>${e(m?.meta.spec_sha256 || m?.meta.spec_hash || m?.meta.strategy_version || 'V14 regime-switch forward v1')}</code></p></article></div>`;
 }
@@ -142,6 +157,75 @@ function changeBook(next) {
   $('forwardChart').innerHTML=empty('Loading','');$('dailyMeter').style.width='0%';$('maxMeter').style.width='0%';$('tradeSearch').value='';
   chrome();renderPanel();load();
 }
+async function updateLiveBookRankings() {
+  try {
+    const tabsContainer = document.querySelector('.ws-book-tabs');
+    if (!tabsContainer) return;
+    const tabButtons = [...tabsContainer.querySelectorAll('[data-book]')];
+    const activeIds = ['s', 'v24', 'v30', 'v6', 'v10', 'v27b'];
+    
+    const scores = await Promise.all(activeIds.map(async id => {
+      try {
+        const res = await fetch(`/api/paper?book=${id}&table=state`, { cache: 'no-store' });
+        if (!res.ok) return { id, pnl: -999999, activation: 0 };
+        const data = await res.json();
+        const p = BOOKS[id];
+        const m = p?.legacy ? summarizeLegacy(data, id) : summarize(data, id);
+        return {
+          id,
+          pnl: m.pnl ?? 0,
+          equity: m.equity ?? 100000,
+          currency: p?.currency || (id === 's' ? 'USD' : 'GBP'),
+          activation: Date.parse(m.activation || '') || 0
+        };
+      } catch {
+        return { id, pnl: -999999, activation: 0 };
+      }
+    }));
+
+    // Sort: highest profit first, then newest activation
+    scores.sort((a, b) => {
+      const pnlDiff = (b.pnl ?? 0) - (a.pnl ?? 0);
+      if (Math.abs(pnlDiff) > 0.01) return pnlDiff;
+      return (b.activation ?? 0) - (a.activation ?? 0);
+    });
+
+    // Reorder tabs container so highest profit is first
+    scores.forEach((score, rank) => {
+      const btn = tabButtons.find(b => b.dataset.book === score.id);
+      if (btn) {
+        tabsContainer.insertBefore(btn, tabsContainer.children[rank] || null);
+        let strong = btn.querySelector('strong');
+        let badge = btn.querySelector('.ws-rank-badge');
+        let sub = btn.querySelector('span:not(.ws-rank-badge)');
+        
+        if (rank === 0 && score.pnl > 0) {
+          if (!badge) {
+            badge = document.createElement('span');
+            strong?.appendChild(badge);
+          }
+          badge.className = 'ws-rank-badge top-profit';
+          badge.textContent = '#1 PROFIT';
+          if (sub) {
+            const sym = score.currency === 'USD' ? 'US$' : '£';
+            const sign = score.pnl >= 0 ? '+' : '';
+            sub.textContent = `${sign}${sym}${score.pnl.toFixed(2)} · ${BOOKS[score.id]?.label || 'Session SMC'}`;
+          }
+        } else if (score.id === 'v24' || score.id === 'v30') {
+          if (!badge) {
+            badge = document.createElement('span');
+            strong?.appendChild(badge);
+          }
+          badge.className = 'ws-rank-badge newest';
+          badge.textContent = 'NEWEST';
+        }
+      }
+    });
+  } catch (e) {
+    // Keep clean static order on network failure
+  }
+}
+
 if(invalidRequest){ $('bookError').hidden=false;$('bookError').textContent='Unknown book. Choose one of the books above.'; }
 for(const button of document.querySelectorAll('[data-book]'))button.addEventListener('click',()=>changeBook(button.dataset.book));
 for(const button of document.querySelectorAll('[data-panel]')) {
@@ -149,7 +233,7 @@ for(const button of document.querySelectorAll('[data-panel]')) {
   button.addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[data-panel]')];let i=tabs.indexOf(button);if(event.key==='ArrowRight')i=(i+1)%tabs.length;else if(event.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;else if(event.key==='Home')i=0;else if(event.key==='End')i=tabs.length-1;else return;event.preventDefault();tabs[i].click();tabs[i].focus();});
 }
 $('tradeSearch').addEventListener('input',renderPanel);
-$('refreshBook').addEventListener('click',load);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
-setInterval(()=>{if(!document.hidden)load();},60000);
-chrome();if(!invalidRequest)load();
+$('refreshBook').addEventListener('click',()=>{load();updateLiveBookRankings();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){load();updateLiveBookRankings();}});
+setInterval(()=>{if(!document.hidden){load();updateLiveBookRankings();}},60000);
+chrome();if(!invalidRequest){load();updateLiveBookRankings();}
