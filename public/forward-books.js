@@ -134,8 +134,11 @@ function renderPanel() {
 async function load() {
   if(needsSelection)return;
   const id=++sequence, selected=book;
+  const btn = $('refreshBook');
+  if(btn) btn.textContent = 'Refreshing…';
+  if(btn) btn.disabled = true;
   controller?.abort();controller=new AbortController();
-  $('refreshBook').disabled=true;$('overview').setAttribute('aria-busy','true');
+  $('overview').setAttribute('aria-busy','true');
   try {
     const response=await fetch(`/api/paper?book=${selected}&table=state${archiveView&&BOOKS[selected].legacy?'&edition=archive':''}&_t=${Date.now()}`,{cache:'no-store',signal:controller.signal});
     if(!response.ok) throw new Error(response.status===404?'This book has not been activated in the saved paper ledger yet.':'The saved paper ledger is temporarily unavailable.');
@@ -149,11 +152,16 @@ async function load() {
       $('bookError').textContent=`Saved ${BOOKS[selected].legacy?'equity snapshot dated':'snapshot generated'} ${dateLabel(new Date(generated).toISOString(),!BOOKS[selected].legacy)}. This is not a live quote; weekends and market holidays may explain the gap. Check the scheduled runner if a completed trading session is missing.`;
     }
     set('checkedAt',`Checked ${dateLabel(new Date().toISOString(),true)}`);
+    if(btn) {
+      btn.textContent = '✓ Updated';
+      setTimeout(() => { if(btn) btn.textContent = 'Refresh'; }, 1500);
+    }
   } catch(error) {
+    if(btn) btn.textContent = 'Refresh';
     if(error.name==='AbortError'||id!==sequence)return;
     $('bookError').hidden=false;$('bookError').textContent=error.message+(model?' Showing the last successfully loaded snapshot; it may be stale.':'');
     if(!model) { set('bookStatus','Not connected to a verified ledger');renderPanel(); }
-  } finally { if(id===sequence){$('refreshBook').disabled=false;$('overview').setAttribute('aria-busy','false');} }
+  } finally { if(id===sequence){if(btn)btn.disabled=false;$('overview').setAttribute('aria-busy','false');} }
 }
 function changeBook(next) {
   if(!Object.hasOwn(BOOKS,next)||(next===book&&model))return;
