@@ -61,3 +61,26 @@ Regression suites for intraday execution, accounting, state persistence,
 daily completeness and the source-cache correction pass. The frontend suite
 passes 65 tests. Production workflow outcomes must be checked separately after
 publication; retained-history recovery alone is not proof of a successful trade.
+
+## Cloud verification and signed-zero persistence repair
+
+The published collector passed
+[run 34249356963](https://github.com/zainm01800/apexfx/actions/runs/34249356963).
+Both V24 and V30 durably saved 19 complete archived sessions and returned
+`ready_waiting_settled_session`; GBP100,000, no executed sessions, no trades.
+
+The older-books verification
+[run 34249357607](https://github.com/zainm01800/apexfx/actions/runs/34249357607)
+got A past the Sui check but exposed JSONB's normalisation of -0.0 to 0.0.
+The stored state's original SHA256 was reproduced exactly by restoring only
+`engine.open_positions.LINK/USD.realized_pnl_total` to -0.0. No other monetary
+value was altered or assumed. A's update had been saved before the read-back
+comparison failed; it must not be replayed or reseeded.
+
+Hashing now canonicalises only floating-zero signs, not integers, booleans,
+nonzero prices or balances. The one-time recovery requires the exact original
+SHA256 match, preserves positions/trades/cash and activation, increments the
+revision, and persists using the original stored-hash compare-and-swap.
+An arbitrary mismatch cannot be rehashed. Tests explicitly reject a one-penny
+balance change and a one-ULP nonzero value change. Manual dispatch can select
+A alone so verifying its repair does not needlessly rerun the blocked books.

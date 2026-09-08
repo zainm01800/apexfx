@@ -176,9 +176,20 @@ def main(argv=None):
                 activate(book,now);continue
             old=storage.read(storage.runtime_id(book))
             if old is None:raise ValueError('Repaired account is not activated; no automatic seed')
+            if old.get('book_id')==book and old['metadata'].get('accounting_version')==VERSION and storage.digest(old['state'])!=old['state_sha256']:
+                repaired=storage.verified_signed_zero_repair(old,now)
+                if repaired is not None:
+                    if args.dry_run:
+                        print(f'{book}: verified JSONB signed-zero recovery available; dry-run makes no write')
+                    else:
+                        storage.write(storage.runtime_id(book),repaired,previous_hash=old['state_sha256'])
+                        print(f'{book}: verified signed-zero hash recovery; all cash, positions and history preserved')
+                    old=repaired
             if old.get('book_id')!=book or old['metadata'].get('accounting_version')!=VERSION or storage.digest(old['state'])!=old['state_sha256']:
                 raise ValueError('Repaired document identity/hash mismatch')
             new=advance(book,old,now)
+            if new is not None and old['metadata'].get('signed_zero_hash_repair'):
+                new['metadata']['signed_zero_hash_repair']=old['metadata']['signed_zero_hash_repair']
             if new is None:
                 if not args.dry_run:
                     checked=copy.deepcopy(old)

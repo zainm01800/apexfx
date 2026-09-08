@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import copy
 import httpx
 from ._keys import service_or_anon_key
 
@@ -24,8 +25,50 @@ def archive_id(book):
     return f"__apex_book_{book}_archive_20260905__"
 
 
-def digest(value):
+def legacy_digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
+
+
+def canonical_zeros(value):
+    # PostgreSQL JSONB converts -0.0 to 0.0. Preserve every nonzero digit and
+    # every integer/bool type; only the sign of floating zero is insignificant.
+    if isinstance(value,dict):return {k:canonical_zeros(v) for k,v in value.items()}
+    if isinstance(value,list):return [canonical_zeros(v) for v in value]
+    if isinstance(value,tuple):return tuple(canonical_zeros(v) for v in value)
+    return 0.0 if type(value) is float and value==0 else value
+
+
+def digest(value):
+    return legacy_digest(canonical_zeros(value))
+
+
+def verified_signed_zero_repair(payload, now):
+    """Recover only when the original hash proves one lost negative-zero sign.
+
+    No numeric tolerance, guessed balance, arbitrary rehash or history reset.
+    The caller must persist via CAS against the original stored hash.
+    """
+    if digest(payload['state'])==payload['state_sha256']:return None
+    candidate=copy.deepcopy(payload['state']);matches=[]
+    def visit(value,path):
+        pairs=list(value.items()) if isinstance(value,dict) else list(enumerate(value)) if isinstance(value,list) else []
+        for key,item in pairs:
+            if isinstance(item,(dict,list)):visit(item,[*path,key])
+            elif type(item) is float and item==0:
+                value[key]=-0.0
+                if legacy_digest(candidate)==payload['state_sha256']:matches.append([*path,key])
+                value[key]=item
+    visit(candidate,[])
+    if len(matches)!=1:return None
+    repaired=copy.deepcopy(payload)
+    repaired['state']['revision']+=1
+    repaired['state_sha256']=digest(repaired['state'])
+    repaired['metadata']['signed_zero_hash_repair']={
+        'previous_state_sha256':payload['state_sha256'],
+        'proven_negative_zero_path':matches[0], 'repaired_at_utc':now.isoformat(),
+        'method':'Exact original SHA256 recovered by restoring one negative-zero sign; monetary values unchanged',
+    }
+    return repaired
 
 
 def url():

@@ -66,3 +66,40 @@ def test_archive_write_is_insert_only(monkeypatch):
         return httpx.Response(409,json={'error':'duplicate'})
     with httpx.Client(transport=httpx.MockTransport(route)) as client:
         with pytest.raises(RuntimeError):store.write(store.archive_id('c'),{'x':1},client=client)
+
+
+def test_digest_normalizes_only_floating_zero_sign():
+    assert store.digest({'pnl':-0.0})==store.digest({'pnl':0.0})
+    assert store.digest({'pnl':0.0})!=store.digest({'pnl':0})
+    assert store.digest({'pnl':0.0})!=store.digest({'pnl':1e-100})
+    assert store.digest({'pnl':1.0000000000000002})!=store.digest({'pnl':1.0})
+
+
+def test_signed_zero_recovery_requires_exact_old_hash_and_preserves_ledger():
+    original={'revision':2,'cash':99900.52950679549,'positions':{'LINK/USD':{'realized_pnl_total':-0.0}},'trades':[]}
+    payload={'state':store.canonical_zeros(original),'state_sha256':store.legacy_digest(original),'metadata':{}}
+    before=copy.deepcopy(payload)
+    fixed=store.verified_signed_zero_repair(payload,pd.Timestamp('2026-09-08T16:00Z'))
+    assert payload==before and fixed['state']['revision']==3
+    assert fixed['state']['cash']==original['cash'] and fixed['state']['positions']==original['positions']
+    assert fixed['metadata']['signed_zero_hash_repair']['proven_negative_zero_path']==['positions','LINK/USD','realized_pnl_total']
+    assert fixed['state_sha256']==store.digest(fixed['state'])
+    payload['state']['cash']+=.01
+    assert store.verified_signed_zero_repair(payload,pd.Timestamp('2026-09-08T16:00Z')) is None
+
+
+def test_jsonb_negative_zero_readback_is_equal_but_money_change_is_rejected(monkeypatch):
+    monkeypatch.setenv('SUPABASE_SERVICE_KEY','unit-test-only')
+    for mutate in [False,True]:
+        saved={}
+        def route(req):
+            nonlocal saved
+            if req.method=='PATCH':
+                saved=store.canonical_zeros(json.loads(req.content)['feature_vector'])
+                if mutate:saved['cash']+=.01
+            return httpx.Response(200,json=[{'feature_vector':saved}])
+        with httpx.Client(transport=httpx.MockTransport(route)) as client:
+            if mutate:
+                with pytest.raises(RuntimeError,match='read-back'):
+                    store.write(store.runtime_id('a'),{'cash':100.,'pnl':-0.0},previous_hash='old',client=client)
+            else:store.write(store.runtime_id('a'),{'cash':100.,'pnl':-0.0},previous_hash='old',client=client)

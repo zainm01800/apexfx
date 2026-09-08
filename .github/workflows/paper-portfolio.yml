@@ -3,7 +3,13 @@ name: paper-portfolio
 on:
   schedule:
     - cron: "35 0 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      book:
+        description: "Paper book to verify; scheduled runs still check all six"
+        type: choice
+        options: [all, a, b, c, r, s, f]
+        default: all
 concurrency:
   group: legacy-paper-writer
   cancel-in-progress: false
@@ -16,6 +22,7 @@ jobs:
     env:
       SUPABASE_URL: https://cuvchjhaojhmxfgczndy.supabase.co
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      PAPER_BOOK: ${{ inputs.book || 'all' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,4 +42,4 @@ jobs:
         working-directory: engine
         # Each book is attempted independently. Any blocked book fails the run.
         # The runner cannot reseed or touch an original legacy ledger.
-        run: python scripts/run_repaired_paper.py --book all
+        run: python scripts/run_repaired_paper.py --book "$PAPER_BOOK"
