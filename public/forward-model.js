@@ -64,31 +64,41 @@ export function tradeCard(t, kind = 'positions') {
   const symbol = t.instrument || t.symbol || 'Unknown symbol';
   const short = String(t.direction).toLowerCase() === 'short' || number(t.direction) === -1;
   const long = String(t.direction).toLowerCase() === 'long' || number(t.direction) === 1;
-  const side = short ? 'SHORT' : long ? 'LONG' : 'UNKNOWN';
-  const entry = firstNumber(t.entry_price, t.entry_price_usd);
+  const isRadar = kind === 'pending' && (t.is_radar === true || t.radar === true || String(t.status || '').toLowerCase().includes('radar') || String(t.status || '').toLowerCase().includes('watch') || Boolean(t.what_needs_to_happen));
+  const side = short ? 'SHORT' : long ? 'LONG' : (isRadar ? (t.side || 'RADAR') : 'UNKNOWN');
+  const entry = firstNumber(t.entry_price, t.entry_price_usd, t.trigger_price);
   const stop = firstNumber(t.stop_price, t.stop, t.stop_price_usd, t.initial_stop);
   const last = firstNumber(t.last_px, t.last_price, t.mark_price, t.last_price_usd);
   const pnl = kind === 'trades' ? firstNumber(t.net_pnl_gbp, t.pnl_gbp, t.pnl) : firstNumber(t.unrealized_pnl_gbp, t.open_pnl_gbp, t.open_pnl, t.pnl_gbp);
   const price = n => n === null ? '—' : '$' + n.toFixed(2);
-  const units = number(t.units) === null ? 'At fill' : Number(t.units).toLocaleString('en-GB',{maximumFractionDigits:4});
+  const units = number(t.units) === null ? (isRadar ? (t.units_label || 'Calculated at fill') : 'At fill') : Number(t.units).toLocaleString('en-GB',{maximumFractionDigits:4});
   const evidence = t.evidence || t.signal_evidence || {};
   const reason = t.signal_rationale || t.entry_reason || t.reason || evidence.reason || 'See the saved decision evidence; no rationale was supplied.';
   const exitDate = t.scheduled_exit_session || t.scheduled_exit_date || t.time_exit_session;
-  const exitLabel = exitDate ? dateLabel(exitDate) : t.management_rule || ((t.instrument === 'SPY' && !exitDate) ? 'Intraday · 15:59 NY flat' : 'After 5 completed sessions');
-  const stopPolicy = t.stop_atr_multiple ? `${t.stop_atr_multiple} × prior ATR20 at fill` : t.instrument === 'SPY' ? 'Barrier at fill' : '1.5 × prior ATR20 at fill';
-  const management = t.management_rule ? `${t.management_rule}. ${t.partials_policy || ''}.` : 'Fixed protective stop, scheduled time exit and account-risk guards.';
+  const exitLabel = exitDate ? dateLabel(exitDate) : t.management_rule || ((t.instrument === 'SPY' && !exitDate) ? 'Intraday · 15:59 NY flat' : t.exit_horizon || 'After 5 completed sessions');
+  const stopPolicy = t.stop_policy || (t.stop_atr_multiple ? `${t.stop_atr_multiple} × prior ATR20 at fill` : t.instrument === 'SPY' ? 'Barrier at fill' : '1.5 × prior ATR20 at fill');
+  const management = t.management_rule ? `${t.management_rule}. ${t.partials_policy || ''}.` : (t.management || 'Fixed protective stop, scheduled time exit and account-risk guards.');
   const unconfirmed = kind === 'pending' && t.decision_durability === 'unconfirmed_not_executable';
   const field = (label,value) => `<div><dt>${e(label)}</dt><dd>${e(value)}</dd></div>`;
-  return `<article class="ws-trade"><div class="ws-trade-head"><div><span class="ws-symbol">${e(symbol)}</span><span class="ws-direction ${short ? 'short' : ''}">${side}</span><div class="ws-meta">${kind === 'pending' ? (unconfirmed ? 'Unconfirmed · cannot execute' : 'Pending · next eligible open') : kind === 'trades' ? 'Closed ' + dateLabel(t.exit_time || t.exit_date, true) : 'Entered ' + dateLabel(t.entry_time || t.entry_date || t.entry_session, true)}</div></div><div class="ws-trade-pnl ${signClass(pnl)}">${kind === 'pending' ? (unconfirmed ? 'Not executable' : 'Queued') : money(pnl,true)}</div></div>
+
+  const pendingBadge = isRadar 
+    ? (t.trigger_badge || 'Radar · Watching') 
+    : (unconfirmed ? 'Unconfirmed · cannot execute' : 'Pending · next eligible open');
+  const pendingPnl = isRadar
+    ? (t.status_badge || 'Awaiting Trigger')
+    : (unconfirmed ? 'Not executable' : 'Queued');
+
+  return `<article class="ws-trade"><div class="ws-trade-head"><div><span class="ws-symbol">${e(symbol)}</span><span class="ws-direction ${short ? 'short' : isRadar && !long ? 'radar' : ''}">${e(side)}</span><div class="ws-meta">${kind === 'pending' ? e(pendingBadge) : kind === 'trades' ? 'Closed ' + dateLabel(t.exit_time || t.exit_date, true) : 'Entered ' + dateLabel(t.entry_time || t.entry_date || t.entry_session, true)}</div></div><div class="ws-trade-pnl ${isRadar ? 'ws-radar-pnl' : signClass(pnl)}">${kind === 'pending' ? e(pendingPnl) : money(pnl,true)}</div></div>
+    ${isRadar && t.what_needs_to_happen ? `<div class="ws-radar-condition"><strong>What Needs to Happen to Take This Trade:</strong><p>${e(t.what_needs_to_happen)}</p></div>` : ''}
     <dl class="ws-trade-grid">
-    ${field('Entry · USD',kind === 'pending' ? (unconfirmed ? 'Requires durable pre-open confirmation' : 'Next-open simulation') : price(entry))}
-    ${field(kind === 'pending' ? 'Eligible open session' : kind === 'trades' ? 'Exit · USD' : 'Official mark · USD',kind === 'pending' ? dateLabel(t.eligible_fill_session, true) : price(kind === 'trades' ? firstNumber(t.exit_price,t.exit_price_usd) : last))}
-    ${field('Entered at',dateLabel(t.entry_time || t.entry_date || t.entry_session, true))}
-    ${kind === 'trades' ? field('Exited at',dateLabel(t.exit_time || t.exit_date, true)) : field('Holding',t.holding_hours != null ? Number(t.holding_hours).toFixed(1)+' hrs' : t.sessions_held ? t.sessions_held+' sessions' : 'Active')}
+    ${field(isRadar ? 'Trigger condition' : 'Entry · USD', kind === 'pending' ? (isRadar ? (t.trigger_condition || price(entry)) : (unconfirmed ? 'Requires durable pre-open confirmation' : 'Next-open simulation')) : price(entry))}
+    ${field(kind === 'pending' ? (isRadar ? 'Target direction' : 'Eligible open session') : kind === 'trades' ? 'Exit · USD' : 'Official mark · USD', kind === 'pending' ? (isRadar ? e(side) : dateLabel(t.eligible_fill_session, true)) : price(kind === 'trades' ? firstNumber(t.exit_price,t.exit_price_usd) : last))}
+    ${field(isRadar ? 'Session' : 'Entered at', isRadar ? e(t.session_label || 'Today\'s NY Session') : dateLabel(t.entry_time || t.entry_date || t.entry_session, true))}
+    ${kind === 'trades' ? field('Exited at',dateLabel(t.exit_time || t.exit_date, true)) : field('Holding',t.holding_hours != null ? Number(t.holding_hours).toFixed(1)+' hrs' : t.sessions_held ? t.sessions_held+' sessions' : isRadar ? e(t.holding_horizon || exitLabel) : 'Active')}
     ${field('Stop loss · USD',stop === null && kind === 'pending' ? stopPolicy : price(stop))}
     ${field('Units',units)}
     ${field('Time exit',exitLabel)}
-    ${field(kind === 'trades' ? 'Exit reason' : 'Current stop risk · GBP',kind === 'trades' ? String(t.exit_reason || 'Not supplied').replaceAll('_',' ') : money(firstNumber(t.current_risk_gbp,t.stop_risk_gbp)))}
+    ${field(kind === 'trades' ? 'Exit reason' : (isRadar ? 'Allocated risk' : 'Current stop risk · GBP'),kind === 'trades' ? String(t.exit_reason || 'Not supplied').replaceAll('_',' ') : money(firstNumber(t.current_risk_gbp,t.stop_risk_gbp,t.risk_gbp,t.initial_risk_gbp)) || '1.0% max')}
     ${kind === 'trades' && (t.holding_hours != null || t.sessions_held != null) ? field('Duration',t.holding_hours != null ? Number(t.holding_hours).toFixed(1)+' hrs' : t.sessions_held+' sessions') : ''}
     </dl>
     <details><summary>Decision, risk &amp; management details</summary><p>${e(reason)}</p><dl class="ws-trade-grid">${field('Decision session',dateLabel(t.decision_date || t.decision_session || t.entry_time, true))}${field('Decision recorded at',t.decision_recorded_at_utc ? dateLabel(t.decision_recorded_at_utc,true) : 'Not supplied')}${field(t.sleeve ? 'Strategy sleeve' : 'Prior VIX',t.sleeve || firstNumber(t.lagged_vix,t.vix,evidence.vix) || '—')}${field('ATR20 · USD',price(firstNumber(t.decision_atr,t.atr14,t.atr20,t.atr,evidence.atr20)) ?? '—')}${field('Initial risk · GBP',money(firstNumber(t.initial_total_risk,t.initial_total_risk_gbp,t.initial_risk_gbp,t.entry_risk_gbp)))}${field('Take-profit / partials',t.partials_policy || 'Not used by this strategy')}${field('Entry timestamp',dateLabel(t.entry_time || t.entry_date, true))}${field('Exit timestamp',dateLabel(t.exit_time || t.exit_date, true))}${field('Entry fee · GBP',money(firstNumber(t.entry_fee,t.entry_fee_gbp,t.entry_fee_remaining_gbp)))}${field('Borrow charged · GBP',money(firstNumber(t.borrow_cost,t.borrow_cost_gbp)))}</dl><p>${e(management)} A stop is not a guaranteed fill price; gaps and modelled slippage can increase a loss.</p></details></article>`;

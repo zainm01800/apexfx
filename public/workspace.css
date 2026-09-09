@@ -69,10 +69,14 @@ body { margin: 0; }
 .ws-trades { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .ws-trade { border: 1px solid var(--obs-line-2); background: var(--obs-s2); border-radius: 12px; padding: 18px; min-width: 0; }
 .ws-trade-head { margin-bottom: 16px; }
-.ws-symbol { font: 600 19px var(--font-display); }
 .ws-direction { display: inline-block; font: 10px var(--font-mono); letter-spacing: .05em; border: 1px solid var(--mint-line); border-radius: 4px; color: var(--mint); padding: 3px 5px; margin-left: 8px; }
 .ws-direction.short { color: var(--loss); border-color: var(--loss-line); }
+.ws-direction.radar { color: #f5a623; border-color: rgba(245,166,35,0.4); }
+.ws-radar-condition { margin: 0 0 16px; padding: 12px 14px; border-radius: 8px; background: rgba(245,166,35,0.08); border-left: 3px solid #f5a623; font-size: 13px; line-height: 1.5; }
+.ws-radar-condition strong { display: block; color: #f5a623; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; font-family: var(--font-mono); }
+.ws-radar-condition p { margin: 0; color: var(--ink); }
 .ws-trade-pnl { font: 500 20px var(--font-display); }
+.ws-trade-pnl.ws-radar-pnl { font-size: 14px; font-weight: 600; color: #f5a623; letter-spacing: 0.02em; }
 .ws-trade-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px 10px; padding-bottom: 16px; }
 .ws-trade-grid dt { font-size: 11px; color: var(--ink-2); margin-bottom: 5px; }
 .ws-trade-grid dd { margin: 0; font: 500 13px var(--font-mono); overflow-wrap: anywhere; }
