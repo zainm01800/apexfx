@@ -51,16 +51,20 @@ PROFILES = {"lower_3_7": Profile(.03, .07, .06, .0075, .015, 3.),
 
 
 def clean(x):
+    if x is pd.NaT:
+        return None
     if isinstance(x, dict):
         return {str(k): clean(v) for k, v in x.items()}
     if isinstance(x, (tuple, list)):
         return [clean(v) for v in x]
     if isinstance(x, (pd.Timestamp, np.datetime64)):
-        return pd.Timestamp(x).isoformat()
+        return None if pd.isna(x) else pd.Timestamp(x).isoformat()
     if isinstance(x, (np.integer, np.bool_)):
         return x.item()
     if isinstance(x, (float, np.floating)):
         return float(x) if np.isfinite(x) else None
+    if pd.isna(x):
+        return None
     return x
 
 

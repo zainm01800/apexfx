@@ -54,7 +54,7 @@ def validate_session_minutes(bars,day,now=None):
         raise DataUnavailable(f'{day}: missing, duplicate, unordered or off-session minute')
     out=bars[COLUMNS].copy();out.index=dates
     values=out.to_numpy(float);prices=values[:,:4]
-    if (not np.isfinite(values).all() or (prices<=0).any() or (values[:,4]<=0).any()
+    if (not np.isfinite(values).all() or (prices<=0).any() or (values[:,4]<0).any()
         or (prices[:,1]+1e-9<prices.max(axis=1)).any() or (prices[:,2]-1e-9>prices.min(axis=1)).any()):
         raise DataUnavailable(f'{day}: invalid minute OHLCV')
     return out
