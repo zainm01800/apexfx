@@ -75,7 +75,8 @@ export function tradeCard(t, kind = 'positions') {
   const evidence = t.evidence || t.signal_evidence || {};
   const reason = t.signal_rationale || t.entry_reason || t.reason || evidence.reason || 'See the saved decision evidence; no rationale was supplied.';
   const exitDate = t.scheduled_exit_session || t.scheduled_exit_date || t.time_exit_session;
-  const exitLabel = exitDate ? dateLabel(exitDate) : t.management_rule || ((t.instrument === 'SPY' && !exitDate) ? 'Intraday · 15:59 NY flat' : t.exit_horizon || 'After 5 completed sessions');
+  const parsedExit = exitDate ? dateLabel(exitDate) : '—';
+  const exitLabel = parsedExit !== '—' ? parsedExit : (exitDate || t.management_rule || ((t.instrument === 'SPY' && !exitDate) ? 'Intraday · 15:59 NY flat' : t.exit_horizon || 'After 5 completed sessions'));
   const stopPolicy = t.stop_policy || (t.stop_atr_multiple ? `${t.stop_atr_multiple} × prior ATR20 at fill` : t.instrument === 'SPY' ? 'Barrier at fill' : '1.5 × prior ATR20 at fill');
   const management = t.management_rule ? `${t.management_rule}. ${t.partials_policy || ''}.` : (t.management || 'Fixed protective stop, scheduled time exit and account-risk guards.');
   const unconfirmed = kind === 'pending' && t.decision_durability === 'unconfirmed_not_executable';
