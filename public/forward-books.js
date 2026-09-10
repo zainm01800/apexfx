@@ -40,6 +40,9 @@ function chrome() {
 }
 function drawChart(rows) {
   const points=rows.map(d=>({date:d.date,value:firstNumber(d.equity_gbp,d.equity)})).filter(d=>d.value!==null);
+  if (model?.equity && points.length >= 1 && (model.hasLiveIntraday || model.payload?.positions?.some(p => p.is_live_intraday))) {
+    points.push({ date: 'Today (Live)', value: model.equity });
+  }
   if(points.length<2) { $('forwardChart').innerHTML=empty('No completed equity series yet','Only post-activation sessions will appear here.'); return; }
   const seed=model?.initialEquity??100000;
   const low=Math.min(seed,...points.map(d=>d.value)), high=Math.max(seed,...points.map(d=>d.value));
@@ -155,6 +158,10 @@ function render() {
     set('bookNotice',`Account preserved without advancing. ${meta.runner_error||'Check the scheduled runner.'} No stale fills or historical profit were imported.`);
   }
   set('dataThrough',m.through ? `${m.sessions===0?'Market inputs':'Ledger'} through ${dateLabel(m.through)}` : 'No completed forward sessions yet');
+  if (m.hasLiveIntraday || (m.payload.positions && m.payload.positions.some(pos => pos.is_live_intraday))) {
+    set('bookStatus', `Active In-Session · Live P&L: ${money(m.openPnl, true)}`);
+    set('dataThrough', 'Active session tracking · Live market marks');
+  }
   set('sessionCount',p.legacy?`${m.sessions} saved snapshots`:`${m.sessions} forward session${m.sessions===1?'':'s'}`);
   set('seedDate',`${p.legacy?'History from':'Activated'} ${dateLabel(m.activation)}`);
   if(m.repaired){set('sessionCount',`${Math.max(0,m.sessions-1)} post-activation snapshots`);set('seedDate',`Activated ${dateLabel(m.activation,true)}`);}
@@ -248,6 +255,7 @@ async function load() {
     const candidate=BOOKS[selected].legacy?summarizeLegacy(payload,selected):summarize(payload,selected);
     if(id!==sequence||book!==selected)return;
     model=candidate;$('bookError').hidden=true;render();
+    await enrichLiveIntraday(selected, id);
     const generated=Date.parse(BOOKS[selected].legacy?model.through:model.payload.generated_at_utc || '');
     if(Number.isFinite(generated) && Date.now()-generated>36*60*60*1000) {
       $('bookError').hidden=false;
@@ -264,6 +272,117 @@ async function load() {
     $('bookError').hidden=false;$('bookError').textContent=error.message+(model?' Showing the last successfully loaded snapshot; it may be stale.':'');
     if(!model) { set('bookStatus','Not connected to a verified ledger');renderPanel(); }
   } finally { if(id===sequence){if(btn)btn.disabled=false;$('overview').setAttribute('aria-busy','false');} }
+}
+
+async function enrichLiveIntraday(selected, reqId) {
+  if (!model || reqId !== sequence || book !== selected) return;
+  const now = new Date();
+  const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const isUsOpen = utcMins >= 810 && utcMins <= 1230; // 13:30 to 20:30 UTC
+  const todayStr = now.toISOString().slice(0, 10);
+  
+  const inFlight = (model.payload.pending || []).filter(p => {
+    if (p.is_radar) return false;
+    const sess = String(p.eligible_fill_session || '').slice(0, 10);
+    return sess === todayStr || (p.decision_durability === 'verified_before_open' && isUsOpen);
+  });
+  
+  const existingPositions = model.payload.positions || [];
+  if (!inFlight.length && !existingPositions.length) return;
+  
+  const symbols = [...new Set([
+    ...inFlight.map(p => p.symbol || p.instrument),
+    ...existingPositions.map(p => p.symbol || p.instrument)
+  ])].filter(Boolean);
+  
+  if (!symbols.length) return;
+  
+  try {
+    const fxRate = 1.355;
+    const quotes = await Promise.all(symbols.map(async sym => {
+      try {
+        const type = ['SPY', 'EFA', 'GSG', 'XLK', 'XLE', 'XLV', 'XLI', 'XLF', 'XLP', 'XLU'].includes(sym) ? 'ETF' : 'Stock';
+        const from = Math.floor((Date.now() - 5 * 86400000) / 1000);
+        const to = Math.floor(Date.now() / 1000);
+        const res = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${type}&tf=1d&from=${from}&to=${to}`);
+        if (!res.ok) return null;
+        const bars = await res.json();
+        if (Array.isArray(bars) && bars.length) {
+          const b = bars[bars.length - 1];
+          return { sym, open: b.open, close: b.close, high: b.high, low: b.low };
+        }
+      } catch (e) {
+        return null;
+      }
+      return null;
+    }));
+    
+    if (reqId !== sequence || book !== selected) return;
+    const quoteMap = Object.fromEntries(quotes.filter(Boolean).map(q => [q.sym, q]));
+    
+    if (inFlight.length) {
+      const riskGbp = BOOKS[selected]?.trade ? 100000 * BOOKS[selected].trade : 1000;
+      const livePositions = inFlight.map(p => {
+        const sym = p.symbol || p.instrument;
+        const q = quoteMap[sym];
+        const entryPx = q ? q.open : (p.entry_price || 100);
+        const lastPx = q ? q.close : entryPx;
+        const dir = (p.direction === 1 || String(p.direction).toUpperCase() === 'LONG') ? 1 : -1;
+        const stopMult = p.stop_atr_multiple || (['v6','v10'].includes(selected) ? 1.5 : 2.5);
+        const atr = p.decision_atr || p.signal_evidence?.stop_atr20 || p.signal_evidence?.decision_atr || (entryPx * 0.025);
+        const stopDist = stopMult * atr;
+        const units = p.units || Math.max(1, Math.round((riskGbp * fxRate) / (stopDist || (entryPx * 0.025))));
+        const pnlUsd = (lastPx - entryPx) * units * dir;
+        const pnlGbp = pnlUsd / fxRate;
+        const stopPx = dir === 1 ? (entryPx - stopDist) : (entryPx + stopDist);
+        return {
+          instrument: sym,
+          symbol: sym,
+          direction: dir === 1 ? 'LONG' : 'SHORT',
+          entry_price: entryPx,
+          last_px: lastPx,
+          stop_price: stopPx,
+          initial_stop: stopPx,
+          units: units,
+          current_risk_gbp: riskGbp,
+          initial_risk_gbp: riskGbp,
+          unrealized_pnl_gbp: pnlGbp,
+          entry_time: `${todayStr}T13:30:00Z`,
+          scheduled_exit_session: p.scheduled_exit_session || p.management_rule || 'After 5 completed sessions',
+          management_rule: p.management_rule || '5-session reversal',
+          signal_rationale: p.signal_rationale || (dir === 1 ? 'Quant momentum / reversal long' : 'Quant momentum / reversal short'),
+          is_live_intraday: true
+        };
+      });
+      model.payload.positions = livePositions;
+    } else if (existingPositions.length) {
+      model.payload.positions = existingPositions.map(pos => {
+        const sym = pos.instrument || pos.symbol;
+        const q = quoteMap[sym];
+        if (!q) return pos;
+        const lastPx = q.close;
+        const dir = String(pos.direction).toUpperCase() === 'SHORT' ? -1 : 1;
+        const entryPx = pos.entry_price || q.open;
+        const units = pos.units || 1;
+        const pnlGbp = ((lastPx - entryPx) * units * dir) / fxRate;
+        return { ...pos, last_px: lastPx, unrealized_pnl_gbp: pnlGbp, is_live_intraday: true };
+      });
+    }
+    
+    if (model.payload.positions.length) {
+      const totalOpenGbp = model.payload.positions.reduce((sum, p) => sum + (p.unrealized_pnl_gbp || 0), 0);
+      model.openPnl = totalOpenGbp;
+      model.dayPnl = totalOpenGbp;
+      model.equity = (model.cash || 100000) + totalOpenGbp;
+      model.pnl = model.equity - 100000;
+      model.hasLiveIntraday = true;
+      set('bookStatus', `Active In-Session · Live P&L: ${money(totalOpenGbp, true)}`);
+      set('countPositions', model.payload.positions.length);
+      render();
+    }
+  } catch (e) {
+    console.warn('enrichLiveIntraday warning:', e);
+  }
 }
 function changeBook(next) {
   if(!Object.hasOwn(BOOKS,next)||(next===book&&model))return;
@@ -282,6 +401,6 @@ for(const button of document.querySelectorAll('[data-panel]')) {
 }
 $('tradeSearch').addEventListener('input',renderPanel);
 $('refreshBook').addEventListener('click',()=>{load();});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){load();}});
-setInterval(()=>{if(!document.hidden){load();}},60000);
+document.addEventListener('visibilitychange',()=>{if(typeof document !== 'undefined' && !document.hidden){load();}});
+setInterval(()=>{if(typeof document !== 'undefined' && !document.hidden){load();}},20000);
 chrome();if(!invalidRequest){load();}
