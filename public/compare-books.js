@@ -10,7 +10,7 @@ async function get(book) {
 
 async function load() {
   $('refreshCompare').disabled = true;
-  const activeBooks = ['v27b', 'v33', 's', 'v30', 'v6', 'v10', 'v24'];
+  const activeBooks = ['v27b', 'v33', 'v30', 'v6', 'v10', 's', 'v24'];
   
   const bookData = await Promise.all(activeBooks.map(async book => {
     const isLegacy = BOOKS[book]?.legacy;
@@ -50,17 +50,19 @@ async function load() {
     }
   }));
 
-  // Order books by capital amount: highest capital shown first
+  // Order books by capital amount: highest GBP-equivalent capital shown first
   bookData.sort((a, b) => {
-    const eqDiff = (b.equity ?? 100000) - (a.equity ?? 100000);
-    if (Math.abs(eqDiff) > 0.01) return eqDiff;
+    const aCap = a.currency === 'USD' ? (a.equity ?? 100000) / 1.355 : (a.equity ?? 100000);
+    const bCap = b.currency === 'USD' ? (b.equity ?? 100000) / 1.355 : (b.equity ?? 100000);
+    const capDiff = bCap - aCap;
+    if (Math.abs(capDiff) > 0.01) return capDiff;
     return (b.pnl ?? 0) - (a.pnl ?? 0);
   });
 
   const cards = bookData.map((d, index) => {
     const money = (val, signed = false) => formatMoney(val, signed, d.currency);
     let rankBadge = '<span class="paper-pill">PAPER ONLY</span>';
-    if (index === 0 && d.equity > 100000) {
+    if (index === 0 && d.equity >= 100000) {
       rankBadge = '<span class="paper-pill" style="background:var(--mint);color:#07090d;font-weight:700">HIGHEST CAPITAL</span>';
     }
 

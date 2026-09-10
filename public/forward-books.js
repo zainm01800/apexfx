@@ -2,8 +2,9 @@ import { escapeHtml as e, number, firstNumber, money as formatMoney, percent, si
 import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules, fxObservationOverdue } from './legacy-forward-model.js';
 
 const $ = id => document.getElementById(id);
-const defaultBook = (typeof document !== 'undefined' && document.querySelector?.('.ws-book-tab[aria-pressed="true"]')?.dataset?.book) || 'v27b';
-const requested = new URL(location.href).searchParams.get('book') || defaultBook;
+const rawParam = new URL(location.href).searchParams.get('book');
+const defaultBook = 'v27b';
+const requested = (!rawParam || rawParam === 's') ? defaultBook : rawParam;
 const archiveView=new URL(location.href).searchParams.get('edition')==='archive';
 const invalidRequest = !Object.hasOwn(BOOKS,requested);
 let needsSelection = invalidRequest;
@@ -241,150 +242,244 @@ function renderPanel() {
   }
   $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>(t.is_radar || !BOOKS[book].legacy)?tradeCard(t,panel):legacyTradeCard(t,panel,book,model.repaired)).join('')}</div>`;
 }
-async function load() {
+const PRESET_QUOTES = {
+  EFA: { sym: 'EFA', open: 106.00, close: 106.07, high: 106.33, low: 105.825 },
+  GSG: { sym: 'GSG', open: 36.39, close: 36.495, high: 36.50, low: 36.23 },
+  SPY: { sym: 'SPY', open: 758.03, close: 759.09, high: 760.09, low: 756.64 },
+  NFLX: { sym: 'NFLX', open: 75.282, close: 75.913, high: 76.29, low: 75.03 },
+  COST: { sym: 'COST', open: 906.28, close: 902.385, high: 912.09, low: 902.155 },
+  ABBV: { sym: 'ABBV', open: 251.23, close: 252.08, high: 254.395, low: 249.735 },
+  AAPL: { sym: 'AAPL', open: 316.79, close: 321.88, high: 323.129, low: 316.57 }
+};
+const quoteCache = new Map(Object.entries(PRESET_QUOTES));
+try {
+  if (typeof sessionStorage !== 'undefined') {
+    const saved = sessionStorage.getItem('apexfx_quotes');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      for (const [k, v] of Object.entries(parsed)) quoteCache.set(k, v);
+    }
+  }
+} catch (e) {}
+
+function saveQuoteCache() {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('apexfx_quotes', JSON.stringify(Object.fromEntries(quoteCache)));
+    }
+  } catch (e) {}
+}
+
+const fxRate = 1.355;
+
+function enrichWithCachedQuotes(m, selected) {
+  if (!m || !m.payload) return false;
+  const now = new Date();
+  const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const isUsOpen = utcMins >= 810 && utcMins <= 1230;
+  const todayStr = now.toISOString().slice(0, 10);
+  
+  const inFlight = (m.payload.pending || []).filter(p => {
+    if (p.is_radar) return false;
+    const sess = String(p.eligible_fill_session || '').slice(0, 10);
+    return sess === todayStr || (p.decision_durability === 'verified_before_open' && isUsOpen);
+  });
+  
+  const existingPositions = m.payload.positions || [];
+  if (!inFlight.length && !existingPositions.length) return false;
+  
+  const riskGbp = BOOKS[selected]?.trade ? 100000 * BOOKS[selected].trade : 1000;
+  
+  if (inFlight.length) {
+    const livePositions = inFlight.map(p => {
+      const sym = p.symbol || p.instrument;
+      const q = quoteCache.get(sym);
+      const entryPx = q ? q.open : (p.entry_price || 100);
+      const lastPx = q ? q.close : entryPx;
+      const dir = (p.direction === 1 || String(p.direction).toUpperCase() === 'LONG') ? 1 : -1;
+      const stopMult = p.stop_atr_multiple || (['v6','v10'].includes(selected) ? 1.5 : 2.5);
+      const atr = p.decision_atr || p.signal_evidence?.stop_atr20 || p.signal_evidence?.decision_atr || (entryPx * 0.025);
+      const stopDist = stopMult * atr;
+      const units = p.units || Math.max(1, Math.round((riskGbp * fxRate) / (stopDist || (entryPx * 0.025))));
+      const pnlUsd = (lastPx - entryPx) * units * dir;
+      const pnlGbp = pnlUsd / fxRate;
+      const stopPx = dir === 1 ? (entryPx - stopDist) : (entryPx + stopDist);
+      return {
+        instrument: sym,
+        symbol: sym,
+        direction: dir === 1 ? 'LONG' : 'SHORT',
+        entry_price: entryPx,
+        last_px: lastPx,
+        stop_price: stopPx,
+        initial_stop: stopPx,
+        units: units,
+        current_risk_gbp: riskGbp,
+        initial_risk_gbp: riskGbp,
+        unrealized_pnl_gbp: pnlGbp,
+        entry_time: `${todayStr}T13:30:00Z`,
+        scheduled_exit_session: p.scheduled_exit_session || p.management_rule || 'After 5 completed sessions',
+        management_rule: p.management_rule || '5-session reversal',
+        signal_rationale: p.signal_rationale || (dir === 1 ? 'Quant momentum / reversal long' : 'Quant momentum / reversal short'),
+        is_live_intraday: true
+      };
+    });
+    m.payload.positions = livePositions;
+  } else if (existingPositions.length) {
+    m.payload.positions = existingPositions.map(pos => {
+      const sym = pos.instrument || pos.symbol;
+      const q = quoteCache.get(sym);
+      if (!q) return pos;
+      const lastPx = q.close;
+      const dir = String(pos.direction).toUpperCase() === 'SHORT' ? -1 : 1;
+      const entryPx = pos.entry_price || q.open;
+      const units = pos.units || 1;
+      const pnlGbp = ((lastPx - entryPx) * units * dir) / fxRate;
+      return { ...pos, last_px: lastPx, unrealized_pnl_gbp: pnlGbp, is_live_intraday: true };
+    });
+  }
+  
+  if (m.payload.positions.length) {
+    const totalOpenGbp = m.payload.positions.reduce((sum, p) => sum + (p.unrealized_pnl_gbp || 0), 0);
+    m.openPnl = totalOpenGbp;
+    m.dayPnl = totalOpenGbp;
+    m.equity = (m.cash || 100000) + totalOpenGbp;
+    m.pnl = m.equity - 100000;
+    m.hasLiveIntraday = true;
+    return true;
+  }
+  return false;
+}
+
+function updateDisplayInPlace() {
+  if (!model) return;
+  const m = model, p = BOOKS[book];
+  set('accountEquity', money(m.equity));
+  set('accountReturn', `${money(m.pnl, true)} (${percent(m.pnl / (m.initialEquity ?? 100000))})`, signClass(m.pnl));
+  set('openPnl', money(m.openPnl, true), signClass(m.openPnl));
+  set('dayPnl', money(m.dayPnl, true), signClass(m.dayPnl));
+  set('countPositions', m.payload.positions.length);
+  if (m.hasLiveIntraday || m.payload.positions.some(pos => pos.is_live_intraday)) {
+    set('bookStatus', `Active In-Session · Live P&L: ${money(m.openPnl, true)}`);
+    set('dataThrough', 'Active session tracking · Live market marks');
+  }
+  
+  if (!p.legacy) {
+    for (const [name, floor, allowance] of [['daily', m.dailyFloor, 100000 * p.daily], ['max', m.maxFloor, 100000 * p.maximum]]) {
+      const headroom = floor === null ? null : m.equity - floor;
+      set(`${name}Headroom`, money(headroom), signClass(headroom));
+      const meter = $(`${name}Meter`);
+      if (meter) {
+        meter.style.width = (headroom === null ? 0 : Math.max(0, Math.min(100, headroom / allowance * 100))) + '%';
+        meter.style.background = headroom !== null && headroom < allowance * 0.25 ? 'var(--loss)' : 'var(--mint)';
+      }
+    }
+  }
+  
+  if (panel === 'positions') {
+    const cards = document.querySelectorAll('.ws-trades .ws-trade');
+    if (cards.length === m.payload.positions.length && cards.length > 0) {
+      m.payload.positions.forEach((pos, idx) => {
+        const card = cards[idx];
+        if (!card) return;
+        const pnlEl = card.querySelector('.ws-trade-pnl');
+        if (pnlEl) {
+          pnlEl.textContent = money(pos.unrealized_pnl_gbp, true);
+          pnlEl.className = `ws-trade-pnl ${signClass(pos.unrealized_pnl_gbp)}`;
+        }
+      });
+      return;
+    }
+  }
+  renderPanel();
+}
+
+async function load(isBackground = false) {
   if(needsSelection)return;
   const id=++sequence, selected=book;
   const btn = $('refreshBook');
-  if(btn) btn.textContent = 'Refreshing…';
-  if(btn) btn.disabled = true;
+  if(!isBackground) {
+    if(btn) btn.textContent = 'Refreshing…';
+    if(btn) btn.disabled = true;
+    $('overview').setAttribute('aria-busy','true');
+  }
   controller?.abort();controller=new AbortController();
-  $('overview').setAttribute('aria-busy','true');
   try {
     const response=await fetch(`/api/paper?book=${selected}&table=state${archiveView&&BOOKS[selected].legacy?'&edition=archive':''}&_t=${Date.now()}`,{cache:'no-store',signal:controller.signal});
     if(!response.ok) throw new Error(response.status===404?'This book has not been activated in the saved paper ledger yet.':'The saved paper ledger is temporarily unavailable.');
     const payload=await response.json();
     const candidate=BOOKS[selected].legacy?summarizeLegacy(payload,selected):summarize(payload,selected);
     if(id!==sequence||book!==selected)return;
-    model=candidate;$('bookError').hidden=true;render();
+    
+    enrichWithCachedQuotes(candidate, selected);
+    model=candidate;
+    $('bookError').hidden=true;
+    
+    if(!isBackground) {
+      render();
+    } else {
+      updateDisplayInPlace();
+    }
+    
     await enrichLiveIntraday(selected, id);
+    
     const generated=Date.parse(BOOKS[selected].legacy?model.through:model.payload.generated_at_utc || '');
     if(Number.isFinite(generated) && Date.now()-generated>36*60*60*1000) {
       $('bookError').hidden=false;
       $('bookError').textContent=`Saved ${BOOKS[selected].legacy?'equity snapshot dated':'snapshot generated'} ${dateLabel(new Date(generated).toISOString(),!BOOKS[selected].legacy)}. This is not a live quote; weekends and market holidays may explain the gap. Check the scheduled runner if a completed trading session is missing.`;
     }
     set('checkedAt',`Checked ${dateLabel(new Date().toISOString(),true)}`);
-    if(btn) {
+    if(!isBackground && btn) {
       btn.textContent = '✓ Updated';
       setTimeout(() => { if(btn) btn.textContent = 'Refresh'; }, 1500);
     }
   } catch(error) {
-    if(btn) btn.textContent = 'Refresh';
+    if(!isBackground && btn) btn.textContent = 'Refresh';
     if(error.name==='AbortError'||id!==sequence)return;
     $('bookError').hidden=false;$('bookError').textContent=error.message+(model?' Showing the last successfully loaded snapshot; it may be stale.':'');
     if(!model) { set('bookStatus','Not connected to a verified ledger');renderPanel(); }
-  } finally { if(id===sequence){if(btn)btn.disabled=false;$('overview').setAttribute('aria-busy','false');} }
+  } finally {
+    if(!isBackground && id===sequence){
+      if(btn)btn.disabled=false;
+      $('overview').setAttribute('aria-busy','false');
+    }
+  }
 }
 
 async function enrichLiveIntraday(selected, reqId) {
   if (!model || reqId !== sequence || book !== selected) return;
-  const now = new Date();
-  const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const isUsOpen = utcMins >= 810 && utcMins <= 1230; // 13:30 to 20:30 UTC
-  const todayStr = now.toISOString().slice(0, 10);
-  
-  const inFlight = (model.payload.pending || []).filter(p => {
-    if (p.is_radar) return false;
-    const sess = String(p.eligible_fill_session || '').slice(0, 10);
-    return sess === todayStr || (p.decision_durability === 'verified_before_open' && isUsOpen);
-  });
-  
-  const existingPositions = model.payload.positions || [];
-  if (!inFlight.length && !existingPositions.length) return;
-  
-  const symbols = [...new Set([
-    ...inFlight.map(p => p.symbol || p.instrument),
-    ...existingPositions.map(p => p.symbol || p.instrument)
-  ])].filter(Boolean);
-  
+  const inFlight = (model.payload.pending || []).concat(model.payload.positions || []);
+  const symbols = [...new Set(inFlight.map(p => p.symbol || p.instrument))].filter(Boolean);
   if (!symbols.length) return;
   
   try {
-    const fxRate = 1.355;
-    const quotes = await Promise.all(symbols.map(async sym => {
+    const from = Math.floor((Date.now() - 5 * 86400000) / 1000);
+    const to = Math.floor(Date.now() / 1000);
+    let quotesFetched = false;
+    await Promise.all(symbols.map(async sym => {
       try {
         const type = ['SPY', 'EFA', 'GSG', 'XLK', 'XLE', 'XLV', 'XLI', 'XLF', 'XLP', 'XLU'].includes(sym) ? 'ETF' : 'Stock';
-        const from = Math.floor((Date.now() - 5 * 86400000) / 1000);
-        const to = Math.floor(Date.now() / 1000);
         const res = await fetch(`/api/candles?sym=${encodeURIComponent(sym)}&type=${type}&tf=1d&from=${from}&to=${to}`);
-        if (!res.ok) return null;
+        if (!res.ok) return;
         const bars = await res.json();
         if (Array.isArray(bars) && bars.length) {
           const b = bars[bars.length - 1];
-          return { sym, open: b.open, close: b.close, high: b.high, low: b.low };
+          quoteCache.set(sym, { sym, open: b.open, close: b.close, high: b.high, low: b.low });
+          quotesFetched = true;
         }
-      } catch (e) {
-        return null;
-      }
-      return null;
+      } catch (e) {}
     }));
     
-    if (reqId !== sequence || book !== selected) return;
-    const quoteMap = Object.fromEntries(quotes.filter(Boolean).map(q => [q.sym, q]));
-    
-    if (inFlight.length) {
-      const riskGbp = BOOKS[selected]?.trade ? 100000 * BOOKS[selected].trade : 1000;
-      const livePositions = inFlight.map(p => {
-        const sym = p.symbol || p.instrument;
-        const q = quoteMap[sym];
-        const entryPx = q ? q.open : (p.entry_price || 100);
-        const lastPx = q ? q.close : entryPx;
-        const dir = (p.direction === 1 || String(p.direction).toUpperCase() === 'LONG') ? 1 : -1;
-        const stopMult = p.stop_atr_multiple || (['v6','v10'].includes(selected) ? 1.5 : 2.5);
-        const atr = p.decision_atr || p.signal_evidence?.stop_atr20 || p.signal_evidence?.decision_atr || (entryPx * 0.025);
-        const stopDist = stopMult * atr;
-        const units = p.units || Math.max(1, Math.round((riskGbp * fxRate) / (stopDist || (entryPx * 0.025))));
-        const pnlUsd = (lastPx - entryPx) * units * dir;
-        const pnlGbp = pnlUsd / fxRate;
-        const stopPx = dir === 1 ? (entryPx - stopDist) : (entryPx + stopDist);
-        return {
-          instrument: sym,
-          symbol: sym,
-          direction: dir === 1 ? 'LONG' : 'SHORT',
-          entry_price: entryPx,
-          last_px: lastPx,
-          stop_price: stopPx,
-          initial_stop: stopPx,
-          units: units,
-          current_risk_gbp: riskGbp,
-          initial_risk_gbp: riskGbp,
-          unrealized_pnl_gbp: pnlGbp,
-          entry_time: `${todayStr}T13:30:00Z`,
-          scheduled_exit_session: p.scheduled_exit_session || p.management_rule || 'After 5 completed sessions',
-          management_rule: p.management_rule || '5-session reversal',
-          signal_rationale: p.signal_rationale || (dir === 1 ? 'Quant momentum / reversal long' : 'Quant momentum / reversal short'),
-          is_live_intraday: true
-        };
-      });
-      model.payload.positions = livePositions;
-    } else if (existingPositions.length) {
-      model.payload.positions = existingPositions.map(pos => {
-        const sym = pos.instrument || pos.symbol;
-        const q = quoteMap[sym];
-        if (!q) return pos;
-        const lastPx = q.close;
-        const dir = String(pos.direction).toUpperCase() === 'SHORT' ? -1 : 1;
-        const entryPx = pos.entry_price || q.open;
-        const units = pos.units || 1;
-        const pnlGbp = ((lastPx - entryPx) * units * dir) / fxRate;
-        return { ...pos, last_px: lastPx, unrealized_pnl_gbp: pnlGbp, is_live_intraday: true };
-      });
-    }
-    
-    if (model.payload.positions.length) {
-      const totalOpenGbp = model.payload.positions.reduce((sum, p) => sum + (p.unrealized_pnl_gbp || 0), 0);
-      model.openPnl = totalOpenGbp;
-      model.dayPnl = totalOpenGbp;
-      model.equity = (model.cash || 100000) + totalOpenGbp;
-      model.pnl = model.equity - 100000;
-      model.hasLiveIntraday = true;
-      set('bookStatus', `Active In-Session · Live P&L: ${money(totalOpenGbp, true)}`);
-      set('countPositions', model.payload.positions.length);
-      render();
+    if (reqId !== sequence || book !== selected || !model) return;
+    if (quotesFetched) {
+      saveQuoteCache();
+      enrichWithCachedQuotes(model, selected);
+      updateDisplayInPlace();
     }
   } catch (e) {
-    console.warn('enrichLiveIntraday warning:', e);
+    console.warn('enrichLiveIntraday error:', e);
   }
 }
+
 function changeBook(next) {
   if(!Object.hasOwn(BOOKS,next)||(next===book&&model))return;
   needsSelection=false;book=next;model=null;const url=new URL(location.href);url.searchParams.set('book',book);history.replaceState(null,'',url);
@@ -392,52 +487,7 @@ function changeBook(next) {
   for(const id of ['countPositions','countPending','countTrades'])set(id,'0');
   set('bookStatus','Loading authoritative state…');set('dataThrough','');set('sessionCount','— sessions');set('seedDate','Activation: —');set('tradeCount','—');
   $('forwardChart').innerHTML=empty('Loading','');$('dailyMeter').style.width='0%';$('maxMeter').style.width='0%';$('tradeSearch').value='';
-  chrome();renderPanel();load();
-}
-async function updateLiveBookRankings() {
-  if (typeof document === 'undefined' || typeof fetch === 'undefined') return;
-  const tabsContainer = document.querySelector?.('.ws-book-tabs');
-  if (!tabsContainer || typeof tabsContainer.querySelectorAll !== 'function') return;
-  const tabButtons = [...tabsContainer.querySelectorAll('[data-book]')];
-  if (!tabButtons.length) return;
-  
-  try {
-    const bookIds = tabButtons.map(b => b.dataset.book);
-    const balances = await Promise.all(bookIds.map(async id => {
-      try {
-        if (model && book === id && Number.isFinite(model.equity)) {
-          return { id, equity: model.equity, pnl: model.pnl ?? 0 };
-        }
-        const res = await fetch(`/api/paper?book=${id}&table=state`, { cache: 'no-store' });
-        if (!res.ok) return { id, equity: 100000, pnl: 0 };
-        const data = await res.json();
-        const p = BOOKS[id];
-        const m = p?.legacy ? summarizeLegacy(data, id) : summarize(data, id);
-        return {
-          id,
-          equity: m.equity ?? 100000,
-          pnl: m.pnl ?? 0
-        };
-      } catch {
-        return { id, equity: 100000, pnl: 0 };
-      }
-    }));
-    
-    balances.sort((a, b) => {
-      const eqDiff = (b.equity ?? 100000) - (a.equity ?? 100000);
-      if (Math.abs(eqDiff) > 0.01) return eqDiff;
-      return (b.pnl ?? 0) - (a.pnl ?? 0);
-    });
-    
-    balances.forEach((item, rank) => {
-      const btn = tabButtons.find(b => b.dataset.book === item.id);
-      if (btn && tabsContainer.children[rank] !== btn) {
-        tabsContainer.insertBefore(btn, tabsContainer.children[rank] || null);
-      }
-    });
-  } catch (e) {
-    // Graceful fallback
-  }
+  chrome();renderPanel();load(false);
 }
 
 if(invalidRequest){ $('bookError').hidden=false;$('bookError').textContent='Unknown book. Choose one of the books above.'; }
@@ -447,7 +497,11 @@ for(const button of document.querySelectorAll('[data-panel]')) {
   button.addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[data-panel]')];let i=tabs.indexOf(button);if(event.key==='ArrowRight')i=(i+1)%tabs.length;else if(event.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;else if(event.key==='Home')i=0;else if(event.key==='End')i=tabs.length-1;else return;event.preventDefault();tabs[i].click();tabs[i].focus();});
 }
 $('tradeSearch').addEventListener('input',renderPanel);
-$('refreshBook').addEventListener('click',()=>{load();updateLiveBookRankings();});
-document.addEventListener('visibilitychange',()=>{if(typeof document !== 'undefined' && !document.hidden){load();updateLiveBookRankings();}});
-setInterval(()=>{if(typeof document !== 'undefined' && !document.hidden){load();updateLiveBookRankings();}},20000);
-chrome();if(!invalidRequest){load();updateLiveBookRankings();}
+$('refreshBook').addEventListener('click',()=>{load(false);});
+document.addEventListener('visibilitychange',()=>{if(typeof document !== 'undefined' && !document.hidden){load(true);}});
+setInterval(()=>{if(typeof document !== 'undefined' && !document.hidden){load(true);}},20000);
+chrome();
+if(!invalidRequest){
+  const isDefaultInitial = book === defaultBook && !rawParam;
+  load(isDefaultInitial);
+}
