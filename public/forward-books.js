@@ -2,11 +2,12 @@ import { escapeHtml as e, number, firstNumber, money as formatMoney, percent, si
 import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules, fxObservationOverdue } from './legacy-forward-model.js';
 
 const $ = id => document.getElementById(id);
-const requested = new URL(location.href).searchParams.get('book') || 's';
+const defaultBook = (typeof document !== 'undefined' && document.querySelector?.('.ws-book-tab[aria-pressed="true"]')?.dataset?.book) || 'v27b';
+const requested = new URL(location.href).searchParams.get('book') || defaultBook;
 const archiveView=new URL(location.href).searchParams.get('edition')==='archive';
 const invalidRequest = !Object.hasOwn(BOOKS,requested);
 let needsSelection = invalidRequest;
-let book = Object.hasOwn(BOOKS,requested) ? requested : 's';
+let book = Object.hasOwn(BOOKS,requested) ? requested : defaultBook;
 const money=(value,signed=false)=>formatMoney(value,signed,BOOKS[book].currency);
 let panel = 'positions', model = null, controller = null, sequence = 0;
 const set = (id,value,cls) => { const el=$(id); if (!el) return; el.textContent=value; if(cls !== undefined) el.className=cls; };
@@ -393,6 +394,52 @@ function changeBook(next) {
   $('forwardChart').innerHTML=empty('Loading','');$('dailyMeter').style.width='0%';$('maxMeter').style.width='0%';$('tradeSearch').value='';
   chrome();renderPanel();load();
 }
+async function updateLiveBookRankings() {
+  if (typeof document === 'undefined' || typeof fetch === 'undefined') return;
+  const tabsContainer = document.querySelector?.('.ws-book-tabs');
+  if (!tabsContainer || typeof tabsContainer.querySelectorAll !== 'function') return;
+  const tabButtons = [...tabsContainer.querySelectorAll('[data-book]')];
+  if (!tabButtons.length) return;
+  
+  try {
+    const bookIds = tabButtons.map(b => b.dataset.book);
+    const balances = await Promise.all(bookIds.map(async id => {
+      try {
+        if (model && book === id && Number.isFinite(model.equity)) {
+          return { id, equity: model.equity, pnl: model.pnl ?? 0 };
+        }
+        const res = await fetch(`/api/paper?book=${id}&table=state`, { cache: 'no-store' });
+        if (!res.ok) return { id, equity: 100000, pnl: 0 };
+        const data = await res.json();
+        const p = BOOKS[id];
+        const m = p?.legacy ? summarizeLegacy(data, id) : summarize(data, id);
+        return {
+          id,
+          equity: m.equity ?? 100000,
+          pnl: m.pnl ?? 0
+        };
+      } catch {
+        return { id, equity: 100000, pnl: 0 };
+      }
+    }));
+    
+    balances.sort((a, b) => {
+      const eqDiff = (b.equity ?? 100000) - (a.equity ?? 100000);
+      if (Math.abs(eqDiff) > 0.01) return eqDiff;
+      return (b.pnl ?? 0) - (a.pnl ?? 0);
+    });
+    
+    balances.forEach((item, rank) => {
+      const btn = tabButtons.find(b => b.dataset.book === item.id);
+      if (btn && tabsContainer.children[rank] !== btn) {
+        tabsContainer.insertBefore(btn, tabsContainer.children[rank] || null);
+      }
+    });
+  } catch (e) {
+    // Graceful fallback
+  }
+}
+
 if(invalidRequest){ $('bookError').hidden=false;$('bookError').textContent='Unknown book. Choose one of the books above.'; }
 for(const button of document.querySelectorAll('[data-book]'))button.addEventListener('click',()=>changeBook(button.dataset.book));
 for(const button of document.querySelectorAll('[data-panel]')) {
@@ -400,7 +447,7 @@ for(const button of document.querySelectorAll('[data-panel]')) {
   button.addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[data-panel]')];let i=tabs.indexOf(button);if(event.key==='ArrowRight')i=(i+1)%tabs.length;else if(event.key==='ArrowLeft')i=(i+tabs.length-1)%tabs.length;else if(event.key==='Home')i=0;else if(event.key==='End')i=tabs.length-1;else return;event.preventDefault();tabs[i].click();tabs[i].focus();});
 }
 $('tradeSearch').addEventListener('input',renderPanel);
-$('refreshBook').addEventListener('click',()=>{load();});
-document.addEventListener('visibilitychange',()=>{if(typeof document !== 'undefined' && !document.hidden){load();}});
-setInterval(()=>{if(typeof document !== 'undefined' && !document.hidden){load();}},20000);
-chrome();if(!invalidRequest){load();}
+$('refreshBook').addEventListener('click',()=>{load();updateLiveBookRankings();});
+document.addEventListener('visibilitychange',()=>{if(typeof document !== 'undefined' && !document.hidden){load();updateLiveBookRankings();}});
+setInterval(()=>{if(typeof document !== 'undefined' && !document.hidden){load();updateLiveBookRankings();}},20000);
+chrome();if(!invalidRequest){load();updateLiveBookRankings();}
