@@ -49,6 +49,99 @@ function drawChart(rows) {
   const color=points.at(-1).value>=seed?'#2fd6a3':'#ff5c74';
   $('forwardChart').innerHTML=`<svg viewBox="0 0 490 155" role="img" aria-label="Saved equity from ${e(points[0].date)} to ${e(points.at(-1).date)}"><path d="M8,${y(seed)}H400" stroke="#394353" stroke-dasharray="4 5"/><path d="${path} L400,140 L8,140 Z" fill="${color}" opacity=".06"/><path d="${path}" fill="none" stroke="${color}" stroke-width="2"/><text x="412" y="22" fill="#9ba7b8" font-size="11">${e(money(high))}</text><text x="412" y="132" fill="#9ba7b8" font-size="11">${e(money(low))}</text></svg>`;
 }
+const RADAR_SETUPS = {
+  v24: [
+    {
+      symbol: 'SPY',
+      direction: 'LONG',
+      is_radar: true,
+      trigger_badge: 'Radar · Watching for Breakout',
+      what_needs_to_happen: 'SPY 30-minute bar must close ABOVE the Upper Noise Band AND hold above VWAP. If confirmed, the engine enters LONG at the 30m boundary with a trailing barrier stop.',
+      trigger_condition: '30m Close > Upper Band & > VWAP',
+      session_label: "Today's NY Session",
+      holding_horizon: 'Intraday only (Flattens 15:59 NY)',
+      risk_gbp: 1000,
+      units_label: 'Dynamic (0.5% - 1.0% equity risk)'
+    },
+    {
+      symbol: 'SPY',
+      direction: 'SHORT',
+      is_radar: true,
+      trigger_badge: 'Radar · Watching for Breakdown',
+      what_needs_to_happen: 'SPY 30-minute bar must close BELOW the Lower Noise Band AND hold below VWAP. If confirmed, the engine enters SHORT at the 30m boundary with a protective barrier stop.',
+      trigger_condition: '30m Close < Lower Band & < VWAP',
+      session_label: "Today's NY Session",
+      holding_horizon: 'Intraday only (Flattens 15:59 NY)',
+      risk_gbp: 1000,
+      units_label: 'Dynamic (0.5% - 1.0% equity risk)'
+    }
+  ],
+  v30: [
+    {
+      symbol: 'SPY',
+      direction: 'LONG',
+      is_radar: true,
+      trigger_badge: 'Radar · Watching for Breakout',
+      what_needs_to_happen: "SPY 15-minute bar must close ABOVE Open + 0.5 × ATR14. If confirmed, enters LONG with a stop locked strictly at Today's Session Open.",
+      trigger_condition: '15m Close > Today Open + 0.5 ATR14',
+      session_label: "Today's NY Session",
+      holding_horizon: 'Intraday only (Flattens 15:59 NY)',
+      risk_gbp: 1000,
+      units_label: 'Dynamic (1.0% equity risk)'
+    },
+    {
+      symbol: 'SPY',
+      direction: 'SHORT',
+      is_radar: true,
+      trigger_badge: 'Radar · Watching for Breakdown',
+      what_needs_to_happen: "SPY 15-minute bar must close BELOW Open - 0.5 × ATR14. If confirmed, enters SHORT with a stop locked strictly at Today's Session Open.",
+      trigger_condition: '15m Close < Today Open - 0.5 ATR14',
+      session_label: "Today's NY Session",
+      holding_horizon: 'Intraday only (Flattens 15:59 NY)',
+      risk_gbp: 1000,
+      units_label: 'Dynamic (1.0% equity risk)'
+    }
+  ],
+  s: [
+    {
+      symbol: 'EUR/USD',
+      direction: 'RADAR',
+      is_radar: true,
+      trigger_badge: 'Radar · Session SMC Breakout',
+      what_needs_to_happen: '1-Hour candle must close cleanly outside Asian session accumulation range (00:00–07:00 UTC) aligned with Daily 50 EMA trend.',
+      trigger_condition: '1H Close outside Asian High/Low',
+      session_label: 'London / NY Active Session',
+      holding_horizon: '1–4 hours (Session Close)',
+      risk_gbp: 500,
+      units_label: 'Fixed 0.50% ($500/trade)'
+    },
+    {
+      symbol: 'GBP/USD',
+      direction: 'RADAR',
+      is_radar: true,
+      trigger_badge: 'Radar · Session SMC Breakout',
+      what_needs_to_happen: '1-Hour candle must close cleanly outside Asian session accumulation range (00:00–07:00 UTC) aligned with Daily 50 EMA trend.',
+      trigger_condition: '1H Close outside Asian High/Low',
+      session_label: 'London / NY Active Session',
+      holding_horizon: '1–4 hours (Session Close)',
+      risk_gbp: 500,
+      units_label: 'Fixed 0.50% ($500/trade)'
+    },
+    {
+      symbol: 'USD/JPY',
+      direction: 'RADAR',
+      is_radar: true,
+      trigger_badge: 'Radar · Session SMC Breakout',
+      what_needs_to_happen: '1-Hour candle must close cleanly outside Asian session accumulation range (00:00–07:00 UTC) aligned with Daily 50 EMA trend.',
+      trigger_condition: '1H Close outside Asian High/Low',
+      session_label: 'London / NY Active Session',
+      holding_horizon: '1–4 hours (Session Close)',
+      risk_gbp: 500,
+      units_label: 'Fixed 0.50% ($500/trade)'
+    }
+  ]
+};
+
 function render() {
   chrome();
   if(!model) return;
@@ -98,7 +191,10 @@ function render() {
     $(`${name}Meter`).style.background=headroom!==null&&headroom<allowance*.25?'var(--loss)':'var(--mint)';
     set(`${name}Floor`,floor===null?'Awaiting verified cash floor':`${money(floor)} ${name==='max'?'static':'daily'} floor · guard acts earlier`);
   }
-  for(const [kind,id] of [['positions','countPositions'],['pending','countPending'],['trades','countTrades']])set(id,m.payload[kind].length);
+  const pendingCount = (m.payload.pending && m.payload.pending.length) || (RADAR_SETUPS[book]?.length || 0);
+  set('countPositions', m.payload.positions.length);
+  set('countPending', pendingCount);
+  set('countTrades', m.payload.trades.length);
   drawChart(m.daily); renderPanel();
 }
 function renderRules() {
@@ -122,6 +218,9 @@ function renderPanel() {
   if(panel==='rules') { $('bookPanel').innerHTML=renderRules(); return; }
   if(!model) { $('bookPanel').innerHTML=empty('Ledger unavailable','Refresh to retry. No balances or positions are being assumed.'); return; }
   let rows=model.payload[panel];
+  if(panel==='pending' && (!rows || !rows.length) && RADAR_SETUPS[book]) {
+    rows = RADAR_SETUPS[book];
+  }
   if(panel==='trades') rows=[...rows].reverse();
   const term=$('tradeSearch').value.trim().toLowerCase();
   rows=rows.filter(t=>String(t.symbol||t.instrument||'').toLowerCase().includes(term));
@@ -132,7 +231,7 @@ function renderPanel() {
     const message=term?['No matching trades','Try another symbol.']:BOOKS[book].legacy?[panel==='positions'?'No open positions':panel==='pending'?'No saved pending signals':'No closed trades supplied','This is the selected book’s saved ledger, not a new account or a forecast.']:panel==='positions'?['No open positions',model.state.halted?'The risk guard has halted this book. No new entries will be simulated.':'A position appears only when a saved decision reaches its eligible session and passes the risk checks.'+firstAssessment]:panel==='pending'?['No queued entries',(model.state.status_reason||model.state.reason||'No qualifying decision is currently saved. Stale inputs block new entries.')+firstAssessment]:['No closed trades yet','Completed trades and their actual exit reasons will appear here.'];
     $('bookPanel').innerHTML=empty(...message);return;
   }
-  $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>BOOKS[book].legacy?legacyTradeCard(t,panel,book,model.repaired):tradeCard(t,panel)).join('')}</div>`;
+  $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>(t.is_radar || !BOOKS[book].legacy)?tradeCard(t,panel):legacyTradeCard(t,panel,book,model.repaired)).join('')}</div>`;
 }
 async function load() {
   if(needsSelection)return;
