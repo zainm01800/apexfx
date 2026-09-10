@@ -4,7 +4,7 @@ import { BOOKS, LEGACY_AUDIT, summarizeLegacy, legacyTradeCard, legacyRules, fxO
 const $ = id => document.getElementById(id);
 const rawParam = new URL(location.href).searchParams.get('book');
 const defaultBook = 'v27b';
-const requested = (!rawParam || rawParam === 's') ? defaultBook : rawParam;
+const requested = rawParam || defaultBook;
 const archiveView=new URL(location.href).searchParams.get('edition')==='archive';
 const invalidRequest = !Object.hasOwn(BOOKS,requested);
 let needsSelection = invalidRequest;
@@ -118,7 +118,7 @@ const RADAR_SETUPS = {
       session_label: 'London / NY Active Session',
       holding_horizon: '1–4 hours (Session Close)',
       risk_gbp: 500,
-      units_label: 'Fixed 0.50% ($500/trade)'
+      units_label: 'Fixed 0.50% (£500/trade)'
     },
     {
       symbol: 'GBP/USD',
@@ -130,7 +130,7 @@ const RADAR_SETUPS = {
       session_label: 'London / NY Active Session',
       holding_horizon: '1–4 hours (Session Close)',
       risk_gbp: 500,
-      units_label: 'Fixed 0.50% ($500/trade)'
+      units_label: 'Fixed 0.50% (£500/trade)'
     },
     {
       symbol: 'USD/JPY',
@@ -142,7 +142,7 @@ const RADAR_SETUPS = {
       session_label: 'London / NY Active Session',
       holding_horizon: '1–4 hours (Session Close)',
       risk_gbp: 500,
-      units_label: 'Fixed 0.50% ($500/trade)'
+      units_label: 'Fixed 0.50% (£500/trade)'
     }
   ]
 };

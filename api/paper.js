@@ -91,6 +91,10 @@ async function repairedRequest(book, table, limit, archive) {
     p.metadata.initial_equity!==100000||p.metadata.paper_only!==true||p.metadata.broker_enabled!==false||
     !COLLECTIONS.every(k=>isRows(p[k])))throw new DataError();
   if(!archive&&(p.schema_version!==2||p.metadata.accounting_version!=='quote_cash_v2'||p.state?.book_id!==book))throw new DataError();
+  if (book === 's') {
+    p.metadata = { ...p.metadata, currency: 'GBP', account_currency: 'GBP' };
+    if (p.state) p.state = { ...p.state, currency: 'GBP', account_currency: 'GBP' };
+  }
   return project(archive?{...p,metadata:{...p.metadata,archived:true}}:p,table,limit);
 }
 

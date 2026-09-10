@@ -6,7 +6,7 @@ export const BOOKS = Object.freeze({
   b:{name:'Book B',label:'252-day + Spill50',currency:'GBP',legacy:true},
   c:{name:'Book C',label:'Multi-horizon trend',currency:'GBP',legacy:true},
   r:{name:'Book R',label:'Monthly ETF momentum',currency:'USD',legacy:true},
-  s:{name:'Book S',label:'Session SMC',currency:'USD',legacy:true},
+  s:{name:'Book S',label:'Session SMC',currency:'GBP',legacy:true},
   f:{name:'Book F',label:'Prop shield',currency:'USD',legacy:true},
 });
 // Dated engineering findings, not inferred from a successful fetch or fresh timestamp.
@@ -22,7 +22,8 @@ export const LEGACY_AUDIT = Object.freeze({
 const rows = v=>Array.isArray(v)&&v.every(x=>x&&typeof x==='object'&&!Array.isArray(x));
 export function summarizeLegacy(payload,book) {
   const p=BOOKS[book],meta=payload?.metadata;
-  if(!p?.legacy||payload?.book_id!==book||meta?.book_id!==book||meta.account_currency!==p.currency||meta.paper_only!==true||meta.broker_enabled!==false||!['daily','positions','trades','pending'].every(k=>rows(payload[k])))throw Error('The saved ledger does not match this paper book.');
+  const currencyMatch = book === 's' ? ['GBP','USD'].includes(meta?.account_currency) : meta?.account_currency === p.currency;
+  if(!p?.legacy||payload?.book_id!==book||meta?.book_id!==book||!currencyMatch||meta.paper_only!==true||meta.broker_enabled!==false||!['daily','positions','trades','pending'].every(k=>rows(payload[k])))throw Error('The saved ledger does not match this paper book.');
   const daily=[...payload.daily].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const latest=daily.at(-1)||{},extra=latest.state_extra||{};
   const equity=n(latest.equity),cash=n(latest.cash),initialEquity=n(meta.initial_equity,extra.initial_equity);
