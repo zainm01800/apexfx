@@ -112,7 +112,9 @@ def _flatten_yfinance(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
     return frame.copy()
 
 
-def normalize_symbol_frame(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
+def normalize_symbol_frame(
+    frame: pd.DataFrame, symbol: str, latest: Any | None = None
+) -> pd.DataFrame:
     raw = _flatten_yfinance(frame, symbol)
     by_name = {str(column).casefold(): column for column in raw.columns}
     missing = sorted(set(PRICE_COLUMNS) - set(by_name))
@@ -129,6 +131,14 @@ def normalize_symbol_frame(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
     output = output.sort_index(kind="stable")
     if output.index.has_duplicates:
         raise DataUnavailable(f"{symbol}: duplicate daily session")
+    if latest is not None:
+        latest_stamp = pd.Timestamp(latest).normalize()
+        if latest_stamp.tzinfo is not None:
+            latest_stamp = latest_stamp.tz_localize(None)
+        output = output.loc[output.index <= latest_stamp]
+    all_nan = output[list(PRICE_COLUMNS)].isna().all(axis=1)
+    if all_nan.any():
+        output = output.loc[~all_nan]
     values = output.loc[:, PRICE_COLUMNS].to_numpy(float)
     if not np.isfinite(values).all() or (values <= 0).any():
         raise DataUnavailable(f"{symbol}: non-finite or non-positive OHLC")
@@ -153,7 +163,7 @@ def validate_panel(
         raise DataUnavailable("XNYS calendar did not provide enough indicator history")
     checked: dict[str, pd.DataFrame] = {}
     for symbol in SYMBOLS:
-        frame = normalize_symbol_frame(raw[symbol], symbol)
+        frame = normalize_symbol_frame(raw[symbol], symbol, latest=latest_label)
         missing = expected.difference(frame.index)
         if len(missing):
             preview = ", ".join(iso_date(day) for day in missing[:3])

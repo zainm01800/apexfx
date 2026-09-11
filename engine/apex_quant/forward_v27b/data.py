@@ -54,7 +54,7 @@ def fetch_market(now=None):
     def price(symbol):
         raw=yf.Ticker(symbol).history(start=start,end=end,interval="1d",auto_adjust=True,
                         actions=False,repair=False,raise_errors=True)
-        frame=normalize_symbol_frame(raw,symbol)
+        frame=normalize_symbol_frame(raw,symbol,latest=latest)
         if len(expected.difference(frame.index)):
             raise DataUnavailable(f"{symbol}: missing settled XNYS bars")
         return symbol,frame.loc[expected,list(PRICE_COLUMNS)].set_axis(expected.tz_localize("UTC"))

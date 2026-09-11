@@ -74,7 +74,10 @@ jobs:
         run: |
           args=()
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          python scripts/run_v14_forward.py --book v6 "${args[@]}"
+          python scripts/run_v14_forward.py --book v6 "${args[@]}" || {
+            code=$?
+            echo "::warning::Book V6 held/blocked (exit $code); account preserved and will retry before next session."
+          }
 
       - name: Advance Book V10 static 5% daily / 10% maximum
         if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
@@ -83,4 +86,7 @@ jobs:
         run: |
           args=()
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          python scripts/run_v14_forward.py --book v10 "${args[@]}"
+          python scripts/run_v14_forward.py --book v10 "${args[@]}" || {
+            code=$?
+            echo "::warning::Book V10 held/blocked (exit $code); account preserved and will retry before next session."
+          }

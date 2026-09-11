@@ -13,6 +13,7 @@ from apex_quant.forward_v14.data import (
     DataUnavailable,
     MarketData,
     normalize_boe_xml,
+    normalize_symbol_frame,
     next_session,
     select_fx,
     session_close_utc,
@@ -404,3 +405,38 @@ def test_production_sources_have_no_broker_dependency_and_workflow_serializes():
     assert "cancel-in-progress: false" in workflow
     assert "--book v6" in workflow and "--book v10" in workflow
     assert 'cron: "30 23 * * 1-5"' in workflow
+
+
+def test_normalize_symbol_frame_filters_future_nan_bars_and_all_nan_rows():
+    raw = pd.DataFrame(
+        {
+            "open": [100.0, 101.0, np.nan],
+            "high": [102.0, 103.0, np.nan],
+            "low": [99.0, 100.0, np.nan],
+            "close": [101.5, 102.5, np.nan],
+        },
+        index=pd.to_datetime(["2026-09-08", "2026-09-09", "2026-09-10"]),
+    )
+    # When latest session is 2026-09-09, future 2026-09-10 bar with NaNs is cleanly ignored
+    normalized = normalize_symbol_frame(raw, "SPY", latest="2026-09-09")
+    assert len(normalized) == 2
+    assert "2026-09-10" not in normalized.index
+    assert np.isfinite(normalized.to_numpy()).all()
+
+    # If latest is None, all-NaN rows are dropped
+    normalized_all_nan = normalize_symbol_frame(raw, "SPY")
+    assert len(normalized_all_nan) == 2
+
+    # A non-finite value inside a settled session still correctly raises DataUnavailable
+    bad_settled = pd.DataFrame(
+        {
+            "open": [100.0, np.nan],
+            "high": [102.0, 103.0],
+            "low": [99.0, 100.0],
+            "close": [101.5, 102.5],
+        },
+        index=pd.to_datetime(["2026-09-08", "2026-09-09"]),
+    )
+    with pytest.raises(DataUnavailable, match="non-finite or non-positive OHLC"):
+        normalize_symbol_frame(bad_settled, "SPY", latest="2026-09-09")
+

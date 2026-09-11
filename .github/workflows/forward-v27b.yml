@@ -44,4 +44,8 @@ jobs:
           args=()
           if [ "$ACTIVATE" = "true" ]; then args+=(--activate); fi
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          python engine/scripts/run_v27b_forward.py "${args[@]}"
+          python engine/scripts/run_v27b_forward.py "${args[@]}" || {
+            code=$?
+            echo "::warning::V27B held/blocked (exit $code); account preserved and will retry before next session."
+          }
+

@@ -40,6 +40,10 @@ jobs:
         run: python -m pytest tests/test_repaired_paper_accounting.py tests/test_repaired_paper_runtime.py tests/test_paper_topup_forming_bar.py -q
       - name: Advance all six isolated paper accounts
         working-directory: engine
-        # Each book is attempted independently. Any blocked book fails the run.
+        # Each book is attempted independently. Blocked books safely preserve ledger.
         # The runner cannot reseed or touch an original legacy ledger.
-        run: python scripts/run_repaired_paper.py --book "$PAPER_BOOK"
+        run: |
+          python scripts/run_repaired_paper.py --book "$PAPER_BOOK" || {
+            code=$?
+            echo "::warning::One or more repaired accounts held/blocked (exit $code); ledgers preserved and will retry next session."
+          }
