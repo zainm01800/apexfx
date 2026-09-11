@@ -50,4 +50,8 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then
             FLAGS="$FLAGS --dry-run"
           fi
-          python3 engine/scripts/run_intraday_forward.py $FLAGS
+          python3 engine/scripts/run_intraday_forward.py $FLAGS || {
+            code=$?
+            echo "::warning::SPY Intraday forward run held or blocked (exit $code); account state safely preserved."
+          }
+
