@@ -242,16 +242,7 @@ function renderPanel() {
   }
   $('bookPanel').innerHTML=`<div class="ws-trades">${rows.map(t=>(t.is_radar || !BOOKS[book].legacy)?tradeCard(t,panel):legacyTradeCard(t,panel,book,model.repaired)).join('')}</div>`;
 }
-const PRESET_QUOTES = {
-  EFA: { sym: 'EFA', open: 106.00, close: 106.07, high: 106.33, low: 105.825 },
-  GSG: { sym: 'GSG', open: 36.39, close: 36.495, high: 36.50, low: 36.23 },
-  SPY: { sym: 'SPY', open: 758.03, close: 759.09, high: 760.09, low: 756.64 },
-  NFLX: { sym: 'NFLX', open: 75.282, close: 75.913, high: 76.29, low: 75.03 },
-  COST: { sym: 'COST', open: 906.28, close: 902.385, high: 912.09, low: 902.155 },
-  ABBV: { sym: 'ABBV', open: 251.23, close: 252.08, high: 254.395, low: 249.735 },
-  AAPL: { sym: 'AAPL', open: 316.79, close: 321.88, high: 323.129, low: 316.57 }
-};
-const quoteCache = new Map(Object.entries(PRESET_QUOTES));
+const quoteCache = new Map();
 try {
   if (typeof sessionStorage !== 'undefined') {
     const saved = sessionStorage.getItem('apexfx_quotes');
@@ -276,7 +267,7 @@ function enrichWithCachedQuotes(m, selected) {
   if (!m || !m.payload) return false;
   const now = new Date();
   const utcMins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const isUsOpen = utcMins >= 810 && utcMins <= 1230;
+  const isUsOpen = utcMins >= 810 && utcMins <= 1230; // 13:30 to 20:30 UTC
   const todayStr = now.toISOString().slice(0, 10);
   
   const inFlight = (m.payload.pending || []).filter(p => {
@@ -287,6 +278,8 @@ function enrichWithCachedQuotes(m, selected) {
   
   const existingPositions = m.payload.positions || [];
   if (!inFlight.length && !existingPositions.length) return false;
+  // If positions are already settled and market is closed, trust the official database marks
+  if (!isUsOpen && existingPositions.length && !inFlight.length) return false;
   
   const riskGbp = BOOKS[selected]?.trade ? 100000 * BOOKS[selected].trade : 1000;
   
@@ -324,7 +317,7 @@ function enrichWithCachedQuotes(m, selected) {
       };
     });
     m.payload.positions = livePositions;
-  } else if (existingPositions.length) {
+  } else if (existingPositions.length && isUsOpen) {
     m.payload.positions = existingPositions.map(pos => {
       const sym = pos.instrument || pos.symbol;
       const q = quoteCache.get(sym);
@@ -333,7 +326,7 @@ function enrichWithCachedQuotes(m, selected) {
       const dir = String(pos.direction).toUpperCase() === 'SHORT' ? -1 : 1;
       const entryPx = pos.entry_price || q.open;
       const units = pos.units || 1;
-      const pnlGbp = ((lastPx - entryPx) * units * dir) / fxRate;
+      const pnlGbp = ((lastPx - entryPx) * units * dir) / (pos.entry_fx || fxRate);
       return { ...pos, last_px: lastPx, unrealized_pnl_gbp: pnlGbp, is_live_intraday: true };
     });
   }
